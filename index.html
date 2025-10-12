@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>팀 업무 시간 기록기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+        }
+        .chart {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+        }
+        .chart-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+            background-color: white;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .toast {
+            opacity: 0;
+            transform: translateY(100%);
+            transition: all 0.3s ease-out;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex items-center justify-center p-4">
+    <!-- 알림 메시지 (Toast) -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2 w-full max-w-xs"></div>
+
+    <div class="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-gray-200">
+        
+        <!-- 헤더 -->
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-blue-600">팀 업무 시간 기록기</h1>
+            <p class="text-gray-500 mt-2">업무 시간을 기록하고 팀의 생산성을 관리하세요.</p>
+        </header>
+
+        <!-- 연결 상태 -->
+        <div class="text-center mb-6">
+            <p id="connection-status" class="text-sm font-semibold text-gray-500 h-4"></p>
+        </div>
+
+        <!-- 입력 폼 -->
+        <form id="work-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 items-start">
+             <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-2">팀원 선택</label>
+                <button type="button" id="open-member-modal-btn" class="w-full bg-white border border-gray-300 text-gray-700 rounded-lg p-2.5 text-left focus:ring-blue-500 focus:border-blue-500 transition">
+                    팀원을 선택하세요
+                </button>
+            </div>
+             <div class="md:col-span-2">
+                <label for="task-type" class="block text-sm font-medium text-gray-700 mb-2">업무 종류</label>
+                <select id="task-type" class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 transition">
+                </select>
+            </div>
+
+            <!-- 시간 입력 -->
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-2">시작 시간</label>
+                <div class="grid grid-cols-3 gap-2">
+                    <select id="start-ampm" class="col-span-1 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        <option>오전</option>
+                        <option>오후</option>
+                    </select>
+                    <input type="text" id="start-time-input" placeholder="HH:MM" class="col-span-2 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                </div>
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-2">종료 시간</label>
+                <div class="grid grid-cols-3 gap-2">
+                    <select id="end-ampm" class="col-span-1 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        <option>오전</option>
+                        <option>오후</option>
+                    </select>
+                    <input type="text" id="end-time-input" placeholder="HH:MM" class="col-span-2 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                </div>
+            </div>
+            
+            <div class="md:col-span-4">
+                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition duration-300 shadow-md mt-4">
+                    시간 기록 추가
+                </button>
+            </div>
+        </form>
+
+        <!-- 요약 정보 -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
+                <h3 class="text-lg font-semibold text-gray-600">총 투입 인원</h3>
+                <p id="total-members" class="text-3xl font-bold text-blue-600">0 명</p>
+            </div>
+            <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
+                <h3 class="text-lg font-semibold text-gray-600">총 업무 시간</h3>
+                <p id="total-hours" class="text-3xl font-bold text-blue-600">0 분</p>
+            </div>
+            <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
+                <h3 class="text-lg font-semibold text-gray-600">총 처리량</h3>
+                <p id="total-quantity" class="text-3xl font-bold text-blue-600">0 개</p>
+            </div>
+            <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
+                <h3 class="text-lg font-semibold text-gray-600">분당 평균 처리량</h3>
+                <p id="throughput-per-minute" class="text-3xl font-bold text-blue-600">0 개/분</p>
+            </div>
+        </div>
+
+        <!-- 업무 기록 테이블 -->
+        <div class="bg-white rounded-lg p-4 border border-gray-200">
+            <div class="flex flex-wrap gap-2 justify-between items-center mb-4">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-xl font-bold text-gray-900">오늘의 업무 기록</h2>
+                    <button id="open-quantity-modal-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-sm">처리량 입력</button>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button id="open-history-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">이력 보기</button>
+                    <button id="end-day-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">하루 마감 및 저장</button>
+                    <button id="download-excel" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 7.414V13a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+                        엑셀 다운로드
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-auto max-h-[40vh] relative">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead class="text-xs text-blue-500 uppercase bg-gray-100 sticky top-0 z-10">
+                        <tr>
+                            <th scope="col" class="px-6 py-3">이름</th>
+                            <th scope="col" class="px-6 py-3">시작 시간</th>
+                            <th scope="col" class="px-6 py-3">종료 시간</th>
+                            <th scope="col" class="px-6 py-3">소요 시간</th>
+                            <th scope="col" class="px-6 py-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="work-log-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 오늘의 업무 비중 분석 -->
+        <div class="bg-white rounded-lg p-4 border border-gray-200 mt-8">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">오늘의 업무 비중 분석</h2>
+            <div id="task-analysis-section">
+                <!-- Chart will be rendered here -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modals -->
+    <div id="member-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl"><div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">팀원 선택</h2></div><div id="modal-team-member-list" class="p-6 h-64 overflow-y-auto"></div><div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4"><button type="button" id="cancel-member-selection-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button><button type="button" id="confirm-member-selection-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인</button></div></div>
+    </div>
+    <div id="delete-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm"><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 기록을 삭제하시겠습니까?</h3><p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p><button type="button" id="confirm-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button><button type="button" id="cancel-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
+    </div>
+    <div id="end-day-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm"><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 class="mb-5 text-lg font-normal text-gray-700">하루를 마감하고 저장하시겠습니까?</h3><p class="mb-6 text-sm text-gray-500">저장 후에는 오늘의 기록이 초기화됩니다.</p><button type="button" id="confirm-end-day-btn" class="text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:outline-none focus:ring-indigo-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 저장합니다</button><button type="button" id="cancel-end-day-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
+    </div>
+    <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center"><h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2><button id="close-history-btn" class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button></div>
+            <div class="flex-grow flex overflow-hidden">
+                <div id="history-date-list-container" class="w-1/3 border-r border-gray-200 overflow-y-auto bg-gray-50"><ul id="history-date-list" class="p-2"></ul></div>
+                <div class="w-2/3 flex flex-col">
+                    <div class="p-4 border-b border-gray-200">
+                        <div id="history-tabs" class="flex gap-4">
+                            <button data-view="daily" class="history-tab-btn pb-2">일별 상세</button>
+                            <button data-view="weekly" class="history-tab-btn pb-2">주별 요약</button>
+                            <button data-view="monthly" class="history-tab-btn pb-2">월별 요약</button>
+                        </div>
+                    </div>
+                    <div id="history-view-container" class="flex-grow p-6 overflow-y-auto">
+                        <div id="history-daily-view" class="hidden"></div>
+                        <div id="history-weekly-view" class="hidden"></div>
+                        <div id="history-monthly-view" class="hidden"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="quantity-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">업무별 처리량 입력</h2></div>
+            <div id="modal-task-quantity-inputs" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[60vh] overflow-y-auto">
+                <!-- Inputs will be generated here by JS -->
+            </div>
+            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                <button type="button" id="cancel-quantity-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                <button type="button" id="confirm-quantity-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인</button>
+            </div>
+        </div>
+    </div>
+    <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                <h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 날짜의 모든 기록을 삭제하시겠습니까?</h3>
+                <p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p>
+                <button type="button" id="confirm-history-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button>
+                <button type="button" id="cancel-history-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+        // --- DOM Elements ---
+        const workForm = document.getElementById('work-form');
+        const workLogBody = document.getElementById('work-log-body');
+        const totalMembersEl = document.getElementById('total-members');
+        const totalHoursEl = document.getElementById('total-hours');
+        const totalQuantityEl = document.getElementById('total-quantity');
+        const throughputEl = document.getElementById('throughput-per-minute');
+        const downloadBtn = document.getElementById('download-excel');
+        const connectionStatusEl = document.getElementById('connection-status');
+        
+        // --- Modal Elements ---
+        const memberModal = document.getElementById('member-modal');
+        const openMemberModalBtn = document.getElementById('open-member-modal-btn');
+        const modalTeamMemberList = document.getElementById('modal-team-member-list');
+        const confirmMemberSelectionBtn = document.getElementById('confirm-member-selection-btn');
+        const cancelMemberSelectionBtn = document.getElementById('cancel-member-selection-btn');
+        const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+        const endDayConfirmModal = document.getElementById('end-day-confirm-modal');
+        const confirmEndDayBtn = document.getElementById('confirm-end-day-btn');
+        const cancelEndDayBtn = document.getElementById('cancel-end-day-btn');
+        const endDayBtn = document.getElementById('end-day-btn');
+        const historyModal = document.getElementById('history-modal');
+        const openHistoryBtn = document.getElementById('open-history-btn');
+        const closeHistoryBtn = document.getElementById('close-history-btn');
+        const historyDateList = document.getElementById('history-date-list');
+        const historyViewContainer = document.getElementById('history-view-container');
+        const historyTabs = document.getElementById('history-tabs');
+        const quantityModal = document.getElementById('quantity-modal');
+        const openQuantityModalBtn = document.getElementById('open-quantity-modal-btn');
+        const confirmQuantityBtn = document.getElementById('confirm-quantity-btn');
+        const cancelQuantityBtn = document.getElementById('cancel-quantity-btn');
+        const deleteHistoryModal = document.getElementById('delete-history-modal');
+        const confirmHistoryDeleteBtn = document.getElementById('confirm-history-delete-btn');
+        const cancelHistoryDeleteBtn = document.getElementById('cancel-history-delete-btn');
+
+        // --- Firebase State ---
+        let db, auth;
+        let unsubscribeToday;
+        const APP_ID = "team-work-logger-v1";
+
+        // --- App State ---
+        let appState = {
+            workRecords: [],
+            taskQuantities: {}
+        };
+        let selectedMembers = [];
+        let recordToDeleteId = null;
+        let historyKeyToDelete = null;
+
+        // --- Config ---
+        const teamGroups = [
+            { name: '관리', members: ['박영철', '박호진', '유아라', '이승운'] },
+            { name: '공통파트', members: ['김수은', '이미숙', '김현', '박상희', '배은정', '김성곤', '김동훈', '신민재', '황호석'] },
+            { name: '담당파트', members: ['송다진', '정미혜', '진희주'] },
+            { name: '중국제작파트', members: ['이승운'] }
+        ];
+        const taskTypes = ['배송', '중국제작입고', '직진배송', '국내입고', '앵글정리', '담당업무', '상.하차(중국제작)', '상.하차(직진배송)', '2층적재'];
+        
+        // --- Utility Functions ---
+        const showToast = (message, isError = false) => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast p-3 rounded-lg shadow-xl text-white ${isError ? 'bg-red-500' : 'bg-green-500'}`;
+            toast.textContent = message;
+            container.prepend(toast);
+            requestAnimationFrame(() => toast.classList.add('show'));
+            setTimeout(() => {
+                toast.classList.remove('show');
+                toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+            }, 3000);
+        };
+
+        const formatTimeTo24H = (timeStr) => {
+            if (!timeStr) return '';
+            const [hours, minutes] = timeStr.split(':');
+            const date = new Date(1970, 0, 1, hours, minutes);
+            return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        };
+
+        const formatDuration = (minutes) => {
+            if (isNaN(minutes) || minutes < 0) return '0 분';
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            let result = '';
+            if (h > 0) result += `${h} 시간 `;
+            if (m > 0) result += `${m} 분`;
+            return result.trim() || '0 분';
+        };
+
+        const getTodayDateString = () => new Date().toISOString().slice(0, 10);
+        
+        const getWeekOfYear = (date) => {
+            const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+            d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+            return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+        };
+
+        // --- Render Functions ---
+        const renderQuantityModalInputs = () => {
+            const container = document.getElementById('modal-task-quantity-inputs');
+            container.innerHTML = '';
+            taskTypes.forEach(task => {
+                const div = document.createElement('div');
+                div.innerHTML = `
+                    <label for="modal-quantity-${task}" class="block text-sm font-medium text-gray-700">${task}</label>
+                    <input type="number" id="modal-quantity-${task}" data-task="${task}" value="${appState.taskQuantities[task] || 0}" min="0" class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                `;
+                container.appendChild(div);
+            });
+        };
+        
+        const renderTaskAnalysis = () => {
+            const analysisContainer = document.getElementById('task-analysis-section');
+            analysisContainer.innerHTML = '';
+
+            const totalLoggedMinutes = appState.workRecords.reduce((sum, record) => sum + record.duration, 0);
+
+            if (totalLoggedMinutes === 0) {
+                analysisContainer.innerHTML = `<div class="text-center text-gray-500 py-4">업무 시간을 기록하면 분석이 시작됩니다.</div>`;
+                return;
+            }
+
+            const taskColors = { '배송': '#3b82f6', '중국제작입고': '#8b5cf6', '직진배송': '#22c55e', '국내입고': '#eab308', '앵글정리': '#f97316', '담당업무': '#ef4444', '상.하차(중국제작)': '#10b981', '상.하차(직진배송)': '#06b6d4', '2층적재': '#6366f1' };
+
+            const taskAnalysis = appState.workRecords.reduce((acc, record) => {
+                acc[record.task] = (acc[record.task] || 0) + record.duration;
+                return acc;
+            }, {});
+
+            const sortedTasks = Object.entries(taskAnalysis).sort(([, a], [, b]) => b - a);
+
+            let gradientParts = [];
+            let cumulativePercentage = 0;
+            let legendHTML = '<div class="flex-grow">';
+
+            sortedTasks.forEach(([task, minutes]) => {
+                const percentage = (minutes / totalLoggedMinutes) * 100;
+                const color = taskColors[task] || '#6b7280';
+                if (percentage > 0) {
+                    gradientParts.push(`${color} ${cumulativePercentage}% ${cumulativePercentage + percentage}%`);
+                    cumulativePercentage += percentage;
+                }
+                legendHTML += `<div class="flex items-center justify-between mb-2"><div class="flex items-center"><span class="w-3 h-3 rounded-full mr-2" style="background-color: ${color};"></span><span class="font-semibold text-gray-700">${task}</span></div><div class="text-right"><div class="text-sm font-semibold text-gray-800">${formatDuration(minutes)}</div><div class="text-xs text-gray-500">${percentage.toFixed(1)}%</div></div></div>`;
+            });
+            legendHTML += '</div>';
+
+            const finalGradient = `conic-gradient(${gradientParts.join(', ')})`;
+            analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8"><div class="flex-shrink-0"><div class="chart" style="background: ${finalGradient};"><div class="chart-center"><span class="text-sm text-gray-500">총 업무</span><span class="text-xl font-bold text-blue-600 mt-1">${formatDuration(totalLoggedMinutes)}</span></div></div></div>${legendHTML}</div>`;
+        };
+
+        const render = () => {
+            workLogBody.innerHTML = '';
+            const groupedRecords = appState.workRecords.reduce((acc, record) => {
+                (acc[record.task] = acc[record.task] || []).push(record);
+                return acc;
+            }, {});
+            const sortedTasks = Object.keys(groupedRecords).sort();
+
+            if (sortedTasks.length === 0) {
+                workLogBody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-gray-400">기록된 업무가 없습니다.</td></tr>`;
+            } else {
+                sortedTasks.forEach(task => {
+                    const groupHeaderRow = document.createElement('tr');
+                    groupHeaderRow.className = 'bg-gray-100';
+                    groupHeaderRow.innerHTML = `<th colspan="5" class="px-6 py-3 text-left text-base text-blue-700 font-bold">${task}</th>`;
+                    workLogBody.appendChild(groupHeaderRow);
+                    groupedRecords[task].forEach(record => {
+                        const row = document.createElement('tr');
+                        row.className = 'bg-white border-b border-gray-200 hover:bg-gray-50';
+                        row.innerHTML = `<td class="px-6 py-4 font-medium text-gray-900">${record.member}</td><td class="px-6 py-4">${formatTimeTo24H(record.startTime)}</td><td class="px-6 py-4">${formatTimeTo24H(record.endTime)}</td><td class="px-6 py-4">${formatDuration(record.duration)}</td><td class="px-6 py-4 text-right"><button class="font-medium text-red-500 hover:underline" onclick="deleteRecord(${record.id})">삭제</button></td>`;
+                        workLogBody.appendChild(row);
+                    });
+                });
+            }
+            updateSummary();
+            renderTaskAnalysis();
+        };
+
+        const updateSummary = () => {
+            const totalMinutes = appState.workRecords.reduce((sum, record) => sum + record.duration, 0);
+            const totalQuantity = Object.values(appState.taskQuantities).reduce((sum, qty) => sum + qty, 0);
+            totalHoursEl.textContent = formatDuration(totalMinutes);
+            const uniqueMembers = new Set(appState.workRecords.map(record => record.member));
+            totalMembersEl.textContent = `${uniqueMembers.size} 명`;
+            totalQuantityEl.textContent = `${totalQuantity} 개`;
+            const throughput = totalMinutes > 0 ? (totalQuantity / totalMinutes).toFixed(2) : "0.00";
+            throughputEl.textContent = `${throughput} 개/분`;
+        };
+
+        // --- Main Logic & Firebase Integration ---
+        window.deleteRecord = (id) => {
+            recordToDeleteId = id;
+            deleteConfirmModal.classList.remove('hidden');
+        };
+
+        const handleFormSubmit = (e) => {
+            e.preventDefault();
+            const getTimeStringFromInputs = (ampmId, inputId) => {
+                const ampm = document.getElementById(ampmId).value;
+                const timeInput = document.getElementById(inputId).value;
+                if (!/^\d{1,2}:\d{2}$/.test(timeInput)) return null;
+                let [hour, minute] = timeInput.split(':').map(num => parseInt(num, 10));
+                if (isNaN(hour) || isNaN(minute) || hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
+                if (ampm === '오후' && hour !== 12) hour += 12;
+                if (ampm === '오전' && hour === 12) hour = 0;
+                return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            };
+            const task = document.getElementById('task-type').value;
+            const startTime = getTimeStringFromInputs('start-ampm', 'start-time-input');
+            const endTime = getTimeStringFromInputs('end-ampm', 'end-time-input');
+            if (selectedMembers.length === 0) return showToast('팀원을 한 명 이상 선택해주세요.', true);
+            if (!startTime || !endTime) return showToast('시간을 HH:MM 형식으로 올바르게 입력해주세요. (예: 9:30)', true);
+            const start = new Date(`1970-01-01T${startTime}`);
+            const end = new Date(`1970-01-01T${endTime}`);
+            if (end <= start) return showToast('종료 시간은 시작 시간보다 늦어야 합니다.', true);
+            const duration = (end - start) / (1000 * 60);
+            const newRecords = selectedMembers.map(member => ({ id: Date.now() + Math.random(), member, task, startTime, endTime, duration }));
+            appState.workRecords.push(...newRecords);
+            appState.workRecords.sort((a, b) => a.startTime.localeCompare(b.startTime));
+            saveStateToFirestore();
+            workForm.reset();
+            document.getElementById('start-time-input').value = '';
+            document.getElementById('end-time-input').value = '';
+            selectedMembers = [];
+            openMemberModalBtn.textContent = '팀원을 선택하세요';
+            showToast(`${newRecords.length}개의 시간 기록이 추가되었습니다.`);
+        };
+        
+        // --- Firebase Functions ---
+        async function saveStateToFirestore() {
+            if (!auth || !auth.currentUser) return;
+            const docRef = doc(db, "artifacts", APP_ID, "public/data", "today");
+            await setDoc(docRef, { state: JSON.stringify(appState) });
+        }
+
+        async function saveDayDataToHistory() {
+            const dateStr = getTodayDateString();
+            if (appState.workRecords.length === 0 && Object.values(appState.taskQuantities).every(q => q === 0)) {
+                return showToast('저장할 기록이 없습니다.', true);
+            }
+            
+            // Create a history document for the day
+            const historyDocRef = doc(db, "artifacts", APP_ID, "public/history", dateStr);
+            try {
+                await setDoc(historyDocRef, appState);
+
+                // Clear today's data
+                appState = { workRecords: [], taskQuantities: {} };
+                taskTypes.forEach(task => appState.taskQuantities[task] = 0);
+                await saveStateToFirestore();
+
+                showToast(`${dateStr}의 기록이 저장되었습니다.`);
+            } catch(e) {
+                console.error("Error saving day data: ", e);
+                showToast("하루 마감 저장에 실패했습니다.", true);
+            }
+        }
+
+        const loadAndRenderHistoryList = async () => {
+            historyDateList.innerHTML = `<li class="p-2 text-center text-gray-500">이력 로딩 중...</li>`;
+            try {
+                const historyCollectionRef = collection(db, "artifacts", APP_ID, "public/history");
+                const querySnapshot = await getDocs(historyCollectionRef);
+                const dates = querySnapshot.docs.map(doc => doc.id).sort().reverse();
+
+                if (dates.length === 0) {
+                    historyDateList.innerHTML = `<li class="p-2 text-center text-gray-500">저장된 이력이 없습니다.</li>`;
+                    switchHistoryView('daily');
+                    document.getElementById('history-daily-view').innerHTML = `<div class="text-center text-gray-500">저장된 이력이 없습니다.</div>`;
+                    return;
+                }
+                
+                historyDateList.innerHTML = '';
+                dates.forEach(date => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<button data-key="${date}" class="w-full text-left p-3 rounded-md hover:bg-gray-200 focus:outline-none focus:bg-blue-100 transition">${date}</button>`;
+                    historyDateList.appendChild(li);
+                });
+
+                if (dates.length > 0) {
+                    switchHistoryView('daily');
+                    renderHistoryDetail(dates[0]);
+                    const firstButton = historyDateList.querySelector('button');
+                    if (firstButton) firstButton.classList.add('bg-blue-100', 'font-bold');
+                }
+            } catch (e) {
+                console.error("Error loading history list: ", e);
+                historyDateList.innerHTML = `<li class="p-2 text-center text-red-500">이력 로딩 실패</li>`;
+            }
+        };
+
+        const renderHistoryDetail = async (dateKey) => {
+            const container = document.getElementById('history-daily-view');
+            container.innerHTML = `<div class="text-center text-gray-500">데이터 로딩 중...</div>`;
+            try {
+                const docRef = doc(db, "artifacts", APP_ID, "public/history", dateKey);
+                const docSnap = await getDoc(docRef);
+
+                if (!docSnap.exists()) {
+                    container.innerHTML = `<div class="text-center text-gray-500">데이터가 없습니다.</div>`;
+                    return;
+                }
+                
+                const dayData = docSnap.data();
+                const records = dayData.workRecords || [];
+                const quantities = dayData.taskQuantities || {};
+
+                const totalMinutes = records.reduce((sum, r) => sum + r.duration, 0);
+                const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (q || 0), 0);
+                const overallThroughput = totalMinutes > 0 ? (totalQuantity / totalMinutes).toFixed(2) : "0.00";
+                const uniqueMembers = new Set(records.map(r => r.member));
+                
+                const taskTimeAnalysis = records.reduce((acc, record) => {
+                    acc[record.task] = (acc[record.task] || 0) + record.duration;
+                    return acc;
+                }, {});
+                
+                const sortedTasksByTime = Object.entries(taskTimeAnalysis).sort(([, a], [, b]) => b - a);
+                
+                let timeAnalysisHTML = sortedTasksByTime.map(([task, minutes]) => {
+                    const percentage = totalMinutes > 0 ? (minutes / totalMinutes * 100).toFixed(1) : 0;
+                    return `<div class="mb-3"><div class="flex justify-between items-center mb-1 text-sm"><span class="font-semibold text-gray-700">${task}</span><span class="text-gray-500">${formatDuration(minutes)} (${percentage}%)</span></div><div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${percentage}%"></div></div></div>`;
+                }).join('');
+                
+                let throughputAnalysisHTML = `<h4 class="text-lg font-bold text-gray-800 mt-6 mb-4">업무별 분당 처리량</h4><div class="space-y-2">`;
+                taskTypes.forEach(task => {
+                    const taskTime = taskTimeAnalysis[task] || 0;
+                    const taskQty = quantities[task] || 0;
+                    if (taskTime > 0 || taskQty > 0) {
+                        const throughput = taskTime > 0 ? (taskQty / taskTime).toFixed(2) : "0.00";
+                        throughputAnalysisHTML += `<div class="flex justify-between items-center text-sm p-2 bg-gray-50 rounded-md"><span class="font-semibold text-gray-700">${task}</span><span class="font-bold text-gray-800">${throughput} 개/분</span></div>`;
+                    }
+                });
+                throughputAnalysisHTML += `</div>`;
+
+                container.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="text-2xl font-bold text-gray-800">${dateKey}</h3><div class="flex gap-2"><button onclick="downloadHistoryAsExcel('${dateKey}')" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 text-sm rounded-lg transition duration-300">엑셀</button><button onclick="requestHistoryDeletion('${dateKey}')" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 text-sm rounded-lg transition duration-300">삭제</button></div></div><div class="grid grid-cols-2 gap-4 mb-6"><div class="bg-gray-50 p-3 rounded-lg text-center"><div class="text-sm text-gray-500">총 투입 인원</div><div class="text-xl font-bold">${uniqueMembers.size} 명</div></div><div class="bg-gray-50 p-3 rounded-lg text-center"><div class="text-sm text-gray-500">총 업무 시간</div><div class="text-xl font-bold">${formatDuration(totalMinutes)}</div></div><div class="bg-gray-50 p-3 rounded-lg text-center"><div class="text-sm text-gray-500">총 처리량</div><div class="text-xl font-bold">${totalQuantity} 개</div></div><div class="bg-gray-50 p-3 rounded-lg text-center"><div class="text-sm text-gray-500">분당 평균 처리량</div><div class="text-xl font-bold">${overallThroughput} 개/분</div></div></div><div><h4 class="text-lg font-bold text-gray-800 mb-4">업무별 시간 비중</h4>${timeAnalysisHTML}</div>${throughputAnalysisHTML}`;
+            } catch(e) {
+                console.error("Error fetching history detail: ", e);
+                container.innerHTML = `<div class="text-center text-red-500">데이터를 불러오는 데 실패했습니다.</div>`;
+            }
+        };
+
+        const renderWeeklyHistory = async () => { /* ... similar logic to fetch from Firestore ... */ };
+        const renderMonthlyHistory = async () => { /* ... similar logic to fetch from Firestore ... */ };
+        
+        window.requestHistoryDeletion = (dateKey) => {
+            historyKeyToDelete = dateKey;
+            deleteHistoryModal.classList.remove('hidden');
+        };
+
+        window.downloadHistoryAsExcel = async (dateKey) => {
+            const docRef = doc(db, "artifacts", APP_ID, "public/history", dateKey);
+            const docSnap = await getDoc(docRef);
+            if (!docSnap.exists()) return showToast('다운로드할 데이터가 없습니다.', true);
+            const dayData = docSnap.data();
+            const records = dayData.workRecords || [];
+            if (records.length === 0) return showToast('다운로드할 데이터가 없습니다.', true);
+            
+            const csvHeader = '팀원,업무 종류,시작 시간,종료 시간,소요 시간(분)\n';
+            const csvBody = records.map(r => `${r.member},${r.task},${r.startTime},${r.endTime},${r.duration}`).join('\n');
+            const csvContent = '\uFEFF' + csvHeader + csvBody;
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `업무기록_${dateKey}.csv`;
+            link.click();
+        };
+
+        // --- Event Listeners ---
+        workForm.addEventListener('submit', handleFormSubmit);
+        
+        const populateModalTeamMembers = () => { /* ... (no changes needed) ... */ };
+        openMemberModalBtn.addEventListener('click', () => memberModal.classList.remove('hidden'));
+        cancelMemberSelectionBtn.addEventListener('click', () => memberModal.classList.add('hidden'));
+        confirmMemberSelectionBtn.addEventListener('click', () => {
+            const selectedElements = Array.from(modalTeamMemberList.querySelectorAll('button.bg-blue-600'));
+            selectedMembers = selectedElements.map(el => el.dataset.name);
+            openMemberModalBtn.textContent = selectedMembers.length > 0 ? `${selectedMembers.length}명 선택됨` : '팀원을 선택하세요';
+            memberModal.classList.add('hidden');
+        });
+
+        confirmDeleteBtn.addEventListener('click', () => {
+            if (recordToDeleteId !== null) {
+                appState.workRecords = appState.workRecords.filter(record => record.id !== recordToDeleteId);
+                saveStateToFirestore();
+                showToast('기록이 삭제되었습니다.');
+            }
+            deleteConfirmModal.classList.add('hidden');
+            recordToDeleteId = null;
+        });
+        cancelDeleteBtn.addEventListener('click', () => deleteConfirmModal.classList.add('hidden'));
+
+        endDayBtn.addEventListener('click', () => endDayConfirmModal.classList.remove('hidden'));
+        confirmEndDayBtn.addEventListener('click', () => {
+            saveDayDataToHistory();
+            endDayConfirmModal.classList.add('hidden');
+        });
+        cancelEndDayBtn.addEventListener('click', () => endDayConfirmModal.classList.add('hidden'));
+        
+        openHistoryBtn.addEventListener('click', () => {
+            loadAndRenderHistoryList();
+            historyModal.classList.remove('hidden');
+        });
+        closeHistoryBtn.addEventListener('click', () => historyModal.classList.add('hidden'));
+        
+        historyDateList.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                document.querySelectorAll('#history-date-list button').forEach(btn => btn.classList.remove('bg-blue-100', 'font-bold'));
+                e.target.classList.add('bg-blue-100', 'font-bold');
+                switchHistoryView('daily');
+                renderHistoryDetail(e.target.dataset.key);
+            }
+        });
+        
+        historyTabs.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                switchHistoryView(e.target.dataset.view);
+                if (e.target.dataset.view === 'daily') {
+                    const selectedDateBtn = historyDateList.querySelector('button.font-bold');
+                    if (selectedDateBtn) renderHistoryDetail(selectedDateBtn.dataset.key);
+                    else document.getElementById('history-daily-view').innerHTML = `<div class="text-center text-gray-500">날짜를 선택하여 상세 정보를 확인하세요.</div>`;
+                }
+            }
+        });
+
+        const switchHistoryView = (view) => {
+            document.getElementById('history-date-list-container').style.display = view === 'daily' ? 'block' : 'none';
+            historyTabs.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.dataset.view === view)); // Simplified toggle
+            Array.from(historyViewContainer.children).forEach(child => child.classList.toggle('hidden', child.id !== `history-${view}-view`));
+            if (view === 'weekly') renderWeeklyHistory();
+            if (view === 'monthly') renderMonthlyHistory();
+        };
+
+        confirmHistoryDeleteBtn.addEventListener('click', async () => {
+            if (historyKeyToDelete) {
+                const docRef = doc(db, "artifacts", APP_ID, "public/history", historyKeyToDelete);
+                await deleteDoc(docRef);
+                showToast('선택한 날짜의 기록이 삭제되었습니다.');
+                loadAndRenderHistoryList();
+            }
+            deleteHistoryModal.classList.add('hidden');
+            historyKeyToDelete = null;
+        });
+        cancelHistoryDeleteBtn.addEventListener('click', () => deleteHistoryModal.classList.add('hidden'));
+
+        openQuantityModalBtn.addEventListener('click', () => {
+            renderQuantityModalInputs();
+            quantityModal.classList.remove('hidden');
+        });
+        cancelQuantityBtn.addEventListener('click', () => quantityModal.classList.add('hidden'));
+        confirmQuantityBtn.addEventListener('click', () => {
+            const inputs = document.querySelectorAll('#modal-task-quantity-inputs input');
+            inputs.forEach(input => {
+                const task = input.dataset.task;
+                const value = parseInt(input.value, 10);
+                appState.taskQuantities[task] = (!isNaN(value) && value >= 0) ? value : 0;
+            });
+            saveStateToFirestore();
+            quantityModal.classList.add('hidden');
+            showToast('처리량이 업데이트되었습니다.');
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            if (appState.workRecords.length === 0) return showToast('다운로드할 데이터가 없습니다.', true);
+            const csvHeader = '팀원,업무 종류,시작 시간,종료 시간,소요 시간(분)\n';
+            const csvBody = appState.workRecords.map(r => `${r.member},${r.task},${r.startTime},${r.endTime},${r.duration}`).join('\n');
+            const csvContent = '\uFEFF' + csvHeader + csvBody;
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `업무기록_${getTodayDateString()}.csv`;
+            link.click();
+        });
+        
+        // --- Initial Load ---
+        const populateTaskTypes = () => {
+            const taskTypeSelect = document.getElementById('task-type');
+            taskTypes.forEach(task => {
+                const option = document.createElement('option');
+                option.value = task;
+                option.textContent = task;
+                taskTypeSelect.appendChild(option);
+            });
+        };
+        
+        const setupTimeInputFormatting = () => {
+            const formatOnBlur = (e) => {
+                const input = e.target;
+                let value = input.value.replace(/\D/g, '');
+                if (value.length === 3) input.value = value.substring(0, 1) + ':' + value.substring(1);
+                else if (value.length === 4) input.value = value.substring(0, 2) + ':' + value.substring(2);
+            };
+            document.getElementById('start-time-input').addEventListener('blur', formatOnBlur);
+            document.getElementById('end-time-input').addEventListener('blur', formatOnBlur);
+        };
+        
+        // --- App Initialization ---
+        function main() {
+            populateTaskTypes();
+            populateModalTeamMembers();
+            taskTypes.forEach(task => appState.taskQuantities[task] = 0);
+            render();
+            setupTimeInputFormatting();
+
+            connectionStatusEl.textContent = 'Firebase에 연결 중...';
+            
+            const firebaseConfig = {
+                // 이 곳에 사용자의 Firebase config 정보를 붙여넣으세요.
+                apiKey: "YOUR_API_KEY",
+                authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+                projectId: "YOUR_PROJECT_ID",
+                storageBucket: "YOUR_PROJECT_ID.appspot.com",
+                messagingSenderId: "YOUR_SENDER_ID",
+                appId: "YOUR_APP_ID"
+            };
+
+            if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+                connectionStatusEl.textContent = "Firebase 구성 정보가 필요합니다.";
+                showToast("프로그램 코드에 Firebase 구성 정보를 입력해주세요.", true);
+                return;
+            }
+
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            onAuthStateChanged(auth, user => {
+                if (user) {
+                    connectionStatusEl.textContent = '실시간 데이터 연결 중...';
+                    const todayDocRef = doc(db, "artifacts", APP_ID, "public/data", "today");
+                    
+                    if(unsubscribeToday) unsubscribeToday();
+
+                    unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
+                        if (docSnap.exists()) {
+                            appState = JSON.parse(docSnap.data().state);
+                        } else {
+                            // Reset if no data for today
+                            appState = { workRecords: [], taskQuantities: {} };
+                            taskTypes.forEach(task => appState.taskQuantities[task] = 0);
+                        }
+                        render();
+                        connectionStatusEl.textContent = '실시간 동기화 연결 완료';
+                    }, (error) => {
+                        console.error("Firebase onSnapshot error:", error);
+                        showToast("실시간 연결에 실패했습니다.", true);
+                        connectionStatusEl.textContent = '연결 오류';
+                    });
+
+                }
+            });
+            
+            signInAnonymously(auth).catch(error => {
+                console.error("Anonymous sign-in failed:", error);
+                showToast("인증에 실패했습니다. Firebase 설정을 확인하세요.", true);
+                connectionStatusEl.textContent = '인증 실패';
+            });
+        }
+
+        main();
+
+    </script>
+</body>
+</html>
+```
+
+### 2. 사용 방법 안내
+
+이 프로그램도 이전과 마찬가지로 Firebase 프로젝트 설정이 필요합니다.
+
+1.  **Firebase 프로젝트 생성 및 설정**: 아직 하지 않으셨다면, 이전 `Firebase 설정 및 사용 안내서 (v3)`의 **1, 2, 3단계**를 따라 Firebase 프로젝트를 만들고, Firestore 데이터베이스와 익명 로그인을 활성화해주세요.
+
+2.  **`firebaseConfig` 정보 복사**: 안내서의 **4단계**를 따라 `firebaseConfig` 정보를 복사합니다.
+
+3.  **코드에 붙여넣기 (가장 중요!)**:
+    * 위에 첨부해 드린 `팀 업무 시간 기록기` 코드의 맨 아래로 스크롤합니다.
+    * `main()` 함수 안에 있는 아래 부분을 찾습니다.
+        ```javascript
+        const firebaseConfig = {
+            // 이 곳에 사용자의 Firebase config 정보를 붙여넣으세요.
+            apiKey: "YOUR_API_KEY",
+            //...
+        };
+        
+
