@@ -222,8 +222,21 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+        // ===================================================================================
+        // 중요: 이 객체에 Firebase 프로젝트의 구성 정보를 붙여넣으세요.
+        // ===================================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
+            authDomain: "work-tool-e2943.firebaseapp.com",
+            projectId: "work-tool-e2943",
+            storageBucket: "work-tool-e2943.appspot.com",
+            messagingSenderId: "133294945093",
+            appId: "1:133294945093:web:cde90aab6716127512842c",
+            measurementId: "G-ZZQLKB0057"
+        };
 
         // --- DOM Elements ---
         const workForm = document.getElementById('work-form');
@@ -395,7 +408,7 @@
                     groupHeaderRow.className = 'bg-gray-100';
                     groupHeaderRow.innerHTML = `<th colspan="5" class="px-6 py-3 text-left text-base text-blue-700 font-bold">${task}</th>`;
                     workLogBody.appendChild(groupHeaderRow);
-                    groupedRecords[task].forEach(record => {
+                    groupedRecords[task].sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(record => {
                         const row = document.createElement('tr');
                         row.className = 'bg-white border-b border-gray-200 hover:bg-gray-50';
                         row.innerHTML = `<td class="px-6 py-4 font-medium text-gray-900">${record.member}</td><td class="px-6 py-4">${formatTimeTo24H(record.startTime)}</td><td class="px-6 py-4">${formatTimeTo24H(record.endTime)}</td><td class="px-6 py-4">${formatDuration(record.duration)}</td><td class="px-6 py-4 text-right"><button class="font-medium text-red-500 hover:underline" onclick="deleteRecord(${record.id})">삭제</button></td>`;
@@ -470,16 +483,12 @@
                 return showToast('저장할 기록이 없습니다.', true);
             }
             
-            // Create a history document for the day
             const historyDocRef = doc(db, "artifacts", APP_ID, "public/history", dateStr);
             try {
                 await setDoc(historyDocRef, appState);
-
-                // Clear today's data
                 appState = { workRecords: [], taskQuantities: {} };
                 taskTypes.forEach(task => appState.taskQuantities[task] = 0);
                 await saveStateToFirestore();
-
                 showToast(`${dateStr}의 기록이 저장되었습니다.`);
             } catch(e) {
                 console.error("Error saving day data: ", e);
@@ -571,8 +580,140 @@
             }
         };
 
-        const renderWeeklyHistory = async () => { /* ... similar logic to fetch from Firestore ... */ };
-        const renderMonthlyHistory = async () => { /* ... similar logic to fetch from Firestore ... */ };
+        const renderWeeklyHistory = async () => {
+            const container = document.getElementById('history-weekly-view');
+            container.innerHTML = `<div class="text-center text-gray-500">주별 데이터 집계 중...</div>`;
+            try {
+                const historyCollectionRef = collection(db, "artifacts", APP_ID, "public/history");
+                const querySnapshot = await getDocs(historyCollectionRef);
+                if (querySnapshot.empty) {
+                    container.innerHTML = `<div class="text-center text-gray-500">요약할 데이터가 없습니다.</div>`;
+                    return;
+                }
+
+                const weeklyData = {};
+                querySnapshot.forEach(doc => {
+                    const dateStr = doc.id;
+                    const dayData = doc.data();
+                    const records = dayData.workRecords || [];
+                    const quantities = dayData.taskQuantities || {};
+                    const dailyTotalMinutes = records.reduce((sum, r) => sum + r.duration, 0);
+                    const dailyTotalQuantity = Object.values(quantities).reduce((sum, q) => sum + (q || 0), 0);
+
+                    if (dailyTotalMinutes > 0 || dailyTotalQuantity > 0) {
+                        const weekKey = getWeekOfYear(new Date(dateStr));
+                        if (!weeklyData[weekKey]) weeklyData[weekKey] = { totalMinutes: 0, totalQuantity: 0, taskData: {} };
+                        weeklyData[weekKey].totalMinutes += dailyTotalMinutes;
+                        weeklyData[weekKey].totalQuantity += dailyTotalQuantity;
+                        records.forEach(record => {
+                            if (!weeklyData[weekKey].taskData[record.task]) weeklyData[weekKey].taskData[record.task] = { minutes: 0, quantity: 0 };
+                            weeklyData[weekKey].taskData[record.task].minutes += record.duration;
+                        });
+                        Object.entries(quantities).forEach(([task, qty]) => {
+                            if (qty > 0) {
+                                if (!weeklyData[weekKey].taskData[task]) weeklyData[weekKey].taskData[task] = { minutes: 0, quantity: 0 };
+                                weeklyData[weekKey].taskData[task].quantity += qty;
+                            }
+                        });
+                    }
+                });
+
+                const sortedWeeks = Object.keys(weeklyData).sort().reverse();
+                if (sortedWeeks.length === 0) {
+                     container.innerHTML = `<div class="text-center text-gray-500">요약할 데이터가 없습니다.</div>`;
+                     return;
+                }
+                
+                let html = `<div class="space-y-4"><h3 class="text-xl font-bold text-gray-800">주별 요약</h3>`;
+                sortedWeeks.forEach(weekKey => {
+                    const data = weeklyData[weekKey];
+                    const throughput = data.totalMinutes > 0 ? (data.totalQuantity / data.totalMinutes).toFixed(2) : "0.00";
+                    let taskThroughputHtml = '<div class="mt-4 pt-4 border-t border-gray-200 space-y-2"><h5 class="text-sm font-semibold text-gray-700">업무별 분당 처리량</h5>';
+                    Object.keys(data.taskData).sort().forEach(task => {
+                        const taskData = data.taskData[task];
+                        const taskThroughput = taskData.minutes > 0 ? (taskData.quantity / taskData.minutes).toFixed(2) : "0.00";
+                        if(taskData.minutes > 0 || taskData.quantity > 0) {
+                            taskThroughputHtml += `<div class="flex justify-between items-center text-sm"><span class="text-gray-600">${task}</span><span class="font-bold text-gray-800">${taskThroughput} 개/분</span></div>`;
+                        }
+                    });
+                    taskThroughputHtml += '</div>';
+                    html += `<div class="bg-gray-50 p-4 rounded-lg border border-gray-200"><div class="flex justify-between items-center"><h4 class="font-bold text-lg text-blue-700">${weekKey}</h4><span class="text-2xl font-bold text-gray-800">${throughput} <span class="text-base font-medium text-gray-500">개/분</span></span></div><div class="mt-2 text-sm text-gray-600 grid grid-cols-2 gap-2"><span>총 업무 시간: ${formatDuration(data.totalMinutes)}</span><span>총 처리량: ${data.totalQuantity} 개</span></div>${taskThroughputHtml}</div>`;
+                });
+                html += `</div>`;
+                container.innerHTML = html;
+
+            } catch(e) {
+                 console.error("Error rendering weekly history:", e);
+                 container.innerHTML = `<div class="text-center text-red-500">주별 요약 로딩 실패.</div>`;
+            }
+        };
+        const renderMonthlyHistory = async () => {
+             const container = document.getElementById('history-monthly-view');
+            container.innerHTML = `<div class="text-center text-gray-500">월별 데이터 집계 중...</div>`;
+            try {
+                const historyCollectionRef = collection(db, "artifacts", APP_ID, "public/history");
+                const querySnapshot = await getDocs(historyCollectionRef);
+                if (querySnapshot.empty) {
+                    container.innerHTML = `<div class="text-center text-gray-500">요약할 데이터가 없습니다.</div>`;
+                    return;
+                }
+
+                const monthlyData = {};
+                querySnapshot.forEach(doc => {
+                    const dateStr = doc.id;
+                    const dayData = doc.data();
+                    const records = dayData.workRecords || [];
+                    const quantities = dayData.taskQuantities || {};
+                    const dailyTotalMinutes = records.reduce((sum, r) => sum + r.duration, 0);
+                    const dailyTotalQuantity = Object.values(quantities).reduce((sum, q) => sum + (q || 0), 0);
+
+                    if (dailyTotalMinutes > 0 || dailyTotalQuantity > 0) {
+                        const monthKey = dateStr.substring(0, 7); // 'YYYY-MM'
+                        if (!monthlyData[monthKey]) monthlyData[monthKey] = { totalMinutes: 0, totalQuantity: 0, taskData: {} };
+                        monthlyData[monthKey].totalMinutes += dailyTotalMinutes;
+                        monthlyData[monthKey].totalQuantity += dailyTotalQuantity;
+                        records.forEach(record => {
+                            if (!monthlyData[monthKey].taskData[record.task]) monthlyData[monthKey].taskData[record.task] = { minutes: 0, quantity: 0 };
+                            monthlyData[monthKey].taskData[record.task].minutes += record.duration;
+                        });
+                        Object.entries(quantities).forEach(([task, qty]) => {
+                            if (qty > 0) {
+                                if (!monthlyData[monthKey].taskData[task]) monthlyData[monthKey].taskData[task] = { minutes: 0, quantity: 0 };
+                                monthlyData[monthKey].taskData[task].quantity += qty;
+                            }
+                        });
+                    }
+                });
+
+                const sortedMonths = Object.keys(monthlyData).sort().reverse();
+                if (sortedMonths.length === 0) {
+                     container.innerHTML = `<div class="text-center text-gray-500">요약할 데이터가 없습니다.</div>`;
+                     return;
+                }
+                
+                let html = `<div class="space-y-4"><h3 class="text-xl font-bold text-gray-800">월별 요약</h3>`;
+                sortedMonths.forEach(monthKey => {
+                    const data = monthlyData[monthKey];
+                    const throughput = data.totalMinutes > 0 ? (data.totalQuantity / data.totalMinutes).toFixed(2) : "0.00";
+                    let taskThroughputHtml = '<div class="mt-4 pt-4 border-t border-gray-200 space-y-2"><h5 class="text-sm font-semibold text-gray-700">업무별 분당 처리량</h5>';
+                    Object.keys(data.taskData).sort().forEach(task => {
+                        const taskData = data.taskData[task];
+                        const taskThroughput = taskData.minutes > 0 ? (taskData.quantity / taskData.minutes).toFixed(2) : "0.00";
+                        if(taskData.minutes > 0 || taskData.quantity > 0) {
+                            taskThroughputHtml += `<div class="flex justify-between items-center text-sm"><span class="text-gray-600">${task}</span><span class="font-bold text-gray-800">${taskThroughput} 개/분</span></div>`;
+                        }
+                    });
+                    taskThroughputHtml += '</div>';
+                    html += `<div class="bg-gray-50 p-4 rounded-lg border border-gray-200"><div class="flex justify-between items-center"><h4 class="font-bold text-lg text-blue-700">${monthKey}</h4><span class="text-2xl font-bold text-gray-800">${throughput} <span class="text-base font-medium text-gray-500">개/분</span></span></div><div class="mt-2 text-sm text-gray-600 grid grid-cols-2 gap-2"><span>총 업무 시간: ${formatDuration(data.totalMinutes)}</span><span>총 처리량: ${data.totalQuantity} 개</span></div>${taskThroughputHtml}</div>`;
+                });
+                html += `</div>`;
+                container.innerHTML = html;
+
+            } catch(e) {
+                 console.error("Error rendering monthly history:", e);
+                 container.innerHTML = `<div class="text-center text-red-500">월별 요약 로딩 실패.</div>`;
+            }
+        };
         
         window.requestHistoryDeletion = (dateKey) => {
             historyKeyToDelete = dateKey;
@@ -588,7 +729,7 @@
             if (records.length === 0) return showToast('다운로드할 데이터가 없습니다.', true);
             
             const csvHeader = '팀원,업무 종류,시작 시간,종료 시간,소요 시간(분)\n';
-            const csvBody = records.map(r => `${r.member},${r.task},${r.startTime},${r.endTime},${r.duration}`).join('\n');
+            const csvBody = records.map(r => `"${r.member}","${r.task}","${r.startTime}","${r.endTime}",${r.duration}`).join('\n');
             const csvContent = '\uFEFF' + csvHeader + csvBody;
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
@@ -600,7 +741,6 @@
         // --- Event Listeners ---
         workForm.addEventListener('submit', handleFormSubmit);
         
-        const populateModalTeamMembers = () => { /* ... (no changes needed) ... */ };
         openMemberModalBtn.addEventListener('click', () => memberModal.classList.remove('hidden'));
         cancelMemberSelectionBtn.addEventListener('click', () => memberModal.classList.add('hidden'));
         confirmMemberSelectionBtn.addEventListener('click', () => {
@@ -655,8 +795,18 @@
         });
 
         const switchHistoryView = (view) => {
-            document.getElementById('history-date-list-container').style.display = view === 'daily' ? 'block' : 'none';
-            historyTabs.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.dataset.view === view)); // Simplified toggle
+            const dateListContainer = document.getElementById('history-date-list-container');
+            if (dateListContainer) {
+                 dateListContainer.style.display = view === 'daily' ? 'block' : 'none';
+            }
+            historyTabs.querySelectorAll('button').forEach(btn => {
+                const isActive = btn.dataset.view === view;
+                btn.classList.toggle('font-semibold', isActive);
+                btn.classList.toggle('text-blue-600', isActive);
+                btn.classList.toggle('border-b-2', isActive);
+                btn.classList.toggle('border-blue-600', isActive);
+                btn.classList.toggle('text-gray-500', !isActive);
+            });
             Array.from(historyViewContainer.children).forEach(child => child.classList.toggle('hidden', child.id !== `history-${view}-view`));
             if (view === 'weekly') renderWeeklyHistory();
             if (view === 'monthly') renderMonthlyHistory();
@@ -672,7 +822,10 @@
             deleteHistoryModal.classList.add('hidden');
             historyKeyToDelete = null;
         });
-        cancelHistoryDeleteBtn.addEventListener('click', () => deleteHistoryModal.classList.add('hidden'));
+        cancelHistoryDeleteBtn.addEventListener('click', () => {
+            deleteHistoryModal.classList.add('hidden');
+            historyKeyToDelete = null;
+        });
 
         openQuantityModalBtn.addEventListener('click', () => {
             renderQuantityModalInputs();
@@ -694,7 +847,7 @@
         downloadBtn.addEventListener('click', () => {
             if (appState.workRecords.length === 0) return showToast('다운로드할 데이터가 없습니다.', true);
             const csvHeader = '팀원,업무 종류,시작 시간,종료 시간,소요 시간(분)\n';
-            const csvBody = appState.workRecords.map(r => `${r.member},${r.task},${r.startTime},${r.endTime},${r.duration}`).join('\n');
+            const csvBody = appState.workRecords.map(r => `"${r.member}","${r.task}","${r.startTime}","${r.endTime}",${r.duration}`).join('\n');
             const csvContent = '\uFEFF' + csvHeader + csvBody;
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
@@ -725,6 +878,58 @@
             document.getElementById('end-time-input').addEventListener('blur', formatOnBlur);
         };
         
+        const populateModalTeamMembers = () => {
+             modalTeamMemberList.innerHTML = '';
+             modalTeamMemberList.className = 'p-6 h-64 overflow-y-auto grid grid-cols-2 md:grid-cols-4 gap-x-6';
+             teamGroups.forEach(group => {
+                 const groupColumn = document.createElement('div');
+                 groupColumn.className = 'space-y-2 flex flex-col';
+                 const groupHeader = document.createElement('div');
+                 groupHeader.className = 'flex justify-between items-center pb-1 border-b border-gray-200 mb-2';
+                 const groupTitle = document.createElement('span');
+                 groupTitle.className = 'font-bold text-gray-500 text-sm';
+                 groupTitle.textContent = group.name;
+                 const selectAllBtn = document.createElement('button');
+                 selectAllBtn.type = 'button';
+                 selectAllBtn.textContent = '전체';
+                 selectAllBtn.className = 'text-xs text-blue-600 hover:underline px-1';
+                 selectAllBtn.addEventListener('click', () => {
+                     const memberButtons = groupColumn.querySelectorAll('button[data-name]');
+                     const isAllSelected = Array.from(memberButtons).every(btn => btn.classList.contains('bg-blue-600'));
+                     memberButtons.forEach(btn => {
+                         const shouldBeSelected = !isAllSelected;
+                         const isCurrentlySelected = btn.classList.contains('bg-blue-600');
+                         if (shouldBeSelected && !isCurrentlySelected) {
+                             btn.classList.add('bg-blue-600', 'text-white', 'font-semibold');
+                             btn.classList.remove('bg-gray-100', 'text-gray-800');
+                         } else if (!shouldBeSelected && isCurrentlySelected) {
+                              btn.classList.remove('bg-blue-600', 'text-white', 'font-semibold');
+                              btn.classList.add('bg-gray-100', 'text-gray-800');
+                         }
+                     });
+                 });
+                 groupHeader.appendChild(groupTitle);
+                 groupHeader.appendChild(selectAllBtn);
+                 groupColumn.appendChild(groupHeader);
+                 group.members.forEach(name => {
+                     const memberEl = document.createElement('button');
+                     memberEl.type = 'button';
+                     memberEl.textContent = name;
+                     memberEl.dataset.name = name;
+                     memberEl.className = 'w-full text-left p-2 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-800 transition duration-200';
+                     memberEl.addEventListener('click', () => {
+                         memberEl.classList.toggle('bg-blue-600');
+                         memberEl.classList.toggle('text-white');
+                         memberEl.classList.toggle('font-semibold');
+                         memberEl.classList.toggle('bg-gray-100');
+                         memberEl.classList.toggle('text-gray-800');
+                     });
+                     groupColumn.appendChild(memberEl);
+                 });
+                 modalTeamMemberList.appendChild(groupColumn);
+             });
+         };
+        
         // --- App Initialization ---
         function main() {
             populateTaskTypes();
@@ -734,16 +939,6 @@
             setupTimeInputFormatting();
 
             connectionStatusEl.textContent = 'Firebase에 연결 중...';
-            
-            const firebaseConfig = {
-                // 이 곳에 사용자의 Firebase config 정보를 붙여넣으세요.
-                apiKey: "YOUR_API_KEY",
-                authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-                projectId: "YOUR_PROJECT_ID",
-                storageBucket: "YOUR_PROJECT_ID.appspot.com",
-                messagingSenderId: "YOUR_SENDER_ID",
-                appId: "YOUR_APP_ID"
-            };
 
             if (firebaseConfig.apiKey === "YOUR_API_KEY") {
                 connectionStatusEl.textContent = "Firebase 구성 정보가 필요합니다.";
@@ -766,7 +961,6 @@
                         if (docSnap.exists()) {
                             appState = JSON.parse(docSnap.data().state);
                         } else {
-                            // Reset if no data for today
                             appState = { workRecords: [], taskQuantities: {} };
                             taskTypes.forEach(task => appState.taskQuantities[task] = 0);
                         }
@@ -777,7 +971,6 @@
                         showToast("실시간 연결에 실패했습니다.", true);
                         connectionStatusEl.textContent = '연결 오류';
                     });
-
                 }
             });
             
@@ -793,24 +986,4 @@
     </script>
 </body>
 </html>
-```
-
-### 2. 사용 방법 안내
-
-이 프로그램도 이전과 마찬가지로 Firebase 프로젝트 설정이 필요합니다.
-
-1.  **Firebase 프로젝트 생성 및 설정**: 아직 하지 않으셨다면, 이전 `Firebase 설정 및 사용 안내서 (v3)`의 **1, 2, 3단계**를 따라 Firebase 프로젝트를 만들고, Firestore 데이터베이스와 익명 로그인을 활성화해주세요.
-
-2.  **`firebaseConfig` 정보 복사**: 안내서의 **4단계**를 따라 `firebaseConfig` 정보를 복사합니다.
-
-3.  **코드에 붙여넣기 (가장 중요!)**:
-    * 위에 첨부해 드린 `팀 업무 시간 기록기` 코드의 맨 아래로 스크롤합니다.
-    * `main()` 함수 안에 있는 아래 부분을 찾습니다.
-        ```javascript
-        const firebaseConfig = {
-            // 이 곳에 사용자의 Firebase config 정보를 붙여넣으세요.
-            apiKey: "YOUR_API_KEY",
-            //...
-        };
-        
 
