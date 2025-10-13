@@ -226,7 +226,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
         // ===================================================================================
-        // 중요: 이 객체에 Firebase 프로젝트의 구성 정보를 붙여넣으세요.
+        // 사용자님의 Firebase 프로젝트 구성 정보가 여기에 올바르게 적용되었습니다.
         // ===================================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -473,7 +473,7 @@
         // --- Firebase Functions ---
         async function saveStateToFirestore() {
             if (!auth || !auth.currentUser) return;
-            const docRef = doc(db, "artifacts", APP_ID, "public/data", "today");
+            const docRef = doc(db, "artifacts", APP_ID, "daily_data", "today");
             await setDoc(docRef, { state: JSON.stringify(appState) });
         }
 
@@ -483,7 +483,7 @@
                 return showToast('저장할 기록이 없습니다.', true);
             }
             
-            const historyDocRef = doc(db, "artifacts", APP_ID, "public/history", dateStr);
+            const historyDocRef = doc(db, "artifacts", APP_ID, "history", dateStr);
             try {
                 await setDoc(historyDocRef, appState);
                 appState = { workRecords: [], taskQuantities: {} };
@@ -499,7 +499,7 @@
         const loadAndRenderHistoryList = async () => {
             historyDateList.innerHTML = `<li class="p-2 text-center text-gray-500">이력 로딩 중...</li>`;
             try {
-                const historyCollectionRef = collection(db, "artifacts", APP_ID, "public/history");
+                const historyCollectionRef = collection(db, "artifacts", APP_ID, "history");
                 const querySnapshot = await getDocs(historyCollectionRef);
                 const dates = querySnapshot.docs.map(doc => doc.id).sort().reverse();
 
@@ -533,7 +533,7 @@
             const container = document.getElementById('history-daily-view');
             container.innerHTML = `<div class="text-center text-gray-500">데이터 로딩 중...</div>`;
             try {
-                const docRef = doc(db, "artifacts", APP_ID, "public/history", dateKey);
+                const docRef = doc(db, "artifacts", APP_ID, "history", dateKey);
                 const docSnap = await getDoc(docRef);
 
                 if (!docSnap.exists()) {
@@ -584,7 +584,7 @@
             const container = document.getElementById('history-weekly-view');
             container.innerHTML = `<div class="text-center text-gray-500">주별 데이터 집계 중...</div>`;
             try {
-                const historyCollectionRef = collection(db, "artifacts", APP_ID, "public/history");
+                const historyCollectionRef = collection(db, "artifacts", APP_ID, "history");
                 const querySnapshot = await getDocs(historyCollectionRef);
                 if (querySnapshot.empty) {
                     container.innerHTML = `<div class="text-center text-gray-500">요약할 데이터가 없습니다.</div>`;
@@ -651,7 +651,7 @@
              const container = document.getElementById('history-monthly-view');
             container.innerHTML = `<div class="text-center text-gray-500">월별 데이터 집계 중...</div>`;
             try {
-                const historyCollectionRef = collection(db, "artifacts", APP_ID, "public/history");
+                const historyCollectionRef = collection(db, "artifacts", APP_ID, "history");
                 const querySnapshot = await getDocs(historyCollectionRef);
                 if (querySnapshot.empty) {
                     container.innerHTML = `<div class="text-center text-gray-500">요약할 데이터가 없습니다.</div>`;
@@ -721,7 +721,7 @@
         };
 
         window.downloadHistoryAsExcel = async (dateKey) => {
-            const docRef = doc(db, "artifacts", APP_ID, "public/history", dateKey);
+            const docRef = doc(db, "artifacts", APP_ID, "history", dateKey);
             const docSnap = await getDoc(docRef);
             if (!docSnap.exists()) return showToast('다운로드할 데이터가 없습니다.', true);
             const dayData = docSnap.data();
@@ -814,7 +814,7 @@
 
         confirmHistoryDeleteBtn.addEventListener('click', async () => {
             if (historyKeyToDelete) {
-                const docRef = doc(db, "artifacts", APP_ID, "public/history", historyKeyToDelete);
+                const docRef = doc(db, "artifacts", APP_ID, "history", historyKeyToDelete);
                 await deleteDoc(docRef);
                 showToast('선택한 날짜의 기록이 삭제되었습니다.');
                 loadAndRenderHistoryList();
@@ -953,7 +953,7 @@
             onAuthStateChanged(auth, user => {
                 if (user) {
                     connectionStatusEl.textContent = '실시간 데이터 연결 중...';
-                    const todayDocRef = doc(db, "artifacts", APP_ID, "public/data", "today");
+                    const todayDocRef = doc(db, "artifacts", APP_ID, "daily_data", "today");
                     
                     if(unsubscribeToday) unsubscribeToday();
 
@@ -961,6 +961,7 @@
                         if (docSnap.exists()) {
                             appState = JSON.parse(docSnap.data().state);
                         } else {
+                            // Reset if no data for today
                             appState = { workRecords: [], taskQuantities: {} };
                             taskTypes.forEach(task => appState.taskQuantities[task] = 0);
                         }
@@ -971,6 +972,7 @@
                         showToast("실시간 연결에 실패했습니다.", true);
                         connectionStatusEl.textContent = '연결 오류';
                     });
+
                 }
             });
             
