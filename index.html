@@ -45,18 +45,19 @@
     <!-- 알림 메시지 (Toast) -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2 w-full max-w-xs"></div>
 
-    <div class="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-gray-200">
+    <div class="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-gray-200 relative">
+        
+        <!-- 연결 상태 표시기 -->
+        <div id="connection-indicator" class="absolute top-4 right-6 flex items-center gap-2">
+            <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
+            <span id="connection-status" class="text-xs font-medium text-gray-500"></span>
+        </div>
         
         <!-- 헤더 -->
-        <header class="mb-6 text-center">
+        <header class="mb-8 pt-4 text-center">
             <h1 class="text-3xl md:text-4xl font-bold text-blue-600">팀 업무 시간 기록기</h1>
             <p class="text-gray-500 mt-2">업무 시간을 기록하고 팀의 생산성을 관리하세요.</p>
         </header>
-
-        <!-- 연결 상태 -->
-        <div class="text-center mb-6">
-            <p id="connection-status" class="text-sm font-semibold text-gray-500 h-4"></p>
-        </div>
 
         <!-- 입력 폼 -->
         <form id="work-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 items-start">
@@ -247,6 +248,7 @@
         const throughputEl = document.getElementById('throughput-per-minute');
         const downloadBtn = document.getElementById('download-excel');
         const connectionStatusEl = document.getElementById('connection-status');
+        const statusDotEl = document.getElementById('status-dot');
         
         // --- Modal Elements ---
         const memberModal = document.getElementById('member-modal');
@@ -296,7 +298,7 @@
             { name: '담당파트', members: ['송다진', '정미혜', '진희주'] },
             { name: '중국제작파트', members: ['이승운'] }
         ];
-        const taskTypes = ['배송', '중국제작입고', '직진배송', '국내입고', '앵글정리', '담당업무', '상.하차(중국제작)', '상.하차(직진배송)', '2층적재'];
+        const taskTypes = ['채우기', '국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '아이롱', '강성', '상.하차', '2층업무', '오류', '재고찾는시간', '검수'];
         
         // --- Utility Functions ---
         const showToast = (message, isError = false) => {
@@ -364,7 +366,24 @@
                 return;
             }
 
-            const taskColors = { '배송': '#3b82f6', '중국제작입고': '#8b5cf6', '직진배송': '#22c55e', '국내입고': '#eab308', '앵글정리': '#f97316', '담당업무': '#ef4444', '상.하차(중국제작)': '#10b981', '상.하차(직진배송)': '#06b6d4', '2층적재': '#6366f1' };
+            const taskColors = {
+                '채우기': '#3b82f6',      // Blue
+                '국내배송': '#10b981',    // Green
+                '중국제작': '#8b5cf6',    // Purple
+                '직진배송': '#22c55e',    // Lime
+                '티니': '#ef4444',        // Red
+                '택배포장': '#f97316',    // Orange
+                '해외배송': '#06b6d4',    // Cyan
+                '재고조사': '#d946ef',    // Fuchsia
+                '앵글정리': '#eab308',    // Yellow
+                '아이롱': '#6366f1',      // Indigo
+                '강성': '#ec4899',        // Pink
+                '상.하차': '#6b7280',      // Gray
+                '2층업무': '#78716c',      // Stone
+                '오류': '#f43f5e',        // Rose
+                '재고찾는시간': '#a855f7', // Violet
+                '검수': '#14b8a6'         // Teal
+            };
 
             const taskAnalysis = appState.workRecords.reduce((acc, record) => {
                 acc[record.task] = (acc[record.task] || 0) + record.duration;
@@ -938,10 +957,12 @@
             render();
             setupTimeInputFormatting();
 
-            connectionStatusEl.textContent = 'Firebase에 연결 중...';
+            connectionStatusEl.textContent = '연결 중...';
+            statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse';
 
             if (firebaseConfig.apiKey === "YOUR_API_KEY") {
-                connectionStatusEl.textContent = "Firebase 구성 정보가 필요합니다.";
+                connectionStatusEl.textContent = "설정 필요";
+                statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
                 showToast("프로그램 코드에 Firebase 구성 정보를 입력해주세요.", true);
                 return;
             }
@@ -952,7 +973,6 @@
             
             onAuthStateChanged(auth, user => {
                 if (user) {
-                    connectionStatusEl.textContent = '실시간 데이터 연결 중...';
                     const todayDocRef = doc(db, "artifacts", APP_ID, "daily_data", "today");
                     
                     if(unsubscribeToday) unsubscribeToday();
@@ -961,16 +981,17 @@
                         if (docSnap.exists()) {
                             appState = JSON.parse(docSnap.data().state);
                         } else {
-                            // Reset if no data for today
                             appState = { workRecords: [], taskQuantities: {} };
                             taskTypes.forEach(task => appState.taskQuantities[task] = 0);
                         }
                         render();
-                        connectionStatusEl.textContent = '실시간 동기화 연결 완료';
+                        connectionStatusEl.textContent = '동기화';
+                        statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
                     }, (error) => {
                         console.error("Firebase onSnapshot error:", error);
-                        showToast("실시간 연결에 실패했습니다.", true);
+                        showToast("실시간 연결에 실패했습니다. 보안 규칙을 확인하세요.", true);
                         connectionStatusEl.textContent = '연결 오류';
+                        statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
                     });
 
                 }
@@ -980,6 +1001,7 @@
                 console.error("Anonymous sign-in failed:", error);
                 showToast("인증에 실패했습니다. Firebase 설정을 확인하세요.", true);
                 connectionStatusEl.textContent = '인증 실패';
+                statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
             });
         }
 
