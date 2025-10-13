@@ -39,14 +39,31 @@
             opacity: 1;
             transform: translateY(0);
         }
+        .modal-close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            line-height: 1;
+            color: #9ca3af;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+        .modal-close-btn:hover {
+            color: #1f2937;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen flex items-center justify-center p-4">
     <!-- 알림 메시지 (Toast) -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2 w-full max-w-xs"></div>
 
-    <div class="w-full max-w-6xl mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-gray-200 relative">
+    <div class="w-full max-w-7xl mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-gray-200 relative">
         
+        <!-- 날짜 표시 -->
+        <div id="current-date-display" class="absolute top-4 left-6 text-lg font-bold text-gray-700"></div>
+
         <!-- 연결 상태 표시기 -->
         <div id="connection-indicator" class="absolute top-4 right-6 flex items-center gap-2">
             <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
@@ -55,23 +72,84 @@
         
         <!-- 헤더 -->
         <header class="mb-8 pt-4 text-center">
-            <h1 class="text-3xl md:text-4xl font-bold text-blue-600">팀 업무 시간 기록기</h1>
-            <p class="text-gray-500 mt-2">팀원의 현재 업무 상태를 실시간으로 확인하고 생산성을 관리하세요.</p>
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">팀 업무 시간 기록기</h1>
         </header>
+
+        <!-- 요약 정보 -->
+        <div class="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- 업무/인원 그룹 -->
+            <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h3 class="text-center text-sm font-bold text-gray-600 mb-3 uppercase tracking-wider">업무 / 인원</h3>
+                <div class="flex justify-around items-start text-center">
+                    <div class="flex-1">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">진행중 업무</h4>
+                        <p id="ongoing-tasks-count" class="text-2xl font-bold text-blue-600 mt-1">0 건</p>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">업무중 인원</h4>
+                        <p id="working-members-count" class="text-2xl font-bold text-blue-600 mt-1">0 명</p>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">대기중 인원</h4>
+                        <p id="idle-members-count" class="text-2xl font-bold text-blue-600 mt-1">0 명</p>
+                    </div>
+                </div>
+            </div>
+            <!-- 시간 그룹 -->
+            <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                 <h3 class="text-center text-sm font-bold text-gray-600 mb-3 uppercase tracking-wider">시간</h3>
+                <div class="flex justify-around items-start text-center">
+                    <div class="flex-1">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">총합 시간</h4>
+                        <p id="total-sum-hours" class="text-2xl font-bold text-blue-600 mt-1">0 분</p>
+                    </div>
+                     <div class="flex-1">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">전체 시간</h4>
+                        <p id="total-overall-hours" class="text-2xl font-bold text-blue-600 mt-1">0 분</p>
+                    </div>
+                    <div id="total-non-work-hours" class="flex-1 text-center">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">총 비업무시간</h4>
+                        <p class="text-xl font-bold text-gray-600 mt-1 leading-tight">0 분</p>
+                    </div>
+                </div>
+            </div>
+            <!-- 처리량 그룹 -->
+            <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                 <h3 class="text-center text-sm font-bold text-gray-600 mb-3 uppercase tracking-wider">처리량</h3>
+                <div class="flex justify-around items-start text-center">
+                    <div class="flex-1">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">총 처리량</h4>
+                        <p id="total-quantity" class="text-2xl font-bold text-blue-600 mt-1">0 개</p>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">분당 처리량</h4>
+                        <p id="throughput-per-minute" class="text-2xl font-bold text-blue-600 mt-1">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- 실시간 팀 현황 보드 -->
+        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">실시간 팀 현황</h2>
+            <div id="team-status-board" class="space-y-8">
+                <!-- Real-time status content will be dynamically inserted here -->
+            </div>
+        </div>
 
         <!-- 업무 시작 폼 -->
         <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-             <h2 class="text-xl font-bold text-gray-900 mb-4">업무 시작</h2>
-            <form id="work-start-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                <div class="md:col-span-1">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">팀원 선택</label>
-                    <button type="button" id="open-member-modal-btn" class="w-full bg-white border border-gray-300 text-gray-700 rounded-lg p-2.5 text-left focus:ring-blue-500 focus:border-blue-500 transition">
-                        팀원을 선택하세요
-                    </button>
-                </div>
-                <div class="md:col-span-1">
+             <h2 class="text-xl font-bold text-gray-900 mb-4">업무 시작 (팀원 현황에서 인원 선택)</h2>
+            <form id="work-start-form" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                <div class="md:col-span-3">
                     <label for="task-type" class="block text-sm font-medium text-gray-700 mb-2">업무 종류</label>
                     <select id="task-type" class="w-full bg-white border border-gray-300 text-gray-900 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 transition">
+                    </select>
+                </div>
+                 <div class="md:col-span-1">
+                    <label for="part-timer-count" class="block text-sm font-medium text-gray-700 mb-2">알바 추가</label>
+                    <select id="part-timer-count" class="w-full bg-white border border-gray-300 text-gray-900 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 transition">
                     </select>
                 </div>
                 <div class="md:col-span-1">
@@ -82,96 +160,64 @@
             </form>
         </div>
 
-
-        <!-- 요약 정보 -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
-                <h3 class="text-lg font-semibold text-gray-600">총 투입 인원</h3>
-                <p id="total-members" class="text-3xl font-bold text-blue-600">0 명</p>
-            </div>
-            <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
-                <h3 class="text-lg font-semibold text-gray-600">총 업무 시간</h3>
-                <p id="total-hours" class="text-3xl font-bold text-blue-600">0 분</p>
-            </div>
-            <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
-                <h3 class="text-lg font-semibold text-gray-600">총 처리량</h3>
-                <p id="total-quantity" class="text-3xl font-bold text-blue-600">0 개</p>
-            </div>
-            <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
-                <h3 class="text-lg font-semibold text-gray-600">분당 평균 처리량</h3>
-                <p id="throughput-per-minute" class="text-3xl font-bold text-blue-600">0 개/분</p>
-            </div>
-        </div>
-
-        <!-- 실시간 팀 현황 보드 -->
-        <div class="mb-8">
-            <h2 class="text-xl font-bold text-gray-900 mb-4">실시간 팀 현황</h2>
-            <div id="team-status-board" class="space-y-8">
-                <!-- Real-time status content will be dynamically inserted here -->
-            </div>
-        </div>
-
         <!-- 완료된 업무 기록 테이블 -->
-        <div class="bg-white rounded-lg p-4 border border-gray-200 mb-8">
-            <div class="flex flex-wrap gap-2 justify-between items-center mb-4">
-                <div class="flex items-center gap-4">
-                    <h2 class="text-xl font-bold text-gray-900">오늘 완료된 업무</h2>
-                    <button id="open-quantity-modal-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-sm">처리량 입력</button>
-                </div>
-                <div class="flex items-center gap-2 flex-wrap">
-                    <button id="open-history-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">이력 보기</button>
-                    <button id="end-day-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">하루 마감 및 저장</button>
-                </div>
+        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+            <div id="toggle-completed-log" class="flex justify-between items-center cursor-pointer md:cursor-auto">
+                <h2 class="text-xl font-bold text-gray-900">오늘 완료된 업무</h2>
+                <svg id="completed-log-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
             </div>
-            <div class="overflow-auto max-h-[40vh] relative">
-                <table class="w-full text-sm text-left text-gray-600">
-                    <thead class="text-xs text-blue-500 uppercase bg-gray-100 sticky top-0 z-10">
-                        <tr>
-                            <th scope="col" class="px-6 py-3">이름</th>
-                            <th scope="col" class="px-6 py-3">업무</th>
-                            <th scope="col" class="px-6 py-3">시작 시간</th>
-                            <th scope="col" class="px-6 py-3">종료 시간</th>
-                            <th scope="col" class="px-6 py-3">소요 시간</th>
-                            <th scope="col" class="px-6 py-3"></th>
-                        </tr>
-                    </thead>
-                    <tbody id="work-log-body"></tbody>
-                </table>
+            <div id="completed-log-content" class="hidden md:block mt-4">
+                <div class="flex flex-wrap gap-2 justify-end items-center mb-4">
+                    <button id="open-history-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">이력 보기</button>
+                    <button id="save-progress-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">중간 저장</button>
+                    <button id="end-shift-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">업무 마감</button>
+                </div>
+                <div class="overflow-auto max-h-[40vh] relative bg-white rounded-md">
+                    <table class="w-full text-sm text-left text-gray-600">
+                        <thead class="text-xs text-blue-500 uppercase bg-gray-100 sticky top-0 z-10">
+                            <tr>
+                                <th scope="col" class="px-6 py-3">이름</th>
+                                <th scope="col" class="px-6 py-3">업무</th>
+                                <th scope="col" class="px-6 py-3">시작 시간</th>
+                                <th scope="col" class="px-6 py-3">종료 시간</th>
+                                <th scope="col" class="px-6 py-3">소요 시간</th>
+                                <th scope="col" class="px-6 py-3 text-right">
+                                    <button id="delete-all-completed-btn" class="text-xs font-bold text-red-500 uppercase hover:text-red-700">일괄삭제</button>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="work-log-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
         <!-- 오늘의 업무 비중 분석 -->
-        <div class="bg-white rounded-lg p-4 border border-gray-200 mt-8">
-            <h2 class="text-xl font-bold text-gray-900 mb-4">오늘의 업무 비중 분석</h2>
-            <div id="task-analysis-section">
+        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
+            <div id="toggle-analysis" class="flex justify-between items-center cursor-pointer md:cursor-auto">
+                <h2 class="text-xl font-bold text-gray-900">오늘의 업무 비중 분석</h2>
+                 <svg id="analysis-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </div>
+            <div id="analysis-content" class="hidden md:block mt-4">
                 <!-- Chart will be rendered here -->
             </div>
         </div>
     </div>
 
     <!-- Modals -->
-    <div id="member-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl">
-            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">팀원 선택</h2></div>
-            <div id="modal-team-member-list" class="p-6 h-auto max-h-[70vh] overflow-y-auto"></div>
-            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-between items-center gap-4">
-                <button type="button" id="toggle-leave-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition">선택 인원 휴무 설정/해제</button>
-                <div>
-                    <button type="button" id="cancel-member-selection-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-                    <button type="button" id="confirm-member-selection-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition ml-2">확인</button>
-                </div>
-            </div>
-        </div>
-    </div>
     <div id="delete-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm"><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 기록을 삭제하시겠습니까?</h3><p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p><button type="button" id="confirm-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button><button type="button" id="cancel-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 id="delete-confirm-message" class="mb-5 text-lg font-normal text-gray-700"></h3><p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p><button type="button" id="confirm-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button><button type="button" id="cancel-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
     </div>
-    <div id="end-day-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm"><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 class="mb-5 text-lg font-normal text-gray-700">하루를 마감하고 저장하시겠습니까?</h3><p class="mb-6 text-sm text-gray-500">아직 진행 중인 업무가 있습니다. 마감 시 강제 종료됩니다. 저장 후에는 오늘의 기록이 초기화됩니다.</p><button type="button" id="confirm-end-day-btn" class="text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:outline-none focus:ring-indigo-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 저장합니다</button><button type="button" id="cancel-end-day-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
+    <div id="end-shift-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 class="mb-5 text-lg font-normal text-gray-700">업무를 마감하시겠습니까?</h3><p class="mb-6 text-sm text-gray-500">모든 기록이 저장되고 오늘의 업무 현황이 초기화됩니다. 진행중인 업무는 강제 종료됩니다.</p><button type="button" id="confirm-end-shift-btn" class="text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:outline-none focus:ring-indigo-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 마감합니다</button><button type="button" id="cancel-end-shift-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
     </div>
     <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col">
-            <div class="p-6 border-b border-gray-200 flex justify-between items-center"><h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2><button id="close-history-btn" class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button></div>
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center"><h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2><button id="close-history-btn" class="modal-close-btn">&times;</button></div>
             <div class="flex-grow flex overflow-hidden">
                 <div id="history-date-list-container" class="w-1/4 border-r border-gray-200 overflow-y-auto bg-gray-50"><ul id="history-date-list" class="p-2"></ul></div>
                 <div class="w-3/4 flex flex-col">
@@ -192,8 +238,8 @@
         </div>
     </div>
     <div id="quantity-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">업무별 처리량 입력</h2></div>
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+            <div class="p-6 border-b border-gray-200"><h2 id="quantity-modal-title" class="text-xl font-bold text-gray-900">업무별 처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
             <div id="modal-task-quantity-inputs" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[60vh] overflow-y-auto">
                 <!-- Inputs will be generated here by JS -->
             </div>
@@ -203,14 +249,57 @@
             </div>
         </div>
     </div>
+     <div id="quantity-on-stop-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
+            <div class="p-6 space-y-4">
+                <p>업무 <span id="quantity-on-stop-task-name" class="font-bold"></span>의 처리량을 입력하세요.</p>
+                <div>
+                    <label for="quantity-on-stop-input" class="block text-sm font-medium text-gray-700">처리량 (개)</label>
+                    <input type="number" id="quantity-on-stop-input" min="0" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                </div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                <button type="button" id="cancel-quantity-on-stop" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">나중에 입력</button>
+                <button type="button" id="confirm-quantity-on-stop" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인</button>
+            </div>
+        </div>
+    </div>
     <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
             <div class="p-6 text-center">
                 <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                 <h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 날짜의 모든 기록을 삭제하시겠습니까?</h3>
                 <p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p>
                 <button type="button" id="confirm-history-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button>
                 <button type="button" id="cancel-history-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
+            </div>
+        </div>
+    </div>
+    <div id="edit-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">업무 기록 수정</h2><button class="modal-close-btn">&times;</button></div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label for="edit-member-name" class="block text-sm font-medium text-gray-700">이름</label>
+                    <input type="text" id="edit-member-name" class="mt-1 w-full bg-gray-50 border border-gray-300 rounded-lg p-2" readonly>
+                </div>
+                 <div>
+                    <label for="edit-task-type" class="block text-sm font-medium text-gray-700">업무</label>
+                    <select id="edit-task-type" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2"></select>
+                </div>
+                 <div>
+                    <label for="edit-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
+                    <input type="time" id="edit-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                </div>
+                 <div>
+                    <label for="edit-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM)</label>
+                    <input type="time" id="edit-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                </div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                <button type="button" id="cancel-edit-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                <button type="button" id="confirm-edit-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
             </div>
         </div>
     </div>
@@ -235,9 +324,8 @@
         };
 
         // --- DOM Elements ---
-        const workLogBody = document.getElementById('work-log-body');
-        const totalMembersEl = document.getElementById('total-members');
-        const totalHoursEl = document.getElementById('total-hours');
+        const totalSumHoursEl = document.getElementById('total-sum-hours');
+        const totalOverallHoursEl = document.getElementById('total-overall-hours');
         const totalQuantityEl = document.getElementById('total-quantity');
         const throughputEl = document.getElementById('throughput-per-minute');
         const connectionStatusEl = document.getElementById('connection-status');
@@ -245,20 +333,13 @@
         const teamStatusBoard = document.getElementById('team-status-board');
         
         // --- Modal Elements ---
-        const memberModal = document.getElementById('member-modal');
-        const openMemberModalBtn = document.getElementById('open-member-modal-btn');
-        const modalTeamMemberList = document.getElementById('modal-team-member-list');
-        const confirmMemberSelectionBtn = document.getElementById('confirm-member-selection-btn');
-        const cancelMemberSelectionBtn = document.getElementById('cancel-member-selection-btn');
-        const toggleLeaveBtn = document.getElementById('toggle-leave-btn');
-        
         const deleteConfirmModal = document.getElementById('delete-confirm-modal');
         const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
         const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
-        const endDayConfirmModal = document.getElementById('end-day-confirm-modal');
-        const confirmEndDayBtn = document.getElementById('confirm-end-day-btn');
-        const cancelEndDayBtn = document.getElementById('cancel-end-day-btn');
-        const endDayBtn = document.getElementById('end-day-btn');
+        const endShiftConfirmModal = document.getElementById('end-shift-confirm-modal');
+        const confirmEndShiftBtn = document.getElementById('confirm-end-shift-btn');
+        const cancelEndShiftBtn = document.getElementById('cancel-end-shift-btn');
+        const endShiftBtn = document.getElementById('end-shift-btn');
         const historyModal = document.getElementById('history-modal');
         const openHistoryBtn = document.getElementById('open-history-btn');
         const closeHistoryBtn = document.getElementById('close-history-btn');
@@ -266,12 +347,27 @@
         const historyViewContainer = document.getElementById('history-view-container');
         const historyTabs = document.getElementById('history-tabs');
         const quantityModal = document.getElementById('quantity-modal');
-        const openQuantityModalBtn = document.getElementById('open-quantity-modal-btn');
         const confirmQuantityBtn = document.getElementById('confirm-quantity-btn');
         const cancelQuantityBtn = document.getElementById('cancel-quantity-btn');
         const deleteHistoryModal = document.getElementById('delete-history-modal');
         const confirmHistoryDeleteBtn = document.getElementById('confirm-history-delete-btn');
         const cancelHistoryDeleteBtn = document.getElementById('cancel-history-delete-btn');
+        const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
+        const editRecordModal = document.getElementById('edit-record-modal');
+        const confirmEditBtn = document.getElementById('confirm-edit-btn');
+        const cancelEditBtn = document.getElementById('cancel-edit-btn');
+        const saveProgressBtn = document.getElementById('save-progress-btn');
+        const quantityOnStopModal = document.getElementById('quantity-on-stop-modal');
+        const confirmQuantityOnStopBtn = document.getElementById('confirm-quantity-on-stop');
+        const cancelQuantityOnStopBtn = document.getElementById('cancel-quantity-on-stop');
+        
+        const toggleCompletedLog = document.getElementById('toggle-completed-log');
+        const completedLogContent = document.getElementById('completed-log-content');
+        const completedLogArrow = document.getElementById('completed-log-arrow');
+        const toggleAnalysis = document.getElementById('toggle-analysis');
+        const analysisContent = document.getElementById('analysis-content');
+        const analysisArrow = document.getElementById('analysis-arrow');
+
 
         // --- Firebase State ---
         let db, auth;
@@ -280,14 +376,21 @@
 
         // --- App State ---
         let appState = {
-            workRecords: [], // Contains both 'ongoing' and 'completed' records
+            workRecords: [],
             taskQuantities: {},
-            onLeaveMembers: []
+            onLeaveMembers: [],
+            selectedForTask: [],
+            hiddenGroupIds: []
         };
-        let selectedMembers = [];
         let recordToDeleteId = null;
         let historyKeyToDelete = null;
-        let allHistoryData = []; // Cache for history data
+        let allHistoryData = [];
+        let recordToEditId = null;
+        let deleteMode = 'single'; // 'single' or 'all'
+        let elapsedTimeTimer = null;
+        let groupToStopId = null;
+        let quantityModalContext = { mode: 'today', dateKey: null, onConfirm: null, onCancel: null };
+
 
         // --- Config ---
         const teamGroups = [
@@ -327,13 +430,14 @@
 
         const formatDuration = (minutes) => {
             minutes = Math.round(minutes);
-            if (isNaN(minutes) || minutes <= 0) return '0 분';
+            if (isNaN(minutes) || minutes < 0) return '0 분';
+            if (minutes === 0) return '0 분';
             const h = Math.floor(minutes / 60);
             const m = Math.round(minutes % 60);
             let result = '';
             if (h > 0) result += `${h} 시간 `;
             if (m > 0) result += `${m} 분`;
-            return result.trim() || '0 분';
+            return result.trim();
         };
         
         const formatHours = (minutes) => {
@@ -347,6 +451,12 @@
             const localDate = new Date(now - offset);
             return localDate.toISOString().slice(0, 10);
         };
+
+        const isWeekday = (dateString) => {
+            const date = new Date(dateString + 'T00:00:00'); // Treat as local date
+            const day = date.getDay();
+            return day >= 1 && day <= 5; // Monday to Friday
+        };
         
         const getWeekOfYear = (date) => {
             const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -356,22 +466,35 @@
             return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
         };
 
+        const updateElapsedTimes = () => {
+            document.querySelectorAll('.ongoing-duration').forEach(el => {
+                const startTimeStr = el.dataset.startTime;
+                if (!startTimeStr) return;
+                const startTime = new Date(`1970-01-01T${startTimeStr}`);
+                const now = new Date();
+                const nowTime = new Date(`1970-01-01T${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`);
+                const elapsedMilliseconds = nowTime - startTime;
+                const elapsedMinutes = elapsedMilliseconds / (1000 * 60);
+                el.textContent = `(진행: ${formatDuration(elapsedMinutes)})`;
+            });
+        };
+
         // --- Render Functions ---
-        const renderQuantityModalInputs = () => {
+        const renderQuantityModalInputs = (sourceQuantities = {}) => {
             const container = document.getElementById('modal-task-quantity-inputs');
             container.innerHTML = '';
             quantityTaskTypes.forEach(task => {
                 const div = document.createElement('div');
                 div.innerHTML = `
                     <label for="modal-quantity-${task}" class="block text-sm font-medium text-gray-700">${task}</label>
-                    <input type="number" id="modal-quantity-${task}" data-task="${task}" value="${appState.taskQuantities[task] || 0}" min="0" class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                    <input type="number" id="modal-quantity-${task}" data-task="${task}" value="${sourceQuantities[task] || 0}" min="0" class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition">
                 `;
                 container.appendChild(div);
             });
         };
         
         const renderTaskAnalysis = () => {
-            const analysisContainer = document.getElementById('task-analysis-section');
+            const analysisContainer = document.getElementById('analysis-content');
             analysisContainer.innerHTML = '';
             const completedRecords = appState.workRecords.filter(r => r.status === 'completed');
             const totalLoggedMinutes = completedRecords.reduce((sum, record) => sum + record.duration, 0);
@@ -422,29 +545,40 @@
             teamGroups.forEach(group => group.members.forEach(member => {
                 if (!memberGroupMap.has(member)) memberGroupMap.set(member, group.name);
             }));
-
+            
+            const uniqueGroupIds = [...new Set(appState.workRecords.map(r => r.groupId))];
+            
             const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-            const ongoingByGroup = ongoingRecords.reduce((acc, record) => {
-                (acc[record.groupId] = acc[record.groupId] || []).push(record);
-                return acc;
-            }, {});
+            const ongoingGroupIds = new Set(ongoingRecords.map(r => r.groupId));
+
 
             // SECTION 1: ONGOING TASKS
             const ongoingTasksContainer = document.createElement('div');
-            ongoingTasksContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">진행 중인 업무 (${Object.keys(ongoingByGroup).length}개)</h3>`;
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'flex justify-between items-center border-b pb-2 mb-4';
+            headerDiv.innerHTML = `<h3 class="text-lg font-bold text-gray-700">진행 중인 업무 (${ongoingGroupIds.size}개)</h3>`;
+            const showHiddenBtn = document.createElement('button');
+            showHiddenBtn.id = 'show-hidden-cards-btn';
+            showHiddenBtn.className = 'text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded';
+            showHiddenBtn.textContent = '완료된 업무 표시/숨기기';
+            headerDiv.appendChild(showHiddenBtn);
+            ongoingTasksContainer.appendChild(headerDiv);
+
             const ongoingGrid = document.createElement('div');
             ongoingGrid.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
 
-            if (Object.keys(ongoingByGroup).length === 0) {
+            if (uniqueGroupIds.length === 0) {
                 ongoingGrid.innerHTML = `<p class="text-sm text-gray-400 col-span-full">진행 중인 업무가 없습니다.</p>`;
             } else {
-                Object.values(ongoingByGroup).forEach(groupRecords => {
+                 uniqueGroupIds.forEach(groupId => {
+                    if ((appState.hiddenGroupIds || []).includes(groupId)) return;
+
+                    const groupRecords = appState.workRecords.filter(r => r.groupId === groupId);
                     if (groupRecords.length === 0) return;
+
                     const firstRecord = groupRecords[0];
-                    const startTime = new Date(`1970-01-01T${firstRecord.startTime}`);
-                    const nowTime = new Date(`1970-01-01T${getCurrentTime()}`);
-                    const elapsedMinutes = (nowTime - startTime) / (1000 * 60);
-                    
+                    const isOngoing = groupRecords.some(r => r.status === 'ongoing');
+
                     let membersHtml = '<div class="space-y-1">';
                     groupRecords.forEach(rec => {
                         const part = memberGroupMap.get(rec.member) || '알바';
@@ -454,23 +588,45 @@
                                     <span class="text-xs font-semibold text-gray-500 w-16 inline-block">${part}</span>
                                     <span>${rec.member}</span>
                                 </span>
-                                <button data-record-id="${rec.id}" class="stop-work-individual-btn text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-0.5 rounded">종료</button>
+                                ${rec.status === 'ongoing' ? `<button data-record-id="${rec.id}" class="stop-work-individual-btn text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-0.5 rounded">종료</button>` : ''}
                             </div>
                         `;
                     });
                     membersHtml += '</div>';
 
                     const card = document.createElement('div');
-                    card.className = 'p-4 rounded-lg border flex flex-col justify-between bg-blue-50 border-blue-200';
-                    card.innerHTML = `
-                        <div>
-                            <div class="font-bold text-lg text-blue-800">${firstRecord.task}</div>
-                            <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(firstRecord.startTime)} (진행: ${formatDuration(elapsedMinutes)})</div>
-                            <div class="font-semibold text-gray-600 text-sm mb-2">참여 인원 (${groupRecords.length}명):</div>
-                            ${membersHtml}
-                        </div>
-                        <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn mt-3 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-md transition text-sm">그룹 전체 종료</button>
-                    `;
+                    
+                    if (isOngoing) {
+                        card.className = 'p-4 rounded-lg border flex flex-col justify-between bg-blue-50 border-blue-200';
+                        card.innerHTML = `
+                            <div>
+                                <div class="font-bold text-lg text-blue-800">${firstRecord.task}</div>
+                                <div class="text-xs text-gray-500 my-2">
+                                    시작: ${formatTimeTo24H(firstRecord.startTime)} 
+                                    <span class="ongoing-duration" data-start-time="${firstRecord.startTime}">(진행: 0분)</span>
+                                </div>
+                                <div class="font-semibold text-gray-600 text-sm mb-2">참여 인원 (${groupRecords.filter(r=>r.status === 'ongoing').length}명):</div>
+                                ${membersHtml}
+                            </div>
+                            <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn mt-3 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-md transition text-sm">그룹 전체 종료</button>
+                        `;
+                    } else { // Completed card
+                         card.className = 'p-4 rounded-lg border flex flex-col justify-between bg-gray-100 border-gray-200 opacity-80';
+                         const totalDuration = groupRecords.reduce((sum, r) => sum + r.duration, 0);
+                         card.innerHTML = `
+                            <div>
+                                <div class="font-bold text-lg text-gray-500">${firstRecord.task} (완료)</div>
+                                <div class="text-xs text-gray-500 my-2">
+                                    ${formatTimeTo24H(firstRecord.startTime)} ~ ${formatTimeTo24H(firstRecord.endTime)}
+                                    <span class="font-semibold">(총: ${formatDuration(totalDuration/groupRecords.length)})</span>
+                                </div>
+                                <div class="font-semibold text-gray-600 text-sm mb-2">참여 인원 (${groupRecords.length}명):</div>
+                                ${membersHtml}
+                            </div>
+                            <button data-group-id="${firstRecord.groupId}" class="hide-completed-group-btn mt-3 w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-md transition text-sm">숨기기</button>
+                        `;
+                    }
+
                     ongoingGrid.appendChild(card);
                 });
             }
@@ -479,31 +635,57 @@
 
             // SECTION 2: ALL TEAM MEMBER STATUS
             const allMembersContainer = document.createElement('div');
-            allMembersContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4 mt-8">전체 팀원 현황</h3>`;
+            const allMembersHeader = document.createElement('div');
+            allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
+            allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 선택)</h3>
+                <button id="set-leave-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-sm text-sm">선택 인원 휴무 설정/해제</button>`;
+            allMembersContainer.appendChild(allMembersHeader);
+
             const workingMembers = new Map(ongoingRecords.map(r => [r.member, r.task]));
 
             teamGroups.forEach(group => {
                 const groupContainer = document.createElement('div');
                 groupContainer.className = 'mb-4';
-                groupContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2">${group.name}</h4>`;
+
+                const groupHeader = document.createElement('div');
+                groupHeader.className = 'flex items-center gap-2 mb-2';
+                groupHeader.innerHTML = `<h4 class="text-md font-semibold text-gray-600">${group.name}</h4>`;
+
+                const selectAllBtn = document.createElement('button');
+                selectAllBtn.dataset.groupName = group.name;
+                selectAllBtn.className = 'select-all-group-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded';
+                selectAllBtn.textContent = '전체선택';
+                groupHeader.appendChild(selectAllBtn);
+                groupContainer.appendChild(groupHeader);
+
                 const groupGrid = document.createElement('div');
                 groupGrid.className = 'grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3';
                 const uniqueMembersInGroup = [...new Set(group.members)];
 
                 uniqueMembersInGroup.forEach(member => {
-                    const card = document.createElement('div');
+                    const card = document.createElement('button');
+                    card.type = 'button';
+                    card.dataset.memberName = member;
+
                     const isOnLeave = (appState.onLeaveMembers || []).includes(member);
                     const currentlyWorkingTask = workingMembers.get(member);
+                    const isSelected = (appState.selectedForTask || []).includes(member);
+
+                    let classList = 'p-2 rounded-lg border text-center transition-shadow ';
+                    if (isSelected) {
+                        classList += 'ring-2 ring-offset-1 ring-blue-500 ';
+                    }
 
                     if (isOnLeave) {
-                        card.className = 'p-2 rounded-lg border bg-gray-800 border-gray-700 text-center text-gray-400';
+                        card.className = classList + 'bg-gray-800 border-gray-700 text-gray-400';
                         card.innerHTML = `<div class="font-semibold text-sm">${member}</div><div class="text-xs mt-1">휴무</div>`;
                     } else if (currentlyWorkingTask) {
-                        card.className = 'p-2 rounded-lg border bg-green-50 border-green-200 text-center';
-                        card.innerHTML = `<div class="flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500"></span><div class="font-semibold text-sm text-green-800">${member}</div></div><div class="text-xs text-gray-600 truncate mt-1" title="${currentlyWorkingTask}">${currentlyWorkingTask}</div>`;
+                        card.className = classList + 'bg-red-50 border-red-200';
+                        let displayTask = `${currentlyWorkingTask} 중`;
+                        card.innerHTML = `<div class="flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500"></span><div class="font-semibold text-sm text-red-800">${member}</div></div><div class="text-xs text-gray-600 truncate mt-1" title="${currentlyWorkingTask}">${displayTask}</div>`;
                     } else {
-                        card.className = 'p-2 rounded-lg border bg-yellow-50 border-yellow-200 text-center';
-                        card.innerHTML = `<div class="flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-yellow-500"></span><div class="font-semibold text-sm text-gray-700">${member}</div></div><div class="text-xs text-gray-400 mt-1">대기 중</div>`;
+                        card.className = classList + 'bg-green-50 border-green-200';
+                        card.innerHTML = `<div class="flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500"></span><div class="font-semibold text-sm text-green-800">${member}</div></div><div class="text-xs text-green-600 mt-1">대기 중</div>`;
                     }
                     groupGrid.appendChild(card);
                 });
@@ -511,7 +693,6 @@
                 allMembersContainer.appendChild(groupContainer);
             });
             
-            // Add Part-timer (알바) section
             const workingAlba = ongoingRecords.filter(r => r.member.startsWith('알바'));
             if (workingAlba.length > 0) {
                 const albaContainer = document.createElement('div');
@@ -525,8 +706,9 @@
                 uniqueAlba.forEach(albaMember => {
                     const card = document.createElement('div');
                     const currentlyWorkingTask = workingMembers.get(albaMember);
-                    card.className = 'p-2 rounded-lg border bg-green-50 border-green-200 text-center';
-                    card.innerHTML = `<div class="flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500"></span><div class="font-semibold text-sm text-green-800">${albaMember}</div></div><div class="text-xs text-gray-600 truncate mt-1" title="${currentlyWorkingTask}">${currentlyWorkingTask}</div>`;
+                    let displayTask = `${currentlyWorkingTask} 중`;
+                    card.className = 'p-2 rounded-lg border bg-red-50 border-red-200 text-center';
+                    card.innerHTML = `<div class="flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500"></span><div class="font-semibold text-sm text-red-800">${albaMember}</div></div><div class="text-xs text-gray-600 truncate mt-1" title="${currentlyWorkingTask}">${displayTask}</div>`;
                     albaGrid.appendChild(card);
                 });
 
@@ -538,6 +720,7 @@
         };
 
         const renderCompletedWorkLog = () => {
+            const workLogBody = document.getElementById('work-log-body');
             workLogBody.innerHTML = '';
             const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
             const groupedRecords = completedRecords.reduce((acc, record) => {
@@ -557,7 +740,7 @@
                     groupedRecords[task].sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(record => {
                         const row = document.createElement('tr');
                         row.className = 'bg-white border-b border-gray-200 hover:bg-gray-50';
-                        row.innerHTML = `<td class="px-6 py-4 font-medium text-gray-900">${record.member}</td><td class="px-6 py-4">${record.task}</td><td class="px-6 py-4">${formatTimeTo24H(record.startTime)}</td><td class="px-6 py-4">${formatTimeTo24H(record.endTime)}</td><td class="px-6 py-4">${formatDuration(record.duration)}</td><td class="px-6 py-4 text-right"><button class="font-medium text-red-500 hover:underline" onclick="deleteRecord(${record.id})">삭제</button></td>`;
+                        row.innerHTML = `<td class="px-6 py-4 font-medium text-gray-900">${record.member}</td><td class="px-6 py-4">${record.task}</td><td class="px-6 py-4">${formatTimeTo24H(record.startTime)}</td><td class="px-6 py-4">${formatTimeTo24H(record.endTime)}</td><td class="px-6 py-4">${formatDuration(record.duration)}</td><td class="px-6 py-4 text-right space-x-2"><button class="font-medium text-blue-500 hover:underline" onclick="editRecord(${record.id})">수정</button><button class="font-medium text-red-500 hover:underline" onclick="deleteRecord(${record.id})">삭제</button></td>`;
                         workLogBody.appendChild(row);
                     });
                 });
@@ -565,21 +748,98 @@
         };
 
         const updateSummary = () => {
+            const ongoingTasksCountEl = document.getElementById('ongoing-tasks-count');
+            const workingMembersCountEl = document.getElementById('working-members-count');
+            const idleMembersCountEl = document.getElementById('idle-members-count');
+
+            const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
+            const ongoingTaskIds = new Set(ongoingRecords.map(r => r.groupId));
+            const workingMembers = new Set(ongoingRecords.map(r => r.member));
+            
+            const allMembers = new Set(teamGroups.flatMap(g => g.members));
+            const onLeaveCount = (appState.onLeaveMembers || []).length;
+            const totalActiveMembers = allMembers.size - onLeaveCount;
+            const idleMembersCount = totalActiveMembers - workingMembers.size;
+            
+            ongoingTasksCountEl.textContent = `${ongoingTaskIds.size} 건`;
+            workingMembersCountEl.textContent = `${workingMembers.size} 명`;
+            idleMembersCountEl.textContent = `${idleMembersCount} 명`;
+
             const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
-            const totalMinutes = completedRecords.reduce((sum, record) => sum + record.duration, 0);
+            const totalSumMinutes = completedRecords.reduce((sum, record) => sum + record.duration, 0);
+
+            const completedGroups = {};
+            completedRecords.forEach(record => {
+                if (!completedGroups[record.groupId]) {
+                    completedGroups[record.groupId] = record.duration;
+                }
+            });
+            const totalOverallMinutes = Object.values(completedGroups).reduce((sum, duration) => sum + duration, 0);
+
             const totalQuantity = Object.values(appState.taskQuantities || {}).reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
-            totalHoursEl.textContent = formatDuration(totalMinutes);
-            const uniqueMembers = new Set(completedRecords.map(record => record.member));
-            totalMembersEl.textContent = `${uniqueMembers.size} 명`;
-            totalQuantityEl.textContent = `${totalQuantity} 개`;
-            const throughput = totalMinutes > 0 ? (totalQuantity / totalMinutes).toFixed(2) : "0.00";
-            throughputEl.textContent = `${throughput} 개/분`;
+            
+            document.getElementById('total-sum-hours').textContent = formatDuration(totalSumMinutes);
+            document.getElementById('total-overall-hours').textContent = formatDuration(totalOverallMinutes);
+            document.getElementById('total-quantity').textContent = `${totalQuantity} 개`;
+
+            const totalNonWorkHoursEl = document.getElementById('total-non-work-hours');
+            if (isWeekday(getTodayDateString())) {
+                const totalPotentialMinutes = totalActiveMembers * 8 * 60;
+                const nonWorkMinutes = totalPotentialMinutes - totalSumMinutes;
+                
+                if (totalActiveMembers > 0) {
+                    const percentage = totalPotentialMinutes > 0 ? (nonWorkMinutes / totalPotentialMinutes * 100).toFixed(1) : 0;
+                    totalNonWorkHoursEl.innerHTML = `<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">총 비업무시간</h4>
+                    <p class="text-xl font-bold text-gray-600 mt-1 leading-tight">${formatDuration(nonWorkMinutes > 0 ? nonWorkMinutes : 0)}</p>
+                    <p class="text-xs text-gray-500 mt-1">총 ${formatDuration(totalPotentialMinutes)} 중 (${percentage}%)</p>`;
+                } else {
+                    totalNonWorkHoursEl.innerHTML = `<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">총 비업무시간</h4><p class="text-2xl font-bold text-gray-600 mt-1">0 분</p>`;
+                }
+
+            } else {
+                 totalNonWorkHoursEl.innerHTML = `<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">총 비업무시간</h4><p class="text-lg font-bold text-gray-400 mt-2">주말</p>`;
+            }
+
+            const minutesForQuantityTasks = completedRecords
+                .filter(record => quantityTaskTypes.includes(record.task))
+                .reduce((sum, record) => sum + record.duration, 0);
+
+            const throughput = minutesForQuantityTasks > 0 ? (totalQuantity / minutesForQuantityTasks).toFixed(2) : "0.00";
+            const throughputEl = document.getElementById('throughput-per-minute');
+            throughputEl.innerHTML = `${throughput} <span class="text-xs font-normal text-gray-500">개/분</span>`;
         };
 
         // --- Main Logic & Firebase Integration ---
         window.deleteRecord = (id) => {
+            deleteMode = 'single';
             recordToDeleteId = id;
+            document.getElementById('delete-confirm-message').textContent = '정말로 이 기록을 삭제하시겠습니까?';
             deleteConfirmModal.classList.remove('hidden');
+        };
+        
+        window.editRecord = (id) => {
+            recordToEditId = id;
+            const record = appState.workRecords.find(r => r.id === id);
+            if (!record) return;
+
+            document.getElementById('edit-member-name').value = record.member;
+            
+            const taskSelect = document.getElementById('edit-task-type');
+            taskSelect.innerHTML = '';
+            taskTypes.forEach(task => {
+                const option = document.createElement('option');
+                option.value = task;
+                option.textContent = task;
+                if (task === record.task) {
+                    option.selected = true;
+                }
+                taskSelect.appendChild(option);
+            });
+
+            document.getElementById('edit-start-time').value = record.startTime;
+            document.getElementById('edit-end-time').value = record.endTime;
+
+            editRecordModal.classList.remove('hidden');
         };
 
         const startWorkGroup = (members, task) => {
@@ -600,9 +860,26 @@
         };
 
         const stopWorkGroup = (groupId) => {
+            const records = appState.workRecords.filter(r => r.groupId === groupId && r.status === 'ongoing');
+            if (records.length === 0) return;
+
+            const taskName = records[0].task;
+            if (quantityTaskTypes.includes(taskName)) {
+                groupToStopId = groupId;
+                document.getElementById('quantity-on-stop-task-name').textContent = taskName;
+                document.getElementById('quantity-on-stop-input').value = '';
+                quantityOnStopModal.classList.remove('hidden');
+            } else {
+                finalizeStopGroup(groupId, null);
+            }
+        };
+
+        const finalizeStopGroup = (groupId, quantity) => {
             const endTime = getCurrentTime();
+            let taskName = '';
             appState.workRecords.forEach(record => {
                 if (record.groupId === groupId && record.status === 'ongoing') {
+                    taskName = record.task;
                     record.status = 'completed';
                     record.endTime = endTime;
                     const start = new Date(`1970-01-01T${record.startTime}`);
@@ -610,8 +887,19 @@
                     record.duration = (end - start) / (1000 * 60);
                 }
             });
+
+            if (quantity !== null && taskName) {
+                appState.taskQuantities[taskName] = (appState.taskQuantities[taskName] || 0) + quantity;
+            }
+
+            if (!appState.hiddenGroupIds.includes(groupId)) {
+                appState.hiddenGroupIds.push(groupId);
+            }
+
             saveStateToFirestore();
-        };
+            quantityOnStopModal.classList.add('hidden');
+            groupToStopId = null;
+        }
 
         const stopWorkIndividual = (recordId) => {
             const endTime = getCurrentTime();
@@ -622,6 +910,14 @@
                 const start = new Date(`1970-01-01T${record.startTime}`);
                 const end = new Date(`1970-01-01T${endTime}`);
                 record.duration = (end - start) / (1000 * 60);
+                
+                const remainingOngoing = appState.workRecords.some(r => r.groupId === record.groupId && r.status === 'ongoing');
+                if (!remainingOngoing) {
+                    if (!appState.hiddenGroupIds.includes(record.groupId)) {
+                        appState.hiddenGroupIds.push(record.groupId);
+                    }
+                }
+
                 saveStateToFirestore();
                 showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
             }
@@ -634,9 +930,9 @@
             await setDoc(docRef, { state: JSON.stringify(appState) });
         }
 
-        async function updateHistoryWithQuantities() {
+        async function saveProgress() {
             const dateStr = getTodayDateString();
-            showToast(`처리량 정보를 이력에 저장합니다...`);
+            showToast(`현재까지 완료된 기록을 저장합니다...`);
 
             const historyDocRef = doc(db, "artifacts", APP_ID, "history", dateStr);
 
@@ -645,12 +941,14 @@
                 const existingData = docSnap.exists() ? docSnap.data() : { workRecords: [], taskQuantities: {} };
 
                 const completedRecordsFromState = appState.workRecords.filter(r => r.status === 'completed');
-                const newQuantities = appState.taskQuantities || {};
+                
+                if (completedRecordsFromState.length === 0 && Object.values(appState.taskQuantities).every(q => (parseInt(q,10) || 0) === 0)) {
+                    return showToast('저장할 새로운 완료 기록이 없습니다.', true);
+                }
 
                 const combinedRecords = [...(existingData.workRecords || []), ...completedRecordsFromState];
                 const uniqueRecords = Array.from(new Map(combinedRecords.map(item => [item.id, item])).values());
-                
-                const finalQuantities = { ...(existingData.taskQuantities || {}), ...newQuantities };
+                const finalQuantities = { ...(existingData.taskQuantities || {}), ...appState.taskQuantities };
 
                 const dataToSave = {
                     workRecords: uniqueRecords,
@@ -659,72 +957,27 @@
                 };
 
                 await setDoc(historyDocRef, dataToSave);
-                showToast(`${dateStr}의 처리량 정보가 이력에 저장되었습니다.`);
+                showToast(`현재까지의 기록이 성공적으로 저장되었습니다.`);
 
             } catch (e) {
-                console.error("Error in updateHistoryWithQuantities: ", e);
-                showToast(`처리량 이력 저장 중 오류가 발생했습니다: ${e.message}`, true);
+                console.error("Error in saveProgress: ", e);
+                showToast(`중간 저장 중 오류가 발생했습니다: ${e.message}`, true);
             }
         }
-
-        async function saveDayDataToHistory() {
-            const dateStr = getTodayDateString();
-            showToast(`마감 및 저장을 시작합니다 (${dateStr})...`);
-
-            const historyDocRef = doc(db, "artifacts", APP_ID, "history", dateStr);
-            
-            try {
-                const docSnap = await getDoc(historyDocRef);
-                const existingData = docSnap.exists() ? docSnap.data() : { workRecords: [], taskQuantities: {} };
-
-                const endTime = getCurrentTime();
-                const newCompletedRecords = [];
-                const recordsToProcess = JSON.parse(JSON.stringify(appState.workRecords)); 
-
-                recordsToProcess.forEach(record => {
-                    if (record.status === 'ongoing') {
-                        const start = new Date(`1970-01-01T${record.startTime}`);
-                        const end = new Date(`1970-01-01T${endTime}`);
-                        let duration = (end - start) / (1000 * 60);
-                        
-                        record.status = 'completed';
-                        record.endTime = endTime;
-                        record.duration = duration > 0 ? duration : 0;
-                    }
-                    newCompletedRecords.push(record);
-                });
-
-                const newQuantities = appState.taskQuantities || {};
-
-                const combinedRecords = [...(existingData.workRecords || []), ...newCompletedRecords];
-                const uniqueRecords = Array.from(new Map(combinedRecords.map(item => [item.id, item])).values());
-                const finalQuantities = { ...(existingData.taskQuantities || {}), ...newQuantities };
-                
-                if (uniqueRecords.length === 0 && Object.values(finalQuantities).every(q => (parseInt(q, 10) || 0) === 0)) {
-                    return showToast('저장할 기록이 없습니다.', true);
-                }
-
-                const dataToSave = {
-                    workRecords: uniqueRecords,
-                    taskQuantities: finalQuantities,
-                    onLeaveMembers: appState.onLeaveMembers || []
-                };
-
-                await setDoc(historyDocRef, dataToSave);
-                showToast(`${dateStr}의 기록이 성공적으로 저장/업데이트되었습니다.`);
-
+        
+        async function saveDayDataToHistory(shouldReset) {
+            await saveProgress(); // Save any completed work first
+            if(shouldReset){
                 appState.workRecords = [];
                 appState.taskQuantities = {};
+                appState.selectedForTask = [];
+                appState.hiddenGroupIds = [];
                 taskTypes.forEach(task => {
                     appState.taskQuantities[task] = 0;
                 });
                 
                 await saveStateToFirestore();
                 showToast(`오늘의 업무 기록을 초기화했습니다.`);
-
-            } catch(e) {
-                console.error("Error in saveDayDataToHistory: ", e);
-                showToast(`이력 저장 중 오류가 발생했습니다: ${e.code || e.message}`, true);
             }
         }
 
@@ -775,6 +1028,33 @@
             }
         };
 
+        window.openHistoryQuantityModal = (dateKey) => {
+             const data = allHistoryData.find(d => d.id === dateKey);
+             if (!data) return;
+
+             renderQuantityModalInputs(data.taskQuantities || {});
+             
+             document.getElementById('quantity-modal-title').textContent = `${dateKey} 처리량 수정`;
+             
+             quantityModalContext = {
+                mode: 'history',
+                dateKey: dateKey,
+                onConfirm: async (newQuantities) => {
+                    const dataToUpdate = allHistoryData.find(d => d.id === dateKey);
+                    dataToUpdate.taskQuantities = newQuantities;
+                    const historyDocRef = doc(db, "artifacts", APP_ID, "history", dateKey);
+                    await setDoc(historyDocRef, dataToUpdate);
+                    showToast(`${dateKey}의 처리량이 수정되었습니다.`);
+                    renderHistoryDetail(dateKey);
+                },
+                onCancel: () => { /* Just close */ }
+             };
+             
+             document.getElementById('confirm-quantity-btn').textContent = "수정 저장";
+             document.getElementById('cancel-quantity-btn').textContent = "취소";
+             quantityModal.classList.remove('hidden');
+        };
+        
         const renderHistoryDetail = async (dateKey) => {
             const view = document.getElementById('history-daily-view');
             view.innerHTML = `<div class="text-center text-gray-500">데이터 로딩 중...</div>`;
@@ -788,51 +1068,82 @@
 
             const records = data.workRecords || [];
             const quantities = data.taskQuantities || {};
+            const onLeaveMembers = data.onLeaveMembers || [];
             
-            const totalMembers = new Set(records.map(r => r.member)).size;
-            const totalDuration = records.reduce((sum, r) => sum + r.duration, 0);
+            const allRegularMembers = new Set(teamGroups.flatMap(g => g.members));
+            const activeMembersCount = allRegularMembers.size - (onLeaveMembers || []).length;
+
+            const totalSumDuration = records.reduce((sum, r) => sum + r.duration, 0);
+
+            const completedGroups = {};
+            records.forEach(record => {
+                if (!completedGroups[record.groupId]) {
+                    completedGroups[record.groupId] = record.duration;
+                }
+            });
+            const totalOverallDuration = Object.values(completedGroups).reduce((sum, duration) => sum + duration, 0);
+
+
             const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (parseInt(q, 10) || 0), 0);
-            const avgThroughput = totalDuration > 0 ? (totalQuantity / totalDuration).toFixed(2) : '0.00';
+            const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
             const taskDurations = records.reduce((acc, rec) => {
                 acc[rec.task] = (acc[rec.task] || 0) + rec.duration;
                 return acc;
             }, {});
+            
+            let nonWorkHtml = '';
+            if (isWeekday(dateKey)) {
+                const totalPotentialMinutes = activeMembersCount * 8 * 60;
+                const nonWorkMinutes = totalPotentialMinutes - totalSumDuration;
+                const percentage = totalPotentialMinutes > 0 ? (nonWorkMinutes / totalPotentialMinutes * 100).toFixed(1) : 0;
+                nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                    <h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4>
+                    <p class="text-xl font-bold text-gray-700">${formatDuration(nonWorkMinutes > 0 ? nonWorkMinutes : 0)}</p>
+                    <p class="text-xs text-gray-500 mt-1">총 ${formatDuration(totalPotentialMinutes)} 중 (${percentage}%)</p>
+                </div>`;
+            } else {
+                nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex flex-col justify-center items-center">
+                    <h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4>
+                    <p class="text-lg font-bold text-gray-400">주말</p>
+                </div>`;
+            }
 
             let html = `
                 <div class="mb-6 pb-4 border-b flex justify-between items-center">
                     <h3 class="text-2xl font-bold text-gray-800">${dateKey}</h3>
                     <div>
-                        <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm" onclick="downloadHistoryAsExcel('${dateKey}')">엑셀</button>
+                        <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm" onclick="openHistoryQuantityModal('${dateKey}')">처리량 수정</button>
+                        <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="downloadHistoryAsExcel('${dateKey}')">엑셀</button>
                         <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="requestHistoryDeletion('${dateKey}')">삭제</button>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총 투입 인원</h4><p class="text-2xl font-bold text-gray-800">${totalMembers} 명</p></div>
-                    <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총 업무 시간</h4><p class="text-2xl font-bold text-gray-800">${formatHours(totalDuration)}</p></div>
+                <div class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+                    <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총 투입 인원</h4><p class="text-2xl font-bold text-gray-800">${activeMembersCount} 명</p></div>
+                    <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${formatHours(totalSumDuration)}</p></div>
+                    <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">전체 시간</h4><p class="text-2xl font-bold text-gray-800">${formatHours(totalOverallDuration)}</p></div>
+                    ${nonWorkHtml}
                     <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${totalQuantity} 개</p></div>
                     <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
                 </div>
 
                 <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-                    <h4 class="text-lg font-bold mb-3 text-gray-700">업무별 시간 비중</h4>
-                    <div class="space-y-3">
+                    <h4 class="text-lg font-bold mb-3 text-gray-700">업무별 처리량</h4>
+                    <div class="space-y-2">
             `;
-            Object.entries(taskDurations).forEach(([task, duration]) => {
-                const percentage = totalDuration > 0 ? (duration / totalDuration * 100).toFixed(1) : 0;
-                html += `
-                    <div>
-                        <div class="flex justify-between items-center mb-1 text-sm">
-                            <span class="font-semibold text-gray-600">${task}</span>
-                            <span>${formatDuration(duration)} (${percentage}%)</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${percentage}%"></div></div>
-                    </div>
-                `;
+            let hasRawQuantities = false;
+            Object.entries(quantities).forEach(([task, qty]) => {
+                if(parseInt(qty, 10) > 0) {
+                    hasRawQuantities = true;
+                    html += `<div class="flex justify-between items-center text-sm border-b pb-2"><span class="font-semibold text-gray-600">${task}</span><span>${qty} 개</span></div>`;
+                }
             });
+            if (!hasRawQuantities) {
+                html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
+            }
             html += `</div></div>`;
 
-            html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 분당 처리량</h4><div class="space-y-2">`;
+            html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 분당 처리량</h4><div class="space-y-2">`;
             let hasQuantities = false;
              Object.entries(quantities).forEach(([task, qty]) => {
                 if(parseInt(qty, 10) > 0) {
@@ -845,6 +1156,21 @@
             if (!hasQuantities) {
                 html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
             }
+            html += `</div></div>`;
+
+            html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 시간 비중</h4><div class="space-y-3">`;
+            Object.entries(taskDurations).forEach(([task, duration]) => {
+                const percentage = totalSumDuration > 0 ? (duration / totalSumDuration * 100).toFixed(1) : 0;
+                html += `
+                    <div>
+                        <div class="flex justify-between items-center mb-1 text-sm">
+                            <span class="font-semibold text-gray-600">${task}</span>
+                            <span>${formatDuration(duration)} (${percentage}%)</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${percentage}%"></div></div>
+                    </div>
+                `;
+            });
             html += `</div></div>`;
 
             view.innerHTML = html;
@@ -964,14 +1290,22 @@
         document.getElementById('work-start-form').addEventListener('submit', (e) => {
             e.preventDefault();
             const task = document.getElementById('task-type').value;
-            if (selectedMembers.length === 0) {
-                return showToast('팀원을 한 명 이상 선택해주세요.', true);
-            }
-            startWorkGroup(selectedMembers, task);
+            const partTimerCount = parseInt(document.getElementById('part-timer-count').value, 10) || 0;
             
-            selectedMembers = [];
-            openMemberModalBtn.textContent = '팀원을 선택하세요';
+            const membersToStart = [...(appState.selectedForTask || [])];
+            for (let i = 1; i <= partTimerCount; i++) {
+                membersToStart.push(`알바 ${i}`);
+            }
+
+            if (membersToStart.length === 0) {
+                return showToast('업무를 시작할 팀원을 선택해주세요.', true);
+            }
+            startWorkGroup(membersToStart, task);
+            
+            appState.selectedForTask = [];
+            document.getElementById('part-timer-count').value = 0;
             showToast(`${task} 업무를 시작합니다.`);
+            renderRealtimeStatus(); // To clear selections
         });
         
         teamStatusBoard.addEventListener('click', (e) => {
@@ -988,106 +1322,135 @@
                 stopWorkIndividual(recordId);
                 return;
             }
-        });
-        
-        openMemberModalBtn.addEventListener('click', () => {
-            populateModalTeamMembers();
-            memberModal.classList.remove('hidden');
-        });
-        cancelMemberSelectionBtn.addEventListener('click', () => memberModal.classList.add('hidden'));
-        
-        toggleLeaveBtn.addEventListener('click', () => {
-            const selectedElements = Array.from(modalTeamMemberList.querySelectorAll('button.bg-blue-600'));
-            if (selectedElements.length === 0) {
-                showToast('휴무 처리/해제할 팀원을 선택하세요.', true);
+            
+            const memberButton = e.target.closest('[data-member-name]');
+            if (memberButton) {
+                const memberName = memberButton.dataset.memberName;
+                const index = (appState.selectedForTask || []).indexOf(memberName);
+                if (index > -1) {
+                    appState.selectedForTask.splice(index, 1);
+                } else {
+                    appState.selectedForTask.push(memberName);
+                }
+                renderRealtimeStatus(); // Re-render to show selection change
                 return;
             }
-            const selectedNames = selectedElements.map(el => el.dataset.name);
-            
-            selectedNames.forEach(name => {
-                const index = (appState.onLeaveMembers || []).indexOf(name);
-                if (index > -1) {
-                    appState.onLeaveMembers.splice(index, 1);
-                } else {
-                    appState.onLeaveMembers.push(name);
+
+            const selectAllButton = e.target.closest('.select-all-group-btn');
+            if (selectAllButton) {
+                const groupName = selectAllButton.dataset.groupName;
+                const group = teamGroups.find(g => g.name === groupName);
+                if (!group) return;
+
+                const activeMembersInGroup = group.members.filter(m => !(appState.onLeaveMembers || []).includes(m) && !m.startsWith('알바'));
+                const allSelected = activeMembersInGroup.every(m => (appState.selectedForTask || []).includes(m));
+
+                if (allSelected) { // Deselect all
+                    appState.selectedForTask = appState.selectedForTask.filter(m => !activeMembersInGroup.includes(m));
+                } else { // Select all
+                    activeMembersInGroup.forEach(m => {
+                        if (!(appState.selectedForTask || []).includes(m)) {
+                            appState.selectedForTask.push(m);
+                        }
+                    });
                 }
-            });
-            saveStateToFirestore();
-            showToast('휴무 상태가 업데이트되었습니다.');
-            populateModalTeamMembers(); // Refresh the modal
+                renderRealtimeStatus();
+                return;
+            }
+            
+            const showHiddenButton = e.target.closest('#show-hidden-cards-btn');
+            if (showHiddenButton) {
+                const allCompletedGroupIds = [...new Set(appState.workRecords.filter(r => r.status === 'completed').map(r => r.groupId))];
+                
+                const allHidden = allCompletedGroupIds.every(id => (appState.hiddenGroupIds || []).includes(id));
+                
+                if (allHidden) { // If all are hidden, show them all by removing them from hidden list
+                  appState.hiddenGroupIds = (appState.hiddenGroupIds || []).filter(id => !allCompletedGroupIds.includes(id));
+                } else { // If some are showing, hide them all
+                  allCompletedGroupIds.forEach(id => { 
+                    if (!(appState.hiddenGroupIds || []).includes(id)) {
+                        appState.hiddenGroupIds.push(id); 
+                    }
+                  });
+                }
+                renderRealtimeStatus();
+                return;
+            }
+
+            const hideCardButton = e.target.closest('.hide-completed-group-btn');
+            if (hideCardButton) {
+                const groupId = parseFloat(hideCardButton.dataset.groupId);
+                if (!appState.hiddenGroupIds.includes(groupId)) {
+                    appState.hiddenGroupIds.push(groupId);
+                }
+                renderRealtimeStatus();
+            }
+
+            const setLeaveBtn = e.target.closest('#set-leave-btn');
+            if(setLeaveBtn) {
+                 const selected = appState.selectedForTask || [];
+                if (selected.length === 0) {
+                    return showToast('휴무 처리/해제할 팀원을 선택해주세요.', true);
+                }
+                selected.forEach(name => {
+                    const index = (appState.onLeaveMembers || []).indexOf(name);
+                    if (index > -1) {
+                        appState.onLeaveMembers.splice(index, 1);
+                    } else {
+                        appState.onLeaveMembers.push(name);
+                    }
+                });
+                appState.selectedForTask = []; // Clear selection after action
+                saveStateToFirestore();
+                showToast('선택된 인원의 휴무 상태가 변경되었습니다.');
+                renderRealtimeStatus();
+            }
         });
         
-        confirmMemberSelectionBtn.addEventListener('click', () => {
-            const selectedElements = Array.from(modalTeamMemberList.querySelectorAll('button.bg-blue-600'));
-            let selectedForWork = selectedElements.map(el => el.dataset.name);
-            
-            const partTimerCountSelect = document.getElementById('part-timer-count');
-            const partTimerCount = parseInt(partTimerCountSelect.value, 10) || 0;
-
-            for (let i = 1; i <= partTimerCount; i++) {
-                selectedForWork.push(`알바 ${i}`);
-            }
-
-            const activeSelectedMembers = selectedForWork.filter(member => !(appState.onLeaveMembers || []).includes(member));
-            
-            if (selectedForWork.length > 0 && activeSelectedMembers.length === 0) {
-                 showToast('선택된 모든 인원이 휴무 상태입니다. 업무를 시작할 수 없습니다.', true);
-                 return;
-            }
-            
-            selectedMembers = activeSelectedMembers;
-
-            const totalSelected = selectedMembers.length;
-            
-            if (totalSelected > 0) {
-                 const namedMembersCount = selectedMembers.filter(m => !m.startsWith('알바')).length;
-                 const albaCount = totalSelected - namedMembersCount;
-
-                 let text = '';
-                 if (namedMembersCount > 0) text += `${namedMembersCount}명`;
-                 if (albaCount > 0) {
-                     if(text.length > 0) text += ' + ';
-                     text += `알바 ${albaCount}명`;
-                 }
-                 openMemberModalBtn.textContent = text + ' 선택됨';
-            } else {
-                 openMemberModalBtn.textContent = '팀원을 선택하세요';
-            }
-            
-            memberModal.classList.add('hidden');
+        deleteAllCompletedBtn.addEventListener('click', () => {
+            deleteMode = 'all';
+            document.getElementById('delete-confirm-message').textContent = '정말로 오늘 완료된 모든 기록을 삭제하시겠습니까?';
+            deleteConfirmModal.classList.remove('hidden');
         });
 
-
         confirmDeleteBtn.addEventListener('click', () => {
-            if (recordToDeleteId !== null) {
+            if (deleteMode === 'single' && recordToDeleteId !== null) {
                 appState.workRecords = appState.workRecords.filter(record => record.id !== recordToDeleteId);
-                saveStateToFirestore();
                 showToast('기록이 삭제되었습니다.');
+            } else if (deleteMode === 'all') {
+                appState.workRecords = appState.workRecords.filter(record => record.status !== 'completed');
+                showToast('완료된 모든 기록이 삭제되었습니다.');
             }
+            saveStateToFirestore();
             deleteConfirmModal.classList.add('hidden');
             recordToDeleteId = null;
         });
-        cancelDeleteBtn.addEventListener('click', () => deleteConfirmModal.classList.add('hidden'));
-
-        endDayBtn.addEventListener('click', () => {
-             if (appState.workRecords.some(r => r.status === 'ongoing')) {
-                 endDayConfirmModal.querySelector('p').textContent = '아직 진행 중인 업무가 있습니다. 마감 시 강제 종료됩니다. 저장 후에는 오늘의 기록이 초기화됩니다.';
-            } else {
-                 endDayConfirmModal.querySelector('p').textContent = '저장 후에는 오늘의 기록이 초기화됩니다.';
-            }
-            endDayConfirmModal.classList.remove('hidden')
-        });
-        confirmEndDayBtn.addEventListener('click', () => {
-            saveDayDataToHistory();
-            endDayConfirmModal.classList.add('hidden');
-        });
-        cancelEndDayBtn.addEventListener('click', () => endDayConfirmModal.classList.add('hidden'));
         
+        endShiftBtn.addEventListener('click', () => {
+            renderQuantityModalInputs(appState.taskQuantities);
+            document.getElementById('quantity-modal-title').textContent = "업무 마감 전 처리량 입력";
+            document.getElementById('confirm-quantity-btn').textContent = "저장하고 마감";
+            document.getElementById('cancel-quantity-btn').textContent = "저장 없이 마감";
+
+            quantityModalContext = {
+                mode: 'end-shift',
+                onConfirm: (newQuantities) => {
+                    appState.taskQuantities = newQuantities;
+                    saveDayDataToHistory(true);
+                },
+                onCancel: () => {
+                    saveDayDataToHistory(true);
+                }
+            };
+            quantityModal.classList.remove('hidden');
+        });
+        
+        saveProgressBtn.addEventListener('click', saveProgress);
+
         openHistoryBtn.addEventListener('click', () => {
             loadAndRenderHistoryList();
             historyModal.classList.remove('hidden');
         });
-        closeHistoryBtn.addEventListener('click', () => historyModal.classList.add('hidden'));
         
         historyDateList.addEventListener('click', (e) => {
             const button = e.target.closest('button');
@@ -1139,29 +1502,94 @@
             deleteHistoryModal.classList.add('hidden');
             historyKeyToDelete = null;
         });
-        cancelHistoryDeleteBtn.addEventListener('click', () => {
-            deleteHistoryModal.classList.add('hidden');
-            historyKeyToDelete = null;
-        });
 
-        openQuantityModalBtn.addEventListener('click', () => {
-            renderQuantityModalInputs();
-            quantityModal.classList.remove('hidden');
-        });
-        cancelQuantityBtn.addEventListener('click', () => quantityModal.classList.add('hidden'));
         confirmQuantityBtn.addEventListener('click', () => {
             const inputs = document.querySelectorAll('#modal-task-quantity-inputs input');
+            const newQuantities = {};
             inputs.forEach(input => {
                 const task = input.dataset.task;
                 const value = parseInt(input.value, 10);
-                appState.taskQuantities[task] = (!isNaN(value) && value >= 0) ? value : 0;
+                newQuantities[task] = (!isNaN(value) && value >= 0) ? value : 0;
             });
-            saveStateToFirestore();
-            updateHistoryWithQuantities(); // Also update history
+
+            if (quantityModalContext.onConfirm) {
+                quantityModalContext.onConfirm(newQuantities);
+            }
             quantityModal.classList.add('hidden');
-            showToast('처리량이 업데이트 및 저장되었습니다.');
+        });
+
+        confirmEditBtn.addEventListener('click', () => {
+            if (recordToEditId === null) return;
+
+            const record = appState.workRecords.find(r => r.id === recordToEditId);
+            if (!record) return;
+
+            const newStartTime = document.getElementById('edit-start-time').value;
+            const newEndTime = document.getElementById('edit-end-time').value;
+            const newtask = document.getElementById('edit-task-type').value;
+
+            record.startTime = newStartTime;
+            record.endTime = newEndTime;
+            record.task = newtask;
+
+            if (newStartTime && newEndTime) {
+                const start = new Date(`1970-01-01T${newStartTime}`);
+                const end = new Date(`1970-01-01T${newEndTime}`);
+                const newDuration = (end - start) / (1000 * 60);
+                record.duration = newDuration > 0 ? newDuration : 0;
+            } else {
+                record.duration = 0;
+            }
+
+
+            saveStateToFirestore();
+            showToast('기록이 수정되었습니다.');
+            editRecordModal.classList.add('hidden');
+            recordToEditId = null;
         });
         
+        confirmQuantityOnStopBtn.addEventListener('click', () => {
+            const quantity = parseInt(document.getElementById('quantity-on-stop-input').value, 10) || 0;
+            finalizeStopGroup(groupToStopId, quantity);
+        });
+
+        cancelQuantityOnStopBtn.addEventListener('click', () => {
+            finalizeStopGroup(groupToStopId, null);
+        });
+
+        document.querySelectorAll('.modal-close-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.target.closest('.fixed').classList.add('hidden');
+            });
+        });
+
+        cancelDeleteBtn.addEventListener('click', () => deleteConfirmModal.classList.add('hidden'));
+        cancelEndShiftBtn.addEventListener('click', () => endShiftConfirmModal.classList.add('hidden'));
+        closeHistoryBtn.addEventListener('click', () => historyModal.classList.add('hidden'));
+        cancelQuantityBtn.addEventListener('click', () => {
+            if (quantityModalContext.onCancel) {
+                quantityModalContext.onCancel();
+            }
+            quantityModal.classList.add('hidden');
+        });
+        cancelHistoryDeleteBtn.addEventListener('click', () => deleteHistoryModal.classList.add('hidden'));
+        cancelEditBtn.addEventListener('click', () => editRecordModal.classList.add('hidden'));
+
+
+        toggleCompletedLog.addEventListener('click', () => {
+            if (window.innerWidth < 768) {
+                completedLogContent.classList.toggle('hidden');
+                completedLogArrow.classList.toggle('rotate-180');
+            }
+        });
+        toggleAnalysis.addEventListener('click', () => {
+            if (window.innerWidth < 768) {
+                analysisContent.classList.toggle('hidden');
+                analysisArrow.classList.toggle('rotate-180');
+            }
+        });
+
+
         // --- Initial Load ---
         const populateTaskTypes = () => {
             const taskTypeSelect = document.getElementById('task-type');
@@ -1172,103 +1600,40 @@
                 taskTypeSelect.appendChild(option);
             });
         };
-        
-        const populateModalTeamMembers = () => {
-            modalTeamMemberList.innerHTML = '';
-            modalTeamMemberList.className = 'p-6 h-auto max-h-[70vh] overflow-y-auto';
-            const gridContainer = document.createElement('div');
-            gridContainer.className = 'grid grid-cols-2 md:grid-cols-5 gap-x-6';
-            
-            teamGroups.forEach(group => {
-                const groupColumn = document.createElement('div');
-                groupColumn.className = 'space-y-2 flex flex-col mb-4';
-                const groupHeader = document.createElement('div');
-                groupHeader.className = 'flex justify-between items-center pb-1 border-b border-gray-200 mb-2';
-                const groupTitle = document.createElement('span');
-                groupTitle.className = 'font-bold text-gray-500 text-sm';
-                groupTitle.textContent = group.name;
-                const selectAllBtn = document.createElement('button');
-                selectAllBtn.type = 'button';
-                selectAllBtn.textContent = '전체';
-                selectAllBtn.className = 'text-xs text-blue-600 hover:underline px-1';
-                selectAllBtn.addEventListener('click', () => {
-                    const memberButtons = groupColumn.querySelectorAll('button[data-name]:not(:disabled)');
-                    const isAllSelected = Array.from(memberButtons).every(btn => btn.classList.contains('bg-blue-600'));
-                    memberButtons.forEach(btn => {
-                        const shouldBeSelected = !isAllSelected;
-                        if (shouldBeSelected) {
-                            btn.classList.add('bg-blue-600', 'text-white', 'font-semibold');
-                            btn.classList.remove('bg-gray-100', 'text-gray-800');
-                        } else {
-                            btn.classList.remove('bg-blue-600', 'text-white', 'font-semibold');
-                            btn.classList.add('bg-gray-100', 'text-gray-800');
-                        }
-                    });
-                });
-                groupHeader.appendChild(groupTitle);
-                groupHeader.appendChild(selectAllBtn);
-                groupColumn.appendChild(groupHeader);
-                group.members.forEach(name => {
-                    const memberEl = document.createElement('button');
-                    memberEl.type = 'button';
-                    memberEl.textContent = name;
-                    memberEl.dataset.name = name;
-                    
-                    const isOnLeave = (appState.onLeaveMembers || []).includes(name);
 
-                    if (isOnLeave) {
-                        memberEl.className = 'w-full text-left p-2 rounded-md bg-gray-700 text-gray-300 hover:bg-gray-600 transition duration-200';
-                    } else {
-                        memberEl.className = 'w-full text-left p-2 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-800 transition duration-200';
-                    }
-                    
-                    memberEl.addEventListener('click', () => {
-                        const isSelected = memberEl.classList.contains('bg-blue-600');
-                        
-                        if (isSelected) {
-                             if (isOnLeave) {
-                                memberEl.className = 'w-full text-left p-2 rounded-md bg-gray-700 text-gray-300 hover:bg-gray-600 transition duration-200';
-                             } else {
-                                memberEl.className = 'w-full text-left p-2 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-800 transition duration-200';
-                             }
-                        } else {
-                            memberEl.className = 'w-full text-left p-2 rounded-md bg-blue-600 text-white font-semibold transition duration-200';
-                        }
-                    });
-                    groupColumn.appendChild(memberEl);
-                });
-                gridContainer.appendChild(groupColumn);
-            });
-            
-            const partTimerColumn = document.createElement('div');
-            partTimerColumn.className = 'space-y-2 flex flex-col mb-4';
-            const partTimerHeader = document.createElement('div');
-            partTimerHeader.className = 'pb-1 border-b border-gray-200 mb-2';
-            const partTimerTitle = document.createElement('span');
-            partTimerTitle.className = 'font-bold text-gray-500 text-sm';
-            partTimerTitle.textContent = '알바';
-            partTimerHeader.appendChild(partTimerTitle);
-            partTimerColumn.appendChild(partTimerHeader);
-            const selectContainer = document.createElement('div');
-            const selectEl = document.createElement('select');
-            selectEl.id = 'part-timer-count';
-            selectEl.className = 'w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 transition';
+        const populatePartTimerCount = () => {
+            const selectEl = document.getElementById('part-timer-count');
             for (let i = 0; i <= 10; i++) {
                 const option = document.createElement('option');
                 option.value = i;
                 option.textContent = `${i}명`;
                 selectEl.appendChild(option);
             }
-            selectContainer.appendChild(selectEl);
-            partTimerColumn.appendChild(selectContainer);
-            gridContainer.appendChild(partTimerColumn);
-            modalTeamMemberList.appendChild(gridContainer);
+        };
+        
+        const displayCurrentDate = () => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const day = now.getDate().toString().padStart(2, '0');
+            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+            const dayOfWeek = weekdays[now.getDay()];
+            const dateString = `${year}년 ${month}월 ${day}일 (${dayOfWeek})`;
+            document.getElementById('current-date-display').textContent = dateString;
         };
         
         // --- App Initialization ---
         function main() {
             populateTaskTypes();
-            taskTypes.forEach(task => appState.taskQuantities[task] = 0);
+            populatePartTimerCount();
+            displayCurrentDate();
+            
+            if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
+            elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
+
+            const defaultState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], selectedForTask: [], hiddenGroupIds: [] };
+            taskTypes.forEach(task => defaultState.taskQuantities[task] = 0);
+            appState = defaultState;
             render();
 
             connectionStatusEl.textContent = '연결 중...';
@@ -1290,16 +1655,19 @@
                     const todayDocRef = doc(db, "artifacts", APP_ID, "daily_data", "today");
                     if (unsubscribeToday) unsubscribeToday();
                     unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
-                        const defaultState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [] };
+                        const defaultState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], selectedForTask: [], hiddenGroupIds: [] };
                         taskTypes.forEach(task => defaultState.taskQuantities[task] = 0);
                         
                         if (docSnap.exists()) {
                             try {
                                 const remoteState = JSON.parse(docSnap.data().state);
+                                const currentSelection = appState.selectedForTask; // Preserve selection across re-renders
                                 appState = { ...defaultState, ...remoteState };
+                                appState.selectedForTask = currentSelection;
                                 if (!appState.workRecords) appState.workRecords = [];
                                 if (!appState.taskQuantities) appState.taskQuantities = defaultState.taskQuantities;
                                 if (!appState.onLeaveMembers) appState.onLeaveMembers = [];
+                                if (!appState.hiddenGroupIds) appState.hiddenGroupIds = [];
                             } catch (e) {
                                 console.error("Error parsing state from Firestore:", e);
                                 appState = defaultState;
