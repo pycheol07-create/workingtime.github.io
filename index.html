@@ -647,15 +647,26 @@
 
             // SECTION 1: ONGOING TASKS
             const ongoingTasksContainer = document.createElement('div');
+            
+            // Header for toggling
             const headerDiv = document.createElement('div');
-            headerDiv.className = 'flex justify-between items-center border-b pb-2 mb-4';
-            headerDiv.innerHTML = `<h3 class="text-lg font-bold text-gray-700">진행 중인 업무 (${ongoingTaskTypes.size}개)</h3>`;
-            const showHiddenBtn = document.createElement('button');
-            showHiddenBtn.id = 'show-hidden-cards-btn';
-            showHiddenBtn.className = 'text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded';
-            showHiddenBtn.textContent = '완료된 업무 표시/숨기기';
-            headerDiv.appendChild(showHiddenBtn);
+            headerDiv.id = 'toggle-ongoing-tasks';
+            headerDiv.className = 'flex justify-between items-center border-b pb-2 mb-4 cursor-pointer md:cursor-auto';
+            headerDiv.innerHTML = `
+                <h3 class="text-lg font-bold text-gray-700">진행 중인 업무 (${ongoingTaskTypes.size}개)</h3>
+                <svg id="ongoing-tasks-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+            `;
             ongoingTasksContainer.appendChild(headerDiv);
+
+            // Collapsible content
+            const ongoingContentDiv = document.createElement('div');
+            ongoingContentDiv.id = 'ongoing-tasks-content';
+            ongoingContentDiv.className = 'hidden md:block';
+
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'flex justify-end mb-4';
+            buttonContainer.innerHTML = `<button id="show-hidden-cards-btn" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded">완료된 업무 표시/숨기기</button>`;
+            ongoingContentDiv.appendChild(buttonContainer);
 
             const ongoingGrid = document.createElement('div');
             ongoingGrid.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
@@ -723,7 +734,8 @@
                     ongoingGrid.appendChild(card);
                 });
             }
-            ongoingTasksContainer.appendChild(ongoingGrid);
+            ongoingContentDiv.appendChild(ongoingGrid);
+            ongoingTasksContainer.appendChild(ongoingContentDiv);
             teamStatusBoard.appendChild(ongoingTasksContainer);
 
             // SECTION 2: ALL TEAM MEMBER STATUS
@@ -1492,6 +1504,19 @@
         });
         
         teamStatusBoard.addEventListener('click', (e) => {
+            const toggleOngoingBtn = e.target.closest('#toggle-ongoing-tasks');
+            if (toggleOngoingBtn) {
+                if (window.innerWidth < 768) {
+                    const content = document.getElementById('ongoing-tasks-content');
+                    const arrow = document.getElementById('ongoing-tasks-arrow');
+                    if (content && arrow) {
+                        content.classList.toggle('hidden');
+                        arrow.classList.toggle('rotate-180');
+                    }
+                }
+                return;
+            }
+
             const stopGroupButton = e.target.closest('.stop-work-group-btn');
             if (stopGroupButton) {
                 const groupId = parseFloat(stopGroupButton.dataset.groupId);
