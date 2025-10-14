@@ -526,17 +526,35 @@
         };
 
         const updateElapsedTimes = () => {
+            let totalOngoingMinutes = 0;
+            const now = new Date();
+            const nowTimeForCalc = new Date(`1970-01-01T${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`);
+
+            const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
+
+            ongoingRecords.forEach(record => {
+                const startTime = new Date(`1970-01-01T${record.startTime}`);
+                const elapsedMilliseconds = nowTimeForCalc - startTime;
+                const elapsedMinutes = elapsedMilliseconds / (1000 * 60);
+                totalOngoingMinutes += elapsedMinutes;
+            });
+
             document.querySelectorAll('.ongoing-duration').forEach(el => {
                 const startTimeStr = el.dataset.startTime;
                 if (!startTimeStr) return;
                 const startTime = new Date(`1970-01-01T${startTimeStr}`);
-                const now = new Date();
-                const nowTime = new Date(`1970-01-01T${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`);
-                const elapsedMilliseconds = nowTime - startTime;
+                const elapsedMilliseconds = nowTimeForCalc - startTime;
                 const elapsedMinutes = elapsedMilliseconds / (1000 * 60);
                 el.textContent = `(진행: ${formatDuration(elapsedMinutes)})`;
             });
+
+            const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
+            const totalCompletedMinutes = completedRecords.reduce((sum, record) => sum + record.duration, 0);
+
+            const liveTotalWorkTime = totalCompletedMinutes + totalOngoingMinutes;
+            document.getElementById('summary-total-work-time').textContent = formatDuration(liveTotalWorkTime);
         };
+
 
         // --- Render Functions ---
          const renderQuantityModalInputs = (sourceQuantities = {}) => {
@@ -824,7 +842,6 @@
 
         const updateSummary = () => {
             const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-            const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
             const workingMembers = new Set(ongoingRecords.map(r => r.member));
             const allMembers = new Set(teamGroups.flatMap(g => g.members));
             
@@ -834,7 +851,6 @@
             const activeStaff = totalStaff - onLeaveCount; // 근무
             const idleCount = activeStaff - workingCount;
             const ongoingTaskCount = new Set(ongoingRecords.map(r => r.task)).size;
-            const totalWorkMinutes = completedRecords.reduce((sum, record) => sum + record.duration, 0);
 
             document.getElementById('summary-total-staff').textContent = `${totalStaff}`;
             document.getElementById('summary-leave-staff').textContent = `${onLeaveCount}`;
@@ -842,7 +858,6 @@
             document.getElementById('summary-working-staff').textContent = `${workingCount}`;
             document.getElementById('summary-idle-staff').textContent = `${idleCount}`;
             document.getElementById('summary-ongoing-tasks').textContent = `${ongoingTaskCount}`;
-            document.getElementById('summary-total-work-time').textContent = formatDuration(totalWorkMinutes);
         };
 
         // --- Main Logic & Firebase Integration ---
