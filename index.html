@@ -87,7 +87,7 @@
             <!-- 전체 초기화 버튼 -->
             <button id="reset-app-btn" class="flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 font-semibold transition p-1 rounded hover:bg-red-50">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 4l1.5 1.5A9 9 0 0120.5 10.5M20 20l-1.5-1.5A9 9 0 003.5 13.5" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 4l1.5 1.5A9 9 0 0120.5 10.5M20 20l-1.5-1.5A9 9 0 003.5 13.5" />
                 </svg>
                 <span>초기화</span>
             </button>
@@ -141,31 +141,32 @@
 
         <!-- 실시간 팀 현황 보드 -->
         <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-            <h2 class="text-xl font-bold text-gray-900 mb-4">실시간 팀 현황</h2>
+            <h2 class="text-xl font-bold text-gray-900 mb-4">업무 배정 및 팀 현황</h2>
+
+            <div class="p-4 mb-6 bg-white rounded-lg border border-gray-200 shadow-sm">
+                <form id="work-start-form" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    <div class="md:col-span-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">1. 업무 선택</label>
+                        <button type="button" id="open-task-modal-btn" class="w-full bg-white border border-gray-300 text-gray-900 rounded-lg p-2.5 text-left focus:ring-blue-500 focus:border-blue-500 transition">업무를 선택하세요</button>
+                    </div>
+                     <div class="md:col-span-1">
+                        <label for="part-timer-count" class="block text-sm font-medium text-gray-700 mb-2">알바 추가</label>
+                        <select id="part-timer-count" class="w-full bg-white border border-gray-300 text-gray-900 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </select>
+                    </div>
+                    <div class="md:col-span-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">&nbsp;</label>
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-4 rounded-lg transition duration-300 shadow-md">
+                            업무 시작
+                        </button>
+                    </div>
+                </form>
+                <p class="text-sm text-gray-500 mt-4">2. 아래 현황판에서 업무를 배정할 팀원을 클릭하여 선택하세요.</p>
+            </div>
+
             <div id="team-status-board" class="space-y-8">
                 <!-- Real-time status content will be dynamically inserted here -->
             </div>
-        </div>
-
-        <!-- 업무 시작 폼 -->
-        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-             <h2 class="text-xl font-bold text-gray-900 mb-4">업무 시작 (팀원 현황에서 인원 선택)</h2>
-            <form id="work-start-form" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                <div class="md:col-span-3">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">업무 종류</label>
-                    <button type="button" id="open-task-modal-btn" class="w-full bg-white border border-gray-300 text-gray-900 rounded-lg p-2.5 text-left focus:ring-blue-500 focus:border-blue-500 transition">업무를 선택하세요</button>
-                </div>
-                 <div class="md:col-span-1">
-                    <label for="part-timer-count" class="block text-sm font-medium text-gray-700 mb-2">알바 추가</label>
-                    <select id="part-timer-count" class="w-full bg-white border border-gray-300 text-gray-900 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 transition">
-                    </select>
-                </div>
-                <div class="md:col-span-1">
-                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-4 rounded-lg transition duration-300 shadow-md">
-                        업무 시작
-                    </button>
-                </div>
-            </form>
         </div>
 
         <!-- 완료된 업무 기록 테이블 -->
@@ -243,7 +244,7 @@
         </div>
     </div>
     <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center"><h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2><button id="close-history-btn" class="modal-close-btn">&times;</button></div>
             <div class="flex-grow flex overflow-hidden">
                 <div id="history-date-list-container" class="w-1/4 border-r border-gray-200 overflow-y-auto bg-gray-50"><ul id="history-date-list" class="p-2"></ul></div>
@@ -331,7 +332,7 @@
         </div>
     </div>
 
-     <!-- Task Selection Modal -->
+    <!-- Task Selection Modal -->
     <div id="task-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
@@ -359,7 +360,7 @@
             projectId: "work-tool-e2943",
             storageBucket: "work-tool-e2943.appspot.com",
             messagingSenderId: "133294945093",
-            appId: "1:133294945093:web:cde90aab6716127s512842c",
+            appId: "1:133294945093:web:cde90aab6716127512842c",
             measurementId: "G-ZZQLKB0057"
         };
 
@@ -534,18 +535,46 @@
 
             ongoingRecords.forEach(record => {
                 const startTime = new Date(`1970-01-01T${record.startTime}`);
-                const elapsedMilliseconds = nowTimeForCalc - startTime;
+                let totalPauseMinutes = 0;
+                (record.pauses || []).forEach(p => {
+                    if(p.start && p.end){
+                        const pauseStart = new Date(`1970-01-01T${p.start}`);
+                        const pauseEnd = new Date(`1970-01-01T${p.end}`);
+                        totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
+                    }
+                });
+                const elapsedMilliseconds = (nowTimeForCalc - startTime) - (totalPauseMinutes * 60 * 1000);
                 const elapsedMinutes = elapsedMilliseconds / (1000 * 60);
-                totalOngoingMinutes += elapsedMinutes;
+                totalOngoingMinutes += elapsedMinutes > 0 ? elapsedMinutes : 0;
             });
 
             document.querySelectorAll('.ongoing-duration').forEach(el => {
+                const status = el.dataset.status;
+                if (status === 'paused') {
+                    // When paused, don't update the live timer. It will freeze at the time of pausing.
+                    return;
+                }
+
                 const startTimeStr = el.dataset.startTime;
                 if (!startTimeStr) return;
                 const startTime = new Date(`1970-01-01T${startTimeStr}`);
-                const elapsedMilliseconds = nowTimeForCalc - startTime;
+
+                const recordId = el.dataset.recordId;
+                const record = (appState.workRecords || []).find(r => r.id == recordId);
+                let totalPauseMinutes = 0;
+                if(record && record.pauses){
+                    (record.pauses || []).forEach(p => {
+                        if(p.start && p.end){
+                            const pauseStart = new Date(`1970-01-01T${p.start}`);
+                            const pauseEnd = new Date(`1970-01-01T${p.end}`);
+                            totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
+                        }
+                    });
+                }
+                
+                const elapsedMilliseconds = (nowTimeForCalc - startTime) - (totalPauseMinutes * 60 * 1000);
                 const elapsedMinutes = elapsedMilliseconds / (1000 * 60);
-                el.textContent = `(진행: ${formatDuration(elapsedMinutes)})`;
+                el.textContent = `(진행: ${formatDuration(elapsedMinutes > 0 ? elapsedMinutes : 0)})`;
             });
 
             const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
@@ -682,6 +711,8 @@
 
                     const firstRecord = groupRecords[0];
                     const isOngoing = groupRecords.some(r => r.status === 'ongoing');
+                    const isPaused = !isOngoing && groupRecords.some(r => r.status === 'paused');
+
 
                     let membersHtml = '<div class="space-y-1">';
                     groupRecords.forEach(rec => {
@@ -700,19 +731,54 @@
 
                     const card = document.createElement('div');
                     
-                    if (isOngoing) {
-                        card.className = 'p-4 rounded-lg border flex flex-col justify-between bg-blue-50 border-blue-200';
+                    if (isOngoing || isPaused) {
+                        let buttonHtml = '';
+                        let cardBgClass = '';
+                        let cardBorderClass = '';
+                        let titleColorClass = '';
+                        let statusText = '';
+                        let durationStatus = 'ongoing';
+                        let participationCount = groupRecords.filter(r=>r.status === 'ongoing' || r.status === 'paused').length;
+
+                        if (isOngoing) {
+                            cardBgClass = 'bg-blue-50';
+                            cardBorderClass = 'border-blue-200';
+                            titleColorClass = 'text-blue-800';
+                             buttonHtml = `
+                                <button data-group-id="${firstRecord.groupId}" class="pause-work-group-btn mt-3 w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-md transition text-sm">일시정지</button>
+                                <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn mt-2 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-md transition text-sm">그룹 전체 종료</button>
+                            `;
+                        } else { // Paused
+                            cardBgClass = 'bg-yellow-50';
+                            cardBorderClass = 'border-yellow-200';
+                            titleColorClass = 'text-yellow-800';
+                            statusText = ' (일시정지)';
+                            durationStatus = 'paused';
+                             buttonHtml = `
+                                <button data-group-id="${firstRecord.groupId}" class="resume-work-group-btn mt-3 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-3 rounded-md transition text-sm">업무재개</button>
+                                <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn mt-2 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-md transition text-sm">그룹 전체 종료</button>
+                            `;
+                        }
+
+                        // Get the most recent start time from the group for duration calculation
+                        const latestStartTime = groupRecords
+                            .filter(r => r.status === 'ongoing' || r.status === 'paused')
+                            .reduce((latest, current) => (latest > current.startTime ? latest : current.startTime), "00:00");
+                        
+                        const representativeRecord = groupRecords.find(r => r.startTime === latestStartTime);
+
+                        card.className = `p-4 rounded-lg border flex flex-col justify-between ${cardBgClass} ${cardBorderClass}`;
                         card.innerHTML = `
                             <div>
-                                <div class="font-bold text-lg text-blue-800">${firstRecord.task}</div>
+                                <div class="font-bold text-lg ${titleColorClass}">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">
-                                    시작: ${formatTimeTo24H(firstRecord.startTime)} 
-                                    <span class="ongoing-duration" data-start-time="${firstRecord.startTime}">(진행: 0분)</span>
+                                    시작: ${formatTimeTo24H(latestStartTime)} 
+                                    <span class="ongoing-duration" data-start-time="${latestStartTime}" data-status="${durationStatus}" data-record-id="${representativeRecord.id}"></span>
                                 </div>
-                                <div class="font-semibold text-gray-600 text-sm mb-2">참여 인원 (${groupRecords.filter(r=>r.status === 'ongoing').length}명):</div>
+                                <div class="font-semibold text-gray-600 text-sm mb-2">참여 인원 (${participationCount}명):</div>
                                 ${membersHtml}
                             </div>
-                            <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn mt-3 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-md transition text-sm">그룹 전체 종료</button>
+                            ${buttonHtml}
                         `;
                     } else { // Completed card
                          card.className = 'p-4 rounded-lg border flex flex-col justify-between bg-gray-100 border-gray-200 opacity-80';
@@ -747,6 +813,8 @@
             allMembersContainer.appendChild(allMembersHeader);
 
             const workingMembers = new Map(ongoingRecords.map(r => [r.member, r.task]));
+            const pausedMembers = new Map(appState.workRecords.filter(r => r.status === 'paused').map(r => [r.member, r.task]));
+
 
             teamGroups.forEach(group => {
                 const groupContainer = document.createElement('div');
@@ -774,6 +842,7 @@
 
                     const isOnLeave = (appState.onLeaveMembers || []).includes(member);
                     const currentlyWorkingTask = workingMembers.get(member);
+                    const isPaused = pausedMembers.has(member);
                     const isSelected = (appState.selectedForTask || []).includes(member);
 
                     let classList = 'p-2 rounded-lg border text-center transition-shadow ';
@@ -788,6 +857,9 @@
                         card.className = classList + 'bg-red-50 border-red-200';
                         let displayTask = `${currentlyWorkingTask} 중`;
                         card.innerHTML = `<div class="flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500"></span><div class="font-semibold text-sm text-red-800">${member}</div></div><div class="text-xs text-gray-600 truncate mt-1" title="${currentlyWorkingTask}">${displayTask}</div>`;
+                    } else if (isPaused) {
+                        card.className = classList + 'bg-yellow-50 border-yellow-200';
+                        card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${member}</div><div class="text-xs text-yellow-600 mt-1">휴식 중</div>`;
                     } else {
                         card.className = classList + 'bg-green-50 border-green-200';
                         card.innerHTML = `<div class="flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500"></span><div class="font-semibold text-sm text-green-800">${member}</div></div><div class="text-xs text-green-600 mt-1">대기 중</div>`;
@@ -811,11 +883,19 @@
                 uniqueAlba.forEach(albaMember => {
                     const card = document.createElement('div');
                     const currentlyWorkingTask = workingMembers.get(albaMember);
+                const isPaused = pausedMembers.has(albaMember);
+
+                if (currentlyWorkingTask) {
                     let displayTask = `${currentlyWorkingTask} 중`;
                     card.className = 'p-2 rounded-lg border bg-red-50 border-red-200 text-center';
                     card.innerHTML = `<div class="flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500"></span><div class="font-semibold text-sm text-red-800">${albaMember}</div></div><div class="text-xs text-gray-600 truncate mt-1" title="${currentlyWorkingTask}">${displayTask}</div>`;
-                    albaGrid.appendChild(card);
-                });
+                } else if (isPaused) {
+                    card.className = 'p-2 rounded-lg border bg-yellow-50 border-yellow-200 text-center';
+                    card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${albaMember}</div><div class="text-xs text-yellow-600 mt-1">휴식 중</div>`;
+                }
+
+                albaGrid.appendChild(card);
+            });
 
                 albaContainer.appendChild(albaGrid);
                 allMembersContainer.appendChild(albaContainer);
@@ -922,7 +1002,8 @@
                 endTime: null,
                 duration: null,
                 status: 'ongoing',
-                groupId
+                groupId,
+                pauses: []
             }));
             appState.workRecords.push(...newRecords);
             saveStateToFirestore();
@@ -930,30 +1011,50 @@
 
         const stopWorkGroup = (groupId) => {
             const records = appState.workRecords.filter(r => r.groupId === groupId && r.status === 'ongoing');
-            if (records.length === 0) return;
-
-            const taskName = records[0].task;
-            if (quantityTaskTypes.includes(taskName)) {
-                groupToStopId = groupId;
-                document.getElementById('quantity-on-stop-task-name').textContent = taskName;
-                document.getElementById('quantity-on-stop-input').value = '';
-                quantityOnStopModal.classList.remove('hidden');
-            } else {
-                finalizeStopGroup(groupId, null);
+            if (records.length === 0) {
+                 // If no ongoing records, check for paused records to stop them.
+                const pausedRecords = appState.workRecords.filter(r => r.groupId === groupId && r.status === 'paused');
+                if (pausedRecords.length > 0) {
+                    finalizeStopGroup(groupId, null);
+                }
+                return;
             }
+
+            // The user requested to remove the quantity input when closing a task.
+            // So, we directly call finalizeStopGroup without showing the quantity modal.
+            finalizeStopGroup(groupId, null);
         };
 
         const finalizeStopGroup = (groupId, quantity) => {
             const endTime = getCurrentTime();
             let taskName = '';
             appState.workRecords.forEach(record => {
-                if (record.groupId === groupId && record.status === 'ongoing') {
+                if (record.groupId === groupId && (record.status === 'ongoing' || record.status === 'paused')) {
                     taskName = record.task;
+                    
+                    if (record.status === 'paused') {
+                        const lastPause = record.pauses[record.pauses.length - 1];
+                        if (lastPause && lastPause.end === null) {
+                            lastPause.end = endTime;
+                        }
+                    }
+
                     record.status = 'completed';
                     record.endTime = endTime;
                     const start = new Date(`1970-01-01T${record.startTime}`);
                     const end = new Date(`1970-01-01T${endTime}`);
-                    record.duration = (end - start) / (1000 * 60);
+
+                    let totalPauseMinutes = 0;
+                    (record.pauses || []).forEach(p => {
+                        if (p.start && p.end) {
+                            const pauseStart = new Date(`1970-01-01T${p.start}`);
+                            const pauseEnd = new Date(`1970-01-01T${p.end}`);
+                            totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
+                        }
+                    });
+                    
+                    const totalDuration = (end - start) / (1000 * 60);
+                    record.duration = totalDuration - totalPauseMinutes;
                 }
             });
 
@@ -978,7 +1079,18 @@
                 record.endTime = endTime;
                 const start = new Date(`1970-01-01T${record.startTime}`);
                 const end = new Date(`1970-01-01T${endTime}`);
-                record.duration = (end - start) / (1000 * 60);
+                
+                let totalPauseMinutes = 0;
+                (record.pauses || []).forEach(p => {
+                    if (p.start && p.end) {
+                        const pauseStart = new Date(`1970-01-01T${p.start}`);
+                        const pauseEnd = new Date(`1970-01-01T${p.end}`);
+                        totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
+                    }
+                });
+                
+                const totalDuration = (end - start) / (1000 * 60);
+                record.duration = totalDuration - totalPauseMinutes;
                 
                 const remainingOngoing = appState.workRecords.some(r => r.groupId === record.groupId && r.status === 'ongoing');
                 if (!remainingOngoing) {
@@ -992,6 +1104,34 @@
             }
         };
         
+        const pauseWorkGroup = (groupId) => {
+            const currentTime = getCurrentTime();
+            appState.workRecords.forEach(record => {
+                if (record.groupId === groupId && record.status === 'ongoing') {
+                    record.status = 'paused';
+                    if (!record.pauses) record.pauses = [];
+                    record.pauses.push({ start: currentTime, end: null });
+                }
+            });
+            saveStateToFirestore();
+            showToast('업무가 일시정지 되었습니다.');
+        };
+
+        const resumeWorkGroup = (groupId) => {
+            const currentTime = getCurrentTime();
+            appState.workRecords.forEach(record => {
+                if (record.groupId === groupId && record.status === 'paused') {
+                    record.status = 'ongoing';
+                    const lastPause = record.pauses[record.pauses.length - 1];
+                    if (lastPause && lastPause.end === null) {
+                        lastPause.end = currentTime;
+                    }
+                }
+            });
+            saveStateToFirestore();
+            showToast('업무를 다시 시작합니다.');
+        };
+
         // --- Firebase Functions ---
         async function fetchAppConfig() {
             const configDocRef = doc(db, "artifacts", APP_ID, "config", "wages");
@@ -1055,12 +1195,12 @@
             const ongoingRecords = appState.workRecords.filter(r => r.status === 'ongoing');
             if (ongoingRecords.length > 0) {
                  ongoingRecords.forEach(rec => {
-                     const endTime = getCurrentTime();
-                     rec.status = 'completed';
-                     rec.endTime = endTime;
-                     const start = new Date(`1970-01-01T${rec.startTime}`);
-                     const end = new Date(`1970-01-01T${endTime}`);
-                     rec.duration = (end - start) / (1000 * 60);
+                      const endTime = getCurrentTime();
+                      rec.status = 'completed';
+                      rec.endTime = endTime;
+                      const start = new Date(`1970-01-01T${rec.startTime}`);
+                      const end = new Date(`1970-01-01T${endTime}`);
+                      rec.duration = (end - start) / (1000 * 60);
                  });
                  await saveProgress();
             }
@@ -1127,30 +1267,30 @@
         };
 
         window.openHistoryQuantityModal = (dateKey) => {
-              const data = allHistoryData.find(d => d.id === dateKey);
-              if (!data) return;
+             const data = allHistoryData.find(d => d.id === dateKey);
+             if (!data) return;
 
-              renderQuantityModalInputs(data.taskQuantities || {});
-              
-              document.getElementById('quantity-modal-title').textContent = `${dateKey} 처리량 수정`;
-              
-              quantityModalContext = {
-                  mode: 'history',
-                  dateKey: dateKey,
-                  onConfirm: async (newQuantities) => {
-                      const dataToUpdate = allHistoryData.find(d => d.id === dateKey);
-                      dataToUpdate.taskQuantities = newQuantities;
-                      const historyDocRef = doc(db, "artifacts", APP_ID, "history", dateKey);
-                      await setDoc(historyDocRef, dataToUpdate);
-                      showToast(`${dateKey}의 처리량이 수정되었습니다.`);
-                      renderHistoryDetail(dateKey);
-                  },
-                  onCancel: () => { /* Just close */ }
-              };
-              
-              document.getElementById('confirm-quantity-btn').textContent = "수정 저장";
-              document.getElementById('cancel-quantity-btn').textContent = "취소";
-              quantityModal.classList.remove('hidden');
+             renderQuantityModalInputs(data.taskQuantities || {});
+             
+             document.getElementById('quantity-modal-title').textContent = `${dateKey} 처리량 수정`;
+             
+             quantityModalContext = {
+                 mode: 'history',
+                 dateKey: dateKey,
+                 onConfirm: async (newQuantities) => {
+                     const dataToUpdate = allHistoryData.find(d => d.id === dateKey);
+                     dataToUpdate.taskQuantities = newQuantities;
+                     const historyDocRef = doc(db, "artifacts", APP_ID, "history", dateKey);
+                     await setDoc(historyDocRef, dataToUpdate);
+                     showToast(`${dateKey}의 처리량이 수정되었습니다.`);
+                     renderHistoryDetail(dateKey);
+                 },
+                 onCancel: () => { /* Just close */ }
+             };
+             
+             document.getElementById('confirm-quantity-btn').textContent = "수정 저장";
+             document.getElementById('cancel-quantity-btn').textContent = "취소";
+             quantityModal.classList.remove('hidden');
         };
         
         const renderHistoryDetail = async (dateKey) => {
@@ -1524,6 +1664,20 @@
                 return;
             }
 
+            const pauseGroupButton = e.target.closest('.pause-work-group-btn');
+            if (pauseGroupButton) {
+                const groupId = parseFloat(pauseGroupButton.dataset.groupId);
+                pauseWorkGroup(groupId);
+                return;
+            }
+
+            const resumeGroupButton = e.target.closest('.resume-work-group-btn');
+            if (resumeGroupButton) {
+                const groupId = parseFloat(resumeGroupButton.dataset.groupId);
+                resumeWorkGroup(groupId);
+                return;
+            }
+
             const stopIndividualButton = e.target.closest('.stop-work-individual-btn');
             if (stopIndividualButton) {
                 const recordId = parseFloat(stopIndividualButton.dataset.recordId);
@@ -1535,15 +1689,14 @@
             if (memberButton) {
                 const memberName = memberButton.dataset.memberName;
 
-                const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-                const memberIsWorkingRecord = ongoingRecords.find(r => r.member === memberName);
+                const currentRecord = appState.workRecords.find(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
 
-                if (memberIsWorkingRecord) {
+                if (currentRecord && currentRecord.status === 'ongoing') {
                     // If member is working, show confirmation modal to stop their work
-                    recordToStopId = memberIsWorkingRecord.id;
-                    stopIndividualConfirmMessage.textContent = `${memberIsWorkingRecord.member}님의 '${memberIsWorkingRecord.task}' 업무를 종료하시겠습니까?`;
+                    recordToStopId = currentRecord.id;
+                    stopIndividualConfirmMessage.textContent = `${currentRecord.member}님의 '${currentRecord.task}' 업무를 종료하시겠습니까?`;
                     stopIndividualConfirmModal.classList.remove('hidden');
-                } else {
+                } else if (!currentRecord) { // Only allow selection if not working or paused
                     // If member is idle, toggle selection for a new task
                     const index = (appState.selectedForTask || []).indexOf(memberName);
                     if (index > -1) {
@@ -1952,4 +2105,6 @@
     </script>
 </body>
 </html>
+
+
 
