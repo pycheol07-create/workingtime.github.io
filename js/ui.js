@@ -194,7 +194,6 @@ export const renderRealtimeStatus = (appState) => {
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
-    // (이 섹션은 변경 사항 없습니다. 'w-24'는 유지합니다.)
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
