@@ -42,7 +42,6 @@ export const renderTaskAnalysis = (appState) => {
         return;
     }
 
-    // 색상 오타 수정됨 ('#78716c')
     const taskColors = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
 
     const taskAnalysis = completedRecords.reduce((acc, record) => {
@@ -85,12 +84,12 @@ export const renderRealtimeStatus = (appState) => {
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
 
+    // [변경점 1] 그리드 컬럼 수 변경 (lg 화면에서 4개) -> 가로폭 약간 줄어듦
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3'; // 그리드 레이아웃 적용
+    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'; // gap-3 -> gap-4 로 간격 조정
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
-    // ongoingRecords 변수는 여기서 한번만 선언됩니다.
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
 
@@ -98,31 +97,30 @@ export const renderRealtimeStatus = (appState) => {
 
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
-        const groupRecords = ongoingRecords.filter(r => r.task === task); // 이미 필터링된 배열 사용
+        const groupRecords = ongoingRecords.filter(r => r.task === task);
 
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
 
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400'; // 고정 폭 제거
+            // [변경점 2] 카드 최소 높이 증가 (min-h-[220px] -> min-h-[300px])
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400';
             card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
 
             const isPaused = groupRecords.some(r => r.status === 'paused');
 
-            let membersHtml = '<div class="space-y-2 overflow-y-auto max-h-24 members-list">';
+            // [변경점 3] 참여 인원 목록 최대 높이 증가 (max-h-24 -> max-h-48)
+            let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">'; // space-y-2 -> space-y-1 간격 줄임
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
-                // 'part' 변수를 가져오는 라인이 없어야 합니다.
-
-                membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group">
-                    <div class="flex justify-between items-center">
+                // [변경점 4] 이름/시간/종료버튼을 한 줄에 표시 (flex 사용)
+                membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
+                    <div> {/* 이름과 시간 묶음 */}
                         <span class="font-semibold text-gray-800 break-keep">${rec.member}</span>
-                        <button data-action="stop-individual" data-record-id="${rec.id}" class="hidden group-hover:block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200">종료</button>
+                        <span class="text-xs text-gray-500 ml-1">(${formatTimeTo24H(rec.startTime)})</span>
                     </div>
-                    <div class="flex justify-end items-center text-xs text-gray-500">
-                        <span>(${formatTimeTo24H(rec.startTime)})</span>
-                    </div>
-                </div>`;
+                    <button data-action="stop-individual" data-record-id="${rec.id}" class="hidden group-hover:inline-block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 ml-2 flex-shrink-0">종료</button>
+                </div>`; // 기존 구조 삭제 및 변경
             });
             membersHtml += '</div>';
 
@@ -131,24 +129,25 @@ export const renderRealtimeStatus = (appState) => {
             let statusText = isPaused ? ' (일시정지)' : '';
             let participationCount = groupRecords.length;
 
-            const buttonHtml = `<div class="mt-auto space-y-2">
+            const buttonHtml = `<div class="mt-auto space-y-2 pt-2"> {/* pt-2 추가 */}
                                 <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">${isPaused ? '업무재개' : '일시정지'}</button>
                                 <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
                             </div>`;
 
             const earliestStartTime = groupRecords.reduce((earliest, current) => (earliest < current.startTime ? earliest : current.startTime), "23:59");
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
-            const durationStatus = isPaused ? 'paused' : 'ongoing'; // durationStatus 변수 정의 추가
+            const durationStatus = isPaused ? 'paused' : 'ongoing';
 
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime}" data-status="${durationStatus}" data-record-id="${representativeRecord.id}"></span></div>
-                                <div class="font-semibold text-gray-600 text-sm mb-2">참여 인원 (${participationCount}명):</div>
+                                <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (${participationCount}명):</div> {/* mb-2 -> mb-1 */}
                                 <div class="flex-grow">${membersHtml}</div>
                                 ${buttonHtml}
                             </div>`;
         } else {
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200'; // 고정 폭 제거
+            // [변경점 5] 카드 최소 높이 증가 (min-h-[220px] -> min-h-[300px])
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
@@ -159,7 +158,7 @@ export const renderRealtimeStatus = (appState) => {
                     <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs text-gray-400 italic flex-grow flex items-center">카드를 클릭하여 팀원 선택</div>
                 </div>
-                <div class="mt-auto space-y-2">
+                <div class="mt-auto space-y-2 pt-2"> {/* pt-2 추가 */}
                     <button class="bg-yellow-500 text-white font-bold py-2 rounded-md text-sm w-full opacity-50 cursor-not-allowed">일시정지</button>
                     <button class="bg-red-600 text-white font-bold py-2 rounded-md text-sm w-full opacity-50 cursor-not-allowed">종료</button>
                 </div>
@@ -168,8 +167,10 @@ export const renderRealtimeStatus = (appState) => {
         presetGrid.appendChild(card);
     });
 
+    // [변경점 6] "기타 업무" 카드를 다시 presetGrid 안에 포함시킴
     const otherTaskCard = document.createElement('div');
-    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200'; // 고정 폭 제거
+    // [변경점 7] 카드 최소 높이 증가 (min-h-[220px] -> min-h-[300px])
+    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
         <div class="font-bold text-lg text-gray-700">기타 업무</div>
@@ -178,19 +179,21 @@ export const renderRealtimeStatus = (appState) => {
         </svg>
         <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
     `;
-    presetGrid.appendChild(otherTaskCard);
-    presetTaskContainer.appendChild(presetGrid);
-    teamStatusBoard.appendChild(presetTaskContainer);
+    presetGrid.appendChild(otherTaskCard); // presetGrid에 추가
+
+    presetTaskContainer.appendChild(presetGrid); // presetGrid를 컨테이너에 추가
+    teamStatusBoard.appendChild(presetTaskContainer); // 컨테이너를 최종 보드에 추가
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
+    // (이 섹션은 변경 사항 없습니다)
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // [중요 버그 수정] const ongoingRecords -> ongoingRecordsForStatus 로 변수명 변경 (중복 선언 방지)
+    // [중요 버그 수정 완료] const ongoingRecords -> ongoingRecordsForStatus 로 변수명 변경
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map(appState.workRecords.filter(r => r.status === 'paused').map(r => [r.member, r.task]));
