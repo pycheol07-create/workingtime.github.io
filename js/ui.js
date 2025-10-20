@@ -110,7 +110,7 @@ export const renderRealtimeStatus = (appState) => {
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
-                // [수정] 모든 잘못된 주석 제거
+                // 주석 제거 및 레이아웃 클래스 적용됨
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
                     <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left">${rec.member}</span>
                     <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
@@ -124,7 +124,7 @@ export const renderRealtimeStatus = (appState) => {
             let statusText = isPaused ? ' (일시정지)' : '';
             let participationCount = groupRecords.length;
 
-            // [수정] 모든 잘못된 주석 제거
+            // 주석 제거됨
             const buttonHtml = `<div class="mt-auto space-y-2 pt-2">
                                 <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">${isPaused ? '업무재개' : '일시정지'}</button>
                                 <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
@@ -134,7 +134,7 @@ export const renderRealtimeStatus = (appState) => {
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
             const durationStatus = isPaused ? 'paused' : 'ongoing';
 
-            // [수정] 모든 잘못된 주석 제거
+            // 주석 제거됨
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime}" data-status="${durationStatus}" data-record-id="${representativeRecord.id}"></span></div>
@@ -147,7 +147,7 @@ export const renderRealtimeStatus = (appState) => {
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
-            // [수정] 모든 잘못된 주석 제거
+            // 주석 제거됨
             card.innerHTML = `
                 <div class="flex-grow">
                     <div class="font-bold text-lg text-blue-800 break-keep">${task}</div>
