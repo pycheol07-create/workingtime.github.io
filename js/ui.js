@@ -84,9 +84,8 @@ export const renderRealtimeStatus = (appState) => {
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
 
-    // [변경점 1] 그리드 컬럼 수 변경 (lg 화면에서 4개) -> 가로폭 약간 줄어듦
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'; // gap-3 -> gap-4 로 간격 조정
+    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'; // 컬럼 수, 갭 조정됨
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
@@ -102,25 +101,23 @@ export const renderRealtimeStatus = (appState) => {
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
 
-            // [변경점 2] 카드 최소 높이 증가 (min-h-[220px] -> min-h-[300px])
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400';
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400'; // 높이 조정됨
             card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
 
             const isPaused = groupRecords.some(r => r.status === 'paused');
 
-            // [변경점 3] 참여 인원 목록 최대 높이 증가 (max-h-24 -> max-h-48)
-            let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">'; // space-y-2 -> space-y-1 간격 줄임
+            let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">'; // 높이, 간격 조정됨
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
-                // [변경점 4] 이름/시간/종료버튼을 한 줄에 표시 (flex 사용)
+                // 주석 제거됨
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
-                    <div> {/* 이름과 시간 묶음 */}
+                    <div>
                         <span class="font-semibold text-gray-800 break-keep">${rec.member}</span>
                         <span class="text-xs text-gray-500 ml-1">(${formatTimeTo24H(rec.startTime)})</span>
                     </div>
                     <button data-action="stop-individual" data-record-id="${rec.id}" class="hidden group-hover:inline-block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 ml-2 flex-shrink-0">종료</button>
-                </div>`; // 기존 구조 삭제 및 변경
+                </div>`;
             });
             membersHtml += '</div>';
 
@@ -141,13 +138,12 @@ export const renderRealtimeStatus = (appState) => {
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime}" data-status="${durationStatus}" data-record-id="${representativeRecord.id}"></span></div>
-                                <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (${participationCount}명):</div> {/* mb-2 -> mb-1 */}
+                                <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (${participationCount}명):</div> {/* mb-1 조정됨 */}
                                 <div class="flex-grow">${membersHtml}</div>
                                 ${buttonHtml}
                             </div>`;
         } else {
-            // [변경점 5] 카드 최소 높이 증가 (min-h-[220px] -> min-h-[300px])
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200'; // 높이 조정됨
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
@@ -167,10 +163,9 @@ export const renderRealtimeStatus = (appState) => {
         presetGrid.appendChild(card);
     });
 
-    // [변경점 6] "기타 업무" 카드를 다시 presetGrid 안에 포함시킴
+    // "기타 업무" 카드 다시 윗줄 그리드에 포함됨
     const otherTaskCard = document.createElement('div');
-    // [변경점 7] 카드 최소 높이 증가 (min-h-[220px] -> min-h-[300px])
-    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
+    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200'; // 높이 조정됨
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
         <div class="font-bold text-lg text-gray-700">기타 업무</div>
@@ -179,10 +174,9 @@ export const renderRealtimeStatus = (appState) => {
         </svg>
         <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
     `;
-    presetGrid.appendChild(otherTaskCard); // presetGrid에 추가
-
-    presetTaskContainer.appendChild(presetGrid); // presetGrid를 컨테이너에 추가
-    teamStatusBoard.appendChild(presetTaskContainer); // 컨테이너를 최종 보드에 추가
+    presetGrid.appendChild(otherTaskCard);
+    presetTaskContainer.appendChild(presetGrid);
+    teamStatusBoard.appendChild(presetTaskContainer);
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
@@ -193,7 +187,7 @@ export const renderRealtimeStatus = (appState) => {
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // [중요 버그 수정 완료] const ongoingRecords -> ongoingRecordsForStatus 로 변수명 변경
+    // 변수명 중복 오류 수정됨
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map(appState.workRecords.filter(r => r.status === 'paused').map(r => [r.member, r.task]));
