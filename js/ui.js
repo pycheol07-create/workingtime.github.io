@@ -85,11 +85,10 @@ export const renderRealtimeStatus = (appState) => {
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
 
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4'; // 5열 그리드 적용됨
+    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4'; // 5열 그리드
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
-    // ongoingRecords 변수는 여기서 한번만 선언됩니다.
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
 
@@ -111,7 +110,7 @@ export const renderRealtimeStatus = (appState) => {
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
-                // 이름(좌, 고정폭)/시간(중)/종료(우, 상시) 레이아웃 적용됨
+                // [수정] 모든 잘못된 주석 제거
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
                     <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left">${rec.member}</span>
                     <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
@@ -125,6 +124,7 @@ export const renderRealtimeStatus = (appState) => {
             let statusText = isPaused ? ' (일시정지)' : '';
             let participationCount = groupRecords.length;
 
+            // [수정] 모든 잘못된 주석 제거
             const buttonHtml = `<div class="mt-auto space-y-2 pt-2">
                                 <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">${isPaused ? '업무재개' : '일시정지'}</button>
                                 <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
@@ -134,6 +134,7 @@ export const renderRealtimeStatus = (appState) => {
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
             const durationStatus = isPaused ? 'paused' : 'ongoing';
 
+            // [수정] 모든 잘못된 주석 제거
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime}" data-status="${durationStatus}" data-record-id="${representativeRecord.id}"></span></div>
@@ -146,6 +147,7 @@ export const renderRealtimeStatus = (appState) => {
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
+            // [수정] 모든 잘못된 주석 제거
             card.innerHTML = `
                 <div class="flex-grow">
                     <div class="font-bold text-lg text-blue-800 break-keep">${task}</div>
@@ -178,13 +180,14 @@ export const renderRealtimeStatus = (appState) => {
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
+    // (이 섹션은 변경 사항 없습니다)
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // [중요 버그 수정 완료] const 키워드 제거됨 -> 변수명 변경 (ongoingRecordsForStatus)
+    // 변수명 중복 오류 수정됨
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map(appState.workRecords.filter(r => r.status === 'paused').map(r => [r.member, r.task]));
