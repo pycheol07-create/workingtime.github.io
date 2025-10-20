@@ -84,9 +84,8 @@ export const renderRealtimeStatus = (appState) => {
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
 
-    // [변경점 1] lg 화면에서 5개 컬럼으로 변경 (lg:grid-cols-4 -> lg:grid-cols-5)
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4';
+    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4'; // lg 화면 5개 컬럼
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
@@ -111,10 +110,10 @@ export const renderRealtimeStatus = (appState) => {
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
-                // [변경점 2] 이름(좌, 고정폭)/시간(중, 가변)/종료(우) 레이아웃 적용
+                // [수정] 모든 주석 제거, 이름/시간/종료 레이아웃 클래스 재확인
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
-                    <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left">${rec.member}</span> {/* 고정폭 w-12 추가, text-left 추가 */}
-                    <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span> {/* 중앙 정렬 */}
+                    <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left">${rec.member}</span>
+                    <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
                     <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 ml-1 flex-shrink-0">종료</button>
                 </div>`;
             });
