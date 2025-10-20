@@ -110,13 +110,11 @@ export const renderRealtimeStatus = (appState) => {
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">'; // 높이, 간격 조정됨
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
-                // 주석 제거됨
+                // [변경] 이름(좌)/시간(중)/종료(우, 상시표시) 레이아웃 적용 및 주석 제거
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
-                    <div>
-                        <span class="font-semibold text-gray-800 break-keep">${rec.member}</span>
-                        <span class="text-xs text-gray-500 ml-1">(${formatTimeTo24H(rec.startTime)})</span>
-                    </div>
-                    <button data-action="stop-individual" data-record-id="${rec.id}" class="hidden group-hover:inline-block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 ml-2 flex-shrink-0">종료</button>
+                    <span class="font-semibold text-gray-800 break-keep mr-1">${rec.member}</span>
+                    <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
+                    <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 ml-1 flex-shrink-0">종료</button>
                 </div>`;
             });
             membersHtml += '</div>';
@@ -126,7 +124,7 @@ export const renderRealtimeStatus = (appState) => {
             let statusText = isPaused ? ' (일시정지)' : '';
             let participationCount = groupRecords.length;
 
-            const buttonHtml = `<div class="mt-auto space-y-2 pt-2"> {/* pt-2 추가 */}
+            const buttonHtml = `<div class="mt-auto space-y-2 pt-2">
                                 <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">${isPaused ? '업무재개' : '일시정지'}</button>
                                 <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
                             </div>`;
@@ -138,7 +136,7 @@ export const renderRealtimeStatus = (appState) => {
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime}" data-status="${durationStatus}" data-record-id="${representativeRecord.id}"></span></div>
-                                <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (${participationCount}명):</div> {/* mb-1 조정됨 */}
+                                <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (${participationCount}명):</div>
                                 <div class="flex-grow">${membersHtml}</div>
                                 ${buttonHtml}
                             </div>`;
@@ -154,7 +152,7 @@ export const renderRealtimeStatus = (appState) => {
                     <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs text-gray-400 italic flex-grow flex items-center">카드를 클릭하여 팀원 선택</div>
                 </div>
-                <div class="mt-auto space-y-2 pt-2"> {/* pt-2 추가 */}
+                <div class="mt-auto space-y-2 pt-2">
                     <button class="bg-yellow-500 text-white font-bold py-2 rounded-md text-sm w-full opacity-50 cursor-not-allowed">일시정지</button>
                     <button class="bg-red-600 text-white font-bold py-2 rounded-md text-sm w-full opacity-50 cursor-not-allowed">종료</button>
                 </div>
