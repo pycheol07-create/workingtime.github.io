@@ -84,8 +84,9 @@ export const renderRealtimeStatus = (appState) => {
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
 
+    // [변경점 1] lg 화면에서 5개 컬럼으로 변경 (lg:grid-cols-4 -> lg:grid-cols-5)
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'; // 컬럼 수, 갭 조정됨
+    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4';
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
@@ -101,19 +102,19 @@ export const renderRealtimeStatus = (appState) => {
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
 
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400'; // 높이 조정됨
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400';
             card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
 
             const isPaused = groupRecords.some(r => r.status === 'paused');
 
-            let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">'; // 높이, 간격 조정됨
+            let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
-                // [변경] 이름(좌)/시간(중)/종료(우, 상시표시) 레이아웃 적용 및 주석 제거
+                // [변경점 2] 이름(좌, 고정폭)/시간(중, 가변)/종료(우) 레이아웃 적용
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
-                    <span class="font-semibold text-gray-800 break-keep mr-1">${rec.member}</span>
-                    <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
+                    <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left">${rec.member}</span> {/* 고정폭 w-12 추가, text-left 추가 */}
+                    <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span> {/* 중앙 정렬 */}
                     <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 ml-1 flex-shrink-0">종료</button>
                 </div>`;
             });
@@ -141,7 +142,7 @@ export const renderRealtimeStatus = (appState) => {
                                 ${buttonHtml}
                             </div>`;
         } else {
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200'; // 높이 조정됨
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
@@ -161,9 +162,8 @@ export const renderRealtimeStatus = (appState) => {
         presetGrid.appendChild(card);
     });
 
-    // "기타 업무" 카드 다시 윗줄 그리드에 포함됨
     const otherTaskCard = document.createElement('div');
-    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200'; // 높이 조정됨
+    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
         <div class="font-bold text-lg text-gray-700">기타 업무</div>
@@ -185,7 +185,6 @@ export const renderRealtimeStatus = (appState) => {
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // 변수명 중복 오류 수정됨
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map(appState.workRecords.filter(r => r.status === 'paused').map(r => [r.member, r.task]));
