@@ -112,12 +112,14 @@ export const renderRealtimeStatus = (appState) => {
 
             let membersHtml = '<div class="space-y-2 overflow-y-auto max-h-24 members-list">';
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
+                // 'part' 변수를 가져오는 라인이 없어야 합니다.
+
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group">
                     <div class="flex justify-between items-center">
-                        <span class="font-semibold text-gray-800 break-keep">${rec.member}</span> {/* 이름만 표시 */}
+                        <span class="font-semibold text-gray-800 break-keep">${rec.member}</span>
                         <button data-action="stop-individual" data-record-id="${rec.id}" class="hidden group-hover:block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200">종료</button>
                     </div>
-                    <div class="flex justify-end items-center text-xs text-gray-500"> {/* 시간만 오른쪽 정렬 */}
+                    <div class="flex justify-end items-center text-xs text-gray-500">
                         <span>(${formatTimeTo24H(rec.startTime)})</span>
                     </div>
                 </div>`;
