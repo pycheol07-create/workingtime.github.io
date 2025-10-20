@@ -1,12 +1,14 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+// ======[ 변경: teamGroups, taskGroups import 확인 ]======
 import { firebaseConfig, teamGroups, taskGroups, taskTypes } from './config.js';
+// ====================================================
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime } from './utils.js';
-import { 
-    renderRealtimeStatus, 
-    renderCompletedWorkLog, 
-    updateSummary, 
+import {
+    renderRealtimeStatus,
+    renderCompletedWorkLog,
+    updateSummary,
     renderTaskAnalysis,
     renderTaskSelectionModal,
     renderTeamSelectionModalContent,
@@ -59,6 +61,12 @@ const confirmEditPartTimerBtn = document.getElementById('confirm-edit-part-timer
 const cancelEditPartTimerBtn = document.getElementById('cancel-edit-part-timer-btn');
 const partTimerNewNameInput = document.getElementById('part-timer-new-name');
 const partTimerEditIdInput = document.getElementById('part-timer-edit-id');
+// ======[ 수동 추가 모달 요소 추가됨 ]======
+const manualAddModal = document.getElementById('manual-add-modal');
+const openManualAddModalBtn = document.getElementById('open-manual-add-modal-btn');
+const confirmManualAddBtn = document.getElementById('confirm-manual-add-btn');
+const cancelManualAddBtn = document.getElementById('cancel-manual-add-btn');
+// ====================================
 
 // --- Toggles ---
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
@@ -88,7 +96,7 @@ let historyKeyToDelete = null;
 let allHistoryData = [];
 let recordToEditId = null;
 let deleteMode = 'single';
-let elapsedTimeTimer = null;
+let elapsedTimeTimer = null; // updateElapsedTimes 함수가 없으므로 주석 처리 또는 삭제 고려
 let groupToStopId = null;
 let quantityModalContext = { mode: 'today', dateKey: null, onConfirm: null, onCancel: null };
 let tempSelectedMembers = [];
@@ -155,7 +163,7 @@ const finalizeStopGroup = (groupId, quantity) => {
     appState.workRecords.forEach(record => {
         if (record.groupId === groupId && (record.status === 'ongoing' || record.status === 'paused')) {
             taskName = record.task;
-            
+
             if (record.status === 'paused') {
                 const lastPause = record.pauses[record.pauses.length - 1];
                 if (lastPause && lastPause.end === null) {
@@ -176,9 +184,9 @@ const finalizeStopGroup = (groupId, quantity) => {
                     totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
                 }
             });
-            
+
             const totalDuration = (end - start) / (1000 * 60);
-            record.duration = totalDuration - totalPauseMinutes;
+            record.duration = Math.max(0, totalDuration - totalPauseMinutes); // 음수 방지
         }
     });
 
@@ -200,7 +208,7 @@ const stopWorkIndividual = (recordId) => {
     const endTime = getCurrentTime();
     const record = appState.workRecords.find(r => r.id === recordId);
     if (record && (record.status === 'ongoing' || record.status === 'paused')) {
-        
+
         if (record.status === 'paused') {
             const lastPause = record.pauses[record.pauses.length - 1];
             if (lastPause && lastPause.end === null) {
@@ -212,7 +220,7 @@ const stopWorkIndividual = (recordId) => {
         record.endTime = endTime;
         const start = new Date(`1970-01-01T${record.startTime}`);
         const end = new Date(`1970-01-01T${endTime}`);
-        
+
         let totalPauseMinutes = 0;
         (record.pauses || []).forEach(p => {
             if (p.start && p.end) {
@@ -221,10 +229,10 @@ const stopWorkIndividual = (recordId) => {
                 totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
             }
         });
-        
+
         const totalDuration = (end - start) / (1000 * 60);
-        record.duration = totalDuration - totalPauseMinutes;
-        
+        record.duration = Math.max(0, totalDuration - totalPauseMinutes); // 음수 방지
+
         saveStateToFirestore();
         showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
     }
@@ -260,25 +268,32 @@ const resumeWorkGroup = (groupId) => {
 
 // --- Firebase Functions ---
 async function fetchAppConfig() {
-    const configDocRef = doc(db, "artifacts", APP_ID, "config", "wages");
-    try {
-        const docSnap = await getDoc(configDocRef);
-        if (docSnap.exists() && Object.keys(docSnap.data()).length > 0) {
-            appConfig.memberWages = docSnap.data();
-        } else {
-            console.warn("Wages configuration not found in Firestore or is empty. Using default values.");
-            appConfig.memberWages = defaultMemberWages; 
-        }
-    } catch (error) {
-        console.error("Error fetching config, using default values:", error);
-        appConfig.memberWages = defaultMemberWages;
-    }
+    // defaultMemberWages를 config.js에서 직접 가져오므로 이 함수는 불필요할 수 있음
+    // 필요하다면 Firestore에서 가져오는 로직 유지
+    // const configDocRef = doc(db, "artifacts", APP_ID, "config", "wages");
+    // try {
+    //     const docSnap = await getDoc(configDocRef);
+    //     if (docSnap.exists() && Object.keys(docSnap.data()).length > 0) {
+    //         appConfig.memberWages = docSnap.data();
+    //     } else {
+    //         console.warn("Wages configuration not found in Firestore or is empty. Using default values.");
+    //         appConfig.memberWages = defaultMemberWages;
+    //     }
+    // } catch (error) {
+    //     console.error("Error fetching config, using default values:", error);
+    //     appConfig.memberWages = defaultMemberWages;
+    // }
 }
 
 async function saveStateToFirestore() {
     if (!auth || !auth.currentUser) return;
-    const docRef = doc(db, "artifacts", APP_ID, "daily_data", getTodayDateString());
-    await setDoc(docRef, { state: JSON.stringify(appState) });
+    try {
+        const docRef = doc(db, "artifacts", APP_ID, "daily_data", getTodayDateString());
+        await setDoc(docRef, { state: JSON.stringify(appState) });
+    } catch (error) {
+        console.error("Error saving state to Firestore:", error);
+        showToast("데이터 저장 중 오류 발생.", true);
+    }
 }
 
 async function saveProgress() {
@@ -292,14 +307,20 @@ async function saveProgress() {
         const existingData = docSnap.exists() ? docSnap.data() : { workRecords: [], taskQuantities: {} };
 
         const completedRecordsFromState = appState.workRecords.filter(r => r.status === 'completed');
-        
-        if (completedRecordsFromState.length === 0 && Object.values(appState.taskQuantities).every(q => (parseInt(q,10) || 0) === 0)) {
+
+        if (completedRecordsFromState.length === 0 && Object.values(appState.taskQuantities || {}).every(q => (parseInt(q,10) || 0) === 0)) {
             return showToast('저장할 새로운 완료 기록이 없습니다.', true);
         }
 
         const combinedRecords = [...(existingData.workRecords || []), ...completedRecordsFromState];
+        // id를 기준으로 중복 제거 (Map 활용)
         const uniqueRecords = Array.from(new Map(combinedRecords.map(item => [item.id, item])).values());
-        const finalQuantities = { ...(existingData.taskQuantities || {}), ...appState.taskQuantities };
+        // taskQuantities 병합 (기존 값 + 새로운 값)
+        const finalQuantities = { ...(existingData.taskQuantities || {}) };
+        for (const task in appState.taskQuantities) {
+             finalQuantities[task] = (finalQuantities[task] || 0) + (appState.taskQuantities[task] || 0);
+        }
+
 
         const dataToSave = {
             workRecords: uniqueRecords,
@@ -308,6 +329,11 @@ async function saveProgress() {
         };
 
         await setDoc(historyDocRef, dataToSave);
+        // 중간 저장 후에는 현재 앱 상태의 완료 기록과 처리량을 초기화해야 할 수 있음 (선택사항)
+        // appState.workRecords = appState.workRecords.filter(r => r.status !== 'completed');
+        // taskTypes.forEach(task => { appState.taskQuantities[task] = 0; });
+        // await saveStateToFirestore();
+
         showToast(`현재까지의 기록이 성공적으로 저장되었습니다.`);
 
     } catch (e) {
@@ -317,30 +343,54 @@ async function saveProgress() {
 }
 
 async function saveDayDataToHistory(shouldReset) {
-    await saveProgress(); 
-    const ongoingRecords = appState.workRecords.filter(r => r.status === 'ongoing');
+    // 진행 중인 작업 강제 완료
+    const ongoingRecords = appState.workRecords.filter(r => r.status === 'ongoing' || r.status === 'paused');
     if (ongoingRecords.length > 0) {
          ongoingRecords.forEach(rec => {
              const endTime = getCurrentTime();
+             if (rec.status === 'paused') { // 일시정지 상태에서 마감 시 처리
+                 const lastPause = rec.pauses[rec.pauses.length - 1];
+                 if (lastPause && lastPause.end === null) {
+                     lastPause.end = endTime;
+                 }
+             }
              rec.status = 'completed';
              rec.endTime = endTime;
              const start = new Date(`1970-01-01T${rec.startTime}`);
              const end = new Date(`1970-01-01T${endTime}`);
-             rec.duration = (end - start) / (1000 * 60);
+             let totalPauseMinutes = 0;
+             (rec.pauses || []).forEach(p => {
+                 if (p.start && p.end) {
+                     const pauseStart = new Date(`1970-01-01T${p.start}`);
+                     const pauseEnd = new Date(`1970-01-01T${p.end}`);
+                     totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
+                 }
+             });
+             const totalDuration = (end - start) / (1000 * 60);
+             rec.duration = Math.max(0, totalDuration - totalPauseMinutes);
          });
-         await saveProgress();
+         // 강제 완료된 기록도 저장해야 하므로 saveState 먼저 호출
+         await saveStateToFirestore();
     }
 
+    // 최종 저장 (saveProgress 호출)
+    await saveProgress();
+
     if(shouldReset){
+        // 앱 상태 초기화
         appState.workRecords = [];
         appState.taskQuantities = {};
         appState.hiddenGroupIds = [];
+        appState.onLeaveMembers = []; // 휴무 멤버도 초기화 (다음 날 자동 리셋)
+        // taskQuantities 초기화 (모든 taskTypes에 대해 0으로)
         taskTypes.forEach(task => {
             appState.taskQuantities[task] = 0;
         });
-        
+
         await saveStateToFirestore();
         showToast(`오늘의 업무 기록을 초기화했습니다.`);
+        // 필요시 페이지 새로고침
+        // setTimeout(() => location.reload(), 1000);
     }
 }
 
@@ -350,6 +400,9 @@ teamStatusBoard.addEventListener('click', (e) => {
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
     if (stopGroupButton) {
         const groupId = parseFloat(stopGroupButton.dataset.groupId);
+        // 처리량 입력 필요한지 확인 (선택적)
+        // const groupTask = appState.workRecords.find(r => r.groupId === groupId)?.task;
+        // if (groupTask && quantityTaskTypes.includes(groupTask)) { ... }
         stopWorkGroup(groupId);
         return;
     }
@@ -370,6 +423,7 @@ teamStatusBoard.addEventListener('click', (e) => {
 
     const individualStopBtn = e.target.closest('[data-action="stop-individual"]');
     if (individualStopBtn) {
+        e.stopPropagation(); // 이벤트 버블링 중단 중요!
         const recordId = parseFloat(individualStopBtn.dataset.recordId);
         const record = appState.workRecords.find(r => r.id === recordId);
         if (record) {
@@ -404,16 +458,16 @@ teamStatusBoard.addEventListener('click', (e) => {
         return;
     }
 
-    // Priority 3: Fallback to the main card action, only if the click was not on an interactive element within it.
+    // Priority 3: Fallback to the main card action
     const card = e.target.closest('div[data-action]');
     if (card) {
-        // If the click was on any button or inside the members list, ignore it.
-        if (e.target.closest('button') || e.target.closest('.members-list')) {
+        // 버튼이나 멤버 목록 내부 클릭 시 무시 (버블링 방지 강화)
+        if (e.target.closest('button, .members-list')) {
             return;
         }
-        
+
         const action = card.dataset.action;
-        
+
         if (action === 'start-task') {
             const task = card.dataset.task;
             selectedTaskForStart = task;
@@ -437,6 +491,7 @@ teamStatusBoard.addEventListener('click', (e) => {
     }
 });
 
+
 workLogBody.addEventListener('click', (e) => {
     const targetButton = e.target.closest('button');
     if (!targetButton) return;
@@ -450,13 +505,13 @@ workLogBody.addEventListener('click', (e) => {
         if (!record) return;
 
         document.getElementById('edit-member-name').value = record.member;
-        
+
         const taskSelect = document.getElementById('edit-task-type');
-        taskSelect.innerHTML = '';
+        taskSelect.innerHTML = ''; // Clear previous options
         Object.entries(taskGroups).forEach(([groupName, tasks]) => {
             const optgroup = document.createElement('optgroup');
             optgroup.label = groupName;
-            tasks.forEach(task => {
+            tasks.sort().forEach(task => { // Sort tasks within group
                 const option = document.createElement('option');
                 option.value = task;
                 option.textContent = task;
@@ -508,19 +563,20 @@ endShiftBtn.addEventListener('click', () => {
     quantityModalContext = {
         mode: 'end-shift',
         onConfirm: (newQuantities) => {
-            appState.taskQuantities = newQuantities;
-            saveDayDataToHistory(true);
+            appState.taskQuantities = newQuantities; // Save final quantities
+            saveDayDataToHistory(true); // Save all data and reset
         },
         onCancel: () => {
-            saveDayDataToHistory(true);
+            saveDayDataToHistory(true); // Save without final quantities and reset
         }
     };
     quantityModal.classList.remove('hidden');
 });
 
 saveProgressBtn.addEventListener('click', saveProgress);
+
 openHistoryBtn.addEventListener('click', () => {
-    // loadAndRenderHistoryList();
+    // loadAndRenderHistoryList(); // History 관련 기능은 분리 또는 필요시 구현
     historyModal.classList.remove('hidden');
 });
 
@@ -530,16 +586,24 @@ resetAppBtn.addEventListener('click', () => {
 
 confirmResetAppBtn.addEventListener('click', async () => {
     try {
+        // Firestore에서 오늘의 데이터 삭제
         const docRef = doc(db, "artifacts", APP_ID, "daily_data", getTodayDateString());
         await deleteDoc(docRef);
+
+        // 로컬 앱 상태 초기화 (옵션)
+        appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+        taskTypes.forEach(task => appState.taskQuantities[task] = 0);
+        render(); // 빈 상태로 화면 다시 그리기
+
         showToast('데이터가 초기화되었습니다. 새로고침합니다.');
-        setTimeout(() => location.reload(), 1000);
+        setTimeout(() => location.reload(), 1000); // 1초 후 새로고침
     } catch (error) {
         console.error("Error resetting data:", error);
         showToast('초기화 중 오류가 발생했습니다.', true);
     }
     resetAppModal.classList.add('hidden');
 });
+
 
 confirmQuantityBtn.addEventListener('click', () => {
     const inputs = document.querySelectorAll('#modal-task-quantity-inputs input');
@@ -565,19 +629,37 @@ confirmEditBtn.addEventListener('click', () => {
     const newStartTime = document.getElementById('edit-start-time').value;
     const newEndTime = document.getElementById('edit-end-time').value;
     const newtask = document.getElementById('edit-task-type').value;
+    const newMember = document.getElementById('edit-member-name').value; // 이름도 수정 가능하게 (선택적)
 
+    // 입력값 검증
+    if (!newMember || !newtask || !newStartTime || !newEndTime) {
+         showToast('모든 필드를 입력해주세요.', true);
+         return;
+    }
+     if (newStartTime >= newEndTime) {
+        showToast('종료 시간은 시작 시간보다 늦어야 합니다.', true);
+        return;
+    }
+
+    record.member = newMember;
     record.startTime = newStartTime;
     record.endTime = newEndTime;
     record.task = newtask;
 
-    if (newStartTime && newEndTime) {
-        const start = new Date(`1970-01-01T${newStartTime}`);
-        const end = new Date(`1970-01-01T${newEndTime}`);
-        const newDuration = (end - start) / (1000 * 60);
-        record.duration = newDuration > 0 ? newDuration : 0;
-    } else {
-        record.duration = 0;
-    }
+    const start = new Date(`1970-01-01T${newStartTime}`);
+    const end = new Date(`1970-01-01T${newEndTime}`);
+    // 수정 시에는 기존 pause 기록을 유지해야 함 (여기서는 단순 계산)
+    let totalPauseMinutes = 0;
+    (record.pauses || []).forEach(p => {
+        if (p.start && p.end) {
+             const pauseStart = new Date(`1970-01-01T${p.start}`);
+             const pauseEnd = new Date(`1970-01-01T${p.end}`);
+             totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
+         }
+     });
+    const newDuration = (end - start) / (1000 * 60) - totalPauseMinutes;
+    record.duration = newDuration > 0 ? newDuration : 0;
+
 
     saveStateToFirestore();
     showToast('기록이 수정되었습니다.');
@@ -591,7 +673,7 @@ confirmQuantityOnStopBtn.addEventListener('click', () => {
 });
 
 cancelQuantityOnStopBtn.addEventListener('click', () => {
-    finalizeStopGroup(groupToStopId, null);
+    finalizeStopGroup(groupToStopId, null); // 처리량 없이 종료
 });
 
 taskSelectModal.addEventListener('click', e => {
@@ -622,9 +704,18 @@ cancelStopIndividualBtn.addEventListener('click', () => {
     recordToStopId = null;
 });
 
+// 공통 모달 닫기 버튼 이벤트 (data-modal-id 속성 사용)
 document.querySelectorAll('.modal-close-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-        e.target.closest('.fixed').classList.add('hidden');
+        const modalId = e.target.dataset.modalId;
+        if (modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        } else { // 이전 버전 호환 (가장 가까운 모달 닫기)
+            e.target.closest('.fixed.inset-0')?.classList.add('hidden');
+        }
     });
 });
 
@@ -639,13 +730,18 @@ cancelHistoryDeleteBtn.addEventListener('click', () => deleteHistoryModal.classL
 cancelEditBtn.addEventListener('click', () => editRecordModal.classList.add('hidden'));
 cancelResetAppBtn.addEventListener('click', () => resetAppModal.classList.add('hidden'));
 
+// 토글 기능 (모바일 반응형 유지)
 [toggleCompletedLog, toggleAnalysis, toggleSummary].forEach(toggle => {
     toggle.addEventListener('click', () => {
-        if (window.innerWidth < 768) {
+        if (window.innerWidth < 768) { // md breakpoint
             const content = toggle.nextElementSibling;
             const arrow = toggle.querySelector('svg');
             content.classList.toggle('hidden');
-            if (content.id === 'summary-content') content.classList.toggle('grid');
+            if (content.id === 'summary-content') {
+                 content.classList.toggle('grid'); // Summary는 grid 토글
+            } else {
+                 content.classList.toggle('block'); // 다른건 block 토글
+            }
             if(arrow) arrow.classList.toggle('rotate-180');
         }
     });
@@ -681,11 +777,13 @@ teamSelectModal.addEventListener('click', e => {
         const areAllSelected = availableMembers.every(member => tempSelectedMembers.includes(member));
 
         if (areAllSelected) {
+            // 전체 선택 해제
             tempSelectedMembers = tempSelectedMembers.filter(member => !availableMembers.includes(member));
             memberCards.forEach(card => {
                 if (!card.disabled) card.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-100');
             });
         } else {
+            // 전체 선택
             availableMembers.forEach(member => {
                 if (!tempSelectedMembers.includes(member)) {
                     tempSelectedMembers.push(member);
@@ -729,31 +827,36 @@ confirmEditPartTimerBtn.addEventListener('click', () => {
     const id = parseFloat(partTimerEditIdInput.value);
     const partTimer = appState.partTimers.find(p => p.id === id);
     const newName = partTimerNewNameInput.value;
-    
+
     if (partTimer && newName && newName.trim() !== '' && newName.trim() !== partTimer.name) {
         const newNameTrimmed = newName.trim();
-        const allNames = teamGroups.flatMap(g => g.members).concat((appState.partTimers || []).filter(p => p.id !== id).map(p => p.name));
+        // 모든 정직원 이름 + 다른 알바 이름과 중복 확인
+        const allNames = teamGroups.flatMap(g => g.members)
+                             .concat((appState.partTimers || []).filter(p => p.id !== id).map(p => p.name));
         if (allNames.includes(newNameTrimmed)) {
             showToast('해당 이름은 이미 사용 중입니다.', true);
             return;
         }
-        
+
         const oldName = partTimer.name;
         partTimer.name = newNameTrimmed;
 
+        // 진행중/완료된 기록의 멤버 이름도 변경
         appState.workRecords.forEach(record => {
             if (record.member === oldName) {
                 record.member = newNameTrimmed;
             }
         });
-        
+
         saveStateToFirestore().then(() => {
-            renderTeamSelectionModalContent(selectedTaskForStart, appState);
+            renderTeamSelectionModalContent(selectedTaskForStart, appState); // 모달 다시 그리기
             editPartTimerModal.classList.add('hidden');
             showToast('알바 이름이 수정되었습니다.');
         });
+    } else if (newName && newName.trim() === '') {
+        showToast('알바 이름은 비워둘 수 없습니다.', true);
     } else {
-        editPartTimerModal.classList.add('hidden'); // Close if no changes or empty name
+        editPartTimerModal.classList.add('hidden'); // 변경 없으면 그냥 닫기
     }
 });
 
@@ -776,81 +879,187 @@ document.getElementById('confirm-team-select-btn').addEventListener('click', () 
         startWorkGroup(tempSelectedMembers, selectedTaskForStart);
         showToast(`${selectedTaskForStart} 업무를 시작합니다.`);
     }
-    
+
     teamSelectModal.classList.add('hidden');
-    tempSelectedMembers = [];
+    tempSelectedMembers = []; // 선택 초기화
     selectedTaskForStart = null;
-    selectedGroupForAdd = null; // Reset this
+    selectedGroupForAdd = null; // 초기화
 });
 
 document.getElementById('cancel-team-select-btn').addEventListener('click', () => {
     teamSelectModal.classList.add('hidden');
-    tempSelectedMembers = [];
+    tempSelectedMembers = []; // 선택 초기화
     selectedTaskForStart = null;
     selectedGroupForAdd = null;
 });
+
+// ======[ 수동 추가 모달 이벤트 리스너 추가됨 ]======
+openManualAddModalBtn.addEventListener('click', () => {
+    // 이름 드롭다운 채우기
+    const memberSelect = document.getElementById('manual-member-name');
+    memberSelect.innerHTML = '<option value="">-- 이름 선택 --</option>'; // 기본 옵션
+    const allMembers = teamGroups.flatMap(g => g.members);
+    (appState.partTimers || []).forEach(pt => allMembers.push(pt.name));
+    [...new Set(allMembers)].sort().forEach(member => {
+        const option = document.createElement('option');
+        option.value = member;
+        option.textContent = member;
+        memberSelect.appendChild(option);
+    });
+
+    // 업무 드롭다운 채우기
+    const taskSelect = document.getElementById('manual-task-type');
+    taskSelect.innerHTML = '<option value="">-- 업무 선택 --</option>'; // 기본 옵션
+    Object.entries(taskGroups).forEach(([groupName, tasks]) => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = groupName;
+        tasks.sort().forEach(task => {
+            const option = document.createElement('option');
+            option.value = task;
+            option.textContent = task;
+            optgroup.appendChild(option);
+        });
+        taskSelect.appendChild(optgroup);
+    });
+
+    document.getElementById('manual-start-time').value = '';
+    document.getElementById('manual-end-time').value = '';
+
+    manualAddModal.classList.remove('hidden');
+});
+
+confirmManualAddBtn.addEventListener('click', () => {
+    const member = document.getElementById('manual-member-name').value;
+    const task = document.getElementById('manual-task-type').value;
+    const startTime = document.getElementById('manual-start-time').value;
+    const endTime = document.getElementById('manual-end-time').value;
+
+    if (!member || !task || !startTime || !endTime) {
+        showToast('모든 필드를 입력해주세요.', true);
+        return;
+    }
+    if (startTime >= endTime) {
+        showToast('종료 시간은 시작 시간보다 늦어야 합니다.', true);
+        return;
+    }
+
+    const start = new Date(`1970-01-01T${startTime}`);
+    const end = new Date(`1970-01-01T${endTime}`);
+    const duration = (end - start) / (1000 * 60);
+
+    if (duration <= 0 || isNaN(duration)) {
+        showToast('유효한 시간을 입력해주세요.', true);
+        return;
+    }
+
+    const newRecord = {
+        id: Date.now() + Math.random(),
+        member: member,
+        task: task,
+        startTime: startTime,
+        endTime: endTime,
+        duration: duration,
+        status: 'completed',
+        groupId: `manual-${Date.now()}`,
+        pauses: []
+    };
+
+    appState.workRecords.push(newRecord);
+    saveStateToFirestore();
+
+    showToast('업무 기록이 수동으로 추가되었습니다.');
+    manualAddModal.classList.add('hidden');
+});
+
+cancelManualAddBtn.addEventListener('click', () => {
+    manualAddModal.classList.add('hidden');
+});
+
+const manualAddModalCloseBtn = manualAddModal.querySelector('.modal-close-btn[data-modal-id="manual-add-modal"]');
+if (manualAddModalCloseBtn) {
+    manualAddModalCloseBtn.addEventListener('click', () => {
+        manualAddModal.classList.add('hidden');
+    });
+}
+// ====================================
 
 // --- App Initialization ---
 function main() {
     renderTaskSelectionModal();
     displayCurrentDate();
-    
+
+    // 초기 상태 설정
     const defaultState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
     taskTypes.forEach(task => defaultState.taskQuantities[task] = 0);
     appState = defaultState;
+    // render(); // <--- 초기 렌더링 호출 제거 (깜빡임 방지)
 
     connectionStatusEl.textContent = '연결 중...';
     statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse';
 
-    if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") { // API 키 유효성 검사 강화
         connectionStatusEl.textContent = "설정 필요";
         statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-        showToast("프로그램 코드에 Firebase 구성 정보를 입력해주세요.", true);
+        showToast("Firebase 구성 정보가 올바르지 않습니다.", true);
         return;
     }
 
-    const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    auth = getAuth(app);
-    
+    try {
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+    } catch (error) {
+         console.error("Firebase 초기화 실패:", error);
+         showToast("Firebase 초기화에 실패했습니다. 설정을 확인하세요.", true);
+         connectionStatusEl.textContent = '초기화 실패';
+         statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+         return;
+    }
+
     onAuthStateChanged(auth, async user => {
         if (user) {
-            // await fetchAppConfig();
+            // await fetchAppConfig(); // 필요 시 활성화
 
             const todayDocRef = doc(db, "artifacts", APP_ID, "daily_data", getTodayDateString());
-            if (unsubscribeToday) unsubscribeToday();
+            if (unsubscribeToday) unsubscribeToday(); // 이전 리스너 해제
+
             unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
-                const defaultState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
-                taskTypes.forEach(task => defaultState.taskQuantities[task] = 0);
-                
-                if (docSnap.exists()) {
-                    try {
-                        const remoteState = JSON.parse(docSnap.data().state);
-                        appState = { ...defaultState, ...remoteState };
-                        if (!appState.workRecords) appState.workRecords = [];
-                        if (!appState.taskQuantities) appState.taskQuantities = defaultState.taskQuantities;
-                        if (!appState.onLeaveMembers) appState.onLeaveMembers = [];
-                        if (!appState.partTimers) appState.partTimers = [];
-                        if (!appState.hiddenGroupIds) appState.hiddenGroupIds = [];
-                    } catch (e) {
-                        console.error("Error parsing state from Firestore:", e);
-                        appState = defaultState;
-                    }
-                } else {
-                    appState = defaultState;
-                }
-                render();
+                const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
+
+                // 기본 상태와 병합 (누락된 속성 방지)
+                appState = {
+                    ...defaultState, // 기본 구조 보장
+                    ...loadedState, // Firestore 데이터 덮어쓰기
+                    // 각 속성별 기본값 보장 (Firestore 데이터에 누락된 경우)
+                    workRecords: loadedState.workRecords || [],
+                    taskQuantities: loadedState.taskQuantities || defaultState.taskQuantities,
+                    onLeaveMembers: loadedState.onLeaveMembers || [],
+                    partTimers: loadedState.partTimers || [],
+                    hiddenGroupIds: loadedState.hiddenGroupIds || []
+                 };
+
+                render(); // 데이터 로드/병합 후 최종 렌더링
                 connectionStatusEl.textContent = '동기화';
                 statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
             }, (error) => {
                 console.error("Firebase onSnapshot error:", error);
-                showToast("실시간 연결에 실패했습니다. 보안 규칙을 확인하세요.", true);
+                showToast("실시간 연결에 실패했습니다.", true);
                 connectionStatusEl.textContent = '연결 오류';
                 statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+                 // 오류 발생 시 기본 상태로 렌더링 (선택적)
+                 appState = defaultState;
+                 render();
             });
+        } else {
+             // 로그아웃 상태 처리 (인증 기능 추가 시)
+             console.log("로그아웃 상태 또는 인증 대기 중");
+             connectionStatusEl.textContent = '인증 대기 중';
+             statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500';
+             if (unsubscribeToday) unsubscribeToday();
         }
     });
-    
+
+    // 익명 로그인 시도
     signInAnonymously(auth).catch(error => {
         console.error("Anonymous sign-in failed:", error);
         showToast("인증에 실패했습니다. Firebase 설정을 확인하세요.", true);
