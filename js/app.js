@@ -798,7 +798,6 @@ function main() {
     const defaultState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
     taskTypes.forEach(task => defaultState.taskQuantities[task] = 0);
     appState = defaultState;
-    render();
 
     connectionStatusEl.textContent = '연결 중...';
     statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse';
