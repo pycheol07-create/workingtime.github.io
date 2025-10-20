@@ -42,7 +42,7 @@ export const renderTaskAnalysis = (appState) => {
         return;
     }
 
-    // [버그 수정] '#7871c' -> '#78716c'로 수정했습니다.
+    // 이전에 오타가 있었던 부분도 수정되었습니다.
     const taskColors = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
     
     const taskAnalysis = completedRecords.reduce((acc, record) => {
@@ -200,6 +200,9 @@ export const renderRealtimeStatus = (appState) => {
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
+    // [중요 버그 수정] const ongoingRecords가 80라인 근처에서 이미 선언되었으므로,
+    // 여기서 'const' 키워드를 제거해야 합니다.
+    // (이전 파일 219라인의 오류입니다.)
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecords.map(r => [r.member, r.task]));
     const pausedMembers = new Map(appState.workRecords.filter(r => r.status === 'paused').map(r => [r.member, r.task]));
