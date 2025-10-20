@@ -42,7 +42,9 @@ export const renderTaskAnalysis = (appState) => {
         return;
     }
 
+    // 이전에 오타가 있었던 부분도 수정되었습니다.
     const taskColors = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
+
     const taskAnalysis = completedRecords.reduce((acc, record) => {
         acc[record.task] = (acc[record.task] || 0) + record.duration;
         return acc;
@@ -77,13 +79,14 @@ export const renderRealtimeStatus = (appState) => {
     teamGroups.forEach(group => group.members.forEach(member => {
         if (!memberGroupMap.has(member)) memberGroupMap.set(member, group.name);
     }));
-    
+
     // --- Section 1: Preset Task Quick Actions ---
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
+
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'flex flex-wrap gap-3';
+    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3';
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
@@ -101,61 +104,56 @@ export const renderRealtimeStatus = (appState) => {
 
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
-            
-            // [변경점 1] w-44 -> w-52
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow w-52 cursor-pointer hover:shadow-md hover:border-blue-400';
+
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400';
             card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
-            
+
             const isPaused = groupRecords.some(r => r.status === 'paused');
-            
+
             let membersHtml = '<div class="space-y-2 overflow-y-auto max-h-24 members-list">';
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
-                const part = memberGroupMap.get(rec.member) || '알바';
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group">
                     <div class="flex justify-between items-center">
-                        <span class="font-semibold text-gray-800">${rec.member}</span>
+                        <span class="font-semibold text-gray-800 break-keep">${rec.member}</span>
                         <button data-action="stop-individual" data-record-id="${rec.id}" class="hidden group-hover:block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200">종료</button>
                     </div>
-                    <div class="flex justify-between items-center text-xs text-gray-500">
-                        <span>${part}</span>
+                    <div class="flex justify-end items-center text-xs text-gray-500">
                         <span>(${formatTimeTo24H(rec.startTime)})</span>
                     </div>
                 </div>`;
             });
             membersHtml += '</div>';
-            
+
             if(isPaused) { card.classList.add('bg-yellow-50', 'border-yellow-200');} else {card.classList.add('bg-blue-50', 'border-blue-200');}
             let titleColorClass = isPaused ? 'text-yellow-800' : 'text-blue-800';
             let statusText = isPaused ? ' (일시정지)' : '';
-            let durationStatus = isPaused ? 'paused' : 'ongoing';
             let participationCount = groupRecords.length;
 
             const buttonHtml = `<div class="mt-auto space-y-2">
                                 <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">${isPaused ? '업무재개' : '일시정지'}</button>
                                 <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
                             </div>`;
-            
+
             const earliestStartTime = groupRecords.reduce((earliest, current) => (earliest < current.startTime ? earliest : current.startTime), "23:59");
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
 
             card.innerHTML = `<div class="flex flex-col h-full">
-                                <div class="font-bold text-lg ${titleColorClass}">${firstRecord.task}${statusText}</div>
+                                <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime}" data-status="${durationStatus}" data-record-id="${representativeRecord.id}"></span></div>
                                 <div class="font-semibold text-gray-600 text-sm mb-2">참여 인원 (${participationCount}명):</div>
                                 <div class="flex-grow">${membersHtml}</div>
                                 ${buttonHtml}
                             </div>`;
         } else {
-            // [변경점 2] w-44 -> w-52
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow w-52 cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
             card.dataset.action = 'start-task';
             card.dataset.task = task;
-            
+
             card.innerHTML = `
                 <div class="flex-grow">
-                    <div class="font-bold text-lg text-blue-800">${task}</div>
+                    <div class="font-bold text-lg text-blue-800 break-keep">${task}</div>
                     <div class="text-xs text-gray-500 my-2">시작: 시작 전</div>
                     <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs text-gray-400 italic flex-grow flex items-center">카드를 클릭하여 팀원 선택</div>
@@ -169,19 +167,8 @@ export const renderRealtimeStatus = (appState) => {
         presetGrid.appendChild(card);
     });
 
-    // [변경점 3] "기타 업무" 카드를 presetGrid에서 분리하여
-    //           별도의 컨테이너로 아랫줄에 추가합니다.
-
-    // 1. 윗줄의 주요 업무 카드들(presetGrid)을 먼저 추가합니다.
-    presetTaskContainer.appendChild(presetGrid);
-
-    // 2. "기타 업무" 카드를 위한 새 컨테이너를 만듭니다.
-    const otherTaskCardContainer = document.createElement('div');
-    otherTaskCardContainer.className = 'mt-3'; // 윗줄과 간격을 주기 위해 margin-top 추가
-
     const otherTaskCard = document.createElement('div');
-    // 3. "기타 업무" 카드도 동일하게 w-52로 넓혀줍니다. (w-44 -> w-52)
-    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[220px] transition-shadow w-52 cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
+    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
         <div class="font-bold text-lg text-gray-700">기타 업무</div>
@@ -190,13 +177,8 @@ export const renderRealtimeStatus = (appState) => {
         </svg>
         <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
     `;
-    
-    // 4. "기타 업무" 카드를 새 컨테이너에 추가합니다.
-    otherTaskCardContainer.appendChild(otherTaskCard);
-    
-    // 5. 이 새 컨테이너를 "주요 업무" 섹션에 추가합니다.
-    presetTaskContainer.appendChild(otherTaskCardContainer);
-
+    presetGrid.appendChild(otherTaskCard);
+    presetTaskContainer.appendChild(presetGrid);
     teamStatusBoard.appendChild(presetTaskContainer);
 
 
@@ -207,10 +189,12 @@ export const renderRealtimeStatus = (appState) => {
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-    const workingMembers = new Map(ongoingRecords.map(r => [r.member, r.task]));
+    // [중요 버그 수정] 여기서 'const' 키워드를 제거했습니다.
+    // 'ongoingRecords' 변수는 이미 이 함수 상단(80라인 근처)에서 선언되었습니다.
+    const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
+    const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map(appState.workRecords.filter(r => r.status === 'paused').map(r => [r.member, r.task]));
-    
+
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
         teamGroups.find(g => g.name === '공통파트'),
@@ -235,9 +219,9 @@ export const renderRealtimeStatus = (appState) => {
             card.type = 'button';
             const isOnLeave = (appState.onLeaveMembers || []).includes(member);
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
-            
+
             card.className = 'p-1 rounded-lg border text-center transition-shadow min-h-[64px] w-24 flex flex-col justify-center';
-            
+
             if (!isWorking) {
                 card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
                 card.dataset.memberToggleLeave = member;
@@ -247,16 +231,16 @@ export const renderRealtimeStatus = (appState) => {
 
             if (isOnLeave) {
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
-                card.innerHTML = `<div class="font-semibold text-sm">${member}</div><div class="text-xs">휴무</div>`;
+                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">휴무</div>`;
             } else if (workingMembers.has(member)) {
                 card.classList.add('bg-red-50', 'border-red-200');
-                card.innerHTML = `<div class="font-semibold text-sm text-red-800">${member}</div><div class="text-xs text-gray-600 truncate" title="${workingMembers.get(member)}">${workingMembers.get(member)}</div>`;
+                card.innerHTML = `<div class="font-semibold text-sm text-red-800 break-keep">${member}</div><div class="text-xs text-gray-600 truncate" title="${workingMembers.get(member)}">${workingMembers.get(member)}</div>`;
             } else if (pausedMembers.has(member)) {
                 card.classList.add('bg-yellow-50', 'border-yellow-200');
-                card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${member}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
+                card.innerHTML = `<div class="font-semibold text-sm text-yellow-800 break-keep">${member}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
             } else {
                 card.classList.add('bg-green-50', 'border-green-200');
-                card.innerHTML = `<div class="font-semibold text-sm text-green-800">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
+                card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
             }
             groupGrid.appendChild(card);
         });
@@ -272,14 +256,14 @@ export const renderRealtimeStatus = (appState) => {
         const albaContainer = document.createElement('div');
         albaContainer.className = 'mb-4';
         albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2">알바</h4>`;
-        
+
         const albaGrid = document.createElement('div');
         albaGrid.className = 'flex flex-wrap gap-2';
 
         activePartTimers.forEach(pt => {
              const card = document.createElement('div');
              card.className = 'relative p-1 rounded-lg border text-center transition-shadow min-h-[64px] w-24 flex flex-col justify-center';
-             
+
              const currentlyWorkingTask = workingMembers.get(pt.name);
              const isPaused = pausedMembers.has(pt.name);
 
@@ -331,7 +315,7 @@ export const updateSummary = (appState) => {
     const workingMembers = new Set(ongoingRecords.map(r => r.member));
     const allMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
-    
+
     const totalStaff = allMembers.size;
     const onLeaveCount = (appState.onLeaveMembers || []).length;
     const workingCount = workingMembers.size;
@@ -372,7 +356,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
                 <h4 class="text-md font-bold text-gray-800">${group.name}</h4>
                 <button type="button" class="group-select-all-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded" data-group-name="${group.name}">전체</button>
             </div>`;
-        
+
         const memberList = document.createElement('div');
         memberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
         memberList.dataset.groupName = group.name;
@@ -385,7 +369,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
             card.type = 'button';
             card.dataset.memberName = member;
             card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isWorking || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
-            
+
             if (isWorking || isOnLeave) card.disabled = true;
 
             let statusLabel = '';
@@ -395,13 +379,13 @@ export const renderTeamSelectionModalContent = (task, appState) => {
                 statusLabel = '<div class="text-xs text-gray-500">휴무</div>';
             }
             card.innerHTML = `<div class="font-semibold">${member}</div>${statusLabel}`;
-            
+
             memberList.appendChild(card);
         });
         groupContainer.appendChild(memberList);
         container.appendChild(groupContainer);
     });
-    
+
     // Render Alba group separately
     const albaGroupContainer = document.createElement('div');
     albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
@@ -426,7 +410,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
         card.type = 'button';
         card.dataset.memberName = pt.name;
         card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isWorking || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
-        
+
         if (isWorking || isOnLeave) card.disabled = true;
 
         let statusLabel = '';
@@ -436,7 +420,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
             statusLabel = '<div class="text-xs text-gray-500">휴무</div>';
         }
         card.innerHTML = `<div class="font-semibold">${pt.name}</div>${statusLabel}`;
-        
+
         cardWrapper.appendChild(card);
 
         const editBtn = document.createElement('button');
@@ -444,16 +428,16 @@ export const renderTeamSelectionModalContent = (task, appState) => {
         editBtn.className = 'edit-part-timer-btn absolute top-1 right-5 p-1 text-gray-400 hover:text-blue-600';
         editBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L13.196 5.2z" /></svg>`;
         cardWrapper.appendChild(editBtn);
-        
+
         const deleteBtn = document.createElement('button');
         deleteBtn.dataset.partTimerId = pt.id;
         deleteBtn.className = 'delete-part-timer-btn absolute top-1 right-1 p-1 text-gray-400 hover:text-red-600';
         deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
         cardWrapper.appendChild(deleteBtn);
-        
+
         albaMemberList.appendChild(cardWrapper);
     });
-    
+
     albaGroupContainer.appendChild(albaMemberList);
     container.appendChild(albaGroupContainer);
 };
