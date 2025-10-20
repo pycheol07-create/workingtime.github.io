@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { firebaseConfig, teamGroups, taskGroups, taskTypes } from './config.js';
-import { showToast, getTodayDateString, displayCurrentDate } from './utils.js';
+import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime } from './utils.js';
 import { 
     renderRealtimeStatus, 
     renderCompletedWorkLog, 
@@ -199,7 +199,15 @@ const finalizeStopGroup = (groupId, quantity) => {
 const stopWorkIndividual = (recordId) => {
     const endTime = getCurrentTime();
     const record = appState.workRecords.find(r => r.id === recordId);
-    if (record && record.status === 'ongoing') {
+    if (record && (record.status === 'ongoing' || record.status === 'paused')) {
+        
+        if (record.status === 'paused') {
+            const lastPause = record.pauses[record.pauses.length - 1];
+            if (lastPause && lastPause.end === null) {
+                lastPause.end = endTime;
+            }
+        }
+
         record.status = 'completed';
         record.endTime = endTime;
         const start = new Date(`1970-01-01T${record.startTime}`);
@@ -217,14 +225,6 @@ const stopWorkIndividual = (recordId) => {
         const totalDuration = (end - start) / (1000 * 60);
         record.duration = totalDuration - totalPauseMinutes;
         
-        const remainingOngoing = appState.workRecords.some(r => r.groupId === record.groupId && r.status === 'ongoing');
-        if (!remainingOngoing) {
-            if (!(appState.hiddenGroupIds || []).includes(record.groupId)) {
-                 if (!appState.hiddenGroupIds) appState.hiddenGroupIds = [];
-                appState.hiddenGroupIds.push(record.groupId);
-            }
-        }
-
         saveStateToFirestore();
         showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
     }
@@ -346,7 +346,7 @@ async function saveDayDataToHistory(shouldReset) {
 
 // --- Event Listeners ---
 teamStatusBoard.addEventListener('click', (e) => {
-    // Handle button clicks first to prevent the card click event from firing
+    // Priority 1: Specific buttons inside a card
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
     if (stopGroupButton) {
         const groupId = parseFloat(stopGroupButton.dataset.groupId);
@@ -367,8 +367,20 @@ teamStatusBoard.addEventListener('click', (e) => {
         resumeWorkGroup(groupId);
         return;
     }
-    
-    // Handle individual member leave toggle
+
+    const individualStopBtn = e.target.closest('[data-action="stop-individual"]');
+    if (individualStopBtn) {
+        const recordId = parseFloat(individualStopBtn.dataset.recordId);
+        const record = appState.workRecords.find(r => r.id === recordId);
+        if (record) {
+            recordToStopId = recordId;
+            stopIndividualConfirmMessage.textContent = `${record.member}님의 '${record.task}' 업무를 종료하시겠습니까?`;
+            stopIndividualConfirmModal.classList.remove('hidden');
+        }
+        return;
+    }
+
+    // Priority 2: Member card in the "All Members" section
     const memberCard = e.target.closest('[data-member-toggle-leave]');
     if (memberCard) {
         const memberName = memberCard.dataset.memberToggleLeave;
@@ -392,9 +404,13 @@ teamStatusBoard.addEventListener('click', (e) => {
         return;
     }
 
-    // Now, if no button was clicked, handle the card click
+    // Priority 3: Fallback to the main card action, but ignore clicks on interactive children
     const card = e.target.closest('div[data-action]');
     if (card) {
+        if (e.target.closest('.members-list')) {
+            return;
+        }
+        
         const action = card.dataset.action;
         
         if (action === 'start-task') {
@@ -595,18 +611,14 @@ taskSelectModal.addEventListener('click', e => {
 confirmStopIndividualBtn.addEventListener('click', () => {
     if (recordToStopId !== null) {
         stopWorkIndividual(recordToStopId);
-    } else if (groupToStopId !== null) {
-        stopWorkGroup(groupToStopId);
     }
     stopIndividualConfirmModal.classList.add('hidden');
     recordToStopId = null;
-    groupToStopId = null;
 });
 
 cancelStopIndividualBtn.addEventListener('click', () => {
     stopIndividualConfirmModal.classList.add('hidden');
     recordToStopId = null;
-    groupToStopId = null;
 });
 
 document.querySelectorAll('.modal-close-btn').forEach(btn => {
@@ -848,4 +860,3 @@ function main() {
 }
 
 main();
-

@@ -66,4 +66,3 @@ export const displayCurrentDate = () => {
     const dateString = `${year}년 ${month}월 ${day}일 (${dayOfWeek})`;
     document.getElementById('current-date-display').textContent = dateString;
 };
-

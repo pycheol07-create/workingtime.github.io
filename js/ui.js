@@ -108,11 +108,14 @@ export const renderRealtimeStatus = (appState) => {
             
             const isPaused = groupRecords.some(r => r.status === 'paused');
             
-            let membersHtml = '<div class="space-y-2 overflow-y-auto max-h-24">';
+            let membersHtml = '<div class="space-y-2 overflow-y-auto max-h-24 members-list">';
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
                 const part = memberGroupMap.get(rec.member) || '알바';
-                membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1">
-                    <div class="font-semibold text-gray-800">${rec.member}</div>
+                membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group">
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold text-gray-800">${rec.member}</span>
+                        <button data-action="stop-individual" data-record-id="${rec.id}" class="hidden group-hover:block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200">종료</button>
+                    </div>
                     <div class="flex justify-between items-center text-xs text-gray-500">
                         <span>${part}</span>
                         <span>(${formatTimeTo24H(rec.startTime)})</span>
@@ -436,4 +439,3 @@ export const renderTeamSelectionModalContent = (task, appState) => {
     albaGroupContainer.appendChild(albaMemberList);
     container.appendChild(albaGroupContainer);
 };
-
