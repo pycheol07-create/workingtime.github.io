@@ -404,10 +404,11 @@ teamStatusBoard.addEventListener('click', (e) => {
         return;
     }
 
-    // Priority 3: Fallback to the main card action, but ignore clicks on interactive children
+    // Priority 3: Fallback to the main card action, only if the click was not on an interactive element within it.
     const card = e.target.closest('div[data-action]');
     if (card) {
-        if (e.target.closest('.members-list')) {
+        // If the click was on any button or inside the members list, ignore it.
+        if (e.target.closest('button') || e.target.closest('.members-list')) {
             return;
         }
         
