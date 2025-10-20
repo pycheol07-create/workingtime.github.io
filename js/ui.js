@@ -101,7 +101,9 @@ export const renderRealtimeStatus = (appState) => {
 
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow w-44 cursor-pointer hover:shadow-md hover:border-blue-400';
+            
+            // [변경점 1] w-44 -> w-52
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow w-52 cursor-pointer hover:shadow-md hover:border-blue-400';
             card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
@@ -146,7 +148,8 @@ export const renderRealtimeStatus = (appState) => {
                                 ${buttonHtml}
                             </div>`;
         } else {
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow w-44 cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
+            // [변경점 2] w-44 -> w-52
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow w-52 cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
             card.dataset.action = 'start-task';
             card.dataset.task = task;
             
@@ -166,8 +169,19 @@ export const renderRealtimeStatus = (appState) => {
         presetGrid.appendChild(card);
     });
 
+    // [변경점 3] "기타 업무" 카드를 presetGrid에서 분리하여
+    //           별도의 컨테이너로 아랫줄에 추가합니다.
+
+    // 1. 윗줄의 주요 업무 카드들(presetGrid)을 먼저 추가합니다.
+    presetTaskContainer.appendChild(presetGrid);
+
+    // 2. "기타 업무" 카드를 위한 새 컨테이너를 만듭니다.
+    const otherTaskCardContainer = document.createElement('div');
+    otherTaskCardContainer.className = 'mt-3'; // 윗줄과 간격을 주기 위해 margin-top 추가
+
     const otherTaskCard = document.createElement('div');
-    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[220px] transition-shadow w-44 cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
+    // 3. "기타 업무" 카드도 동일하게 w-52로 넓혀줍니다. (w-44 -> w-52)
+    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[220px] transition-shadow w-52 cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
         <div class="font-bold text-lg text-gray-700">기타 업무</div>
@@ -176,9 +190,13 @@ export const renderRealtimeStatus = (appState) => {
         </svg>
         <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
     `;
-    presetGrid.appendChild(otherTaskCard);
+    
+    // 4. "기타 업무" 카드를 새 컨테이너에 추가합니다.
+    otherTaskCardContainer.appendChild(otherTaskCard);
+    
+    // 5. 이 새 컨테이너를 "주요 업무" 섹션에 추가합니다.
+    presetTaskContainer.appendChild(otherTaskCardContainer);
 
-    presetTaskContainer.appendChild(presetGrid);
     teamStatusBoard.appendChild(presetTaskContainer);
 
 
