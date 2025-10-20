@@ -42,7 +42,9 @@ export const renderTaskAnalysis = (appState) => {
         return;
     }
 
-    const taskColors = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#7871c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
+    // [버그 수정] '#7871c' -> '#78716c'로 수정했습니다.
+    const taskColors = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
+    
     const taskAnalysis = completedRecords.reduce((acc, record) => {
         acc[record.task] = (acc[record.task] || 0) + record.duration;
         return acc;
@@ -83,8 +85,7 @@ export const renderRealtimeStatus = (appState) => {
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
     
-    // [변경점 1] 'flex flex-wrap' -> 'grid' 시스템으로 변경
-    // 화면 크기별로 2개, 3개, 최대 5개의 카드를 표시합니다.
+    // [변경점 1] 'flex flex-wrap' -> 'grid' 시스템으로 변경 (한 줄 최대 5개)
     const presetGrid = document.createElement('div');
     presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3';
 
@@ -105,8 +106,7 @@ export const renderRealtimeStatus = (appState) => {
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
             
-            // [변경점 2] 고정폭 'w-52' (또는 'w-44') 클래스를 제거합니다.
-            // 이제 카드는 그리드 컬럼 폭을 자동으로 채웁니다.
+            // [변경점 2] 고정폭 'w-44' 클래스를 제거하여 그리드 폭을 채우도록 함
             card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400';
             card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
@@ -117,8 +117,7 @@ export const renderRealtimeStatus = (appState) => {
             let membersHtml = '<div class="space-y-2 overflow-y-auto max-h-24 members-list">';
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
                 
-                // [변경점 3] 'part' 변수 및 관련 로직을 삭제합니다.
-                // const part = memberGroupMap.get(rec.member) || '알바'; // <-- 이 줄 삭제
+                // [변경점 3] 'part' 변수 및 관련 로직 삭제
                 
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group">
                     <div class="flex justify-between items-center">
@@ -154,7 +153,7 @@ export const renderRealtimeStatus = (appState) => {
                                 ${buttonHtml}
                             </div>`;
         } else {
-            // [변경점 5] 고정폭 'w-52' (또는 'w-44') 클래스를 제거합니다.
+            // [변경점 5] 고정폭 'w-44' 클래스 제거
             card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
             card.dataset.action = 'start-task';
             card.dataset.task = task;
@@ -175,11 +174,9 @@ export const renderRealtimeStatus = (appState) => {
         presetGrid.appendChild(card);
     });
 
-    // [변경점 6] '기타 업무' 카드를 별도 컨테이너가 아닌 'presetGrid'에 바로 추가합니다.
-    // 이렇게 하면 그리드 시스템에 따라 6번째(또는 n번째) 아이템으로 자동 배치됩니다.
-    
+    // [변경점 6] '기타 업무' 카드를 'presetGrid'에 바로 추가
     const otherTaskCard = document.createElement('div');
-    // [변경점 7] 고정폭 'w-52' (또는 'w-44') 클래스를 제거합니다.
+    // [변경점 7] 고정폭 'w-44' 클래스 제거
     otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
@@ -189,20 +186,15 @@ export const renderRealtimeStatus = (appState) => {
         </svg>
         <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
     `;
-    
-    // 'presetGrid'에 '기타 업무' 카드를 추가합니다.
     presetGrid.appendChild(otherTaskCard);
-    
-    // 'presetGrid'를 부모 컨테이너에 추가합니다.
+
+    // [변경점 8] 'otherTaskCardContainer' 관련 로직을 제거하고 'presetGrid'를 바로 추가
     presetTaskContainer.appendChild(presetGrid);
-
-    // (이전의 'otherTaskCardContainer' 관련 로직은 모두 삭제되었습니다.)
-
     teamStatusBoard.appendChild(presetTaskContainer);
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
-    // (이 섹션은 변경 사항 없습니다.)
+    // (이 섹션은 변경 사항 없습니다. 'w-24'는 유지합니다.)
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
