@@ -42,7 +42,7 @@ export const renderTaskAnalysis = (appState) => {
         return;
     }
 
-    const taskColors = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
+    const taskColors = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#7871c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
     const taskAnalysis = completedRecords.reduce((acc, record) => {
         acc[record.task] = (acc[record.task] || 0) + record.duration;
         return acc;
@@ -82,8 +82,11 @@ export const renderRealtimeStatus = (appState) => {
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
+    
+    // [변경점 1] 'flex flex-wrap' -> 'grid' 시스템으로 변경
+    // 화면 크기별로 2개, 3개, 최대 5개의 카드를 표시합니다.
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'flex flex-wrap gap-3';
+    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3';
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
@@ -102,8 +105,9 @@ export const renderRealtimeStatus = (appState) => {
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
             
-            // [변경점 1] w-44 -> w-52
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow w-52 cursor-pointer hover:shadow-md hover:border-blue-400';
+            // [변경점 2] 고정폭 'w-52' (또는 'w-44') 클래스를 제거합니다.
+            // 이제 카드는 그리드 컬럼 폭을 자동으로 채웁니다.
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400';
             card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
@@ -112,14 +116,17 @@ export const renderRealtimeStatus = (appState) => {
             
             let membersHtml = '<div class="space-y-2 overflow-y-auto max-h-24 members-list">';
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
-                const part = memberGroupMap.get(rec.member) || '알바';
+                
+                // [변경점 3] 'part' 변수 및 관련 로직을 삭제합니다.
+                // const part = memberGroupMap.get(rec.member) || '알바'; // <-- 이 줄 삭제
+                
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group">
                     <div class="flex justify-between items-center">
-                        <span class="font-semibold text-gray-800">${rec.member}</span>
+                        <span class="font-semibold text-gray-800 break-keep">${rec.member}</span>
                         <button data-action="stop-individual" data-record-id="${rec.id}" class="hidden group-hover:block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200">종료</button>
                     </div>
-                    <div class="flex justify-between items-center text-xs text-gray-500">
-                        <span>${part}</span>
+                    
+                    <div class="flex justify-end items-center text-xs text-gray-500">
                         <span>(${formatTimeTo24H(rec.startTime)})</span>
                     </div>
                 </div>`;
@@ -129,7 +136,6 @@ export const renderRealtimeStatus = (appState) => {
             if(isPaused) { card.classList.add('bg-yellow-50', 'border-yellow-200');} else {card.classList.add('bg-blue-50', 'border-blue-200');}
             let titleColorClass = isPaused ? 'text-yellow-800' : 'text-blue-800';
             let statusText = isPaused ? ' (일시정지)' : '';
-            let durationStatus = isPaused ? 'paused' : 'ongoing';
             let participationCount = groupRecords.length;
 
             const buttonHtml = `<div class="mt-auto space-y-2">
@@ -141,21 +147,21 @@ export const renderRealtimeStatus = (appState) => {
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
 
             card.innerHTML = `<div class="flex flex-col h-full">
-                                <div class="font-bold text-lg ${titleColorClass}">${firstRecord.task}${statusText}</div>
+                                <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime}" data-status="${durationStatus}" data-record-id="${representativeRecord.id}"></span></div>
                                 <div class="font-semibold text-gray-600 text-sm mb-2">참여 인원 (${participationCount}명):</div>
                                 <div class="flex-grow">${membersHtml}</div>
                                 ${buttonHtml}
                             </div>`;
         } else {
-            // [변경점 2] w-44 -> w-52
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow w-52 cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
+            // [변경점 5] 고정폭 'w-52' (또는 'w-44') 클래스를 제거합니다.
+            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
             card.dataset.action = 'start-task';
             card.dataset.task = task;
             
             card.innerHTML = `
                 <div class="flex-grow">
-                    <div class="font-bold text-lg text-blue-800">${task}</div>
+                    <div class="font-bold text-lg text-blue-800 break-keep">${task}</div>
                     <div class="text-xs text-gray-500 my-2">시작: 시작 전</div>
                     <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs text-gray-400 italic flex-grow flex items-center">카드를 클릭하여 팀원 선택</div>
@@ -169,19 +175,12 @@ export const renderRealtimeStatus = (appState) => {
         presetGrid.appendChild(card);
     });
 
-    // [변경점 3] "기타 업무" 카드를 presetGrid에서 분리하여
-    //           별도의 컨테이너로 아랫줄에 추가합니다.
-
-    // 1. 윗줄의 주요 업무 카드들(presetGrid)을 먼저 추가합니다.
-    presetTaskContainer.appendChild(presetGrid);
-
-    // 2. "기타 업무" 카드를 위한 새 컨테이너를 만듭니다.
-    const otherTaskCardContainer = document.createElement('div');
-    otherTaskCardContainer.className = 'mt-3'; // 윗줄과 간격을 주기 위해 margin-top 추가
-
+    // [변경점 6] '기타 업무' 카드를 별도 컨테이너가 아닌 'presetGrid'에 바로 추가합니다.
+    // 이렇게 하면 그리드 시스템에 따라 6번째(또는 n번째) 아이템으로 자동 배치됩니다.
+    
     const otherTaskCard = document.createElement('div');
-    // 3. "기타 업무" 카드도 동일하게 w-52로 넓혀줍니다. (w-44 -> w-52)
-    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[220px] transition-shadow w-52 cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
+    // [변경점 7] 고정폭 'w-52' (또는 'w-44') 클래스를 제거합니다.
+    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[220px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
         <div class="font-bold text-lg text-gray-700">기타 업무</div>
@@ -191,16 +190,19 @@ export const renderRealtimeStatus = (appState) => {
         <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
     `;
     
-    // 4. "기타 업무" 카드를 새 컨테이너에 추가합니다.
-    otherTaskCardContainer.appendChild(otherTaskCard);
+    // 'presetGrid'에 '기타 업무' 카드를 추가합니다.
+    presetGrid.appendChild(otherTaskCard);
     
-    // 5. 이 새 컨테이너를 "주요 업무" 섹션에 추가합니다.
-    presetTaskContainer.appendChild(otherTaskCardContainer);
+    // 'presetGrid'를 부모 컨테이너에 추가합니다.
+    presetTaskContainer.appendChild(presetGrid);
+
+    // (이전의 'otherTaskCardContainer' 관련 로직은 모두 삭제되었습니다.)
 
     teamStatusBoard.appendChild(presetTaskContainer);
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
+    // (이 섹션은 변경 사항 없습니다.)
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
@@ -247,16 +249,16 @@ export const renderRealtimeStatus = (appState) => {
 
             if (isOnLeave) {
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
-                card.innerHTML = `<div class="font-semibold text-sm">${member}</div><div class="text-xs">휴무</div>`;
+                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">휴무</div>`;
             } else if (workingMembers.has(member)) {
                 card.classList.add('bg-red-50', 'border-red-200');
-                card.innerHTML = `<div class="font-semibold text-sm text-red-800">${member}</div><div class="text-xs text-gray-600 truncate" title="${workingMembers.get(member)}">${workingMembers.get(member)}</div>`;
+                card.innerHTML = `<div class="font-semibold text-sm text-red-800 break-keep">${member}</div><div class="text-xs text-gray-600 truncate" title="${workingMembers.get(member)}">${workingMembers.get(member)}</div>`;
             } else if (pausedMembers.has(member)) {
                 card.classList.add('bg-yellow-50', 'border-yellow-200');
-                card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${member}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
+                card.innerHTML = `<div class="font-semibold text-sm text-yellow-800 break-keep">${member}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
             } else {
                 card.classList.add('bg-green-50', 'border-green-200');
-                card.innerHTML = `<div class="font-semibold text-sm text-green-800">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
+                card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
             }
             groupGrid.appendChild(card);
         });
