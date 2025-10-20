@@ -85,10 +85,11 @@ export const renderRealtimeStatus = (appState) => {
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
 
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4'; // lg 화면 5개 컬럼
+    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4'; // 5열 그리드 적용됨
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
+    // ongoingRecords 변수는 여기서 한번만 선언됩니다.
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
 
@@ -110,7 +111,7 @@ export const renderRealtimeStatus = (appState) => {
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => a.startTime.localeCompare(b.startTime)).forEach(rec => {
-                // [수정] 모든 주석 제거, 이름/시간/종료 레이아웃 클래스 재확인
+                // 이름(좌, 고정폭)/시간(중)/종료(우, 상시) 레이아웃 적용됨
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
                     <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left">${rec.member}</span>
                     <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
@@ -177,13 +178,13 @@ export const renderRealtimeStatus = (appState) => {
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
-    // (이 섹션은 변경 사항 없습니다)
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
+    // [중요 버그 수정 완료] const 키워드 제거됨 -> 변수명 변경 (ongoingRecordsForStatus)
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map(appState.workRecords.filter(r => r.status === 'paused').map(r => [r.member, r.task]));
