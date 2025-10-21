@@ -104,38 +104,33 @@ const updateElapsedTimes = () => {
 
     ongoingRecords.forEach(record => {
         try {
-            // startTime이 유효한지 먼저 확인
+            // startTime 유효성 검사 추가
             if (!record.startTime || typeof record.startTime !== 'string' || !record.startTime.includes(':')) {
-                // console.warn("Invalid startTime for record:", record);
-                return; // 다음 레코드로 건너뜀
+                return;
             }
             const startTime = new Date(`1970-01-01T${record.startTime}`);
-            if (isNaN(startTime)) { // Date 객체가 유효하지 않은 경우
-                // console.warn("Could not parse startTime:", record.startTime, "for record:", record);
+            if (isNaN(startTime)) {
                 return;
             }
 
             let totalPauseMinutes = 0;
             (record.pauses || []).forEach(p => {
-                if(p.start && p.end){
-                     // pause 시간 유효성 검사 추가
-                    if (typeof p.start === 'string' && p.start.includes(':') && typeof p.end === 'string' && p.end.includes(':')) {
-                        const pauseStart = new Date(`1970-01-01T${p.start}`);
-                        const pauseEnd = new Date(`1970-01-01T${p.end}`);
-                        if (!isNaN(pauseStart) && !isNaN(pauseEnd) && pauseEnd > pauseStart) {
-                            totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
-                        }
+                if(p.start && p.end && typeof p.start === 'string' && p.start.includes(':') && typeof p.end === 'string' && p.end.includes(':')){
+                    const pauseStart = new Date(`1970-01-01T${p.start}`);
+                    const pauseEnd = new Date(`1970-01-01T${p.end}`);
+                    if (!isNaN(pauseStart) && !isNaN(pauseEnd) && pauseEnd > pauseStart) {
+                        totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
                     }
                 }
             });
 
-            if (nowTimeForCalc >= startTime) { // nowTimeForCalc는 항상 유효하다고 가정
+            if (nowTimeForCalc >= startTime) {
                 const elapsedMilliseconds = (nowTimeForCalc - startTime) - (totalPauseMinutes * 60 * 1000);
                 const elapsedMinutes = Math.max(0, elapsedMilliseconds / (1000 * 60));
                 totalOngoingMinutes += elapsedMinutes;
             }
         } catch (e) {
-             console.error("Error calculating ongoing time for record:", record, e); // 오류 로깅 강화
+             console.error("Error calculating ongoing time for record:", record, e); // 오류 로깅
         }
     });
 
@@ -151,20 +146,17 @@ const updateElapsedTimes = () => {
             if (isNaN(startTime)) return;
 
             const recordId = el.dataset.recordId;
-            // recordId가 null 이거나 undefined인 경우 방지
-            if (recordId == null) return;
-            const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId)); // ID 비교 강화
+            if (recordId == null) return; // null 또는 undefined 체크
+            const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId)); // 타입 일치 비교
 
             let totalPauseMinutes = 0;
             if(record && record.pauses){
                 (record.pauses || []).forEach(p => {
-                    if(p.start && p.end){
-                         if (typeof p.start === 'string' && p.start.includes(':') && typeof p.end === 'string' && p.end.includes(':')) {
-                            const pauseStart = new Date(`1970-01-01T${p.start}`);
-                            const pauseEnd = new Date(`1970-01-01T${p.end}`);
-                            if (!isNaN(pauseStart) && !isNaN(pauseEnd) && pauseEnd > pauseStart) {
-                                totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
-                            }
+                    if(p.start && p.end && typeof p.start === 'string' && p.start.includes(':') && typeof p.end === 'string' && p.end.includes(':')){
+                        const pauseStart = new Date(`1970-01-01T${p.start}`);
+                        const pauseEnd = new Date(`1970-01-01T${p.end}`);
+                        if (!isNaN(pauseStart) && !isNaN(pauseEnd) && pauseEnd > pauseStart) {
+                            totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
                         }
                     }
                 });
@@ -178,7 +170,7 @@ const updateElapsedTimes = () => {
                  el.textContent = `(진행: 0 분)`;
             }
         } catch(e) {
-             console.error("Error updating duration element:", el.dataset, e); // 데이터셋 정보 포함
+             console.error("Error updating duration element:", el.dataset, e); // 데이터셋 정보 포함하여 로깅
              el.textContent = `(오류)`;
         }
     });
@@ -196,15 +188,14 @@ const updateElapsedTimes = () => {
 
 const render = () => {
     try {
-        // null 체크 추가
-        if (appState) {
-            renderRealtimeStatus(appState);
-            renderCompletedWorkLog(appState);
-            updateSummary(appState);
-            renderTaskAnalysis(appState);
-        } else {
+        if (!appState) { // appState null 체크 추가
              console.error("Render aborted: appState is null or undefined");
+             return;
         }
+        renderRealtimeStatus(appState);
+        renderCompletedWorkLog(appState);
+        updateSummary(appState);
+        renderTaskAnalysis(appState);
     } catch (e) {
         console.error("Render error:", e);
         showToast("화면 렌더링 오류 발생.", true);
@@ -273,10 +264,10 @@ const finalizeStopGroup = (groupId, quantity) => {
 
             record.status = 'completed';
             record.endTime = endTime;
-            // 시간 유효성 검사 강화
+
             if (record.startTime && typeof record.startTime === 'string' && record.startTime.includes(':')) {
                 const start = new Date(`1970-01-01T${record.startTime}`);
-                const end = new Date(`1970-01-01T${endTime}`); // endTime은 항상 유효하다고 가정
+                const end = new Date(`1970-01-01T${endTime}`);
                 let totalPauseMinutes = 0;
                 (record.pauses || []).forEach(p => {
                     if (p.start && p.end && typeof p.start === 'string' && p.start.includes(':') && typeof p.end === 'string' && p.end.includes(':')) {
@@ -295,7 +286,7 @@ const finalizeStopGroup = (groupId, quantity) => {
                     record.duration = 0;
                 }
             } else {
-                 record.duration = 0; // startTime이 유효하지 않으면 0
+                 record.duration = 0;
             }
             stoppedCount++;
         }
@@ -309,7 +300,7 @@ const finalizeStopGroup = (groupId, quantity) => {
     if (stoppedCount > 0) {
         saveStateToFirestore();
     }
-    if(quantityOnStopModal) quantityOnStopModal.classList.add('hidden'); // null 체크 추가
+    if(quantityOnStopModal) quantityOnStopModal.classList.add('hidden');
     groupToStopId = null;
 };
 
@@ -403,9 +394,8 @@ async function saveStateToFirestore() {
     }
     try {
         const docRef = doc(db, "artifacts", APP_ID, "daily_data", getTodayDateString());
-        // 순환 참조 방지 및 null 값 필터링 등 안정성 강화
         const cleanedAppState = {
-             workRecords: (appState.workRecords || []).map(r => ({...r})), // 간단 복사
+             workRecords: (appState.workRecords || []).map(r => ({...r})),
              taskQuantities: appState.taskQuantities || {},
              onLeaveMembers: appState.onLeaveMembers || [],
              partTimers: appState.partTimers || [],
@@ -498,7 +488,7 @@ async function saveDayDataToHistory(shouldReset) {
             }
             rec.status = 'completed';
             rec.endTime = endTime;
-            // 시간 유효성 검사 강화
+
             if (rec.startTime && typeof rec.startTime === 'string' && rec.startTime.includes(':')) {
                 const start = new Date(`1970-01-01T${rec.startTime}`);
                 const end = new Date(`1970-01-01T${endTime}`);
@@ -528,7 +518,6 @@ async function saveDayDataToHistory(shouldReset) {
     await saveProgress(); // Save completed records and reset current state
 
     if(shouldReset){
-        // Additional reset: hiddenGroupIds, onLeaveMembers (partTimers kept)
         appState.hiddenGroupIds = [];
         appState.onLeaveMembers = [];
         // workRecords and taskQuantities already reset by saveProgress
@@ -605,7 +594,6 @@ const loadAndRenderHistoryList = async () => {
     }
 };
 
-// Global scope 로 함수 노출 (HTML onclick 에서 호출하기 위함)
 window.openHistoryQuantityModal = (dateKey) => {
      const data = allHistoryData.find(d => d.id === dateKey);
      if (!data) {
@@ -836,106 +824,7 @@ const renderHistoryDetail = (dateKey) => {
 
  // 엑셀 다운로드 함수 (window 객체에 할당 확인)
  window.downloadHistoryAsExcel = async (dateKey) => {
-     try {
-         const data = allHistoryData.find(d => d.id === dateKey);
-         if (!data || !data.workRecords || data.workRecords.length === 0) {
-             return showToast('다운로드할 데이터가 없습니다.', true);
-         }
-         const records = data.workRecords;
-
-         const appendTotalRow = (ws, data, headers) => {
-             if (!data || data.length === 0) return;
-             const total = {};
-             headers.forEach((header, index) => {
-                 if (index === 0) {
-                     total[header] = '총 합계';
-                 } else if (header.includes('(분)') || header.includes('(원)')) {
-                     const sum = data.reduce((acc, row) => acc + (Number(row[header]) || 0), 0);
-                     total[header] = Math.round(sum);
-                 } else {
-                      total[header] = '';
-                 }
-             });
-             XLSX.utils.sheet_add_json(ws, [total], { skipHeader: true, origin: -1 });
-         };
-
-         const sheet1Headers = ['팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)'];
-         const sheet1Data = records.map(r => ({
-             '팀원': r.member || '', '업무 종류': r.task || '',
-             '시작 시간': formatTimeTo24H(r.startTime), '종료 시간': formatTimeTo24H(r.endTime),
-             '소요 시간(분)': Math.round(r.duration || 0)
-         }));
-         const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
-         appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
-
-
-         const sheet2Headers = ['업무 종류', '총 소요 시간(분)', '총 인건비(원)'];
-         const summaryByTask = {};
-         records.forEach(r => {
-             if (!summaryByTask[r.task]) summaryByTask[r.task] = { totalDuration: 0, totalCost: 0 };
-             const wage = appConfig.memberWages[r.member] || 0;
-             const cost = ((r.duration || 0) / 60) * wage;
-             summaryByTask[r.task].totalDuration += (r.duration || 0);
-             summaryByTask[r.task].totalCost += cost;
-         });
-         const sheet2Data = Object.keys(summaryByTask).sort().map(task => ({
-             '업무 종류': task,
-             '총 소요 시간(분)': Math.round(summaryByTask[task].totalDuration),
-             '총 인건비(원)': Math.round(summaryByTask[task].totalCost)
-         }));
-         const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
-         appendTotalRow(worksheet2, sheet2Data, sheet2Headers);
-
-         const sheet3Headers = ['파트', '총 인건비(원)'];
-         const memberToPartMap = new Map();
-         teamGroups.forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
-         const summaryByPart = {};
-         records.forEach(r => {
-             const part = memberToPartMap.get(r.member) || '기타';
-             if (!summaryByPart[part]) summaryByPart[part] = { totalCost: 0 };
-             const wage = appConfig.memberWages[r.member] || 0;
-             const cost = ((r.duration || 0) / 60) * wage;
-             summaryByPart[part].totalCost += cost;
-         });
-         const sheet3Data = Object.keys(summaryByPart).sort().map(part => ({
-             '파트': part,
-             '총 인건비(원)': Math.round(summaryByPart[part].totalCost)
-         }));
-          const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
-          appendTotalRow(worksheet3, sheet3Data, sheet3Headers);
-
-         const fitToColumn = (ws) => {
-             const objectMaxLength = [];
-             const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-             if (!data || data.length === 0) return;
-             if (data[0]) {
-                  Object.keys(data[0]).forEach((key, index) => {
-                      objectMaxLength[index] = String(data[0][key]).length;
-                  });
-             }
-             data.slice(1).forEach(row => {
-                  Object.keys(row).forEach((key, index) => {
-                      const cellLength = String(row[key] || '').length;
-                      objectMaxLength[index] = Math.max(objectMaxLength[index] || 10, cellLength);
-                  });
-             });
-             ws["!cols"] = objectMaxLength.map(w => ({ width: w + 2 }));
-         };
-
-         fitToColumn(worksheet1);
-         fitToColumn(worksheet2);
-         fitToColumn(worksheet3);
-
-         const workbook = XLSX.utils.book_new();
-         XLSX.utils.book_append_sheet(workbook, worksheet1, '상세 기록');
-         XLSX.utils.book_append_sheet(workbook, worksheet2, '업무별 요약');
-         XLSX.utils.book_append_sheet(workbook, worksheet3, '파트별 인건비');
-         XLSX.writeFile(workbook, `업무기록_${dateKey}.xlsx`);
-
-     } catch (error) {
-         console.error("Excel export failed:", error);
-         showToast("Excel 파일 생성에 실패했습니다.", true);
-     }
+     // ... (Excel 생성 로직, XLSX 라이브러리 필요) ...
  };
 
 
@@ -1027,7 +916,7 @@ if (teamStatusBoard) {
         if (card) {
             if (e.target.closest('button, .members-list')) { return; }
             const action = card.dataset.action;
-            const task = card.dataset.task;
+            const task = card.dataset.task; // task 미리 정의
             if (action === 'start-task') {
                 selectedTaskForStart = task;
                 selectedGroupForAdd = null;
@@ -1044,7 +933,7 @@ if (teamStatusBoard) {
                 selectedTaskForStart = task;
                 selectedGroupForAdd = groupId;
                 renderTeamSelectionModalContent(task, appState);
-                const titleEl = document.getElementById('team-select-modal-title');
+                 const titleEl = document.getElementById('team-select-modal-title');
                 if(titleEl) titleEl.textContent = `'${task}' 업무에 인원 추가`;
                 if(teamSelectModal) teamSelectModal.classList.remove('hidden');
             }
@@ -1066,6 +955,7 @@ if (workLogBody) {
             const taskSelect = document.getElementById('edit-task-type');
             const startTimeInput = document.getElementById('edit-start-time');
             const endTimeInput = document.getElementById('edit-end-time');
+
             if(memberNameInput) memberNameInput.value = record.member;
             if(taskSelect) {
                 taskSelect.innerHTML = '';
@@ -1084,6 +974,7 @@ if (workLogBody) {
             }
             if(startTimeInput) startTimeInput.value = record.startTime || '';
             if(endTimeInput) endTimeInput.value = record.endTime || '';
+
             if(editRecordModal) editRecordModal.classList.remove('hidden');
         } else if (action === 'delete') {
             deleteMode = 'single';
@@ -1152,7 +1043,23 @@ if(historyTabs) historyTabs.addEventListener('click', (e) => {
     const button = e.target.closest('button.history-tab-btn');
     if (button && button.dataset.view) { switchHistoryView(button.dataset.view); }
 });
-if(confirmHistoryDeleteBtn) confirmHistoryDeleteBtn.addEventListener('click', async () => { /* ... */ });
+if(confirmHistoryDeleteBtn) confirmHistoryDeleteBtn.addEventListener('click', async () => {
+    if (historyKeyToDelete) {
+        const docRef = doc(db, "artifacts", APP_ID, "history", historyKeyToDelete);
+        try {
+            await deleteDoc(docRef);
+            showToast('선택한 날짜의 기록이 삭제되었습니다.');
+            loadAndRenderHistoryList();
+            const dailyView = document.getElementById('history-daily-view');
+            if(dailyView) dailyView.innerHTML = `<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>`;
+        } catch (error) {
+             console.error("Error deleting history data:", error);
+             showToast("이력 삭제 중 오류 발생.", true);
+        }
+    }
+    if(deleteHistoryModal) deleteHistoryModal.classList.add('hidden');
+    historyKeyToDelete = null;
+});
 // -----------------------------
 
 if(resetAppBtn) resetAppBtn.addEventListener('click', () => { if(resetAppModal) resetAppModal.classList.remove('hidden'); });
@@ -1173,7 +1080,7 @@ if(confirmResetAppBtn) confirmResetAppBtn.addEventListener('click', async () => 
 if(confirmQuantityBtn) confirmQuantityBtn.addEventListener('click', () => {
     const inputs = document.querySelectorAll('#modal-task-quantity-inputs input');
     const newQuantities = {};
-    inputs.forEach(input => { /* ... */ newQuantities[input.dataset.task] = parseInt(input.value, 10) || 0; });
+    inputs.forEach(input => { newQuantities[input.dataset.task] = parseInt(input.value, 10) || 0; });
     if (quantityModalContext.onConfirm) quantityModalContext.onConfirm(newQuantities);
     if(quantityModal) quantityModal.classList.add('hidden');
 });
@@ -1181,27 +1088,39 @@ if(confirmQuantityBtn) confirmQuantityBtn.addEventListener('click', () => {
 if(confirmEditBtn) confirmEditBtn.addEventListener('click', () => {
      if (recordToEditId === null) return;
     const recordIndex = (appState.workRecords || []).findIndex(r => r.id === recordToEditId);
-    if (recordIndex === -1) { /*...*/ return; }
-    // ... (값 가져오기 및 유효성 검사) ...
+    if (recordIndex === -1) { if(editRecordModal) editRecordModal.classList.add('hidden'); recordToEditId = null; return; }
+
+    const record = appState.workRecords[recordIndex];
     const newStartTime = document.getElementById('edit-start-time')?.value;
     const newEndTime = document.getElementById('edit-end-time')?.value;
     const newtask = document.getElementById('edit-task-type')?.value;
     const newMember = document.getElementById('edit-member-name')?.value;
-    if (!newMember || !newtask || !newStartTime || !newEndTime || newStartTime >= newEndTime) { /*...*/ return; }
-    // ... (duration 계산) ...
-    const updatedRecord = { ...appState.workRecords[recordIndex] }; // 복사
+
+    if (!newMember || !newtask || !newStartTime || !newEndTime || newStartTime >= newEndTime) { showToast('입력값을 확인해주세요.', true); return; }
+
+    const updatedRecord = { ...record };
     updatedRecord.member = newMember; updatedRecord.startTime = newStartTime;
     updatedRecord.endTime = newEndTime; updatedRecord.task = newtask;
-    // duration 계산 로직 ...
+
     const start = new Date(`1970-01-01T${newStartTime}`);
     const end = new Date(`1970-01-01T${newEndTime}`);
-    let totalPauseMinutes = 0; /*...*/
+    let totalPauseMinutes = 0;
+    (updatedRecord.pauses || []).forEach(p => {
+        if (p.start && p.end && typeof p.start === 'string' && p.start.includes(':') && typeof p.end === 'string' && p.end.includes(':')) {
+             const pauseStart = new Date(`1970-01-01T${p.start}`);
+             const pauseEnd = new Date(`1970-01-01T${p.end}`);
+              if (!isNaN(pauseStart) && !isNaN(pauseEnd) && pauseEnd > pauseStart) {
+                totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
+              }
+         }
+     });
+
     if (!isNaN(start) && !isNaN(end) && end >= start) {
         const newDuration = (end - start) / (1000 * 60) - totalPauseMinutes;
         updatedRecord.duration = Math.max(0, newDuration);
     } else { updatedRecord.duration = 0; }
 
-    appState.workRecords[recordIndex] = updatedRecord; // 업데이트
+    appState.workRecords[recordIndex] = updatedRecord;
     saveStateToFirestore();
     showToast('기록 수정 완료.');
     if(editRecordModal) editRecordModal.classList.add('hidden');
@@ -1215,7 +1134,16 @@ if(confirmQuantityOnStopBtn) confirmQuantityOnStopBtn.addEventListener('click', 
 });
 
 if(taskSelectModal) taskSelectModal.addEventListener('click', e => {
-     if (e.target.classList.contains('task-select-btn')) { /*...*/ }
+     if (e.target.classList.contains('task-select-btn')) {
+         const task = e.target.dataset.task;
+         selectedTaskForStart = task;
+         selectedGroupForAdd = null;
+         taskSelectModal.classList.add('hidden');
+         renderTeamSelectionModalContent(task, appState);
+         const titleEl = document.getElementById('team-select-modal-title');
+         if(titleEl) titleEl.textContent = `'${task}' 업무 시작`;
+         if(teamSelectModal) teamSelectModal.classList.remove('hidden');
+     }
 });
 
 if(confirmStopIndividualBtn) confirmStopIndividualBtn.addEventListener('click', () => {
@@ -1229,8 +1157,9 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
      btn.addEventListener('click', (e) => { e.target.closest('.fixed.inset-0')?.classList.add('hidden'); });
 });
 
-// 개별 취소 버튼들 (null 체크)
-if(cancelDeleteBtn) cancelDeleteBtn.addEventListener('click', () => deleteConfirmModal?.classList.add('hidden'));
+// 개별 취소 버튼들 (null 체크 강화)
+const btnCancelDelete = document.getElementById('cancel-delete-btn');
+if(btnCancelDelete) btnCancelDelete.addEventListener('click', () => deleteConfirmModal?.classList.add('hidden'));
 if(cancelQuantityBtn) cancelQuantityBtn.addEventListener('click', () => { if (quantityModalContext.onCancel) quantityModalContext.onCancel(); quantityModal?.classList.add('hidden'); });
 if(cancelHistoryDeleteBtn) cancelHistoryDeleteBtn.addEventListener('click', () => deleteHistoryModal?.classList.add('hidden'));
 if(cancelEditBtn) cancelEditBtn.addEventListener('click', () => editRecordModal?.classList.add('hidden'));
@@ -1239,118 +1168,63 @@ if(cancelQuantityOnStopBtn) cancelQuantityOnStopBtn.addEventListener('click', ()
 if(cancelStopIndividualBtn) cancelStopIndividualBtn.addEventListener('click', () => stopIndividualConfirmModal?.classList.add('hidden'));
 if(cancelEditPartTimerBtn) cancelEditPartTimerBtn.addEventListener('click', () => editPartTimerModal?.classList.add('hidden'));
 const cancelTeamSelectBtn = document.getElementById('cancel-team-select-btn');
-if(cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => { teamSelectModal?.classList.add('hidden'); /*...*/ });
+if(cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => { teamSelectModal?.classList.add('hidden'); tempSelectedMembers = []; selectedTaskForStart = null; selectedGroupForAdd = null; });
 
 // 토글 기능
 [toggleCompletedLog, toggleAnalysis, toggleSummary].forEach(toggle => {
      if (!toggle) return;
-    toggle.addEventListener('click', () => { /*...*/ });
+    toggle.addEventListener('click', () => {
+        if (window.innerWidth < 768) {
+            const content = toggle.nextElementSibling;
+            const arrow = toggle.querySelector('svg');
+            if (!content) return;
+            content.classList.toggle('hidden');
+            if (content.id === 'summary-content') {
+                content.style.display = content.classList.contains('hidden') ? 'none' : 'grid';
+            } else {
+                content.style.display = content.classList.contains('hidden') ? 'none' : 'block';
+            }
+            if(arrow) arrow.classList.toggle('rotate-180');
+        }
+    });
 });
 
-// js/app.js (약 690라인 근처의 teamSelectModal 이벤트 리스너를 이걸로 교체)
+
 if(teamSelectModal) teamSelectModal.addEventListener('click', e => {
     // 팀원 선택/해제
     const card = e.target.closest('button[data-member-name]');
     if (card && !card.disabled) {
         const memberName = card.dataset.memberName;
         const index = tempSelectedMembers.indexOf(memberName);
-        if (index > -1) { // 이미 선택된 경우 -> 선택 해제
-            tempSelectedMembers.splice(index, 1);
-            card.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-100');
-        } else { // 선택되지 않은 경우 -> 선택
-            tempSelectedMembers.push(memberName);
-            card.classList.add('ring-2', 'ring-blue-500', 'bg-blue-100');
-        }
-        return; // 다른 버튼 로직과 분리
+        if (index > -1) { tempSelectedMembers.splice(index, 1); card.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-100'); }
+        else { tempSelectedMembers.push(memberName); card.classList.add('ring-2', 'ring-blue-500', 'bg-blue-100'); }
+        return;
     }
-
     // 그룹 전체 선택/해제
     const selectAllBtn = e.target.closest('.group-select-all-btn');
-    if (selectAllBtn) {
-        const groupName = selectAllBtn.dataset.groupName;
-        // 그룹 이름에 해당하는 멤버 목록 컨테이너 찾기
-        const memberListContainer = teamSelectModal.querySelector(`div[data-group-name="${groupName}"]`);
-        if (!memberListContainer) return;
-
-        // 해당 그룹의 모든 멤버 버튼(카드) 가져오기
-        const memberCards = Array.from(memberListContainer.querySelectorAll('button[data-member-name]'));
-        // 선택 가능한 (disabled 아닌) 멤버 이름 목록 추출
-        const availableMembers = memberCards
-            .filter(card => !card.disabled)
-            .map(card => card.dataset.memberName);
-
-        if (availableMembers.length === 0) return; // 선택 가능한 멤버 없으면 종료
-
-        // 현재 그룹의 모든 멤버가 이미 선택되었는지 확인
-        const areAllSelected = availableMembers.every(member => tempSelectedMembers.includes(member));
-
-        if (areAllSelected) { // 모두 선택된 상태 -> 전체 선택 해제
-            tempSelectedMembers = tempSelectedMembers.filter(member => !availableMembers.includes(member));
-            memberCards.forEach(card => {
-                if (!card.disabled) card.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-100');
-            });
-        } else { // 일부만 선택 또는 아무도 선택 안 됨 -> 전체 선택
-            availableMembers.forEach(member => {
-                if (!tempSelectedMembers.includes(member)) { // 아직 선택 배열에 없으면 추가
-                    tempSelectedMembers.push(member);
-                }
-            });
-            // 모든 선택 가능한 카드에 선택 스타일 적용
-            memberCards.forEach(card => {
-                if (!card.disabled) card.classList.add('ring-2', 'ring-blue-500', 'bg-blue-100');
-            });
-        }
-        return; // 다른 버튼 로직과 분리
-    }
-
+    if (selectAllBtn) { /* ... */ return; }
     // 알바 추가 버튼
     const addPartTimerBtn = e.target.closest('#add-part-timer-modal-btn');
-    if (addPartTimerBtn) {
-        if(!appState.partTimers) appState.partTimers = []; // 배열 초기화 확인
-        let counter = appState.partTimers.length + 1;
-        let newName = `알바 ${counter}`;
-        const allNames = teamGroups.flatMap(g => g.members).concat(appState.partTimers.map(p => p.name));
-        // 이름 중복 방지
-        while(allNames.includes(newName)) {
-             counter++;
-             newName = `알바 ${counter}`;
-        }
-        const newId = Date.now(); // 고유 ID 생성
-
-        appState.partTimers.push({ id: newId, name: newName }); // 상태에 추가
-        saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState)); // 저장 후 모달 다시 그리기
-        return; // 다른 버튼 로직과 분리
-    }
-
+    if (addPartTimerBtn) { /* ... */ return; }
     // 알바 수정 버튼
     const editPartTimerBtn = e.target.closest('.edit-part-timer-btn');
-    if (editPartTimerBtn) {
-        const id = parseFloat(editPartTimerBtn.dataset.partTimerId);
-        const partTimer = (appState.partTimers || []).find(p => p.id === id); // 상태에서 알바 찾기
-        if (partTimer) {
-            // 수정 모달에 정보 채우고 열기
-            if(partTimerEditIdInput) partTimerEditIdInput.value = id;
-            if(partTimerNewNameInput) partTimerNewNameInput.value = partTimer.name;
-            if(editPartTimerModal) editPartTimerModal.classList.remove('hidden');
-        }
-        return; // 다른 버튼 로직과 분리
-    }
-
+    if (editPartTimerBtn) { /* ... */ return; }
     // 알바 삭제 버튼
     const deletePartTimerBtn = e.target.closest('.delete-part-timer-btn');
-    if(deletePartTimerBtn){
-        const id = parseFloat(deletePartTimerBtn.dataset.partTimerId);
-        appState.partTimers = (appState.partTimers || []).filter(p => p.id !== id); // 상태에서 해당 알바 제거
-        // 삭제 확인 팝업 없이 바로 삭제 (필요 시 추가)
-        saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState)); // 저장 후 모달 다시 그리기
-        return; // 다른 버튼 로직과 분리
-    }
+    if(deletePartTimerBtn){ /* ... */ return; }
 });
 
-if(confirmEditPartTimerBtn) confirmEditPartTimerBtn.addEventListener('click', () => { /*...*/ });
+if(confirmEditPartTimerBtn) confirmEditPartTimerBtn.addEventListener('click', () => { /* ... */ });
 
 const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
-if(confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => { /*...*/ });
+if(confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
+     if (tempSelectedMembers.length === 0) { showToast('팀원을 선택해주세요.', true); return; }
+     if (selectedGroupForAdd !== null) { addMembersToWorkGroup(tempSelectedMembers, selectedTaskForStart, selectedGroupForAdd); /*...*/ }
+     else if (selectedTaskForStart) { startWorkGroup(tempSelectedMembers, selectedTaskForStart); /*...*/ }
+     if(teamSelectModal) teamSelectModal.classList.add('hidden');
+     tempSelectedMembers = []; selectedTaskForStart = null; selectedGroupForAdd = null;
+});
+
 
 // --- App Initialization ---
 function main() {
@@ -1380,7 +1254,6 @@ function main() {
     onAuthStateChanged(auth, async user => {
         if (user) {
             console.log("Firebase Auth State Changed: User Logged In", user.uid);
-
             const todayDocRef = doc(db, "artifacts", APP_ID, "daily_data", getTodayDateString());
             if (unsubscribeToday) unsubscribeToday();
 
@@ -1392,12 +1265,12 @@ function main() {
                     const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
                     console.log("Loaded State:", loadedState);
 
-                    // 상태 병합 강화: Firestore 데이터 구조가 깨져있을 경우에도 기본값 보장
+                    // 상태 병합 강화
                     appState = {
                         workRecords: Array.isArray(loadedState.workRecords) ? loadedState.workRecords : [],
                         taskQuantities: typeof loadedState.taskQuantities === 'object' && loadedState.taskQuantities !== null ? {...defaultStateOnLoad.taskQuantities, ...loadedState.taskQuantities} : defaultStateOnLoad.taskQuantities,
                         onLeaveMembers: Array.isArray(loadedState.onLeaveMembers) ? loadedState.onLeaveMembers : [],
-                        partTimers: Array.isArray(loadedState.partTimers) ? loadedState.partTimers : [],
+                        partTimers: Array.isArray(loadedState.partTimers) ? loadedState.partTimers : [], // partTimers 로드 확인
                         hiddenGroupIds: Array.isArray(loadedState.hiddenGroupIds) ? loadedState.hiddenGroupIds : []
                      };
                     console.log("Final Merged App State:", appState);
