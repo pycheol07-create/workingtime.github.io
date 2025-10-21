@@ -1,6 +1,9 @@
+/* === style.css (정렬 수정 버전) === */
 body {
     font-family: 'Inter', 'Noto Sans KR', sans-serif;
 }
+
+/* 차트 영역 */
 .chart {
     position: relative;
     width: 150px;
@@ -21,6 +24,8 @@ body {
     align-items: center;
     justify-content: center;
 }
+
+/* 토스트 알림 */
 .toast {
     opacity: 0;
     transform: translateY(100%);
@@ -30,6 +35,8 @@ body {
     opacity: 1;
     transform: translateY(0);
 }
+
+/* 모달 닫기 버튼 */
 .modal-close-btn {
     position: absolute;
     top: 1rem;
@@ -44,16 +51,38 @@ body {
 .modal-close-btn:hover {
     color: #1f2937;
 }
+
+/* 대시보드 카드 (실시간 현황판) */
 .dashboard-card {
     background-color: #1f2937; /* bg-gray-800 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
+
+/* 제목(텍스트) 스타일 */
+.dashboard-card h4 {
+    color: #9ca3af; /* text-gray-400 */
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: center;
+
+    /* ✅ 추가된 부분: 높이와 정렬 통일 */
+    min-height: 2.5rem;           /* 모든 제목 높이를 동일하게 */
+    display: flex;
+    align-items: flex-end;        /* 숫자(p)와 수평 정렬 맞춤 */
+    justify-content: center;
+}
+
+/* 숫자 스타일 */
 .dashboard-card p {
     font-size: 2rem;
     line-height: 2.5rem;
     font-weight: 700;
     color: #7dd3fc; /* text-sky-300 */
     text-shadow: 0 0 5px rgba(125, 211, 252, 0.5);
-}
-.dashboard-card h4 {
-    color: #9ca3af; /* text-gray-400 */
+    margin-top: 0.25rem; /* 제목과 숫자 간격 */
 }
