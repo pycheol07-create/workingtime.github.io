@@ -96,7 +96,6 @@ export const renderRealtimeStatus = (appState) => {
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
-    // ongoingRecords는 여기서 한번만 선언
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
 
@@ -118,6 +117,7 @@ export const renderRealtimeStatus = (appState) => {
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
+                // 주석 제거됨
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
                     <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left">${rec.member}</span>
                     <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
@@ -131,6 +131,7 @@ export const renderRealtimeStatus = (appState) => {
             let statusText = isPaused ? ' (일시정지)' : '';
             let participationCount = groupRecords.length;
 
+            // 주석 제거됨
             const buttonHtml = `<div class="mt-auto space-y-2 pt-2">
                                 <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">${isPaused ? '업무재개' : '일시정지'}</button>
                                 <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
@@ -141,6 +142,7 @@ export const renderRealtimeStatus = (appState) => {
             const recordIdForDuration = representativeRecord ? representativeRecord.id : null;
             const durationStatus = isPaused ? 'paused' : 'ongoing';
 
+            // 주석 제거됨
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime}" data-status="${durationStatus}" data-record-id="${recordIdForDuration}"></span></div>
@@ -153,6 +155,7 @@ export const renderRealtimeStatus = (appState) => {
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
+            // 주석 제거됨
             card.innerHTML = `
                 <div class="flex-grow">
                     <div class="font-bold text-lg text-blue-800 break-keep">${task}</div>
@@ -191,8 +194,8 @@ export const renderRealtimeStatus = (appState) => {
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // [중요 버그 수정 완료] const 키워드 제거됨 -> 변수명 변경 (ongoingRecordsForStatus 사용)
-    const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing'); // 중복 선언 아님, 위에서 선언된 ongoingRecords와 다름
+    // [중요 버그 수정 완료] 변수명 변경 (ongoingRecordsForStatus 사용)
+    const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing'); // Section 2용 변수
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
 
@@ -327,28 +330,44 @@ export const updateSummary = (appState) => {
     const summaryOngoingTasksEl = document.getElementById('summary-ongoing-tasks');
     const summaryTotalWorkTimeEl = document.getElementById('summary-total-work-time');
 
-    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-    const workingMembers = new Set(ongoingRecords.map(r => r.member));
-    const allMembers = new Set(teamGroups.flatMap(g => g.members));
+    const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
+    const totalStaffCount = allStaffMembers.size;
+    const totalPartTimerCount = allPartTimers.size;
 
-    const totalStaff = allMembers.size;
-    const onLeaveCount = (appState.onLeaveMembers || []).length;
-    const workingCount = workingMembers.size;
-    const activeStaff = totalStaff - onLeaveCount + allPartTimers.size;
-    const idleCount = Math.max(0, activeStaff - workingCount);
-    const ongoingTaskCount = new Set(ongoingRecords.map(r => r.task)).size;
+    const onLeaveMembers = new Set(appState.onLeaveMembers || []);
+    const onLeaveStaffCount = [...onLeaveMembers].filter(member => allStaffMembers.has(member)).length;
+    // 알바 휴무는 별도 관리 안 하므로 onLeaveMembers에 포함된 총 인원만 표시
+    const onLeaveTotalCount = onLeaveMembers.size;
 
-    const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
-    const totalCompletedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
-    if (summaryTotalWorkTimeEl) summaryTotalWorkTimeEl.textContent = formatDuration(totalCompletedMinutes);
 
-    if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaff}`;
-    if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveCount}`;
-    if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${activeStaff}`;
-    if (summaryWorkingStaffEl) summaryWorkingStaffEl.textContent = `${workingCount}`;
-    if (summaryIdleStaffEl) summaryIdleStaffEl.textContent = `${idleCount}`;
+    const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+    const workingMembers = new Set(ongoingOrPausedRecords.map(r => r.member));
+    const workingStaffCount = [...workingMembers].filter(member => allStaffMembers.has(member)).length;
+    const workingPartTimerCount = [...workingMembers].filter(member => allPartTimers.has(member)).length;
+    const totalWorkingCount = workingMembers.size; // 직원+알바 합계
+
+    const availableStaffCount = totalStaffCount - onLeaveStaffCount;
+    // 현재 알바 휴무는 없다고 가정
+    const availablePartTimerCount = totalPartTimerCount;
+    const totalAvailableCount = availableStaffCount + availablePartTimerCount;
+
+
+    const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
+    const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount);
+    const totalIdleCount = idleStaffCount + idlePartTimerCount;
+
+    const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size; // 일시정지 포함 진행 중 업무 수
+
+    // DOM 업데이트
+    if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaffCount}/${totalPartTimerCount}`;
+    if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveTotalCount}`; // 총 휴무 인원
+    if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`; // 근무 가능 인원
+    if (summaryWorkingStaffEl) summaryWorkingStaffEl.textContent = `${totalWorkingCount}`; // 실제 업무중 총 인원
+    if (summaryIdleStaffEl) summaryIdleStaffEl.textContent = `${totalIdleCount}`; // 총 대기 인원
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
+
+    // 총 업무 시간 업데이트는 elapsedTimeTimer 가 담당
 };
 
 export const renderTeamSelectionModalContent = (task, appState) => {
@@ -425,7 +444,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
 
     (appState.partTimers || []).forEach(pt => {
         const isWorking = allWorkingMembers.has(pt.name);
-        const isOnLeave = onLeaveMembers.has(pt.name);
+        const isOnLeave = onLeaveMembers.has(pt.name); // 알바 휴무 가능성 고려 (현재 로직에는 없음)
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'relative';
 
