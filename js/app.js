@@ -504,6 +504,15 @@ const renderHistoryDetail = (dateKey) => {
   const totalSumDuration = records.reduce((sum, r) => sum + (r.duration || 0), 0);
 
   const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (rec.duration || 0); return acc; }, {});
+  
+  // [추가] 업무별 인건비 계산
+  const taskCosts = records.reduce((acc, rec) => {
+      const wage = appConfig.memberWages[rec.member] || 0; // config에서 인건비 조회
+      const cost = ((Number(rec.duration) || 0) / 60) * wage; // 분 단위를 시간 단위로 변경하여 비용 계산
+      acc[rec.task] = (acc[rec.task] || 0) + cost;
+      return acc;
+  }, {});
+
   const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
   const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
 
@@ -535,7 +544,8 @@ const renderHistoryDetail = (dateKey) => {
     </div>
   `;
 
-  html += `<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">`;
+  // [수정] md:grid-cols-2 -> md:grid-cols-3 로 변경
+  html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">`;
   html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 처리량</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
   let hasQuantities = false;
   Object.entries(quantities)
@@ -560,7 +570,25 @@ const renderHistoryDetail = (dateKey) => {
       html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${throughputForTask} 개/분</span></div>`;
     });
   if (!hasThroughput) html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
-  html += `</div></div></div>`;
+  html += `</div></div>`;
+
+  // [추가] 개당 처리비용 카드
+  html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 개당 처리비용</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
+  let hasCostPerItem = false;
+  Object.entries(quantities)
+    .filter(([, qty]) => Number(qty) > 0)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .forEach(([task, qty]) => {
+      hasCostPerItem = true;
+      const costForTask = taskCosts[task] || 0;
+      const qtyNum = Number(qty) || 1; // 0으로 나누기 방지
+      const costPerItem = costForTask / qtyNum;
+      html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${costPerItem.toFixed(0)} 원/개</span></div>`;
+    });
+  if (!hasCostPerItem) html += `<p class="text-gray-500 text-sm">처리량이 없어 계산 불가.</p>`;
+  html += `</div></div>`;
+
+  html += `</div>`; // 그리드 닫기
 
   html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 시간 비중</h4><div class="space-y-3">`;
   Object.entries(taskDurations)
@@ -667,19 +695,37 @@ window.downloadHistoryAsExcel = async (dateKey) => {
       return showToast('다운로드할 데이터가 없습니다.', true);
     }
     const records = data.workRecords;
+    const quantities = data.taskQuantities || {}; // [추가] 처리량 데이터 가져오기
 
+    // [수정] 합계 행 계산 로직 변경 (개당 처리비용 재계산)
     const appendTotalRow = (ws, data, headers) => {
       if (!data || data.length === 0) return;
       const total = {};
+      const sums = {};
+
+      // 1. 합산이 필요한 모든 열의 합계를 먼저 계산
+      headers.forEach(header => {
+          if (header.includes('(분)') || header.includes('(원)') || header.includes('(개)')) {
+              sums[header] = data.reduce((acc, row) => acc + (Number(row[header]) || 0), 0);
+          }
+      });
+
+      // 2. 합계 행(total object) 생성
       headers.forEach((header, index) => {
-        if (index === 0) {
-          total[header] = '총 합계';
-        } else if (header.includes('(분)') || header.includes('(원)')) {
-          const sum = data.reduce((acc, row) => acc + (Number(row[header]) || 0), 0);
-          total[header] = Math.round(sum);
-        } else {
-          total[header] = '';
-        }
+          if (index === 0) {
+              total[header] = '총 합계';
+          } else if (header.includes('(분)') || header.includes('총 인건비(원)') || header.includes('총 처리량(개)')) {
+              // '총 소요 시간', '총 인건비', '총 처리량'은 단순 합산
+              total[header] = Math.round(sums[header]);
+          } else if (header === '개당 처리비용(원)') {
+              // '개당 처리비용'은 (총 인건비 / 총 처리량)으로 재계산
+              const totalCost = sums['총 인건비(원)'] || 0;
+              const totalQty = sums['총 처리량(개)'] || 0;
+              const totalCostPerItem = (totalQty > 0) ? (totalCost / totalQty) : 0;
+              total[header] = Math.round(totalCostPerItem);
+          } else {
+              total[header] = '';
+          }
       });
       XLSX.utils.sheet_add_json(ws, [total], { skipHeader: true, origin: -1 });
     };
@@ -695,7 +741,8 @@ window.downloadHistoryAsExcel = async (dateKey) => {
     const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
     appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
 
-    const sheet2Headers = ['업무 종류', '총 소요 시간(분)', '총 인건비(원)'];
+    // [수정] Sheet 2 헤더 변경
+    const sheet2Headers = ['업무 종류', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)'];
     const summaryByTask = {};
     records.forEach(r => {
       if (!summaryByTask[r.task]) summaryByTask[r.task] = { totalDuration: 0, totalCost: 0 };
@@ -704,13 +751,23 @@ window.downloadHistoryAsExcel = async (dateKey) => {
       summaryByTask[r.task].totalDuration += (Number(r.duration) || 0);
       summaryByTask[r.task].totalCost += cost;
     });
-    const sheet2Data = Object.keys(summaryByTask).sort().map(task => ({
-      '업무 종류': task,
-      '총 소요 시간(분)': Math.round(summaryByTask[task].totalDuration),
-      '총 인건비(원)': Math.round(summaryByTask[task].totalCost)
-    }));
+
+    // [수정] Sheet 2 데이터 생성 로직 변경 (처리량, 개당 비용 추가)
+    const sheet2Data = Object.keys(summaryByTask).sort().map(task => {
+      const taskQty = Number(quantities[task]) || 0;
+      const taskCost = summaryByTask[task].totalCost;
+      const costPerItem = (taskQty > 0) ? (taskCost / taskQty) : 0;
+
+      return {
+        '업무 종류': task,
+        '총 소요 시간(분)': Math.round(summaryByTask[task].totalDuration),
+        '총 인건비(원)': Math.round(taskCost),
+        '총 처리량(개)': taskQty,
+        '개당 처리비용(원)': Math.round(costPerItem)
+      };
+    });
     const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
-    appendTotalRow(worksheet2, sheet2Data, sheet2Headers);
+    appendTotalRow(worksheet2, sheet2Data, sheet2Headers); // 수정된 합계 로직 사용
 
     const sheet3Headers = ['파트', '총 인건비(원)'];
     const memberToPartMap = new Map();
