@@ -124,7 +124,7 @@ const calcElapsedMinutes = (start, end, pauses = []) => {
 };
 
 // ========== 타이머 ==========
-const updateElapsedTimes = () => {
+function updateElapsedTimes() {
   const now = getCurrentTime();
   document.querySelectorAll('.ongoing-duration').forEach(el => {
     try {
@@ -136,12 +136,25 @@ const updateElapsedTimes = () => {
     } catch { /* noop */ }
   });
 
-  // 요약의 총 업무시간은 진행+완료 합을 계산할 수도 있지만, 여기서는 완료분만 표시하고 진행분은 실시간 카드에 표시
-  const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
-  const totalCompletedMinutes = completedRecords.reduce((sum, r) => sum + (r.duration || 0), 0);
+  // ✅ 수정된 부분: 완료 + 진행 중 + 일시정지 업무 모두 합산
+  const records = appState.workRecords || [];
+  const totalMinutes = records.reduce((sum, record) => {
+    if (record.status === 'completed') {
+      return sum + (record.duration || 0);
+    } else if (record.status === 'ongoing') {
+      // 진행 중은 현재까지의 시간 계산
+      return sum + calcElapsedMinutes(record.startTime, now, record.pauses);
+    } else if (record.status === 'paused') {
+      // 일시정지는 마지막 정지 전까지만 계산
+      return sum + calcElapsedMinutes(record.startTime, record.pauses?.slice(-1)[0]?.start || now, record.pauses);
+    }
+    return sum;
+  }, 0);
+
   const el = document.getElementById('summary-total-work-time');
-  if (el) el.textContent = formatDuration(totalCompletedMinutes);
-};
+  if (el) el.textContent = formatDuration(totalMinutes);
+}
+
 
 // ========== 렌더 ==========
 const render = () => {
