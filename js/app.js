@@ -351,13 +351,12 @@ async function saveProgress() {
 
     await setDoc(historyDocRef, dataToSave);
 
-    // 현재 상태 초기화: 완료 레코드 제거 + 처리량 값 0
-    appState.workRecords = (appState.workRecords || []).filter(r => r.status !== 'completed');
-    Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
-
-    await saveStateToFirestore();
+    // [수정] 중간 저장 시 현재 상태(완료 리스트)를 초기화하는 로직 제거
+    // appState.workRecords = (appState.workRecords || []).filter(r => r.status !== 'completed');
+    // Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
+    // await saveStateToFirestore();
     showToast('현재까지의 기록이 성공적으로 저장되었습니다.');
-    render();
+    // render();
   } catch (e) {
     console.error('Error in saveProgress: ', e);
     showToast(`중간 저장 중 오류가 발생했습니다: ${e.message}`, true);
@@ -380,14 +379,18 @@ async function saveDayDataToHistory(shouldReset) {
     await saveStateToFirestore();
   }
 
-  await saveProgress();
+  await saveProgress(); // <-- 이제 이 함수는 저장만 하고, 현재 상태를 초기화하지 않음
+
+  // [수정] '업무 마감' 시에만 리스트를 초기화하도록 로직을 이관
+  appState.workRecords = (appState.workRecords || []).filter(r => r.status !== 'completed');
+  Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
 
   if (shouldReset) {
     appState.hiddenGroupIds = [];
     appState.onLeaveMembers = [];
-    await saveStateToFirestore();
+    await saveStateToFirestore(); // <-- 여기서 초기화된 상태(빈 리스트)를 저장
     showToast('오늘의 업무 기록을 초기화했습니다.');
-    render();
+    render(); // <-- 초기화된 리스트를 화면에 렌더링
   }
 }
 
