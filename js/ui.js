@@ -1,9 +1,11 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
 import { quantityTaskTypes, taskGroups, teamGroups } from './config.js';
 
+// 수동 추가 기능 관련 함수/변수 없음
+
 export const renderQuantityModalInputs = (sourceQuantities = {}) => {
     const container = document.getElementById('modal-task-quantity-inputs');
-    if (!container) return; // 요소 없으면 종료
+    if (!container) return;
     container.innerHTML = '';
     quantityTaskTypes.forEach(task => {
         const div = document.createElement('div');
@@ -37,7 +39,6 @@ export const renderTaskAnalysis = (appState) => {
     const analysisContainer = document.getElementById('analysis-content');
     if (!analysisContainer) return;
     analysisContainer.innerHTML = '';
-    // workRecords가 없을 경우 빈 배열로 처리
     const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
     const totalLoggedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
 
@@ -76,10 +77,7 @@ export const renderTaskAnalysis = (appState) => {
 
 export const renderRealtimeStatus = (appState) => {
     const teamStatusBoard = document.getElementById('team-status-board');
-    if (!teamStatusBoard) {
-        console.error("Element #team-status-board not found!");
-        return;
-    }
+    if (!teamStatusBoard) return;
     teamStatusBoard.innerHTML = '';
 
     const memberGroupMap = new Map();
@@ -118,7 +116,8 @@ export const renderRealtimeStatus = (appState) => {
             const isPaused = groupRecords.some(r => r.status === 'paused');
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
-            groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => { // null 방지
+            groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
+                // 이름(좌, 고정폭)/시간(중)/종료(우, 상시) 레이아웃
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
                     <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left">${rec.member}</span>
                     <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
@@ -137,7 +136,7 @@ export const renderRealtimeStatus = (appState) => {
                                 <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
                             </div>`;
 
-            const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && earliest < current.startTime) ? earliest : current.startTime), "23:59:59"); // null 방지 및 초기값 수정
+            const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && earliest < current.startTime) ? earliest : current.startTime), "23:59:59");
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
             const recordIdForDuration = representativeRecord ? representativeRecord.id : null;
             const durationStatus = isPaused ? 'paused' : 'ongoing';
@@ -193,7 +192,6 @@ export const renderRealtimeStatus = (appState) => {
     allMembersContainer.appendChild(allMembersHeader);
 
     // [중요 버그 수정 완료] 변수명 변경 (ongoingRecordsForStatus)
-    // 이전에 ongoingRecords를 사용했었음
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
@@ -290,7 +288,6 @@ export const renderCompletedWorkLog = (appState) => {
     if (!workLogBody) return;
     workLogBody.innerHTML = '';
     const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
-    // completedRecords가 비어있을 경우에 대한 방어 코드 추가
     if (!completedRecords || completedRecords.length === 0) {
         workLogBody.innerHTML = `<tr><td colspan="6" class="text-center py-12 text-gray-400">완료된 업무가 없습니다.</td></tr>`;
         return;
@@ -303,7 +300,6 @@ export const renderCompletedWorkLog = (appState) => {
     }, {});
     const sortedTasks = Object.keys(groupedRecords).sort();
 
-    // groupedRecords가 비어있을 경우 (이론상 발생하지 않지만 방어)
     if (sortedTasks.length === 0) {
         workLogBody.innerHTML = `<tr><td colspan="6" class="text-center py-12 text-gray-400">완료된 업무가 없습니다.</td></tr>`;
     } else {
@@ -323,14 +319,13 @@ export const renderCompletedWorkLog = (appState) => {
 };
 
 export const updateSummary = (appState) => {
-    // DOM 요소 존재 여부 확인 후 업데이트
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
     const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
     const summaryActiveStaffEl = document.getElementById('summary-active-staff');
     const summaryWorkingStaffEl = document.getElementById('summary-working-staff');
     const summaryIdleStaffEl = document.getElementById('summary-idle-staff');
     const summaryOngoingTasksEl = document.getElementById('summary-ongoing-tasks');
-    const summaryTotalWorkTimeEl = document.getElementById('summary-total-work-time'); // 시간 요소 추가
+    const summaryTotalWorkTimeEl = document.getElementById('summary-total-work-time');
 
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Set(ongoingRecords.map(r => r.member));
@@ -344,10 +339,9 @@ export const updateSummary = (appState) => {
     const idleCount = Math.max(0, activeStaff - workingCount);
     const ongoingTaskCount = new Set(ongoingRecords.map(r => r.task)).size;
 
-    // 총 업무 진행 시간 계산 (updateElapsedTimes 함수와 중복되지만, 초기 렌더링용)
+    // 초기 렌더링 시 완료된 시간만 표시 (진행 시간은 타이머가 업데이트)
     const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
     const totalCompletedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
-    // 진행 중 시간은 타이머 함수에서 업데이트하므로 여기서는 0으로 시작하거나 완료된 시간만 표시
     if (summaryTotalWorkTimeEl) summaryTotalWorkTimeEl.textContent = formatDuration(totalCompletedMinutes);
 
     if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaff}`;
