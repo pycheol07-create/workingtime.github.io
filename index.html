@@ -289,37 +289,34 @@
             </div>
         </div>
     </div>
-    <!-- ✅ 휴무 설정 모달 추가 -->
-    <div id="leave-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white rounded-lg shadow-xl p-6 w-96 relative">
-        <button class="modal-close-btn" id="close-leave-modal">&times;</button>
-        <h3 class="text-lg font-bold mb-4">휴무 / 외출 설정</h3>
-        <label class="block mb-2 font-semibold text-sm text-gray-700">유형 선택</label>
-        <select id="leave-type" class="w-full border border-gray-300 rounded-md p-2 mb-4">
-        <option value="연차">연차</option>
-        <option value="반차">반차</option>
-        <option value="조퇴">조퇴</option>
-        <option value="외출">외출</option>
-        <option value="출장">출장</option>
-        </select>
-        <div class="grid grid-cols-2 gap-2 mb-4">
-        <div>
-            <label class="block text-sm text-gray-600 mb-1">시작</label>
-            <input id="leave-start" type="time" class="w-full border border-gray-300 rounded-md p-2">
+    <div id="leave-type-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+            <div class="p-6 border-b border-gray-200">
+                <h2 id="leave-modal-title" class="text-xl font-bold text-gray-900">휴무 설정</h2>
+                <button class="modal-close-btn">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p><span id="leave-member-name" class="font-bold"></span> 님의 휴무 유형을 선택하세요.</p>
+                <div id="leave-type-options" class="grid grid-cols-2 gap-3">
+                    </div>
+                 <div id="leave-date-inputs" class="hidden space-y-2 mt-4">
+                    <div>
+                        <label for="leave-start-date-input" class="block text-sm font-medium text-gray-700">시작일</label>
+                        <input type="date" id="leave-start-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    </div>
+                    <div>
+                        <label for="leave-end-date-input" class="block text-sm font-medium text-gray-700">종료일 (선택)</label>
+                        <input type="date" id="leave-end-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    </div>
+                </div>
+                 </div>
+            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                <button type="button" id="cancel-leave-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                <button type="button" id="confirm-leave-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">설정 완료</button>
+            </div>
         </div>
-        <div>
-            <label class="block text-sm text-gray-600 mb-1">종료</label>
-            <input id="leave-end" type="time" class="w-full border border-gray-300 rounded-md p-2">
-        </div>
-        </div>
-        <div class="flex justify-end gap-2">
-        <button id="cancel-leave-btn" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">취소</button>
-        <button id="confirm-leave-btn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">저장</button>
-        </div>
-    </div>
     </div>
 
     <script type="module" src="js/app.js"></script>
-
 </body>
 </html>
