@@ -1,8 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { firebaseConfig, teamGroups, taskGroups, taskTypes, quantityTaskTypes, defaultMemberWages } from './config.js'; // 필요한 설정값 추가
-import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday } from './utils.js'; // 필요한 유틸 함수 추가
+import { firebaseConfig, teamGroups, taskGroups, taskTypes, quantityTaskTypes, defaultMemberWages } from './config.js';
+import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday } from './utils.js';
 import {
     renderRealtimeStatus,
     renderCompletedWorkLog,
@@ -59,7 +59,7 @@ const confirmEditPartTimerBtn = document.getElementById('confirm-edit-part-timer
 const cancelEditPartTimerBtn = document.getElementById('cancel-edit-part-timer-btn');
 const partTimerNewNameInput = document.getElementById('part-timer-new-name');
 const partTimerEditIdInput = document.getElementById('part-timer-edit-id');
-// 수동 추가 모달 요소 제거됨
+// 수동 추가 모달 요소 없음
 
 // --- Toggles ---
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
@@ -80,13 +80,13 @@ let appState = {
     partTimers: [],
     hiddenGroupIds: []
 };
-let appConfig = { memberWages: defaultMemberWages }; // Firestore 대신 기본값 사용
+let appConfig = { memberWages: defaultMemberWages };
 let selectedTaskForStart = null;
 let selectedGroupForAdd = null;
 let recordToDeleteId = null;
 let recordToStopId = null;
 let historyKeyToDelete = null;
-let allHistoryData = []; // 이력 데이터 캐시
+let allHistoryData = [];
 let recordToEditId = null;
 let deleteMode = 'single';
 let elapsedTimeTimer = null;
@@ -121,7 +121,7 @@ const updateElapsedTimes = () => {
                 totalOngoingMinutes += elapsedMinutes;
             }
         } catch (e) {
-            console.error("Error calculating ongoing time for record:", record, e);
+            // console.error("Error calculating ongoing time for record:", record, e); // 로그 줄임
         }
     });
 
@@ -160,7 +160,7 @@ const updateElapsedTimes = () => {
                  el.textContent = `(진행: 0 분)`;
             }
         } catch(e) {
-             console.error("Error updating duration element:", el, e);
+             // console.error("Error updating duration element:", el, e); // 로그 줄임
              el.textContent = `(오류)`;
         }
     });
@@ -184,17 +184,12 @@ const render = () => {
         renderTaskAnalysis(appState);
     } catch (e) {
         console.error("Render error:", e);
-        showToast("화면을 그리는데 오류가 발생했습니다.", true);
-        // 오류 발생 시 기본 상태로 복구 시도 (선택적)
-        // appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
-        // taskTypes.forEach(task => appState.taskQuantities[task] = 0);
-        // renderRealtimeStatus(appState); // 기본 상태로 다시 렌더링 시도
+        showToast("화면 렌더링 오류 발생.", true);
     }
 };
 
 // --- Main Logic & Firebase Integration ---
 const startWorkGroup = (members, task) => {
-    // ... (이전과 동일) ...
      const groupId = Date.now();
     const startTime = getCurrentTime();
     const newRecords = members.map(member => ({
@@ -214,7 +209,6 @@ const startWorkGroup = (members, task) => {
 };
 
 const addMembersToWorkGroup = (members, task, groupId) => {
-    // ... (이전과 동일) ...
      const startTime = getCurrentTime();
     const newRecords = members.map(member => ({
         id: Date.now() + Math.random(),
@@ -233,14 +227,12 @@ const addMembersToWorkGroup = (members, task, groupId) => {
 };
 
 const stopWorkGroup = (groupId) => {
-    // ... (이전과 동일) ...
      const recordsToStop = (appState.workRecords || []).filter(r => r.groupId === groupId && (r.status === 'ongoing' || r.status === 'paused'));
     if (recordsToStop.length === 0) return;
     finalizeStopGroup(groupId, null);
 };
 
 const finalizeStopGroup = (groupId, quantity) => {
-    // ... (이전과 동일, duration 음수 방지 확인) ...
      const endTime = getCurrentTime();
     let taskName = '';
     let stoppedCount = 0;
@@ -274,7 +266,7 @@ const finalizeStopGroup = (groupId, quantity) => {
 
             if (!isNaN(start) && !isNaN(end) && end >= start) {
                 const totalDuration = (end - start) / (1000 * 60);
-                record.duration = Math.max(0, totalDuration - totalPauseMinutes); // 음수 방지
+                record.duration = Math.max(0, totalDuration - totalPauseMinutes);
             } else {
                 record.duration = 0;
             }
@@ -295,7 +287,6 @@ const finalizeStopGroup = (groupId, quantity) => {
 };
 
 const stopWorkIndividual = (recordId) => {
-    // ... (이전과 동일, duration 음수 방지 확인) ...
      const endTime = getCurrentTime();
     const record = (appState.workRecords || []).find(r => r.id === recordId);
     if (record && (record.status === 'ongoing' || record.status === 'paused')) {
@@ -325,7 +316,7 @@ const stopWorkIndividual = (recordId) => {
 
         if (!isNaN(start) && !isNaN(end) && end >= start) {
             const totalDuration = (end - start) / (1000 * 60);
-            record.duration = Math.max(0, totalDuration - totalPauseMinutes); // 음수 방지
+            record.duration = Math.max(0, totalDuration - totalPauseMinutes);
         } else {
              record.duration = 0;
         }
@@ -338,7 +329,6 @@ const stopWorkIndividual = (recordId) => {
 };
 
 const pauseWorkGroup = (groupId) => {
-    // ... (이전과 동일) ...
      const currentTime = getCurrentTime();
     let changed = false;
     (appState.workRecords || []).forEach(record => {
@@ -356,7 +346,6 @@ const pauseWorkGroup = (groupId) => {
 };
 
 const resumeWorkGroup = (groupId) => {
-    // ... (이전과 동일) ...
      const currentTime = getCurrentTime();
     let changed = false;
     (appState.workRecords || []).forEach(record => {
@@ -377,7 +366,6 @@ const resumeWorkGroup = (groupId) => {
 
 // --- Firebase Functions ---
 async function saveStateToFirestore() {
-    // ... (이전과 동일) ...
      if (!auth || !auth.currentUser) {
         console.warn("Cannot save state: User not authenticated.");
         return;
@@ -393,7 +381,7 @@ async function saveStateToFirestore() {
     }
 }
 
-// ======[ saveProgress 함수 수정: 처리량 누적 및 상태 초기화 ]======
+// ======[ saveProgress 함수 수정: 상태 초기화 로직 변경 ]======
 async function saveProgress() {
     const dateStr = getTodayDateString();
     showToast(`현재까지 완료된 기록을 저장합니다...`);
@@ -421,10 +409,9 @@ async function saveProgress() {
         const combinedRecords = [...(existingData.workRecords || []), ...completedRecordsFromState];
         const uniqueRecords = Array.from(new Map(combinedRecords.map(item => [item.id, item])).values());
 
-        // 처리량 누적 로직 수정
         const finalQuantities = { ...(existingData.taskQuantities || {}) };
         for (const task in currentQuantities) {
-             finalQuantities[task] = (finalQuantities[task] || 0) + currentQuantities[task]; // 기존값 + 현재값
+             finalQuantities[task] = (finalQuantities[task] || 0) + currentQuantities[task];
         }
 
         const dataToSave = {
@@ -435,13 +422,18 @@ async function saveProgress() {
 
         await setDoc(historyDocRef, dataToSave);
 
-        // 중간 저장 후 현재 상태에서 완료된 기록과 처리량 초기화 (중복 저장 방지)
+        // 중간 저장 후 현재 상태에서 완료된 기록과 처리량만 초기화
         appState.workRecords = (appState.workRecords || []).filter(r => r.status !== 'completed');
-        appState.taskQuantities = {}; // 처리량 초기화
-        taskTypes.forEach(task => { appState.taskQuantities[task] = 0; });
-        await saveStateToFirestore(); // 초기화된 상태 저장
+        // taskQuantities 객체는 유지하되 값만 0으로 초기화
+        Object.keys(appState.taskQuantities || {}).forEach(task => {
+            appState.taskQuantities[task] = 0;
+        });
+        // partTimers 와 onLeaveMembers는 초기화하지 않음
+
+        await saveStateToFirestore(); // 초기화된 현재 상태 저장
 
         showToast(`현재까지의 기록이 성공적으로 저장되었습니다.`);
+        render(); // 초기화된 상태로 화면 업데이트
 
     } catch (e) {
         console.error("Error in saveProgress: ", e);
@@ -451,7 +443,6 @@ async function saveProgress() {
 // =============================================================
 
 async function saveDayDataToHistory(shouldReset) {
-    // ... (이전과 동일, saveProgress 호출 전 상태 저장 확인) ...
      const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     if (ongoingRecords.length > 0) {
         const endTime = getCurrentTime();
@@ -483,33 +474,42 @@ async function saveDayDataToHistory(shouldReset) {
                  rec.duration = 0;
             }
         });
-        await saveStateToFirestore(); // 강제 완료된 상태 저장
+        await saveStateToFirestore(); // 강제 완료 상태 저장
     }
 
-    await saveProgress(); // 모든 완료 기록(강제 완료 포함)을 history에 저장 및 현재 상태 초기화
+    // saveProgress 호출 시 완료 기록 저장 및 현재 상태 초기화 (workRecords, taskQuantities)
+    await saveProgress();
 
     if(shouldReset){
-        // saveProgress에서 이미 초기화되었으므로 추가 초기화 불필요
+        // 추가 초기화: hiddenGroupIds, onLeaveMembers (partTimers는 유지)
+        appState.hiddenGroupIds = [];
+        appState.onLeaveMembers = [];
+        // 이미 saveProgress에서 workRecords와 taskQuantities가 초기화됨
+
+        await saveStateToFirestore(); // 최종 초기화 상태 저장
         showToast(`오늘의 업무 기록을 초기화했습니다.`);
-        render(); // 초기화된 상태로 UI 업데이트
+        render(); // 초기화된 UI 표시
     }
 }
 
 
 // ======[ 이력 보기 관련 함수 추가 시작 ]======
 
-// Firestore에서 모든 history 데이터를 가져와 캐시에 저장
 async function fetchAllHistoryData() {
-    // if (allHistoryData.length > 0) return allHistoryData; // 캐시 사용 (선택적)
-
     const historyCollectionRef = collection(db, "artifacts", APP_ID, "history");
     try {
         const querySnapshot = await getDocs(historyCollectionRef);
-        allHistoryData = []; // 항상 새로고침
+        allHistoryData = [];
         querySnapshot.forEach((doc) => {
-            allHistoryData.push({ id: doc.id, ...doc.data() });
+            // 데이터 형식 검증 추가 (선택적)
+            const data = doc.data();
+            if (data && data.workRecords) { // 최소한 workRecords가 있는지 확인
+                 allHistoryData.push({ id: doc.id, ...data });
+            } else {
+                 console.warn("Skipping invalid history data:", doc.id);
+            }
         });
-        console.log("Fetched all history data:", allHistoryData); // 로그 추가
+        console.log("Fetched all history data:", allHistoryData.length, "items");
         return allHistoryData;
     } catch (error) {
         console.error("Error fetching all history data:", error);
@@ -518,24 +518,22 @@ async function fetchAllHistoryData() {
     }
 }
 
-// History 날짜 목록 렌더링 및 첫 항목 자동 선택/표시
 const loadAndRenderHistoryList = async () => {
-    if (!historyDateList) return; // 요소 없으면 종료
+    if (!historyDateList) return;
     historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
-    allHistoryData = []; // 캐시 초기화
+    allHistoryData = [];
 
     const historyData = await fetchAllHistoryData();
 
     if (historyData.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
-         // 뷰 컨테이너 초기화
-         document.getElementById('history-daily-view').innerHTML = '';
-         document.getElementById('history-weekly-view').innerHTML = '';
-         document.getElementById('history-monthly-view').innerHTML = '';
+        document.getElementById('history-daily-view').innerHTML = '';
+        document.getElementById('history-weekly-view').innerHTML = '';
+        document.getElementById('history-monthly-view').innerHTML = '';
         return;
     }
 
-    const dates = historyData.map(d => d.id).sort((a, b) => b.localeCompare(a)); // 최신순 정렬
+    const dates = historyData.map(d => d.id).sort((a, b) => b.localeCompare(a));
 
     historyDateList.innerHTML = '';
     dates.forEach(dateKey => {
@@ -544,22 +542,19 @@ const loadAndRenderHistoryList = async () => {
         historyDateList.appendChild(li);
     });
 
-    // 첫 번째 날짜 자동 선택 및 상세 보기
     if (historyDateList.firstChild) {
         const firstButton = historyDateList.firstChild.querySelector('button');
         if (firstButton) {
             firstButton.classList.add('bg-blue-100', 'font-bold');
-            switchHistoryView('daily'); // 일별 탭 활성화
-            renderHistoryDetail(firstButton.dataset.key); // 상세 내용 렌더링
+            switchHistoryView('daily');
+            renderHistoryDetail(firstButton.dataset.key);
         }
     } else {
-         // 날짜가 없을 경우 기본 메시지 표시
-         switchHistoryView('daily'); // 기본 탭은 일별
+         switchHistoryView('daily');
          document.getElementById('history-daily-view').innerHTML = '<div class="text-center text-gray-500 p-8">표시할 이력이 없습니다.</div>';
     }
 };
 
-// 특정 날짜의 처리량 수정 모달 열기
 window.openHistoryQuantityModal = (dateKey) => {
      const data = allHistoryData.find(d => d.id === dateKey);
      if (!data) {
@@ -583,7 +578,6 @@ window.openHistoryQuantityModal = (dateKey) => {
 
              // Firestore 업데이트
              const historyDocRef = doc(db, "artifacts", APP_ID, "history", dateKey);
-             // 전체 데이터를 다시 저장 (덮어쓰기)
              try {
                  await setDoc(historyDocRef, allHistoryData[dataToUpdateIndex]);
                  showToast(`${dateKey}의 처리량이 수정되었습니다.`);
@@ -593,7 +587,7 @@ window.openHistoryQuantityModal = (dateKey) => {
                   showToast("처리량 업데이트 중 오류 발생.", true);
              }
          },
-         onCancel: () => { /* Just close */ }
+         onCancel: () => {}
      };
 
      document.getElementById('confirm-quantity-btn').textContent = "수정 저장";
@@ -601,7 +595,6 @@ window.openHistoryQuantityModal = (dateKey) => {
      quantityModal.classList.remove('hidden');
 };
 
-// 특정 날짜의 상세 정보 렌더링
 const renderHistoryDetail = (dateKey) => {
     const view = document.getElementById('history-daily-view');
     if (!view) return;
@@ -619,23 +612,23 @@ const renderHistoryDetail = (dateKey) => {
     const onLeaveMembers = data.onLeaveMembers || [];
 
     const allRegularMembers = new Set(teamGroups.flatMap(g => g.members));
-    // 이력 데이터에 알바 정보가 없을 수 있으므로, 현재 상태의 알바 수를 기준으로 계산 (근사치)
-    const allPartTimersCount = (appState.partTimers || []).length;
-    // 근무 인원은 해당 날짜의 휴무자를 제외하고 계산
+    // 이력 데이터에 저장된 알바 정보 사용 시도, 없으면 현재 상태 사용 (근사치)
+    const partTimersFromHistory = data.partTimers; // history에 partTimers 저장 필요
+    const allPartTimersCount = partTimersFromHistory ? partTimersFromHistory.length : (appState.partTimers || []).length;
     const activeMembersCount = allRegularMembers.size - onLeaveMembers.length + allPartTimersCount;
 
     const totalSumDuration = records.reduce((sum, r) => sum + (r.duration || 0), 0);
 
-    // 전체 시간 계산 로직 (그룹별 중복 시간 제외)
     const taskGroupsDurations = {};
     records.forEach(record => {
+        if (!record.groupId) return; // groupId 없으면 계산 불가
         if (!taskGroupsDurations[record.groupId]) {
-            taskGroupsDurations[record.groupId] = { start: record.startTime, end: record.endTime };
+            taskGroupsDurations[record.groupId] = { start: record.startTime || '23:59:59', end: record.endTime || '00:00:00' };
         } else {
-            if (record.startTime < taskGroupsDurations[record.groupId].start) {
+            if (record.startTime && record.startTime < taskGroupsDurations[record.groupId].start) {
                 taskGroupsDurations[record.groupId].start = record.startTime;
             }
-            if (record.endTime > taskGroupsDurations[record.groupId].end) {
+            if (record.endTime && record.endTime > taskGroupsDurations[record.groupId].end) {
                  taskGroupsDurations[record.groupId].end = record.endTime;
             }
         }
@@ -657,17 +650,15 @@ const renderHistoryDetail = (dateKey) => {
         return acc;
     }, {});
 
-    // 비업무시간 계산
     let nonWorkHtml = '';
     if (isWeekday(dateKey)) {
-        const totalPotentialMinutes = activeMembersCount * 8 * 60; // 8시간 기준
+        const totalPotentialMinutes = activeMembersCount * 8 * 60;
         const nonWorkMinutes = totalPotentialMinutes - totalSumDuration;
         const percentage = totalPotentialMinutes > 0 ? (nonWorkMinutes / totalPotentialMinutes * 100).toFixed(1) : 0;
         nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center">
             <h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4>
             <p class="text-xl font-bold text-gray-700">${formatDuration(nonWorkMinutes > 0 ? nonWorkMinutes : 0)}</p>
-            <p class="text-xs text-gray-500 mt-1">(추정치)</p> {/* 추정치임을 명시 */}
-            {/* <p class="text-xs text-gray-500 mt-1">총 ${formatDuration(totalPotentialMinutes)} 중 (${percentage}%)</p> */}
+            <p class="text-xs text-gray-500 mt-1">(추정치)</p>
         </div>`;
     } else {
         nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex flex-col justify-center items-center">
@@ -689,9 +680,8 @@ const renderHistoryDetail = (dateKey) => {
         <div class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
             <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">근무 인원</h4><p class="text-2xl font-bold text-gray-800">${activeMembersCount} 명</p></div>
             <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${formatDuration(totalSumDuration)}</p></div>
-            {/* <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">전체 시간</h4><p class="text-2xl font-bold text-gray-800">${formatDuration(totalOverallDuration)}</p></div> */}
             ${nonWorkHtml}
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center" colspan="2"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${totalQuantity} 개</p></div>
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center col-span-2"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${totalQuantity} 개</p></div>
             <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
         </div>
 
@@ -703,7 +693,7 @@ const renderHistoryDetail = (dateKey) => {
     let hasQuantities = false;
     Object.entries(quantities)
         .filter(([, qty]) => parseInt(qty, 10) > 0)
-        .sort(([taskA], [taskB]) => taskA.localeCompare(taskB)) // 가나다 순 정렬
+        .sort(([taskA], [taskB]) => taskA.localeCompare(taskB))
         .forEach(([task, qty]) => {
             hasQuantities = true;
             html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${qty} 개</span></div>`;
@@ -711,7 +701,7 @@ const renderHistoryDetail = (dateKey) => {
     if (!hasQuantities) {
         html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
     }
-    html += `</div></div>`; // End of 업무별 처리량
+    html += `</div></div>`;
 
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 분당 처리량</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
     let hasThroughput = false;
@@ -727,13 +717,13 @@ const renderHistoryDetail = (dateKey) => {
     if (!hasThroughput) {
         html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
     }
-    html += `</div></div>`; // End of 업무별 분당 처리량
-    html += `</div>`; // End of grid
+    html += `</div></div>`;
+    html += `</div>`;
 
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 시간 비중</h4><div class="space-y-3">`;
     Object.entries(taskDurations)
-        .filter(([, duration]) => duration > 0) // 시간 0 이상만 표시
-        .sort(([,a],[,b]) => b - a) // 시간 많은 순 정렬
+        .filter(([, duration]) => duration > 0)
+        .sort(([,a],[,b]) => b - a)
         .forEach(([task, duration]) => {
             const percentage = totalSumDuration > 0 ? (duration / totalSumDuration * 100).toFixed(1) : 0;
             html += `
@@ -749,66 +739,18 @@ const renderHistoryDetail = (dateKey) => {
     if (Object.keys(taskDurations).filter(k => taskDurations[k] > 0).length === 0) {
          html += `<p class="text-gray-500 text-sm">기록된 업무 시간이 없습니다.</p>`;
     }
-    html += `</div></div>`; // End of 업무별 시간 비중
+    html += `</div></div>`;
 
     view.innerHTML = html;
 };
-
-// 주별/월별 요약 렌더링 함수 (구조만 제공, 상세 구현 필요)
-const renderSummaryView = (viewType, data, key) => {
-     if (!data) return ''; // 데이터 없으면 빈 문자열 반환
-     const totalDuration = (data.workRecords || []).reduce((sum, r) => sum + (r.duration || 0), 0);
-     const totalQuantity = Object.values(data.taskQuantities || {}).reduce((sum, q) => sum + (parseInt(q,10) || 0), 0);
-     const avgThroughput = totalDuration > 0 ? (totalQuantity / totalDuration).toFixed(2) : '0.00';
-     const taskDurations = (data.workRecords || []).reduce((acc, rec) => {
-         acc[rec.task] = (acc[rec.task] || 0) + (rec.duration || 0);
-         return acc;
-     }, {});
-
-     let html = `
-         <div class="bg-white p-4 rounded-lg shadow-sm">
-             <div class="pb-3 border-b mb-3">
-                 <div class="flex justify-between items-baseline">
-                      <h3 class="text-xl font-bold text-blue-600">${key}</h3>
-                      <span class="text-lg font-semibold text-gray-800">${avgThroughput} <span class="text-sm font-normal text-gray-500">개/분</span></span>
-                 </div>
-                 <div class="text-sm text-gray-500 mt-1">
-                     <span>총 업무 시간: ${formatDuration(totalDuration)}</span>
-                     <span class="mx-2">|</span>
-                     <span>총 처리량: ${totalQuantity} 개</span>
-                 </div>
-             </div>
-             <div>
-                 <h4 class="text-md font-bold mb-2 text-gray-600">업무별 분당 처리량</h4>
-                 <div class="space-y-1 max-h-40 overflow-y-auto">
-     `;
-
-     let hasQuantities = false;
-     Object.entries(data.taskQuantities || {})
-         .filter(([, qty]) => parseInt(qty, 10) > 0)
-         .sort(([taskA], [taskB]) => taskA.localeCompare(taskB))
-         .forEach(([task, qty]) => {
-             hasQuantities = true;
-             const durationForTask = taskDurations[task] || 0;
-             const throughputForTask = durationForTask > 0 ? ((parseInt(qty, 10) || 0) / durationForTask).toFixed(2) : '0.00';
-             html += `<div class="flex justify-between items-center text-sm text-gray-700 border-b pb-1"><span class="font-medium">${task}</span><span>${throughputForTask} 개/분</span></div>`;
-     });
-      if (!hasQuantities) {
-         html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
-     }
-
-     html += `</div></div></div>`;
-     return html;
- };
 
  const renderWeeklyHistory = () => {
      const view = document.getElementById('history-weekly-view');
      if (!view) return;
      view.innerHTML = `<div class="text-center text-gray-500">주별 데이터 집계 중...</div>`;
 
-     // 데이터 집계
      const weeklyData = allHistoryData.reduce((acc, day) => {
-         if (!day.id || !day.workRecords) return acc; // 데이터 형식 오류 방지
+         if (!day.id || !day.workRecords) return acc;
          try {
              const weekKey = getWeekOfYear(new Date(day.id));
              if (!acc[weekKey]) acc[weekKey] = { workRecords: [], taskQuantities: {} };
@@ -828,7 +770,7 @@ const renderSummaryView = (viewType, data, key) => {
          return;
      }
 
-     view.innerHTML = sortedWeeks.map(weekKey => renderSummaryView('weekly', weeklyData[weekKey], weekKey)).join('');
+     view.innerHTML = sortedWeeks.map(weekKey => renderSummaryView('weekly', weeklyData[weekKey], weekKey)).join('<div class="my-4 border-t"></div>'); // 구분선 추가
  };
 
  const renderMonthlyHistory = () => {
@@ -836,11 +778,10 @@ const renderSummaryView = (viewType, data, key) => {
       if (!view) return;
      view.innerHTML = `<div class="text-center text-gray-500">월별 데이터 집계 중...</div>`;
 
-     // 데이터 집계
      const monthlyData = allHistoryData.reduce((acc, day) => {
          if (!day.id || !day.workRecords) return acc;
          try {
-             const monthKey = day.id.substring(0, 7); // YYYY-MM
+             const monthKey = day.id.substring(0, 7);
              if (!acc[monthKey]) acc[monthKey] = { workRecords: [], taskQuantities: {} };
              acc[monthKey].workRecords.push(...(day.workRecords || []));
               Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
@@ -858,18 +799,15 @@ const renderSummaryView = (viewType, data, key) => {
          return;
      }
 
-     view.innerHTML = sortedMonths.map(monthKey => renderSummaryView('monthly', monthlyData[monthKey], monthKey)).join('');
+     view.innerHTML = sortedMonths.map(monthKey => renderSummaryView('monthly', monthlyData[monthKey], monthKey)).join('<div class="my-4 border-t"></div>'); // 구분선 추가
  };
 
- // 이력 삭제 요청
  window.requestHistoryDeletion = (dateKey) => {
      historyKeyToDelete = dateKey;
-     document.getElementById('delete-history-modal').classList.remove('hidden'); // 모달 ID 직접 사용
+     deleteHistoryModal.classList.remove('hidden');
  };
 
- // 이력 엑셀 다운로드
  window.downloadHistoryAsExcel = async (dateKey) => {
-     // 초기 index.html 스크립트의 구현 내용 참고하여 복원 (XLSX 라이브러리 필요)
      try {
          const data = allHistoryData.find(d => d.id === dateKey);
          if (!data || !data.workRecords || data.workRecords.length === 0) {
@@ -877,37 +815,106 @@ const renderSummaryView = (viewType, data, key) => {
          }
          const records = data.workRecords;
 
-         const appendTotalRow = (ws, data, headers) => { /* ... (구현 생략) ... */ };
+         // --- Helper for appending total row --- (간단 버전)
+         const appendTotalRow = (ws, data, headers) => {
+             if (!data || data.length === 0) return;
+             const total = {};
+             headers.forEach((header, index) => {
+                 if (index === 0) {
+                     total[header] = '총 합계';
+                 } else if (header.includes('(분)') || header.includes('(원)')) { // 숫자 컬럼만 합산
+                     const sum = data.reduce((acc, row) => acc + (Number(row[header]) || 0), 0);
+                     total[header] = Math.round(sum); // 반올림
+                 } else {
+                      total[header] = ''; // 텍스트 컬럼은 비움
+                 }
+             });
+             XLSX.utils.sheet_add_json(ws, [total], { skipHeader: true, origin: -1 });
+         };
 
-         // Sheet 1: 상세 기록
+         // --- Sheet 1: 상세 기록 ---
          const sheet1Headers = ['팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)'];
-         const sheet1Data = records.map(r => ({/*...*/}));
+         const sheet1Data = records.map(r => ({
+             '팀원': r.member,
+             '업무 종류': r.task,
+             '시작 시간': formatTimeTo24H(r.startTime),
+             '종료 시간': formatTimeTo24H(r.endTime),
+             '소요 시간(분)': Math.round(r.duration || 0)
+         }));
          const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
-         // appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
+         appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
 
-         // Sheet 2: 업무별 요약
+
+         // --- Sheet 2: 업무별 요약 ---
          const sheet2Headers = ['업무 종류', '총 소요 시간(분)', '총 인건비(원)'];
          const summaryByTask = {};
-         records.forEach(r => {/*...*/});
-         const sheet2Data = Object.keys(summaryByTask).sort().map(task => ({/*...*/}));
+         records.forEach(r => {
+             if (!summaryByTask[r.task]) {
+                 summaryByTask[r.task] = { totalDuration: 0, totalCost: 0 };
+             }
+             const wage = appConfig.memberWages[r.member] || 0; // 설정된 임금 사용
+             const cost = ((r.duration || 0) / 60) * wage;
+             summaryByTask[r.task].totalDuration += (r.duration || 0);
+             summaryByTask[r.task].totalCost += cost;
+         });
+         const sheet2Data = Object.keys(summaryByTask).sort().map(task => ({
+             '업무 종류': task,
+             '총 소요 시간(분)': Math.round(summaryByTask[task].totalDuration),
+             '총 인건비(원)': Math.round(summaryByTask[task].totalCost)
+         }));
          const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
-         // appendTotalRow(worksheet2, sheet2Data, sheet2Headers);
+         appendTotalRow(worksheet2, sheet2Data, sheet2Headers);
 
-         // Sheet 3: 파트별 인건비
+         // --- Sheet 3: 파트별 인건비 ---
          const sheet3Headers = ['파트', '총 인건비(원)'];
          const memberToPartMap = new Map();
-         teamGroups.forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
+         teamGroups.forEach(group => {
+             group.members.forEach(member => memberToPartMap.set(member, group.name));
+         });
          const summaryByPart = {};
-         records.forEach(r => {/*...*/});
-         const sheet3Data = Object.keys(summaryByPart).sort().map(part => ({/*...*/}));
-         const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
-         // appendTotalRow(worksheet3, sheet3Data, sheet3Headers);
+         records.forEach(r => {
+             // 알바 등 파트 정보 없는 경우 '기타'로 처리
+             const part = memberToPartMap.get(r.member) || '기타';
+             if (!summaryByPart[part]) summaryByPart[part] = { totalCost: 0 };
+             const wage = appConfig.memberWages[r.member] || 0;
+             const cost = ((r.duration || 0) / 60) * wage;
+             summaryByPart[part].totalCost += cost;
+         });
+         const sheet3Data = Object.keys(summaryByPart).sort().map(part => ({
+             '파트': part,
+             '총 인건비(원)': Math.round(summaryByPart[part].totalCost)
+         }));
+          const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
+          appendTotalRow(worksheet3, sheet3Data, sheet3Headers);
 
-         const fitToColumn = (ws) => { /* ... (구현 생략) ... */ };
+         // --- Auto-fit column widths ---
+         const fitToColumn = (ws) => {
+             const objectMaxLength = [];
+             const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+             if (!data || data.length === 0) return; // 데이터 없으면 종료
+
+             // 헤더 길이 계산
+             if (data[0]) {
+                  Object.keys(data[0]).forEach((key, index) => {
+                      objectMaxLength[index] = String(data[0][key]).length;
+                  });
+             }
+             // 데이터 길이 계산
+             data.slice(1).forEach(row => {
+                  Object.keys(row).forEach((key, index) => {
+                      const cellLength = String(row[key] || '').length; // null/undefined 방지
+                      objectMaxLength[index] = Math.max(objectMaxLength[index] || 10, cellLength); // 최소 너비 10
+                  });
+             });
+             ws["!cols"] = objectMaxLength.map(w => ({ width: w + 2 })); // 약간의 여백 추가
+         };
+
          fitToColumn(worksheet1);
          fitToColumn(worksheet2);
          fitToColumn(worksheet3);
 
+
+         // --- Create Workbook and Download ---
          const workbook = XLSX.utils.book_new();
          XLSX.utils.book_append_sheet(workbook, worksheet1, '상세 기록');
          XLSX.utils.book_append_sheet(workbook, worksheet2, '업무별 요약');
@@ -920,8 +927,6 @@ const renderSummaryView = (viewType, data, key) => {
      }
  };
 
-
- // History 탭 및 목록 아이템 클릭 시 뷰 전환
  const switchHistoryView = (view) => {
      const dateListContainer = document.getElementById('history-date-list-container');
      if (dateListContainer) {
@@ -943,14 +948,11 @@ const renderSummaryView = (viewType, data, key) => {
           }
      });
 
-     // 데이터 로딩은 각 뷰 렌더링 함수에서 처리
      if (view === 'daily') {
-         // 현재 선택된 날짜가 있으면 해당 상세 뷰 렌더링
          const selectedDateBtn = historyDateList?.querySelector('button.font-bold');
          if (selectedDateBtn) {
              renderHistoryDetail(selectedDateBtn.dataset.key);
          } else {
-              // 선택된 날짜 없으면 안내 메시지
               const dailyView = document.getElementById('history-daily-view');
               if(dailyView) dailyView.innerHTML = `<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>`;
          }
@@ -966,11 +968,192 @@ const renderSummaryView = (viewType, data, key) => {
 
 // --- Event Listeners ---
 
-// ... (teamStatusBoard, workLogBody 등 기존 리스너 유지) ...
+teamStatusBoard.addEventListener('click', (e) => {
+    // ... (이전과 동일) ...
+     // Priority 1: Specific buttons inside a card
+    const stopGroupButton = e.target.closest('.stop-work-group-btn');
+    if (stopGroupButton) {
+        const groupId = parseFloat(stopGroupButton.dataset.groupId);
+        stopWorkGroup(groupId);
+        return;
+    }
 
-// ======[ 이력 보기 관련 이벤트 리스너 추가 ]======
+    const pauseGroupButton = e.target.closest('.pause-work-group-btn');
+    if (pauseGroupButton) {
+        const groupId = parseFloat(pauseGroupButton.dataset.groupId);
+        pauseWorkGroup(groupId);
+        return;
+    }
+
+    const resumeGroupButton = e.target.closest('.resume-work-group-btn');
+    if (resumeGroupButton) {
+        const groupId = parseFloat(resumeGroupButton.dataset.groupId);
+        resumeWorkGroup(groupId);
+        return;
+    }
+
+    const individualStopBtn = e.target.closest('[data-action="stop-individual"]');
+    if (individualStopBtn) {
+        e.stopPropagation();
+        const recordId = parseFloat(individualStopBtn.dataset.recordId);
+        const record = (appState.workRecords || []).find(r => r.id === recordId);
+        if (record) {
+            recordToStopId = recordId;
+            stopIndividualConfirmMessage.textContent = `${record.member}님의 '${record.task}' 업무를 종료하시겠습니까?`;
+            stopIndividualConfirmModal.classList.remove('hidden');
+        }
+        return;
+    }
+
+    // Priority 2: Member card in the "All Members" section
+    const memberCard = e.target.closest('[data-member-toggle-leave]');
+    if (memberCard) {
+        const memberName = memberCard.dataset.memberToggleLeave;
+        const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
+
+        if (isWorking) {
+            showToast(`${memberName}님은 현재 업무 중이므로 휴무로 변경할 수 없습니다.`, true);
+            return;
+        }
+
+        if (!appState.onLeaveMembers) appState.onLeaveMembers = [];
+        const onLeaveIndex = appState.onLeaveMembers.indexOf(memberName);
+        if (onLeaveIndex > -1) {
+            appState.onLeaveMembers.splice(onLeaveIndex, 1);
+            showToast(`${memberName}님의 휴무가 취소되었습니다.`);
+        } else {
+            appState.onLeaveMembers.push(memberName);
+            showToast(`${memberName}님이 휴무로 설정되었습니다.`);
+        }
+        saveStateToFirestore();
+        return;
+    }
+
+    // Priority 3: Fallback to the main card action
+    const card = e.target.closest('div[data-action]');
+    if (card) {
+        if (e.target.closest('button, .members-list')) {
+            return;
+        }
+
+        const action = card.dataset.action;
+
+        if (action === 'start-task') {
+            const task = card.dataset.task;
+            selectedTaskForStart = task;
+            selectedGroupForAdd = null;
+            renderTeamSelectionModalContent(task, appState);
+            document.getElementById('team-select-modal-title').textContent = `'${task}' 업무 시작`;
+            teamSelectModal.classList.remove('hidden');
+        } else if (action === 'other') {
+            selectedTaskForStart = null;
+            selectedGroupForAdd = null;
+            taskSelectModal.classList.remove('hidden');
+        } else if (action === 'add-member') {
+            const task = card.dataset.task;
+            const groupId = parseFloat(card.dataset.groupId);
+            selectedTaskForStart = task;
+            selectedGroupForAdd = groupId;
+            renderTeamSelectionModalContent(task, appState);
+            document.getElementById('team-select-modal-title').textContent = `'${task}' 업무에 인원 추가`;
+            teamSelectModal.classList.remove('hidden');
+        }
+    }
+});
+
+
+workLogBody.addEventListener('click', (e) => {
+    // ... (이전과 동일) ...
+     const targetButton = e.target.closest('button');
+    if (!targetButton) return;
+
+    const action = targetButton.dataset.action;
+    const recordId = parseFloat(targetButton.dataset.recordId);
+
+    if (action === 'edit') {
+        recordToEditId = recordId;
+        const record = (appState.workRecords || []).find(r => r.id === recordId);
+        if (!record) return;
+
+        document.getElementById('edit-member-name').value = record.member;
+
+        const taskSelect = document.getElementById('edit-task-type');
+        taskSelect.innerHTML = '';
+        Object.entries(taskGroups).forEach(([groupName, tasks]) => {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = groupName;
+            tasks.sort().forEach(task => {
+                const option = document.createElement('option');
+                option.value = task;
+                option.textContent = task;
+                if (task === record.task) {
+                    option.selected = true;
+                }
+                optgroup.appendChild(option);
+            });
+            taskSelect.appendChild(optgroup);
+        });
+
+        document.getElementById('edit-start-time').value = record.startTime || '';
+        document.getElementById('edit-end-time').value = record.endTime || '';
+
+        editRecordModal.classList.remove('hidden');
+    } else if (action === 'delete') {
+        deleteMode = 'single';
+        recordToDeleteId = recordId;
+        document.getElementById('delete-confirm-message').textContent = '정말로 이 기록을 삭제하시겠습니까?';
+        deleteConfirmModal.classList.remove('hidden');
+    }
+});
+
+deleteAllCompletedBtn.addEventListener('click', () => {
+    // ... (이전과 동일) ...
+    deleteMode = 'all';
+    document.getElementById('delete-confirm-message').textContent = '정말로 오늘 완료된 모든 기록을 삭제하시겠습니까?';
+    deleteConfirmModal.classList.remove('hidden');
+});
+
+confirmDeleteBtn.addEventListener('click', () => {
+    // ... (이전과 동일) ...
+     if (!appState.workRecords) appState.workRecords = [];
+    if (deleteMode === 'single' && recordToDeleteId !== null) {
+        appState.workRecords = appState.workRecords.filter(record => record.id !== recordToDeleteId);
+        showToast('기록이 삭제되었습니다.');
+    } else if (deleteMode === 'all') {
+        appState.workRecords = appState.workRecords.filter(record => record.status !== 'completed');
+        showToast('완료된 모든 기록이 삭제되었습니다.');
+    }
+    saveStateToFirestore();
+    deleteConfirmModal.classList.add('hidden');
+    recordToDeleteId = null;
+    deleteMode = 'single';
+});
+
+endShiftBtn.addEventListener('click', () => {
+    // ... (이전과 동일) ...
+     renderQuantityModalInputs(appState.taskQuantities);
+    document.getElementById('quantity-modal-title').textContent = "업무 마감 전 처리량 입력";
+    document.getElementById('confirm-quantity-btn').textContent = "저장하고 마감";
+    document.getElementById('cancel-quantity-btn').textContent = "저장 없이 마감";
+
+    quantityModalContext = {
+        mode: 'end-shift',
+        onConfirm: (newQuantities) => {
+            appState.taskQuantities = newQuantities;
+            saveDayDataToHistory(true);
+        },
+        onCancel: () => {
+            saveDayDataToHistory(true);
+        }
+    };
+    quantityModal.classList.remove('hidden');
+});
+
+saveProgressBtn.addEventListener('click', saveProgress);
+
+// --- 이력 보기 관련 이벤트 리스너 ---
 openHistoryBtn.addEventListener('click', () => {
-    loadAndRenderHistoryList(); // 모달 열 때 데이터 로드 및 렌더링 시작
+    loadAndRenderHistoryList();
     historyModal.classList.remove('hidden');
 });
 
@@ -981,11 +1164,8 @@ closeHistoryBtn.addEventListener('click', () => {
 historyDateList.addEventListener('click', (e) => {
     const button = e.target.closest('button.history-date-btn');
     if (button) {
-        // 기존 선택 해제
         document.querySelectorAll('#history-date-list button').forEach(btn => btn.classList.remove('bg-blue-100', 'font-bold'));
-        // 새 항목 선택 표시
         button.classList.add('bg-blue-100', 'font-bold');
-        // 일별 상세 뷰로 전환하고 해당 날짜 데이터 렌더링
         switchHistoryView('daily');
         renderHistoryDetail(button.dataset.key);
     }
@@ -1004,31 +1184,144 @@ confirmHistoryDeleteBtn.addEventListener('click', async () => {
         try {
             await deleteDoc(docRef);
             showToast('선택한 날짜의 기록이 삭제되었습니다.');
-            // 목록 새로고침
-            loadAndRenderHistoryList();
-            // 현재 상세 뷰 초기화 (선택적)
+            loadAndRenderHistoryList(); // 목록 새로고침
             const dailyView = document.getElementById('history-daily-view');
             if(dailyView) dailyView.innerHTML = `<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>`;
-
         } catch (error) {
              console.error("Error deleting history data:", error);
              showToast("이력 삭제 중 오류 발생.", true);
         }
     }
     deleteHistoryModal.classList.add('hidden');
-    historyKeyToDelete = null; // 초기화
+    historyKeyToDelete = null;
+});
+// -----------------------------
+
+
+resetAppBtn.addEventListener('click', () => {
+    resetAppModal.classList.remove('hidden');
 });
 
-// ===========================================
+confirmResetAppBtn.addEventListener('click', async () => {
+     try {
+        const docRef = doc(db, "artifacts", APP_ID, "daily_data", getTodayDateString());
+        await deleteDoc(docRef);
 
-// ... (나머지 기존 이벤트 리스너들: confirmQuantityBtn, confirmEditBtn 등) ...
+        appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+        taskTypes.forEach(task => appState.taskQuantities[task] = 0);
+        render();
+
+        showToast('데이터가 초기화되었습니다.');
+    } catch (error) {
+        console.error("Error resetting data:", error);
+        showToast('초기화 중 오류가 발생했습니다.', true);
+    }
+    resetAppModal.classList.add('hidden');
+});
+
+
+confirmQuantityBtn.addEventListener('click', () => {
+    const inputs = document.querySelectorAll('#modal-task-quantity-inputs input');
+    const newQuantities = {};
+    inputs.forEach(input => {
+        const task = input.dataset.task;
+        const value = parseInt(input.value, 10);
+        newQuantities[task] = (!isNaN(value) && value >= 0) ? value : 0;
+    });
+
+    if (quantityModalContext.onConfirm) {
+        quantityModalContext.onConfirm(newQuantities);
+    }
+    quantityModal.classList.add('hidden');
+});
+
+confirmEditBtn.addEventListener('click', () => {
+     if (recordToEditId === null) return;
+
+    const recordIndex = (appState.workRecords || []).findIndex(r => r.id === recordToEditId);
+    if (recordIndex === -1) {
+         editRecordModal.classList.add('hidden');
+         recordToEditId = null;
+         return;
+    }
+    const record = appState.workRecords[recordIndex];
+
+    const newStartTime = document.getElementById('edit-start-time').value;
+    const newEndTime = document.getElementById('edit-end-time').value;
+    const newtask = document.getElementById('edit-task-type').value;
+    const newMember = document.getElementById('edit-member-name').value;
+
+    if (!newMember || !newtask || !newStartTime || !newEndTime || newStartTime >= newEndTime) {
+         showToast('입력값을 확인해주세요. (종료 시간 > 시작 시간)', true);
+         return;
+    }
+
+    const updatedRecord = { ...record };
+    updatedRecord.member = newMember;
+    updatedRecord.startTime = newStartTime;
+    updatedRecord.endTime = newEndTime;
+    updatedRecord.task = newtask;
+
+    const start = new Date(`1970-01-01T${newStartTime}`);
+    const end = new Date(`1970-01-01T${newEndTime}`);
+    let totalPauseMinutes = 0;
+    (updatedRecord.pauses || []).forEach(p => {
+        if (p.start && p.end) {
+             const pauseStart = new Date(`1970-01-01T${p.start}`);
+             const pauseEnd = new Date(`1970-01-01T${p.end}`);
+              if (!isNaN(pauseStart) && !isNaN(pauseEnd) && pauseEnd > pauseStart) {
+                totalPauseMinutes += (pauseEnd - pauseStart) / (1000 * 60);
+              }
+         }
+     });
+
+    if (!isNaN(start) && !isNaN(end)) {
+        const newDuration = (end - start) / (1000 * 60) - totalPauseMinutes;
+        updatedRecord.duration = Math.max(0, newDuration);
+    } else {
+        updatedRecord.duration = 0;
+    }
+
+    appState.workRecords[recordIndex] = updatedRecord;
+
+    saveStateToFirestore();
+    showToast('기록이 수정되었습니다.');
+    editRecordModal.classList.add('hidden');
+    recordToEditId = null;
+});
+
+confirmQuantityOnStopBtn.addEventListener('click', () => {
+     const quantity = parseInt(document.getElementById('quantity-on-stop-input').value, 10) || 0;
+    finalizeStopGroup(groupToStopId, quantity);
+});
+
+taskSelectModal.addEventListener('click', e => {
+     if (e.target.classList.contains('task-select-btn')) {
+        const task = e.target.dataset.task;
+        selectedTaskForStart = task;
+        selectedGroupForAdd = null;
+        taskSelectModal.classList.add('hidden');
+        renderTeamSelectionModalContent(task, appState);
+        document.getElementById('team-select-modal-title').textContent = `'${task}' 업무 시작`;
+        teamSelectModal.classList.remove('hidden');
+    }
+});
+
+confirmStopIndividualBtn.addEventListener('click', () => {
+     if (recordToStopId !== null) {
+        stopWorkIndividual(recordToStopId);
+    }
+    stopIndividualConfirmModal.classList.add('hidden');
+    recordToStopId = null;
+});
 
 // 공통 모달 닫기 버튼 이벤트
 document.querySelectorAll('.modal-close-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+     btn.addEventListener('click', (e) => {
         e.target.closest('.fixed.inset-0')?.classList.add('hidden');
     });
 });
+
 
 // 개별 취소 버튼들
 cancelDeleteBtn.addEventListener('click', () => deleteConfirmModal.classList.add('hidden'));
@@ -1042,17 +1335,16 @@ cancelResetAppBtn.addEventListener('click', () => resetAppModal.classList.add('h
 cancelQuantityOnStopBtn.addEventListener('click', () => quantityOnStopModal.classList.add('hidden'));
 cancelStopIndividualBtn.addEventListener('click', () => stopIndividualConfirmModal.classList.add('hidden'));
 cancelEditPartTimerBtn.addEventListener('click', () => editPartTimerModal.classList.add('hidden'));
-// cancelManualAddBtn 관련 코드 제거됨
 document.getElementById('cancel-team-select-btn')?.addEventListener('click', () => {
      teamSelectModal.classList.add('hidden');
-     tempSelectedMembers = []; // 선택 초기화
+     tempSelectedMembers = [];
      selectedTaskForStart = null;
      selectedGroupForAdd = null;
 });
 
 // 토글 기능
 [toggleCompletedLog, toggleAnalysis, toggleSummary].forEach(toggle => {
-    if (!toggle) return;
+     if (!toggle) return;
     toggle.addEventListener('click', () => {
         if (window.innerWidth < 768) {
             const content = toggle.nextElementSibling;
@@ -1072,7 +1364,6 @@ document.getElementById('cancel-team-select-btn')?.addEventListener('click', () 
 
 
 teamSelectModal.addEventListener('click', e => {
-    // ... (이전 팀 선택/알바 관리 로직과 동일) ...
      // 팀원 선택/해제
     const card = e.target.closest('button[data-member-name]');
     if (card && !card.disabled) {
@@ -1133,7 +1424,7 @@ teamSelectModal.addEventListener('click', e => {
              counter++;
              newName = `알바 ${counter}`;
         }
-        const newId = Date.now(); // ID는 여기서 생성
+        const newId = Date.now();
 
         appState.partTimers.push({ id: newId, name: newName });
         saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState));
@@ -1164,7 +1455,6 @@ teamSelectModal.addEventListener('click', e => {
 });
 
 confirmEditPartTimerBtn.addEventListener('click', () => {
-    // ... (이전과 동일) ...
      const id = parseFloat(partTimerEditIdInput.value);
     const partTimerIndex = (appState.partTimers || []).findIndex(p => p.id === id);
     if (partTimerIndex === -1) {
@@ -1207,7 +1497,6 @@ confirmEditPartTimerBtn.addEventListener('click', () => {
 
 // 팀 선택 완료 버튼
 document.getElementById('confirm-team-select-btn')?.addEventListener('click', () => {
-    // ... (이전과 동일) ...
      if (tempSelectedMembers.length === 0) {
         showToast('추가할 팀원을 선택해주세요.', true);
         return;
@@ -1275,12 +1564,18 @@ function main() {
             unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
                 console.log("Firestore Snapshot Received");
                 try {
+                    // 기본 상태 정의 (Firestore 데이터 없을 때 사용)
+                    const defaultState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+                    taskTypes.forEach(task => defaultState.taskQuantities[task] = 0);
+
                     const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
                     console.log("Loaded State:", loadedState);
 
+                    // 상태 병합: Firestore 데이터가 있으면 사용하고, 없으면 기본값 사용
                     appState = {
-                        ...defaultState,
-                        ...loadedState,
+                        ...defaultState, // 기본 구조 보장
+                        ...loadedState, // Firestore 데이터 덮어쓰기
+                        // 각 배열 속성이 로드된 상태에 없거나 null일 경우 빈 배열([])로 설정
                         workRecords: loadedState.workRecords || [],
                         taskQuantities: loadedState.taskQuantities || defaultState.taskQuantities,
                         onLeaveMembers: loadedState.onLeaveMembers || [],
@@ -1296,7 +1591,9 @@ function main() {
                 } catch (parseError) {
                      console.error("Error parsing state from Firestore:", parseError);
                      showToast("데이터 로딩 중 오류 발생 (파싱 실패).", true);
-                     appState = defaultState;
+                     // 파싱 실패 시 안전하게 기본 상태로 초기화 후 렌더링
+                     appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+                     taskTypes.forEach(task => appState.taskQuantities[task] = 0);
                      render();
                      connectionStatusEl.textContent = '데이터 오류';
                      statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
@@ -1307,7 +1604,9 @@ function main() {
                 showToast("실시간 연결에 실패했습니다.", true);
                 connectionStatusEl.textContent = '연결 오류';
                 statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-                 appState = defaultState;
+                 // 연결 오류 시 기본 상태로 초기화 후 렌더링
+                 appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+                 taskTypes.forEach(task => appState.taskQuantities[task] = 0);
                  render();
             });
         } else {
@@ -1318,7 +1617,9 @@ function main() {
                  unsubscribeToday();
                  unsubscribeToday = undefined;
              }
-             appState = defaultState;
+             // 로그아웃 시 기본 상태로 초기화 후 렌더링
+             appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+             taskTypes.forEach(task => appState.taskQuantities[task] = 0);
              render();
         }
     });
