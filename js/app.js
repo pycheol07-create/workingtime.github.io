@@ -1,10 +1,8 @@
 // === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.5 (Fix Spinner, Update Leave Types & Date Range)
+// ver.2.6 (Add Attendance History Tab)
 // 변경 요약:
-// - LEAVE_TYPES 수정 (반차, 기타 제거, 출장 추가)
-// - 연차/출장 시 날짜 범위 설정 기능 추가
-// - onLeaveMembers 구조에 startDate, endDate 추가
-// - Spinner 로직 수정 (ui.js와 연계)
+// - 이력 보기에 '근태 이력' 탭 추가
+// - 근태 이력 렌더링 함수 호출 로직 추가
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -19,7 +17,9 @@ import {
   renderTaskSelectionModal,
   renderTeamSelectionModalContent,
   renderQuantityModalInputs,
-  renderLeaveTypeModalOptions
+  renderLeaveTypeModalOptions,
+  // [추가] 근태 이력 렌더링 함수 임포트
+  renderAttendanceHistory
 } from './ui.js';
 
 // ========== DOM Elements ==========
@@ -74,7 +74,6 @@ const leaveMemberNameSpan = document.getElementById('leave-member-name');
 const leaveTypeOptionsContainer = document.getElementById('leave-type-options');
 const confirmLeaveBtn = document.getElementById('confirm-leave-btn');
 const cancelLeaveBtn = document.getElementById('cancel-leave-btn');
-// [추가] 날짜 입력 필드 요소
 const leaveDateInputsDiv = document.getElementById('leave-date-inputs');
 const leaveStartDateInput = document.getElementById('leave-start-date-input');
 const leaveEndDateInput = document.getElementById('leave-end-date-input');
@@ -93,7 +92,7 @@ let recordCounter = 0;
 let appState = {
   workRecords: [],
   taskQuantities: {},
-  // [수정] onLeaveMembers 구조 변경: { member: string, type: string, startTime?: string, endTime?: string, startDate?: string, endDate?: string }[]
+  // 구조: { member: string, type: string, startTime?: string, endTime?: string, startDate?: string, endDate?: string }[]
   onLeaveMembers: [],
   partTimers: [],
   hiddenGroupIds: []
@@ -117,8 +116,7 @@ let quantityModalContext = { mode: 'today', dateKey: null, onConfirm: null, onCa
 let tempSelectedMembers = [];
 let memberToSetLeave = null;
 
-// [수정] 휴무 유형 정의 변경
-const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장']; // 반차, 기타 제거, 출장 추가
+const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // ========== Helpers ==========
 // ... (generateId, normalizeName, calcElapsedMinutes 변경 없음) ...
@@ -351,9 +349,15 @@ async function saveProgress() {
       if (!Number.isNaN(q) && q > 0) currentQuantities[task] = q;
     }
 
-    if (completedRecordsFromState.length === 0 && Object.keys(currentQuantities).length === 0) {
-      return showToast('저장할 새로운 완료 기록이나 처리량이 없습니다.', true);
+    // [수정] 근태 정보도 저장할 내용이 있는지 확인 (데이터가 있을 때만 저장하도록)
+    const currentLeaveMembers = appState.onLeaveMembers || [];
+
+    if (completedRecordsFromState.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembers.length === 0 && !(existingData.onLeaveMembers?.length > 0)) {
+       // 저장할 새로운 기록/처리량/근태 정보가 없고, 기존 이력에도 근태 정보가 없으면 저장 건너뛰기
+       // (단, 기존 이력에 근태 정보가 있었다면, 현재 근태 정보가 없더라도 저장하여 덮어쓰도록 함)
+      return showToast('저장할 새로운 완료 기록, 처리량 또는 근태 정보가 없습니다.', true);
     }
+
 
     const combinedRecords = [...(existingData.workRecords || []), ...completedRecordsFromState];
     const uniqueRecords = Array.from(new Map(combinedRecords.map(item => [item.id, item])).values());
@@ -363,10 +367,11 @@ async function saveProgress() {
       finalQuantities[task] = (Number(finalQuantities[task]) || 0) + Number(currentQuantities[task]);
     }
 
+    // [수정] onLeaveMembers는 덮어쓰기 (기존 방식 유지)
     const dataToSave = {
       workRecords: uniqueRecords,
       taskQuantities: finalQuantities,
-      onLeaveMembers: appState.onLeaveMembers || [], // 변경된 휴무 구조 저장
+      onLeaveMembers: currentLeaveMembers,
       partTimers: appState.partTimers || []
     };
 
@@ -411,7 +416,7 @@ async function saveDayDataToHistory(shouldReset) {
 
 
 // ========== 이력 보기 ==========
-// ... (fetchAllHistoryData ~ switchHistoryView 함수 변경 없음) ...
+// ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal, renderHistoryDetail 변경 없음) ...
 async function fetchAllHistoryData() {
   const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
   try {
@@ -419,7 +424,10 @@ async function fetchAllHistoryData() {
     allHistoryData = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      if (data && data.workRecords) { allHistoryData.push({ id: doc.id, ...data }); }
+      // workRecords 또는 onLeaveMembers 중 하나라도 있으면 이력으로 간주
+      if (data && (data.workRecords?.length > 0 || data.onLeaveMembers?.length > 0)) {
+         allHistoryData.push({ id: doc.id, ...data });
+      }
     });
     return allHistoryData;
   } catch (error) {
@@ -441,9 +449,11 @@ const loadAndRenderHistoryList = async () => {
     const dailyView = document.getElementById('history-daily-view');
     const weeklyView = document.getElementById('history-weekly-view');
     const monthlyView = document.getElementById('history-monthly-view');
+    const attendanceView = document.getElementById('history-attendance-view'); // 추가
     if (dailyView) dailyView.innerHTML = '';
     if (weeklyView) weeklyView.innerHTML = '';
     if (monthlyView) monthlyView.innerHTML = '';
+    if (attendanceView) attendanceView.innerHTML = ''; // 추가
     return;
   }
 
@@ -459,10 +469,11 @@ const loadAndRenderHistoryList = async () => {
     const firstButton = historyDateList.firstChild.querySelector('button');
     if (firstButton) {
       firstButton.classList.add('bg-blue-100', 'font-bold');
-      switchHistoryView('daily');
-      renderHistoryDetail(firstButton.dataset.key);
+      switchHistoryView('daily'); // 기본으로 일별 상세 보기
+      // renderHistoryDetail(firstButton.dataset.key); // switchHistoryView 내부에서 호출됨
     }
   } else {
+    // 이력이 있지만 첫 번째 버튼이 없는 경우 (이론상 발생하기 어려움)
     switchHistoryView('daily');
     const dailyView = document.getElementById('history-daily-view');
     if (dailyView) dailyView.innerHTML = '<div class="text-center text-gray-500 p-8">표시할 이력이 없습니다.</div>';
@@ -488,7 +499,7 @@ window.openHistoryQuantityModal = (dateKey) => {
       try {
         await setDoc(historyDocRef, allHistoryData[idx]);
         showToast(`${dateKey}의 처리량이 수정되었습니다.`);
-        renderHistoryDetail(dateKey);
+        renderHistoryDetail(dateKey); // 상세 뷰 다시 렌더링
       } catch (e) {
         console.error('Error updating history quantities:', e);
         showToast('처리량 업데이트 중 오류 발생.', true);
@@ -827,13 +838,17 @@ window.downloadHistoryAsExcel = async (dateKey) => {
   }
 };
 
+// [수정] switchHistoryView: 'attendance' 뷰 케이스 추가
 const switchHistoryView = (view) => {
   const dateListContainer = document.getElementById('history-date-list-container');
   const dailyView = document.getElementById('history-daily-view');
   const weeklyView = document.getElementById('history-weekly-view');
   const monthlyView = document.getElementById('history-monthly-view');
+  const attendanceView = document.getElementById('history-attendance-view'); // 추가
 
-  if (dateListContainer) dateListContainer.style.display = view === 'daily' ? 'block' : 'none';
+  // 날짜 목록은 일별 상세 또는 근태 이력에서만 표시
+  if (dateListContainer) dateListContainer.style.display = (view === 'daily' || view === 'attendance') ? 'block' : 'none';
+
   if (historyTabs) {
     historyTabs.querySelectorAll('button').forEach(btn => {
       const isActive = btn.dataset.view === view;
@@ -850,14 +865,23 @@ const switchHistoryView = (view) => {
     });
   }
 
+  // 선택된 날짜 가져오기 (일별 또는 근태 탭에서 필요)
+  let selectedDateKey = null;
+  const selectedDateBtn = historyDateList?.querySelector('button.font-bold');
+  if (selectedDateBtn) {
+    selectedDateKey = selectedDateBtn.dataset.key;
+  }
+
   if (view === 'daily') {
-    const selectedDateBtn = historyDateList?.querySelector('button.font-bold');
-    if (selectedDateBtn) renderHistoryDetail(selectedDateBtn.dataset.key);
+    if (selectedDateKey) renderHistoryDetail(selectedDateKey);
     else if (dailyView) dailyView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
   } else if (view === 'weekly') {
     renderWeeklyHistory();
   } else if (view === 'monthly') {
     renderMonthlyHistory();
+  } else if (view === 'attendance') { // 추가된 케이스
+    if (selectedDateKey) renderAttendanceHistory(selectedDateKey, allHistoryData); // ui.js에 추가될 함수 호출
+    else if (attendanceView) attendanceView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
   }
 };
 
@@ -1041,14 +1065,19 @@ if (historyDateList) historyDateList.addEventListener('click', (e) => {
   if (button) {
     document.querySelectorAll('#history-date-list button').forEach(btn => btn.classList.remove('bg-blue-100', 'font-bold'));
     button.classList.add('bg-blue-100', 'font-bold');
-    switchHistoryView('daily');
-    renderHistoryDetail(button.dataset.key);
+    // 현재 활성화된 탭에 따라 렌더링 함수 호출
+    const activeTab = historyTabs?.querySelector('button.font-semibold');
+    const view = activeTab ? activeTab.dataset.view : 'daily';
+    switchHistoryView(view); // 탭 상태는 유지하고 내용만 업데이트
   }
 });
 
+// [수정] historyTabs 이벤트 리스너: 새로운 탭 처리
 if (historyTabs) historyTabs.addEventListener('click', (e) => {
   const button = e.target.closest('button.history-tab-btn');
-  if (button && button.dataset.view) switchHistoryView(button.dataset.view);
+  if (button && button.dataset.view) {
+      switchHistoryView(button.dataset.view); // 탭 전환 함수 호출
+  }
 });
 
 if (confirmHistoryDeleteBtn) confirmHistoryDeleteBtn.addEventListener('click', async () => {
@@ -1057,9 +1086,13 @@ if (confirmHistoryDeleteBtn) confirmHistoryDeleteBtn.addEventListener('click', a
     try {
       await deleteDoc(docRef);
       showToast('선택한 날짜의 기록이 삭제되었습니다.');
-      loadAndRenderHistoryList();
+      loadAndRenderHistoryList(); // 목록 새로고침
+      // 현재 열려있는 뷰 초기화 (예: 일별 상세)
       const dailyView = document.getElementById('history-daily-view');
+      const attendanceView = document.getElementById('history-attendance-view');
       if (dailyView) dailyView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
+      if (attendanceView) attendanceView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
+      // 필요하다면 다른 뷰들도 초기화
     } catch (error) {
       console.error('Error deleting history data:', error);
       showToast('이력 삭제 중 오류 발생.', true);
@@ -1163,21 +1196,21 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     const leaveType = selectedTypeInput.value;
     const leaveData = { member: memberToSetLeave, type: leaveType };
 
-    // [수정] 외출/조퇴: 현재 시간 기록
+    // 외출/조퇴: 현재 시간 기록
     if (leaveType === '외출' || leaveType === '조퇴') {
-        leaveData.startTime = getCurrentTime(); // 현재 시간으로 시작 시간 자동 설정
+        leaveData.startTime = getCurrentTime();
         if (leaveType === '조퇴') {
-            leaveData.endTime = "17:30"; // 고정된 퇴근 시간
+            leaveData.endTime = "17:30";
         }
     }
-    // [추가] 연차/출장: 날짜 기록
+    // 연차/출장: 날짜 기록
     else if (leaveType === '연차' || leaveType === '출장') {
         const startDate = leaveStartDateInput?.value;
         const endDate = leaveEndDateInput?.value;
 
         if (!startDate) {
             showToast('시작일을 입력해주세요.', true);
-            return; // 시작일은 필수
+            return;
         }
         leaveData.startDate = startDate;
 
@@ -1192,7 +1225,7 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
 
     appState.onLeaveMembers = appState.onLeaveMembers || [];
     appState.onLeaveMembers = appState.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
-    appState.onLeaveMembers.push(leaveData); // 시간/날짜 정보 포함된 객체 저장
+    appState.onLeaveMembers.push(leaveData);
 
     showToast(`${memberToSetLeave}님을 '${leaveType}'(으)로 설정했습니다.`);
     saveStateToFirestore();
@@ -1350,9 +1383,7 @@ async function main() {
   if (connectionStatusEl) connectionStatusEl.textContent = '연결 중...';
   if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse';
 
-  // [수정] 앱 상태 초기 구조 설정 먼저
   appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
-
 
   try {
       const { app, db: fdb, auth: fath } = initializeFirebase();
@@ -1371,22 +1402,21 @@ async function main() {
       if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
       appConfig = await loadConfiguration(db);
       renderTaskSelectionModal(appConfig.taskGroups);
-      renderRealtimeStatus(appState, appConfig.teamGroups); // 초기 렌더링 (스피너 숨기기)
+      renderRealtimeStatus(appState, appConfig.teamGroups); 
   } catch (e) {
       console.error("설정 로드 실패:", e);
       showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
-      renderRealtimeStatus(appState, appConfig.teamGroups); // 실패 시에도 기본 렌더링
+      renderRealtimeStatus(appState, appConfig.teamGroups); 
   }
 
   displayCurrentDate();
   if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
   elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
 
-  // 기본 상태 설정 (주요 로직 전에 한번 더 확인)
   const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
   const defaultQuantities = {};
   taskTypes.forEach(task => defaultQuantities[task] = 0);
-  appState.taskQuantities = { ...defaultQuantities, ...appState.taskQuantities }; // Firestore 로드 전에 기본값 채우기
+  appState.taskQuantities = { ...defaultQuantities, ...appState.taskQuantities }; 
 
   onAuthStateChanged(auth, async user => {
     if (user) {
@@ -1401,11 +1431,11 @@ async function main() {
 
           const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
           appState = {
-            ...defaultState, // 기본값 먼저 적용
-            ...loadedState, // 로드된 값으로 덮어쓰기
-            taskQuantities: { ...defaultState.taskQuantities, ...(loadedState.taskQuantities || {}) } // 수량은 병합
+            ...defaultState, 
+            ...loadedState, 
+            taskQuantities: { ...defaultState.taskQuantities, ...(loadedState.taskQuantities || {}) } 
           };
-          render(); // 최종 상태로 렌더링
+          render(); 
           if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
           if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
         } catch (parseError) {
