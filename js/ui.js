@@ -1,6 +1,7 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
 // 업무별 카드 스타일 정의
+const taskCardStyles = { /* ... 이전 코드와 동일 ... */ };
 const taskCardStyles = {
     '국내배송': ['bg-green-50', 'border-green-200', 'text-green-800'],
     '중국제작': ['bg-purple-50', 'border-purple-200', 'text-purple-800'],
@@ -26,6 +27,7 @@ const taskCardStyles = {
 };
 
 
+// ... (renderQuantityModalInputs, renderTaskSelectionModal, renderTaskAnalysis 함수는 변경 없음) ...
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
@@ -87,7 +89,7 @@ export const renderTaskAnalysis = (appState) => {
 
     sortedTasks.forEach(([task, minutes]) => {
         const percentage = totalLoggedMinutes > 0 ? (minutes / totalLoggedMinutes) * 100 : 0;
-        const color = taskColorsHex[task] || '#6b7280';
+        const color = taskColorsHex[task] || '#6b7280'; 
         if (percentage > 0) {
             gradientParts.push(`${color} ${cumulativePercentage}% ${cumulativePercentage + percentage}%`);
             cumulativePercentage += percentage;
@@ -100,15 +102,16 @@ export const renderTaskAnalysis = (appState) => {
     analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8"><div class="flex-shrink-0"><div class="chart" style="background: ${finalGradient};"><div class="chart-center"><span class="text-sm text-gray-500">총 업무</span><span class="text-xl font-bold text-blue-600 mt-1">${formatDuration(totalLoggedMinutes)}</span></div></div></div>${legendHTML}</div>`;
 };
 
+
+// [수정] teamGroups를 파라미터로 받고, onLeaveMembers 구조 변경 및 시간 표시 추가
 export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
         console.error("Element #team-status-board not found!");
         return;
     }
-    teamStatusBoard.innerHTML = ''; // 기존 내용 지우기 먼저 실행
-
-    // [추가] 로딩 스피너 숨기기
+    teamStatusBoard.innerHTML = ''; 
+    
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) loadingSpinner.style.display = 'none';
 
@@ -118,6 +121,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     }));
 
     // --- Section 1: Preset Task Quick Actions ---
+    // ... (이 부분은 변경 없음) ...
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
@@ -225,7 +229,8 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
-    const onLeaveStatus = new Map((appState.onLeaveMembers || []).map(item => [item.member, item.type]));
+    // [수정] onLeaveMembers 구조 변경 대응 -> Map으로 변환
+    const onLeaveStatusMap = new Map((appState.onLeaveMembers || []).map(item => [item.member, item]));
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -249,12 +254,12 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         uniqueMembersInGroup.forEach(member => {
             const card = document.createElement('button');
             card.type = 'button';
-            const leaveType = onLeaveStatus.get(member);
-            const isOnLeave = !!leaveType;
+            // [수정] Map에서 휴무 정보 조회
+            const leaveInfo = onLeaveStatusMap.get(member);
+            const isOnLeave = !!leaveInfo;
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
 
             card.className = 'p-1 rounded-lg border text-center transition-shadow min-h-[64px] w-24 flex flex-col justify-center';
-
             card.dataset.memberToggleLeave = member;
             if (!isWorking) {
                 card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
@@ -262,9 +267,21 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                 card.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
+            // [수정] 휴무 유형 및 시간 표시
             if (isOnLeave) {
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
-                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">${leaveType || '휴무'}</div>`;
+                let timeText = '';
+                if (leaveInfo.startTime) {
+                    timeText = formatTimeTo24H(leaveInfo.startTime);
+                    if (leaveInfo.endTime) {
+                        timeText += ` - ${formatTimeTo24H(leaveInfo.endTime)}`;
+                    } else {
+                        timeText += ' ~';
+                    }
+                }
+                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div>
+                                  <div class="text-xs">${leaveInfo.type || '휴무'}</div>
+                                  ${timeText ? `<div class="text-[10px] leading-tight mt-0.5">${timeText}</div>` : ''}`;
             } else if (workingMembers.has(member)) {
                 card.classList.add('bg-red-50', 'border-red-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-red-800 break-keep">${member}</div><div class="text-xs text-gray-600 truncate" title="${workingMembers.get(member)}">${workingMembers.get(member)}</div>`;
@@ -283,8 +300,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
     const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
     const activePartTimers = (appState.partTimers || []).filter(pt => {
-        // 근무 중이거나 휴무 중인 알바만 표시
-        return workingAlbaMembers.has(pt.name) || onLeaveStatus.has(pt.name);
+        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
     });
 
     if (activePartTimers.length > 0) {
@@ -296,37 +312,45 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         albaGrid.className = 'flex flex-wrap gap-2';
 
         activePartTimers.forEach(pt => {
-             const card = document.createElement('button'); // 알바 카드도 버튼으로 변경 (휴무 설정/해제 가능하도록)
+             const card = document.createElement('button'); 
              card.type = 'button';
-             card.dataset.memberToggleLeave = pt.name; // data 속성 추가
+             card.dataset.memberToggleLeave = pt.name; 
              card.className = 'relative p-1 rounded-lg border text-center transition-shadow min-h-[64px] w-24 flex flex-col justify-center';
 
              const currentlyWorkingTask = workingMembers.get(pt.name);
              const isPaused = pausedMembers.has(pt.name);
-             const albaLeaveType = onLeaveStatus.get(pt.name);
-             const isAlbaOnLeave = !!albaLeaveType;
+             const albaLeaveInfo = onLeaveStatusMap.get(pt.name); // 수정: Map에서 조회
+             const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = currentlyWorkingTask || isPaused;
 
-             // 클릭 가능/불가능 스타일 적용
              if (!isAlbaWorking) {
                  card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
              } else {
                  card.classList.add('opacity-70', 'cursor-not-allowed');
              }
 
-
+             // [수정] 알바 휴무 유형 및 시간 표시
              if (isAlbaOnLeave) {
                  card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
-                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">${albaLeaveType || '휴무'}</div>`;
+                 let timeText = '';
+                 if (albaLeaveInfo.startTime) {
+                     timeText = formatTimeTo24H(albaLeaveInfo.startTime);
+                     if (albaLeaveInfo.endTime) {
+                         timeText += ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}`;
+                     } else {
+                         timeText += ' ~';
+                     }
+                 }
+                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div>
+                                   <div class="text-xs">${albaLeaveInfo.type || '휴무'}</div>
+                                   ${timeText ? `<div class="text-[10px] leading-tight mt-0.5">${timeText}</div>` : ''}`;
              } else if (currentlyWorkingTask) {
                  card.classList.add('bg-red-50', 'border-red-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-red-800">${pt.name}</div><div class="text-xs text-gray-600 truncate" title="${currentlyWorkingTask}">${currentlyWorkingTask}</div>`;
              } else if (isPaused) {
                  card.classList.add('bg-yellow-50', 'border-yellow-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${pt.name}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
-             }
-             // 알바가 근무/휴무 아니면 표시 안 함 (activePartTimers 필터링으로 처리됨)
-
+             } 
              albaGrid.appendChild(card);
         });
         albaContainer.appendChild(albaGrid);
@@ -335,6 +359,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
+// ... (renderCompletedWorkLog, updateSummary 함수는 이전 답변과 동일) ...
 export const renderCompletedWorkLog = (appState) => {
     const workLogBody = document.getElementById('work-log-body');
     if (!workLogBody) return;
@@ -410,6 +435,7 @@ export const updateSummary = (appState, teamGroups = []) => {
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
 };
 
+// ... (renderTeamSelectionModalContent 함수는 변경 없음) ...
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -523,23 +549,43 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     container.appendChild(albaGroupContainer);
 };
 
-// [추가] 휴무 유형 선택 모달의 라디오 버튼 생성 함수
+// [수정] 휴무 유형 선택 시 시간 입력 필드 표시/숨김 처리 추가
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
-    if (!container) return;
+    const timeInputsDiv = document.getElementById('leave-time-inputs');
+    if (!container || !timeInputsDiv) return;
+
     container.innerHTML = '';
     leaveTypes.forEach((type, index) => {
         const div = document.createElement('div');
         div.className = 'flex items-center';
         div.innerHTML = `
-            <input id="leave-type-${index}" name="leave-type" type="radio" value="${type}" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+            <input id="leave-type-${index}" name="leave-type" type="radio" value="${type}" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500 leave-type-radio">
             <label for="leave-type-${index}" class="ml-2 block text-sm font-medium text-gray-700">${type}</label>
         `;
         container.appendChild(div);
     });
-    // 기본값으로 첫 번째 옵션 선택
+
+    // 라디오 버튼 변경 시 이벤트 리스너 추가
+    container.addEventListener('change', (e) => {
+        if (e.target.classList.contains('leave-type-radio')) {
+            const selectedType = e.target.value;
+            if (selectedType === '외출' || selectedType === '조퇴') {
+                timeInputsDiv.classList.remove('hidden');
+            } else {
+                timeInputsDiv.classList.add('hidden');
+            }
+        }
+    });
+
     const firstRadio = container.querySelector('input[type="radio"]');
     if (firstRadio) {
         firstRadio.checked = true;
+        // 초기 상태 확인 및 시간 필드 표시/숨김
+        if (firstRadio.value === '외출' || firstRadio.value === '조퇴') {
+            timeInputsDiv.classList.remove('hidden');
+        } else {
+            timeInputsDiv.classList.add('hidden');
+        }
     }
 };

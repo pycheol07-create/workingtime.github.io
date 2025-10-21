@@ -1,7 +1,9 @@
 // === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.2.1 (Fix Loading Spinner)
+// ver.2.3 (Leave Time Recording)
 // 변경 요약:
-// - main 함수에서 설정 로드 후 renderRealtimeStatus를 호출하여 로딩 스피너 즉시 제거
+// - 외출/조퇴 시 시간 입력 기능 추가
+// - onLeaveMembers 구조에 startTime, endTime 추가
+// - 시간 입력 유효성 검사 추가
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -20,12 +22,11 @@ import {
 } from './ui.js';
 
 // ========== DOM Elements ==========
+// ... (기존 DOM 요소들은 변경 없음) ...
 const connectionStatusEl = document.getElementById('connection-status');
 const statusDotEl = document.getElementById('status-dot');
 const teamStatusBoard = document.getElementById('team-status-board');
 const workLogBody = document.getElementById('work-log-body');
-
-// Modals & Buttons
 const teamSelectModal = document.getElementById('team-select-modal');
 const deleteConfirmModal = document.getElementById('delete-confirm-modal');
 const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
@@ -72,6 +73,11 @@ const leaveMemberNameSpan = document.getElementById('leave-member-name');
 const leaveTypeOptionsContainer = document.getElementById('leave-type-options');
 const confirmLeaveBtn = document.getElementById('confirm-leave-btn');
 const cancelLeaveBtn = document.getElementById('cancel-leave-btn');
+// [추가] 시간 입력 필드 요소
+const leaveTimeInputsDiv = document.getElementById('leave-time-inputs');
+const leaveStartTimeInput = document.getElementById('leave-start-time-input');
+const leaveEndTimeInput = document.getElementById('leave-end-time-input');
+
 
 // Toggles
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
@@ -87,6 +93,7 @@ let recordCounter = 0;
 let appState = {
   workRecords: [],
   taskQuantities: {},
+  // [수정] onLeaveMembers 구조 변경: { member: string, type: string, startTime?: string, endTime?: string }[]
   onLeaveMembers: [],
   partTimers: [],
   hiddenGroupIds: []
@@ -113,6 +120,7 @@ let memberToSetLeave = null;
 const LEAVE_TYPES = ['연차', '반차', '외출', '조퇴', '결근', '기타'];
 
 // ========== Helpers ==========
+// ... (generateId, normalizeName, calcElapsedMinutes 함수는 변경 없음) ...
 const generateId = () => `${Date.now()}-${++recordCounter}`;
 const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
 
@@ -131,7 +139,9 @@ const calcElapsedMinutes = (start, end, pauses = []) => {
   return Math.max(0, total / 60000);
 };
 
+
 // ========== 타이머 ==========
+// ... (updateElapsedTimes 함수는 변경 없음) ...
 const updateElapsedTimes = () => {
   const now = getCurrentTime();
   document.querySelectorAll('.ongoing-duration').forEach(el => {
@@ -157,7 +167,9 @@ const updateElapsedTimes = () => {
   if (el) el.textContent = formatDuration(totalCompletedMinutes + totalOngoingMinutes);
 };
 
+
 // ========== 렌더 ==========
+// ... (render 함수는 변경 없음) ...
 const render = () => {
   try {
     renderRealtimeStatus(appState, appConfig.teamGroups);
@@ -170,7 +182,9 @@ const render = () => {
   }
 };
 
+
 // ========== Firestore 저장 ==========
+// ... (saveStateToFirestore 함수는 변경 없음, onLeaveMembers 구조 변경 반영됨) ...
 async function saveStateToFirestore() {
   if (!auth || !auth.currentUser) {
     console.warn('Cannot save state: User not authenticated.');
@@ -181,7 +195,7 @@ async function saveStateToFirestore() {
     const stateToSave = JSON.stringify({
       workRecords: appState.workRecords || [],
       taskQuantities: appState.taskQuantities || {},
-      onLeaveMembers: appState.onLeaveMembers || [], 
+      onLeaveMembers: appState.onLeaveMembers || [], // 변경된 구조 저장
       partTimers: appState.partTimers || [],
       hiddenGroupIds: appState.hiddenGroupIds || []
     }, (k, v) => (typeof v === 'function' ? undefined : v));
@@ -198,7 +212,9 @@ async function saveStateToFirestore() {
   }
 }
 
+
 // ========== 업무 그룹 제어 ==========
+// ... (startWorkGroup, addMembersToWorkGroup, stopWorkGroup, finalizeStopGroup, stopWorkIndividual, pauseWorkGroup, resumeWorkGroup 함수는 변경 없음) ...
 const startWorkGroup = (members, task) => {
   const groupId = Date.now();
   const startTime = getCurrentTime();
@@ -318,6 +334,7 @@ const resumeWorkGroup = (groupId) => {
 
 
 // ========== 저장/이력 ==========
+// ... (saveProgress, saveDayDataToHistory 함수는 변경 없음) ...
 async function saveProgress() {
   const dateStr = getTodayDateString();
   showToast('현재까지 완료된 기록을 저장합니다...');
@@ -391,7 +408,9 @@ async function saveDayDataToHistory(shouldReset) {
   }
 }
 
+
 // ========== 이력 보기 ==========
+// ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal, renderHistoryDetail, renderSummaryView, renderWeeklyHistory, renderMonthlyHistory, requestHistoryDeletion, downloadHistoryAsExcel, switchHistoryView 함수는 변경 없음) ...
 async function fetchAllHistoryData() {
   const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
   try {
@@ -843,8 +862,10 @@ const switchHistoryView = (view) => {
 
 
 // ========== 이벤트 리스너 ==========
+// ... (teamStatusBoard 이벤트 리스너는 이전 답변 내용과 동일) ...
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
+    // ... (업무 카드 관련 이벤트 리스너는 변경 없음) ...
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
     if (stopGroupButton) { stopWorkGroup(Number(stopGroupButton.dataset.groupId)); return; }
     const pauseGroupButton = e.target.closest('.pause-work-group-btn');
@@ -865,14 +886,16 @@ if (teamStatusBoard) {
       return;
     }
 
+
+    // [수정] 팀원 카드 클릭 시 휴무 유형 모달 열기 또는 휴무 취소
     const memberCard = e.target.closest('[data-member-toggle-leave]');
     if (memberCard) {
       const memberName = memberCard.dataset.memberToggleLeave;
-      memberToSetLeave = memberName; 
+      memberToSetLeave = memberName; // 휴무 설정할 멤버 이름 저장
 
       const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
       if (isWorking) {
-          memberToSetLeave = null; 
+          memberToSetLeave = null; // 작업 중이면 초기화
           return showToast(`${memberName}님은 현재 업무 중이므로 휴무 상태를 변경할 수 없습니다.`, true);
       }
 
@@ -880,16 +903,21 @@ if (teamStatusBoard) {
       const currentLeaveIndex = appState.onLeaveMembers.findIndex(item => item.member === memberName);
 
       if (currentLeaveIndex > -1) {
+          // 이미 휴무 상태 -> 휴무 취소 (복귀 처리)
           appState.onLeaveMembers.splice(currentLeaveIndex, 1);
           showToast(`${memberName}님이 복귀 처리되었습니다.`);
           saveStateToFirestore();
-          memberToSetLeave = null; 
+          memberToSetLeave = null; // 처리 완료 후 초기화
       } else {
+          // 휴무 상태 아님 -> 휴무 유형 선택 모달 열기
           if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
-          renderLeaveTypeModalOptions(LEAVE_TYPES); 
+          renderLeaveTypeModalOptions(LEAVE_TYPES); // ui.js에 추가된 함수 호출
+          if(leaveTimeInputsDiv) leaveTimeInputsDiv.classList.add('hidden'); // 시간 입력 필드 초기 숨김
+          if(leaveStartTimeInput) leaveStartTimeInput.value = ''; // 시간 초기화
+          if(leaveEndTimeInput) leaveEndTimeInput.value = ''; // 시간 초기화
           if(leaveTypeModal) leaveTypeModal.classList.remove('hidden');
       }
-      return; 
+      return; // 이벤트 처리 종료
     }
 
     const card = e.target.closest('div[data-action]');
@@ -918,6 +946,8 @@ if (teamStatusBoard) {
   });
 }
 
+
+// ... (workLogBody, deleteAllCompletedBtn, confirmDeleteBtn 이벤트 리스너는 변경 없음) ...
 if (workLogBody) {
   workLogBody.addEventListener('click', (e) => {
     const targetButton = e.target.closest('button');
@@ -982,6 +1012,8 @@ if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', () => {
   deleteMode = 'single';
 });
 
+
+// ... (endShiftBtn, saveProgressBtn, History 관련 버튼들, Reset 관련 버튼들, Quantity 모달 관련 버튼들, Edit 모달 관련 버튼들 등 나머지 이벤트 리스너는 대부분 변경 없음) ...
 if (endShiftBtn) endShiftBtn.addEventListener('click', () => {
   renderQuantityModalInputs(appState.taskQuantities, appConfig.quantityTaskTypes);
   const titleEl = document.getElementById('quantity-modal-title');
@@ -1118,6 +1150,8 @@ if (confirmStopIndividualBtn) confirmStopIndividualBtn.addEventListener('click',
   recordToStopId = null;
 });
 
+
+// [수정] 휴무 유형 모달 확인 버튼 리스너 (시간 입력 처리 추가)
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     if (!memberToSetLeave) return;
 
@@ -1127,18 +1161,41 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
         return;
     }
     const leaveType = selectedTypeInput.value;
+    const leaveData = { member: memberToSetLeave, type: leaveType };
+
+    // 외출 또는 조퇴인 경우 시간 값 확인 및 저장
+    if (leaveType === '외출' || leaveType === '조퇴') {
+        const startTime = leaveStartTimeInput?.value;
+        const endTime = leaveEndTimeInput?.value;
+
+        if (!startTime) {
+            showToast('시작 시간을 입력해주세요.', true);
+            return; // 시작 시간은 필수
+        }
+        leaveData.startTime = startTime;
+
+        if (endTime) {
+            if (endTime <= startTime) {
+                showToast('종료 시간은 시작 시간보다 이후여야 합니다.', true);
+                return; // 종료 시간이 시작 시간보다 빠르면 안 됨
+            }
+            leaveData.endTime = endTime;
+        }
+    }
 
     appState.onLeaveMembers = appState.onLeaveMembers || [];
     appState.onLeaveMembers = appState.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
-    appState.onLeaveMembers.push({ member: memberToSetLeave, type: leaveType });
+    appState.onLeaveMembers.push(leaveData); // 시간 정보 포함된 객체 저장
 
     showToast(`${memberToSetLeave}님을 '${leaveType}'(으)로 설정했습니다.`);
     saveStateToFirestore();
 
     if(leaveTypeModal) leaveTypeModal.classList.add('hidden');
-    memberToSetLeave = null; 
+    memberToSetLeave = null;
 });
 
+
+// ... (기존 개별 취소 버튼들, 모달 닫기 버튼, 토글, 팀 선택 모달 관련 리스너는 변경 없음) ...
 if (cancelLeaveBtn) cancelLeaveBtn.addEventListener('click', () => {
     if(leaveTypeModal) leaveTypeModal.classList.add('hidden');
     memberToSetLeave = null; 
@@ -1304,12 +1361,10 @@ async function main() {
       if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
       appConfig = await loadConfiguration(db);
       renderTaskSelectionModal(appConfig.taskGroups);
-      // [추가] 설정 로드 후 즉시 로딩 스피너 숨기기 및 기본 구조 렌더링
       renderRealtimeStatus(appState, appConfig.teamGroups); 
   } catch (e) {
       console.error("설정 로드 실패:", e);
       showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
-      // 실패 시에도 기본 구조 렌더링 시도
       renderRealtimeStatus(appState, appConfig.teamGroups);
   }
 
@@ -1320,7 +1375,7 @@ async function main() {
   const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
   const defaultState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
   taskTypes.forEach(task => defaultState.taskQuantities[task] = 0);
-  appState = defaultState; // 초기 appState 설정 (렌더 전에 필요)
+  appState = defaultState; 
 
 
   onAuthStateChanged(auth, async user => {
@@ -1344,7 +1399,7 @@ async function main() {
             partTimers: loadedState.partTimers || [],
             hiddenGroupIds: loadedState.hiddenGroupIds || []
           };
-          render(); // 여기서 완전한 상태로 다시 렌더링
+          render(); 
           if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
           if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
         } catch (parseError) {
