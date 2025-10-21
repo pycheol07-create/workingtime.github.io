@@ -104,9 +104,9 @@ export const renderTaskAnalysis = (appState) => {
 };
 
 
-// [수정] renderRealtimeStatus: 함수 시작 시 스피너 숨기기
+// [수정] renderRealtimeStatus: 스피너 숨기기 로직 순서 변경
 export const renderRealtimeStatus = (appState, teamGroups = []) => {
-    // [수정] 로딩 스피너를 찾아서 먼저 숨깁니다.
+    // [수정] 로딩 스피너를 찾아서 *먼저* 숨깁니다.
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) {
         loadingSpinner.style.display = 'none';
@@ -117,7 +117,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         console.error("Element #team-status-board not found!");
         return;
     }
-    // 스피너를 숨긴 후 내용 초기화 (스피너가 있으면 스피너 포함해서 지워짐)
+    // 스피너를 숨긴 후 내용 초기화
     teamStatusBoard.innerHTML = '';
 
     const memberGroupMap = new Map();
@@ -564,6 +564,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs'); // 날짜 입력 필드 div
+    // const timeInputsDiv = document.getElementById('leave-time-inputs'); // 시간 필드 참조 제거
     if (!container || !dateInputsDiv) return;
 
     container.innerHTML = '';
@@ -577,16 +578,17 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         container.appendChild(div);
     });
 
-    // 라디오 버튼 변경 시 이벤트 리스너 추가
+    // 라디오 버튼 변경 시 이벤트 리스너 추가 (날짜 필드 제어)
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
-            // [수정] 연차 또는 출장 선택 시 날짜 필드 보이기
+            // 연차 또는 출장 선택 시 날짜 필드 보이기
             if (selectedType === '연차' || selectedType === '출장') {
                 dateInputsDiv.classList.remove('hidden');
             } else {
                 dateInputsDiv.classList.add('hidden');
             }
+            // 시간 필드 제어 로직 제거
         }
     });
 
@@ -599,5 +601,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         } else {
             dateInputsDiv.classList.add('hidden');
         }
+        // 시간 필드 초기 상태 제어 제거
     }
 };
