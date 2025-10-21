@@ -338,7 +338,6 @@ export const updateSummary = (appState) => {
     const onLeaveStaffCount = [...onLeaveMembers].filter(member => allStaffMembers.has(member)).length;
     const onLeaveTotalCount = onLeaveMembers.size;
 
-
     const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const workingMembers = new Set(ongoingOrPausedRecords.map(r => r.member));
     const workingStaffCount = [...workingMembers].filter(member => allStaffMembers.has(member)).length;
@@ -346,9 +345,7 @@ export const updateSummary = (appState) => {
     const totalWorkingCount = workingMembers.size;
 
     const availableStaffCount = totalStaffCount - onLeaveStaffCount;
-    // Assuming no separate leave for part-timers currently
     const availablePartTimerCount = totalPartTimerCount;
-
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
     const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount);
     const totalIdleCount = idleStaffCount + idlePartTimerCount;
@@ -363,8 +360,8 @@ export const updateSummary = (appState) => {
     if (summaryIdleStaffEl) summaryIdleStaffEl.textContent = `${totalIdleCount}`;
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
 
-    // 총 업무 시간 초기값 설정 (타이머 시작 전)
-    if (summaryTotalWorkTimeEl && !elapsedTimeTimer) { // elapsedTimeTimer 변수 확인
+    // ✅ 수정된 부분: elapsedTimeTimer 참조 제거
+    if (summaryTotalWorkTimeEl) {
         const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
         const totalCompletedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
         summaryTotalWorkTimeEl.textContent = formatDuration(totalCompletedMinutes);
