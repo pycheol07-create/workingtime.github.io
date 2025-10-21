@@ -1,6 +1,7 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
 // 업무별 카드 스타일 정의
+const taskCardStyles = { /* ... 이전 코드와 동일 ... */ };
 const taskCardStyles = {
     '국내배송': ['bg-green-50', 'border-green-200', 'text-green-800'],
     '중국제작': ['bg-purple-50', 'border-purple-200', 'text-purple-800'],
@@ -27,6 +28,7 @@ const taskCardStyles = {
 };
 
 
+// ... (renderQuantityModalInputs, renderTaskSelectionModal, renderTaskAnalysis 변경 없음) ...
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
@@ -102,9 +104,7 @@ export const renderTaskAnalysis = (appState) => {
 };
 
 
-// [수정] renderRealtimeStatus: 함수 시작 시 스피너 숨기기
 export const renderRealtimeStatus = (appState, teamGroups = []) => {
-    // [수정] 로딩 스피너를 찾아서 *먼저* 숨깁니다.
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) {
         loadingSpinner.style.display = 'none';
@@ -115,7 +115,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         console.error("Element #team-status-board not found!");
         return;
     }
-    // 스피너를 숨긴 후 내용 초기화 (스피너가 있으면 스피너 포함해서 지워짐)
     teamStatusBoard.innerHTML = '';
 
     const memberGroupMap = new Map();
@@ -558,10 +557,11 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     container.appendChild(albaGroupContainer);
 };
 
+
 // [수정] renderLeaveTypeModalOptions: 날짜 입력 필드 표시/숨김 로직 추가
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
-    const dateInputsDiv = document.getElementById('leave-date-inputs'); // 날짜 입력 필드 div
+    const dateInputsDiv = document.getElementById('leave-date-inputs');
     if (!container || !dateInputsDiv) return;
 
     container.innerHTML = '';
@@ -575,11 +575,10 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         container.appendChild(div);
     });
 
-    // 라디오 버튼 변경 시 이벤트 리스너 추가 (날짜 필드 제어)
+    // 라디오 버튼 변경 시 이벤트 리스너 추가
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
-            // 연차 또는 출장 선택 시 날짜 필드 보이기
             if (selectedType === '연차' || selectedType === '출장') {
                 dateInputsDiv.classList.remove('hidden');
             } else {
@@ -591,7 +590,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const firstRadio = container.querySelector('input[type="radio"]');
     if (firstRadio) {
         firstRadio.checked = true;
-        // 초기 상태 확인 및 날짜 필드 표시/숨김
+        // [수정] 초기 상태 확인 및 날짜 필드 표시/숨김 (맨 처음 로드 시)
         if (firstRadio.value === '연차' || firstRadio.value === '출장') {
             dateInputsDiv.classList.remove('hidden');
         } else {
@@ -607,6 +606,7 @@ export const renderAttendanceHistory = (dateKey, allHistoryData) => {
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
 
     const data = allHistoryData.find(d => d.id === dateKey);
+    // [수정] onLeaveMembers가 비어있거나 없을 경우 메시지 표시
     if (!data || !data.onLeaveMembers || data.onLeaveMembers.length === 0) {
         view.innerHTML = `<div class="bg-white p-4 rounded-lg shadow-sm text-center text-gray-500">${dateKey} 날짜의 근태 기록이 없습니다.</div>`;
         return;
