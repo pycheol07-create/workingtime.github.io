@@ -1,9 +1,10 @@
 // === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.4 (Auto Leave Time Recording)
+// ver.2.5 (Fix Spinner, Update Leave Types & Date Range)
 // 변경 요약:
-// - 외출/조퇴 시 현재 시간을 startTime으로 자동 기록
-// - 조퇴 시 endTime을 "17:30"으로 자동 설정
-// - 시간 입력 필드 관련 로직 제거
+// - LEAVE_TYPES 수정 (반차, 기타 제거, 출장 추가)
+// - 연차/출장 시 날짜 범위 설정 기능 추가
+// - onLeaveMembers 구조에 startDate, endDate 추가
+// - Spinner 로직 수정 (ui.js와 연계)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -22,7 +23,7 @@ import {
 } from './ui.js';
 
 // ========== DOM Elements ==========
-// ... (기존 DOM 요소 정의는 동일) ...
+// ... (기존 요소 정의 유지) ...
 const connectionStatusEl = document.getElementById('connection-status');
 const statusDotEl = document.getElementById('status-dot');
 const teamStatusBoard = document.getElementById('team-status-board');
@@ -73,10 +74,10 @@ const leaveMemberNameSpan = document.getElementById('leave-member-name');
 const leaveTypeOptionsContainer = document.getElementById('leave-type-options');
 const confirmLeaveBtn = document.getElementById('confirm-leave-btn');
 const cancelLeaveBtn = document.getElementById('cancel-leave-btn');
-// [삭제] 시간 입력 필드 요소 참조 제거
-// const leaveTimeInputsDiv = document.getElementById('leave-time-inputs');
-// const leaveStartTimeInput = document.getElementById('leave-start-time-input');
-// const leaveEndTimeInput = document.getElementById('leave-end-time-input');
+// [추가] 날짜 입력 필드 요소
+const leaveDateInputsDiv = document.getElementById('leave-date-inputs');
+const leaveStartDateInput = document.getElementById('leave-start-date-input');
+const leaveEndDateInput = document.getElementById('leave-end-date-input');
 
 // Toggles
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
@@ -92,7 +93,7 @@ let recordCounter = 0;
 let appState = {
   workRecords: [],
   taskQuantities: {},
-  // 구조: { member: string, type: string, startTime?: string, endTime?: string }[]
+  // [수정] onLeaveMembers 구조 변경: { member: string, type: string, startTime?: string, endTime?: string, startDate?: string, endDate?: string }[]
   onLeaveMembers: [],
   partTimers: [],
   hiddenGroupIds: []
@@ -116,7 +117,8 @@ let quantityModalContext = { mode: 'today', dateKey: null, onConfirm: null, onCa
 let tempSelectedMembers = [];
 let memberToSetLeave = null;
 
-const LEAVE_TYPES = ['연차', '반차', '외출', '조퇴', '결근', '기타'];
+// [수정] 휴무 유형 정의 변경
+const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장']; // 반차, 기타 제거, 출장 추가
 
 // ========== Helpers ==========
 // ... (generateId, normalizeName, calcElapsedMinutes 변경 없음) ...
@@ -194,7 +196,7 @@ async function saveStateToFirestore() {
     const stateToSave = JSON.stringify({
       workRecords: appState.workRecords || [],
       taskQuantities: appState.taskQuantities || {},
-      onLeaveMembers: appState.onLeaveMembers || [], 
+      onLeaveMembers: appState.onLeaveMembers || [], // 날짜 정보 포함된 구조 저장
       partTimers: appState.partTimers || [],
       hiddenGroupIds: appState.hiddenGroupIds || []
     }, (k, v) => (typeof v === 'function' ? undefined : v));
@@ -911,9 +913,9 @@ if (teamStatusBoard) {
           // 휴무 상태 아님 -> 휴무 유형 선택 모달 열기
           if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
           renderLeaveTypeModalOptions(LEAVE_TYPES); // ui.js에 추가된 함수 호출
-          // if(leaveTimeInputsDiv) leaveTimeInputsDiv.classList.add('hidden'); // 시간 입력 필드 초기 숨김 -> 삭제
-          // if(leaveStartTimeInput) leaveStartTimeInput.value = ''; // 시간 초기화 -> 삭제
-          // if(leaveEndTimeInput) leaveEndTimeInput.value = ''; // 시간 초기화 -> 삭제
+          if(leaveDateInputsDiv) leaveDateInputsDiv.classList.add('hidden'); // 날짜 입력 필드 초기 숨김
+          if(leaveStartDateInput) leaveStartDateInput.value = ''; // 날짜 초기화
+          if(leaveEndDateInput) leaveEndDateInput.value = ''; // 날짜 초기화
           if(leaveTypeModal) leaveTypeModal.classList.remove('hidden');
       }
       return; // 이벤트 처리 종료
@@ -944,6 +946,7 @@ if (teamStatusBoard) {
     }
   });
 }
+
 
 // ... (workLogBody ~ confirmStopIndividualBtn 리스너 변경 없음) ...
 if (workLogBody) {
@@ -1148,7 +1151,7 @@ if (confirmStopIndividualBtn) confirmStopIndividualBtn.addEventListener('click',
 });
 
 
-// [수정] 휴무 유형 모달 확인 버튼 리스너 (자동 시간 기록 로직 추가)
+// [수정] 휴무 유형 모달 확인 버튼 리스너 (시간/날짜 자동 기록 로직 수정)
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     if (!memberToSetLeave) return;
 
@@ -1160,20 +1163,36 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     const leaveType = selectedTypeInput.value;
     const leaveData = { member: memberToSetLeave, type: leaveType };
 
-    // [수정] 외출 또는 조퇴인 경우 시간 자동 기록
+    // [수정] 외출/조퇴: 현재 시간 기록
     if (leaveType === '외출' || leaveType === '조퇴') {
         leaveData.startTime = getCurrentTime(); // 현재 시간으로 시작 시간 자동 설정
-
-        // [추가] 조퇴인 경우 종료 시간 자동 설정
         if (leaveType === '조퇴') {
             leaveData.endTime = "17:30"; // 고정된 퇴근 시간
         }
-        // 외출은 endTime을 설정하지 않음 (복귀 시 휴무 해제)
+    }
+    // [추가] 연차/출장: 날짜 기록
+    else if (leaveType === '연차' || leaveType === '출장') {
+        const startDate = leaveStartDateInput?.value;
+        const endDate = leaveEndDateInput?.value;
+
+        if (!startDate) {
+            showToast('시작일을 입력해주세요.', true);
+            return; // 시작일은 필수
+        }
+        leaveData.startDate = startDate;
+
+        if (endDate) {
+            if (endDate < startDate) {
+                showToast('종료일은 시작일보다 이후여야 합니다.', true);
+                return;
+            }
+            leaveData.endDate = endDate;
+        }
     }
 
     appState.onLeaveMembers = appState.onLeaveMembers || [];
     appState.onLeaveMembers = appState.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
-    appState.onLeaveMembers.push(leaveData);
+    appState.onLeaveMembers.push(leaveData); // 시간/날짜 정보 포함된 객체 저장
 
     showToast(`${memberToSetLeave}님을 '${leaveType}'(으)로 설정했습니다.`);
     saveStateToFirestore();

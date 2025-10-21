@@ -299,6 +299,16 @@
                 <p><span id="leave-member-name" class="font-bold"></span> 님의 휴무 유형을 선택하세요.</p>
                 <div id="leave-type-options" class="grid grid-cols-2 gap-3">
                     </div>
+                 <div id="leave-date-inputs" class="hidden space-y-2 mt-4">
+                    <div>
+                        <label for="leave-start-date-input" class="block text-sm font-medium text-gray-700">시작일</label>
+                        <input type="date" id="leave-start-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    </div>
+                    <div>
+                        <label for="leave-end-date-input" class="block text-sm font-medium text-gray-700">종료일 (선택)</label>
+                        <input type="date" id="leave-end-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    </div>
+                </div>
                  </div>
             <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
                 <button type="button" id="cancel-leave-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>

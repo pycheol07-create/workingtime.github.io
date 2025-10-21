@@ -22,6 +22,7 @@ const taskCardStyles = {
     '2층업무': ['bg-neutral-50', 'border-neutral-200', 'text-neutral-800'],
     '재고찾는시간': ['bg-lime-50', 'border-lime-200', 'text-lime-800'],
     '매장근무': ['bg-cyan-50', 'border-cyan-200', 'text-cyan-800'],
+    '출장': ['bg-gray-50', 'border-gray-200', 'text-gray-800'], // 출장 스타일 추가
     'default': ['bg-blue-50', 'border-blue-200', 'text-blue-800'],
     'paused': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800']
 };
@@ -72,7 +73,7 @@ export const renderTaskAnalysis = (appState) => {
         return;
     }
 
-    const taskColorsHex = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
+    const taskColorsHex = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399', '출장': '#6b7280'}; // 출장 색 추가
 
     const taskAnalysis = completedRecords.reduce((acc, record) => {
         if (record.task) {
@@ -103,7 +104,7 @@ export const renderTaskAnalysis = (appState) => {
 };
 
 
-// [수정] renderRealtimeStatus: 휴무 카드에 시간 표시 로직 수정
+// [수정] renderRealtimeStatus: 휴무 카드에 시간/날짜 표시 로직 수정, 스피너 숨기기 강화
 export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
@@ -111,12 +112,14 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         return;
     }
 
+    // [수정] 로딩 스피너를 찾아서 먼저 숨깁니다.
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) {
         loadingSpinner.style.display = 'none';
-    } else {
-        teamStatusBoard.innerHTML = '';
     }
+    // 스피너를 숨긴 후 내용 초기화
+    teamStatusBoard.innerHTML = '';
+
 
     const memberGroupMap = new Map();
     teamGroups.forEach(group => group.members.forEach(member => {
@@ -268,23 +271,29 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                 card.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
-            // [수정] 휴무 유형 및 자동 기록된 시간 표시
+            // [수정] 휴무 유형 및 시간/날짜 표시
             if (isOnLeave) {
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
-                let timeText = '';
+                let detailText = '';
+                // 시간 정보 표시 (외출/조퇴)
                 if (leaveInfo.startTime) {
-                    timeText = formatTimeTo24H(leaveInfo.startTime); // utils.js 함수 사용
-                    // 종료 시간이 있거나, 조퇴(종료시간 자동설정)일 경우 표시
+                    detailText = formatTimeTo24H(leaveInfo.startTime);
                     if (leaveInfo.endTime) {
-                         timeText += ` - ${formatTimeTo24H(leaveInfo.endTime)}`;
-                    } else if (leaveInfo.type === '외출') { // 외출은 종료시간 없으면 ~ 표시
-                         timeText += ' ~';
+                         detailText += ` - ${formatTimeTo24H(leaveInfo.endTime)}`;
+                    } else if (leaveInfo.type === '외출') { // 외출만 ~ 표시
+                         detailText += ' ~';
                     }
-                     // 조퇴는 endTime이 17:30으로 자동 설정되므로 위 if문에서 처리됨
+                }
+                // 날짜 정보 표시 (연차/출장)
+                else if (leaveInfo.startDate) {
+                    detailText = leaveInfo.startDate.substring(5); // MM-DD
+                    if (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate) {
+                        detailText += ` ~ ${leaveInfo.endDate.substring(5)}`;
+                    }
                 }
                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div>
                                   <div class="text-xs">${leaveInfo.type || '휴무'}</div>
-                                  ${timeText ? `<div class="text-[10px] leading-tight mt-0.5">${timeText}</div>` : ''}`;
+                                  ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
             } else if (workingMembers.has(member)) {
                 card.classList.add('bg-red-50', 'border-red-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-red-800 break-keep">${member}</div><div class="text-xs text-gray-600 truncate" title="${workingMembers.get(member)}">${workingMembers.get(member)}</div>`;
@@ -332,21 +341,26 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                  card.classList.add('opacity-70', 'cursor-not-allowed');
              }
 
-             // [수정] 알바 휴무 유형 및 자동 기록된 시간 표시
+             // [수정] 알바 휴무 유형 및 시간/날짜 표시
              if (isAlbaOnLeave) {
                  card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
-                 let timeText = '';
+                 let detailText = '';
                  if (albaLeaveInfo.startTime) {
-                     timeText = formatTimeTo24H(albaLeaveInfo.startTime);
+                     detailText = formatTimeTo24H(albaLeaveInfo.startTime);
                      if (albaLeaveInfo.endTime) {
-                         timeText += ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}`;
+                         detailText += ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}`;
                      } else if (albaLeaveInfo.type === '외출') {
-                         timeText += ' ~';
+                         detailText += ' ~';
                      }
+                 } else if (albaLeaveInfo.startDate) {
+                    detailText = albaLeaveInfo.startDate.substring(5);
+                    if (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate) {
+                        detailText += ` ~ ${albaLeaveInfo.endDate.substring(5)}`;
+                    }
                  }
                  card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div>
                                    <div class="text-xs">${albaLeaveInfo.type || '휴무'}</div>
-                                   ${timeText ? `<div class="text-[10px] leading-tight mt-0.5">${timeText}</div>` : ''}`;
+                                   ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
              } else if (currentlyWorkingTask) {
                  card.classList.add('bg-red-50', 'border-red-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-red-800">${pt.name}</div><div class="text-xs text-gray-600 truncate" title="${currentlyWorkingTask}">${currentlyWorkingTask}</div>`;
@@ -359,8 +373,8 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         albaContainer.appendChild(albaGrid);
         allMembersContainer.appendChild(albaContainer);
     }
-    teamStatusBoard.appendChild(presetTaskContainer); // 순서 변경: 업무 카드가 위로
-    teamStatusBoard.appendChild(allMembersContainer); // 팀원 현황이 아래로
+    teamStatusBoard.appendChild(presetTaskContainer);
+    teamStatusBoard.appendChild(allMembersContainer);
 };
 
 // ... (renderCompletedWorkLog, updateSummary, renderTeamSelectionModalContent 변경 없음) ...
@@ -552,11 +566,11 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     container.appendChild(albaGroupContainer);
 };
 
-// [수정] renderLeaveTypeModalOptions: 시간 입력 필드 관련 로직 제거
+// [수정] renderLeaveTypeModalOptions: 날짜 입력 필드 표시/숨김 로직 추가
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
-    // const timeInputsDiv = document.getElementById('leave-time-inputs'); // 삭제
-    if (!container) return; // timeInputsDiv 체크 제거
+    const dateInputsDiv = document.getElementById('leave-date-inputs'); // 날짜 입력 필드 div
+    if (!container || !dateInputsDiv) return;
 
     container.innerHTML = '';
     leaveTypes.forEach((type, index) => {
@@ -569,12 +583,27 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         container.appendChild(div);
     });
 
-    // 라디오 버튼 변경 시 이벤트 리스너 제거 (시간 필드 제어 불필요)
-    /* container.addEventListener('change', (e) => { ... }); */
+    // 라디오 버튼 변경 시 이벤트 리스너 추가
+    container.addEventListener('change', (e) => {
+        if (e.target.classList.contains('leave-type-radio')) {
+            const selectedType = e.target.value;
+            // [수정] 연차 또는 출장 선택 시 날짜 필드 보이기
+            if (selectedType === '연차' || selectedType === '출장') {
+                dateInputsDiv.classList.remove('hidden');
+            } else {
+                dateInputsDiv.classList.add('hidden');
+            }
+        }
+    });
 
     const firstRadio = container.querySelector('input[type="radio"]');
     if (firstRadio) {
         firstRadio.checked = true;
-        // 시간 필드 표시/숨김 로직 제거
+        // 초기 상태 확인 및 날짜 필드 표시/숨김
+        if (firstRadio.value === '연차' || firstRadio.value === '출장') {
+            dateInputsDiv.classList.remove('hidden');
+        } else {
+            dateInputsDiv.classList.add('hidden');
+        }
     }
 };
