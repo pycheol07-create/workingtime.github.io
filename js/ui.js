@@ -191,7 +191,8 @@ export const renderRealtimeStatus = (appState) => {
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // [중요 버그 수정 완료] 변수명 변경 (ongoingRecordsForStatus 사용)
+    // [중요 버그 수정 완료] const 키워드 제거됨 -> 변수명 변경 (ongoingRecordsForStatus 사용)
+    const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing'); // 중복 선언 아님, 위에서 선언된 ongoingRecords와 다름
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
 
@@ -340,7 +341,7 @@ export const updateSummary = (appState) => {
 
     const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
     const totalCompletedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
-    if (summaryTotalWorkTimeEl) summaryTotalWorkTimeEl.textContent = formatDuration(totalCompletedMinutes); // 타이머 시작 전 초기값
+    if (summaryTotalWorkTimeEl) summaryTotalWorkTimeEl.textContent = formatDuration(totalCompletedMinutes);
 
     if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaff}`;
     if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveCount}`;
