@@ -2,7 +2,7 @@ import { formatTimeTo24H, formatDuration } from './utils.js';
 // [수정] config.js에서 정적 데이터 임포트 제거
 
 // [추가] 업무별 카드 스타일 정의 (Tailwind CSS 클래스 사용)
-// 키: 업무 이름, 값: [배경색, 테두리색, 제목 글자색]
+const taskCardStyles = { /* ... 이전 코드와 동일 ... */ };
 const taskCardStyles = {
     '국내배송': ['bg-green-50', 'border-green-200', 'text-green-800'],
     '중국제작': ['bg-purple-50', 'border-purple-200', 'text-purple-800'],
@@ -23,17 +23,16 @@ const taskCardStyles = {
     '2층업무': ['bg-neutral-50', 'border-neutral-200', 'text-neutral-800'],
     '재고찾는시간': ['bg-lime-50', 'border-lime-200', 'text-lime-800'],
     '매장근무': ['bg-cyan-50', 'border-cyan-200', 'text-cyan-800'],
-    // 기본 스타일 (위에 정의되지 않은 업무용)
     'default': ['bg-blue-50', 'border-blue-200', 'text-blue-800'],
-    'paused': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800'] // 일시정지 시 스타일
+    'paused': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800']
 };
+
 
 // [수정] quantityTaskTypes를 파라미터로 받음
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
     container.innerHTML = '';
-    // [수정] 파라미터로 받은 quantityTaskTypes 사용
     quantityTaskTypes.forEach(task => {
         const div = document.createElement('div');
         div.innerHTML = `
@@ -49,7 +48,6 @@ export const renderTaskSelectionModal = (taskGroups = {}) => {
     const container = document.getElementById('task-modal-content');
     if (!container) return;
     container.innerHTML = '';
-    // [수정] 파라미터로 받은 taskGroups 사용
     Object.entries(taskGroups).forEach(([groupName, tasks]) => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'flex-1';
@@ -76,7 +74,6 @@ export const renderTaskAnalysis = (appState) => {
         return;
     }
 
-    // [수정] 색상 정보를 taskCardStyles에서 가져오도록 변경 (헥스코드는 Tailwind 색상과 다를 수 있음, 예시로 유지)
     const taskColorsHex = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
 
     const taskAnalysis = completedRecords.reduce((acc, record) => {
@@ -94,7 +91,7 @@ export const renderTaskAnalysis = (appState) => {
 
     sortedTasks.forEach(([task, minutes]) => {
         const percentage = totalLoggedMinutes > 0 ? (minutes / totalLoggedMinutes) * 100 : 0;
-        const color = taskColorsHex[task] || '#6b7280'; // 차트 색상은 hex 코드 사용 유지
+        const color = taskColorsHex[task] || '#6b7280'; 
         if (percentage > 0) {
             gradientParts.push(`${color} ${cumulativePercentage}% ${cumulativePercentage + percentage}%`);
             cumulativePercentage += percentage;
@@ -114,14 +111,12 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         console.error("Element #team-status-board not found!");
         return;
     }
-    teamStatusBoard.innerHTML = ''; // 기존 내용 지우기
+    teamStatusBoard.innerHTML = ''; 
     
-    // 로딩 스피너 숨기기 (데이터 로드 완료 시)
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) loadingSpinner.style.display = 'none';
 
     const memberGroupMap = new Map();
-    // [수정] 파라미터로 받은 teamGroups 사용
     teamGroups.forEach(group => group.members.forEach(member => {
         if (!memberGroupMap.has(member)) memberGroupMap.set(member, group.name);
     }));
@@ -132,32 +127,29 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
 
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4'; // 5열 그리드
+    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4'; 
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
-
-    // [오류 수정] ongoingRecords는 여기서 한번만 선언
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
-
     const tasksToRender = [...new Set([...baseTasks, ...activeTaskNames])];
 
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
-        const isPaused = groupRecords.some(r => r.status === 'paused'); // 일시정지 상태 먼저 확인
+        const isPaused = groupRecords.some(r => r.status === 'paused'); 
 
-        // [수정] 업무별 스타일 가져오기
         let styleClasses = taskCardStyles[task] || taskCardStyles['default'];
         if (isPaused) {
-            styleClasses = taskCardStyles['paused']; // 일시정지 시 노란색 스타일 적용
+            styleClasses = taskCardStyles['paused']; 
         }
         const [bgColor, borderColor, titleColor] = styleClasses;
-        const hoverBorderColor = borderColor.replace('-200', '-400'); // hover 시 테두리 색상 진하게
+        const hoverBorderColor = borderColor.replace('-200', '-400'); 
 
         card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md ${bgColor} ${borderColor} hover:${hoverBorderColor}`;
 
         if (groupRecords.length > 0) {
+            // ... (기존 업무 진행 카드 로직은 동일) ...
             const firstRecord = groupRecords[0];
             card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
@@ -194,7 +186,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                                 ${buttonHtml}
                             </div>`;
         } else {
-            // 업무 시작 카드
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
@@ -214,7 +205,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         presetGrid.appendChild(card);
     });
 
-    // '기타 업무' 카드 (스타일 유지)
     const otherTaskCard = document.createElement('div');
     otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
     otherTaskCard.dataset.action = 'other';
@@ -237,12 +227,12 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // [중요 버그 수정 완료] 변수명 변경 (ongoingRecordsForStatus 사용)
-    const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing'); // Section 2 용도
+    const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing'); 
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
+    // [수정] onLeaveMembers 구조 변경 대응
+    const onLeaveStatus = new Map((appState.onLeaveMembers || []).map(item => [item.member, item.type]));
 
-    // [수정] teamGroups를 파라미터에서 받아서 정렬
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
         teamGroups.find(g => g.name === '공통파트'),
@@ -265,21 +255,28 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         uniqueMembersInGroup.forEach(member => {
             const card = document.createElement('button');
             card.type = 'button';
-            const isOnLeave = (appState.onLeaveMembers || []).includes(member);
+            // [수정] isOnLeave 체크 방식 변경
+            const leaveType = onLeaveStatus.get(member);
+            const isOnLeave = !!leaveType;
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
 
             card.className = 'p-1 rounded-lg border text-center transition-shadow min-h-[64px] w-24 flex flex-col justify-center';
 
+            // 클릭 이벤트 핸들러 추가 (휴무 설정/취소)
+            card.dataset.memberToggleLeave = member; // 항상 data 속성 추가
             if (!isWorking) {
+                // 업무 중이 아닐 때만 클릭 가능하도록 스타일 추가
                 card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
-                card.dataset.memberToggleLeave = member;
             } else {
-                card.classList.add('cursor-not-allowed');
+                // 업무 중일 때는 클릭 비활성화 스타일 (실제 클릭은 app.js에서 막음)
+                card.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
+
+            // [수정] 휴무 유형 표시 로직
             if (isOnLeave) {
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
-                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">휴무</div>`;
+                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">${leaveType || '휴무'}</div>`; // 저장된 유형 표시
             } else if (workingMembers.has(member)) {
                 card.classList.add('bg-red-50', 'border-red-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-red-800 break-keep">${member}</div><div class="text-xs text-gray-600 truncate" title="${workingMembers.get(member)}">${workingMembers.get(member)}</div>`;
@@ -296,7 +293,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         allMembersContainer.appendChild(groupContainer);
     });
 
-    // Part-timer section
+    // Part-timer section (변경 없음)
     const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
     const activePartTimers = (appState.partTimers || []).filter(pt => workingAlbaMembers.has(pt.name));
 
@@ -314,22 +311,37 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
              const currentlyWorkingTask = workingMembers.get(pt.name);
              const isPaused = pausedMembers.has(pt.name);
+             // [수정] 알바 휴무 표시 로직 추가
+             const albaLeaveType = onLeaveStatus.get(pt.name);
+             const isAlbaOnLeave = !!albaLeaveType;
 
-             if (currentlyWorkingTask) {
+             if (isAlbaOnLeave) {
+                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
+                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">${albaLeaveType || '휴무'}</div>`;
+             } else if (currentlyWorkingTask) {
                  card.classList.add('bg-red-50', 'border-red-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-red-800">${pt.name}</div><div class="text-xs text-gray-600 truncate" title="${currentlyWorkingTask}">${currentlyWorkingTask}</div>`;
              } else if (isPaused) {
                  card.classList.add('bg-yellow-50', 'border-yellow-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${pt.name}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
+             } else {
+                 // 알바가 근무 중이 아니면 '대기 중' 대신 아무것도 표시 안 함 (혹은 다른 상태 표시 가능)
+                 // card.classList.add('bg-green-50', 'border-green-200');
+                 // card.innerHTML = `<div class="font-semibold text-sm text-green-800">${pt.name}</div><div class="text-xs text-green-600">대기 중</div>`;
+                 // 여기서는 빈 카드를 추가하지 않도록 함 (activePartTimers 필터링으로 처리됨)
+                 return; // 이 카드는 추가하지 않음
              }
              albaGrid.appendChild(card);
         });
-        albaContainer.appendChild(albaGrid);
-        allMembersContainer.appendChild(albaContainer);
+        if(albaGrid.children.length > 0) { // 알바 카드가 있을 때만 섹션 추가
+            albaContainer.appendChild(albaGrid);
+            allMembersContainer.appendChild(albaContainer);
+        }
     }
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
+// ... (renderCompletedWorkLog 함수는 변경 없음) ...
 export const renderCompletedWorkLog = (appState) => {
     const workLogBody = document.getElementById('work-log-body');
     if (!workLogBody) return;
@@ -365,7 +377,8 @@ export const renderCompletedWorkLog = (appState) => {
     }
 };
 
-// [수정] teamGroups를 파라미터로 받음
+
+// [수정] teamGroups를 파라미터로 받고, onLeaveMembers 구조 변경 반영
 export const updateSummary = (appState, teamGroups = []) => {
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
     const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
@@ -373,17 +386,17 @@ export const updateSummary = (appState, teamGroups = []) => {
     const summaryWorkingStaffEl = document.getElementById('summary-working-staff');
     const summaryIdleStaffEl = document.getElementById('summary-idle-staff');
     const summaryOngoingTasksEl = document.getElementById('summary-ongoing-tasks');
-    // [제거] const summaryTotalWorkTimeEl = document.getElementById('summary-total-work-time');
 
-    // [수정] 파라미터로 받은 teamGroups 사용
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
     const totalStaffCount = allStaffMembers.size;
     const totalPartTimerCount = allPartTimers.size;
 
-    const onLeaveMembers = new Set(appState.onLeaveMembers || []);
-    const onLeaveStaffCount = [...onLeaveMembers].filter(member => allStaffMembers.has(member)).length;
-    const onLeaveTotalCount = onLeaveMembers.size;
+    // [수정] 휴무 인원 계산 방식 변경
+    const onLeaveEntries = appState.onLeaveMembers || [];
+    const onLeaveMemberNames = new Set(onLeaveEntries.map(item => item.member));
+    // const onLeaveStaffCount = [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length; // 직원 휴무자 수 (필요시 사용)
+    const onLeaveTotalCount = onLeaveMemberNames.size; // 전체 휴무자 수
 
     const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const workingMembers = new Set(ongoingOrPausedRecords.map(r => r.member));
@@ -391,27 +404,28 @@ export const updateSummary = (appState, teamGroups = []) => {
     const workingPartTimerCount = [...workingMembers].filter(member => allPartTimers.has(member)).length;
     const totalWorkingCount = workingMembers.size;
 
-    const availableStaffCount = totalStaffCount - onLeaveStaffCount;
-    const availablePartTimerCount = totalPartTimerCount;
+    // [수정] 근무 가능 인원 계산 시 휴무자 제외
+    const availableStaffCount = totalStaffCount - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
+    const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length; // 알바 휴무자도 제외 (선택 사항)
+    
+    // [수정] 대기 인원 계산 수정: (근무 가능 인원) - (업무 중 인원)
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
-    const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount);
-    const totalIdleCount = idleStaffCount + idlePartTimerCount;
+    // 알바는 '대기' 상태를 명확히 정의하기 어려우므로, 직원에 대해서만 계산하거나 별도 로직 필요. 여기서는 직원만 계산.
+    // const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount);
+    const totalIdleCount = idleStaffCount; // + idlePartTimerCount;
 
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
     // DOM 업데이트
     if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaffCount}/${totalPartTimerCount}`;
     if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveTotalCount}`;
-    if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`;
+    if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`; // 실제 근무 가능한 인원 표시
     if (summaryWorkingStaffEl) summaryWorkingStaffEl.textContent = `${totalWorkingCount}`;
     if (summaryIdleStaffEl) summaryIdleStaffEl.textContent = `${totalIdleCount}`;
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
-
-    // [제거] 'summary-total-work-time' 업데이트 로직
-    // 이 로직은 app.js의 updateElapsedTimes (1초 타이머)로 이동되었습니다.
 };
 
-// [수정] teamGroups를 파라미터로 받음
+// ... (renderTeamSelectionModalContent 함수는 변경 없음) ...
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -423,9 +437,9 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     const allWorkingMembers = new Set(
         (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused').map(r => r.member)
     );
-    const onLeaveMembers = new Set(appState.onLeaveMembers || []);
+    // [수정] onLeaveMembers 구조 변경 대응
+    const onLeaveMemberNames = new Set((appState.onLeaveMembers || []).map(item => item.member));
 
-    // [수정] 파라미터로 받은 teamGroups 사용
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
         teamGroups.find(g => g.name === '공통파트'),
@@ -449,7 +463,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const uniqueMembersInGroup = [...new Set(group.members)];
         uniqueMembersInGroup.forEach(member => {
             const isWorking = allWorkingMembers.has(member);
-            const isOnLeave = onLeaveMembers.has(member);
+            const isOnLeave = onLeaveMemberNames.has(member); // 수정
             const card = document.createElement('button');
             card.type = 'button';
             card.dataset.memberName = member;
@@ -461,7 +475,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             if (isWorking) {
                 statusLabel = '<div class="text-xs text-red-500">업무 중</div>';
             } else if (isOnLeave) {
-                statusLabel = '<div class="text-xs text-gray-500">휴무</div>';
+                statusLabel = '<div class="text-xs text-gray-500">휴무 중</div>'; // 텍스트 변경
             }
             card.innerHTML = `<div class="font-semibold">${member}</div>${statusLabel}`;
 
@@ -471,7 +485,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         container.appendChild(groupContainer);
     });
 
-    // Render Alba group separately
+    // Render Alba group separately (변경 없음)
     const albaGroupContainer = document.createElement('div');
     albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
     albaGroupContainer.innerHTML = `<div class="flex justify-between items-center p-2 border-b border-gray-200">
@@ -487,7 +501,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
     (appState.partTimers || []).forEach(pt => {
         const isWorking = allWorkingMembers.has(pt.name);
-        const isOnLeave = onLeaveMembers.has(pt.name);
+        const isOnLeave = onLeaveMemberNames.has(pt.name); // 수정
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'relative';
 
@@ -502,7 +516,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         if (isWorking) {
             statusLabel = '<div class="text-xs text-red-500">업무 중</div>';
         } else if (isOnLeave) {
-            statusLabel = '<div class="text-xs text-gray-500">휴무</div>';
+            statusLabel = '<div class="text-xs text-gray-500">휴무 중</div>'; // 텍스트 변경
         }
         card.innerHTML = `<div class="font-semibold">${pt.name}</div>${statusLabel}`;
 
@@ -525,4 +539,25 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
     albaGroupContainer.appendChild(albaMemberList);
     container.appendChild(albaGroupContainer);
+};
+
+// [추가] 휴무 유형 선택 모달의 라디오 버튼 생성 함수
+export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
+    const container = document.getElementById('leave-type-options');
+    if (!container) return;
+    container.innerHTML = '';
+    leaveTypes.forEach((type, index) => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center';
+        div.innerHTML = `
+            <input id="leave-type-${index}" name="leave-type" type="radio" value="${type}" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+            <label for="leave-type-${index}" class="ml-2 block text-sm font-medium text-gray-700">${type}</label>
+        `;
+        container.appendChild(div);
+    });
+    // 기본값으로 첫 번째 옵션 선택
+    const firstRadio = container.querySelector('input[type="radio"]');
+    if (firstRadio) {
+        firstRadio.checked = true;
+    }
 };
