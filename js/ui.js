@@ -1,6 +1,32 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
 // [수정] config.js에서 정적 데이터 임포트 제거
-// import { quantityTaskTypes, taskGroups, teamGroups } from './config.js';
+
+// [추가] 업무별 카드 스타일 정의 (Tailwind CSS 클래스 사용)
+// 키: 업무 이름, 값: [배경색, 테두리색, 제목 글자색]
+const taskCardStyles = {
+    '국내배송': ['bg-green-50', 'border-green-200', 'text-green-800'],
+    '중국제작': ['bg-purple-50', 'border-purple-200', 'text-purple-800'],
+    '직진배송': ['bg-emerald-50', 'border-emerald-200', 'text-emerald-800'],
+    '채우기': ['bg-sky-50', 'border-sky-200', 'text-sky-800'],
+    '개인담당업무': ['bg-indigo-50', 'border-indigo-200', 'text-indigo-800'],
+    '티니': ['bg-red-50', 'border-red-200', 'text-red-800'],
+    '택배포장': ['bg-orange-50', 'border-orange-200', 'text-orange-800'],
+    '해외배송': ['bg-cyan-50', 'border-cyan-200', 'text-cyan-800'],
+    '재고조사': ['bg-fuchsia-50', 'border-fuchsia-200', 'text-fuchsia-800'],
+    '앵글정리': ['bg-amber-50', 'border-amber-200', 'text-amber-800'],
+    '상품재작업': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800'],
+    '상.하차': ['bg-stone-50', 'border-stone-200', 'text-stone-800'],
+    '검수': ['bg-teal-50', 'border-teal-200', 'text-teal-800'],
+    '아이롱': ['bg-violet-50', 'border-violet-200', 'text-violet-800'],
+    '오류': ['bg-rose-50', 'border-rose-200', 'text-rose-800'],
+    '강성': ['bg-pink-50', 'border-pink-200', 'text-pink-800'],
+    '2층업무': ['bg-neutral-50', 'border-neutral-200', 'text-neutral-800'],
+    '재고찾는시간': ['bg-lime-50', 'border-lime-200', 'text-lime-800'],
+    '매장근무': ['bg-cyan-50', 'border-cyan-200', 'text-cyan-800'],
+    // 기본 스타일 (위에 정의되지 않은 업무용)
+    'default': ['bg-blue-50', 'border-blue-200', 'text-blue-800'],
+    'paused': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800'] // 일시정지 시 스타일
+};
 
 // [수정] quantityTaskTypes를 파라미터로 받음
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
@@ -50,7 +76,8 @@ export const renderTaskAnalysis = (appState) => {
         return;
     }
 
-    const taskColors = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
+    // [수정] 색상 정보를 taskCardStyles에서 가져오도록 변경 (헥스코드는 Tailwind 색상과 다를 수 있음, 예시로 유지)
+    const taskColorsHex = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
 
     const taskAnalysis = completedRecords.reduce((acc, record) => {
         if (record.task) {
@@ -67,7 +94,7 @@ export const renderTaskAnalysis = (appState) => {
 
     sortedTasks.forEach(([task, minutes]) => {
         const percentage = totalLoggedMinutes > 0 ? (minutes / totalLoggedMinutes) * 100 : 0;
-        const color = taskColors[task] || '#6b7280';
+        const color = taskColorsHex[task] || '#6b7280'; // 차트 색상은 hex 코드 사용 유지
         if (percentage > 0) {
             gradientParts.push(`${color} ${cumulativePercentage}% ${cumulativePercentage + percentage}%`);
             cumulativePercentage += percentage;
@@ -87,7 +114,11 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         console.error("Element #team-status-board not found!");
         return;
     }
-    teamStatusBoard.innerHTML = '';
+    teamStatusBoard.innerHTML = ''; // 기존 내용 지우기
+    
+    // 로딩 스피너 숨기기 (데이터 로드 완료 시)
+    const loadingSpinner = document.getElementById('loading-spinner');
+    if (loadingSpinner) loadingSpinner.style.display = 'none';
 
     const memberGroupMap = new Map();
     // [수정] 파라미터로 받은 teamGroups 사용
@@ -114,16 +145,23 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
+        const isPaused = groupRecords.some(r => r.status === 'paused'); // 일시정지 상태 먼저 확인
+
+        // [수정] 업무별 스타일 가져오기
+        let styleClasses = taskCardStyles[task] || taskCardStyles['default'];
+        if (isPaused) {
+            styleClasses = taskCardStyles['paused']; // 일시정지 시 노란색 스타일 적용
+        }
+        const [bgColor, borderColor, titleColor] = styleClasses;
+        const hoverBorderColor = borderColor.replace('-200', '-400'); // hover 시 테두리 색상 진하게
+
+        card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md ${bgColor} ${borderColor} hover:${hoverBorderColor}`;
 
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
-
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400';
             card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
-
-            const isPaused = groupRecords.some(r => r.status === 'paused');
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
@@ -135,8 +173,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             });
             membersHtml += '</div>';
 
-            if(isPaused) { card.classList.add('bg-yellow-50', 'border-yellow-200');} else {card.classList.add('bg-blue-50', 'border-blue-200');}
-            let titleColorClass = isPaused ? 'text-yellow-800' : 'text-blue-800';
             let statusText = isPaused ? ' (일시정지)' : '';
             let participationCount = groupRecords.length;
 
@@ -151,20 +187,20 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             const durationStatus = isPaused ? 'paused' : 'ongoing';
 
             card.innerHTML = `<div class="flex flex-col h-full">
-                                <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
+                                <div class="font-bold text-lg ${titleColor} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${durationStatus}" data-record-id="${recordIdForDuration || ''}"></span></div>
                                 <div class="font-semibold text-gray-600 text-sm mb-1">${participationCount}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
                                 ${buttonHtml}
                             </div>`;
         } else {
-            card.className = 'p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-blue-50 border-blue-200';
+            // 업무 시작 카드
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
             card.innerHTML = `
                 <div class="flex-grow">
-                    <div class="font-bold text-lg text-blue-800 break-keep">${task}</div>
+                    <div class="font-bold text-lg ${titleColor} break-keep">${task}</div>
                     <div class="text-xs text-gray-500 my-2">시작: 시작 전</div>
                     <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs text-gray-400 italic flex-grow flex items-center">카드를 클릭하여 팀원 선택</div>
@@ -178,6 +214,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         presetGrid.appendChild(card);
     });
 
+    // '기타 업무' 카드 (스타일 유지)
     const otherTaskCard = document.createElement('div');
     otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
     otherTaskCard.dataset.action = 'other';
@@ -372,13 +409,6 @@ export const updateSummary = (appState, teamGroups = []) => {
 
     // [제거] 'summary-total-work-time' 업데이트 로직
     // 이 로직은 app.js의 updateElapsedTimes (1초 타이머)로 이동되었습니다.
-    /*
-    if (summaryTotalWorkTimeEl) {
-        const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
-        const totalCompletedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
-        summaryTotalWorkTimeEl.textContent = formatDuration(totalCompletedMinutes);
-    }
-    */
 };
 
 // [수정] teamGroups를 파라미터로 받음
