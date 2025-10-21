@@ -1,7 +1,6 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// 업무별 카드 스타일 정의
-const taskCardStyles = { /* ... 이전 코드와 동일 ... */ };
+// 업무별 카드 스타일 정의 (한 번만 선언)
 const taskCardStyles = {
     '국내배송': ['bg-green-50', 'border-green-200', 'text-green-800'],
     '중국제작': ['bg-purple-50', 'border-purple-200', 'text-purple-800'],
@@ -22,13 +21,12 @@ const taskCardStyles = {
     '2층업무': ['bg-neutral-50', 'border-neutral-200', 'text-neutral-800'],
     '재고찾는시간': ['bg-lime-50', 'border-lime-200', 'text-lime-800'],
     '매장근무': ['bg-cyan-50', 'border-cyan-200', 'text-cyan-800'],
-    '출장': ['bg-gray-50', 'border-gray-200', 'text-gray-800'], // 출장 스타일 추가
+    '출장': ['bg-gray-50', 'border-gray-200', 'text-gray-800'],
     'default': ['bg-blue-50', 'border-blue-200', 'text-blue-800'],
     'paused': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800']
 };
 
 
-// ... (renderQuantityModalInputs, renderTaskSelectionModal, renderTaskAnalysis 변경 없음) ...
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
@@ -104,9 +102,7 @@ export const renderTaskAnalysis = (appState) => {
 };
 
 
-// [수정] renderRealtimeStatus: 함수 시작 시 스피너 숨기기
 export const renderRealtimeStatus = (appState, teamGroups = []) => {
-    // [수정] 로딩 스피너를 찾아서 *먼저* 숨깁니다.
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) {
         loadingSpinner.style.display = 'none';
@@ -117,7 +113,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         console.error("Element #team-status-board not found!");
         return;
     }
-    // 스피너를 숨긴 후 내용 초기화
     teamStatusBoard.innerHTML = '';
 
     const memberGroupMap = new Map();
