@@ -2,7 +2,7 @@ import { initializeFirebase, loadConfiguration, saveConfiguration } from './conf
 
 let db;
 let appConfig = {};
-const ADMIN_PASSWORD = "admin"; // 🚨 실제 운영 시에는 절대 이렇게 사용하면 안 됩니다! 임시 비밀번호입니다.
+const ADMIN_PASSWORD = "anffbxla12!!"; // 🚨 실제 운영 시에는 절대 이렇게 사용하면 안 됩니다! 임시 비밀번호입니다.
 
 document.addEventListener('DOMContentLoaded', () => {
     const passwordPrompt = document.getElementById('password-prompt');
