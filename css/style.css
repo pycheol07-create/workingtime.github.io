@@ -86,3 +86,14 @@ body {
     text-shadow: 0 0 5px rgba(125, 211, 252, 0.5);
     margin-top: 0.25rem; /* 제목과 숫자 간격 */
 }
+
+/* 상단 초기화 버튼 보정 */
+#reset-app-btn {
+    transition: all 0.2s ease-in-out;
+}
+#reset-app-btn:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+#reset-app-btn:active {
+    transform: scale(0.97);
+}
