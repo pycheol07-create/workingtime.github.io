@@ -42,7 +42,7 @@
         </header>
 
         <div class="mb-8 bg-gray-800 text-white rounded-lg border border-gray-700 shadow-lg">
-            <div id="toggle-summary" class="flex justify-between items-center p-4 cursor-pointer md:cursor-auto">
+             <div id="toggle-summary" class="flex justify-between items-center p-4 cursor-pointer md:cursor-auto">
                 <h2 class="text-xl font-bold">실시간 현황판</h2>
                 <svg id="summary-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -83,19 +83,19 @@
 
         <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
             <h2 class="text-xl font-bold text-gray-900 mb-4">업무 배정 및 팀 현황</h2>
-            <div id="team-status-board" class="space-y-8">
-                <div id="loading-spinner" class="text-center py-10">
-                    <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <p class="mt-2 text-gray-500 font-semibold">설정 및 데이터를 불러오는 중...</p>
-                </div>
+            <div id="loading-spinner" class="text-center py-10">
+                <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="mt-2 text-gray-500 font-semibold">설정 및 데이터를 불러오는 중...</p>
             </div>
+            <div id="team-status-board" class="space-y-8">
+                </div>
         </div>
 
         <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-            <div id="toggle-completed-log" class="flex justify-between items-center cursor-pointer md:cursor-auto">
+             <div id="toggle-completed-log" class="flex justify-between items-center cursor-pointer md:cursor-auto">
                 <h2 class="text-xl font-bold text-gray-900">오늘 완료된 업무</h2>
                 <svg id="completed-log-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -128,7 +128,7 @@
         </div>
 
         <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
-            <div id="toggle-analysis" class="flex justify-between items-center cursor-pointer md:cursor-auto">
+             <div id="toggle-analysis" class="flex justify-between items-center cursor-pointer md:cursor-auto">
                 <h2 class="text-xl font-bold text-gray-900">오늘의 업무 비중 분석</h2>
                  <svg id="analysis-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -187,7 +187,8 @@
                             <button data-view="daily" class="history-tab-btn pb-2">일별 상세</button>
                             <button data-view="weekly" class="history-tab-btn pb-2">주별 요약</button>
                             <button data-view="monthly" class="history-tab-btn pb-2">월별 요약</button>
-                            <button data-view="attendance" class="history-tab-btn pb-2">근태 이력</button> </div>
+                            <button data-view="attendance" class="history-tab-btn pb-2">근태 이력</button>
+                        </div>
                     </div>
                     <div id="history-view-container" class="flex-grow p-6 overflow-y-auto bg-gray-50">
                         <div id="history-daily-view" class="hidden"></div>
@@ -310,7 +311,7 @@
                         <input type="date" id="leave-end-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                     </div>
                 </div>
-                 </div>
+            </div>
             <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
                 <button type="button" id="cancel-leave-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
                 <button type="button" id="confirm-leave-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">설정 완료</button>

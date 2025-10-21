@@ -66,22 +66,3 @@ export const displayCurrentDate = () => {
     const dateString = `${year}년 ${month}월 ${day}일 (${dayOfWeek})`;
     document.getElementById('current-date-display').textContent = dateString;
 };
-
-// === [추가] 시간/날짜 보조 함수 ===
-export const addMinutesToTime = (timeStr, minutesToAdd) => {
-    if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) return '';
-    const [h, m] = timeStr.split(':').map(Number);
-    const base = new Date(1970, 0, 1, h, m, 0);
-    base.setMinutes(base.getMinutes() + Number(minutesToAdd || 0));
-    const hh = String(base.getHours()).padStart(2, '0');
-    const mm = String(base.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-};
-
-export const calcDateDiffInDays = (startDateStr, endDateStr) => {
-    if (!startDateStr) return 0;
-    const s = new Date(startDateStr + 'T00:00:00');
-    const e = new Date((endDateStr || startDateStr) + 'T00:00:00');
-    const diff = Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1; // 양끝 포함
-    return Math.max(1, diff);
-};

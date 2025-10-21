@@ -97,26 +97,3 @@ body {
 #reset-app-btn:active {
     transform: scale(0.97);
 }
-
-/* === 모바일 세부 반응형 개선 === */
-@media (max-width: 640px) {
-  .dashboard-card h4 {
-    font-size: 0.75rem;
-    min-height: 2rem;
-  }
-  .dashboard-card p {
-    font-size: 1.25rem;
-    line-height: 1.75rem;
-  }
-  button, .btn {
-    min-height: 2.5rem;
-    padding: 0.5rem 1rem;
-  }
-  #team-status-board .p-3 {
-    padding: 0.75rem;
-  }
-  .chart {
-    width: 120px;
-    height: 120px;
-  }
-}
