@@ -402,7 +402,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
 
         const memberList = document.createElement('div');
         memberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
-        memberList.dataset.groupName = group.name; // "전체 선택" 기능을 위해 group-name 속성 추가
+        memberList.dataset.groupName = group.name;
 
         const uniqueMembersInGroup = [...new Set(group.members)];
         uniqueMembersInGroup.forEach(member => {
@@ -410,7 +410,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
             const isOnLeave = onLeaveMembers.has(member);
             const card = document.createElement('button');
             card.type = 'button';
-            card.dataset.memberName = member; // 멤버 선택을 위해 member-name 속성 추가
+            card.dataset.memberName = member;
             card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isWorking || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
             if (isWorking || isOnLeave) card.disabled = true;
@@ -441,7 +441,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
                                     </div>`;
     const albaMemberList = document.createElement('div');
     albaMemberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
-    albaMemberList.dataset.groupName = '알바'; // "전체 선택" 기능을 위해 group-name 속성 추가
+    albaMemberList.dataset.groupName = '알바';
 
     (appState.partTimers || []).forEach(pt => {
         const isWorking = allWorkingMembers.has(pt.name);
@@ -451,7 +451,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
 
         const card = document.createElement('button');
         card.type = 'button';
-        card.dataset.memberName = pt.name; // 멤버 선택을 위해 member-name 속성 추가
+        card.dataset.memberName = pt.name;
         card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isWorking || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
         if (isWorking || isOnLeave) card.disabled = true;
