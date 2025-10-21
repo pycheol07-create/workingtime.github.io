@@ -48,7 +48,10 @@ export const renderTaskAnalysis = (appState) => {
     const taskColors = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
 
     const taskAnalysis = completedRecords.reduce((acc, record) => {
-        acc[record.task] = (acc[record.task] || 0) + (record.duration || 0);
+        // record.task 가 없을 경우 대비
+        if (record.task) {
+            acc[record.task] = (acc[record.task] || 0) + (record.duration || 0);
+        }
         return acc;
     }, {});
 
