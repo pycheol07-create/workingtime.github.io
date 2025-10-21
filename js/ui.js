@@ -1,7 +1,6 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
 // 업무별 카드 스타일 정의
-const taskCardStyles = { /* ... 이전 코드와 동일 ... */ };
 const taskCardStyles = {
     '국내배송': ['bg-green-50', 'border-green-200', 'text-green-800'],
     '중국제작': ['bg-purple-50', 'border-purple-200', 'text-purple-800'],
