@@ -124,7 +124,7 @@ const calcElapsedMinutes = (start, end, pauses = []) => {
 };
 
 // ========== 타이머 ==========
-function updateElapsedTimes() {
+const updateElapsedTimes = () => {
   const now = getCurrentTime();
   document.querySelectorAll('.ongoing-duration').forEach(el => {
     try {
@@ -136,25 +136,23 @@ function updateElapsedTimes() {
     } catch { /* noop */ }
   });
 
-  // ✅ 수정된 부분: 완료 + 진행 중 + 일시정지 업무 모두 합산
-  const records = appState.workRecords || [];
-  const totalMinutes = records.reduce((sum, record) => {
-    if (record.status === 'completed') {
-      return sum + (record.duration || 0);
-    } else if (record.status === 'ongoing') {
-      // 진행 중은 현재까지의 시간 계산
-      return sum + calcElapsedMinutes(record.startTime, now, record.pauses);
-    } else if (record.status === 'paused') {
-      // 일시정지는 마지막 정지 전까지만 계산
-      return sum + calcElapsedMinutes(record.startTime, record.pauses?.slice(-1)[0]?.start || now, record.pauses);
-    }
-    return sum;
-  }, 0);
+  // [수정] 현황판 '업무진행시간'을 실시간(완료 + 진행중)으로 표시
+  
+  // 1. 완료된 업무 시간 합계
+  const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
+  const totalCompletedMinutes = completedRecords.reduce((sum, r) => sum + (r.duration || 0), 0);
+  
+  // 2. 현재 '업무중'인 업무들의 실시간 시간 계산
+  const ongoingLiveRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
+  let totalOngoingMinutes = 0;
+  ongoingLiveRecords.forEach(rec => {
+      totalOngoingMinutes += calcElapsedMinutes(rec.startTime, now, rec.pauses);
+  });
 
+  // 3. DOM 업데이트 (완료 + 진행중)
   const el = document.getElementById('summary-total-work-time');
-  if (el) el.textContent = formatDuration(totalMinutes);
-}
-
+  if (el) el.textContent = formatDuration(totalCompletedMinutes + totalOngoingMinutes);
+};
 
 // ========== 렌더 ==========
 const render = () => {

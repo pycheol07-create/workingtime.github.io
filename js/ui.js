@@ -327,7 +327,7 @@ export const updateSummary = (appState) => {
     const summaryWorkingStaffEl = document.getElementById('summary-working-staff');
     const summaryIdleStaffEl = document.getElementById('summary-idle-staff');
     const summaryOngoingTasksEl = document.getElementById('summary-ongoing-tasks');
-    const summaryTotalWorkTimeEl = document.getElementById('summary-total-work-time');
+    // [제거] const summaryTotalWorkTimeEl = document.getElementById('summary-total-work-time');
 
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
@@ -360,12 +360,15 @@ export const updateSummary = (appState) => {
     if (summaryIdleStaffEl) summaryIdleStaffEl.textContent = `${totalIdleCount}`;
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
 
-    // ✅ 수정된 부분: elapsedTimeTimer 참조 제거
+    // [제거] 'summary-total-work-time' 업데이트 로직
+    // 이 로직은 app.js의 updateElapsedTimes (1초 타이머)로 이동되었습니다.
+    /*
     if (summaryTotalWorkTimeEl) {
         const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
         const totalCompletedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
         summaryTotalWorkTimeEl.textContent = formatDuration(totalCompletedMinutes);
     }
+    */
 };
 
 export const renderTeamSelectionModalContent = (task, appState) => {
