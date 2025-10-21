@@ -558,9 +558,10 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
 
 // [수정] renderLeaveTypeModalOptions: 날짜 입력 필드 표시/숨김 로직 추가
+// [수정] renderLeaveTypeModalOptions: 날짜 입력 필드 표시/숨김 로직 수정
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
-    const dateInputsDiv = document.getElementById('leave-date-inputs');
+    const dateInputsDiv = document.getElementById('leave-date-inputs'); 
     if (!container || !dateInputsDiv) return;
 
     container.innerHTML = '';
@@ -578,7 +579,8 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
-            if (selectedType === '연차' || selectedType === '출장') {
+            // [수정] 연차, 출장, 결근 선택 시 날짜 필드 보이기
+            if (selectedType === '연차' || selectedType === '출장' || selectedType === '결근') {
                 dateInputsDiv.classList.remove('hidden');
             } else {
                 dateInputsDiv.classList.add('hidden');
@@ -590,7 +592,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     if (firstRadio) {
         firstRadio.checked = true;
         // [수정] 초기 상태 확인 및 날짜 필드 표시/숨김 (맨 처음 로드 시)
-        if (firstRadio.value === '연차' || firstRadio.value === '출장') {
+        if (firstRadio.value === '연차' || firstRadio.value === '출장' || firstRadio.value === '결근') {
             dateInputsDiv.classList.remove('hidden');
         } else {
             dateInputsDiv.classList.add('hidden');

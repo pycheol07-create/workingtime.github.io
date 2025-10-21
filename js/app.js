@@ -74,6 +74,10 @@ const cancelLeaveBtn = document.getElementById('cancel-leave-btn');
 const leaveDateInputsDiv = document.getElementById('leave-date-inputs');
 const leaveStartDateInput = document.getElementById('leave-start-date-input');
 const leaveEndDateInput = document.getElementById('leave-end-date-input');
+const cancelLeaveConfirmModal = document.getElementById('cancel-leave-confirm-modal');
+const confirmCancelLeaveBtn = document.getElementById('confirm-cancel-leave-btn');
+const cancelCancelLeaveBtn = document.getElementById('cancel-cancel-leave-btn');
+const cancelLeaveConfirmMessage = document.getElementById('cancel-leave-confirm-message');
 
 // Toggles
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
@@ -111,6 +115,7 @@ let groupToStopId = null;
 let quantityModalContext = { mode: 'today', dateKey: null, onConfirm: null, onCancel: null };
 let tempSelectedMembers = [];
 let memberToSetLeave = null;
+let memberToCancelLeave = null;
 
 const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
@@ -886,15 +891,13 @@ if (teamStatusBoard) {
     }
 
 
-    // [수정] 팀원 카드 클릭 시 휴무 유형 모달 열기 또는 휴무 취소
+    // [수정] 팀원 카드 클릭 시 휴무 설정 또는 복귀 확인
     const memberCard = e.target.closest('[data-member-toggle-leave]');
     if (memberCard) {
       const memberName = memberCard.dataset.memberToggleLeave;
-      memberToSetLeave = memberName; 
-
+      
       const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
       if (isWorking) {
-          memberToSetLeave = null; 
           return showToast(`${memberName}님은 현재 업무 중이므로 휴무 상태를 변경할 수 없습니다.`, true);
       }
 
@@ -902,22 +905,21 @@ if (teamStatusBoard) {
       const currentLeaveIndex = appState.onLeaveMembers.findIndex(item => item.member === memberName);
 
       if (currentLeaveIndex > -1) {
-          appState.onLeaveMembers.splice(currentLeaveIndex, 1);
-          showToast(`${memberName}님이 복귀 처리되었습니다.`);
-          saveStateToFirestore();
-          memberToSetLeave = null; 
+          // [수정] 이미 휴무 상태 -> 바로 취소하지 않고, 확인 모달 열기
+          const leaveType = appState.onLeaveMembers[currentLeaveIndex].type;
+          memberToCancelLeave = memberName; // 복귀시킬 멤버 이름 저장
+          if(cancelLeaveConfirmMessage) cancelLeaveConfirmMessage.textContent = `${memberName}님의 '${leaveType}' 상태를 취소(복귀)하시겠습니까?`;
+          if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.remove('hidden');
+          
       } else {
+          // 휴무 상태 아님 -> 휴무 유형 선택 모달 열기
+          memberToSetLeave = memberName;
           if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
           renderLeaveTypeModalOptions(LEAVE_TYPES); 
-          
-          // [!!!!!] 수정된 부분 [!!!!!]
-          // ui.js의 renderLeaveTypeModalOptions 함수가
-          // 기본 선택값('연차')에 따라 날짜 입력칸을 표시/숨김 처리하므로,
-          // app.js에서 강제로 숨기던 이 코드를 제거(주석 처리)합니다.
+          // [수정] 이 라인을 삭제(주석 처리)해야 날짜 입력칸이 기본으로 나옵니다.
           // if(leaveDateInputsDiv) leaveDateInputsDiv.classList.add('hidden'); 
-          
-          if(leaveStartDateInput) leaveStartDateInput.value = ''; // 날짜 초기화
-          if(leaveEndDateInput) leaveEndDateInput.value = ''; // 날짜 초기화
+          if(leaveStartDateInput) leaveStartDateInput.value = ''; 
+          if(leaveEndDateInput) leaveEndDateInput.value = ''; 
           if(leaveTypeModal) leaveTypeModal.classList.remove('hidden');
       }
       return; 
@@ -1157,6 +1159,7 @@ if (confirmStopIndividualBtn) confirmStopIndividualBtn.addEventListener('click',
 });
 
 
+// [수정] 휴무 유형 모달 확인 버튼 리스너 (날짜 입력 처리 '결근' 추가)
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     if (!memberToSetLeave) return;
 
@@ -1168,13 +1171,15 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     const leaveType = selectedTypeInput.value;
     const leaveData = { member: memberToSetLeave, type: leaveType };
 
+    // 외출/조퇴: 현재 시간 기록
     if (leaveType === '외출' || leaveType === '조퇴') {
         leaveData.startTime = getCurrentTime();
         if (leaveType === '조퇴') {
             leaveData.endTime = "17:30";
         }
     }
-    else if (leaveType === '연차' || leaveType === '출장') {
+    // [수정] 연차/출장/결근: 날짜 기록
+    else if (leaveType === '연차' || leaveType === '출장' || leaveType === '결근') {
         const startDate = leaveStartDateInput?.value;
         const endDate = leaveEndDateInput?.value;
 
@@ -1204,6 +1209,30 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     memberToSetLeave = null;
 });
 
+// [추가] 근태 복귀 확인 모달 이벤트 리스너
+if (confirmCancelLeaveBtn) {
+    confirmCancelLeaveBtn.addEventListener('click', () => {
+        if (!memberToCancelLeave) return;
+
+        const index = appState.onLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
+        if (index > -1) {
+            appState.onLeaveMembers.splice(index, 1);
+            showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다.`);
+            saveStateToFirestore();
+        }
+
+        if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.add('hidden');
+        memberToCancelLeave = null;
+    });
+}
+
+if (cancelCancelLeaveBtn) {
+    cancelCancelLeaveBtn.addEventListener('click', () => {
+        if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.add('hidden');
+        memberToCancelLeave = null;
+    });
+}
+
 if (cancelLeaveBtn) cancelLeaveBtn.addEventListener('click', () => {
     if(leaveTypeModal) leaveTypeModal.classList.add('hidden');
     memberToSetLeave = null; 
@@ -1215,6 +1244,10 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
       if (modal) modal.classList.add('hidden');
       if (modal === leaveTypeModal) {
           memberToSetLeave = null;
+      }
+      // [추가] 근태 복귀 확인 모달 닫기 시 변수 초기화
+      if (modal === cancelLeaveConfirmModal) {
+          memberToCancelLeave = null;
       }
   });
 });
