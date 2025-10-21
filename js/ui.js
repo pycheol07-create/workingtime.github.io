@@ -146,7 +146,7 @@ export const renderRealtimeStatus = (appState) => {
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime}" data-status="${durationStatus}" data-record-id="${recordIdForDuration}"></span></div>
-                                <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (${participationCount}명):</div>
+                                <div class="font-semibold text-gray-600 text-sm mb-1">${participationCount}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
                                 ${buttonHtml}
                             </div>`;
@@ -195,7 +195,7 @@ export const renderRealtimeStatus = (appState) => {
     allMembersContainer.appendChild(allMembersHeader);
 
     // [중요 버그 수정 완료] 변수명 변경 (ongoingRecordsForStatus 사용)
-    const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing'); // Section 2용 변수
+    const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing'); // Section 2 용도
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
 
@@ -337,37 +337,38 @@ export const updateSummary = (appState) => {
 
     const onLeaveMembers = new Set(appState.onLeaveMembers || []);
     const onLeaveStaffCount = [...onLeaveMembers].filter(member => allStaffMembers.has(member)).length;
-    // 알바 휴무는 별도 관리 안 하므로 onLeaveMembers에 포함된 총 인원만 표시
     const onLeaveTotalCount = onLeaveMembers.size;
-
 
     const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const workingMembers = new Set(ongoingOrPausedRecords.map(r => r.member));
     const workingStaffCount = [...workingMembers].filter(member => allStaffMembers.has(member)).length;
     const workingPartTimerCount = [...workingMembers].filter(member => allPartTimers.has(member)).length;
-    const totalWorkingCount = workingMembers.size; // 직원+알바 합계
+    const totalWorkingCount = workingMembers.size;
 
     const availableStaffCount = totalStaffCount - onLeaveStaffCount;
-    // 현재 알바 휴무는 없다고 가정
-    const availablePartTimerCount = totalPartTimerCount;
+    const availablePartTimerCount = totalPartTimerCount; // Assuming no separate leave for part-timers
     const totalAvailableCount = availableStaffCount + availablePartTimerCount;
-
 
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
     const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount);
     const totalIdleCount = idleStaffCount + idlePartTimerCount;
 
-    const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size; // 일시정지 포함 진행 중 업무 수
+    const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
     // DOM 업데이트
     if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaffCount}/${totalPartTimerCount}`;
-    if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveTotalCount}`; // 총 휴무 인원
-    if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`; // 근무 가능 인원
-    if (summaryWorkingStaffEl) summaryWorkingStaffEl.textContent = `${totalWorkingCount}`; // 실제 업무중 총 인원
-    if (summaryIdleStaffEl) summaryIdleStaffEl.textContent = `${totalIdleCount}`; // 총 대기 인원
+    if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveTotalCount}`;
+    if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`;
+    if (summaryWorkingStaffEl) summaryWorkingStaffEl.textContent = `${totalWorkingCount}`;
+    if (summaryIdleStaffEl) summaryIdleStaffEl.textContent = `${totalIdleCount}`;
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
 
-    // 총 업무 시간 업데이트는 elapsedTimeTimer 가 담당
+    // 총 업무 시간 초기값 설정 (타이머 시작 전)
+    if (summaryTotalWorkTimeEl && !elapsedTimeTimer) {
+        const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
+        const totalCompletedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
+        summaryTotalWorkTimeEl.textContent = formatDuration(totalCompletedMinutes);
+    }
 };
 
 export const renderTeamSelectionModalContent = (task, appState) => {
@@ -444,7 +445,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
 
     (appState.partTimers || []).forEach(pt => {
         const isWorking = allWorkingMembers.has(pt.name);
-        const isOnLeave = onLeaveMembers.has(pt.name); // 알바 휴무 가능성 고려 (현재 로직에는 없음)
+        const isOnLeave = onLeaveMembers.has(pt.name);
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'relative';
 
