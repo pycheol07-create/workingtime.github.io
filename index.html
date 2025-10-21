@@ -12,64 +12,50 @@
 <body class="bg-gray-100 text-gray-800 min-h-screen flex items-center justify-center p-4">
     <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2 w-full max-w-xs"></div>
 
-    {/* 앱 콘텐츠 */}
     <div id="app-content" class="w-full max-w-7xl mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-gray-200 relative">
 
-        {/* 날짜 표시 */}
         <div id="current-date-display" class="absolute top-4 left-6 text-lg font-bold text-gray-700"></div>
 
         <div class="absolute top-4 right-6 flex flex-col items-end gap-2">
-            {/* 연결 상태 표시기 */}
             <div id="connection-indicator" class="flex items-center gap-2">
                 <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
-                <span id="connection-status" class="text-xs font-medium text-gray-500"></span>
-            </div>
-            {/* 전체 초기화 버튼 */}
+                <span id="connection-status" class="text-xs font-medium text-gray-500"></span> </div>
             <button id="reset-app-btn" class="flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 font-semibold transition p-1 rounded hover:bg-red-50">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 4l1.5 1.5A9 9 0 0120.5 10.5M20 20l-1.5-1.5A9 9 0 003.5 13.5" />
                 </svg>
-                <span>초기화</span>
-            </button>
-        </div>
+                <span>초기화</span> </button>
+            </div>
 
-        {/* 헤더 */}
         <header class="mb-8 pt-4 text-center">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">물류팀 업무현황</h1>
-        </header>
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">물류팀 업무현황</h1> </header>
 
-        {/* 요약 정보 대시보드 */}
         <div class="mb-8 bg-gray-800 text-white rounded-lg border border-gray-700 shadow-lg">
             <div id="toggle-summary" class="flex justify-between items-center p-4 cursor-pointer md:cursor-auto">
-                <h2 class="text-xl font-bold">실시간 현황판</h2>
-                <svg id="summary-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <h2 class="text-xl font-bold">실시간 현황판</h2> <svg id="summary-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
             </div>
             <div id="summary-content" class="hidden md:grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 p-6 text-center">
-                {/* ======[ 총원 카드 수정됨 ]====== */}
                 <div class="dashboard-card p-4 rounded-lg">
                     <h4 class="text-sm font-bold uppercase tracking-wider">총원<br>(직원/알바)</h4>
                     <p id="summary-total-staff">0/0</p>
                 </div>
-                {/* ============================= */}
                  <div class="dashboard-card p-4 rounded-lg">
                     <h4 class="text-sm font-bold uppercase tracking-wider">휴무</h4>
-                    <p id="summary-leave-staff">0</p> {/* 휴무는 합계만 표시 */}
+                    <p id="summary-leave-staff">0</p>
                 </div>
-                 {/* ======[ 근무 카드 수정됨 ]====== */}
                  <div class="dashboard-card p-4 rounded-lg">
                     <h4 class="text-sm font-bold uppercase tracking-wider">근무<br>(직원/알바)</h4>
                     <p id="summary-active-staff">0/0</p>
                 </div>
-                 {/* ============================= */}
                  <div class="dashboard-card p-4 rounded-lg">
                     <h4 class="text-sm font-bold uppercase tracking-wider">업무중</h4>
-                    <p id="summary-working-staff">0</p> {/* 업무중은 합계만 표시 */}
+                    <p id="summary-working-staff">0</p>
                 </div>
                  <div class="dashboard-card p-4 rounded-lg">
                     <h4 class="text-sm font-bold uppercase tracking-wider">대기</h4>
-                    <p id="summary-idle-staff">0</p> {/* 대기는 합계만 표시 */}
+                    <p id="summary-idle-staff">0</p>
                 </div>
                  <div class="dashboard-card p-4 rounded-lg">
                     <h4 class="text-sm font-bold uppercase tracking-wider">진행업무</h4>
@@ -83,19 +69,14 @@
         </div>
 
 
-        {/* 실시간 팀 현황 보드 */}
         <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-            <h2 class="text-xl font-bold text-gray-900 mb-4">업무 배정 및 팀 현황</h2>
-            <div id="team-status-board" class="space-y-8">
-                {/* Real-time status content will be dynamically inserted here */}
-            </div>
+            <h2 class="text-xl font-bold text-gray-900 mb-4">업무 배정 및 팀 현황</h2> <div id="team-status-board" class="space-y-8">
+                </div>
         </div>
 
-        {/* 완료된 업무 기록 테이블 */}
         <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
             <div id="toggle-completed-log" class="flex justify-between items-center cursor-pointer md:cursor-auto">
-                <h2 class="text-xl font-bold text-gray-900">오늘 완료된 업무</h2>
-                <svg id="completed-log-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <h2 class="text-xl font-bold text-gray-900">오늘 완료된 업무</h2> <svg id="completed-log-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
             </div>
@@ -104,8 +85,7 @@
                     <button id="open-history-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">이력 보기</button>
                     <button id="save-progress-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">중간 저장</button>
                     <button id="end-shift-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">업무 마감</button>
-                    {/* 수동 추가 버튼 없음 */}
-                </div>
+                    </div>
                 <div class="overflow-auto max-h-[40vh] relative bg-white rounded-md">
                     <table class="w-full text-sm text-left text-gray-600">
                         <thead class="text-xs text-blue-500 uppercase bg-gray-100 sticky top-0 z-10">
@@ -126,32 +106,23 @@
             </div>
         </div>
 
-        {/* 오늘의 업무 비중 분석 */}
         <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
             <div id="toggle-analysis" class="flex justify-between items-center cursor-pointer md:cursor-auto">
-                <h2 class="text-xl font-bold text-gray-900">오늘의 업무 비중 분석</h2>
-                 <svg id="analysis-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <h2 class="text-xl font-bold text-gray-900">오늘의 업무 비중 분석</h2> <svg id="analysis-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
             </div>
             <div id="analysis-content" class="hidden md:block mt-4">
-                {/* Chart will be rendered here */}
-            </div>
+                </div>
         </div>
-    </div> {/* end of #app-content */}
-
-
-    {/* Modals */}
-     <div id="team-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 팀 선택 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col relative">
+    </div> <div id="team-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
                 <h2 id="team-select-modal-title" class="text-xl font-bold text-gray-900">팀원 선택</h2>
                 <button class="modal-close-btn">&times;</button>
             </div>
             <div id="team-select-modal-content" class="flex-grow p-6 overflow-x-auto flex space-x-4">
-                {/* Team groups rendered here */}
-            </div>
+                </div>
             <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
                 <button type="button" id="cancel-team-select-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
                 <button type="button" id="confirm-team-select-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">선택 완료 및 업무 시작</button>
@@ -159,8 +130,7 @@
         </div>
      </div>
     <div id="stop-individual-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 개별 종료 확인 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <button class="modal-close-btn">&times;</button>
             <div class="p-6 text-center">
                 <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
@@ -171,12 +141,10 @@
         </div>
     </div>
     <div id="delete-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 삭제 확인 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 id="delete-confirm-message" class="mb-5 text-lg font-normal text-gray-700"></h3><p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p><button type="button" id="confirm-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button><button type="button" id="cancel-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 id="delete-confirm-message" class="mb-5 text-lg font-normal text-gray-700"></h3><p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p><button type="button" id="confirm-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button><button type="button" id="cancel-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
     </div>
     <div id="reset-app-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 초기화 확인 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
             <div class="p-6 text-center">
                 <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                 <h3 class="mb-5 text-lg font-normal text-gray-700">오늘의 모든 현황을 초기화하시겠습니까?</h3>
@@ -187,8 +155,7 @@
         </div>
     </div>
     <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 이력 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col relative">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center"><h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2><button id="close-history-btn" class="modal-close-btn">&times;</button></div>
             <div class="flex-grow flex overflow-hidden">
                 <div id="history-date-list-container" class="w-1/4 border-r border-gray-200 overflow-y-auto bg-gray-50"><ul id="history-date-list" class="p-2"></ul></div>
@@ -210,12 +177,10 @@
         </div>
     </div>
     <div id="quantity-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 처리량 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
             <div class="p-6 border-b border-gray-200"><h2 id="quantity-modal-title" class="text-xl font-bold text-gray-900">업무별 처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
             <div id="modal-task-quantity-inputs" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[60vh] overflow-y-auto">
-                {/* Inputs will be generated here by JS */}
-            </div>
+                </div>
             <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
                 <button type="button" id="cancel-quantity-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
                 <button type="button" id="confirm-quantity-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인 및 저장</button>
@@ -223,8 +188,7 @@
         </div>
     </div>
      <div id="quantity-on-stop-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 종료 시 처리량 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
             <div class="p-6 space-y-4">
                 <p>업무 <span id="quantity-on-stop-task-name" class="font-bold"></span>의 처리량을 입력하세요.</p>
@@ -240,8 +204,7 @@
         </div>
     </div>
     <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 이력 삭제 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
             <div class="p-6 text-center">
                 <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                 <h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 날짜의 모든 기록을 삭제하시겠습니까?</h3>
@@ -252,8 +215,7 @@
         </div>
     </div>
     <div id="edit-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 기록 수정 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
             <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">업무 기록 수정</h2><button class="modal-close-btn">&times;</button></div>
             <div class="p-6 space-y-4">
                 <div>
@@ -279,23 +241,18 @@
             </div>
         </div>
     </div>
-    {/* Task Selection Modal */}
     <div id="task-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 업무 선택 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-900">업무 종류 선택</h2>
                 <button class="modal-close-btn">&times;</button>
             </div>
             <div id="task-modal-content" class="p-6 max-h-[70vh] overflow-y-auto flex flex-col md:flex-row gap-6">
-                {/* Task groups will be dynamically inserted here */}
-            </div>
+                </div>
         </div>
     </div>
-    {/* Edit Part-Timer Modal */}
     <div id="edit-part-timer-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        {/* ... (기존 알바 수정 모달 내용) ... */}
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">알바 이름 수정</h2><button class="modal-close-btn">&times;</button></div>
             <div class="p-6 space-y-4">
                 <div>
@@ -311,8 +268,5 @@
         </div>
     </div>
 
-    {/* 수동 추가 모달 없음 */}
-
-    <script type="module" src="js/app.js"></script>
-</body>
+    <script type="module" src="js/app.js"></script> </body>
 </html>

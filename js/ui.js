@@ -1,4 +1,4 @@
-import { formatTimeTo24H, formatDuration } from './utils.js';
+import { formatTimeTo24H, formatDuration } from './utils.js';import { formatTimeTo24H, formatDuration } from './utils.js';
 import { quantityTaskTypes, taskGroups, teamGroups } from './config.js';
 
 export const renderQuantityModalInputs = (sourceQuantities = {}) => {
@@ -96,6 +96,7 @@ export const renderRealtimeStatus = (appState) => {
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
+    // ongoingRecords는 여기서 한번만 선언
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
 
@@ -117,7 +118,7 @@ export const renderRealtimeStatus = (appState) => {
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
-                // 주석 제거됨
+                // 레이아웃 및 주석 수정 완료됨
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
                     <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left">${rec.member}</span>
                     <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
@@ -339,6 +340,7 @@ export const updateSummary = (appState) => {
     const onLeaveStaffCount = [...onLeaveMembers].filter(member => allStaffMembers.has(member)).length;
     const onLeaveTotalCount = onLeaveMembers.size;
 
+
     const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const workingMembers = new Set(ongoingOrPausedRecords.map(r => r.member));
     const workingStaffCount = [...workingMembers].filter(member => allStaffMembers.has(member)).length;
@@ -346,8 +348,8 @@ export const updateSummary = (appState) => {
     const totalWorkingCount = workingMembers.size;
 
     const availableStaffCount = totalStaffCount - onLeaveStaffCount;
-    const availablePartTimerCount = totalPartTimerCount; // Assuming no separate leave for part-timers
-    const totalAvailableCount = availableStaffCount + availablePartTimerCount;
+    // Assuming no separate leave for part-timers currently
+    const availablePartTimerCount = totalPartTimerCount;
 
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
     const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount);
