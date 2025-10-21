@@ -1247,19 +1247,104 @@ if(cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => { te
     toggle.addEventListener('click', () => { /*...*/ });
 });
 
-
+// js/app.js (약 690라인 근처의 teamSelectModal 이벤트 리스너를 이걸로 교체)
 if(teamSelectModal) teamSelectModal.addEventListener('click', e => {
-    // ... (이전과 동일) ...
+    // 팀원 선택/해제
     const card = e.target.closest('button[data-member-name]');
-    if (card && !card.disabled) { /*...*/ return; }
+    if (card && !card.disabled) {
+        const memberName = card.dataset.memberName;
+        const index = tempSelectedMembers.indexOf(memberName);
+        if (index > -1) { // 이미 선택된 경우 -> 선택 해제
+            tempSelectedMembers.splice(index, 1);
+            card.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-100');
+        } else { // 선택되지 않은 경우 -> 선택
+            tempSelectedMembers.push(memberName);
+            card.classList.add('ring-2', 'ring-blue-500', 'bg-blue-100');
+        }
+        return; // 다른 버튼 로직과 분리
+    }
+
+    // 그룹 전체 선택/해제
     const selectAllBtn = e.target.closest('.group-select-all-btn');
-    if (selectAllBtn) { /*...*/ return; }
+    if (selectAllBtn) {
+        const groupName = selectAllBtn.dataset.groupName;
+        // 그룹 이름에 해당하는 멤버 목록 컨테이너 찾기
+        const memberListContainer = teamSelectModal.querySelector(`div[data-group-name="${groupName}"]`);
+        if (!memberListContainer) return;
+
+        // 해당 그룹의 모든 멤버 버튼(카드) 가져오기
+        const memberCards = Array.from(memberListContainer.querySelectorAll('button[data-member-name]'));
+        // 선택 가능한 (disabled 아닌) 멤버 이름 목록 추출
+        const availableMembers = memberCards
+            .filter(card => !card.disabled)
+            .map(card => card.dataset.memberName);
+
+        if (availableMembers.length === 0) return; // 선택 가능한 멤버 없으면 종료
+
+        // 현재 그룹의 모든 멤버가 이미 선택되었는지 확인
+        const areAllSelected = availableMembers.every(member => tempSelectedMembers.includes(member));
+
+        if (areAllSelected) { // 모두 선택된 상태 -> 전체 선택 해제
+            tempSelectedMembers = tempSelectedMembers.filter(member => !availableMembers.includes(member));
+            memberCards.forEach(card => {
+                if (!card.disabled) card.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-100');
+            });
+        } else { // 일부만 선택 또는 아무도 선택 안 됨 -> 전체 선택
+            availableMembers.forEach(member => {
+                if (!tempSelectedMembers.includes(member)) { // 아직 선택 배열에 없으면 추가
+                    tempSelectedMembers.push(member);
+                }
+            });
+            // 모든 선택 가능한 카드에 선택 스타일 적용
+            memberCards.forEach(card => {
+                if (!card.disabled) card.classList.add('ring-2', 'ring-blue-500', 'bg-blue-100');
+            });
+        }
+        return; // 다른 버튼 로직과 분리
+    }
+
+    // 알바 추가 버튼
     const addPartTimerBtn = e.target.closest('#add-part-timer-modal-btn');
-    if (addPartTimerBtn) { /*...*/ return; }
+    if (addPartTimerBtn) {
+        if(!appState.partTimers) appState.partTimers = []; // 배열 초기화 확인
+        let counter = appState.partTimers.length + 1;
+        let newName = `알바 ${counter}`;
+        const allNames = teamGroups.flatMap(g => g.members).concat(appState.partTimers.map(p => p.name));
+        // 이름 중복 방지
+        while(allNames.includes(newName)) {
+             counter++;
+             newName = `알바 ${counter}`;
+        }
+        const newId = Date.now(); // 고유 ID 생성
+
+        appState.partTimers.push({ id: newId, name: newName }); // 상태에 추가
+        saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState)); // 저장 후 모달 다시 그리기
+        return; // 다른 버튼 로직과 분리
+    }
+
+    // 알바 수정 버튼
     const editPartTimerBtn = e.target.closest('.edit-part-timer-btn');
-    if (editPartTimerBtn) { /*...*/ return; }
+    if (editPartTimerBtn) {
+        const id = parseFloat(editPartTimerBtn.dataset.partTimerId);
+        const partTimer = (appState.partTimers || []).find(p => p.id === id); // 상태에서 알바 찾기
+        if (partTimer) {
+            // 수정 모달에 정보 채우고 열기
+            if(partTimerEditIdInput) partTimerEditIdInput.value = id;
+            if(partTimerNewNameInput) partTimerNewNameInput.value = partTimer.name;
+            if(editPartTimerModal) editPartTimerModal.classList.remove('hidden');
+        }
+        return; // 다른 버튼 로직과 분리
+    }
+
+    // 알바 삭제 버튼
     const deletePartTimerBtn = e.target.closest('.delete-part-timer-btn');
-    if(deletePartTimerBtn){ /*...*/ return; }
+    if(deletePartTimerBtn){
+        const id = parseFloat(deletePartTimerBtn.dataset.partTimerId);
+        appState.partTimers = (appState.partTimers || []).filter(p => p.id !== id); // 상태에서 해당 알바 제거
+        // 삭제 확인 팝업 없이 바로 삭제 (필요 시 추가)
+        saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState)); // 저장 후 모달 다시 그리기
+        return; // 다른 버튼 로직과 분리
+    }
 });
 
 if(confirmEditPartTimerBtn) confirmEditPartTimerBtn.addEventListener('click', () => { /*...*/ });
