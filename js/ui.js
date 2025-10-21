@@ -48,7 +48,6 @@ export const renderTaskAnalysis = (appState) => {
     const taskColors = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399'};
 
     const taskAnalysis = completedRecords.reduce((acc, record) => {
-        // record.task 가 없을 경우 대비
         if (record.task) {
             acc[record.task] = (acc[record.task] || 0) + (record.duration || 0);
         }
@@ -99,7 +98,7 @@ export const renderRealtimeStatus = (appState) => {
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
-    // ongoingRecords는 여기서 한번만 선언
+    // [오류 수정] ongoingRecords는 여기서 한번만 선언
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
 
@@ -194,7 +193,7 @@ export const renderRealtimeStatus = (appState) => {
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // [중요 버그 수정 완료] const 키워드 제거됨 -> 변수명 변경 (ongoingRecordsForStatus 사용)
+    // [중요 버그 수정 완료] 변수명 변경 (ongoingRecordsForStatus 사용)
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing'); // Section 2 용도
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
@@ -365,7 +364,7 @@ export const updateSummary = (appState) => {
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
 
     // 총 업무 시간 초기값 설정 (타이머 시작 전)
-    if (summaryTotalWorkTimeEl && !elapsedTimeTimer) {
+    if (summaryTotalWorkTimeEl && !elapsedTimeTimer) { // elapsedTimeTimer 변수 확인
         const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
         const totalCompletedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
         summaryTotalWorkTimeEl.textContent = formatDuration(totalCompletedMinutes);
@@ -403,7 +402,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
 
         const memberList = document.createElement('div');
         memberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
-        memberList.dataset.groupName = group.name;
+        memberList.dataset.groupName = group.name; // "전체 선택" 기능을 위해 group-name 속성 추가
 
         const uniqueMembersInGroup = [...new Set(group.members)];
         uniqueMembersInGroup.forEach(member => {
@@ -411,7 +410,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
             const isOnLeave = onLeaveMembers.has(member);
             const card = document.createElement('button');
             card.type = 'button';
-            card.dataset.memberName = member;
+            card.dataset.memberName = member; // 멤버 선택을 위해 member-name 속성 추가
             card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isWorking || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
             if (isWorking || isOnLeave) card.disabled = true;
@@ -442,7 +441,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
                                     </div>`;
     const albaMemberList = document.createElement('div');
     albaMemberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
-    albaMemberList.dataset.groupName = '알바';
+    albaMemberList.dataset.groupName = '알바'; // "전체 선택" 기능을 위해 group-name 속성 추가
 
     (appState.partTimers || []).forEach(pt => {
         const isWorking = allWorkingMembers.has(pt.name);
@@ -452,7 +451,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
 
         const card = document.createElement('button');
         card.type = 'button';
-        card.dataset.memberName = pt.name;
+        card.dataset.memberName = pt.name; // 멤버 선택을 위해 member-name 속성 추가
         card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isWorking || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
         if (isWorking || isOnLeave) card.disabled = true;
