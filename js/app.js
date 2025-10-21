@@ -1,8 +1,9 @@
 // === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.3.1 (Fix Loading Spinner Again)
+// ver.2.4 (Auto Leave Time Recording)
 // 변경 요약:
-// - main 함수에서 appState 기본 구조 설정을 config 로드 전으로 이동
-// - ui.js에서 스피너 숨기기 로직 강화 (ui.js 파일 확인 필요)
+// - 외출/조퇴 시 현재 시간을 startTime으로 자동 기록
+// - 조퇴 시 endTime을 "17:30"으로 자동 설정
+// - 시간 입력 필드 관련 로직 제거
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -21,6 +22,7 @@ import {
 } from './ui.js';
 
 // ========== DOM Elements ==========
+// ... (기존 DOM 요소 정의는 동일) ...
 const connectionStatusEl = document.getElementById('connection-status');
 const statusDotEl = document.getElementById('status-dot');
 const teamStatusBoard = document.getElementById('team-status-board');
@@ -71,9 +73,10 @@ const leaveMemberNameSpan = document.getElementById('leave-member-name');
 const leaveTypeOptionsContainer = document.getElementById('leave-type-options');
 const confirmLeaveBtn = document.getElementById('confirm-leave-btn');
 const cancelLeaveBtn = document.getElementById('cancel-leave-btn');
-const leaveTimeInputsDiv = document.getElementById('leave-time-inputs');
-const leaveStartTimeInput = document.getElementById('leave-start-time-input');
-const leaveEndTimeInput = document.getElementById('leave-end-time-input');
+// [삭제] 시간 입력 필드 요소 참조 제거
+// const leaveTimeInputsDiv = document.getElementById('leave-time-inputs');
+// const leaveStartTimeInput = document.getElementById('leave-start-time-input');
+// const leaveEndTimeInput = document.getElementById('leave-end-time-input');
 
 // Toggles
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
@@ -89,6 +92,7 @@ let recordCounter = 0;
 let appState = {
   workRecords: [],
   taskQuantities: {},
+  // 구조: { member: string, type: string, startTime?: string, endTime?: string }[]
   onLeaveMembers: [],
   partTimers: [],
   hiddenGroupIds: []
@@ -115,6 +119,7 @@ let memberToSetLeave = null;
 const LEAVE_TYPES = ['연차', '반차', '외출', '조퇴', '결근', '기타'];
 
 // ========== Helpers ==========
+// ... (generateId, normalizeName, calcElapsedMinutes 변경 없음) ...
 const generateId = () => `${Date.now()}-${++recordCounter}`;
 const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
 
@@ -133,7 +138,9 @@ const calcElapsedMinutes = (start, end, pauses = []) => {
   return Math.max(0, total / 60000);
 };
 
+
 // ========== 타이머 ==========
+// ... (updateElapsedTimes 변경 없음) ...
 const updateElapsedTimes = () => {
   const now = getCurrentTime();
   document.querySelectorAll('.ongoing-duration').forEach(el => {
@@ -159,7 +166,9 @@ const updateElapsedTimes = () => {
   if (el) el.textContent = formatDuration(totalCompletedMinutes + totalOngoingMinutes);
 };
 
+
 // ========== 렌더 ==========
+// ... (render 변경 없음) ...
 const render = () => {
   try {
     renderRealtimeStatus(appState, appConfig.teamGroups);
@@ -172,7 +181,9 @@ const render = () => {
   }
 };
 
+
 // ========== Firestore 저장 ==========
+// ... (saveStateToFirestore 변경 없음) ...
 async function saveStateToFirestore() {
   if (!auth || !auth.currentUser) {
     console.warn('Cannot save state: User not authenticated.');
@@ -199,6 +210,7 @@ async function saveStateToFirestore() {
     showToast('데이터 동기화 중 오류 발생.', true);
   }
 }
+
 
 // ========== 업무 그룹 제어 ==========
 // ... (startWorkGroup ~ resumeWorkGroup 함수 변경 없음) ...
@@ -321,7 +333,7 @@ const resumeWorkGroup = (groupId) => {
 
 
 // ========== 저장/이력 ==========
-// ... (saveProgress, saveDayDataToHistory 함수 변경 없음) ...
+// ... (saveProgress, saveDayDataToHistory 변경 없음) ...
 async function saveProgress() {
   const dateStr = getTodayDateString();
   showToast('현재까지 완료된 기록을 저장합니다...');
@@ -899,9 +911,9 @@ if (teamStatusBoard) {
           // 휴무 상태 아님 -> 휴무 유형 선택 모달 열기
           if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
           renderLeaveTypeModalOptions(LEAVE_TYPES); // ui.js에 추가된 함수 호출
-          if(leaveTimeInputsDiv) leaveTimeInputsDiv.classList.add('hidden'); // 시간 입력 필드 초기 숨김
-          if(leaveStartTimeInput) leaveStartTimeInput.value = ''; // 시간 초기화
-          if(leaveEndTimeInput) leaveEndTimeInput.value = ''; // 시간 초기화
+          // if(leaveTimeInputsDiv) leaveTimeInputsDiv.classList.add('hidden'); // 시간 입력 필드 초기 숨김 -> 삭제
+          // if(leaveStartTimeInput) leaveStartTimeInput.value = ''; // 시간 초기화 -> 삭제
+          // if(leaveEndTimeInput) leaveEndTimeInput.value = ''; // 시간 초기화 -> 삭제
           if(leaveTypeModal) leaveTypeModal.classList.remove('hidden');
       }
       return; // 이벤트 처리 종료
@@ -1136,7 +1148,7 @@ if (confirmStopIndividualBtn) confirmStopIndividualBtn.addEventListener('click',
 });
 
 
-// [수정] 휴무 유형 모달 확인 버튼 리스너 (시간 입력 처리 추가)
+// [수정] 휴무 유형 모달 확인 버튼 리스너 (자동 시간 기록 로직 추가)
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     if (!memberToSetLeave) return;
 
@@ -1148,29 +1160,20 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     const leaveType = selectedTypeInput.value;
     const leaveData = { member: memberToSetLeave, type: leaveType };
 
-    // [수정] 외출 또는 조퇴인 경우 시간 값 확인 및 저장
+    // [수정] 외출 또는 조퇴인 경우 시간 자동 기록
     if (leaveType === '외출' || leaveType === '조퇴') {
-        const startTime = leaveStartTimeInput?.value;
-        const endTime = leaveEndTimeInput?.value;
+        leaveData.startTime = getCurrentTime(); // 현재 시간으로 시작 시간 자동 설정
 
-        if (!startTime) {
-            showToast('시작 시간을 입력해주세요.', true);
-            return; // 시작 시간은 필수
+        // [추가] 조퇴인 경우 종료 시간 자동 설정
+        if (leaveType === '조퇴') {
+            leaveData.endTime = "17:30"; // 고정된 퇴근 시간
         }
-        leaveData.startTime = startTime;
-
-        if (endTime) {
-            if (endTime <= startTime) {
-                showToast('종료 시간은 시작 시간보다 이후여야 합니다.', true);
-                return; // 종료 시간이 시작 시간보다 빠르면 안 됨
-            }
-            leaveData.endTime = endTime;
-        }
+        // 외출은 endTime을 설정하지 않음 (복귀 시 휴무 해제)
     }
 
     appState.onLeaveMembers = appState.onLeaveMembers || [];
     appState.onLeaveMembers = appState.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
-    appState.onLeaveMembers.push(leaveData); // 시간 정보 포함된 객체 저장
+    appState.onLeaveMembers.push(leaveData);
 
     showToast(`${memberToSetLeave}님을 '${leaveType}'(으)로 설정했습니다.`);
     saveStateToFirestore();
@@ -1179,8 +1182,7 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     memberToSetLeave = null;
 });
 
-
-// ... (cancelLeaveBtn, 모달 닫기 버튼, 개별 취소 버튼들, 토글, 팀 선택 모달 관련 리스너는 변경 없음) ...
+// ... (나머지 리스너 및 main 함수는 이전 답변과 동일) ...
 if (cancelLeaveBtn) cancelLeaveBtn.addEventListener('click', () => {
     if(leaveTypeModal) leaveTypeModal.classList.add('hidden');
     memberToSetLeave = null; 
