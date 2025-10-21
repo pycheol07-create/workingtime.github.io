@@ -1,8 +1,8 @@
 // === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.5.1 (Fix Spinner - Attempt 3)
+// ver.2.5.2 (Fix Spinner - Attempt 4)
 // 변경 요약:
-// - main 함수에서 config 로드 직후 스피너 숨기기 로직 추가
-// - ui.js의 스피너 숨기기 로직 제거 (ui.js 파일 확인 필요)
+// - main 함수에서 config 로드 직후 스피너 숨기기 로직 확실히 실행
+// - ui.js의 스피너 숨기기 로직 제거 확인 (ui.js 파일 확인 필요)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -829,7 +829,6 @@ window.downloadHistoryAsExcel = async (dateKey) => {
   }
 };
 
-// [수정] switchHistoryView: 'attendance' 뷰 케이스 추가 및 로직 수정
 const switchHistoryView = (view) => {
   const dateListContainer = document.getElementById('history-date-list-container');
   const dailyView = document.getElementById('history-daily-view');
@@ -837,7 +836,6 @@ const switchHistoryView = (view) => {
   const monthlyView = document.getElementById('history-monthly-view');
   const attendanceView = document.getElementById('history-attendance-view');
 
-  // 날짜 목록은 일별 상세 또는 근태 이력에서만 표시
   if (dateListContainer) dateListContainer.style.display = (view === 'daily' || view === 'attendance') ? 'block' : 'none';
 
   if (historyTabs) {
@@ -856,14 +854,12 @@ const switchHistoryView = (view) => {
     });
   }
 
-  // 선택된 날짜 가져오기 (일별 또는 근태 탭에서 필요)
   let selectedDateKey = null;
   const selectedDateBtn = historyDateList?.querySelector('button.font-bold');
   if (selectedDateBtn) {
     selectedDateKey = selectedDateBtn.dataset.key;
   }
 
-  // 선택된 뷰에 따라 렌더링 함수 호출
   if (view === 'daily') {
     if (selectedDateKey) renderHistoryDetail(selectedDateKey);
     else if (dailyView) dailyView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
@@ -872,7 +868,7 @@ const switchHistoryView = (view) => {
   } else if (view === 'monthly') {
     renderMonthlyHistory();
   } else if (view === 'attendance') {
-    if (selectedDateKey) renderAttendanceHistory(selectedDateKey, allHistoryData); // 수정: allHistoryData 전달
+    if (selectedDateKey) renderAttendanceHistory(selectedDateKey, allHistoryData); 
     else if (attendanceView) attendanceView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
   }
 };
@@ -1387,19 +1383,20 @@ async function main() {
   try {
       if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
       appConfig = await loadConfiguration(db);
-      // [수정] 스피너 숨기기는 renderRealtimeStatus로 이동
       renderTaskSelectionModal(appConfig.taskGroups);
-      // [수정] Config 로드 후 스피너 숨기기 명시적 호출
+
+      // [수정] Config 로드 직후 스피너 숨기기 명시적 호출
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
-      renderRealtimeStatus(appState, appConfig.teamGroups);
+
+      renderRealtimeStatus(appState, appConfig.teamGroups); // 스피너 숨긴 후 초기 렌더링
   } catch (e) {
       console.error("설정 로드 실패:", e);
       showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
       // [수정] 실패 시에도 스피너 숨기기
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
-      renderRealtimeStatus(appState, appConfig.teamGroups);
+      renderRealtimeStatus(appState, appConfig.teamGroups); // 실패 시에도 기본 렌더링
   }
 
   displayCurrentDate();
