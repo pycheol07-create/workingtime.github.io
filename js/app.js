@@ -1,18 +1,16 @@
 // === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.0  
+// ver.2.1 (Admin Page + Firestore Config)
 // 변경 요약:
-// - DOM null 가드 강화, 모바일 토글 class 제어 일원화
-// - Firestore 저장 시 JSON 직렬화 안정화 + 1MB 가드(900KB 경고)
-// - ID 생성: Date.now() + 증가 counter (Math.random 제거)
-// - 시간 계산: '1970-01-01T..:00Z' 사용으로 타임존 의존 제거
-// - 엑셀 숫자 합산 시 Number() 보강
-// - 중간저장/마감 로직 정합성 및 UI 피드백 개선
-// - 알바 이름 중복 체크 시 공백/대소문자/한글 normalize 비교
+// - config.js의 정적 데이터를 Firestore에서 비동기 로드로 변경
+// - main() 함수를 async로 변경하여 설정 로드 후 앱 실행
+// - ui.js 함수들에 config 데이터를 파라미터로 전달하도록 수정
+// - APP_ID를 config.js와 공유 (config.js에서 관리)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { firebaseConfig, teamGroups, taskGroups, taskTypes, quantityTaskTypes, defaultMemberWages } from './config.js';
+// [수정] config.js 임포트 변경
+import { initializeFirebase, loadConfiguration } from './config.js';
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday } from './utils.js';
 import {
   renderRealtimeStatus,
@@ -82,7 +80,8 @@ let db, auth;
 let unsubscribeToday;
 let elapsedTimeTimer = null;
 let recordCounter = 0;
-const APP_ID = 'team-work-logger-v2';
+// [수정] APP_ID는 config.js에서 관리 (여기서는 제거)
+// const APP_ID = 'team-work-logger-v2';
 
 let appState = {
   workRecords: [],
@@ -91,7 +90,13 @@ let appState = {
   partTimers: [],
   hiddenGroupIds: []
 };
-let appConfig = { memberWages: defaultMemberWages };
+// [수정] appConfig는 main()에서 Firestore로부터 채워짐
+let appConfig = {
+    teamGroups: [],
+    memberWages: {},
+    taskGroups: {},
+    quantityTaskTypes: []
+};
 let selectedTaskForStart = null;
 let selectedGroupForAdd = null;
 let recordToDeleteId = null;
@@ -157,9 +162,10 @@ const updateElapsedTimes = () => {
 // ========== 렌더 ==========
 const render = () => {
   try {
-    renderRealtimeStatus(appState);
+    // [수정] config 데이터를 파라미터로 전달
+    renderRealtimeStatus(appState, appConfig.teamGroups);
     renderCompletedWorkLog(appState);
-    updateSummary(appState);
+    updateSummary(appState, appConfig.teamGroups);
     renderTaskAnalysis(appState);
   } catch (e) {
     console.error('Render error:', e);
@@ -174,7 +180,7 @@ async function saveStateToFirestore() {
     return;
   }
   try {
-    const docRef = doc(db, 'artifacts', APP_ID, 'daily_data', getTodayDateString());
+    const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
     const stateToSave = JSON.stringify({
       workRecords: appState.workRecords || [],
       taskQuantities: appState.taskQuantities || {},
@@ -318,7 +324,7 @@ const resumeWorkGroup = (groupId) => {
 async function saveProgress() {
   const dateStr = getTodayDateString();
   showToast('현재까지 완료된 기록을 저장합니다...');
-  const historyDocRef = doc(db, 'artifacts', APP_ID, 'history', dateStr);
+  const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
   try {
     const docSnap = await getDoc(historyDocRef);
     const existingData = docSnap.exists() ? (docSnap.data() || { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] }) : { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
@@ -396,7 +402,7 @@ async function saveDayDataToHistory(shouldReset) {
 
 // ========== 이력 보기 ==========
 async function fetchAllHistoryData() {
-  const historyCollectionRef = collection(db, 'artifacts', APP_ID, 'history');
+  const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
   try {
     const querySnapshot = await getDocs(historyCollectionRef);
     allHistoryData = [];
@@ -456,7 +462,8 @@ window.openHistoryQuantityModal = (dateKey) => {
   const data = allHistoryData.find(d => d.id === dateKey);
   if (!data) return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
 
-  renderQuantityModalInputs(data.taskQuantities || {});
+  // [수정] 동적 처리량 항목 전달
+  renderQuantityModalInputs(data.taskQuantities || {}, appConfig.quantityTaskTypes);
   const title = document.getElementById('quantity-modal-title');
   if (title) title.textContent = `${dateKey} 처리량 수정`;
 
@@ -467,7 +474,7 @@ window.openHistoryQuantityModal = (dateKey) => {
       const idx = allHistoryData.findIndex(d => d.id === dateKey);
       if (idx === -1) return;
       allHistoryData[idx].taskQuantities = newQuantities;
-      const historyDocRef = doc(db, 'artifacts', APP_ID, 'history', dateKey);
+      const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
       try {
         await setDoc(historyDocRef, allHistoryData[idx]);
         showToast(`${dateKey}의 처리량이 수정되었습니다.`);
@@ -499,7 +506,8 @@ const renderHistoryDetail = (dateKey) => {
   const onLeaveMembers = data.onLeaveMembers || [];
   const partTimersFromHistory = data.partTimers || [];
 
-  const allRegularMembers = new Set(teamGroups.flatMap(g => g.members));
+  // [수정] teamGroups를 전역 appConfig에서 참조
+  const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
   const activeMembersCount = allRegularMembers.size - onLeaveMembers.length + partTimersFromHistory.length;
   const totalSumDuration = records.reduce((sum, r) => sum + (r.duration || 0), 0);
 
@@ -771,7 +779,8 @@ window.downloadHistoryAsExcel = async (dateKey) => {
 
     const sheet3Headers = ['파트', '총 인건비(원)'];
     const memberToPartMap = new Map();
-    teamGroups.forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
+    // [수정] teamGroups를 전역 appConfig에서 참조
+    (appConfig.teamGroups || []).forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
     const summaryByPart = {};
     records.forEach(r => {
       const part = memberToPartMap.get(r.member) || '기타';
@@ -897,7 +906,8 @@ if (teamStatusBoard) {
       const task = card.dataset.task;
       if (action === 'start-task') {
         selectedTaskForStart = task; selectedGroupForAdd = null;
-        renderTeamSelectionModalContent(task, appState);
+        // [수정] config 데이터 전달
+        renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
         const titleEl = document.getElementById('team-select-modal-title');
         if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
         if (teamSelectModal) teamSelectModal.classList.remove('hidden');
@@ -907,7 +917,8 @@ if (teamStatusBoard) {
       } else if (action === 'add-member') {
         const groupId = Number(card.dataset.groupId);
         selectedTaskForStart = task; selectedGroupForAdd = groupId;
-        renderTeamSelectionModalContent(task, appState);
+        // [수정] config 데이터 전달
+        renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
         const titleEl = document.getElementById('team-select-modal-title');
         if (titleEl) titleEl.textContent = `'${task}' 업무에 인원 추가`;
         if (teamSelectModal) teamSelectModal.classList.remove('hidden');
@@ -935,7 +946,8 @@ if (workLogBody) {
       if (memberNameInput) memberNameInput.value = record.member;
       if (taskSelect) {
         taskSelect.innerHTML = '';
-        Object.entries(taskGroups).forEach(([groupName, tasks]) => {
+        // [수정] appConfig.taskGroups 사용
+        Object.entries(appConfig.taskGroups || {}).forEach(([groupName, tasks]) => {
           const optgroup = document.createElement('optgroup');
           optgroup.label = groupName;
           tasks.sort().forEach(task => {
@@ -981,7 +993,8 @@ if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', () => {
 });
 
 if (endShiftBtn) endShiftBtn.addEventListener('click', () => {
-  renderQuantityModalInputs(appState.taskQuantities);
+  // [수정] config 데이터 전달
+  renderQuantityModalInputs(appState.taskQuantities, appConfig.quantityTaskTypes);
   const titleEl = document.getElementById('quantity-modal-title');
   const confirmBtn = document.getElementById('confirm-quantity-btn');
   const cancelBtn = document.getElementById('cancel-quantity-btn');
@@ -1019,7 +1032,7 @@ if (historyTabs) historyTabs.addEventListener('click', (e) => {
 
 if (confirmHistoryDeleteBtn) confirmHistoryDeleteBtn.addEventListener('click', async () => {
   if (historyKeyToDelete) {
-    const docRef = doc(db, 'artifacts', APP_ID, 'history', historyKeyToDelete);
+    const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', historyKeyToDelete);
     try {
       await deleteDoc(docRef);
       showToast('선택한 날짜의 기록이 삭제되었습니다.');
@@ -1039,10 +1052,14 @@ if (resetAppBtn) resetAppBtn.addEventListener('click', () => { if (resetAppModal
 
 if (confirmResetAppBtn) confirmResetAppBtn.addEventListener('click', async () => {
   try {
-    const docRef = doc(db, 'artifacts', APP_ID, 'daily_data', getTodayDateString());
+    const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
     await deleteDoc(docRef);
+    
+    // [수정] taskTypes를 appConfig에서 동적으로 가져와서 초기화
+    const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
     appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
     taskTypes.forEach(task => appState.taskQuantities[task] = 0);
+    
     render();
     showToast('데이터가 초기화되었습니다.');
   } catch (error) {
@@ -1100,7 +1117,8 @@ if (taskSelectModal) taskSelectModal.addEventListener('click', e => {
     const task = e.target.dataset.task;
     selectedTaskForStart = task; selectedGroupForAdd = null;
     taskSelectModal.classList.add('hidden');
-    renderTeamSelectionModalContent(task, appState);
+    // [수정] config 데이터 전달
+    renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
     const titleEl = document.getElementById('team-select-modal-title');
     if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
     if (teamSelectModal) teamSelectModal.classList.remove('hidden');
@@ -1180,12 +1198,14 @@ if (teamSelectModal) teamSelectModal.addEventListener('click', e => {
     appState.partTimers = appState.partTimers || [];
     let counter = appState.partTimers.length + 1;
     const baseName = '알바 ';
-    const existingNames = teamGroups.flatMap(g => g.members).concat(appState.partTimers.map(p => p.name));
+    // [수정] appConfig.teamGroups 사용
+    const existingNames = (appConfig.teamGroups || []).flatMap(g => g.members).concat(appState.partTimers.map(p => p.name));
     let newName = `${baseName}${counter}`;
     while (existingNames.includes(newName)) { counter++; newName = `${baseName}${counter}`; }
     const newId = Date.now();
     appState.partTimers.push({ id: newId, name: newName });
-    saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState));
+    // [수정] config 데이터 전달
+    saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups));
     return;
   }
 
@@ -1207,7 +1227,8 @@ if (teamSelectModal) teamSelectModal.addEventListener('click', e => {
   if (deletePartTimerBtn) {
     const id = Number(deletePartTimerBtn.dataset.partTimerId);
     appState.partTimers = (appState.partTimers || []).filter(p => p.id !== id);
-    saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState));
+    // [수정] config 데이터 전달
+    saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups));
     return;
   }
 });
@@ -1225,7 +1246,8 @@ if (confirmEditPartTimerBtn) confirmEditPartTimerBtn.addEventListener('click', (
   const nNew = normalizeName(newName);
   if (nOld === nNew) { if (editPartTimerModal) editPartTimerModal.classList.add('hidden'); return; }
 
-  const allNamesNorm = teamGroups.flatMap(g => g.members).map(normalizeName)
+  // [수정] appConfig.teamGroups 사용
+  const allNamesNorm = (appConfig.teamGroups || []).flatMap(g => g.members).map(normalizeName)
     .concat((appState.partTimers || []).filter((p, i) => i !== idx).map(p => normalizeName(p.name)));
   if (allNamesNorm.includes(nNew)) { showToast('해당 이름은 이미 사용 중입니다.', true); return; }
 
@@ -1233,7 +1255,8 @@ if (confirmEditPartTimerBtn) confirmEditPartTimerBtn.addEventListener('click', (
   appState.partTimers[idx] = { ...partTimer, name: newName };
   appState.workRecords = (appState.workRecords || []).map(r => (r.member === oldName ? { ...r, member: newName } : r));
   saveStateToFirestore().then(() => {
-    renderTeamSelectionModalContent(selectedTaskForStart, appState);
+    // [수정] config 데이터 전달
+    renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups);
     if (editPartTimerModal) editPartTimerModal.classList.add('hidden');
     showToast('알바 이름이 수정되었습니다.');
   });
@@ -1255,48 +1278,60 @@ if (confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
 });
 
 // ========== 앱 초기화 ==========
-function main() {
-  renderTaskSelectionModal();
-  displayCurrentDate();
+// [수정] main 함수를 async로 변경
+async function main() {
+  if (connectionStatusEl) connectionStatusEl.textContent = '연결 중...';
+  if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse';
 
+  // 1. Firebase 초기화
+  try {
+      const { app, db: fdb, auth: fath } = initializeFirebase();
+      if (!app || !fdb || !fath) throw new Error("Firebase 초기화 실패");
+      db = fdb;
+      auth = fath;
+  } catch (error) {
+      console.error('Firebase 초기화 실패:', error);
+      showToast('Firebase 초기화에 실패했습니다.', true);
+      if (connectionStatusEl) connectionStatusEl.textContent = '초기화 실패';
+      if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+      return;
+  }
+
+  // 2. [신규] Firestore에서 설정 로드
+  try {
+      if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
+      appConfig = await loadConfiguration(db);
+      // appConfig 로드 후 UI 초기화
+      renderTaskSelectionModal(appConfig.taskGroups);
+  } catch (e) {
+      console.error("설정 로드 실패:", e);
+      showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
+  }
+
+  // 3. 기존 로직 실행
+  displayCurrentDate();
   if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
   elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
 
+  // [수정] taskTypes를 appConfig에서 동적으로 가져옴
+  const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
   const defaultState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
   taskTypes.forEach(task => defaultState.taskQuantities[task] = 0);
   appState = defaultState;
 
-  if (connectionStatusEl) connectionStatusEl.textContent = '연결 중...';
-  if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse';
-
-  if (!firebaseConfig?.apiKey || !firebaseConfig?.projectId) {
-    if (connectionStatusEl) connectionStatusEl.textContent = '설정 필요';
-    if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-    showToast('Firebase API 키 구성 정보가 올바르지 않습니다.', true);
-    return;
-  }
-
-  try {
-    const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    auth = getAuth(app);
-  } catch (error) {
-    console.error('Firebase 초기화 실패:', error);
-    showToast('Firebase 초기화에 실패했습니다.', true);
-    if (connectionStatusEl) connectionStatusEl.textContent = '초기화 실패';
-    if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-    return;
-  }
-
+  // 4. 인증 및 스냅샷 리스너 설정
   onAuthStateChanged(auth, async user => {
     if (user) {
-      const todayDocRef = doc(db, 'artifacts', APP_ID, 'daily_data', getTodayDateString());
+      const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
       if (unsubscribeToday) unsubscribeToday();
 
       unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
         try {
+          // [수정] taskTypes를 appConfig에서 동적으로 가져옴
+          const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
           const defaultState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
           taskTypes.forEach(task => defaultState.taskQuantities[task] = 0);
+
           const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
           appState = {
             ...defaultState,
@@ -1313,6 +1348,8 @@ function main() {
         } catch (parseError) {
           console.error('Error parsing state from Firestore:', parseError);
           showToast('데이터 로딩 중 오류 발생 (파싱 실패).', true);
+          // [수정] taskTypes를 appConfig에서 동적으로 가져옴
+          const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
           appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
           taskTypes.forEach(task => appState.taskQuantities[task] = 0);
           render();
@@ -1324,6 +1361,8 @@ function main() {
         showToast('실시간 연결에 실패했습니다.', true);
         if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
         if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+        // [수정] taskTypes를 appConfig에서 동적으로 가져옴
+        const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
         appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
         taskTypes.forEach(task => appState.taskQuantities[task] = 0);
         render();
@@ -1332,6 +1371,8 @@ function main() {
       if (connectionStatusEl) connectionStatusEl.textContent = '인증 필요';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
       if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
+      // [수정] taskTypes를 appConfig에서 동적으로 가져옴
+      const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
       appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
       taskTypes.forEach(task => appState.taskQuantities[task] = 0);
       render();

@@ -1,10 +1,13 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
-import { quantityTaskTypes, taskGroups, teamGroups } from './config.js';
+// [수정] config.js에서 정적 데이터 임포트 제거
+// import { quantityTaskTypes, taskGroups, teamGroups } from './config.js';
 
-export const renderQuantityModalInputs = (sourceQuantities = {}) => {
+// [수정] quantityTaskTypes를 파라미터로 받음
+export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
     container.innerHTML = '';
+    // [수정] 파라미터로 받은 quantityTaskTypes 사용
     quantityTaskTypes.forEach(task => {
         const div = document.createElement('div');
         div.innerHTML = `
@@ -15,10 +18,12 @@ export const renderQuantityModalInputs = (sourceQuantities = {}) => {
     });
 };
 
-export const renderTaskSelectionModal = () => {
+// [수정] taskGroups를 파라미터로 받음
+export const renderTaskSelectionModal = (taskGroups = {}) => {
     const container = document.getElementById('task-modal-content');
     if (!container) return;
     container.innerHTML = '';
+    // [수정] 파라미터로 받은 taskGroups 사용
     Object.entries(taskGroups).forEach(([groupName, tasks]) => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'flex-1';
@@ -75,7 +80,8 @@ export const renderTaskAnalysis = (appState) => {
     analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8"><div class="flex-shrink-0"><div class="chart" style="background: ${finalGradient};"><div class="chart-center"><span class="text-sm text-gray-500">총 업무</span><span class="text-xl font-bold text-blue-600 mt-1">${formatDuration(totalLoggedMinutes)}</span></div></div></div>${legendHTML}</div>`;
 };
 
-export const renderRealtimeStatus = (appState) => {
+// [수정] teamGroups를 파라미터로 받음
+export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
         console.error("Element #team-status-board not found!");
@@ -84,6 +90,7 @@ export const renderRealtimeStatus = (appState) => {
     teamStatusBoard.innerHTML = '';
 
     const memberGroupMap = new Map();
+    // [수정] 파라미터로 받은 teamGroups 사용
     teamGroups.forEach(group => group.members.forEach(member => {
         if (!memberGroupMap.has(member)) memberGroupMap.set(member, group.name);
     }));
@@ -198,6 +205,7 @@ export const renderRealtimeStatus = (appState) => {
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
 
+    // [수정] teamGroups를 파라미터에서 받아서 정렬
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
         teamGroups.find(g => g.name === '공통파트'),
@@ -320,7 +328,8 @@ export const renderCompletedWorkLog = (appState) => {
     }
 };
 
-export const updateSummary = (appState) => {
+// [수정] teamGroups를 파라미터로 받음
+export const updateSummary = (appState, teamGroups = []) => {
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
     const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
     const summaryActiveStaffEl = document.getElementById('summary-active-staff');
@@ -329,6 +338,7 @@ export const updateSummary = (appState) => {
     const summaryOngoingTasksEl = document.getElementById('summary-ongoing-tasks');
     // [제거] const summaryTotalWorkTimeEl = document.getElementById('summary-total-work-time');
 
+    // [수정] 파라미터로 받은 teamGroups 사용
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
     const totalStaffCount = allStaffMembers.size;
@@ -371,7 +381,8 @@ export const updateSummary = (appState) => {
     */
 };
 
-export const renderTeamSelectionModalContent = (task, appState) => {
+// [수정] teamGroups를 파라미터로 받음
+export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
     if (!titleEl || !container) return;
@@ -384,6 +395,7 @@ export const renderTeamSelectionModalContent = (task, appState) => {
     );
     const onLeaveMembers = new Set(appState.onLeaveMembers || []);
 
+    // [수정] 파라미터로 받은 teamGroups 사용
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
         teamGroups.find(g => g.name === '공통파트'),
