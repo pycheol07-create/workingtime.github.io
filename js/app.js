@@ -1,8 +1,8 @@
 // === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.5.2 (Fix Spinner - Attempt 4)
+// ver.2.5.1 (Fix Spinner - Attempt 3)
 // 변경 요약:
-// - main 함수에서 config 로드 직후 스피너 숨기기 로직 확실히 실행
-// - ui.js의 스피너 숨기기 로직 제거 확인 (ui.js 파일 확인 필요)
+// - main 함수에서 config 로드 직후 스피너 숨기기 로직 추가
+// - ui.js의 스피너 숨기기 로직 제거 (ui.js 파일 확인 필요)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -183,31 +183,45 @@ const render = () => {
 // ========== Firestore 저장 ==========
 // ... (saveStateToFirestore 변경 없음) ...
 async function saveStateToFirestore() {
+  const backupKey = 'localAppState';
+  const safeStateString = JSON.stringify({
+    workRecords: appState.workRecords || [],
+    taskQuantities: appState.taskQuantities || {},
+    onLeaveMembers: appState.onLeaveMembers || [],
+    partTimers: appState.partTimers || [],
+    hiddenGroupIds: appState.hiddenGroupIds || []
+  }, (k, v) => (typeof v === 'function' ? undefined : v));
+
+  // 인증 전/오프라인: 로컬 백업
   if (!auth || !auth.currentUser) {
-    console.warn('Cannot save state: User not authenticated.');
+    try {
+      localStorage.setItem(backupKey, safeStateString);
+      console.warn('오프라인/미인증: 로컬에 임시 저장됨');
+    } catch {}
     return;
   }
+
   try {
     const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-    const stateToSave = JSON.stringify({
-      workRecords: appState.workRecords || [],
-      taskQuantities: appState.taskQuantities || {},
-      onLeaveMembers: appState.onLeaveMembers || [], // 날짜 정보 포함된 구조 저장
-      partTimers: appState.partTimers || [],
-      hiddenGroupIds: appState.hiddenGroupIds || []
-    }, (k, v) => (typeof v === 'function' ? undefined : v));
 
-    if (stateToSave.length > 900000) {
-      showToast('저장 데이터가 큽니다. 오래된 기록을 이력으로 옮기거나 정리하세요.', true);
+    // 너무 큰 경우(안전장치)
+    if (safeStateString.length > 900000) {
+      showToast('저장 데이터가 큽니다. 오래된 기록을 정리하세요.', true);
       return;
     }
+    await setDoc(docRef, { state: safeStateString });
 
-    await setDoc(docRef, { state: stateToSave });
+    // 성공 시 로컬 백업 제거
+    try { localStorage.removeItem(backupKey); } catch {}
   } catch (error) {
-    console.error('Error saving state to Firestore:', error);
-    showToast('데이터 동기화 중 오류 발생.', true);
+    console.error('Firestore 저장 실패. 로컬에 백업합니다:', error);
+    try {
+      localStorage.setItem(backupKey, safeStateString);
+      showToast('⚠️ 네트워크 불안정 — 로컬에 임시 저장됨.', true);
+    } catch {}
   }
 }
+
 
 
 // ========== 업무 그룹 제어 ==========
@@ -321,13 +335,18 @@ const resumeWorkGroup = (groupId) => {
   (appState.workRecords || []).forEach(record => {
     if (record.groupId === groupId && record.status === 'paused') {
       record.status = 'ongoing';
-      const lastPause = record.pauses?.[record.pauses.length - 1];
-      if (lastPause && lastPause.end === null) lastPause.end = currentTime;
+      record.pauses = record.pauses || [];
+      const lastPause = record.pauses[record.pauses.length - 1];
+      // ✅ 보정: end가 비어있거나(start보다 작게 들어간 경우 포함) 현재 시각으로 보정
+      if (lastPause && (!lastPause.end || lastPause.end < lastPause.start)) {
+        lastPause.end = currentTime;
+      }
       changed = true;
     }
   });
   if (changed) { saveStateToFirestore(); showToast('업무를 다시 시작합니다.'); }
 };
+
 
 
 // ========== 저장/이력 ==========
@@ -829,6 +848,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
   }
 };
 
+// [수정] switchHistoryView: 'attendance' 뷰 케이스 추가 및 로직 수정
 const switchHistoryView = (view) => {
   const dateListContainer = document.getElementById('history-date-list-container');
   const dailyView = document.getElementById('history-daily-view');
@@ -836,6 +856,7 @@ const switchHistoryView = (view) => {
   const monthlyView = document.getElementById('history-monthly-view');
   const attendanceView = document.getElementById('history-attendance-view');
 
+  // 날짜 목록은 일별 상세 또는 근태 이력에서만 표시
   if (dateListContainer) dateListContainer.style.display = (view === 'daily' || view === 'attendance') ? 'block' : 'none';
 
   if (historyTabs) {
@@ -854,12 +875,14 @@ const switchHistoryView = (view) => {
     });
   }
 
+  // 선택된 날짜 가져오기 (일별 또는 근태 탭에서 필요)
   let selectedDateKey = null;
   const selectedDateBtn = historyDateList?.querySelector('button.font-bold');
   if (selectedDateBtn) {
     selectedDateKey = selectedDateBtn.dataset.key;
   }
 
+  // 선택된 뷰에 따라 렌더링 함수 호출
   if (view === 'daily') {
     if (selectedDateKey) renderHistoryDetail(selectedDateKey);
     else if (dailyView) dailyView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
@@ -868,7 +891,7 @@ const switchHistoryView = (view) => {
   } else if (view === 'monthly') {
     renderMonthlyHistory();
   } else if (view === 'attendance') {
-    if (selectedDateKey) renderAttendanceHistory(selectedDateKey, allHistoryData); 
+    if (selectedDateKey) renderAttendanceHistory(selectedDateKey, allHistoryData); // 수정: allHistoryData 전달
     else if (attendanceView) attendanceView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
   }
 };
@@ -1008,20 +1031,70 @@ if (deleteAllCompletedBtn) deleteAllCompletedBtn.addEventListener('click', () =>
   if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
 });
 
-if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', () => {
-  appState.workRecords = appState.workRecords || [];
-  if (deleteMode === 'single' && recordToDeleteId !== null) {
-    appState.workRecords = appState.workRecords.filter(record => String(record.id) !== String(recordToDeleteId));
-    showToast('기록이 삭제되었습니다.');
-  } else if (deleteMode === 'all') {
-    appState.workRecords = appState.workRecords.filter(record => record.status !== 'completed');
-    showToast('완료된 모든 기록이 삭제되었습니다.');
-  }
-  saveStateToFirestore();
-  if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
-  recordToDeleteId = null;
-  deleteMode = 'single';
+// [수정] 휴무 유형 모달 확인 버튼 리스너 (날짜/시간 자동 계산 강화)
+if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
+    if (!memberToSetLeave) return;
+
+    const selectedTypeInput = document.querySelector('input[name="leave-type"]:checked');
+    if (!selectedTypeInput) {
+        showToast('휴무 유형을 선택해주세요.', true);
+        return;
+    }
+    const leaveType = selectedTypeInput.value;
+    const leaveData = { member: memberToSetLeave, type: leaveType };
+
+    // === 외출/조퇴 ===
+    if (leaveType === '외출' || leaveType === '조퇴') {
+        // 현재 시간 기록
+        leaveData.startTime = getCurrentTime();
+
+        // 외출: 기본 60분 뒤 예상 복귀시간 제공 (원하시면 90/120으로 바꾸셔도 됩니다)
+        if (leaveType === '외출') {
+            // utils.js에 추가한 보조함수 사용
+            leaveData.expectedReturnTime = addMinutesToTime(leaveData.startTime, 60);
+        }
+
+        // 조퇴: 회사 정책상 기본 종료시각(예: 17:30)로 세팅 (필요시 수정)
+        if (leaveType === '조퇴') {
+            leaveData.endTime = "17:30";
+        }
+    }
+    // === 연차/출장 ===
+    else if (leaveType === '연차' || leaveType === '출장') {
+        const startDate = leaveStartDateInput?.value;
+        const endDate = leaveEndDateInput?.value;
+
+        if (!startDate) {
+            showToast('시작일을 입력해주세요.', true);
+            return;
+        }
+        if (endDate && endDate < startDate) {
+            showToast('종료일은 시작일보다 이후여야 합니다.', true);
+            return;
+        }
+
+        leaveData.startDate = startDate;
+        if (endDate) leaveData.endDate = endDate;
+
+        // 출장일 경우: 기간에 따른 추정 근무분(480분/일) 기록 (리포트 계산 등에 활용 가능)
+        if (leaveType === '출장') {
+            const days = calcDateDiffInDays(startDate, endDate || startDate);
+            leaveData.estimatedWorkMinutes = days * 480; // 8시간 * 일수
+        }
+    }
+
+    // 기존: 상태 반영/저장
+    appState.onLeaveMembers = appState.onLeaveMembers || [];
+    appState.onLeaveMembers = appState.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
+    appState.onLeaveMembers.push(leaveData);
+
+    showToast(`${memberToSetLeave}님을 '${leaveType}'(으)로 설정했습니다.`);
+    saveStateToFirestore();
+
+    if(leaveTypeModal) leaveTypeModal.classList.add('hidden');
+    memberToSetLeave = null;
 });
+
 
 
 if (endShiftBtn) endShiftBtn.addEventListener('click', () => {
@@ -1383,20 +1456,37 @@ async function main() {
   try {
       if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
       appConfig = await loadConfiguration(db);
+      // [수정] 스피너 숨기기는 renderRealtimeStatus로 이동
       renderTaskSelectionModal(appConfig.taskGroups);
-
-      // [수정] Config 로드 직후 스피너 숨기기 명시적 호출
+      // [수정] Config 로드 후 스피너 숨기기 명시적 호출
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
+      renderRealtimeStatus(appState, appConfig.teamGroups);
+    // === [추가] 오프라인 백업 복구 ===
+  try {
+    const localBackup = localStorage.getItem('localAppState');
+    if (localBackup) {
+      const restored = JSON.parse(localBackup);
+      appState = {
+        ...appState,
+        ...restored,
+        // taskQuantities 기본 키 보정
+        taskQuantities: { ...(appState.taskQuantities || {}), ...((restored && restored.taskQuantities) || {}) }
+      };
+      showToast('📦 오프라인 저장된 데이터를 복구했습니다.');
+      render(); // 복구된 상태로 그리기
+    }
+  } catch {
+    console.warn('로컬 백업 복구 실패(파싱 오류)');
+  }
 
-      renderRealtimeStatus(appState, appConfig.teamGroups); // 스피너 숨긴 후 초기 렌더링
   } catch (e) {
       console.error("설정 로드 실패:", e);
       showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
       // [수정] 실패 시에도 스피너 숨기기
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
-      renderRealtimeStatus(appState, appConfig.teamGroups); // 실패 시에도 기본 렌더링
+      renderRealtimeStatus(appState, appConfig.teamGroups);
   }
 
   displayCurrentDate();
