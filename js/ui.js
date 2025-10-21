@@ -96,7 +96,6 @@ export const renderRealtimeStatus = (appState) => {
 
     const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
 
-    // ongoingRecords는 여기서 한번만 선언
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
 
@@ -119,7 +118,7 @@ export const renderRealtimeStatus = (appState) => {
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
-                    <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left">${rec.member}</span>
+                    <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left truncate" title="${rec.member}">${rec.member}</span> {/* 이름 길 경우 대비 truncate 추가 */}
                     <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
                     <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 ml-1 flex-shrink-0">종료</button>
                 </div>`;
@@ -136,9 +135,9 @@ export const renderRealtimeStatus = (appState) => {
                                 <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
                             </div>`;
 
-            const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && earliest < current.startTime) ? earliest : current.startTime), "23:59:59");
+            const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && (!earliest || current.startTime < earliest)) ? current.startTime : earliest), null); // 초기값 null
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
-            const recordIdForDuration = representativeRecord ? representativeRecord.id : null;
+            const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id; // 대표 없을 시 첫번째 기록 ID 사용
             const durationStatus = isPaused ? 'paused' : 'ongoing';
 
             card.innerHTML = `<div class="flex flex-col h-full">
@@ -191,7 +190,7 @@ export const renderRealtimeStatus = (appState) => {
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // [중요 버그 수정 완료] const 키워드 제거됨 -> 변수명 변경 (ongoingRecordsForStatus 사용)
+    // [중요 버그 수정 완료] 변수명 변경 (ongoingRecordsForStatus 사용)
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing'); // Section 2 용도
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
