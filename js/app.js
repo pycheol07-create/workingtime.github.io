@@ -1,8 +1,7 @@
 // === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.5.2 (Fix Spinner - Attempt 4)
+// ver.2.6.2 (Fix Leave Modal Date Input)
 // 변경 요약:
-// - main 함수에서 config 로드 직후 스피너 숨기기 로직 확실히 실행
-// - ui.js의 스피너 숨기기 로직 제거 확인 (ui.js 파일 확인 필요)
+// - 휴무 모달 열 때 날짜 입력칸을 강제로 숨기던 코드 제거
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -22,7 +21,6 @@ import {
 } from './ui.js';
 
 // ========== DOM Elements ==========
-// ... (기존 요소 정의 유지) ...
 const connectionStatusEl = document.getElementById('connection-status');
 const statusDotEl = document.getElementById('status-dot');
 const teamStatusBoard = document.getElementById('team-status-board');
@@ -117,7 +115,6 @@ let memberToSetLeave = null;
 const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // ========== Helpers ==========
-// ... (generateId, normalizeName, calcElapsedMinutes 변경 없음) ...
 const generateId = () => `${Date.now()}-${++recordCounter}`;
 const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
 
@@ -136,9 +133,7 @@ const calcElapsedMinutes = (start, end, pauses = []) => {
   return Math.max(0, total / 60000);
 };
 
-
 // ========== 타이머 ==========
-// ... (updateElapsedTimes 변경 없음) ...
 const updateElapsedTimes = () => {
   const now = getCurrentTime();
   document.querySelectorAll('.ongoing-duration').forEach(el => {
@@ -164,9 +159,7 @@ const updateElapsedTimes = () => {
   if (el) el.textContent = formatDuration(totalCompletedMinutes + totalOngoingMinutes);
 };
 
-
 // ========== 렌더 ==========
-// ... (render 변경 없음) ...
 const render = () => {
   try {
     renderRealtimeStatus(appState, appConfig.teamGroups);
@@ -179,9 +172,7 @@ const render = () => {
   }
 };
 
-
 // ========== Firestore 저장 ==========
-// ... (saveStateToFirestore 변경 없음) ...
 async function saveStateToFirestore() {
   if (!auth || !auth.currentUser) {
     console.warn('Cannot save state: User not authenticated.');
@@ -192,7 +183,7 @@ async function saveStateToFirestore() {
     const stateToSave = JSON.stringify({
       workRecords: appState.workRecords || [],
       taskQuantities: appState.taskQuantities || {},
-      onLeaveMembers: appState.onLeaveMembers || [], // 날짜 정보 포함된 구조 저장
+      onLeaveMembers: appState.onLeaveMembers || [], 
       partTimers: appState.partTimers || [],
       hiddenGroupIds: appState.hiddenGroupIds || []
     }, (k, v) => (typeof v === 'function' ? undefined : v));
@@ -209,9 +200,7 @@ async function saveStateToFirestore() {
   }
 }
 
-
 // ========== 업무 그룹 제어 ==========
-// ... (startWorkGroup ~ resumeWorkGroup 함수 변경 없음) ...
 const startWorkGroup = (members, task) => {
   const groupId = Date.now();
   const startTime = getCurrentTime();
@@ -331,7 +320,6 @@ const resumeWorkGroup = (groupId) => {
 
 
 // ========== 저장/이력 ==========
-// ... (saveProgress, saveDayDataToHistory 변경 없음) ...
 async function saveProgress() {
   const dateStr = getTodayDateString();
   showToast('현재까지 완료된 기록을 저장합니다...');
@@ -410,7 +398,6 @@ async function saveDayDataToHistory(shouldReset) {
 
 
 // ========== 이력 보기 ==========
-// ... (fetchAllHistoryData ~ downloadHistoryAsExcel 변경 없음) ...
 async function fetchAllHistoryData() {
   const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
   try {
@@ -875,7 +862,6 @@ const switchHistoryView = (view) => {
 
 
 // ========== 이벤트 리스너 ==========
-// ... (teamStatusBoard ~ confirmStopIndividualBtn 리스너 변경 없음) ...
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
     // ... (업무 카드 관련 이벤트 리스너는 변경 없음) ...
@@ -904,11 +890,11 @@ if (teamStatusBoard) {
     const memberCard = e.target.closest('[data-member-toggle-leave]');
     if (memberCard) {
       const memberName = memberCard.dataset.memberToggleLeave;
-      memberToSetLeave = memberName; // 휴무 설정할 멤버 이름 저장
+      memberToSetLeave = memberName; 
 
       const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
       if (isWorking) {
-          memberToSetLeave = null; // 작업 중이면 초기화
+          memberToSetLeave = null; 
           return showToast(`${memberName}님은 현재 업무 중이므로 휴무 상태를 변경할 수 없습니다.`, true);
       }
 
@@ -916,21 +902,25 @@ if (teamStatusBoard) {
       const currentLeaveIndex = appState.onLeaveMembers.findIndex(item => item.member === memberName);
 
       if (currentLeaveIndex > -1) {
-          // 이미 휴무 상태 -> 휴무 취소 (복귀 처리)
           appState.onLeaveMembers.splice(currentLeaveIndex, 1);
           showToast(`${memberName}님이 복귀 처리되었습니다.`);
           saveStateToFirestore();
-          memberToSetLeave = null; // 처리 완료 후 초기화
+          memberToSetLeave = null; 
       } else {
-          // 휴무 상태 아님 -> 휴무 유형 선택 모달 열기
           if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
-          renderLeaveTypeModalOptions(LEAVE_TYPES); // ui.js에 추가된 함수 호출
-          if(leaveDateInputsDiv) leaveDateInputsDiv.classList.add('hidden'); // 날짜 입력 필드 초기 숨김
+          renderLeaveTypeModalOptions(LEAVE_TYPES); 
+          
+          // [!!!!!] 수정된 부분 [!!!!!]
+          // ui.js의 renderLeaveTypeModalOptions 함수가
+          // 기본 선택값('연차')에 따라 날짜 입력칸을 표시/숨김 처리하므로,
+          // app.js에서 강제로 숨기던 이 코드를 제거(주석 처리)합니다.
+          // if(leaveDateInputsDiv) leaveDateInputsDiv.classList.add('hidden'); 
+          
           if(leaveStartDateInput) leaveStartDateInput.value = ''; // 날짜 초기화
           if(leaveEndDateInput) leaveEndDateInput.value = ''; // 날짜 초기화
           if(leaveTypeModal) leaveTypeModal.classList.remove('hidden');
       }
-      return; // 이벤트 처리 종료
+      return; 
     }
 
     const card = e.target.closest('div[data-action]');
@@ -959,6 +949,7 @@ if (teamStatusBoard) {
   });
 }
 
+// ... (이하 모든 이벤트 리스너 및 main 함수는 이전 답변과 동일) ...
 if (workLogBody) {
   workLogBody.addEventListener('click', (e) => {
     const targetButton = e.target.closest('button');
@@ -1166,7 +1157,6 @@ if (confirmStopIndividualBtn) confirmStopIndividualBtn.addEventListener('click',
 });
 
 
-// [수정] 휴무 유형 모달 확인 버튼 리스너 (날짜 입력 처리 추가)
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     if (!memberToSetLeave) return;
 
@@ -1178,14 +1168,12 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     const leaveType = selectedTypeInput.value;
     const leaveData = { member: memberToSetLeave, type: leaveType };
 
-    // 외출/조퇴: 현재 시간 기록
     if (leaveType === '외출' || leaveType === '조퇴') {
         leaveData.startTime = getCurrentTime();
         if (leaveType === '조퇴') {
             leaveData.endTime = "17:30";
         }
     }
-    // 연차/출장: 날짜 기록
     else if (leaveType === '연차' || leaveType === '출장') {
         const startDate = leaveStartDateInput?.value;
         const endDate = leaveEndDateInput?.value;
@@ -1216,7 +1204,6 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     memberToSetLeave = null;
 });
 
-// ... (나머지 리스너 및 main 함수는 이전 답변과 동일) ...
 if (cancelLeaveBtn) cancelLeaveBtn.addEventListener('click', () => {
     if(leaveTypeModal) leaveTypeModal.classList.add('hidden');
     memberToSetLeave = null; 
@@ -1383,12 +1370,12 @@ async function main() {
   try {
       if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
       appConfig = await loadConfiguration(db);
-      renderTaskSelectionModal(appConfig.taskGroups);
-
-      // [수정] Config 로드 직후 스피너 숨기기 명시적 호출
+      
+      // [수정] Config 로드 직후 스피너 숨기기
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
 
+      renderTaskSelectionModal(appConfig.taskGroups);
       renderRealtimeStatus(appState, appConfig.teamGroups); // 스피너 숨긴 후 초기 렌더링
   } catch (e) {
       console.error("설정 로드 실패:", e);
