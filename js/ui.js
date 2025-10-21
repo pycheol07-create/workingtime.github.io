@@ -1,6 +1,6 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// 업무별 카드 스타일 정의 (한 번만 선언)
+// 업무별 카드 스타일 정의
 const taskCardStyles = {
     '국내배송': ['bg-green-50', 'border-green-200', 'text-green-800'],
     '중국제작': ['bg-purple-50', 'border-purple-200', 'text-purple-800'],
@@ -21,7 +21,7 @@ const taskCardStyles = {
     '2층업무': ['bg-neutral-50', 'border-neutral-200', 'text-neutral-800'],
     '재고찾는시간': ['bg-lime-50', 'border-lime-200', 'text-lime-800'],
     '매장근무': ['bg-cyan-50', 'border-cyan-200', 'text-cyan-800'],
-    '출장': ['bg-gray-50', 'border-gray-200', 'text-gray-800'],
+    '출장': ['bg-gray-50', 'border-gray-200', 'text-gray-800'], // 출장 스타일 추가
     'default': ['bg-blue-50', 'border-blue-200', 'text-blue-800'],
     'paused': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800']
 };
@@ -102,7 +102,9 @@ export const renderTaskAnalysis = (appState) => {
 };
 
 
+// [수정] renderRealtimeStatus: 함수 시작 시 스피너 숨기기
 export const renderRealtimeStatus = (appState, teamGroups = []) => {
+    // [수정] 로딩 스피너를 찾아서 *먼저* 숨깁니다.
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) {
         loadingSpinner.style.display = 'none';
@@ -113,6 +115,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         console.error("Element #team-status-board not found!");
         return;
     }
+    // 스피너를 숨긴 후 내용 초기화 (스피너가 있으면 스피너 포함해서 지워짐)
     teamStatusBoard.innerHTML = '';
 
     const memberGroupMap = new Map();
@@ -595,4 +598,69 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
             dateInputsDiv.classList.add('hidden');
         }
     }
+};
+
+// [추가] 근태 이력 렌더링 함수
+export const renderAttendanceHistory = (dateKey, allHistoryData) => {
+    const view = document.getElementById('history-attendance-view');
+    if (!view) return;
+    view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
+
+    const data = allHistoryData.find(d => d.id === dateKey);
+    if (!data || !data.onLeaveMembers || data.onLeaveMembers.length === 0) {
+        view.innerHTML = `<div class="bg-white p-4 rounded-lg shadow-sm text-center text-gray-500">${dateKey} 날짜의 근태 기록이 없습니다.</div>`;
+        return;
+    }
+
+    const leaveEntries = data.onLeaveMembers;
+    leaveEntries.sort((a, b) => (a.member || '').localeCompare(b.member || '')); // 이름순 정렬
+
+    let html = `
+        <div class="mb-4 pb-2 border-b">
+            <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-sm">
+            <table class="w-full text-sm text-left text-gray-600">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3">이름</th>
+                        <th scope="col" class="px-6 py-3">유형</th>
+                        <th scope="col" class="px-6 py-3">시간 / 기간</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    leaveEntries.forEach(entry => {
+        let detailText = '-';
+        if (entry.startTime) { // 외출/조퇴
+            detailText = formatTimeTo24H(entry.startTime);
+            if (entry.endTime) {
+                detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+            } else if (entry.type === '외출') {
+                detailText += ' ~';
+            }
+        } else if (entry.startDate) { // 연차/출장
+            detailText = entry.startDate;
+            if (entry.endDate && entry.endDate !== entry.startDate) {
+                detailText += ` ~ ${entry.endDate}`;
+            }
+        }
+
+        html += `
+            <tr class="bg-white border-b">
+                <td class="px-6 py-4 font-medium text-gray-900">${entry.member}</td>
+                <td class="px-6 py-4">${entry.type}</td>
+                <td class="px-6 py-4">${detailText}</td>
+            </tr>
+        `;
+    });
+
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    view.innerHTML = html;
 };
