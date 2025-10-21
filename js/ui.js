@@ -21,7 +21,7 @@ const taskCardStyles = {
     '2층업무': ['bg-neutral-50', 'border-neutral-200', 'text-neutral-800'],
     '재고찾는시간': ['bg-lime-50', 'border-lime-200', 'text-lime-800'],
     '매장근무': ['bg-cyan-50', 'border-cyan-200', 'text-cyan-800'],
-    '출장': ['bg-gray-50', 'border-gray-200', 'text-gray-800'],
+    '출장': ['bg-gray-50', 'border-gray-200', 'text-gray-800'], // 출장 스타일 추가
     'default': ['bg-blue-50', 'border-blue-200', 'text-blue-800'],
     'paused': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800']
 };
@@ -103,20 +103,17 @@ export const renderTaskAnalysis = (appState) => {
 };
 
 
-// [수정] renderRealtimeStatus: 스피너 숨기기 로직 제거
 export const renderRealtimeStatus = (appState, teamGroups = []) => {
-    // [삭제] 로딩 스피너 숨기기 로직 제거
-    // const loadingSpinner = document.getElementById('loading-spinner');
-    // if (loadingSpinner) {
-    //     loadingSpinner.style.display = 'none';
-    // }
+    const loadingSpinner = document.getElementById('loading-spinner');
+    if (loadingSpinner) {
+        loadingSpinner.style.display = 'none';
+    }
 
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
         console.error("Element #team-status-board not found!");
         return;
     }
-    // 내용 초기화는 유지
     teamStatusBoard.innerHTML = '';
 
     const memberGroupMap = new Map();
@@ -125,7 +122,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     }));
 
     // --- Section 1: Preset Task Quick Actions ---
-    // ... (이하 코드는 이전 답변과 동일하게 유지) ...
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
@@ -371,7 +367,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
-// ... (renderCompletedWorkLog ~ renderTeamSelectionModalContent 변경 없음) ...
+// ... (renderCompletedWorkLog, updateSummary, renderTeamSelectionModalContent 변경 없음) ...
 export const renderCompletedWorkLog = (appState) => {
     const workLogBody = document.getElementById('work-log-body');
     if (!workLogBody) return;
@@ -561,6 +557,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 };
 
 
+// [수정] renderLeaveTypeModalOptions: 날짜 입력 필드 표시/숨김 로직 추가
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs');
@@ -577,6 +574,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         container.appendChild(div);
     });
 
+    // 라디오 버튼 변경 시 이벤트 리스너 추가
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
@@ -591,6 +589,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const firstRadio = container.querySelector('input[type="radio"]');
     if (firstRadio) {
         firstRadio.checked = true;
+        // [수정] 초기 상태 확인 및 날짜 필드 표시/숨김 (맨 처음 로드 시)
         if (firstRadio.value === '연차' || firstRadio.value === '출장') {
             dateInputsDiv.classList.remove('hidden');
         } else {
@@ -599,13 +598,14 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     }
 };
 
-// ... (renderAttendanceHistory 변경 없음) ...
+// [추가] 근태 이력 렌더링 함수
 export const renderAttendanceHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
 
     const data = allHistoryData.find(d => d.id === dateKey);
+    // [수정] onLeaveMembers가 비어있거나 없을 경우 메시지 표시
     if (!data || !data.onLeaveMembers || data.onLeaveMembers.length === 0) {
         view.innerHTML = `<div class="bg-white p-4 rounded-lg shadow-sm text-center text-gray-500">${dateKey} 날짜의 근태 기록이 없습니다.</div>`;
         return;
