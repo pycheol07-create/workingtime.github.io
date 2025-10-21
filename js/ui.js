@@ -73,7 +73,7 @@ export const renderTaskAnalysis = (appState) => {
         return;
     }
 
-    const taskColorsHex = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399', '출장': '#6b7280'}; // 출장 색 추가
+    const taskColorsHex = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399', '출장': '#6b7280'};
 
     const taskAnalysis = completedRecords.reduce((acc, record) => {
         if (record.task) {
@@ -104,22 +104,21 @@ export const renderTaskAnalysis = (appState) => {
 };
 
 
-// [수정] renderRealtimeStatus: 휴무 카드에 시간/날짜 표시 로직 수정, 스피너 숨기기 강화
+// [수정] renderRealtimeStatus: 함수 시작 시 스피너 숨기기
 export const renderRealtimeStatus = (appState, teamGroups = []) => {
-    const teamStatusBoard = document.getElementById('team-status-board');
-    if (!teamStatusBoard) {
-        console.error("Element #team-status-board not found!");
-        return;
-    }
-
     // [수정] 로딩 스피너를 찾아서 먼저 숨깁니다.
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) {
         loadingSpinner.style.display = 'none';
     }
-    // 스피너를 숨긴 후 내용 초기화
-    teamStatusBoard.innerHTML = '';
 
+    const teamStatusBoard = document.getElementById('team-status-board');
+    if (!teamStatusBoard) {
+        console.error("Element #team-status-board not found!");
+        return;
+    }
+    // 스피너를 숨긴 후 내용 초기화 (스피너가 있으면 스피너 포함해서 지워짐)
+    teamStatusBoard.innerHTML = '';
 
     const memberGroupMap = new Map();
     teamGroups.forEach(group => group.members.forEach(member => {
@@ -127,7 +126,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     }));
 
     // --- Section 1: Preset Task Quick Actions ---
-    // ... (변경 없음) ...
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
@@ -271,22 +269,19 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                 card.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
-            // [수정] 휴무 유형 및 시간/날짜 표시
             if (isOnLeave) {
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 let detailText = '';
-                // 시간 정보 표시 (외출/조퇴)
                 if (leaveInfo.startTime) {
                     detailText = formatTimeTo24H(leaveInfo.startTime);
                     if (leaveInfo.endTime) {
                          detailText += ` - ${formatTimeTo24H(leaveInfo.endTime)}`;
-                    } else if (leaveInfo.type === '외출') { // 외출만 ~ 표시
+                    } else if (leaveInfo.type === '외출') {
                          detailText += ' ~';
                     }
                 }
-                // 날짜 정보 표시 (연차/출장)
                 else if (leaveInfo.startDate) {
-                    detailText = leaveInfo.startDate.substring(5); // MM-DD
+                    detailText = leaveInfo.startDate.substring(5);
                     if (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate) {
                         detailText += ` ~ ${leaveInfo.endDate.substring(5)}`;
                     }
@@ -341,7 +336,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                  card.classList.add('opacity-70', 'cursor-not-allowed');
              }
 
-             // [수정] 알바 휴무 유형 및 시간/날짜 표시
              if (isAlbaOnLeave) {
                  card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                  let detailText = '';
