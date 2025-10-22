@@ -1,4 +1,4 @@
-// === admin.js (드래그앤드랍 이벤트 버블링 버그 '진짜' 수정) ===
+// === admin.js (드래그앤드랍 'drop' 로직 전면 수정) ===
 
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 
@@ -8,6 +8,27 @@ const ADMIN_PASSWORD = "anffbxla123";
 
 // 드래그 상태 관리 변수
 let draggedItem = null;
+
+// ✅ [추가] 드롭 위치를 계산하는 헬퍼 함수
+function getDragAfterElement(container, y, itemSelector) {
+    // 컨테이너 내의 드래그 가능한 요소들 (현재 드래그 중인 요소 제외)
+    const draggableElements = [...container.querySelectorAll(`${itemSelector}:not(.dragging)`)];
+
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        // 요소의 중심 좌표와 마우스 Y좌표(y)의 차이
+        const offset = y - box.top - box.height / 2;
+        
+        // offset이 0보다 작다 ( = 요소가 마우스보다 아래에 있다)
+        // 그리고 그 차이가 이전에 찾은 요소(closest.offset)보다 크다 ( = 더 가깝다)
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element; // 기본값은 '가장 가까운 요소 없음'
+}
+
 
 document.addEventListener('DOMContentLoaded', () => {
     // ... (비밀번호 관련 코드는 동일) ...
@@ -52,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- UI 렌더링 ---
-
+// (renderAdminUI, renderTeamGroups, renderKeyTasks, renderTaskGroups, renderQuantityTasks 함수는 이전과 동일)
 function renderAdminUI(config) {
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) {
@@ -167,6 +188,7 @@ function renderQuantityTasks(quantityTasks) {
     });
 }
 
+
 // --- 이벤트 리스너 설정 ---
 
 function setupEventListeners() {
@@ -190,7 +212,7 @@ function setupEventListeners() {
     setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item'); // 6. 처리량 업무 (항목)
 }
 
-// 동적 항목 추가 함수들
+// (addTeamGroup, addKeyTask, addTaskGroup, addQuantityTask, handleDynamicClicks 함수는 이전과 동일)
 function addTeamGroup() {
     const newGroup = { name: '새 그룹', members: ['새 팀원'] };
     appConfig.teamGroups = appConfig.teamGroups || [];
@@ -199,7 +221,6 @@ function addTeamGroup() {
     appConfig.memberWages['새 팀원'] = appConfig.defaultPartTimerWage || 10000;
     
     renderTeamGroups(appConfig.teamGroups, appConfig.memberWages);
-    // ✅ [수정] 새로 렌더링된 *모든* .members-container에 리스너를 다시 붙여줍니다.
     setupDragDropListeners('.members-container', '.member-item'); 
 }
 
@@ -215,7 +236,6 @@ function addTaskGroup() {
     appConfig.taskGroups[newGroupName] = ['새 업무'];
     
     renderTaskGroups(appConfig.taskGroups);
-    // ✅ [수정] 새로 렌더링된 *모든* .tasks-container에 리스너를 다시 붙여줍니다.
     setupDragDropListeners('.tasks-container', '.task-item');
 }
 
@@ -225,7 +245,6 @@ function addQuantityTask() {
     renderQuantityTasks(appConfig.quantityTaskTypes);
 }
 
-// 동적 클릭 이벤트 핸들러
 function handleDynamicClicks(e) {
     // 팀원 추가/삭제, 팀 그룹 삭제
     if (e.target.classList.contains('add-member-btn')) {
@@ -273,42 +292,32 @@ function handleDynamicClicks(e) {
     }
 }
 
-// ✅ [수정] 드래그 앤 드롭 설정 함수 (버블링 해결)
+
+// ✅ [수정] 드래그 앤 드롭 로직 전체 수정
 function setupDragDropListeners(containerSelector, itemSelector) {
     const containers = document.querySelectorAll(containerSelector);
     if (containers.length === 0) return;
 
     containers.forEach(container => {
-        // 중복 부착 방지 (기존 로직 유지)
+        // 중복 부착 방지
         const listenerId = `drag-${itemSelector.replace('.', '')}`;
         if (container.dataset.dragListenersAttached?.includes(listenerId)) {
-            // console.log(`Listener ${listenerId} already attached to`, container);
             return;
         }
         container.dataset.dragListenersAttached = (container.dataset.dragListenersAttached || '') + listenerId;
 
 
         container.addEventListener('dragstart', (e) => {
-            // 1. 클릭한 핸들(e.target)을 기준으로 가장 가까운 item을 찾습니다.
             const item = e.target.closest(itemSelector);
 
-            // 2. 핸들(☰)을 클릭한게 맞는지, item을 찾았는지 확인합니다.
             if (!item || !e.target.classList.contains('drag-handle')) {
-                return; // 핸들이 아니면 드래그 시작 안 함
+                return; 
             }
             
-            // 3. ✅ [핵심 수정] 
-            // 찾은 item의 부모가 이 리스너가 부착된 container가 맞는지 확인합니다.
-            // (예: .member-item의 부모는 .members-container여야 함)
-            // 이게 없으면, .member-item을 클릭해도 #team-groups-container 리스너가 반응함.
             if (item.parentElement !== container) {
-                // console.warn('Drag target mismatch', item.parentElement, 'is not', container);
                 return;
             }
 
-            // 4. ✅ [핵심 수정] 
-            // 조건이 모두 맞으면(내가 처리할 이벤트가 맞으면), 
-            // 이벤트가 부모로 전파되는 것을 *즉시* 중단시킵니다.
             e.stopPropagation();
 
             draggedItem = item;
@@ -317,7 +326,6 @@ function setupDragDropListeners(containerSelector, itemSelector) {
         });
 
         container.addEventListener('dragend', (e) => {
-            // dragstart가 성공했다면, dragend도 동일하게 중단시킵니다.
             if (draggedItem && draggedItem.parentElement === container) {
                 e.stopPropagation();
             }
@@ -329,55 +337,57 @@ function setupDragDropListeners(containerSelector, itemSelector) {
             document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
         });
 
+        // ✅ [수정] 'dragover' 로직: Y좌표 기반으로 시각적 피드백
         container.addEventListener('dragover', (e) => {
             e.preventDefault();
-            e.stopPropagation(); // ✅ 하위 -> 상위 이벤트 전파 중단
+            e.stopPropagation(); 
             
-            const targetItem = e.target.closest(itemSelector);
+            if (!draggedItem || draggedItem.parentElement !== container) return;
+
+            const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
             
-            // ✅ [수정] 드래그 중인 아이템과 타겟 아이템의 부모가 같은지 확인
-            if (targetItem && draggedItem && targetItem !== draggedItem && 
-                targetItem.parentElement === draggedItem.parentElement) 
-            {
-                 // 같은 컨테이너 내의 기존 .drag-over 지우기
-                 container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-                 targetItem.classList.add('drag-over');
+            // 기존 피드백 제거
+            container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+
+            if (afterElement) {
+                // 특정 요소 앞에 삽입될 때
+                afterElement.classList.add('drag-over');
+            } else {
+                // 맨 끝에 삽입될 때 (별도 클래스나 마지막 요소에 표시 가능)
+                // 예: container.lastElementChild?.classList.add('drag-over-bottom');
             }
         });
 
          container.addEventListener('dragleave', (e) => {
-             e.stopPropagation(); // ✅ 하위 -> 상위 이벤트 전파 중단
-             const targetItem = e.target.closest(itemSelector);
-             if (targetItem) {
-                 targetItem.classList.remove('drag-over');
-             }
+             e.stopPropagation(); 
+             // 컨테이너를 벗어나면 피드백 제거
+             container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
          });
 
-
+        // ✅ [수정] 'drop' 로직: Y좌표 기반으로 실제 순서 변경
         container.addEventListener('drop', (e) => {
             e.preventDefault();
-            e.stopPropagation(); // ✅ 하위 -> 상위 이벤트 전파 중단
+            e.stopPropagation(); 
             
-            const targetItem = e.target.closest(itemSelector);
             document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
 
-            // ✅ [수정] 드래그 중인 아이템과 타겟 아이템의 부모가 같은지 확인 (더 안전함)
-            if (targetItem && draggedItem && targetItem !== draggedItem && 
-                targetItem.parentElement === draggedItem.parentElement) 
-            {
-                // targetItem.parentElement가 실제 컨테이너임
-                const actualContainer = targetItem.parentElement; 
-                const children = Array.from(actualContainer.children);
-                const draggedIndex = children.indexOf(draggedItem);
-                const targetIndex = children.indexOf(targetItem);
-
-                if (draggedIndex < targetIndex) {
-                    actualContainer.insertBefore(draggedItem, targetItem.nextSibling);
-                } else {
-                    actualContainer.insertBefore(draggedItem, targetItem);
-                }
+            if (!draggedItem || draggedItem.parentElement !== container) {
+                if (draggedItem) draggedItem.classList.remove('dragging');
+                draggedItem = null;
+                return;
             }
-
+            
+            // 헬퍼 함수를 이용해 삽입할 위치(다음 요소) 찾기
+            const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
+            
+            if (afterElement) {
+                // afterElement 앞에 삽입
+                container.insertBefore(draggedItem, afterElement);
+            } else {
+                // afterElement가 없으면 (맨 끝으로 드롭)
+                container.appendChild(draggedItem);
+            }
+            
             if (draggedItem) {
                draggedItem.classList.remove('dragging');
             }
@@ -388,7 +398,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
 
 // --- 데이터 저장 ---
-
+// (handleSaveAll 함수는 이전과 동일)
 async function handleSaveAll() {
     try {
         const newConfig = {
@@ -462,9 +472,7 @@ async function handleSaveAll() {
 
         // 7. UI 다시 렌더링 (리스너 재설정 포함)
         renderAdminUI(appConfig);
-        // ✅ [수정] 렌더링으로 모든 요소가 파괴되고 다시 생성되었으므로,
-        // 모든 리스너를 다시 설정해야 합니다.
-        setupEventListeners(); 
+        setupEventListeners(); // 렌더링 후 리스너 재설정
 
 
     } catch (e) {
