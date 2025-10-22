@@ -1,19 +1,18 @@
-// === config.js (keyTasks 기본값 추가) ===
+// === config.js (keyTasks 추가) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// ... (Firebase 설정 및 다른 함수들은 동일) ...
 // 1. Firebase 설정 (유지)
 export const firebaseConfig = {
-    apiKey: "YOUR_API_KEY", // 실제 키로 변경하세요
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID",
-    measurementId: "YOUR_MEASUREMENT_ID" // 선택 사항
+    apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
+    authDomain: "work-tool-e2943.firebaseapp.com",
+    projectId: "work-tool-e2943",
+    storageBucket: "work-tool-e2943.appspot.com",
+    messagingSenderId: "133294945093",
+    appId: "1:133294945093:web:cde90aab6716127512842c",
+    measurementId: "G-ZZQLKB0057"
 };
 
 // 2. 앱 ID
@@ -26,7 +25,6 @@ export const initializeFirebase = () => {
         const app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
-        console.log("Firebase initialized successfully."); // 초기화 성공 로그
         return { app, db, auth };
     } catch (error) {
         console.error("Firebase 초기화 실패:", error);
@@ -39,25 +37,17 @@ export const initializeFirebase = () => {
 export const loadAppConfig = async (dbInstance) => {
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
-
+    
     const configDocRef = doc(dbToUse, 'artifacts', APP_ID, 'config', 'mainConfig');
-
+    
     try {
         const docSnap = await getDoc(configDocRef);
         if (docSnap.exists()) {
             console.log("Firestore에서 앱 설정을 불러왔습니다.");
+            // [수정] 불러온 데이터에 기본값이 누락된 경우 병합
             const loadedData = docSnap.data();
             const defaultData = getDefaultConfig();
-            // Firestore 데이터와 기본값 병합 (Firestore 우선)
-            const mergedConfig = { ...defaultData, ...loadedData };
-            // 배열 필드도 기본값 확인 (Firestore에 없을 경우 대비)
-            mergedConfig.teamGroups = loadedData.teamGroups || defaultData.teamGroups;
-            mergedConfig.keyTasks = loadedData.keyTasks || defaultData.keyTasks; // keyTasks 추가
-            mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
-            // taskGroups는 객체이므로 기본값 방식 유지 가능
-            mergedConfig.taskGroups = loadedData.taskGroups || defaultData.taskGroups;
-
-            return mergedConfig;
+            return { ...defaultData, ...loadedData };
         } else {
             console.warn("Firestore에 앱 설정 문서가 없습니다. 기본값으로 새로 생성합니다.");
             const defaultData = getDefaultConfig();
@@ -76,20 +66,18 @@ export const saveAppConfig = async (dbInstance, configData) => {
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
 
-    // 순환 참조나 함수 등 Firestore에 저장할 수 없는 타입 제거
     const cleanedConfig = JSON.parse(JSON.stringify(configData));
     const configDocRef = doc(dbToUse, 'artifacts', APP_ID, 'config', 'mainConfig');
     await setDoc(configDocRef, cleanedConfig);
 };
 
-// 6. Firestore에서 *근태 일정* 불러오기
+// 6. [추가] Firestore에서 *근태 일정* 불러오기
 export const loadLeaveSchedule = async (dbInstance) => {
-    // ... (이전과 동일) ...
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
-
+    
     const leaveDocRef = doc(dbToUse, 'artifacts', APP_ID, 'persistent_data', 'leaveSchedule');
-
+    
     try {
         const docSnap = await getDoc(leaveDocRef);
         if (docSnap.exists()) {
@@ -108,9 +96,8 @@ export const loadLeaveSchedule = async (dbInstance) => {
     }
 };
 
-// 7. Firestore에 *근태 일정* 저장하기
+// 7. [추가] Firestore에 *근태 일정* 저장하기
 export const saveLeaveSchedule = async (dbInstance, leaveData) => {
-    // ... (이전과 동일) ...
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
 
@@ -135,14 +122,14 @@ function getDefaultConfig() {
             '김현': 10287, '배은정': 10287, '박상희': 10287, '김동훈': 10287,
             '신민재': 10047, '황호석': 10047
         },
-        // [추가] keyTasks 기본값 정의
-        keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'],
         taskGroups: {
             '공통': ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업'],
             '담당': ['개인담당업무', '상.하차', '검수', '아이롱', '오류'],
             '기타': ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무']
         },
         quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '검수'],
-        defaultPartTimerWage: 10000
+        defaultPartTimerWage: 10000,
+        // [추가] 주요 업무 기본값
+        keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무']
     };
 }
