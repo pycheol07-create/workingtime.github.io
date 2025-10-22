@@ -1,3 +1,5 @@
+// === config.js (defaultPartTimerWage 추가) ===
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -42,7 +44,10 @@ export const loadAppConfig = async (dbInstance) => {
         const docSnap = await getDoc(configDocRef);
         if (docSnap.exists()) {
             console.log("Firestore에서 앱 설정을 불러왔습니다.");
-            return docSnap.data();
+            // [수정] 불러온 데이터에 기본값이 누락된 경우 병합
+            const loadedData = docSnap.data();
+            const defaultData = getDefaultConfig();
+            return { ...defaultData, ...loadedData };
         } else {
             console.warn("Firestore에 앱 설정 문서가 없습니다. 기본값으로 새로 생성합니다.");
             const defaultData = getDefaultConfig();
@@ -122,6 +127,7 @@ function getDefaultConfig() {
             '담당': ['개인담당업무', '상.하차', '검수', '아이롱', '오류'],
             '기타': ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무']
         },
-        quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '검수']
+        quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '검수'],
+        defaultPartTimerWage: 10000 // [추가]
     };
 }

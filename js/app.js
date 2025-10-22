@@ -1,4 +1,4 @@
-// === app.js (개인별 일시정지/재개 로직 추가) ===
+// === app.js (알바 추가 시 기본 시급 적용, 인건비 계산 로직 수정) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -115,7 +115,8 @@ let appConfig = { // 앱 설정
     teamGroups: [],
     memberWages: {},
     taskGroups: {},
-    quantityTaskTypes: []
+    quantityTaskTypes: [],
+    defaultPartTimerWage: 10000 // [추가]
 };
 
 let selectedTaskForStart = null;
@@ -646,6 +647,14 @@ const renderHistoryDetail = (dateKey) => {
   const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
   const partTimersFromHistory = data.partTimers || [];
 
+  // [수정] 이력 상세 보기 시점의 알바 시급을 포함하는 임금 맵 생성
+  const wageMap = { ...appConfig.memberWages };
+  partTimersFromHistory.forEach(pt => {
+      if (!wageMap[pt.name]) {
+          wageMap[pt.name] = pt.wage || 0; // 이력에 저장된 시급 사용
+      }
+  });
+
   const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
   const activeMembersCount = allRegularMembers.size - onLeaveMemberNames.length + partTimersFromHistory.length;
   const totalSumDuration = records.reduce((sum, r) => sum + (r.duration || 0), 0);
@@ -653,7 +662,7 @@ const renderHistoryDetail = (dateKey) => {
   const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (rec.duration || 0); return acc; }, {});
   
   const taskCosts = records.reduce((acc, rec) => {
-      const wage = appConfig.memberWages[rec.member] || 0; 
+      const wage = wageMap[rec.member] || 0; // [수정] 통합 wageMap 사용
       const cost = ((Number(rec.duration) || 0) / 60) * wage; 
       acc[rec.task] = (acc[rec.task] || 0) + cost;
       return acc;
@@ -840,6 +849,15 @@ window.downloadHistoryAsExcel = async (dateKey) => {
     }
     const records = data.workRecords;
     const quantities = data.taskQuantities || {};
+    const partTimersFromHistory = data.partTimers || []; // [추가]
+
+    // [추가] 엑셀 다운로드 시점의 알바 시급을 포함하는 임금 맵 생성
+    const wageMap = { ...appConfig.memberWages };
+    partTimersFromHistory.forEach(pt => {
+        if (!wageMap[pt.name]) {
+            wageMap[pt.name] = pt.wage || 0;
+        }
+    });
 
     const appendTotalRow = (ws, data, headers) => {
       if (!data || data.length === 0) return;
@@ -884,7 +902,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
     const summaryByTask = {};
     records.forEach(r => {
       if (!summaryByTask[r.task]) summaryByTask[r.task] = { totalDuration: 0, totalCost: 0 };
-      const wage = appConfig.memberWages[r.member] || 0;
+      const wage = wageMap[r.member] || 0; // [수정] 통합 wageMap 사용
       const cost = ((Number(r.duration) || 0) / 60) * wage;
       summaryByTask[r.task].totalDuration += (Number(r.duration) || 0);
       summaryByTask[r.task].totalCost += cost;
@@ -913,7 +931,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
     records.forEach(r => {
       const part = memberToPartMap.get(r.member) || '기타';
       if (!summaryByPart[part]) summaryByPart[part] = { totalCost: 0 };
-      const wage = appConfig.memberWages[r.member] || 0;
+      const wage = wageMap[r.member] || 0; // [수정] 통합 wageMap 사용
       const cost = ((Number(r.duration) || 0) / 60) * wage;
       summaryByPart[part].totalCost += cost;
     });
@@ -1744,8 +1762,12 @@ if (teamSelectModal) teamSelectModal.addEventListener('click', e => {
     const existingNames = (appConfig.teamGroups || []).flatMap(g => g.members).concat(appState.partTimers.map(p => p.name));
     let newName = `${baseName}${counter}`;
     while (existingNames.includes(newName)) { counter++; newName = `${baseName}${counter}`; }
+    
     const newId = Date.now();
-    appState.partTimers.push({ id: newId, name: newName });
+    // [수정] 설정에서 기본 알바 시급을 가져와서 적용
+    const newWage = appConfig.defaultPartTimerWage || 10000;
+    appState.partTimers.push({ id: newId, name: newName, wage: newWage }); 
+    
     saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups));
     return;
   }
@@ -1789,6 +1811,7 @@ if (confirmEditPartTimerBtn) confirmEditPartTimerBtn.addEventListener('click', (
   if (allNamesNorm.includes(nNew)) { showToast('해당 이름은 이미 사용 중입니다.', true); return; }
 
   const oldName = partTimer.name;
+  // [수정] 알바 이름 변경 시 시급 정보 유지
   appState.partTimers[idx] = { ...partTimer, name: newName };
   appState.workRecords = (appState.workRecords || []).map(r => (r.member === oldName ? { ...r, member: newName } : r));
   saveStateToFirestore().then(() => {

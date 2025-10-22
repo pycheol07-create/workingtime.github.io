@@ -1,12 +1,12 @@
-// === ui.js (개인별 일시정지 버튼 추가, 카드 배경색 수정) ===
+// === ui.js (카드 배경색 '하늘색'으로 수정) ===
 
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// [수정] 업무별 카드 스타일 정의 -> 밝은 배경(slate-50)으로 통일
+// [수정] 업무별 카드 스타일 정의 -> 밝은 배경(sky-50)으로 통일
 const taskCardStyles = {
     // [수정] 시작 전 (밝은 'OFF' 상태)
     'default': {
-        card: ['bg-slate-50', 'border-gray-200', 'text-gray-700', 'shadow-sm'], // [수정] 기본 밝은 회색 카드
+        card: ['bg-sky-50', 'border-gray-200', 'text-gray-700', 'shadow-sm'], // [수정] 기본 밝은 하늘색 카드
         hover: 'hover:border-blue-400 hover:shadow-md',
         subtitle: 'text-gray-500', // 시작시간, 참여인원 텍스트
         buttonBgOff: 'bg-gray-200',
@@ -14,7 +14,7 @@ const taskCardStyles = {
     },
     // [수정] 업무 진행 중 ('ON' 상태)
     'ongoing': {
-        card: ['bg-slate-50', 'border-blue-400', 'text-gray-900', 'shadow-lg', 'shadow-blue-100'], // [수정] 밝은 회색 배경 + 파란 테두리
+        card: ['bg-sky-50', 'border-blue-400', 'text-gray-900', 'shadow-lg', 'shadow-blue-100'], // [수정] 밝은 하늘색 배경 + 파란 테두리
         hover: 'hover:border-blue-500',
         subtitle: 'text-gray-600',
         buttonBgOn: 'bg-blue-600',
@@ -264,7 +264,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     });
 
     const otherTaskCard = document.createElement('div');
-    // [수정] '기타 업무' 카드도 'default' 스타일(slate-50) 적용
+    // [수정] '기타 업무' 카드도 'default' 스타일(sky-50) 적용
     const otherStyle = taskCardStyles['default'];
     otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';

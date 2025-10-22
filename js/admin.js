@@ -1,4 +1,4 @@
-// === admin.js (config.js와 함수 이름 동기화) ===
+// === admin.js (기본 알바 시급 불러오기/저장하기 추가) ===
 
 // [수정] loadConfiguration, saveConfiguration -> loadAppConfig, saveAppConfig
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
@@ -48,6 +48,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- UI 렌더링 ---
 
 function renderAdminUI(config) {
+    // [추가] 기본 알바 시급 렌더링
+    const wageInput = document.getElementById('default-part-timer-wage');
+    if (wageInput) {
+        wageInput.value = config.defaultPartTimerWage || 10000;
+    }
+
     renderTeamGroups(config.teamGroups || [], config.memberWages || {});
     renderTaskGroups(config.taskGroups || {});
     renderQuantityTasks(config.quantityTaskTypes || []);
@@ -210,7 +216,8 @@ async function handleSaveAll() {
             teamGroups: [],
             memberWages: {},
             taskGroups: {},
-            quantityTaskTypes: []
+            quantityTaskTypes: [],
+            defaultPartTimerWage: 10000 // [추가] 기본값 설정
         };
 
         // 1. 팀원 및 시급 정보 읽기
@@ -248,6 +255,12 @@ async function handleSaveAll() {
             const taskName = taskItem.querySelector('.quantity-task-name').value.trim();
             if (taskName) newConfig.quantityTaskTypes.push(taskName);
         });
+
+        // [추가] 3.5. 전역 설정 (알바 시급) 읽기
+        const wageInput = document.getElementById('default-part-timer-wage');
+        if (wageInput) {
+            newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
+        }
 
         // 4. Firestore에 저장
         // [수정] saveConfiguration -> saveAppConfig
