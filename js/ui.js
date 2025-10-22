@@ -1,29 +1,34 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// 업무별 카드 스타일 정의 (중복 선언 제거)
+// [수정] 업무별 카드 스타일 정의 -> 기본/일시정지로 통일
 const taskCardStyles = {
-    '국내배송': ['bg-green-50', 'border-green-200', 'text-green-800'],
-    '중국제작': ['bg-purple-50', 'border-purple-200', 'text-purple-800'],
-    '직진배송': ['bg-emerald-50', 'border-emerald-200', 'text-emerald-800'],
-    '채우기': ['bg-sky-50', 'border-sky-200', 'text-sky-800'],
-    '개인담당업무': ['bg-indigo-50', 'border-indigo-200', 'text-indigo-800'],
-    '티니': ['bg-red-50', 'border-red-200', 'text-red-800'],
-    '택배포장': ['bg-orange-50', 'border-orange-200', 'text-orange-800'],
-    '해외배송': ['bg-cyan-50', 'border-cyan-200', 'text-cyan-800'],
-    '재고조사': ['bg-fuchsia-50', 'border-fuchsia-200', 'text-fuchsia-800'],
-    '앵글정리': ['bg-amber-50', 'border-amber-200', 'text-amber-800'],
-    '상품재작업': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800'],
-    '상.하차': ['bg-stone-50', 'border-stone-200', 'text-stone-800'],
-    '검수': ['bg-teal-50', 'border-teal-200', 'text-teal-800'],
-    '아이롱': ['bg-violet-50', 'border-violet-200', 'text-violet-800'],
-    '오류': ['bg-rose-50', 'border-rose-200', 'text-rose-800'],
-    '강성': ['bg-pink-50', 'border-pink-200', 'text-pink-800'],
-    '2층업무': ['bg-neutral-50', 'border-neutral-200', 'text-neutral-800'],
-    '재고찾는시간': ['bg-lime-50', 'border-lime-200', 'text-lime-800'],
-    '매장근무': ['bg-cyan-50', 'border-cyan-200', 'text-cyan-800'],
-    '출장': ['bg-gray-50', 'border-gray-200', 'text-gray-800'],
-    'default': ['bg-blue-50', 'border-blue-200', 'text-blue-800'],
-    'paused': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800']
+    'default': ['bg-white', 'border-gray-200'],
+    'paused': ['bg-yellow-50', 'border-yellow-200']
+};
+
+// [추가] 업무별 *제목* 색상 정의
+const taskTitleColors = {
+    '국내배송': 'text-green-600',
+    '중국제작': 'text-purple-600',
+    '직진배송': 'text-emerald-600',
+    '채우기': 'text-sky-600',
+    '개인담당업무': 'text-indigo-600',
+    '티니': 'text-red-600',
+    '택배포장': 'text-orange-600',
+    '해외배송': 'text-cyan-600',
+    '재고조사': 'text-fuchsia-600',
+    '앵글정리': 'text-amber-600',
+    '상품재작업': 'text-yellow-700',
+    '상.하차': 'text-stone-600',
+    '검수': 'text-teal-600',
+    '아이롱': 'text-violet-600',
+    '오류': 'text-rose-600',
+    '강성': 'text-pink-600',
+    '2층업무': 'text-neutral-600',
+    '재고찾는시간': 'text-lime-600',
+    '매장근무': 'text-cyan-600',
+    '출장': 'text-gray-600',
+    'default': 'text-blue-600' // 위에 없는 업무의 기본값
 };
 
 
@@ -137,14 +142,18 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         const groupRecords = ongoingRecords.filter(r => r.task === task);
         const isPaused = groupRecords.some(r => r.status === 'paused');
 
-        let styleClasses = taskCardStyles[task] || taskCardStyles['default'];
-        if (isPaused) {
-            styleClasses = taskCardStyles['paused'];
-        }
-        const [bgColor, borderColor, titleColor] = styleClasses;
-        const hoverBorderColor = borderColor.replace('-200', '-400');
+        // [수정] Get base style: paused or default
+        let styleClasses = isPaused ? taskCardStyles['paused'] : taskCardStyles['default'];
+        const [bgColor, borderColor] = styleClasses;
 
-        card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md ${bgColor} ${borderColor} hover:${hoverBorderColor}`;
+        // [수정] Get specific title color
+        const titleColorClass = isPaused ? 'text-yellow-800' : (taskTitleColors[task] || taskTitleColors['default']);
+        
+        // [수정] Hover color logic (일시정지 아닐 때만 파란색)
+        const hoverBorderColor = isPaused ? 'hover:border-yellow-400' : 'hover:border-blue-400';
+
+        card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md ${bgColor} ${borderColor} ${hoverBorderColor}`;
+
 
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
@@ -176,7 +185,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             const durationStatus = isPaused ? 'paused' : 'ongoing';
 
             card.innerHTML = `<div class="flex flex-col h-full">
-                                <div class="font-bold text-lg ${titleColor} break-keep">${firstRecord.task}${statusText}</div>
+                                <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
                                 <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${durationStatus}" data-record-id="${recordIdForDuration || ''}"></span></div>
                                 <div class="font-semibold text-gray-600 text-sm mb-1">${participationCount}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
@@ -188,7 +197,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
             card.innerHTML = `
                 <div class="flex-grow">
-                    <div class="font-bold text-lg ${titleColor} break-keep">${task}</div>
+                    <div class="font-bold text-lg ${titleColorClass} break-keep">${task}</div>
                     <div class="text-xs text-gray-500 my-2">시작: 시작 전</div>
                     <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs text-gray-400 italic flex-grow flex items-center">카드를 클릭하여 팀원 선택</div>
@@ -203,7 +212,8 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     });
 
     const otherTaskCard = document.createElement('div');
-    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-gray-400 bg-gray-50 border-gray-200';
+    // [수정] '기타 업무' 카드도 흰색 배경으로 통일
+    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-white border-gray-200';
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
         <div class="font-bold text-lg text-gray-700">기타 업무</div>
@@ -219,6 +229,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
     const allMembersContainer = document.createElement('div');
+    // ... (이하 renderRealtimeStatus 함수의 나머지 부분은 변경 없음) ...
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
@@ -228,9 +239,15 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
     
-    // [수정] appState.onLeaveMembers는 이제 오늘 날짜에 필터링된 *전체* 휴무 목록임
     const onLeaveStatusMap = new Map(
-        (appState.onLeaveMembers || []).map(item => [item.member, item])
+        (appState.onLeaveMembers || [])
+            .filter(item => {
+                if (item.type === '외출' && item.endTime) {
+                    return false; 
+                }
+                return true;
+            })
+            .map(item => [item.member, item])
     );
 
     const orderedTeamGroups = [
