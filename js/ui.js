@@ -1,4 +1,4 @@
-import { formatTimeTo24H, formatDuration } from './utils.js';
+import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js';
 
 // 업무별 카드 스타일 정의
 const taskCardStyles = {
@@ -104,16 +104,15 @@ export const renderTaskAnalysis = (appState) => {
 
 
 export const renderRealtimeStatus = (appState, teamGroups = []) => {
-    const loadingSpinner = document.getElementById('loading-spinner');
-    if (loadingSpinner) {
-        loadingSpinner.style.display = 'none';
-    }
-
+    // [삭제] 로딩 스피너 숨기기 로직 제거 (app.js에서 처리)
+    
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
         console.error("Element #team-status-board not found!");
         return;
     }
+    // `app.js`에서 스피너를 숨긴 후 이 함수가 호출되므로,
+    // `innerHTML`을 비우는 것이 안전합니다.
     teamStatusBoard.innerHTML = '';
 
     const memberGroupMap = new Map();
@@ -229,7 +228,21 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
-    const onLeaveStatusMap = new Map((appState.onLeaveMembers || []).map(item => [item.member, item]));
+    
+    // [!!!!!] 수정된 부분 [!!!!!]
+    // '외출'이고 endTime이 있는 경우(복귀한 경우)는 휴무 맵에서 제외합니다.
+    const onLeaveStatusMap = new Map(
+        (appState.onLeaveMembers || [])
+            .filter(item => {
+                // '외출'이면서 endTime이 있으면 (복귀했으면) 휴무 상태가 아님
+                if (item.type === '외출' && item.endTime) {
+                    return false; 
+                }
+                return true; // 그 외 모든 휴무는 휴무 상태임
+            })
+            .map(item => [item.member, item])
+    );
+    // [!!!!!] 수정 끝 [!!!!!]
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -254,7 +267,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             const card = document.createElement('button');
             card.type = 'button';
             const leaveInfo = onLeaveStatusMap.get(member);
-            const isOnLeave = !!leaveInfo;
+            const isOnLeave = !!leaveInfo; // 수정된 Map 기준
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
 
             card.className = 'p-1 rounded-lg border text-center transition-shadow min-h-[64px] w-24 flex flex-col justify-center';
@@ -303,7 +316,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
     const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
     const activePartTimers = (appState.partTimers || []).filter(pt => {
-        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
+        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name); // 수정된 Map 기준
     });
 
     if (activePartTimers.length > 0) {
@@ -601,7 +614,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
 };
 
 // [수정] 이름 변경: renderAttendanceHistory -> renderAttendanceDailyHistory
-export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
+export const renderAttendanceHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
