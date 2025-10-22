@@ -1,6 +1,6 @@
-// === ui.js (주별/월별 요약 렌더링 수정, 카드 스타일 수정) ===
+// === ui.js (Complete code with all recent updates) ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import 추가
+import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
 
 // 업무별 카드 스타일 정의
 const taskCardStyles = {
@@ -103,7 +103,7 @@ export const renderTaskAnalysis = (appState) => {
     const taskColorsHex = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399', '출장': '#6b7280'};
 
     const taskAnalysis = completedRecords.reduce((acc, record) => {
-        if (record.task) {
+        if (record && record.task) { // record 유효성 검사 추가
             acc[record.task] = (acc[record.task] || 0) + (record.duration || 0);
         }
         return acc;
@@ -281,9 +281,14 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
 
+    // [수정] 두 근태 목록 결합 및 Map 생성
+    const combinedOnLeaveMembers = [
+        ...(appState.dailyOnLeaveMembers || []),
+        ...(appState.dateBasedOnLeaveMembers || [])
+    ];
     const onLeaveStatusMap = new Map(
-        (appState.onLeaveMembers || [])
-            .filter(item => !(item.type === '외출' && item.endTime))
+        combinedOnLeaveMembers
+            .filter(item => !(item.type === '외출' && item.endTime)) // 복귀한 외출 제외
             .map(item => [item.member, item])
     );
 
@@ -309,7 +314,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         uniqueMembersInGroup.forEach(member => {
             const card = document.createElement('button');
             card.type = 'button';
-            const leaveInfo = onLeaveStatusMap.get(member);
+            const leaveInfo = onLeaveStatusMap.get(member); // 수정된 Map 사용
             const isOnLeave = !!leaveInfo;
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
 
@@ -333,7 +338,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                     }
                 }
                 else if (leaveInfo.startDate) {
-                    detailText = leaveInfo.startDate.substring(5);
+                    detailText = leaveInfo.startDate.substring(5); // 월-일 만 표시
                     if (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate) {
                         detailText += ` ~ ${leaveInfo.endDate.substring(5)}`;
                     }
@@ -357,9 +362,11 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         allMembersContainer.appendChild(groupContainer);
     });
 
+    // --- 알바 섹션 ---
     const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
+    // 현재 표시해야 할 알바 필터링 (업무중이거나, 근태상태인 알바만)
     const activePartTimers = (appState.partTimers || []).filter(pt => {
-        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
+        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name); // 수정된 Map 사용
     });
 
     if (activePartTimers.length > 0) {
@@ -378,10 +385,11 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
              const currentlyWorkingTask = workingMembers.get(pt.name);
              const isPaused = pausedMembers.has(pt.name);
-             const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
+             const albaLeaveInfo = onLeaveStatusMap.get(pt.name); // 수정된 Map 사용
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = currentlyWorkingTask || isPaused;
 
+             // 알바는 업무 중일 때 근태 변경 불가
              if (!isAlbaWorking) {
                  card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
              } else {
@@ -391,19 +399,14 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
              if (isAlbaOnLeave) {
                  card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                  let detailText = '';
-                 if (albaLeaveInfo.startTime) {
+                  if (albaLeaveInfo.startTime) {
                      detailText = formatTimeTo24H(albaLeaveInfo.startTime);
-                     if (albaLeaveInfo.endTime) {
-                         detailText += ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}`;
-                     } else if (albaLeaveInfo.type === '외출') {
-                         detailText += ' ~';
-                     }
-                 } else if (albaLeaveInfo.startDate) {
+                     if (albaLeaveInfo.endTime) { detailText += ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}`; }
+                     else if (albaLeaveInfo.type === '외출') { detailText += ' ~'; }
+                  } else if (albaLeaveInfo.startDate) {
                     detailText = albaLeaveInfo.startDate.substring(5);
-                    if (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate) {
-                        detailText += ` ~ ${albaLeaveInfo.endDate.substring(5)}`;
-                    }
-                 }
+                    if (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate) { detailText += ` ~ ${albaLeaveInfo.endDate.substring(5)}`; }
+                  }
                  card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div>
                                    <div class="text-xs">${albaLeaveInfo.type}</div>
                                    ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
@@ -414,6 +417,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                  card.classList.add('bg-yellow-50', 'border-yellow-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${pt.name}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
              }
+             // 알바는 '대기 중' 상태 카드를 별도로 표시하지 않음 (activePartTimers 필터링으로 처리)
              albaGrid.appendChild(card);
         });
         albaContainer.appendChild(albaGrid);
@@ -458,6 +462,7 @@ export const renderCompletedWorkLog = (appState) => {
     }
 };
 
+// [수정] updateSummary - daily/dateBased 결합하여 사용
 export const updateSummary = (appState, teamGroups = []) => {
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
     const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
@@ -471,8 +476,11 @@ export const updateSummary = (appState, teamGroups = []) => {
     const totalStaffCount = allStaffMembers.size;
     const totalPartTimerCount = allPartTimers.size;
 
-    const onLeaveEntries = appState.onLeaveMembers || [];
-    const onLeaveMemberNames = new Set(onLeaveEntries.map(item => item.member));
+    const combinedOnLeaveMembers = [
+        ...(appState.dailyOnLeaveMembers || []),
+        ...(appState.dateBasedOnLeaveMembers || [])
+    ];
+    const onLeaveMemberNames = new Set(combinedOnLeaveMembers.map(item => item.member));
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
     const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
@@ -485,7 +493,8 @@ export const updateSummary = (appState, teamGroups = []) => {
     const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
 
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
-    const totalIdleCount = idleStaffCount; // 현재 알바는 대기 상태를 별도 추적 안 하므로 staff 기준으로만 계산
+    // 현재 알바 대기 상태 계산 안 함
+    const totalIdleCount = idleStaffCount;
 
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
@@ -497,6 +506,7 @@ export const updateSummary = (appState, teamGroups = []) => {
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
 };
 
+// [수정] renderTeamSelectionModalContent - daily/dateBased 결합하여 사용
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -508,7 +518,11 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     const allWorkingMembers = new Set(
         (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused').map(r => r.member)
     );
-    const onLeaveMemberMap = new Map((appState.onLeaveMembers || []).map(item => [item.member, item]));
+    const combinedOnLeaveMembers = [
+        ...(appState.dailyOnLeaveMembers || []),
+        ...(appState.dateBasedOnLeaveMembers || [])
+    ];
+    const onLeaveMemberMap = new Map(combinedOnLeaveMembers.map(item => [item.member, item]));
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -543,11 +557,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             if (isWorking || isOnLeave) card.disabled = true;
 
             let statusLabel = '';
-            if (isWorking) {
-                statusLabel = '<div class="text-xs text-red-500">업무 중</div>';
-            } else if (isOnLeave) {
-                statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`;
-            }
+            if (isWorking) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
+            else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
             card.innerHTML = `<div class="font-semibold">${member}</div>${statusLabel}`;
 
             memberList.appendChild(card);
@@ -584,11 +595,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         if (isWorking || isOnLeave) card.disabled = true;
 
         let statusLabel = '';
-        if (isWorking) {
-            statusLabel = '<div class="text-xs text-red-500">업무 중</div>';
-        } else if (isOnLeave) {
-            statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`;
-        }
+        if (isWorking) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
+        else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
         card.innerHTML = `<div class="font-semibold">${pt.name}</div>${statusLabel}`;
 
         cardWrapper.appendChild(card);
@@ -611,7 +619,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     albaGroupContainer.appendChild(albaMemberList);
     container.appendChild(albaGroupContainer);
 };
-
 
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
@@ -656,20 +663,18 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
     const records = dataset.workRecords || [];
     const quantities = dataset.taskQuantities || {};
 
-    // 1. 총계 계산
     const totalDuration = records.reduce((s, r) => s + (r.duration || 0), 0);
-    const totalQuantity = Object.values(quantities).reduce((s, q) => s + (Number(q) || 0), 0);
+    const totalQuantity = Object.values(quantities || {}).reduce((s, q) => s + (Number(q) || 0), 0);
     const totalCost = records.reduce((s, r) => {
-        const wage = wageMap[r.member] || 0; // 직원/알바 시급 적용
+        const wage = wageMap[r.member] || 0;
         return s + ((r.duration || 0) / 60) * wage;
     }, 0);
 
-    // 2. 전체 평균 계산
     const overallAvgThroughput = totalDuration > 0 ? (totalQuantity / totalDuration).toFixed(2) : '0.00';
     const overallAvgCostPerItem = totalQuantity > 0 ? (totalCost / totalQuantity).toFixed(0) : '0';
 
-    // 3. 업무별 집계 (시간, 비용)
     const taskSummary = records.reduce((acc, r) => {
+        if (!r || !r.task) return acc;
         if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0 };
         acc[r.task].duration += (r.duration || 0);
         const wage = wageMap[r.member] || 0;
@@ -677,23 +682,20 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
         return acc;
     }, {});
 
-    // 4. 업무별 처리량 추가 및 평균 계산
-    Object.keys(quantities).forEach(task => {
+    Object.entries(quantities || {}).forEach(([task, qtyValue]) => {
+        const qty = Number(qtyValue) || 0;
         if (taskSummary[task]) {
-            const qty = Number(quantities[task]) || 0;
             taskSummary[task].quantity = qty;
             taskSummary[task].avgThroughput = taskSummary[task].duration > 0 ? (qty / taskSummary[task].duration).toFixed(2) : '0.00';
             taskSummary[task].avgCostPerItem = qty > 0 ? (taskSummary[task].cost / qty).toFixed(0) : '0';
-        } else if (Number(quantities[task]) > 0) {
-            taskSummary[task] = { duration: 0, cost: 0, quantity: Number(quantities[task]), avgThroughput: 'N/A', avgCostPerItem: 'N/A' };
+        } else if (qty > 0) {
+            taskSummary[task] = { duration: 0, cost: 0, quantity: qty, avgThroughput: 'N/A', avgCostPerItem: 'N/A' };
         }
     });
 
-    // 5. HTML 생성
-    let html = `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">`; // mb-6 추가 (구분선 대신 마진 사용)
+    let html = `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">`;
     html += `<h3 class="text-xl font-bold mb-4">${periodKey} 요약</h3>`;
 
-    // 전체 요약 그리드
     html += `<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 text-center">
         <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">총 시간</div><div class="text-lg font-bold">${formatDuration(totalDuration)}</div></div>
         <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">총 처리량</div><div class="text-lg font-bold">${totalQuantity} 개</div></div>
@@ -702,7 +704,6 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
         <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">평균 처리비용</div><div class="text-lg font-bold">${overallAvgCostPerItem} 원/개</div></div>
     </div>`;
 
-    // 업무별 평균 테이블
     html += `<h4 class="text-lg font-semibold mb-3 text-gray-700">업무별 평균</h4>`;
     html += `<div class="overflow-x-auto max-h-60">
                <table class="w-full text-sm text-left text-gray-600">
@@ -716,13 +717,12 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
                  <tbody>`;
 
     const sortedTasks = Object.keys(taskSummary).sort();
-    // [수정] 데이터 없음 조건 강화
-    if (sortedTasks.length === 0 || sortedTasks.every(task => !taskSummary[task].duration && !taskSummary[task].quantity)) {
-        html += `<tr><td colspan="3" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
-    } else {
+    let hasTaskData = false;
+    if (sortedTasks.length > 0) {
         sortedTasks.forEach(task => {
             const summary = taskSummary[task];
-            if (summary.duration > 0 || summary.quantity > 0) { // 작업 시간이나 처리량이 있는 경우만 표시
+            if (summary && (summary.duration > 0 || summary.quantity > 0)) {
+                hasTaskData = true;
                 html += `<tr class="bg-white border-b hover:bg-gray-50">
                            <td class="px-4 py-2 font-medium text-gray-900">${task}</td>
                            <td class="px-4 py-2 text-right">${summary.avgThroughput || '0.00'}</td>
@@ -730,6 +730,10 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
                          </tr>`;
             }
         });
+    }
+
+    if (!hasTaskData) {
+        html += `<tr><td colspan="3" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
     }
 
     html += `    </tbody>
@@ -740,80 +744,103 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
     return html;
 };
 
-// [수정] renderWeeklyHistory 함수 - wageMap 생성 및 renderSummaryView 호출 수정
+
+// [수정] renderWeeklyHistory 함수 - 안정성 강화
 export const renderWeeklyHistory = (allHistoryData, appConfig) => {
     const view = document.getElementById('history-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 데이터 집계 중...</div>';
 
-    const historyWageMap = {};
-    allHistoryData.forEach(dayData => {
-        (dayData.partTimers || []).forEach(pt => {
-            if (!historyWageMap[pt.name]) {
-                 historyWageMap[pt.name] = pt.wage || 0;
-            }
-        });
-    });
-    const combinedWageMap = { ...historyWageMap, ...appConfig.memberWages };
-
-
-    const weeklyData = allHistoryData.reduce((acc, day) => {
-        if (!day.id || !day.workRecords) return acc;
-        try {
-            const weekKey = getWeekOfYear(new Date(day.id));
-            if (!acc[weekKey]) acc[weekKey] = { workRecords: [], taskQuantities: {} };
-            acc[weekKey].workRecords.push(...(day.workRecords || []).map(r => ({ ...r, date: day.id })));
-            Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
-                acc[weekKey].taskQuantities[task] = (acc[weekKey].taskQuantities[task] || 0) + (Number(qty) || 0);
+    try {
+        const historyWageMap = {};
+        (allHistoryData || []).forEach(dayData => {
+            (dayData.partTimers || []).forEach(pt => {
+                if (pt && pt.name && !historyWageMap[pt.name]) {
+                     historyWageMap[pt.name] = pt.wage || 0;
+                }
             });
-        } catch (e) { console.error("Error processing day:", day.id, e); }
-        return acc;
-    }, {});
+        });
+        const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
-    const sortedWeeks = Object.keys(weeklyData).sort((a,b) => b.localeCompare(a));
-    if (sortedWeeks.length === 0) {
-        view.innerHTML = '<div class="text-center text-gray-500">주별 데이터가 없습니다.</div>';
-        return;
+
+        const weeklyData = (allHistoryData || []).reduce((acc, day) => {
+            if (!day || !day.id || !day.workRecords || typeof day.id !== 'string') return acc;
+            try {
+                const dateObj = new Date(day.id);
+                if (isNaN(dateObj.getTime())) return acc;
+
+                const weekKey = getWeekOfYear(dateObj);
+                if (!weekKey) return acc;
+
+                if (!acc[weekKey]) acc[weekKey] = { workRecords: [], taskQuantities: {} };
+
+                acc[weekKey].workRecords.push(...(day.workRecords || []).map(r => ({ ...r, date: day.id })));
+                Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
+                    acc[weekKey].taskQuantities[task] = (acc[weekKey].taskQuantities[task] || 0) + (Number(qty) || 0);
+                });
+            } catch (e) {
+                console.error("Error processing day in weekly aggregation:", day.id, e);
+            }
+            return acc;
+        }, {});
+
+        const sortedWeeks = Object.keys(weeklyData).sort((a,b) => b.localeCompare(a));
+        if (sortedWeeks.length === 0) {
+            view.innerHTML = '<div class="text-center text-gray-500">주별 데이터가 없습니다.</div>';
+            return;
+        }
+        view.innerHTML = sortedWeeks.map(weekKey => renderSummaryView('weekly', weeklyData[weekKey], weekKey, combinedWageMap)).join('');
+    } catch (error) {
+        console.error("Error in renderWeeklyHistory:", error);
+        view.innerHTML = '<div class="text-center text-red-500 p-4">주별 데이터를 표시하는 중 오류가 발생했습니다. 개발자 콘솔을 확인하세요.</div>';
     }
-    view.innerHTML = sortedWeeks.map(weekKey => renderSummaryView('weekly', weeklyData[weekKey], weekKey, combinedWageMap)).join(''); // join 수정
 };
 
-// [수정] renderMonthlyHistory 함수 - wageMap 생성 및 renderSummaryView 호출 수정
+// [수정] renderMonthlyHistory 함수 - 안정성 강화
 export const renderMonthlyHistory = (allHistoryData, appConfig) => {
     const view = document.getElementById('history-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 데이터 집계 중...</div>';
 
-    const historyWageMap = {};
-    allHistoryData.forEach(dayData => {
-        (dayData.partTimers || []).forEach(pt => {
-            if (!historyWageMap[pt.name]) {
-                 historyWageMap[pt.name] = pt.wage || 0;
-            }
-        });
-    });
-    const combinedWageMap = { ...historyWageMap, ...appConfig.memberWages };
-
-
-    const monthlyData = allHistoryData.reduce((acc, day) => {
-        if (!day.id || !day.workRecords) return acc;
-        try {
-            const monthKey = day.id.substring(0,7);
-            if (!acc[monthKey]) acc[monthKey] = { workRecords: [], taskQuantities: {} };
-            acc[monthKey].workRecords.push(...(day.workRecords || []).map(r => ({ ...r, date: day.id })));
-            Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
-                acc[monthKey].taskQuantities[task] = (acc[monthKey].taskQuantities[task] || 0) + (Number(qty) || 0);
+    try {
+        const historyWageMap = {};
+        (allHistoryData || []).forEach(dayData => {
+            (dayData.partTimers || []).forEach(pt => {
+                 if (pt && pt.name && !historyWageMap[pt.name]) {
+                     historyWageMap[pt.name] = pt.wage || 0;
+                }
             });
-        } catch (e) { console.error("Error processing day:", day.id, e); }
-        return acc;
-    }, {});
+        });
+        const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
-    const sortedMonths = Object.keys(monthlyData).sort((a,b) => b.localeCompare(a));
-    if (sortedMonths.length === 0) {
-        view.innerHTML = '<div class="text-center text-gray-500">월별 데이터가 없습니다.</div>';
-        return;
+
+        const monthlyData = (allHistoryData || []).reduce((acc, day) => {
+            if (!day || !day.id || !day.workRecords || typeof day.id !== 'string' || day.id.length < 7) return acc;
+            try {
+                const monthKey = day.id.substring(0,7);
+                if (!/^\d{4}-\d{2}$/.test(monthKey)) return acc;
+
+                if (!acc[monthKey]) acc[monthKey] = { workRecords: [], taskQuantities: {} };
+                acc[monthKey].workRecords.push(...(day.workRecords || []).map(r => ({ ...r, date: day.id })));
+                Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
+                    acc[monthKey].taskQuantities[task] = (acc[monthKey].taskQuantities[task] || 0) + (Number(qty) || 0);
+                });
+            } catch (e) {
+                 console.error("Error processing day in monthly aggregation:", day.id, e);
+            }
+            return acc;
+        }, {});
+
+        const sortedMonths = Object.keys(monthlyData).sort((a,b) => b.localeCompare(a));
+        if (sortedMonths.length === 0) {
+            view.innerHTML = '<div class="text-center text-gray-500">월별 데이터가 없습니다.</div>';
+            return;
+        }
+        view.innerHTML = sortedMonths.map(monthKey => renderSummaryView('monthly', monthlyData[monthKey], monthKey, combinedWageMap)).join('');
+    } catch (error) {
+        console.error("Error in renderMonthlyHistory:", error);
+        view.innerHTML = '<div class="text-center text-red-500 p-4">월별 데이터를 표시하는 중 오류가 발생했습니다. 개발자 콘솔을 확인하세요.</div>';
     }
-    view.innerHTML = sortedMonths.map(monthKey => renderSummaryView('monthly', monthlyData[monthKey], monthKey, combinedWageMap)).join(''); // join 수정
 };
 
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
@@ -894,26 +921,32 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터 집계 중...</div>';
 
-    const weeklyData = allHistoryData.reduce((acc, day) => {
-        if (!day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0) return acc;
+    const weeklyData = (allHistoryData || []).reduce((acc, day) => {
+        if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string') return acc;
         try {
-            const weekKey = getWeekOfYear(new Date(day.id));
+             const dateObj = new Date(day.id);
+             if (isNaN(dateObj.getTime())) return acc;
+             const weekKey = getWeekOfYear(dateObj);
+             if (!weekKey) return acc;
+
             if (!acc[weekKey]) acc[weekKey] = { leaveEntries: [], dateKeys: new Set() };
 
             day.onLeaveMembers.forEach(entry => {
-                if (entry.startDate) {
-                    const currentDate = day.id;
-                    const startDate = entry.startDate;
-                    const endDate = entry.endDate || entry.startDate;
-                    if (currentDate >= startDate && currentDate <= endDate) {
-                         acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
+                if (entry && entry.type && entry.member) { // entry 유효성 검사 추가
+                    if (entry.startDate) {
+                        const currentDate = day.id;
+                        const startDate = entry.startDate;
+                        const endDate = entry.endDate || entry.startDate;
+                        if (currentDate >= startDate && currentDate <= endDate) {
+                            acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
+                        }
+                    } else {
+                        acc[weekKey].leaveEntries.push({ ...entry, date: day.id }); // 날짜 정보 추가
                     }
-                } else {
-                     acc[weekKey].leaveEntries.push(entry);
                 }
             });
             acc[weekKey].dateKeys.add(day.id);
-        } catch (e) { /* noop */ }
+        } catch (e) { console.error("Error processing day in attendance weekly aggregation:", day.id, e); }
         return acc;
     }, {});
 
@@ -926,20 +959,33 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
     let html = '';
     sortedWeeks.forEach(weekKey => {
         const data = weeklyData[weekKey];
+        // 각 멤버별, 타입별 집계
         const summary = data.leaveEntries.reduce((acc, entry) => {
             const key = `${entry.member}-${entry.type}`;
             if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
 
+             // startDate가 있으면 일수 기반, 없으면 횟수 기반
             if(entry.startDate) {
-                acc[key].count += 1; // 연차 등은 일수 기준으로 count
-                acc[key].days += 1;
+                // 주별 요약에서는 동일 날짜의 동일 멤버/타입 중복 제거 필요 (예: 연차가 여러 날 기록된 경우)
+                // -> 날짜 기반 집계는 여기서 하지 않고, count만 사용
+                // acc[key].days += 1; // days 사용 안 함
+                 acc[key].count += 1; // 날짜별로 1회씩 카운트
             } else {
-                acc[key].count += 1; // 외출, 조퇴는 횟수 기준
+                acc[key].count += 1;
             }
             return acc;
         }, {});
 
-        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6"> <h3 class="text-xl font-bold mb-3">${weekKey}</h3>
+        // 날짜 기반(연차 등)의 경우, count가 실제 일수를 나타내도록 후처리
+        Object.values(summary).forEach(item => {
+             if (['연차', '출장', '결근'].includes(item.type)) {
+                 item.days = item.count; // count를 days로 옮김
+             }
+        });
+
+
+        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                    <h3 class="text-xl font-bold mb-3">${weekKey}</h3>
                     <div class="space-y-1">`;
 
         if (Object.keys(summary).length === 0) {
@@ -964,26 +1010,30 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터 집계 중...</div>';
 
-    const monthlyData = allHistoryData.reduce((acc, day) => {
-        if (!day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0) return acc;
-        try {
+    const monthlyData = (allHistoryData || []).reduce((acc, day) => {
+        if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string' || day.id.length < 7) return acc;
+         try {
             const monthKey = day.id.substring(0, 7);
+             if (!/^\d{4}-\d{2}$/.test(monthKey)) return acc;
+
             if (!acc[monthKey]) acc[monthKey] = { leaveEntries: [], dateKeys: new Set() };
 
             day.onLeaveMembers.forEach(entry => {
-                if (entry.startDate) {
-                    const currentDate = day.id;
-                    const startDate = entry.startDate;
-                    const endDate = entry.endDate || entry.startDate;
-                    if (currentDate >= startDate && currentDate <= endDate) {
-                         acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
+                 if (entry && entry.type && entry.member) {
+                    if (entry.startDate) {
+                        const currentDate = day.id;
+                        const startDate = entry.startDate;
+                        const endDate = entry.endDate || entry.startDate;
+                        if (currentDate >= startDate && currentDate <= endDate) {
+                            acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
+                        }
+                    } else {
+                        acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
                     }
-                } else {
-                     acc[monthKey].leaveEntries.push(entry);
                 }
             });
             acc[monthKey].dateKeys.add(day.id);
-        } catch (e) { /* noop */ }
+        } catch (e) { console.error("Error processing day in attendance monthly aggregation:", day.id, e); }
         return acc;
     }, {});
 
@@ -1001,15 +1051,25 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
             if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
 
             if(entry.startDate) {
+                // 월별 요약에서도 중복 제거 필요
+                // -> 날짜 기반 집계는 여기서 하지 않고, count만 사용
+                // acc[key].days += 1;
                 acc[key].count += 1;
-                acc[key].days += 1;
             } else {
                 acc[key].count += 1;
             }
             return acc;
         }, {});
 
-        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6"> <h3 class="text-xl font-bold mb-3">${monthKey}</h3>
+         // 날짜 기반(연차 등)의 경우, count가 실제 일수를 나타내도록 후처리
+        Object.values(summary).forEach(item => {
+             if (['연차', '출장', '결근'].includes(item.type)) {
+                 item.days = item.count;
+             }
+        });
+
+        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                    <h3 class="text-xl font-bold mb-3">${monthKey}</h3>
                     <div class="space-y-1">`;
 
         if (Object.keys(summary).length === 0) {
