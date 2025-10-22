@@ -1,4 +1,4 @@
-// === admin.js (드래그앤드랍 'drop' 로직 전면 수정) ===
+// === admin.js (드래그앤드랍 e.preventDefault() 버그 수정) ===
 
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 
@@ -9,24 +9,20 @@ const ADMIN_PASSWORD = "anffbxla123";
 // 드래그 상태 관리 변수
 let draggedItem = null;
 
-// ✅ [추가] 드롭 위치를 계산하는 헬퍼 함수
+// [추가] 드롭 위치를 계산하는 헬퍼 함수 (이전과 동일)
 function getDragAfterElement(container, y, itemSelector) {
-    // 컨테이너 내의 드래그 가능한 요소들 (현재 드래그 중인 요소 제외)
     const draggableElements = [...container.querySelectorAll(`${itemSelector}:not(.dragging)`)];
 
     return draggableElements.reduce((closest, child) => {
         const box = child.getBoundingClientRect();
-        // 요소의 중심 좌표와 마우스 Y좌표(y)의 차이
         const offset = y - box.top - box.height / 2;
         
-        // offset이 0보다 작다 ( = 요소가 마우스보다 아래에 있다)
-        // 그리고 그 차이가 이전에 찾은 요소(closest.offset)보다 크다 ( = 더 가깝다)
         if (offset < 0 && offset > closest.offset) {
             return { offset: offset, element: child };
         } else {
             return closest;
         }
-    }, { offset: Number.NEGATIVE_INFINITY }).element; // 기본값은 '가장 가까운 요소 없음'
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
 
@@ -293,7 +289,7 @@ function handleDynamicClicks(e) {
 }
 
 
-// ✅ [수정] 드래그 앤 드롭 로직 전체 수정
+// ✅ [수정] 드래그 앤 드롭 설정 함수 (preventDefault 위치 수정)
 function setupDragDropListeners(containerSelector, itemSelector) {
     const containers = document.querySelectorAll(containerSelector);
     if (containers.length === 0) return;
@@ -307,91 +303,75 @@ function setupDragDropListeners(containerSelector, itemSelector) {
         container.dataset.dragListenersAttached = (container.dataset.dragListenersAttached || '') + listenerId;
 
 
+        // [dragstart] - 핸들 클릭 시, 올바른 아이템이면 draggedItem 설정
         container.addEventListener('dragstart', (e) => {
             const item = e.target.closest(itemSelector);
-
             if (!item || !e.target.classList.contains('drag-handle')) {
                 return; 
             }
-            
             if (item.parentElement !== container) {
                 return;
             }
-
             e.stopPropagation();
-
             draggedItem = item;
             setTimeout(() => draggedItem.classList.add('dragging'), 0);
             e.dataTransfer.effectAllowed = 'move';
         });
 
+        // [dragend] - 드래그 종료 시, 모든 상태 초기화
         container.addEventListener('dragend', (e) => {
-            if (draggedItem && draggedItem.parentElement === container) {
-                e.stopPropagation();
-            }
+            if (!draggedItem || draggedItem.parentElement !== container) return;
             
-            if (draggedItem) {
-                draggedItem.classList.remove('dragging');
-                draggedItem = null;
-            }
+            e.stopPropagation();
+            draggedItem.classList.remove('dragging');
+            draggedItem = null;
             document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
         });
 
-        // ✅ [수정] 'dragover' 로직: Y좌표 기반으로 시각적 피드백
+        // [dragover] - 드래그 중인 아이템이 "내(컨테이너) 위"에 있을 때
         container.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.stopPropagation(); 
+            // ✅ [핵심 수정] preventDefault()를 *무조건 맨 먼저* 호출
+            e.preventDefault(); 
             
             if (!draggedItem || draggedItem.parentElement !== container) return;
-
+            
+            e.stopPropagation(); 
+            
             const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
             
-            // 기존 피드백 제거
             container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-
             if (afterElement) {
-                // 특정 요소 앞에 삽입될 때
                 afterElement.classList.add('drag-over');
             } else {
-                // 맨 끝에 삽입될 때 (별도 클래스나 마지막 요소에 표시 가능)
-                // 예: container.lastElementChild?.classList.add('drag-over-bottom');
+                // 맨 끝에 추가 (별도 피드백 없음)
             }
         });
 
          container.addEventListener('dragleave', (e) => {
+             if (!draggedItem || draggedItem.parentElement !== container) return;
              e.stopPropagation(); 
-             // 컨테이너를 벗어나면 피드백 제거
+             // .drag-over 클래스 정리
              container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
          });
 
-        // ✅ [수정] 'drop' 로직: Y좌표 기반으로 실제 순서 변경
+        // [drop] - 드롭했을 때
         container.addEventListener('drop', (e) => {
-            e.preventDefault();
+            // ✅ [수정] preventDefault()는 여기서도 필요함 (브라우저 기본 동작 방지)
+            e.preventDefault(); 
+            if (!draggedItem || draggedItem.parentElement !== container) return;
             e.stopPropagation(); 
             
             document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-
-            if (!draggedItem || draggedItem.parentElement !== container) {
-                if (draggedItem) draggedItem.classList.remove('dragging');
-                draggedItem = null;
-                return;
-            }
             
-            // 헬퍼 함수를 이용해 삽입할 위치(다음 요소) 찾기
             const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
             
             if (afterElement) {
-                // afterElement 앞에 삽입
                 container.insertBefore(draggedItem, afterElement);
             } else {
-                // afterElement가 없으면 (맨 끝으로 드롭)
                 container.appendChild(draggedItem);
             }
             
-            if (draggedItem) {
-               draggedItem.classList.remove('dragging');
-            }
-            draggedItem = null;
+            // cleanup은 dragend에서 처리
         });
     }); // end containers.forEach
 }
