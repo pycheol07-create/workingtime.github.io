@@ -139,7 +139,9 @@
             <div id="analysis-content" class="hidden md:block mt-4">
                 </div>
         </div>
-    </div> <div id="team-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+    </div> 
+
+    <div id="team-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
                 <h2 id="team-select-modal-title" class="text-xl font-bold text-gray-900">팀원 선택</h2>
@@ -153,6 +155,7 @@
             </div>
         </div>
      </div>
+
     <div id="stop-individual-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <button class="modal-close-btn">&times;</button>
@@ -164,9 +167,11 @@
             </div>
         </div>
     </div>
+
     <div id="delete-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 id="delete-confirm-message" class="mb-5 text-lg font-normal text-gray-700"></h3><p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p><button type="button" id="confirm-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button><button type="button" id="cancel-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
     </div>
+
     <div id="reset-app-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
             <div class="p-6 text-center">
@@ -235,64 +240,7 @@
                     </div>
 
                 </div>
-                ```
-
-이제 이력 보기 모달에서 탭이 정상적으로 하나만 보이고, 내용 스크롤도 잘 될 것입니다. 다시 한번 혼란을 드려 죄송합니다!
-                        </div>
-                        <div id="history-view-container" class="p-6 overflow-y-auto bg-gray-50 h-[calc(85vh-160px)]">
-                            <div id="history-daily-view" class="hidden"></div>
-                            <div id="history-weekly-view" class="hidden space-y-6"></div>
-                            <div id="history-monthly-view" class="hidden space-y-6"></div>
-                        </div>
-                    </div>
-
-                    <div id="attendance-history-panel" class="hidden flex flex-col h-full"> <div class="p-4 border-b border-gray-200 flex-shrink-0"> <div id="attendance-history-tabs" class="flex gap-4">
-                                <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2">일별 상세</button>
-                                <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2">주별 요약</button>
-                                <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2">월별 요약</button>
-                            </div>
-                        </div>
-                        <div id="attendance-history-view-container" class="p-6 overflow-y-auto bg-gray-50 h-[calc(85vh-160px)]">
-                            <div id="history-attendance-daily-view" class="hidden space-y-4"></div>
-                            <div id="history-attendance-weekly-view" class="hidden space-y-4"></div>
-                            <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
-                        </div>
-                    </div>
-
                 </div>
-                    
-                    <div id="work-history-panel" class="">
-                        <div class="p-4 border-b border-gray-200">
-                            <div id="history-tabs" class="flex gap-4">
-                                <button data-view="daily" class="history-tab-btn pb-2">일별 상세</button>
-                                <button data-view="weekly" class="history-tab-btn pb-2">주별 요약</button>
-                                <button data-view="monthly" class="history-tab-btn pb-2">월별 요약</button>
-                            </div>
-                        </div>
-                        <div id="history-view-container" class="flex-grow p-6 overflow-y-auto bg-gray-50 h-[calc(85vh-160px)]">
-                            <div id="history-daily-view" class="hidden"></div>
-                            <div id="history-weekly-view" class="hidden space-y-6"></div>
-                            <div id="history-monthly-view" class="hidden space-y-6"></div>
-                        </div>
-                    </div>
-
-                    <div id="attendance-history-panel" class="hidden">
-                        <div class="p-4 border-b border-gray-200">
-                            <div id="attendance-history-tabs" class="flex gap-4">
-                                <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2">일별 상세</button>
-                                <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2">주별 요약</button>
-                                <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2">월별 요약</button>
-                            </div>
-                        </div>
-                        <div id="attendance-history-view-container" class="flex-grow p-6 overflow-y-auto bg-gray-50 h-[calc(85vh-160px)]">
-                            <div id="history-attendance-daily-view" class="hidden space-y-4"></div>
-                            <div id="history-attendance-weekly-view" class="hidden space-y-4"></div>
-                            <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
         </div>
     </div>
 
@@ -307,6 +255,7 @@
             </div>
         </div>
     </div>
+
      <div id="quantity-on-stop-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
@@ -323,6 +272,7 @@
             </div>
         </div>
     </div>
+
     <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
             <div class="p-6 text-center">
@@ -334,6 +284,7 @@
             </div>
         </div>
     </div>
+
     <div id="edit-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
             <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">업무 기록 수정</h2><button class="modal-close-btn">&times;</button></div>
@@ -361,6 +312,7 @@
             </div>
         </div>
     </div>
+
     <div id="task-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
@@ -371,6 +323,7 @@
                 </div>
         </div>
     </div>
+
     <div id="edit-part-timer-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">알바 이름 수정</h2><button class="modal-close-btn">&times;</button></div>
@@ -387,6 +340,7 @@
             </div>
         </div>
     </div>
+
     <div id="leave-type-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <div class="p-6 border-b border-gray-200">
@@ -414,6 +368,7 @@
             </div>
         </div>
     </div>
+
     <div id="cancel-leave-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
             <div class="p-6 text-center">

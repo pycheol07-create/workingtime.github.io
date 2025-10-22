@@ -1988,3 +1988,17 @@ async function main() {
 }
 
 main();
+
+// Firestore → 실시간 반영용 폴링
+setInterval(async () => {
+  try {
+    const latestConfig = await loadAppConfig(db);
+    const latestLeave = await loadLeaveSchedule(db);
+    appConfig = latestConfig;
+    appState.onLeaveMembers = latestLeave.onLeaveMembers || [];
+    renderRealtimeStatus(appState, appConfig.teamGroups);
+    updateSummary(appState, appConfig.teamGroups);
+  } catch (e) {
+    console.warn("자동 새로고침 중 오류:", e);
+  }
+}, 5000); // 5초마다 새로고침
