@@ -1,4 +1,4 @@
-// === admin.js (주요 업무 및 처리량 업무 순서 변경 기능 추가) ===
+// === admin.js (모든 섹션 드래그앤드랍 기능 수정/추가) ===
 
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 
@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // 기본값 보장
             if (!appConfig.keyTasks) appConfig.keyTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
             if (!appConfig.quantityTaskTypes) appConfig.quantityTaskTypes = [];
+            if (!appConfig.teamGroups) appConfig.teamGroups = [];
+            if (!appConfig.taskGroups) appConfig.taskGroups = {};
+
             renderAdminUI(appConfig);
             setupEventListeners();
         } catch (e) {
@@ -57,7 +60,7 @@ function renderAdminUI(config) {
     }
 
     renderTeamGroups(config.teamGroups || [], config.memberWages || {});
-    renderKeyTasks(config.keyTasks || []); // [추가]
+    renderKeyTasks(config.keyTasks || []);
     renderTaskGroups(config.taskGroups || {});
     renderQuantityTasks(config.quantityTaskTypes || []);
 }
@@ -69,6 +72,7 @@ function renderTeamGroups(teamGroups, memberWages) {
         const groupEl = document.createElement('div');
         groupEl.className = 'p-4 border rounded-lg bg-gray-50 team-group-card';
         groupEl.dataset.index = index;
+        groupEl.draggable = true; // ✅ [수정] 드래그 가능하게
 
         const membersHtml = group.members.map((member, mIndex) => `
             <div class="flex items-center gap-2 mb-2 member-item">
@@ -81,7 +85,11 @@ function renderTeamGroups(teamGroups, memberWages) {
 
         groupEl.innerHTML = `
             <div class="flex justify-between items-center mb-4">
-                <input type="text" value="${group.name}" class="text-lg font-semibold team-group-name w-1/3">
+                {/* ✅ [수정] 드래그 핸들 추가 */}
+                <div class="flex items-center">
+                    <span class="drag-handle">☰</span> 
+                    <input type="text" value="${group.name}" class="text-lg font-semibold team-group-name w-auto">
+                </div>
                 <button class="btn btn-danger btn-small delete-team-group-btn">그룹 삭제</button>
             </div>
             <div class="pl-4 border-l-2 border-gray-200 space-y-2 members-container">${membersHtml}</div>
@@ -91,13 +99,11 @@ function renderTeamGroups(teamGroups, memberWages) {
     });
 }
 
-// [추가] 주요 업무 렌더링 함수
 function renderKeyTasks(keyTasks) {
     const container = document.getElementById('key-tasks-container');
     container.innerHTML = '';
     keyTasks.forEach((task, index) => {
         const taskEl = document.createElement('div');
-        // [수정] draggable 속성 추가 및 스타일링
         taskEl.className = 'flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 key-task-item';
         taskEl.dataset.index = index;
         taskEl.draggable = true; // 드래그 가능하게
@@ -113,7 +119,11 @@ function renderKeyTasks(keyTasks) {
 function renderTaskGroups(taskGroups) {
     const container = document.getElementById('task-groups-container');
     container.innerHTML = '';
-    Object.entries(taskGroups).forEach(([groupName, tasks], index) => {
+    // ✅ [수정] teamGroups와 동일하게 config에서 순서대로 읽기 위해 entries 대신 순회
+    const groupNames = Object.keys(taskGroups);
+
+    groupNames.forEach((groupName, index) => {
+        const tasks = taskGroups[groupName] || [];
         const groupEl = document.createElement('div');
         groupEl.className = 'p-4 border rounded-lg bg-gray-50 task-group-card';
         groupEl.dataset.index = index;
@@ -128,7 +138,8 @@ function renderTaskGroups(taskGroups) {
 
         groupEl.innerHTML = `
              <div class="flex justify-between items-center mb-4">
-                <div class="flex items-center"> <span class="drag-handle cursor-move text-gray-400 hover:text-gray-600 mr-2 text-xl -mt-1">☰</span>
+                <div class="flex items-center"> 
+                   <span class="drag-handle">☰</span>
                    <input type="text" value="${groupName}" class="text-lg font-semibold task-group-name w-auto">
                  </div>
                 <button class="btn btn-danger btn-small delete-task-group-btn">그룹 삭제</button>
@@ -145,7 +156,6 @@ function renderQuantityTasks(quantityTasks) {
     container.innerHTML = '';
     quantityTasks.forEach((task, index) => {
         const taskEl = document.createElement('div');
-        // [수정] draggable 속성 추가 및 스타일링
         taskEl.className = 'flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 quantity-task-item';
         taskEl.dataset.index = index;
         taskEl.draggable = true; // 드래그 가능하게
@@ -162,16 +172,17 @@ function renderQuantityTasks(quantityTasks) {
 function setupEventListeners() {
     document.getElementById('save-all-btn').addEventListener('click', handleSaveAll);
     document.getElementById('add-team-group-btn').addEventListener('click', addTeamGroup);
-    document.getElementById('add-key-task-btn').addEventListener('click', addKeyTask); // [추가]
+    document.getElementById('add-key-task-btn').addEventListener('click', addKeyTask);
     document.getElementById('add-task-group-btn').addEventListener('click', addTaskGroup);
     document.getElementById('add-quantity-task-btn').addEventListener('click', addQuantityTask);
 
     document.body.addEventListener('click', handleDynamicClicks);
 
-    // [추가] 드래그 앤 드롭 이벤트 리스너 (주요 업무, 처리량 업무, 업무 그룹)
-    setupDragDropListeners('#key-tasks-container', '.key-task-item');
-    setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item');
-    setupDragDropListeners('#task-groups-container', '.task-group-card'); // 업무 그룹 순서 변경
+    // ✅ [수정] 모든 컨테이너에 드래그 앤 드롭 리스너 설정
+    setupDragDropListeners('#team-groups-container', '.team-group-card'); // 팀 그룹
+    setupDragDropListeners('#key-tasks-container', '.key-task-item'); // 주요 업무
+    setupDragDropListeners('#task-groups-container', '.task-group-card'); // 업무 그룹
+    setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item'); // 처리량 업무
 }
 
 // [추가] 동적 항목 추가 함수들
@@ -180,7 +191,7 @@ function addTeamGroup() {
     appConfig.teamGroups = appConfig.teamGroups || [];
     appConfig.teamGroups.push(newGroup);
     if (!appConfig.memberWages) appConfig.memberWages = {};
-    appConfig.memberWages['새 팀원'] = 10000;
+    appConfig.memberWages['새 팀원'] = appConfig.defaultPartTimerWage || 10000;
     renderTeamGroups(appConfig.teamGroups, appConfig.memberWages);
 }
 
@@ -203,7 +214,6 @@ function addQuantityTask() {
     renderQuantityTasks(appConfig.quantityTaskTypes);
 }
 
-// [수정] 동적 클릭 이벤트 핸들러 분리
 function handleDynamicClicks(e) {
     // 팀원 추가/삭제, 팀 그룹 삭제
     if (e.target.classList.contains('add-member-btn')) {
@@ -213,7 +223,7 @@ function handleDynamicClicks(e) {
         newMemberEl.innerHTML = `
             <input type="text" value="새 팀원" class="member-name" placeholder="팀원 이름">
             <label class="text-sm whitespace-nowrap">시급:</label>
-            <input type="number" value="10000" class="member-wage w-28" placeholder="시급">
+            <input type="number" value="${appConfig.defaultPartTimerWage || 10000}" class="member-wage w-28" placeholder="시급">
             <button class="btn btn-danger btn-small delete-member-btn">삭제</button>
         `;
         container.appendChild(newMemberEl);
@@ -247,42 +257,35 @@ function handleDynamicClicks(e) {
     }
 }
 
-// [추가] 드래그 앤 드롭 설정 함수
+// [수정] 드래그 앤 드롭 설정 함수
 function setupDragDropListeners(containerSelector, itemSelector) {
     const container = document.querySelector(containerSelector);
     if (!container) return;
 
+    // ✅ [수정] 드래그 시작 로직 (더 명확하게 수정)
     container.addEventListener('dragstart', (e) => {
-        // 드래그 핸들에서만 드래그 시작되도록 (선택 사항)
-        if (e.target.closest(itemSelector) && e.target.classList.contains('drag-handle')) {
-           draggedItem = e.target.closest(itemSelector);
-           if (draggedItem) {
-               setTimeout(() => draggedItem.classList.add('dragging'), 0);
-               e.dataTransfer.effectAllowed = 'move';
-           }
-        } else if (e.target.closest(itemSelector) && containerSelector === '#task-groups-container') {
-             // 업무 그룹 카드는 핸들 클릭해야만 이동
-            if (e.target.classList.contains('drag-handle')) {
-                draggedItem = e.target.closest(itemSelector);
-                if (draggedItem) {
-                    setTimeout(() => draggedItem.classList.add('dragging'), 0);
-                    e.dataTransfer.effectAllowed = 'move';
-                }
-            } else {
-                 e.preventDefault(); // 핸들 아니면 드래그 막기
-            }
+        const item = e.target.closest(itemSelector);
+        if (!item) return;
+
+        const isHandle = e.target.classList.contains('drag-handle');
+        const isTeamGroup = containerSelector === '#team-groups-container';
+        const isTaskGroup = containerSelector === '#task-groups-container';
+
+        if (isHandle) {
+            // 1. 핸들로 드래그: 항상 허용
+            draggedItem = item;
+        } else if (isTeamGroup || isTaskGroup) {
+            // 2. 그룹 카드(팀/업무)의 바디 드래그: 금지
+            e.preventDefault();
+            return;
+        } else {
+            // 3. 기타 항목(주요/처리량 업무) 바디 드래그: 허용
+            draggedItem = item;
         }
-         else {
-             // 주요 업무, 처리량 업무는 아이템 전체 드래그 가능하도록 (핸들 필수 아님)
-             if(containerSelector !== '#task-groups-container') {
-                draggedItem = e.target.closest(itemSelector);
-                 if (draggedItem) {
-                    setTimeout(() => draggedItem.classList.add('dragging'), 0);
-                    e.dataTransfer.effectAllowed = 'move';
-                }
-             } else {
-                 e.preventDefault(); // 업무 그룹은 핸들 아니면 무조건 막기
-             }
+        
+        if (draggedItem) {
+            setTimeout(() => draggedItem.classList.add('dragging'), 0);
+            e.dataTransfer.effectAllowed = 'move';
         }
     });
 
@@ -322,18 +325,17 @@ function setupDragDropListeners(containerSelector, itemSelector) {
             const draggedIndex = children.indexOf(draggedItem);
             const targetIndex = children.indexOf(targetItem);
 
-            // 삽입: target 위에 놓으면 target 앞으로, target 아래쪽에 놓으면 target 뒤로 (옵션)
-            // 현재는 간단하게 target 앞에 삽입
+            // 삽입
             if (draggedIndex < targetIndex) {
                 container.insertBefore(draggedItem, targetItem.nextSibling);
             } else {
                 container.insertBefore(draggedItem, targetItem);
             }
 
-            // 인덱스 재설정 (필요 시)
+            // 인덱스 재설정 (삭제 버튼 등)
             Array.from(container.children).forEach((item, index) => {
                 item.dataset.index = index;
-                const deleteBtn = item.querySelector('.delete-key-task-btn, .delete-quantity-task-btn');
+                const deleteBtn = item.querySelector('.delete-key-task-btn, .delete-quantity-task-btn, .delete-team-group-btn, .delete-task-group-btn');
                 if(deleteBtn) deleteBtn.dataset.index = index;
             });
 
@@ -353,14 +355,14 @@ async function handleSaveAll() {
         const newConfig = {
             teamGroups: [],
             memberWages: {},
-            keyTasks: [], // [추가]
+            keyTasks: [],
             taskGroups: {},
             quantityTaskTypes: [],
             defaultPartTimerWage: 10000
         };
 
-        // 1. 팀원 및 시급 정보 읽기
-        document.querySelectorAll('.team-group-card').forEach(groupCard => {
+        // 1. 팀원 및 시급 정보 읽기 (✅ 순서 반영)
+        document.querySelectorAll('#team-groups-container .team-group-card').forEach(groupCard => {
             const groupName = groupCard.querySelector('.team-group-name').value.trim();
             if (!groupName) return;
 
@@ -373,18 +375,17 @@ async function handleSaveAll() {
                 newGroup.members.push(memberName);
                 newConfig.memberWages[memberName] = memberWage;
             });
-            newConfig.teamGroups.push(newGroup);
+            newConfig.teamGroups.push(newGroup); // 순서대로 push
         });
 
-        // [추가] 1.5. 주요 업무 정보 읽기 (순서 반영)
+        // 2. 주요 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
              const taskName = item.querySelector('.key-task-name').value.trim();
              if (taskName) newConfig.keyTasks.push(taskName);
         });
 
 
-        // 2. 업무 정보 읽기 (순서 반영)
-        // 임시 객체 사용 (순서 보장 위해)
+        // 3. 업무 정보 읽기 (순서 반영)
         const orderedTaskGroups = {};
         document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
             const groupNameInput = groupCard.querySelector('.task-group-name');
@@ -401,19 +402,19 @@ async function handleSaveAll() {
         newConfig.taskGroups = orderedTaskGroups; // 최종 할당
 
 
-        // 3. 처리량 업무 정보 읽기 (순서 반영)
+        // 4. 처리량 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
             const taskName = item.querySelector('.quantity-task-name').value.trim();
             if (taskName) newConfig.quantityTaskTypes.push(taskName);
         });
 
-        // 3.5. 전역 설정 (알바 시급) 읽기
+        // 5. 전역 설정 (알바 시급) 읽기
         const wageInput = document.getElementById('default-part-timer-wage');
         if (wageInput) {
             newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
         }
 
-        // 4. Firestore에 저장
+        // 6. Firestore에 저장
         await saveAppConfig(db, newConfig);
         appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');
