@@ -967,10 +967,19 @@ if (teamStatusBoard) {
       const currentLeaveIndex = appState.onLeaveMembers.findIndex(item => item.member === memberName);
 
       if (currentLeaveIndex > -1) {
-          // [수정] 이미 휴무 상태 -> 바로 취소하지 않고, 확인 모달 열기
+          // [수정] 이미 휴무 상태 -> 유형에 따라 다른 확인 모달 열기
           const leaveType = appState.onLeaveMembers[currentLeaveIndex].type;
-          memberToCancelLeave = memberName; // 복귀시킬 멤버 이름 저장
-          if(cancelLeaveConfirmMessage) cancelLeaveConfirmMessage.textContent = `${memberName}님의 '${leaveType}' 상태를 취소(복귀)하시겠습니까?`;
+          memberToCancelLeave = memberName; // 복귀/취소시킬 멤버 이름 저장
+
+          if(cancelLeaveConfirmMessage) {
+              if (leaveType === '외출') {
+                  cancelLeaveConfirmMessage.textContent = `${memberName}님을 '복귀' 처리하시겠습니까?`;
+                  if (confirmCancelLeaveBtn) confirmCancelLeaveBtn.textContent = '예, 복귀합니다';
+              } else {
+                  cancelLeaveConfirmMessage.textContent = `${memberName}님의 '${leaveType}' 상태를 '취소'하시겠습니까?`;
+                  if (confirmCancelLeaveBtn) confirmCancelLeaveBtn.textContent = '예, 취소합니다';
+              }
+          }
           if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.remove('hidden');
           
       } else {
@@ -978,8 +987,7 @@ if (teamStatusBoard) {
           memberToSetLeave = memberName;
           if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
           renderLeaveTypeModalOptions(LEAVE_TYPES); 
-          // [수정] 이 라인을 삭제(주석 처리)해야 날짜 입력칸이 기본으로 나옵니다.
-          // if(leaveDateInputsDiv) leaveDateInputsDiv.classList.add('hidden'); 
+          // (날짜 입력칸 숨기는 코드는 없음 - ui.js가 처리)
           if(leaveStartDateInput) leaveStartDateInput.value = ''; 
           if(leaveEndDateInput) leaveEndDateInput.value = ''; 
           if(leaveTypeModal) leaveTypeModal.classList.remove('hidden');
@@ -1278,8 +1286,50 @@ if (confirmCancelLeaveBtn) {
 
         const index = appState.onLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
         if (index > -1) {
-            appState.onLeaveMembers.splice(index, 1);
-            showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다.`);
+            const entry = appState.onLeaveMembers[index];
+            const todayDateString = getTodayDateString();
+
+            // 1. '외출'인 경우: 복귀 처리 (endTime 기록)
+            if (entry.type === '외출') {
+                entry.endTime = getCurrentTime();
+                if (entry.endTime <= entry.startTime) {
+                    showToast('외출 복귀 시간이 시작 시간보다 빠를 수 없습니다. 관리자에게 문의하세요.', true);
+                    // 복귀 처리를 중단하지는 않고, 메시지만 표시 (혹은 entry.endTime = entry.startTime; 등으로 처리)
+                }
+                showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다.`);
+            
+            // 2. 기간제 휴무(연차, 출장, 결근)인 경우: 날짜 수정 또는 삭제
+            } else if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+                
+                const isLeaveActiveToday = entry.startDate <= todayDateString && (!entry.endDate || todayDateString <= entry.endDate);
+
+                if (isLeaveActiveToday) {
+                    // 오늘 복귀했으므로, 휴무는 어제까지
+                    const today = new Date();
+                    today.setDate(today.getDate() - 1); // 어제 날짜
+                    const yesterday = today.toISOString().split('T')[0];
+
+                    if (yesterday < entry.startDate) {
+                        // 휴무 시작일 당일에 복귀/취소한 경우 (시작일 <= 오늘), 기록 자체를 삭제
+                        appState.onLeaveMembers.splice(index, 1);
+                        showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
+                    } else {
+                        // 휴무 기간을 어제까지로 수정
+                        entry.endDate = yesterday;
+                        showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다. (${entry.type}이 ${yesterday}까지로 수정됨)`);
+                    }
+                } else {
+                    // 미래 또는 과거의 휴무를 취소하는 경우, 그냥 삭제
+                    appState.onLeaveMembers.splice(index, 1);
+                    showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
+                }
+            
+            // 3. '조퇴' 및 그 외 경우: 기록 삭제
+            } else {
+                appState.onLeaveMembers.splice(index, 1);
+                showToast(`${memberToCancelLeave}님의 '${entry.type}' 상태가 취소되었습니다.`);
+            }
+            
             saveStateToFirestore();
         }
 
