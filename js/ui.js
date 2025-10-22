@@ -1,32 +1,29 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// [수정] 업무별 카드 스타일 정의 -> 전광판 느낌 + 불 켜진 느낌
+// [수정] 업무별 카드 스타일 정의 -> 밝은 배경(흰색)으로 통일
 const taskCardStyles = {
-    // [추가] 시작 전 (전광판 OFF)
+    // [수정] 시작 전 (밝은 'OFF' 상태)
     'default': {
-        card: ['bg-zinc-800', 'border-zinc-700', 'text-zinc-300', 'shadow-inner'], // 어두운 배경, 어두운 테두리, 밝은 텍스트
-        hover: 'hover:border-blue-500 hover:shadow-lg',
-        title: 'text-zinc-100', // 업무 제목은 약간 더 밝게
-        subtitle: 'text-zinc-400', // 시작시간, 참여인원 텍스트
-        buttonBgOff: 'bg-zinc-700',
-        buttonTextOff: 'text-zinc-400',
-        buttonHoverOff: 'hover:bg-zinc-600'
+        card: ['bg-white', 'border-gray-200', 'text-gray-700', 'shadow-sm'], // 기본 흰색 카드
+        hover: 'hover:border-blue-400 hover:shadow-md',
+        subtitle: 'text-gray-500', // 시작시간, 참여인원 텍스트
+        buttonBgOff: 'bg-gray-200',
+        buttonTextOff: 'text-gray-500'
     },
-    // [추가] 업무 진행 중 (전광판 ON)
+    // [수정] 업무 진행 중 ('ON' 상태)
     'ongoing': {
-        card: ['bg-blue-50', 'border-blue-400', 'text-gray-800', 'shadow-lg', 'shadow-blue-200/50'], // 밝은 배경, 파란 테두리, 어두운 텍스트
-        hover: 'hover:border-blue-600 hover:shadow-xl',
-        title: '', // 여기에 taskTitleColors[task]가 들어갈 예정
+        card: ['bg-white', 'border-blue-400', 'text-gray-900', 'shadow-lg', 'shadow-blue-100'], // 흰색 배경 + 파란 테두리/그림자
+        hover: 'hover:border-blue-500',
         subtitle: 'text-gray-600',
         buttonBgOn: 'bg-blue-600',
         buttonTextOn: 'text-white',
         buttonHoverOn: 'hover:bg-blue-700'
     },
-    // [유지] 일시정지 (일시정지 표시)
+    // [유지] 일시정지
     'paused': {
         card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
         hover: 'hover:border-yellow-400 hover:shadow-lg',
-        title: 'text-yellow-800',
+        title: 'text-yellow-800', // 일시정지 시엔 제목도 노란색
         subtitle: 'text-yellow-700',
         buttonBgOn: 'bg-yellow-600',
         buttonTextOn: 'text-white',
@@ -34,8 +31,7 @@ const taskCardStyles = {
     }
 };
 
-// [수정] 업무별 *제목* 색상 정의 (ongoing 상태일 때 사용)
-// default는 taskCardStyles의 title로 대체
+// [수정] 업무별 *제목* 색상 정의 (항상 이 색상을 따름, 일시정지 제외)
 const taskTitleColors = {
     '국내배송': 'text-green-700',
     '중국제작': 'text-purple-700',
@@ -57,10 +53,8 @@ const taskTitleColors = {
     '재고찾는시간': 'text-lime-700',
     '매장근무': 'text-blue-700',
     '출장': 'text-gray-700',
-    'default': 'text-blue-700' // 위에 없는 업무의 기본값 (ongoing 전용)
+    'default': 'text-blue-700' // 위에 없는 업무의 기본값
 };
-
-// ... (renderQuantityModalInputs, renderTaskSelectionModal, renderTaskAnalysis 함수는 변경 없음) ...
 
 
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
@@ -179,8 +173,12 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             currentStyle = taskCardStyles['default'];
         }
 
+        // [수정] 업무 제목 색상 (일시정지 아닐 땐 항상 taskTitleColors 사용)
+        const titleClass = isPaused ? currentStyle.title : (taskTitleColors[task] || taskTitleColors['default']);
+
         // Apply base card styles
-        card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-all duration-300 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
+        card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
+
 
         if (groupRecords.length > 0) { // Task has active members
             const firstRecord = groupRecords[0];
@@ -197,7 +195,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                 const stopButtonBg = isPaused ? 'bg-yellow-200 hover:bg-yellow-300' : 'bg-red-100 hover:bg-red-200';
                 const stopButtonText = isPaused ? 'text-yellow-700' : 'text-red-700';
 
-                membersHtml += `<div class="text-sm ${currentStyle.subtitle} hover:bg-opacity-10 rounded p-1 group flex justify-between items-center">
+                membersHtml += `<div class="text-sm hover:bg-gray-50 rounded p-1 group flex justify-between items-center">
                     <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block w-12 text-left truncate" title="${rec.member}">${rec.member}</span>
                     <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
                     <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs ${stopButtonBg} ${stopButtonText} px-2 py-0.5 rounded ml-1 flex-shrink-0">종료</button>
@@ -210,13 +208,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id;
             const durationStatus = isPaused ? 'paused' : 'ongoing';
 
-            // [수정] 업무 제목 색상 (ongoing이면 taskTitleColors 사용, 아니면 default)
-            const titleClass = isOngoing ? (taskTitleColors[task] || taskTitleColors['default']) : currentStyle.title;
-
-            // [수정] 버튼 스타일
-            const pauseResumeBtnClass = isPaused 
-                ? `${currentStyle.buttonBgOn} ${currentStyle.buttonTextOn} ${currentStyle.buttonHoverOn}`
-                : `${currentStyle.buttonBgOn} ${currentStyle.buttonTextOn} ${currentStyle.buttonHoverOn}`; // 일시정지 버튼도 활성화된 색상
             const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
 
             card.innerHTML = `<div class="flex flex-col h-full">
@@ -237,7 +228,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
             card.innerHTML = `
                 <div class="flex-grow">
-                    <div class="font-bold text-lg ${currentStyle.title} break-keep">${task}</div>
+                    <div class="font-bold text-lg ${titleClass} break-keep">${task}</div>
                     <div class="text-xs ${currentStyle.subtitle} my-2">시작: 시작 전</div>
                     <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
@@ -252,16 +243,16 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     });
 
     const otherTaskCard = document.createElement('div');
-    // [수정] '기타 업무' 카드도 전광판 느낌으로
+    // [수정] '기타 업무' 카드도 흰색 배경으로 통일
     const otherStyle = taskCardStyles['default'];
-    otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-300 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
+    otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
-        <div class="font-bold text-lg ${otherStyle.title}">기타 업무</div>
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 ${otherStyle.subtitle} mt-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <div class="font-bold text-lg text-gray-700">기타 업무</div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mt-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <div class="text-xs ${otherStyle.subtitle} mt-3">새로운 업무 시작</div>
+        <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
     `;
     presetGrid.appendChild(otherTaskCard);
     presetTaskContainer.appendChild(presetGrid);
@@ -269,6 +260,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
+    // ... (이하 renderRealtimeStatus 함수의 나머지 부분은 변경 없음) ...
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
@@ -360,13 +352,13 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         allMembersContainer.appendChild(groupContainer);
     });
 
-    const workingAlbaMembers = new Set((appState.partTimers || []).filter(pt => {
-        const isWorking = workingMembers.has(pt.name) || pausedMembers.has(pt.name);
-        const isOnLeave = onLeaveStatusMap.has(pt.name);
-        return isWorking || isOnLeave;
-    }).map(pt => pt.name));
+    const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
+    // [수정] partTimers 배열이 정의되지 않았을 수 있으므로 appState.partTimers를 참조
+    const activePartTimers = (appState.partTimers || []).filter(pt => {
+        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
+    });
 
-    if (workingAlbaMembers.size > 0) { // 활성화된 알바가 한 명이라도 있을 경우에만 섹션 렌더링
+    if (activePartTimers.length > 0) {
         const albaContainer = document.createElement('div');
         albaContainer.className = 'mb-4';
         albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2">알바</h4>`;
@@ -374,10 +366,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         const albaGrid = document.createElement('div');
         albaGrid.className = 'flex flex-wrap gap-2';
 
-        appState.partTimers.forEach(pt => {
-             // 활성화된 알바만 표시
-             if (!workingAlbaMembers.has(pt.name)) return;
-
+        activePartTimers.forEach(pt => {
              const card = document.createElement('button');
              card.type = 'button';
              card.dataset.memberToggleLeave = pt.name;
@@ -426,6 +415,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         albaContainer.appendChild(albaGrid);
         allMembersContainer.appendChild(albaContainer);
     }
+    teamStatusBoard.appendChild(presetTaskContainer);
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
