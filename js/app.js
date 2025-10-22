@@ -1348,12 +1348,34 @@ if (confirmResetAppBtn) confirmResetAppBtn.addEventListener('click', async () =>
     const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
     await deleteDoc(docRef);
     
+    // [수정] 오늘을 포함한 미래의 날짜 기반 근태 기록은 남기도록 수정
+    const today = getTodayDateString();
+    const currentLeaveMembers = appState.onLeaveMembers || [];
+    
+    const futureLeaveEntries = currentLeaveMembers.filter(entry => {
+        // 날짜 기반 휴무(연차, 출장, 결근)인지 확인
+        if (entry.startDate) { 
+            const endDate = entry.endDate || entry.startDate; // 종료일이 없으면 시작일 당일
+            return endDate >= today; // 종료일이 오늘이거나 미래인 경우만 남김
+        }
+        // 시간 기반 휴무(외출, 조퇴)는 당일 초기화 대상이므로 남기지 않음
+        return false; 
+    });
+
     const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
-    appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+    
+    // [수정] appState를 초기화할 때, 필터링된 futureLeaveEntries를 onLeaveMembers로 설정
+    appState = { 
+        workRecords: [], 
+        taskQuantities: {}, 
+        onLeaveMembers: futureLeaveEntries, // <-- 수정된 부분
+        partTimers: [], 
+        hiddenGroupIds: [] 
+    };
     taskTypes.forEach(task => appState.taskQuantities[task] = 0);
     
     render();
-    showToast('데이터가 초기화되었습니다.');
+    showToast('오늘의 업무 기록이 초기화되었습니다. (근태 일정은 유지됨)');
   } catch (error) {
     console.error('Error resetting data:', error);
     showToast('초기화 중 오류가 발생했습니다.', true);
