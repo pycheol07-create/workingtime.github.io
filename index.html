@@ -178,6 +178,64 @@
     </div>
     <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col relative">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2>
+                <button id="close-history-btn" class="modal-close-btn">&times;</button>
+            </div>
+            
+            <div class="px-6 pt-4 border-b border-gray-200 bg-gray-50">
+                <div id="history-main-tabs" class="flex gap-6">
+                    <button data-main-tab="work" class="history-main-tab-btn py-3 font-semibold text-blue-600 border-b-2 border-blue-600">
+                        업무 이력
+                    </button>
+                    <button data-main-tab="attendance" class="history-main-tab-btn py-3 font-medium text-gray-500">
+                        근태 이력
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-grow flex overflow-hidden">
+                <div id="history-date-list-container" class="w-1/4 border-r border-gray-200 overflow-y-auto bg-gray-50">
+                    <ul id="history-date-list" class="p-2"></ul>
+                </div>
+                
+                <div class="w-3/4 flex flex-col">
+                    
+                    <div id="work-history-panel" class="">
+                        <div class="p-4 border-b border-gray-200">
+                            <div id="history-tabs" class="flex gap-4">
+                                <button data-view="daily" class="history-tab-btn pb-2">일별 상세</button>
+                                <button data-view="weekly" class="history-tab-btn pb-2">주별 요약</button>
+                                <button data-view="monthly" class="history-tab-btn pb-2">월별 요약</button>
+                            </div>
+                        </div>
+                        <div id="history-view-container" class="flex-grow p-6 overflow-y-auto bg-gray-50 h-[calc(85vh-160px)]">
+                            <div id="history-daily-view" class="hidden"></div>
+                            <div id="history-weekly-view" class="hidden space-y-6"></div>
+                            <div id="history-monthly-view" class="hidden space-y-6"></div>
+                        </div>
+                    </div>
+
+                    <div id="attendance-history-panel" class="hidden">
+                        <div class="p-4 border-b border-gray-200">
+                            <div id="attendance-history-tabs" class="flex gap-4">
+                                <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2">일별 상세</button>
+                                <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2">주별 요약</button>
+                                <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2">월별 요약</button>
+                            </div>
+                        </div>
+                        <div id="attendance-history-view-container" class="flex-grow p-6 overflow-y-auto bg-gray-50 h-[calc(85vh-160px)]">
+                            <div id="history-attendance-daily-view" class="hidden space-y-4"></div>
+                            <div id="history-attendance-weekly-view" class="hidden space-y-4"></div>
+                            <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center"><h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2><button id="close-history-btn" class="modal-close-btn">&times;</button></div>
             <div class="flex-grow flex overflow-hidden">
                 <div id="history-date-list-container" class="w-1/4 border-r border-gray-200 overflow-y-auto bg-gray-50"><ul id="history-date-list" class="p-2"></ul></div>

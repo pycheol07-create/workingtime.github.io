@@ -600,26 +600,35 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     }
 };
 
-// [추가] 근태 이력 렌더링 함수
-export const renderAttendanceHistory = (dateKey, allHistoryData) => {
-    const view = document.getElementById('history-attendance-view');
+// [수정] 이름 변경: renderAttendanceHistory -> renderAttendanceDailyHistory
+export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
+    const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
 
     const data = allHistoryData.find(d => d.id === dateKey);
-    // [수정] onLeaveMembers가 비어있거나 없을 경우 메시지 표시
+    
+    // [수정] 엑셀 버튼 추가 (데이터 없어도 버튼은 보이게)
+    let html = `
+        <div class="mb-4 pb-2 border-b flex justify-between items-center">
+            <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
+            <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm" 
+                    onclick="downloadAttendanceHistoryAsExcel('${dateKey}')">
+                근태 엑셀
+            </button>
+        </div>
+    `;
+
     if (!data || !data.onLeaveMembers || data.onLeaveMembers.length === 0) {
-        view.innerHTML = `<div class="bg-white p-4 rounded-lg shadow-sm text-center text-gray-500">${dateKey} 날짜의 근태 기록이 없습니다.</div>`;
+        html += `<div class="bg-white p-4 rounded-lg shadow-sm text-center text-gray-500">해당 날짜의 근태 기록이 없습니다.</div>`;
+        view.innerHTML = html;
         return;
     }
 
     const leaveEntries = data.onLeaveMembers;
-    leaveEntries.sort((a, b) => (a.member || '').localeCompare(b.member || '')); // 이름순 정렬
+    leaveEntries.sort((a, b) => (a.member || '').localeCompare(b.member || '')); 
 
-    let html = `
-        <div class="mb-4 pb-2 border-b">
-            <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
-        </div>
+    html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <table class="w-full text-sm text-left text-gray-600">
                 <thead class="text-xs text-gray-700 uppercase bg-gray-50">
@@ -633,6 +642,7 @@ export const renderAttendanceHistory = (dateKey, allHistoryData) => {
     `;
 
     leaveEntries.forEach(entry => {
+        // ... (기존 detailText 로직 동일) ...
         let detailText = '-';
         if (entry.startTime) { // 외출/조퇴
             detailText = formatTimeTo24H(entry.startTime);
@@ -641,7 +651,7 @@ export const renderAttendanceHistory = (dateKey, allHistoryData) => {
             } else if (entry.type === '외출') {
                 detailText += ' ~';
             }
-        } else if (entry.startDate) { // 연차/출장
+        } else if (entry.startDate) { // 연차/출장/결근
             detailText = entry.startDate;
             if (entry.endDate && entry.endDate !== entry.startDate) {
                 detailText += ` ~ ${entry.endDate}`;
@@ -662,6 +672,153 @@ export const renderAttendanceHistory = (dateKey, allHistoryData) => {
             </table>
         </div>
     `;
+
+    view.innerHTML = html;
+};
+
+// [추가] 근태 주별 요약 렌더링
+export const renderAttendanceWeeklyHistory = (allHistoryData) => {
+    const view = document.getElementById('history-attendance-weekly-view');
+    if (!view) return;
+    view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터 집계 중...</div>';
+
+    const weeklyData = allHistoryData.reduce((acc, day) => {
+        if (!day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0) return acc;
+        try {
+            const weekKey = getWeekOfYear(new Date(day.id));
+            if (!acc[weekKey]) acc[weekKey] = { leaveEntries: [], dateKeys: new Set() };
+            
+            // 날짜 기반 휴무(연차 등)는 해당 날짜에만 카운트되도록
+            day.onLeaveMembers.forEach(entry => {
+                if (entry.startDate) {
+                    // 이 날짜(day.id)가 휴무 기간(startDate ~ endDate)에 포함되는지 확인
+                    const currentDate = day.id;
+                    const startDate = entry.startDate;
+                    const endDate = entry.endDate || entry.startDate; // 종료일 없으면 시작일과 동일
+                    if (currentDate >= startDate && currentDate <= endDate) {
+                         acc[weekKey].leaveEntries.push({ ...entry, date: day.id }); // 이 날짜의 휴무로 기록
+                    }
+                } else {
+                     acc[weekKey].leaveEntries.push(entry); // 시간 기반 휴무(외출 등)
+                }
+            });
+            acc[weekKey].dateKeys.add(day.id);
+        } catch (e) { /* noop */ }
+        return acc;
+    }, {});
+
+    const sortedWeeks = Object.keys(weeklyData).sort((a,b) => b.localeCompare(a));
+    if (sortedWeeks.length === 0) {
+        view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터가 없습니다.</div>';
+        return;
+    }
+    
+    let html = '';
+    sortedWeeks.forEach(weekKey => {
+        const data = weeklyData[weekKey];
+        const summary = data.leaveEntries.reduce((acc, entry) => {
+            const key = `${entry.member}-${entry.type}`;
+            if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
+            
+            if(entry.startDate) { // 연차, 출장, 결근 (날짜 기반)
+                 // 중복 날짜 카운트 방지 (이미 위에서 날짜별로 넣었으므로 1일로 계산)
+                acc[key].count += 1; // 횟수 = 일수
+                acc[key].days += 1;
+            } else { // 외출, 조퇴
+                acc[key].count += 1; // 횟수
+            }
+            return acc;
+        }, {});
+
+        html += `<div class="bg-white p-4 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-bold mb-3">${weekKey}</h3>
+                    <div class="space-y-1">`;
+        
+        if (Object.keys(summary).length === 0) {
+             html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
+        } else {
+            Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
+                 html += `<div class="flex justify-between text-sm">
+                            <span class="font-semibold text-gray-700">${item.member}</span>
+                            <span>${item.type}</span>
+                            <span class="text-right">${item.days > 0 ? `${item.days}일` : `${item.count}회`}</span>
+                         </div>`;
+            });
+        }
+        html += `</div></div>`;
+    });
+
+    view.innerHTML = html;
+};
+
+// [추가] 근태 월별 요약 렌더링
+export const renderAttendanceMonthlyHistory = (allHistoryData) => {
+    const view = document.getElementById('history-attendance-monthly-view');
+    if (!view) return;
+    view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터 집계 중...</div>';
+
+    const monthlyData = allHistoryData.reduce((acc, day) => {
+        if (!day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0) return acc;
+        try {
+            const monthKey = day.id.substring(0, 7);
+            if (!acc[monthKey]) acc[monthKey] = { leaveEntries: [], dateKeys: new Set() };
+
+            day.onLeaveMembers.forEach(entry => {
+                if (entry.startDate) {
+                    const currentDate = day.id;
+                    const startDate = entry.startDate;
+                    const endDate = entry.endDate || entry.startDate;
+                    if (currentDate >= startDate && currentDate <= endDate) {
+                         acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
+                    }
+                } else {
+                     acc[monthKey].leaveEntries.push(entry);
+                }
+            });
+            acc[monthKey].dateKeys.add(day.id);
+        } catch (e) { /* noop */ }
+        return acc;
+    }, {});
+
+    const sortedMonths = Object.keys(monthlyData).sort((a,b) => b.localeCompare(a));
+    if (sortedMonths.length === 0) {
+        view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터가 없습니다.</div>';
+        return;
+    }
+
+    let html = '';
+    sortedMonths.forEach(monthKey => {
+        const data = monthlyData[monthKey];
+        const summary = data.leaveEntries.reduce((acc, entry) => {
+            const key = `${entry.member}-${entry.type}`;
+            if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
+            
+            if(entry.startDate) {
+                acc[key].count += 1;
+                acc[key].days += 1;
+            } else {
+                acc[key].count += 1;
+            }
+            return acc;
+        }, {});
+
+        html += `<div class="bg-white p-4 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-bold mb-3">${monthKey}</h3>
+                    <div class="space-y-1">`;
+
+        if (Object.keys(summary).length === 0) {
+             html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
+        } else {
+            Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
+                 html += `<div class="flex justify-between text-sm">
+                            <span class="font-semibold text-gray-700">${item.member}</span>
+                            <span>${item.type}</span>
+                            <span class="text-right">${item.days > 0 ? `${item.days}일` : `${item.count}회`}</span>
+                         </div>`;
+            });
+        }
+        html += `</div></div>`;
+    });
 
     view.innerHTML = html;
 };
