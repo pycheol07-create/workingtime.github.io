@@ -6,7 +6,7 @@ import { formatTimeTo24H, formatDuration } from './utils.js';
 const taskCardStyles = {
     // [수정] 시작 전 (밝은 'OFF' 상태)
     'default': {
-        card: ['bg-sky-50', 'border-gray-200', 'text-gray-700', 'shadow-sm'], // [수정] 기본 밝은 하늘색 카드
+        card: ['bg-blue-50', 'border-gray-200', 'text-gray-700', 'shadow-sm'], // [수정] 기본 연한 파란색 카드
         hover: 'hover:border-blue-400 hover:shadow-md',
         subtitle: 'text-gray-500', // 시작시간, 참여인원 텍스트
         buttonBgOff: 'bg-gray-200',
@@ -14,7 +14,7 @@ const taskCardStyles = {
     },
     // [수정] 업무 진행 중 ('ON' 상태)
     'ongoing': {
-        card: ['bg-sky-50', 'border-blue-400', 'text-gray-900', 'shadow-lg', 'shadow-blue-100'], // [수정] 밝은 하늘색 배경 + 파란 테두리
+        card: ['bg-blue-50', 'border-blue-400', 'text-gray-900', 'shadow-lg', 'shadow-blue-100'], // [수정] 연한 파란색 배경 + 파란 테두리
         hover: 'hover:border-blue-500',
         subtitle: 'text-gray-600',
         buttonBgOn: 'bg-blue-600',
