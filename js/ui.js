@@ -1,4 +1,4 @@
-// === ui.js (카드 배경색 '하늘색'으로 수정) ===
+// === ui.js (팀 선택 모달 근태 상세 표시, 진행 중 카드 강조) ===
 
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
@@ -6,16 +6,16 @@ import { formatTimeTo24H, formatDuration } from './utils.js';
 const taskCardStyles = {
     // [유지] 시작 전 (밝은 'OFF' 상태)
     'default': {
-        card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'], 
+        card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
         hover: 'hover:border-blue-500 hover:shadow-md',
-        subtitle: 'text-gray-500', 
+        subtitle: 'text-gray-500',
         buttonBgOff: 'bg-gray-200',
         buttonTextOff: 'text-gray-500'
     },
     // [수정] 업무 진행 중 ('ON' 상태) - 더 눈에 띄게
     'ongoing': {
-        card: ['bg-blue-100', 'border-blue-500', 'text-gray-900', 'shadow-xl', 'shadow-blue-200/50'], // [수정] 배경 blue-100, 그림자 강화
-        hover: 'hover:border-blue-600', 
+        card: ['bg-blue-100', 'border-blue-500', 'text-gray-900', 'shadow-xl', 'shadow-blue-200/50'], // 배경 blue-100, 그림자 강화
+        hover: 'hover:border-blue-600',
         subtitle: 'text-gray-600',
         buttonBgOn: 'bg-blue-600',
         buttonTextOn: 'text-white',
@@ -25,7 +25,7 @@ const taskCardStyles = {
     'paused': {
         card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
         hover: 'hover:border-yellow-400 hover:shadow-lg',
-        title: 'text-yellow-800', 
+        title: 'text-yellow-800',
         subtitle: 'text-yellow-700',
         buttonBgOn: 'bg-yellow-600',
         buttonTextOn: 'text-white',
@@ -33,7 +33,7 @@ const taskCardStyles = {
     }
 };
 
-// [수정] 업무별 *제목* 색상 정의 (항상 이 색상을 따름, 일시정지 제외)
+// 업무별 *제목* 색상 정의
 const taskTitleColors = {
     '국내배송': 'text-green-700',
     '중국제작': 'text-purple-700',
@@ -164,27 +164,24 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
         
-        // [수정] 그룹의 '일시정지' 상태는 *모든* 멤버가 일시정지일 때만 true
         const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
-        const isOngoing = groupRecords.some(r => r.status === 'ongoing'); // 한 명이라도 진행 중이면 '진행 중' 상태
+        const isOngoing = groupRecords.some(r => r.status === 'ongoing'); 
 
         let currentStyle;
         if (isPaused) {
             currentStyle = taskCardStyles['paused'];
-        } else if (isOngoing || groupRecords.length > 0) { // [수정] 한 명이라도 일시정지/진행 중이면 'ongoing' 스타일 (파란 테두리)
+        } else if (isOngoing || groupRecords.length > 0) { 
             currentStyle = taskCardStyles['ongoing'];
         } else {
             currentStyle = taskCardStyles['default'];
         }
 
-        // [수정] 업무 제목 색상 (그룹 전체가 일시정지일 때만 노란색)
         const titleClass = isPaused ? currentStyle.title : (taskTitleColors[task] || taskTitleColors['default']);
 
-        // Apply base card styles
         card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
 
 
-        if (groupRecords.length > 0) { // Task has active members
+        if (groupRecords.length > 0) { 
             const firstRecord = groupRecords[0];
 
             card.dataset.action = 'add-member';
@@ -194,16 +191,14 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 
-                // [수정] 개인 상태(rec.status)에 따라 스타일 결정
                 const isRecPaused = rec.status === 'paused';
             
                 const memberTextColor = isRecPaused ? 'text-yellow-800' : 'text-gray-800';
                 const timeTextColor = isRecPaused ? 'text-yellow-600' : 'text-gray-500';
                 const stopButtonBg = isRecPaused ? 'bg-yellow-200 hover:bg-yellow-300' : 'bg-red-100 hover:bg-red-200';
                 const stopButtonText = isRecPaused ? 'text-yellow-700' : 'text-red-700';
-                const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50'; // [추가] 일시정지시 멤버 배경색
+                const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50'; 
 
-                // [추가] 개인 일시정지/재개 버튼
                 let pauseResumeButtonHtml = '';
                 if (rec.status === 'ongoing') {
                     pauseResumeButtonHtml = `<button data-action="pause-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-0.5 rounded ml-1 flex-shrink-0">정지</button>`;
@@ -226,7 +221,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
             const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id;
             
-            // [수정] 그룹 대표 상태 (한 명이라도 진행 중이면 'ongoing', 아니면 'paused')
             const durationStatus = isOngoing ? 'ongoing' : 'paused';
 
             const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
@@ -243,7 +237,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                                     <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} w-full text-white font-bold py-2 rounded-md transition text-sm">전체 종료</button>
                                 </div>
                             </div>`;
-        } else { // Task has no active members (pre-start state)
+        } else { 
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
@@ -264,7 +258,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     });
 
     const otherTaskCard = document.createElement('div');
-    // [수정] '기타 업무' 카드도 'default' 스타일(sky-50) 적용
     const otherStyle = taskCardStyles['default'];
     otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';
@@ -281,11 +274,11 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
-    // ... (이하 renderRealtimeStatus 함수의 나머지 부분은 변경 없음) ...
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
-    allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
+     // [수정] 헤더 텍스트 변경 ("휴무" -> "근태")
+    allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 근태 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
@@ -354,8 +347,9 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                         detailText += ` ~ ${leaveInfo.endDate.substring(5)}`;
                     }
                 }
+                 // [수정] 근태 유형 표시 ("휴무" 대신 leaveInfo.type)
                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div>
-                                  <div class="text-xs">${leaveInfo.type || '휴무'}</div>
+                                  <div class="text-xs">${leaveInfo.type}</div> 
                                   ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
             } else if (workingMembers.has(member)) {
                 card.classList.add('bg-red-50', 'border-red-200');
@@ -374,7 +368,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     });
 
     const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
-    // [수정] partTimers 배열이 정의되지 않았을 수 있으므로 appState.partTimers를 참조
     const activePartTimers = (appState.partTimers || []).filter(pt => {
         return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
     });
@@ -421,8 +414,9 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                         detailText += ` ~ ${albaLeaveInfo.endDate.substring(5)}`;
                     }
                  }
+                 // [수정] 근태 유형 표시 ("휴무" 대신 albaLeaveInfo.type)
                  card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div>
-                                   <div class="text-xs">${albaLeaveInfo.type || '휴무'}</div>
+                                   <div class="text-xs">${albaLeaveInfo.type}</div>
                                    ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
              } else if (currentlyWorkingTask) {
                  card.classList.add('bg-red-50', 'border-red-200');
@@ -488,7 +482,6 @@ export const updateSummary = (appState, teamGroups = []) => {
     const totalStaffCount = allStaffMembers.size;
     const totalPartTimerCount = allPartTimers.size;
 
-    // [수정] appState.onLeaveMembers는 이미 필터링된 목록임
     const onLeaveEntries = appState.onLeaveMembers || [];
     const onLeaveMemberNames = new Set(onLeaveEntries.map(item => item.member));
     const onLeaveTotalCount = onLeaveMemberNames.size; 
@@ -507,7 +500,6 @@ export const updateSummary = (appState, teamGroups = []) => {
 
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
-    // DOM 업데이트
     if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaffCount}/${totalPartTimerCount}`;
     if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveTotalCount}`;
     if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`; 
@@ -516,6 +508,7 @@ export const updateSummary = (appState, teamGroups = []) => {
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
 };
 
+// [수정] 팀원 선택 모달 - 근태 상태 상세 표시
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -527,8 +520,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     const allWorkingMembers = new Set(
         (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused').map(r => r.member)
     );
-    // [수정] appState.onLeaveMembers는 이미 필터링된 목록임
-    const onLeaveMemberNames = new Set((appState.onLeaveMembers || []).map(item => item.member));
+    // [수정] 근태 정보를 Map 형태로 미리 만들어 둡니다.
+    const onLeaveMemberMap = new Map((appState.onLeaveMembers || []).map(item => [item.member, item]));
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -553,7 +546,9 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const uniqueMembersInGroup = [...new Set(group.members)];
         uniqueMembersInGroup.forEach(member => {
             const isWorking = allWorkingMembers.has(member);
-            const isOnLeave = onLeaveMemberNames.has(member); 
+             // [수정] Map에서 근태 정보 가져오기
+            const leaveEntry = onLeaveMemberMap.get(member);
+            const isOnLeave = !!leaveEntry;
             const card = document.createElement('button');
             card.type = 'button';
             card.dataset.memberName = member;
@@ -565,7 +560,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             if (isWorking) {
                 statusLabel = '<div class="text-xs text-red-500">업무 중</div>';
             } else if (isOnLeave) {
-                statusLabel = '<div class="text-xs text-gray-500">휴무 중</div>'; 
+                // [수정] 실제 근태 유형 표시
+                statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`;
             }
             card.innerHTML = `<div class="font-semibold">${member}</div>${statusLabel}`;
 
@@ -590,7 +586,9 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
     (appState.partTimers || []).forEach(pt => {
         const isWorking = allWorkingMembers.has(pt.name);
-        const isOnLeave = onLeaveMemberNames.has(pt.name); 
+         // [수정] Map에서 근태 정보 가져오기
+        const leaveEntry = onLeaveMemberMap.get(pt.name);
+        const isOnLeave = !!leaveEntry;
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'relative';
 
@@ -605,7 +603,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         if (isWorking) {
             statusLabel = '<div class="text-xs text-red-500">업무 중</div>';
         } else if (isOnLeave) {
-            statusLabel = '<div class="text-xs text-gray-500">휴무 중</div>'; 
+            // [수정] 실제 근태 유형 표시
+            statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`;
         }
         card.innerHTML = `<div class="font-semibold">${pt.name}</div>${statusLabel}`;
 
@@ -633,7 +632,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
-    const dateInputsDiv = document.getElementById('leave-date-inputs'); 
+    const dateInputsDiv = document.getElementById('leave-date-inputs');
     if (!container || !dateInputsDiv) return;
 
     container.innerHTML = '';
@@ -647,11 +646,9 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         container.appendChild(div);
     });
 
-    // 라디오 버튼 변경 시 이벤트 리스너 추가
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
-            // [수정] 연차, 출장, 결근 선택 시 날짜 필드 보이기
             if (selectedType === '연차' || selectedType === '출장' || selectedType === '결근') {
                 dateInputsDiv.classList.remove('hidden');
             } else {
@@ -663,7 +660,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const firstRadio = container.querySelector('input[type="radio"]');
     if (firstRadio) {
         firstRadio.checked = true;
-        // [수정] 초기 상태 확인 및 날짜 필드 표시/숨김 (맨 처음 로드 시)
         if (firstRadio.value === '연차' || firstRadio.value === '출장' || firstRadio.value === '결근') {
             dateInputsDiv.classList.remove('hidden');
         } else {
@@ -678,11 +674,11 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
 
     const data = allHistoryData.find(d => d.id === dateKey);
-    
+
     let html = `
         <div class="mb-4 pb-2 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
-            <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm" 
+            <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm"
                     onclick="downloadAttendanceHistoryAsExcel('${dateKey}')">
                 근태 엑셀
             </button>
@@ -696,7 +692,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     }
 
     const leaveEntries = data.onLeaveMembers;
-    leaveEntries.sort((a, b) => (a.member || '').localeCompare(b.member || '')); 
+    leaveEntries.sort((a, b) => (a.member || '').localeCompare(b.member || ''));
 
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
@@ -713,14 +709,14 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
     leaveEntries.forEach(entry => {
         let detailText = '-';
-        if (entry.startTime) { // 외출/조퇴
+        if (entry.startTime) {
             detailText = formatTimeTo24H(entry.startTime);
             if (entry.endTime) {
                 detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
             } else if (entry.type === '외출') {
                 detailText += ' ~';
             }
-        } else if (entry.startDate) { // 연차/출장/결근
+        } else if (entry.startDate) {
             detailText = entry.startDate;
             if (entry.endDate && entry.endDate !== entry.startDate) {
                 detailText += ` ~ ${entry.endDate}`;
@@ -755,17 +751,17 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
         try {
             const weekKey = getWeekOfYear(new Date(day.id));
             if (!acc[weekKey]) acc[weekKey] = { leaveEntries: [], dateKeys: new Set() };
-            
+
             day.onLeaveMembers.forEach(entry => {
                 if (entry.startDate) {
                     const currentDate = day.id;
                     const startDate = entry.startDate;
-                    const endDate = entry.endDate || entry.startDate; 
+                    const endDate = entry.endDate || entry.startDate;
                     if (currentDate >= startDate && currentDate <= endDate) {
-                         acc[weekKey].leaveEntries.push({ ...entry, date: day.id }); 
+                         acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
                     }
                 } else {
-                     acc[weekKey].leaveEntries.push(entry); 
+                     acc[weekKey].leaveEntries.push(entry);
                 }
             });
             acc[weekKey].dateKeys.add(day.id);
@@ -778,19 +774,19 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
         view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터가 없습니다.</div>';
         return;
     }
-    
+
     let html = '';
     sortedWeeks.forEach(weekKey => {
         const data = weeklyData[weekKey];
         const summary = data.leaveEntries.reduce((acc, entry) => {
             const key = `${entry.member}-${entry.type}`;
             if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
-            
-            if(entry.startDate) { // 연차, 출장, 결근 (날짜 기반)
-                acc[key].count += 1; // 횟수 = 일수
+
+            if(entry.startDate) {
+                acc[key].count += 1;
                 acc[key].days += 1;
-            } else { // 외출, 조퇴
-                acc[key].count += 1; // 횟수
+            } else {
+                acc[key].count += 1;
             }
             return acc;
         }, {});
@@ -798,7 +794,7 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
         html += `<div class="bg-white p-4 rounded-lg shadow-sm">
                     <h3 class="text-xl font-bold mb-3">${weekKey}</h3>
                     <div class="space-y-1">`;
-        
+
         if (Object.keys(summary).length === 0) {
              html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
         } else {
@@ -856,7 +852,7 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
         const summary = data.leaveEntries.reduce((acc, entry) => {
             const key = `${entry.member}-${entry.type}`;
             if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
-            
+
             if(entry.startDate) {
                 acc[key].count += 1;
                 acc[key].days += 1;

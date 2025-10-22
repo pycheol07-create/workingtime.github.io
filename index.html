@@ -83,7 +83,7 @@
 
         <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
             <h2 class="text-xl font-bold text-gray-900 mb-4">업무 배정 및 팀 현황</h2>
-            
+
             <div id="loading-spinner" class="text-center py-10">
                 <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -91,7 +91,7 @@
                 </svg>
                 <p class="mt-2 text-gray-500 font-semibold">설정 및 데이터를 불러오는 중...</p>
             </div>
-            
+
             <div id="team-status-board" class="space-y-8">
                 </div>
         </div>
@@ -139,7 +139,7 @@
             <div id="analysis-content" class="hidden md:block mt-4">
                 </div>
         </div>
-    </div> 
+    </div>
 
     <div id="team-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col relative">
@@ -190,7 +190,7 @@
                 <h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2>
                 <button id="close-history-btn" class="modal-close-btn">&times;</button>
             </div>
-            
+
             <div class="px-6 pt-4 border-b border-gray-200 bg-gray-50">
                 <div id="history-main-tabs" class="flex gap-6">
                     <button data-main-tab="work" class="history-main-tab-btn py-3 font-semibold text-blue-600 border-b-2 border-blue-600">
@@ -206,12 +206,12 @@
                 <div id="history-date-list-container" class="w-1/4 border-r border-gray-200 overflow-y-auto bg-gray-50">
                     <ul id="history-date-list" class="p-2"></ul>
                 </div>
-                
-                <div class="w-3/4 flex flex-col overflow-hidden"> 
-                    
-                    <div id="work-history-panel" class="flex flex-col h-full"> 
-                        <div class="p-4 border-b border-gray-200 flex-shrink-0"> 
-                            <div id="history-tabs" class="flex gap-4"> 
+
+                <div class="w-3/4 flex flex-col overflow-hidden">
+
+                    <div id="work-history-panel" class="flex flex-col h-full">
+                        <div class="p-4 border-b border-gray-200 flex-shrink-0">
+                            <div id="history-tabs" class="flex gap-4">
                                 <button data-view="daily" class="history-tab-btn pb-2">일별 상세</button>
                                 <button data-view="weekly" class="history-tab-btn pb-2">주별 요약</button>
                                 <button data-view="monthly" class="history-tab-btn pb-2">월별 요약</button>
@@ -224,8 +224,8 @@
                         </div>
                     </div>
 
-                    <div id="attendance-history-panel" class="hidden flex flex-col h-full"> 
-                        <div class="p-4 border-b border-gray-200 flex-shrink-0"> 
+                    <div id="attendance-history-panel" class="hidden flex flex-col h-full">
+                        <div class="p-4 border-b border-gray-200 flex-shrink-0">
                             <div id="attendance-history-tabs" class="flex gap-4">
                                 <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2">일별 상세</button>
                                 <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2">주별 요약</button>
@@ -344,11 +344,11 @@
     <div id="leave-type-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <div class="p-6 border-b border-gray-200">
-                <h2 id="leave-modal-title" class="text-xl font-bold text-gray-900">휴무 설정</h2>
+                <h2 id="leave-modal-title" class="text-xl font-bold text-gray-900">근태 설정</h2>
                 <button class="modal-close-btn">&times;</button>
             </div>
             <div class="p-6 space-y-4">
-                <p><span id="leave-member-name" class="font-bold"></span> 님의 휴무 유형을 선택하세요.</p>
+                <p><span id="leave-member-name" class="font-bold"></span> 님의 근태 유형을 선택하세요.</p>
                 <div id="leave-type-options" class="grid grid-cols-2 gap-3">
                     </div>
                  <div id="leave-date-inputs" class="hidden space-y-2 mt-4">
