@@ -1,4 +1,4 @@
-// === app.js (setInterval 삭제, 모달 닫기 로직 수정) ===
+// === app.js (비어있던 이벤트 리스너 모두 채움) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -1050,25 +1050,321 @@ if (teamStatusBoard) {
   });
 }
 
-if (workLogBody) { /* ... */ }
-if (deleteAllCompletedBtn) { /* ... */ }
-if (confirmDeleteBtn) { /* ... */ }
-if (endShiftBtn) { /* ... */ }
-if (saveProgressBtn) { /* ... */ }
-if (openHistoryBtn) { /* ... */ }
-if (closeHistoryBtn) { /* ... */ }
-if (historyDateList) { /* ... */ }
-if (historyTabs) { /* ... */ }
-if (confirmHistoryDeleteBtn) { /* ... */ }
-if (historyMainTabs) { /* ... */ }
-if (attendanceHistoryTabs) { /* ... */ }
-if (resetAppBtn) { /* ... */ }
-if (confirmResetAppBtn) { /* ... */ }
-if (confirmQuantityBtn) { /* ... */ }
-if (confirmEditBtn) { /* ... */ }
-if (confirmQuantityOnStopBtn) { /* ... */ }
-if (taskSelectModal) { /* ... */ }
-if (confirmStopIndividualBtn) { /* ... */ }
+// [수정] 완료된 업무 로그 (수정/삭제) 이벤트 위임
+if (workLogBody) {
+  workLogBody.addEventListener('click', (e) => {
+    const deleteBtn = e.target.closest('button[data-action="delete"]');
+    if (deleteBtn) {
+      recordToDeleteId = deleteBtn.dataset.recordId;
+      deleteMode = 'single';
+      const msgEl = document.getElementById('delete-confirm-message');
+      if (msgEl) msgEl.textContent = '이 업무 기록을 삭제하시겠습니까?';
+      if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
+      return;
+    }
+    const editBtn = e.target.closest('button[data-action="edit"]');
+    if (editBtn) {
+      recordToEditId = editBtn.dataset.recordId;
+      const record = (appState.workRecords || []).find(r => String(r.id) === String(recordToEditId));
+      if (record) {
+        document.getElementById('edit-member-name').value = record.member;
+        document.getElementById('edit-start-time').value = record.startTime || '';
+        document.getElementById('edit-end-time').value = record.endTime || '';
+
+        const taskSelect = document.getElementById('edit-task-type');
+        taskSelect.innerHTML = ''; // Clear options
+        const allTasks = [].concat(...Object.values(appConfig.taskGroups || {}));
+        allTasks.forEach(task => {
+            const option = document.createElement('option');
+            option.value = task;
+            option.textContent = task;
+            if (task === record.task) option.selected = true;
+            taskSelect.appendChild(option);
+        });
+
+        if (editRecordModal) editRecordModal.classList.remove('hidden');
+      }
+      return;
+    }
+  });
+}
+
+// [수정] 완료된 업무 일괄 삭제
+if (deleteAllCompletedBtn) {
+  deleteAllCompletedBtn.addEventListener('click', () => {
+    deleteMode = 'all';
+    const msgEl = document.getElementById('delete-confirm-message');
+    if (msgEl) msgEl.textContent = '오늘 완료된 모든 업무 기록을 삭제하시겠습니까?';
+    if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
+  });
+}
+
+// [수정] 삭제 확인 (단일/일괄)
+if (confirmDeleteBtn) {
+  confirmDeleteBtn.addEventListener('click', () => {
+    if (deleteMode === 'all') {
+      appState.workRecords = (appState.workRecords || []).filter(r => r.status !== 'completed');
+      showToast('완료된 모든 기록이 삭제되었습니다.');
+    } else if (recordToDeleteId) {
+      appState.workRecords = (appState.workRecords || []).filter(r => String(r.id) !== String(recordToDeleteId));
+      showToast('선택한 기록이 삭제되었습니다.');
+    }
+    saveStateToFirestore();
+    if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
+    recordToDeleteId = null;
+    deleteMode = 'single';
+  });
+}
+
+// [수정] 업무 마감
+if (endShiftBtn) {
+  endShiftBtn.addEventListener('click', () => {
+    // TODO: "업무 마감" 확인 모달을 추가하면 더 좋습니다.
+    saveDayDataToHistory(false); // false = 마감 (초기화 아님)
+    showToast('업무 마감 처리 완료. 오늘의 기록을 이력에 저장하고 초기화했습니다.');
+  });
+}
+
+// [수정] 중간 저장
+if (saveProgressBtn) {
+  saveProgressBtn.addEventListener('click', saveProgress);
+}
+
+// [수정] 이력 보기
+if (openHistoryBtn) {
+  openHistoryBtn.addEventListener('click', async () => {
+    if (historyModal) {
+      historyModal.classList.remove('hidden');
+      // 이력 모달을 열 때 항상 최신 데이터를 로드하고 목록을 그림
+      await loadAndRenderHistoryList();
+    }
+  });
+}
+
+// [수정] 이력 모달 닫기 (이 버튼은 app.js에 정의되어 있지 않았지만, HTML에는 있음)
+if (closeHistoryBtn) {
+  closeHistoryBtn.addEventListener('click', () => {
+    if (historyModal) historyModal.classList.add('hidden');
+  });
+}
+
+// [수정] 이력 날짜 목록 클릭
+if (historyDateList) {
+  historyDateList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.history-date-btn');
+    if (btn) {
+      // 1. 모든 버튼에서 '선택됨' 스타일 제거
+      historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
+      // 2. 클릭된 버튼에 '선택됨' 스타일 추가
+      btn.classList.add('bg-blue-100', 'font-bold');
+      const dateKey = btn.dataset.key;
+
+      // 3. 현재 활성화된 탭 확인 (업무 vs 근태)
+      const activeSubTabBtn = (activeMainHistoryTab === 'work')
+        ? historyTabs?.querySelector('button.font-semibold')
+        : attendanceHistoryTabs?.querySelector('button.font-semibold');
+      const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
+
+      // 4. '일별' 탭일 때만 상세 뷰 다시 그리기
+      if (activeView === 'daily') {
+        renderHistoryDetail(dateKey);
+      } else if (activeView === 'attendance-daily') {
+        renderAttendanceDailyHistory(dateKey, allHistoryData);
+      }
+    }
+  });
+}
+
+// [수정] 이력 - 업무 탭 (일별/주별/월별)
+if (historyTabs) {
+  historyTabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-view]');
+    if (btn) {
+      switchHistoryView(btn.dataset.view);
+    }
+  });
+}
+
+// [수정] 이력 삭제 확인
+if (confirmHistoryDeleteBtn) {
+  confirmHistoryDeleteBtn.addEventListener('click', async () => {
+    if (historyKeyToDelete) {
+      const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', historyKeyToDelete);
+      try {
+        await deleteDoc(historyDocRef);
+        showToast(`${historyKeyToDelete} 이력이 삭제되었습니다.`);
+        await loadAndRenderHistoryList(); // 삭제 후 목록 새로고침
+      } catch (e) {
+        console.error('Error deleting history:', e);
+        showToast('이력 삭제 중 오류 발생.', true);
+      }
+    }
+    if (deleteHistoryModal) deleteHistoryModal.classList.add('hidden');
+    historyKeyToDelete = null;
+  });
+}
+
+// [수정] 이력 - 메인 탭 (업무/근태)
+if (historyMainTabs) {
+  historyMainTabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-main-tab]');
+    if (btn) {
+      const tabName = btn.dataset.mainTab;
+      activeMainHistoryTab = tabName; // 현재 활성 탭 상태 저장
+
+      // 모든 메인 탭 스타일 초기화
+      document.querySelectorAll('.history-main-tab-btn').forEach(b => {
+          b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
+          b.classList.add('font-medium', 'text-gray-500');
+      });
+      // 클릭된 탭 활성화
+      btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
+      btn.classList.remove('font-medium', 'text-gray-500');
+
+      // 패널 교체
+      if (tabName === 'work') {
+        if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
+        if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
+        // 현재 활성화된 서브 탭 뷰로 전환
+        const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
+        const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
+        switchHistoryView(view);
+      } else { // 'attendance'
+        if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
+        if (attendanceHistoryPanel) attendanceHistoryPanel.classList.remove('hidden');
+        // 현재 활성화된 서브 탭 뷰로 전환
+        const activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
+        const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
+        switchHistoryView(view);
+      }
+    }
+  });
+}
+
+// [수정] 이력 - 근태 탭 (일별/주별/월별)
+if (attendanceHistoryTabs) {
+  attendanceHistoryTabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-view]');
+    if (btn) {
+      switchHistoryView(btn.dataset.view);
+    }
+  });
+}
+
+// [수정] 앱 초기화 버튼
+if (resetAppBtn) {
+  resetAppBtn.addEventListener('click', () => {
+    if (resetAppModal) resetAppModal.classList.remove('hidden');
+  });
+}
+
+// [수정] 앱 초기화 확인
+if (confirmResetAppBtn) {
+  confirmResetAppBtn.addEventListener('click', async () => {
+    await saveDayDataToHistory(true); // true = reset
+    if (resetAppModal) resetAppModal.classList.add('hidden');
+  });
+}
+
+// [수정] 처리량 모달 확인
+if (confirmQuantityBtn) {
+  confirmQuantityBtn.addEventListener('click', () => {
+    const inputs = quantityModal.querySelectorAll('input[data-task]');
+    const newQuantities = {};
+    inputs.forEach(input => {
+      const task = input.dataset.task;
+      const quantity = Number(input.value) || 0;
+      if (quantity > 0) newQuantities[task] = quantity;
+    });
+    // 컨텍스트에 저장된 콜백 실행
+    if (quantityModalContext.onConfirm) {
+      quantityModalContext.onConfirm(newQuantities);
+    }
+    if (quantityModal) quantityModal.classList.add('hidden');
+  });
+}
+
+// [수정] 기록 수정 확인
+if (confirmEditBtn) {
+  confirmEditBtn.addEventListener('click', () => {
+    if (!recordToEditId) return;
+    const idx = appState.workRecords.findIndex(r => String(r.id) === String(recordToEditId));
+    if (idx === -1) {
+      showToast('수정할 기록을 찾을 수 없습니다.', true);
+      if (editRecordModal) editRecordModal.classList.add('hidden');
+      recordToEditId = null;
+      return;
+    }
+
+    const record = appState.workRecords[idx];
+    const newTask = document.getElementById('edit-task-type').value;
+    const newStart = document.getElementById('edit-start-time').value;
+    const newEnd = document.getElementById('edit-end-time').value;
+
+    if (!newStart || !newEnd || !newTask) {
+      showToast('모든 필드를 올바르게 입력해주세요.', true);
+      return;
+    }
+
+    if (newEnd < newStart) {
+        showToast('종료 시간은 시작 시간보다 이후여야 합니다.', true);
+        return;
+    }
+
+    // 데이터 업데이트
+    record.task = newTask;
+    record.startTime = newStart;
+    record.endTime = newEnd;
+    record.duration = calcElapsedMinutes(newStart, newEnd, record.pauses); // 재계산
+
+    saveStateToFirestore();
+    showToast('기록이 수정되었습니다.');
+    if (editRecordModal) editRecordModal.classList.add('hidden');
+    recordToEditId = null;
+  });
+}
+
+// [수정] 그룹 종료 시 처리량 입력 확인
+if (confirmQuantityOnStopBtn) {
+  confirmQuantityOnStopBtn.addEventListener('click', () => {
+    if (groupToStopId) {
+      const input = document.getElementById('quantity-on-stop-input');
+      const quantity = input ? (Number(input.value) || 0) : null;
+      finalizeStopGroup(groupToStopId, quantity);
+      if(input) input.value = ''; // 입력값 초기화
+    }
+  });
+}
+
+// [수정] '기타 업무' 선택 모달
+if (taskSelectModal) {
+  taskSelectModal.addEventListener('click', (e) => {
+    const btn = e.target.closest('.task-select-btn');
+    if (btn) {
+      const task = btn.dataset.task;
+      if (taskSelectModal) taskSelectModal.classList.add('hidden');
+
+      // 팀 선택 모달 열기 로직
+      selectedTaskForStart = task;
+      selectedGroupForAdd = null;
+      renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
+      const titleEl = document.getElementById('team-select-modal-title');
+      if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
+      if (teamSelectModal) teamSelectModal.classList.remove('hidden');
+    }
+  });
+}
+
+// [수정] 개인 업무 종료 확인
+if (confirmStopIndividualBtn) {
+  confirmStopIndividualBtn.addEventListener('click', () => {
+    if (recordToStopId) {
+      stopWorkIndividual(recordToStopId);
+    }
+    if (stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden');
+    recordToStopId = null;
+  });
+}
 
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
     if (!memberToSetLeave) return;
@@ -1200,6 +1496,8 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
           if(input) input.value = '';
       } else if (modalId === 'stop-individual-confirm-modal') {
           recordToStopId = null;
+      } else if (modalId === 'history-modal') {
+          // '이력 보기' 모달 닫기
       }
       // 다른 모달 ID에 대한 초기화 로직 추가...
   });
