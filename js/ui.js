@@ -1,6 +1,6 @@
-import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js';
+import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// 업무별 카드 스타일 정의
+// 업무별 카드 스타일 정의 (중복 선언 제거)
 const taskCardStyles = {
     '국내배송': ['bg-green-50', 'border-green-200', 'text-green-800'],
     '중국제작': ['bg-purple-50', 'border-purple-200', 'text-purple-800'],
@@ -21,13 +21,12 @@ const taskCardStyles = {
     '2층업무': ['bg-neutral-50', 'border-neutral-200', 'text-neutral-800'],
     '재고찾는시간': ['bg-lime-50', 'border-lime-200', 'text-lime-800'],
     '매장근무': ['bg-cyan-50', 'border-cyan-200', 'text-cyan-800'],
-    '출장': ['bg-gray-50', 'border-gray-200', 'text-gray-800'], // 출장 스타일 추가
+    '출장': ['bg-gray-50', 'border-gray-200', 'text-gray-800'],
     'default': ['bg-blue-50', 'border-blue-200', 'text-blue-800'],
     'paused': ['bg-yellow-50', 'border-yellow-200', 'text-yellow-800']
 };
 
 
-// ... (renderQuantityModalInputs, renderTaskSelectionModal, renderTaskAnalysis 변경 없음) ...
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
@@ -229,20 +228,17 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
     
-    // [!!!!!] 수정된 부분 [!!!!!]
-    // '외출'이고 endTime이 있는 경우(복귀한 경우)는 휴무 맵에서 제외합니다.
+    // '외출'이고 endTime이 있는 경우(복귀한 경우)는 휴무 맵에서 제외
     const onLeaveStatusMap = new Map(
         (appState.onLeaveMembers || [])
             .filter(item => {
-                // '외출'이면서 endTime이 있으면 (복귀했으면) 휴무 상태가 아님
                 if (item.type === '외출' && item.endTime) {
                     return false; 
                 }
-                return true; // 그 외 모든 휴무는 휴무 상태임
+                return true;
             })
             .map(item => [item.member, item])
     );
-    // [!!!!!] 수정 끝 [!!!!!]
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -267,7 +263,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             const card = document.createElement('button');
             card.type = 'button';
             const leaveInfo = onLeaveStatusMap.get(member);
-            const isOnLeave = !!leaveInfo; // 수정된 Map 기준
+            const isOnLeave = !!leaveInfo;
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
 
             card.className = 'p-1 rounded-lg border text-center transition-shadow min-h-[64px] w-24 flex flex-col justify-center';
@@ -316,7 +312,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
     const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
     const activePartTimers = (appState.partTimers || []).filter(pt => {
-        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name); // 수정된 Map 기준
+        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
     });
 
     if (activePartTimers.length > 0) {
@@ -380,7 +376,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
-// ... (renderCompletedWorkLog, updateSummary, renderTeamSelectionModalContent 변경 없음) ...
 export const renderCompletedWorkLog = (appState) => {
     const workLogBody = document.getElementById('work-log-body');
     if (!workLogBody) return;
@@ -429,7 +424,13 @@ export const updateSummary = (appState, teamGroups = []) => {
     const totalStaffCount = allStaffMembers.size;
     const totalPartTimerCount = allPartTimers.size;
 
-    const onLeaveEntries = appState.onLeaveMembers || [];
+    const onLeaveEntries = (appState.onLeaveMembers || []).filter(item => {
+        // [수정] '외출'이면서 endTime이 있으면 (복귀했으면) 휴무자 수에서 제외
+        if (item.type === '외출' && item.endTime) {
+            return false; 
+        }
+        return true;
+    });
     const onLeaveMemberNames = new Set(onLeaveEntries.map(item => item.member));
     const onLeaveTotalCount = onLeaveMemberNames.size; 
 
@@ -467,7 +468,12 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     const allWorkingMembers = new Set(
         (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused').map(r => r.member)
     );
-    const onLeaveMemberNames = new Set((appState.onLeaveMembers || []).map(item => item.member));
+    // [수정] 복귀한 '외출' 인원 제외
+    const onLeaveMemberNames = new Set(
+        (appState.onLeaveMembers || [])
+            .filter(item => !(item.type === '외출' && item.endTime))
+            .map(item => item.member)
+    );
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -570,8 +576,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 };
 
 
-// [수정] renderLeaveTypeModalOptions: 날짜 입력 필드 표시/숨김 로직 추가
-// [수정] renderLeaveTypeModalOptions: 날짜 입력 필드 표시/숨김 로직 수정
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs'); 
@@ -614,14 +618,13 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
 };
 
 // [수정] 이름 변경: renderAttendanceHistory -> renderAttendanceDailyHistory
-export const renderAttendanceHistory = (dateKey, allHistoryData) => {
+export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
 
     const data = allHistoryData.find(d => d.id === dateKey);
     
-    // [수정] 엑셀 버튼 추가 (데이터 없어도 버튼은 보이게)
     let html = `
         <div class="mb-4 pb-2 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
@@ -655,7 +658,6 @@ export const renderAttendanceHistory = (dateKey, allHistoryData) => {
     `;
 
     leaveEntries.forEach(entry => {
-        // ... (기존 detailText 로직 동일) ...
         let detailText = '-';
         if (entry.startTime) { // 외출/조퇴
             detailText = formatTimeTo24H(entry.startTime);
@@ -701,18 +703,16 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
             const weekKey = getWeekOfYear(new Date(day.id));
             if (!acc[weekKey]) acc[weekKey] = { leaveEntries: [], dateKeys: new Set() };
             
-            // 날짜 기반 휴무(연차 등)는 해당 날짜에만 카운트되도록
             day.onLeaveMembers.forEach(entry => {
                 if (entry.startDate) {
-                    // 이 날짜(day.id)가 휴무 기간(startDate ~ endDate)에 포함되는지 확인
                     const currentDate = day.id;
                     const startDate = entry.startDate;
-                    const endDate = entry.endDate || entry.startDate; // 종료일 없으면 시작일과 동일
+                    const endDate = entry.endDate || entry.startDate; 
                     if (currentDate >= startDate && currentDate <= endDate) {
-                         acc[weekKey].leaveEntries.push({ ...entry, date: day.id }); // 이 날짜의 휴무로 기록
+                         acc[weekKey].leaveEntries.push({ ...entry, date: day.id }); 
                     }
                 } else {
-                     acc[weekKey].leaveEntries.push(entry); // 시간 기반 휴무(외출 등)
+                     acc[weekKey].leaveEntries.push(entry); 
                 }
             });
             acc[weekKey].dateKeys.add(day.id);
@@ -734,7 +734,6 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
             if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
             
             if(entry.startDate) { // 연차, 출장, 결근 (날짜 기반)
-                 // 중복 날짜 카운트 방지 (이미 위에서 날짜별로 넣었으므로 1일로 계산)
                 acc[key].count += 1; // 횟수 = 일수
                 acc[key].days += 1;
             } else { // 외출, 조퇴

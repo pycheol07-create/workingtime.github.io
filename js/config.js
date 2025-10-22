@@ -18,11 +18,9 @@ const APP_ID = 'team-work-logger-v2';
 let db, auth;
 
 // 3. Firebase 초기화 함수 (공용)
-import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-
 export const initializeFirebase = () => {
     try {
-        const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+        const app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
         return { app, db, auth };
@@ -32,7 +30,6 @@ export const initializeFirebase = () => {
         return {};
     }
 };
-
 
 // 4. Firestore에서 설정 불러오기 (핵심)
 export const loadConfiguration = async (dbInstance) => {
