@@ -2,20 +2,20 @@
 
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// [수정] 업무별 카드 스타일 정의 -> 밝은 배경(sky-50)으로 통일
+// [수정] 업무별 카드 스타일 정의 -> 테두리 색상 진하게 변경
 const taskCardStyles = {
     // [수정] 시작 전 (밝은 'OFF' 상태)
     'default': {
-        card: ['bg-blue-50', 'border-gray-200', 'text-gray-700', 'shadow-sm'], // [수정] 기본 연한 파란색 카드
-        hover: 'hover:border-blue-400 hover:shadow-md',
-        subtitle: 'text-gray-500', // 시작시간, 참여인원 텍스트
+        card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'], // [수정] 테두리 gray-300
+        hover: 'hover:border-blue-500 hover:shadow-md', // [수정] hover 시 blue-500
+        subtitle: 'text-gray-500', 
         buttonBgOff: 'bg-gray-200',
         buttonTextOff: 'text-gray-500'
     },
     // [수정] 업무 진행 중 ('ON' 상태)
     'ongoing': {
-        card: ['bg-blue-50', 'border-blue-400', 'text-gray-900', 'shadow-lg', 'shadow-blue-100'], // [수정] 연한 파란색 배경 + 파란 테두리
-        hover: 'hover:border-blue-500',
+        card: ['bg-blue-50', 'border-blue-500', 'text-gray-900', 'shadow-lg', 'shadow-blue-100'], // [수정] 테두리 blue-500
+        hover: 'hover:border-blue-600', // [수정] hover 시 blue-600
         subtitle: 'text-gray-600',
         buttonBgOn: 'bg-blue-600',
         buttonTextOn: 'text-white',
@@ -25,7 +25,7 @@ const taskCardStyles = {
     'paused': {
         card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
         hover: 'hover:border-yellow-400 hover:shadow-lg',
-        title: 'text-yellow-800', // 일시정지 시엔 제목도 노란색
+        title: 'text-yellow-800', 
         subtitle: 'text-yellow-700',
         buttonBgOn: 'bg-yellow-600',
         buttonTextOn: 'text-white',
