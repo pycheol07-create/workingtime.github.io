@@ -1,10 +1,9 @@
-// === ui.js (팀 선택 모달 근태 상세 표시, 진행 중 카드 강조) ===
+// === ui.js (주별/월별 요약에 평균 처리량/비용 추가, 카드 스타일 수정) ===
 
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// [수정] 업무별 카드 스타일 정의 -> 진행 중 카드 강조
+// 업무별 카드 스타일 정의
 const taskCardStyles = {
-    // [유지] 시작 전 (밝은 'OFF' 상태)
     'default': {
         card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
         hover: 'hover:border-blue-500 hover:shadow-md',
@@ -12,16 +11,14 @@ const taskCardStyles = {
         buttonBgOff: 'bg-gray-200',
         buttonTextOff: 'text-gray-500'
     },
-    // [수정] 업무 진행 중 ('ON' 상태) - 더 눈에 띄게
     'ongoing': {
-        card: ['bg-blue-100', 'border-blue-500', 'text-gray-900', 'shadow-xl', 'shadow-blue-200/50'], // 배경 blue-100, 그림자 강화
+        card: ['bg-blue-100', 'border-blue-500', 'text-gray-900', 'shadow-xl', 'shadow-blue-200/50'], // 진행 중 강조
         hover: 'hover:border-blue-600',
         subtitle: 'text-gray-600',
         buttonBgOn: 'bg-blue-600',
         buttonTextOn: 'text-white',
         buttonHoverOn: 'hover:bg-blue-700'
     },
-    // [유지] 일시정지 (그룹 전체)
     'paused': {
         card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
         hover: 'hover:border-yellow-400 hover:shadow-lg',
@@ -55,7 +52,7 @@ const taskTitleColors = {
     '재고찾는시간': 'text-lime-700',
     '매장근무': 'text-blue-700',
     '출장': 'text-gray-700',
-    'default': 'text-blue-700' // 위에 없는 업무의 기본값
+    'default': 'text-blue-700'
 };
 
 
@@ -163,14 +160,14 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
-        
+
         const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
-        const isOngoing = groupRecords.some(r => r.status === 'ongoing'); 
+        const isOngoing = groupRecords.some(r => r.status === 'ongoing');
 
         let currentStyle;
         if (isPaused) {
             currentStyle = taskCardStyles['paused'];
-        } else if (isOngoing || groupRecords.length > 0) { 
+        } else if (isOngoing || groupRecords.length > 0) {
             currentStyle = taskCardStyles['ongoing'];
         } else {
             currentStyle = taskCardStyles['default'];
@@ -181,7 +178,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
 
 
-        if (groupRecords.length > 0) { 
+        if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
 
             card.dataset.action = 'add-member';
@@ -190,14 +187,14 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
-                
+
                 const isRecPaused = rec.status === 'paused';
-            
+
                 const memberTextColor = isRecPaused ? 'text-yellow-800' : 'text-gray-800';
                 const timeTextColor = isRecPaused ? 'text-yellow-600' : 'text-gray-500';
                 const stopButtonBg = isRecPaused ? 'bg-yellow-200 hover:bg-yellow-300' : 'bg-red-100 hover:bg-red-200';
                 const stopButtonText = isRecPaused ? 'text-yellow-700' : 'text-red-700';
-                const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50'; 
+                const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
 
                 let pauseResumeButtonHtml = '';
                 if (rec.status === 'ongoing') {
@@ -220,7 +217,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && (!earliest || current.startTime < earliest)) ? current.startTime : earliest), null);
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
             const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id;
-            
+
             const durationStatus = isOngoing ? 'ongoing' : 'paused';
 
             const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
@@ -237,7 +234,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                                     <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} w-full text-white font-bold py-2 rounded-md transition text-sm">전체 종료</button>
                                 </div>
                             </div>`;
-        } else { 
+        } else {
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
@@ -277,22 +274,16 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
-     // [수정] 헤더 텍스트 변경 ("휴무" -> "근태")
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 근태 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
-    
+
     const onLeaveStatusMap = new Map(
         (appState.onLeaveMembers || [])
-            .filter(item => {
-                if (item.type === '외출' && item.endTime) {
-                    return false; 
-                }
-                return true;
-            })
+            .filter(item => !(item.type === '외출' && item.endTime))
             .map(item => [item.member, item])
     );
 
@@ -347,9 +338,8 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                         detailText += ` ~ ${leaveInfo.endDate.substring(5)}`;
                     }
                 }
-                 // [수정] 근태 유형 표시 ("휴무" 대신 leaveInfo.type)
                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div>
-                                  <div class="text-xs">${leaveInfo.type}</div> 
+                                  <div class="text-xs">${leaveInfo.type}</div>
                                   ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
             } else if (workingMembers.has(member)) {
                 card.classList.add('bg-red-50', 'border-red-200');
@@ -414,7 +404,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                         detailText += ` ~ ${albaLeaveInfo.endDate.substring(5)}`;
                     }
                  }
-                 // [수정] 근태 유형 표시 ("휴무" 대신 albaLeaveInfo.type)
                  card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div>
                                    <div class="text-xs">${albaLeaveInfo.type}</div>
                                    ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
@@ -484,7 +473,7 @@ export const updateSummary = (appState, teamGroups = []) => {
 
     const onLeaveEntries = appState.onLeaveMembers || [];
     const onLeaveMemberNames = new Set(onLeaveEntries.map(item => item.member));
-    const onLeaveTotalCount = onLeaveMemberNames.size; 
+    const onLeaveTotalCount = onLeaveMemberNames.size;
 
     const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const workingMembers = new Set(ongoingOrPausedRecords.map(r => r.member));
@@ -494,15 +483,15 @@ export const updateSummary = (appState, teamGroups = []) => {
 
     const availableStaffCount = totalStaffCount - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
     const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
-    
+
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
-    const totalIdleCount = idleStaffCount; 
+    const totalIdleCount = idleStaffCount;
 
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
     if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaffCount}/${totalPartTimerCount}`;
     if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveTotalCount}`;
-    if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`; 
+    if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`;
     if (summaryWorkingStaffEl) summaryWorkingStaffEl.textContent = `${totalWorkingCount}`;
     if (summaryIdleStaffEl) summaryIdleStaffEl.textContent = `${totalIdleCount}`;
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
@@ -520,7 +509,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     const allWorkingMembers = new Set(
         (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused').map(r => r.member)
     );
-    // [수정] 근태 정보를 Map 형태로 미리 만들어 둡니다.
     const onLeaveMemberMap = new Map((appState.onLeaveMembers || []).map(item => [item.member, item]));
 
     const orderedTeamGroups = [
@@ -546,7 +534,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const uniqueMembersInGroup = [...new Set(group.members)];
         uniqueMembersInGroup.forEach(member => {
             const isWorking = allWorkingMembers.has(member);
-             // [수정] Map에서 근태 정보 가져오기
             const leaveEntry = onLeaveMemberMap.get(member);
             const isOnLeave = !!leaveEntry;
             const card = document.createElement('button');
@@ -560,7 +547,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             if (isWorking) {
                 statusLabel = '<div class="text-xs text-red-500">업무 중</div>';
             } else if (isOnLeave) {
-                // [수정] 실제 근태 유형 표시
                 statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`;
             }
             card.innerHTML = `<div class="font-semibold">${member}</div>${statusLabel}`;
@@ -586,7 +572,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
     (appState.partTimers || []).forEach(pt => {
         const isWorking = allWorkingMembers.has(pt.name);
-         // [수정] Map에서 근태 정보 가져오기
         const leaveEntry = onLeaveMemberMap.get(pt.name);
         const isOnLeave = !!leaveEntry;
         const cardWrapper = document.createElement('div');
@@ -603,7 +588,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         if (isWorking) {
             statusLabel = '<div class="text-xs text-red-500">업무 중</div>';
         } else if (isOnLeave) {
-            // [수정] 실제 근태 유형 표시
             statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`;
         }
         card.innerHTML = `<div class="font-semibold">${pt.name}</div>${statusLabel}`;
@@ -666,6 +650,170 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
             dateInputsDiv.classList.add('hidden');
         }
     }
+};
+
+// [수정] renderSummaryView 함수 확장 (주별/월별 요약용)
+const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
+    const records = dataset.workRecords || [];
+    const quantities = dataset.taskQuantities || {};
+
+    // 1. 총계 계산
+    const totalDuration = records.reduce((s, r) => s + (r.duration || 0), 0);
+    const totalQuantity = Object.values(quantities).reduce((s, q) => s + (Number(q) || 0), 0);
+    const totalCost = records.reduce((s, r) => {
+        const wage = wageMap[r.member] || 0; // 직원/알바 시급 적용
+        return s + ((r.duration || 0) / 60) * wage;
+    }, 0);
+
+    // 2. 전체 평균 계산
+    const overallAvgThroughput = totalDuration > 0 ? (totalQuantity / totalDuration).toFixed(2) : '0.00';
+    const overallAvgCostPerItem = totalQuantity > 0 ? (totalCost / totalQuantity).toFixed(0) : '0';
+
+    // 3. 업무별 집계 (시간, 비용)
+    const taskSummary = records.reduce((acc, r) => {
+        if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0 };
+        acc[r.task].duration += (r.duration || 0);
+        const wage = wageMap[r.member] || 0;
+        acc[r.task].cost += ((r.duration || 0) / 60) * wage;
+        return acc;
+    }, {});
+
+    // 4. 업무별 처리량 추가 및 평균 계산
+    Object.keys(quantities).forEach(task => {
+        if (taskSummary[task]) {
+            const qty = Number(quantities[task]) || 0;
+            taskSummary[task].quantity = qty;
+            taskSummary[task].avgThroughput = taskSummary[task].duration > 0 ? (qty / taskSummary[task].duration).toFixed(2) : '0.00';
+            taskSummary[task].avgCostPerItem = qty > 0 ? (taskSummary[task].cost / qty).toFixed(0) : '0';
+        } else if (Number(quantities[task]) > 0) {
+            taskSummary[task] = { duration: 0, cost: 0, quantity: Number(quantities[task]), avgThroughput: 'N/A', avgCostPerItem: 'N/A' };
+        }
+    });
+
+    // 5. HTML 생성
+    let html = `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">`;
+    html += `<h3 class="text-xl font-bold mb-4">${periodKey} 요약</h3>`;
+
+    // 전체 요약 그리드
+    html += `<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 text-center">
+        <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">총 시간</div><div class="text-lg font-bold">${formatDuration(totalDuration)}</div></div>
+        <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">총 처리량</div><div class="text-lg font-bold">${totalQuantity} 개</div></div>
+        <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">총 인건비</div><div class="text-lg font-bold">${Math.round(totalCost).toLocaleString()} 원</div></div>
+        <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">평균 처리량</div><div class="text-lg font-bold">${overallAvgThroughput} 개/분</div></div>
+        <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">평균 처리비용</div><div class="text-lg font-bold">${overallAvgCostPerItem} 원/개</div></div>
+    </div>`;
+
+    // 업무별 평균 테이블
+    html += `<h4 class="text-lg font-semibold mb-3 text-gray-700">업무별 평균</h4>`;
+    html += `<div class="overflow-x-auto max-h-60">
+               <table class="w-full text-sm text-left text-gray-600">
+                 <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
+                   <tr>
+                     <th scope="col" class="px-4 py-2">업무</th>
+                     <th scope="col" class="px-4 py-2 text-right">평균 처리량 (개/분)</th>
+                     <th scope="col" class="px-4 py-2 text-right">평균 처리비용 (원/개)</th>
+                   </tr>
+                 </thead>
+                 <tbody>`;
+
+    const sortedTasks = Object.keys(taskSummary).sort();
+    if (sortedTasks.length === 0 || sortedTasks.every(task => !taskSummary[task].duration && !taskSummary[task].quantity)) {
+        html += `<tr><td colspan="3" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+    } else {
+        sortedTasks.forEach(task => {
+            const summary = taskSummary[task];
+            if (summary.duration > 0 || summary.quantity > 0) {
+                html += `<tr class="bg-white border-b hover:bg-gray-50">
+                           <td class="px-4 py-2 font-medium text-gray-900">${task}</td>
+                           <td class="px-4 py-2 text-right">${summary.avgThroughput || '0.00'}</td>
+                           <td class="px-4 py-2 text-right">${summary.avgCostPerItem || '0'}</td>
+                         </tr>`;
+            }
+        });
+    }
+
+    html += `    </tbody>
+               </table>
+             </div>`;
+
+    html += `</div>`;
+    return html;
+};
+
+// [수정] renderWeeklyHistory 함수 - wageMap 생성 및 renderSummaryView 호출 수정
+export const renderWeeklyHistory = (allHistoryData, appConfig) => {
+    const view = document.getElementById('history-weekly-view');
+    if (!view) return;
+    view.innerHTML = '<div class="text-center text-gray-500">주별 데이터 집계 중...</div>';
+
+    const historyWageMap = {};
+    allHistoryData.forEach(dayData => {
+        (dayData.partTimers || []).forEach(pt => {
+            if (!historyWageMap[pt.name]) {
+                 historyWageMap[pt.name] = pt.wage || 0;
+            }
+        });
+    });
+    const combinedWageMap = { ...historyWageMap, ...appConfig.memberWages };
+
+
+    const weeklyData = allHistoryData.reduce((acc, day) => {
+        if (!day.id || !day.workRecords) return acc;
+        try {
+            const weekKey = getWeekOfYear(new Date(day.id));
+            if (!acc[weekKey]) acc[weekKey] = { workRecords: [], taskQuantities: {} };
+            acc[weekKey].workRecords.push(...(day.workRecords || []).map(r => ({ ...r, date: day.id })));
+            Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
+                acc[weekKey].taskQuantities[task] = (acc[weekKey].taskQuantities[task] || 0) + (Number(qty) || 0);
+            });
+        } catch (e) { console.error("Error processing day:", day.id, e); }
+        return acc;
+    }, {});
+
+    const sortedWeeks = Object.keys(weeklyData).sort((a,b) => b.localeCompare(a));
+    if (sortedWeeks.length === 0) {
+        view.innerHTML = '<div class="text-center text-gray-500">주별 데이터가 없습니다.</div>';
+        return;
+    }
+    view.innerHTML = sortedWeeks.map(weekKey => renderSummaryView('weekly', weeklyData[weekKey], weekKey, combinedWageMap)).join('');
+};
+
+// [수정] renderMonthlyHistory 함수 - wageMap 생성 및 renderSummaryView 호출 수정
+export const renderMonthlyHistory = (allHistoryData, appConfig) => {
+    const view = document.getElementById('history-monthly-view');
+    if (!view) return;
+    view.innerHTML = '<div class="text-center text-gray-500">월별 데이터 집계 중...</div>';
+
+    const historyWageMap = {};
+    allHistoryData.forEach(dayData => {
+        (dayData.partTimers || []).forEach(pt => {
+            if (!historyWageMap[pt.name]) {
+                 historyWageMap[pt.name] = pt.wage || 0;
+            }
+        });
+    });
+    const combinedWageMap = { ...historyWageMap, ...appConfig.memberWages };
+
+
+    const monthlyData = allHistoryData.reduce((acc, day) => {
+        if (!day.id || !day.workRecords) return acc;
+        try {
+            const monthKey = day.id.substring(0,7);
+            if (!acc[monthKey]) acc[monthKey] = { workRecords: [], taskQuantities: {} };
+            acc[monthKey].workRecords.push(...(day.workRecords || []).map(r => ({ ...r, date: day.id })));
+            Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
+                acc[monthKey].taskQuantities[task] = (acc[monthKey].taskQuantities[task] || 0) + (Number(qty) || 0);
+            });
+        } catch (e) { console.error("Error processing day:", day.id, e); }
+        return acc;
+    }, {});
+
+    const sortedMonths = Object.keys(monthlyData).sort((a,b) => b.localeCompare(a));
+    if (sortedMonths.length === 0) {
+        view.innerHTML = '<div class="text-center text-gray-500">월별 데이터가 없습니다.</div>';
+        return;
+    }
+    view.innerHTML = sortedMonths.map(monthKey => renderSummaryView('monthly', monthlyData[monthKey], monthKey, combinedWageMap)).join('');
 };
 
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
@@ -791,8 +939,7 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
             return acc;
         }, {});
 
-        html += `<div class="bg-white p-4 rounded-lg shadow-sm">
-                    <h3 class="text-xl font-bold mb-3">${weekKey}</h3>
+        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6"> <h3 class="text-xl font-bold mb-3">${weekKey}</h3>
                     <div class="space-y-1">`;
 
         if (Object.keys(summary).length === 0) {
@@ -862,8 +1009,7 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
             return acc;
         }, {});
 
-        html += `<div class="bg-white p-4 rounded-lg shadow-sm">
-                    <h3 class="text-xl font-bold mb-3">${monthKey}</h3>
+        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6"> <h3 class="text-xl font-bold mb-3">${monthKey}</h3>
                     <div class="space-y-1">`;
 
         if (Object.keys(summary).length === 0) {
