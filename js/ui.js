@@ -1,10 +1,12 @@
+// === ui.js (개인별 일시정지 버튼 추가, 카드 배경색 수정) ===
+
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// [수정] 업무별 카드 스타일 정의 -> 밝은 배경(흰색)으로 통일
+// [수정] 업무별 카드 스타일 정의 -> 밝은 배경(slate-50)으로 통일
 const taskCardStyles = {
     // [수정] 시작 전 (밝은 'OFF' 상태)
     'default': {
-        card: ['bg-white', 'border-gray-200', 'text-gray-700', 'shadow-sm'], // 기본 흰색 카드
+        card: ['bg-slate-50', 'border-gray-200', 'text-gray-700', 'shadow-sm'], // [수정] 기본 밝은 회색 카드
         hover: 'hover:border-blue-400 hover:shadow-md',
         subtitle: 'text-gray-500', // 시작시간, 참여인원 텍스트
         buttonBgOff: 'bg-gray-200',
@@ -12,14 +14,14 @@ const taskCardStyles = {
     },
     // [수정] 업무 진행 중 ('ON' 상태)
     'ongoing': {
-        card: ['bg-white', 'border-blue-400', 'text-gray-900', 'shadow-lg', 'shadow-blue-100'], // 흰색 배경 + 파란 테두리/그림자
+        card: ['bg-slate-50', 'border-blue-400', 'text-gray-900', 'shadow-lg', 'shadow-blue-100'], // [수정] 밝은 회색 배경 + 파란 테두리
         hover: 'hover:border-blue-500',
         subtitle: 'text-gray-600',
         buttonBgOn: 'bg-blue-600',
         buttonTextOn: 'text-white',
         buttonHoverOn: 'hover:bg-blue-700'
     },
-    // [유지] 일시정지
+    // [유지] 일시정지 (그룹 전체)
     'paused': {
         card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
         hover: 'hover:border-yellow-400 hover:shadow-lg',
@@ -161,19 +163,21 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
-        const isOngoing = groupRecords.some(r => r.status === 'ongoing');
-        const isPaused = groupRecords.some(r => r.status === 'paused');
+        
+        // [수정] 그룹의 '일시정지' 상태는 *모든* 멤버가 일시정지일 때만 true
+        const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
+        const isOngoing = groupRecords.some(r => r.status === 'ongoing'); // 한 명이라도 진행 중이면 '진행 중' 상태
 
         let currentStyle;
         if (isPaused) {
             currentStyle = taskCardStyles['paused'];
-        } else if (isOngoing) {
+        } else if (isOngoing || groupRecords.length > 0) { // [수정] 한 명이라도 일시정지/진행 중이면 'ongoing' 스타일 (파란 테두리)
             currentStyle = taskCardStyles['ongoing'];
         } else {
             currentStyle = taskCardStyles['default'];
         }
 
-        // [수정] 업무 제목 색상 (일시정지 아닐 땐 항상 taskTitleColors 사용)
+        // [수정] 업무 제목 색상 (그룹 전체가 일시정지일 때만 노란색)
         const titleClass = isPaused ? currentStyle.title : (taskTitleColors[task] || taskTitleColors['default']);
 
         // Apply base card styles
@@ -189,16 +193,31 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
-                // [수정] 진행중/일시정지 상태에 따른 멤버 텍스트 색상
-                const memberTextColor = isPaused ? 'text-yellow-800' : 'text-gray-800';
-                const timeTextColor = isPaused ? 'text-yellow-600' : 'text-gray-500';
-                const stopButtonBg = isPaused ? 'bg-yellow-200 hover:bg-yellow-300' : 'bg-red-100 hover:bg-red-200';
-                const stopButtonText = isPaused ? 'text-yellow-700' : 'text-red-700';
+                
+                // [수정] 개인 상태(rec.status)에 따라 스타일 결정
+                const isRecPaused = rec.status === 'paused';
+            
+                const memberTextColor = isRecPaused ? 'text-yellow-800' : 'text-gray-800';
+                const timeTextColor = isRecPaused ? 'text-yellow-600' : 'text-gray-500';
+                const stopButtonBg = isRecPaused ? 'bg-yellow-200 hover:bg-yellow-300' : 'bg-red-100 hover:bg-red-200';
+                const stopButtonText = isRecPaused ? 'text-yellow-700' : 'text-red-700';
+                const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50'; // [추가] 일시정지시 멤버 배경색
 
-                membersHtml += `<div class="text-sm hover:bg-gray-50 rounded p-1 group flex justify-between items-center">
+                // [추가] 개인 일시정지/재개 버튼
+                let pauseResumeButtonHtml = '';
+                if (rec.status === 'ongoing') {
+                    pauseResumeButtonHtml = `<button data-action="pause-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-0.5 rounded ml-1 flex-shrink-0">정지</button>`;
+                } else if (rec.status === 'paused') {
+                    pauseResumeButtonHtml = `<button data-action="resume-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-0.5 rounded ml-1 flex-shrink-0">재개</button>`;
+                }
+
+                membersHtml += `<div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center">
                     <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block w-12 text-left truncate" title="${rec.member}">${rec.member}</span>
-                    <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
-                    <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs ${stopButtonBg} ${stopButtonText} px-2 py-0.5 rounded ml-1 flex-shrink-0">종료</button>
+                    <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
+                    <div class="flex-shrink-0 flex items-center">
+                        ${pauseResumeButtonHtml}
+                        <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs ${stopButtonBg} ${stopButtonText} px-2 py-0.5 rounded ml-1">종료</button>
+                    </div>
                 </div>`;
             });
             membersHtml += '</div>';
@@ -206,7 +225,9 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
             const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && (!earliest || current.startTime < earliest)) ? current.startTime : earliest), null);
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
             const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id;
-            const durationStatus = isPaused ? 'paused' : 'ongoing';
+            
+            // [수정] 그룹 대표 상태 (한 명이라도 진행 중이면 'ongoing', 아니면 'paused')
+            const durationStatus = isOngoing ? 'ongoing' : 'paused';
 
             const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
 
@@ -217,9 +238,9 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                                 <div class="flex-grow">${membersHtml}</div>
                                 <div class="mt-auto space-y-2 pt-2">
                                     <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">
-                                        ${isPaused ? '업무재개' : '일시정지'}
+                                        ${isPaused ? '전체 재개' : '전체 정지'}
                                     </button>
-                                    <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
+                                    <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} w-full text-white font-bold py-2 rounded-md transition text-sm">전체 종료</button>
                                 </div>
                             </div>`;
         } else { // Task has no active members (pre-start state)
@@ -243,7 +264,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     });
 
     const otherTaskCard = document.createElement('div');
-    // [수정] '기타 업무' 카드도 흰색 배경으로 통일
+    // [수정] '기타 업무' 카드도 'default' 스타일(slate-50) 적용
     const otherStyle = taskCardStyles['default'];
     otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';

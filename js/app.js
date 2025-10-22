@@ -1,10 +1,4 @@
-// === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.7 (Persistent Leave Schedule)
-// 변경 요약:
-// - 근태 일정(onLeaveMembers)을 'daily_data'에서 'persistent_data/leaveSchedule'로 분리
-// - 앱 로드 시 '오늘 날짜'에 해당하는 근태만 필터링하여 appState에 적용
-// - 근태 설정/취소 시 persistentLeaveSchedule 문서를 업데이트
-// - '전체 초기화' 시 workRecords와 taskQuantities만 초기화하고 근태 일정은 보존
+// === app.js (개인별 일시정지/재개 로직 추가) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -179,8 +173,27 @@ const updateElapsedTimes = () => {
       if (!el?.dataset?.startTime) return;
       const rec = (appState.workRecords || []).find(r => String(r.id) === el.dataset.recordId);
       if (!rec) return;
-      const dur = calcElapsedMinutes(el.dataset.startTime, now, rec.pauses);
-      el.textContent = `(진행: ${formatDuration(dur)})`;
+      
+      // [수정] 타이머 계산 시, 개인의 'pauses' 배열과 'status'를 모두 고려
+      let currentPauses = rec.pauses || [];
+      // 만약 개인이 현재 일시정지 중이면, 타이머가 흐르면 안 됨
+      if (rec.status === 'paused') {
+          const lastPause = currentPauses.length > 0 ? currentPauses[currentPauses.length - 1] : null;
+          // 현재 시간을 임시 종료 시간으로 하여 '흐르지 않는' 시간 계산
+          const tempPauses = [
+              ...currentPauses.slice(0, -1),
+              { start: lastPause?.start || rec.startTime, end: now }
+          ];
+          const dur = calcElapsedMinutes(el.dataset.startTime, now, tempPauses);
+          el.textContent = `(진행: ${formatDuration(dur)})`;
+
+      } else {
+          // 그룹 대표 상태(el.dataset.status)가 'paused'라도 개인이 'ongoing'이면 시간은 흘러야 함
+          // calcElapsedMinutes가 pauses 배열을 사용하므로 정상 계산됨
+          const dur = calcElapsedMinutes(el.dataset.startTime, now, rec.pauses);
+          el.textContent = `(진행: ${formatDuration(dur)})`;
+      }
+
     } catch { /* noop */ }
   });
 
@@ -380,6 +393,7 @@ const pauseWorkGroup = (groupId) => {
   const currentTime = getCurrentTime();
   let changed = false;
   (appState.workRecords || []).forEach(record => {
+    // [수정] 이미 정지된 사람은 건드리지 않음
     if (record.groupId === groupId && record.status === 'ongoing') {
       record.status = 'paused';
       record.pauses = record.pauses || [];
@@ -387,13 +401,14 @@ const pauseWorkGroup = (groupId) => {
       changed = true;
     }
   });
-  if (changed) { saveStateToFirestore(); showToast('업무가 일시정지 되었습니다.'); }
+  if (changed) { saveStateToFirestore(); showToast('그룹 업무가 일시정지 되었습니다.'); }
 };
 
 const resumeWorkGroup = (groupId) => {
   const currentTime = getCurrentTime();
   let changed = false;
   (appState.workRecords || []).forEach(record => {
+    // [수정] 이미 진행중인 사람은 건드리지 않음
     if (record.groupId === groupId && record.status === 'paused') {
       record.status = 'ongoing';
       const lastPause = record.pauses?.[record.pauses.length - 1];
@@ -401,7 +416,35 @@ const resumeWorkGroup = (groupId) => {
       changed = true;
     }
   });
-  if (changed) { saveStateToFirestore(); showToast('업무를 다시 시작합니다.'); }
+  if (changed) { saveStateToFirestore(); showToast('그룹 업무를 다시 시작합니다.'); }
+};
+
+// [추가] 개인별 일시정지
+const pauseWorkIndividual = (recordId) => {
+  const currentTime = getCurrentTime();
+  const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
+  if (record && record.status === 'ongoing') {
+    record.status = 'paused';
+    record.pauses = record.pauses || [];
+    record.pauses.push({ start: currentTime, end: null });
+    saveStateToFirestore();
+    showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
+  }
+};
+
+// [추가] 개인별 업무재개
+const resumeWorkIndividual = (recordId) => {
+  const currentTime = getCurrentTime();
+  const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
+  if (record && record.status === 'paused') {
+    record.status = 'ongoing';
+    const lastPause = record.pauses?.[record.pauses.length - 1];
+    if (lastPause && lastPause.end === null) {
+      lastPause.end = currentTime;
+    }
+    saveStateToFirestore();
+    showToast(`${record.member}님 ${record.task} 업무 재개.`);
+  }
 };
 
 
@@ -1116,6 +1159,22 @@ if (teamStatusBoard) {
     if (pauseGroupButton) { pauseWorkGroup(Number(pauseGroupButton.dataset.groupId)); return; }
     const resumeGroupButton = e.target.closest('.resume-work-group-btn');
     if (resumeGroupButton) { resumeWorkGroup(Number(resumeGroupButton.dataset.groupId)); return; }
+
+    // [추가] 개인 일시정지
+    const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
+    if (individualPauseBtn) {
+        e.stopPropagation();
+        pauseWorkIndividual(individualPauseBtn.dataset.recordId);
+        return;
+    }
+
+    // [추가] 개인 재개
+    const individualResumeBtn = e.target.closest('[data-action="resume-individual"]');
+    if (individualResumeBtn) {
+        e.stopPropagation();
+        resumeWorkIndividual(individualResumeBtn.dataset.recordId);
+        return;
+    }
 
     const individualStopBtn = e.target.closest('[data-action="stop-individual"]');
     if (individualStopBtn) {

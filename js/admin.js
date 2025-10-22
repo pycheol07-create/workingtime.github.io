@@ -1,4 +1,7 @@
-import { initializeFirebase, loadConfiguration, saveConfiguration } from './config.js';
+// === admin.js (config.js와 함수 이름 동기화) ===
+
+// [수정] loadConfiguration, saveConfiguration -> loadAppConfig, saveAppConfig
+import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 
 let db;
 let appConfig = {};
@@ -31,7 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const initializeApp = async () => {
         try {
             db = initializeFirebase().db;
-            appConfig = await loadConfiguration(db);
+            // [수정] loadConfiguration -> loadAppConfig
+            appConfig = await loadAppConfig(db); 
             renderAdminUI(appConfig);
             setupEventListeners();
         } catch (e) {
@@ -246,7 +250,8 @@ async function handleSaveAll() {
         });
 
         // 4. Firestore에 저장
-        await saveConfiguration(db, newConfig);
+        // [수정] saveConfiguration -> saveAppConfig
+        await saveAppConfig(db, newConfig);
         appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');
 
