@@ -2,20 +2,20 @@
 
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// [수정] 업무별 카드 스타일 정의 -> 테두리 색상 진하게 변경
+// [수정] 업무별 카드 스타일 정의 -> 진행 중 카드 강조
 const taskCardStyles = {
-    // [수정] 시작 전 (밝은 'OFF' 상태)
+    // [유지] 시작 전 (밝은 'OFF' 상태)
     'default': {
-        card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'], // [수정] 테두리 gray-300
-        hover: 'hover:border-blue-500 hover:shadow-md', // [수정] hover 시 blue-500
+        card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'], 
+        hover: 'hover:border-blue-500 hover:shadow-md',
         subtitle: 'text-gray-500', 
         buttonBgOff: 'bg-gray-200',
         buttonTextOff: 'text-gray-500'
     },
-    // [수정] 업무 진행 중 ('ON' 상태)
+    // [수정] 업무 진행 중 ('ON' 상태) - 더 눈에 띄게
     'ongoing': {
-        card: ['bg-blue-50', 'border-blue-500', 'text-gray-900', 'shadow-lg', 'shadow-blue-100'], // [수정] 테두리 blue-500
-        hover: 'hover:border-blue-600', // [수정] hover 시 blue-600
+        card: ['bg-blue-100', 'border-blue-500', 'text-gray-900', 'shadow-xl', 'shadow-blue-200/50'], // [수정] 배경 blue-100, 그림자 강화
+        hover: 'hover:border-blue-600', 
         subtitle: 'text-gray-600',
         buttonBgOn: 'bg-blue-600',
         buttonTextOn: 'text-white',
