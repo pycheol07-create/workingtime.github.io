@@ -1,6 +1,6 @@
-// === ui.js (주별/월별 요약에 평균 처리량/비용 추가, 카드 스타일 수정) ===
+// === ui.js (주별/월별 요약 렌더링 수정, 카드 스타일 수정) ===
 
-import { formatTimeTo24H, formatDuration } from './utils.js';
+import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import 추가
 
 // 업무별 카드 스타일 정의
 const taskCardStyles = {
@@ -485,7 +485,7 @@ export const updateSummary = (appState, teamGroups = []) => {
     const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
 
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
-    const totalIdleCount = idleStaffCount;
+    const totalIdleCount = idleStaffCount; // 현재 알바는 대기 상태를 별도 추적 안 하므로 staff 기준으로만 계산
 
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
@@ -497,7 +497,6 @@ export const updateSummary = (appState, teamGroups = []) => {
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
 };
 
-// [수정] 팀원 선택 모달 - 근태 상태 상세 표시
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -691,7 +690,7 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
     });
 
     // 5. HTML 생성
-    let html = `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">`;
+    let html = `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">`; // mb-6 추가 (구분선 대신 마진 사용)
     html += `<h3 class="text-xl font-bold mb-4">${periodKey} 요약</h3>`;
 
     // 전체 요약 그리드
@@ -717,12 +716,13 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
                  <tbody>`;
 
     const sortedTasks = Object.keys(taskSummary).sort();
+    // [수정] 데이터 없음 조건 강화
     if (sortedTasks.length === 0 || sortedTasks.every(task => !taskSummary[task].duration && !taskSummary[task].quantity)) {
         html += `<tr><td colspan="3" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
     } else {
         sortedTasks.forEach(task => {
             const summary = taskSummary[task];
-            if (summary.duration > 0 || summary.quantity > 0) {
+            if (summary.duration > 0 || summary.quantity > 0) { // 작업 시간이나 처리량이 있는 경우만 표시
                 html += `<tr class="bg-white border-b hover:bg-gray-50">
                            <td class="px-4 py-2 font-medium text-gray-900">${task}</td>
                            <td class="px-4 py-2 text-right">${summary.avgThroughput || '0.00'}</td>
@@ -775,7 +775,7 @@ export const renderWeeklyHistory = (allHistoryData, appConfig) => {
         view.innerHTML = '<div class="text-center text-gray-500">주별 데이터가 없습니다.</div>';
         return;
     }
-    view.innerHTML = sortedWeeks.map(weekKey => renderSummaryView('weekly', weeklyData[weekKey], weekKey, combinedWageMap)).join('');
+    view.innerHTML = sortedWeeks.map(weekKey => renderSummaryView('weekly', weeklyData[weekKey], weekKey, combinedWageMap)).join(''); // join 수정
 };
 
 // [수정] renderMonthlyHistory 함수 - wageMap 생성 및 renderSummaryView 호출 수정
@@ -813,7 +813,7 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
         view.innerHTML = '<div class="text-center text-gray-500">월별 데이터가 없습니다.</div>';
         return;
     }
-    view.innerHTML = sortedMonths.map(monthKey => renderSummaryView('monthly', monthlyData[monthKey], monthKey, combinedWageMap)).join('');
+    view.innerHTML = sortedMonths.map(monthKey => renderSummaryView('monthly', monthlyData[monthKey], monthKey, combinedWageMap)).join(''); // join 수정
 };
 
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
@@ -931,10 +931,10 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
             if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
 
             if(entry.startDate) {
-                acc[key].count += 1;
+                acc[key].count += 1; // 연차 등은 일수 기준으로 count
                 acc[key].days += 1;
             } else {
-                acc[key].count += 1;
+                acc[key].count += 1; // 외출, 조퇴는 횟수 기준
             }
             return acc;
         }, {});
