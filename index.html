@@ -176,6 +176,7 @@
             </div>
         </div>
     </div>
+
     <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
@@ -235,6 +236,7 @@
             </div>
         </div>
     </div>
+
     <div id="quantity-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
             <div class="p-6 border-b border-gray-200"><h2 id="quantity-modal-title" class="text-xl font-bold text-gray-900">업무별 처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
@@ -257,8 +259,8 @@
                 </div>
             </div>
             <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-                <button type="button" id="cancel-quantity-on-stop-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">나중에 입력</button>
-                <button type="button" id="confirm-quantity-on-stop-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인</button>
+                <button type="button" id="cancel-quantity-on-stop" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">나중에 입력</button>
+                <button type="button" id="confirm-quantity-on-stop" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인</button>
             </div>
         </div>
     </div>
@@ -346,7 +348,7 @@
                         <input type="date" id="leave-end-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                     </div>
                 </div>
-                 </div>
+            </div>
             <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
                 <button type="button" id="cancel-leave-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
                 <button type="button" id="confirm-leave-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">설정 완료</button>

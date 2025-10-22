@@ -1,7 +1,9 @@
 // === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.6.2 (Fix Leave Modal Date Input)
+// ver.2.6.2 (Fix Leave Modal Date Input & Spinner)
 // 변경 요약:
+// - main 함수에서 config 로드 직후 스피너 숨기기 로직 확실히 실행
 // - 휴무 모달 열 때 날짜 입력칸을 강제로 숨기던 코드 제거
+// - 이력 보기 탭 기능 관련 로직 적용
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -17,8 +19,7 @@ import {
   renderTeamSelectionModalContent,
   renderQuantityModalInputs,
   renderLeaveTypeModalOptions,
-  // [수정] 함수 이름 변경 및 새 함수 임포트
-  renderAttendanceDailyHistory, // 이전: renderAttendanceHistory
+  renderAttendanceDailyHistory,
   renderAttendanceWeeklyHistory,
   renderAttendanceMonthlyHistory
 } from './ui.js';
@@ -150,21 +151,15 @@ const calcElapsedMinutes = (start, end, pauses = []) => {
   return Math.max(0, total / 60000);
 };
 
-// [추가] 날짜 차이 계산 헬퍼 (일)
 const calculateDateDifference = (start, end) => {
     if (!start) return 0;
     const startDate = new Date(start);
-    // 종료일이 없으면 시작일과 동일하게 처리 (1일)
     const endDate = end ? new Date(end) : new Date(start); 
-    
-    // 시간대 오차 방지를 위해 UTC 기준으로 일자만 계산
     const startUTC = Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
     const endUTC = Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-    
     const diffTime = endUTC - startUTC;
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays + 1; // 10/22 ~ 10/22는 1일
+    return diffDays + 1;
 };
 
 // ========== 타이머 ==========
@@ -463,7 +458,7 @@ const loadAndRenderHistoryList = async () => {
     const dailyView = document.getElementById('history-daily-view');
     const weeklyView = document.getElementById('history-weekly-view');
     const monthlyView = document.getElementById('history-monthly-view');
-    const attendanceView = document.getElementById('history-attendance-view'); 
+    const attendanceView = document.getElementById('history-attendance-daily-view'); // 수정
     if (dailyView) dailyView.innerHTML = '';
     if (weeklyView) weeklyView.innerHTML = '';
     if (monthlyView) monthlyView.innerHTML = '';
@@ -483,7 +478,7 @@ const loadAndRenderHistoryList = async () => {
     const firstButton = historyDateList.firstChild.querySelector('button');
     if (firstButton) {
       firstButton.classList.add('bg-blue-100', 'font-bold');
-      switchHistoryView('daily'); 
+      switchHistoryView(activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily'); // 활성 탭 기준으로 뷰 표시
     }
   } else {
     switchHistoryView('daily');
@@ -729,27 +724,23 @@ window.requestHistoryDeletion = (dateKey) => {
 window.downloadHistoryAsExcel = async (dateKey) => {
   try {
     const data = allHistoryData.find(d => d.id === dateKey);
-    // [수정] 업무 기록이 없으면 다운로드 불가
     if (!data || !data.workRecords || data.workRecords.length === 0) {
       return showToast('다운로드할 업무 기록이 없습니다.', true);
     }
     const records = data.workRecords;
     const quantities = data.taskQuantities || {};
 
-    // ... (appendTotalRow 헬퍼 함수는 동일 - 수정됨) ...
     const appendTotalRow = (ws, data, headers) => {
       if (!data || data.length === 0) return;
       const total = {};
       const sums = {};
 
-      // 1. 합산이 필요한 모든 열의 합계를 먼저 계산
       headers.forEach(header => {
           if (header.includes('(분)') || header.includes('(원)') || header.includes('(개)')) {
               sums[header] = data.reduce((acc, row) => acc + (Number(row[header]) || 0), 0);
           }
       });
 
-      // 2. 합계 행(total object) 생성
       headers.forEach((header, index) => {
           if (index === 0) {
               total[header] = '총 합계';
@@ -767,16 +758,78 @@ window.downloadHistoryAsExcel = async (dateKey) => {
       XLSX.utils.sheet_add_json(ws, [total], { skipHeader: true, origin: -1 });
     };
 
-    // ... (Sheet 1, 2, 3 생성 로직은 동일) ...
     const sheet1Headers = ['팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)'];
-    // ... (sheet1Data, worksheet1 생성) ...
+    const sheet1Data = records.map(r => ({
+      '팀원': r.member || '',
+      '업무 종류': r.task || '',
+      '시작 시간': formatTimeTo24H(r.startTime),
+      '종료 시간': formatTimeTo24H(r.endTime),
+      '소요 시간(분)': Math.round(Number(r.duration) || 0)
+    }));
+    const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
+    if (sheet1Data.length > 0) appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
+
     const sheet2Headers = ['업무 종류', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)'];
-    // ... (sheet2Data, worksheet2 생성) ...
+    const summaryByTask = {};
+    records.forEach(r => {
+      if (!summaryByTask[r.task]) summaryByTask[r.task] = { totalDuration: 0, totalCost: 0 };
+      const wage = appConfig.memberWages[r.member] || 0;
+      const cost = ((Number(r.duration) || 0) / 60) * wage;
+      summaryByTask[r.task].totalDuration += (Number(r.duration) || 0);
+      summaryByTask[r.task].totalCost += cost;
+    });
+
+    const sheet2Data = Object.keys(summaryByTask).sort().map(task => {
+      const taskQty = Number(quantities[task]) || 0;
+      const taskCost = summaryByTask[task].totalCost;
+      const costPerItem = (taskQty > 0) ? (taskCost / taskQty) : 0;
+
+      return {
+        '업무 종류': task,
+        '총 소요 시간(분)': Math.round(summaryByTask[task].totalDuration),
+        '총 인건비(원)': Math.round(taskCost),
+        '총 처리량(개)': taskQty,
+        '개당 처리비용(원)': Math.round(costPerItem)
+      };
+    });
+    const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
+    if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers); 
+
     const sheet3Headers = ['파트', '총 인건비(원)'];
-    // ... (sheet3Data, worksheet3 생성) ...
-    
-    // ... (fitToColumn 헬퍼 함수는 동일) ...
-    const fitToColumn = (ws) => { ... };
+    const memberToPartMap = new Map();
+    (appConfig.teamGroups || []).forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
+    const summaryByPart = {};
+    records.forEach(r => {
+      const part = memberToPartMap.get(r.member) || '기타';
+      if (!summaryByPart[part]) summaryByPart[part] = { totalCost: 0 };
+      const wage = appConfig.memberWages[r.member] || 0;
+      const cost = ((Number(r.duration) || 0) / 60) * wage;
+      summaryByPart[part].totalCost += cost;
+    });
+    const sheet3Data = Object.keys(summaryByPart).sort().map(part => ({
+      '파트': part,
+      '총 인건비(원)': Math.round(summaryByPart[part].totalCost)
+    }));
+    const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
+    if (sheet3Data.length > 0) appendTotalRow(worksheet3, sheet3Data, sheet3Headers);
+
+    const fitToColumn = (ws) => {
+      const objectMaxLength = [];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      if (!data || data.length === 0) return;
+      if (data[0]) {
+        Object.keys(data[0]).forEach((key, index) => {
+          objectMaxLength[index] = String(data[0][key]).length;
+        });
+      }
+      data.slice(1).forEach(row => {
+        Object.keys(row).forEach((key, index) => {
+          const cellLength = String(row[key] ?? '').length;
+          objectMaxLength[index] = Math.max(objectMaxLength[index] || 10, cellLength);
+        });
+      });
+      ws['!cols'] = objectMaxLength.map(w => ({ width: w + 2 }));
+    };
 
     if (worksheet1) fitToColumn(worksheet1);
     if (worksheet2) fitToColumn(worksheet2);
@@ -786,10 +839,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
     if (worksheet1) XLSX.utils.book_append_sheet(workbook, worksheet1, '상세 기록');
     if (worksheet2) XLSX.utils.book_append_sheet(workbook, worksheet2, '업무별 요약');
     if (worksheet3) XLSX.utils.book_append_sheet(workbook, worksheet3, '파트별 인건비');
-
-    // [삭제] Sheet 4: 근태 요약 생성 로직 (이 함수에서 제거)
-    // if (onLeaveMembers.length > 0) { ... }
-
+    
     XLSX.writeFile(workbook, `업무기록_${dateKey}.xlsx`);
   } catch (error) {
     console.error('Excel export failed:', error);
@@ -1060,9 +1110,12 @@ if (teamStatusBoard) {
           memberToSetLeave = memberName;
           if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
           renderLeaveTypeModalOptions(LEAVE_TYPES); 
-          // (날짜 입력칸 숨기는 코드는 없음 - ui.js가 처리)
-          if(leaveStartDateInput) leaveStartDateInput.value = ''; 
-          if(leaveEndDateInput) leaveEndDateInput.value = ''; 
+          
+          // [수정] 이 라인을 삭제(주석 처리)해야 날짜 입력칸이 기본으로 나옵니다.
+          // if(leaveDateInputsDiv) leaveDateInputsDiv.classList.add('hidden'); 
+          
+          if(leaveStartDateInput) leaveStartDateInput.value = ''; // 날짜 초기화
+          if(leaveEndDateInput) leaveEndDateInput.value = ''; // 날짜 초기화
           if(leaveTypeModal) leaveTypeModal.classList.remove('hidden');
       }
       return; 
@@ -1094,7 +1147,6 @@ if (teamStatusBoard) {
   });
 }
 
-// ... (이하 모든 이벤트 리스너 및 main 함수는 이전 답변과 동일) ...
 if (workLogBody) {
   workLogBody.addEventListener('click', (e) => {
     const targetButton = e.target.closest('button');
@@ -1180,12 +1232,10 @@ if (endShiftBtn) endShiftBtn.addEventListener('click', () => {
 if (saveProgressBtn) saveProgressBtn.addEventListener('click', saveProgress);
 
 if (openHistoryBtn) openHistoryBtn.addEventListener('click', () => {
-    // [수정] 메인 탭 상태 초기화
-    activeMainHistoryTab = 'work'; // 기본으로 '업무 이력' 탭
+    activeMainHistoryTab = 'work'; 
     if(workHistoryPanel) workHistoryPanel.classList.remove('hidden');
     if(attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
     
-    // 메인 탭 버튼 스타일 초기화
     historyMainTabs?.querySelectorAll('button').forEach(btn => {
         const isWorkTab = btn.dataset.mainTab === 'work';
         btn.classList.toggle('font-semibold', isWorkTab);
@@ -1196,7 +1246,7 @@ if (openHistoryBtn) openHistoryBtn.addEventListener('click', () => {
         btn.classList.toggle('font-medium', !isWorkTab);
     });
 
-    loadAndRenderHistoryList(); // 목록 로드 (로드 완료 후 'daily' 뷰가 기본으로 열림)
+    loadAndRenderHistoryList(); 
     if (historyModal) historyModal.classList.remove('hidden'); 
 });
 if (closeHistoryBtn) closeHistoryBtn.addEventListener('click', () => { if (historyModal) historyModal.classList.add('hidden'); });
@@ -1207,17 +1257,15 @@ if (historyDateList) historyDateList.addEventListener('click', (e) => {
     document.querySelectorAll('#history-date-list button').forEach(btn => btn.classList.remove('bg-blue-100', 'font-bold'));
     button.classList.add('bg-blue-100', 'font-bold');
     
-    // [수정] 현재 활성화된 *서브 탭* 뷰를 다시 렌더링
-    let activeView = 'daily'; // 기본값
+    let activeView = 'daily'; 
     if (activeMainHistoryTab === 'work') {
         const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
         activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-    } else { // 'attendance'
+    } else { 
         const activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
         activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
     }
     
-    // '일별' 탭이 아니면 탭을 '일별'로 강제 전환 (주별/월별은 날짜 선택이 무의미하므로)
     if (!activeView.includes('daily')) {
         activeView = (activeMainHistoryTab === 'work') ? 'daily' : 'attendance-daily';
     }
@@ -1241,7 +1289,7 @@ if (confirmHistoryDeleteBtn) confirmHistoryDeleteBtn.addEventListener('click', a
       showToast('선택한 날짜의 기록이 삭제되었습니다.');
       loadAndRenderHistoryList(); 
       const dailyView = document.getElementById('history-daily-view');
-      const attendanceView = document.getElementById('history-attendance-view');
+      const attendanceView = document.getElementById('history-attendance-daily-view'); // 수정
       if (dailyView) dailyView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
       if (attendanceView) attendanceView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
     } catch (error) {
@@ -1260,29 +1308,24 @@ if (historyMainTabs) {
         if (!button) return;
         
         const newMainTab = button.dataset.mainTab;
-        if (newMainTab === activeMainHistoryTab) return; // 이미 활성화된 탭
+        if (newMainTab === activeMainHistoryTab) return; 
         
         activeMainHistoryTab = newMainTab;
 
-        // 모든 메인 탭 버튼 비활성화
         historyMainTabs.querySelectorAll('button').forEach(btn => {
             btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
             btn.classList.add('text-gray-500', 'font-medium');
         });
-        // 클릭한 탭 활성화
         button.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
         button.classList.remove('text-gray-500', 'font-medium');
 
-        // 패널 전환
         if (newMainTab === 'work') {
             if(workHistoryPanel) workHistoryPanel.classList.remove('hidden');
             if(attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
-            // 기본 서브 탭(일별) 활성화
             switchHistoryView('daily');
         } else {
             if(workHistoryPanel) workHistoryPanel.classList.add('hidden');
             if(attendanceHistoryPanel) attendanceHistoryPanel.classList.remove('hidden');
-            // 기본 서브 탭(일별) 활성화
             switchHistoryView('attendance-daily');
         }
     });
@@ -1293,7 +1336,7 @@ if (attendanceHistoryTabs) {
     attendanceHistoryTabs.addEventListener('click', (e) => {
         const button = e.target.closest('button.attendance-history-tab-btn');
         if (button && button.dataset.view) {
-            switchHistoryView(button.dataset.view); // 'attendance-daily', 'attendance-weekly', 'attendance-monthly'
+            switchHistoryView(button.dataset.view); 
         }
     });
 }
@@ -1508,7 +1551,6 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
       if (modal === leaveTypeModal) {
           memberToSetLeave = null;
       }
-      // [추가] 근태 복귀 확인 모달 닫기 시 변수 초기화
       if (modal === cancelLeaveConfirmModal) {
           memberToCancelLeave = null;
       }
