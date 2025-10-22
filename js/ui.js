@@ -1,8 +1,8 @@
-// === ui.js (Complete code with all recent updates) ===
+// === ui.js (keyTasks를 파라미터로 받도록 수정) ===
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
 
-// 업무별 카드 스타일 정의
+// ... (taskCardStyles, taskTitleColors 정의는 이전과 동일) ...
 const taskCardStyles = {
     'default': {
         card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
@@ -29,8 +29,6 @@ const taskCardStyles = {
         buttonHoverOn: 'hover:bg-yellow-700'
     }
 };
-
-// 업무별 *제목* 색상 정의
 const taskTitleColors = {
     '국내배송': 'text-green-700',
     '중국제작': 'text-purple-700',
@@ -57,6 +55,7 @@ const taskTitleColors = {
 
 
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
+    // ... (이전과 동일) ...
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
     container.innerHTML = '';
@@ -71,6 +70,7 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
 };
 
 export const renderTaskSelectionModal = (taskGroups = {}) => {
+    // ... (이전과 동일) ...
     const container = document.getElementById('task-modal-content');
     if (!container) return;
     container.innerHTML = '';
@@ -89,6 +89,7 @@ export const renderTaskSelectionModal = (taskGroups = {}) => {
 };
 
 export const renderTaskAnalysis = (appState) => {
+    // ... (이전과 동일) ...
     const analysisContainer = document.getElementById('analysis-content');
     if (!analysisContainer) return;
     analysisContainer.innerHTML = '';
@@ -130,8 +131,8 @@ export const renderTaskAnalysis = (appState) => {
     analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8"><div class="flex-shrink-0"><div class="chart" style="background: ${finalGradient};"><div class="chart-center"><span class="text-sm text-gray-500">총 업무</span><span class="text-xl font-bold text-blue-600 mt-1">${formatDuration(totalLoggedMinutes)}</span></div></div></div>${legendHTML}</div>`;
 };
 
-
-export const renderRealtimeStatus = (appState, teamGroups = []) => {
+// [수정] 함수 시그니처 변경 (keyTasks 파라미터 추가)
+export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
         console.error("Element #team-status-board not found!");
@@ -152,12 +153,17 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const presetGrid = document.createElement('div');
     presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4';
 
-    const baseTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
+    // [수정] 하드코딩된 baseTasks 대신, 파라미터로 받은 keyTasks 사용
+    const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무']; // (폴백)
+    
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
+    
+    // [수정] 렌더링할 작업 목록: (관리자가 설정한 주요 업무) + (현재 진행중인 업무)
     const tasksToRender = [...new Set([...baseTasks, ...activeTaskNames])];
 
     tasksToRender.forEach(task => {
+        // ... (이하 카드 렌더링 로직은 이전과 동일) ...
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
 
@@ -255,6 +261,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     });
 
     const otherTaskCard = document.createElement('div');
+    // ... (이하 '기타 업무' 카드 렌더링은 이전과 동일) ...
     const otherStyle = taskCardStyles['default'];
     otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';
@@ -271,6 +278,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
+    // ... (이하 '전체 팀원 현황' 렌더링은 이전과 동일) ...
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
@@ -281,7 +289,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
 
-    // [수정] 두 근태 목록 결합 및 Map 생성
     const combinedOnLeaveMembers = [
         ...(appState.dailyOnLeaveMembers || []),
         ...(appState.dateBasedOnLeaveMembers || [])
@@ -364,7 +371,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
     // --- 알바 섹션 ---
     const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
-    // 현재 표시해야 할 알바 필터링 (업무중이거나, 근태상태인 알바만)
     const activePartTimers = (appState.partTimers || []).filter(pt => {
         return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name); // 수정된 Map 사용
     });
@@ -389,7 +395,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = currentlyWorkingTask || isPaused;
 
-             // 알바는 업무 중일 때 근태 변경 불가
              if (!isAlbaWorking) {
                  card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
              } else {
@@ -417,7 +422,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
                  card.classList.add('bg-yellow-50', 'border-yellow-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${pt.name}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
              }
-             // 알바는 '대기 중' 상태 카드를 별도로 표시하지 않음 (activePartTimers 필터링으로 처리)
              albaGrid.appendChild(card);
         });
         albaContainer.appendChild(albaGrid);
@@ -428,6 +432,7 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 };
 
 export const renderCompletedWorkLog = (appState) => {
+    // ... (이전과 동일) ...
     const workLogBody = document.getElementById('work-log-body');
     if (!workLogBody) return;
     workLogBody.innerHTML = '';
@@ -462,8 +467,8 @@ export const renderCompletedWorkLog = (appState) => {
     }
 };
 
-// [수정] updateSummary - daily/dateBased 결합하여 사용
 export const updateSummary = (appState, teamGroups = []) => {
+    // ... (이전과 동일) ...
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
     const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
     const summaryActiveStaffEl = document.getElementById('summary-active-staff');
@@ -506,8 +511,8 @@ export const updateSummary = (appState, teamGroups = []) => {
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
 };
 
-// [수정] renderTeamSelectionModalContent - daily/dateBased 결합하여 사용
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
+    // ... (이전과 동일) ...
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
     if (!titleEl || !container) return;
@@ -621,6 +626,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 };
 
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
+    // ... (이전과 동일) ...
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs');
     if (!container || !dateInputsDiv) return;
@@ -658,8 +664,8 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     }
 };
 
-// [수정] renderSummaryView 함수 확장 (주별/월별 요약용)
 const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
+    // ... (이전과 동일) ...
     const records = dataset.workRecords || [];
     const quantities = dataset.taskQuantities || {};
 
@@ -744,9 +750,8 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
     return html;
 };
 
-
-// [수정] renderWeeklyHistory 함수 - 안정성 강화
 export const renderWeeklyHistory = (allHistoryData, appConfig) => {
+    // ... (이전과 동일) ...
     const view = document.getElementById('history-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 데이터 집계 중...</div>';
@@ -796,8 +801,8 @@ export const renderWeeklyHistory = (allHistoryData, appConfig) => {
     }
 };
 
-// [수정] renderMonthlyHistory 함수 - 안정성 강화
 export const renderMonthlyHistory = (allHistoryData, appConfig) => {
+    // ... (이전과 동일) ...
     const view = document.getElementById('history-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 데이터 집계 중...</div>';
@@ -843,8 +848,8 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
     }
 };
 
-// [수정] renderAttendanceDailyHistory - 삭제 버튼 추가
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
+    // ... (이전과 동일, 삭제 버튼 이미 추가됨) ...
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
@@ -924,6 +929,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 };
 
 export const renderAttendanceWeeklyHistory = (allHistoryData) => {
+    // ... (이전과 동일) ...
     const view = document.getElementById('history-attendance-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터 집계 중...</div>';
@@ -973,9 +979,6 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
 
              // startDate가 있으면 일수 기반, 없으면 횟수 기반
             if(entry.startDate) {
-                // 주별 요약에서는 동일 날짜의 동일 멤버/타입 중복 제거 필요 (예: 연차가 여러 날 기록된 경우)
-                // -> 날짜 기반 집계는 여기서 하지 않고, count만 사용
-                // acc[key].days += 1; // days 사용 안 함
                  acc[key].count += 1; // 날짜별로 1회씩 카운트
             } else {
                 acc[key].count += 1;
@@ -983,7 +986,6 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
             return acc;
         }, {});
 
-        // 날짜 기반(연차 등)의 경우, count가 실제 일수를 나타내도록 후처리
         Object.values(summary).forEach(item => {
              if (['연차', '출장', '결근'].includes(item.type)) {
                  item.days = item.count; // count를 days로 옮김
@@ -1013,6 +1015,7 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
 };
 
 export const renderAttendanceMonthlyHistory = (allHistoryData) => {
+    // ... (이전과 동일) ...
     const view = document.getElementById('history-attendance-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터 집계 중...</div>';
@@ -1058,9 +1061,6 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
             if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
 
             if(entry.startDate) {
-                // 월별 요약에서도 중복 제거 필요
-                // -> 날짜 기반 집계는 여기서 하지 않고, count만 사용
-                // acc[key].days += 1;
                 acc[key].count += 1;
             } else {
                 acc[key].count += 1;
@@ -1068,7 +1068,6 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
             return acc;
         }, {});
 
-         // 날짜 기반(연차 등)의 경우, count가 실제 일수를 나타내도록 후처리
         Object.values(summary).forEach(item => {
              if (['연차', '출장', '결근'].includes(item.type)) {
                  item.days = item.count;
