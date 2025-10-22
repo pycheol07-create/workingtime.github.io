@@ -843,6 +843,7 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
     }
 };
 
+// [수정] renderAttendanceDailyHistory - 삭제 버튼 추가
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
@@ -853,10 +854,16 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     let html = `
         <div class="mb-4 pb-2 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
-            <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm"
-                    onclick="downloadAttendanceHistoryAsExcel('${dateKey}')">
-                근태 엑셀
-            </button>
+            <div>
+                <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm"
+                        onclick="downloadAttendanceHistoryAsExcel('${dateKey}')">
+                    근태 엑셀
+                </button>
+                <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" 
+                        onclick="requestHistoryDeletion('${dateKey}')">
+                    삭제
+                </button>
+            </div>
         </div>
     `;
 
