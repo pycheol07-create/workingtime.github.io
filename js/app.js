@@ -138,6 +138,23 @@ const calcElapsedMinutes = (start, end, pauses = []) => {
   return Math.max(0, total / 60000);
 };
 
+// [추가] 날짜 차이 계산 헬퍼 (일)
+const calculateDateDifference = (start, end) => {
+    if (!start) return 0;
+    const startDate = new Date(start);
+    // 종료일이 없으면 시작일과 동일하게 처리 (1일)
+    const endDate = end ? new Date(end) : new Date(start); 
+    
+    // 시간대 오차 방지를 위해 UTC 기준으로 일자만 계산
+    const startUTC = Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const endUTC = Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+    
+    const diffTime = endUTC - startUTC;
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays + 1; // 10/22 ~ 10/22는 1일
+};
+
 // ========== 타이머 ==========
 const updateElapsedTimes = () => {
   const now = getCurrentTime();
@@ -696,40 +713,38 @@ window.requestHistoryDeletion = (dateKey) => {
   if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
 };
 
+// 엑셀 다운로드
 window.downloadHistoryAsExcel = async (dateKey) => {
   try {
     const data = allHistoryData.find(d => d.id === dateKey);
-    if (!data || !data.workRecords || data.workRecords.length === 0) {
+    // [수정] 근태 기록만 있을 수 있으므로 data 존재 여부만 체크
+    if (!data) {
       return showToast('다운로드할 데이터가 없습니다.', true);
     }
-    const records = data.workRecords;
-    const quantities = data.taskQuantities || {}; 
+    const records = data.workRecords || []; // records가 없을 수도 있음
+    const quantities = data.taskQuantities || {};
+    const onLeaveMembers = data.onLeaveMembers || []; // [추가] 근태 데이터 가져오기
 
     const appendTotalRow = (ws, data, headers) => {
       if (!data || data.length === 0) return;
       const total = {};
-      const sums = {};
-
-      headers.forEach(header => {
-          if (header.includes('(분)') || header.includes('(원)') || header.includes('(개)')) {
-              sums[header] = data.reduce((acc, row) => acc + (Number(row[header]) || 0), 0);
-          }
-      });
-
       headers.forEach((header, index) => {
-          if (index === 0) {
-              total[header] = '총 합계';
-          } else if (header.includes('(분)') || header.includes('총 인건비(원)') || header.includes('총 처리량(개)')) {
-              total[header] = Math.round(sums[header]);
-          } else if (header === '개당 처리비용(원)') {
-              const totalCost = sums['총 인건비(원)'] || 0;
-              const totalQty = sums['총 처리량(개)'] || 0;
-              const totalCostPerItem = (totalQty > 0) ? (totalCost / totalQty) : 0;
-              total[header] = Math.round(totalCostPerItem);
-          } else {
-              total[header] = '';
-          }
+        if (index === 0) {
+          total[header] = '총 합계';
+        } else if (header.includes('(분)') || header.includes('(원)') || header.includes('(일)') || header.includes('횟수')) { // [수정] '(일)'과 '횟수' 추가
+          const sum = data.reduce((acc, row) => acc + (Number(row[header]) || 0), 0);
+          total[header] = Math.round(sum);
+        } else {
+          total[header] = '';
+        }
       });
+      // [수정] 개당 처리비용 총합계는 별도 계산
+      if (headers.includes('개당 처리비용(원)')) {
+         const totalCost = data.reduce((acc, row) => acc + (Number(row['총 인건비(원)']) || 0), 0);
+         const totalQty = data.reduce((acc, row) => acc + (Number(row['총 처리량(개)']) || 0), 0);
+         total['개당 처리비용(원)'] = totalQty > 0 ? Math.round(totalCost / totalQty) : 0;
+      }
+
       XLSX.utils.sheet_add_json(ws, [total], { skipHeader: true, origin: -1 });
     };
 
@@ -742,7 +757,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
       '소요 시간(분)': Math.round(Number(r.duration) || 0)
     }));
     const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
-    appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
+    if (sheet1Data.length > 0) appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
 
     const sheet2Headers = ['업무 종류', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)'];
     const summaryByTask = {};
@@ -768,7 +783,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
       };
     });
     const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
-    appendTotalRow(worksheet2, sheet2Data, sheet2Headers); 
+    if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers); 
 
     const sheet3Headers = ['파트', '총 인건비(원)'];
     const memberToPartMap = new Map();
@@ -786,7 +801,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
       '총 인건비(원)': Math.round(summaryByPart[part].totalCost)
     }));
     const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
-    appendTotalRow(worksheet3, sheet3Data, sheet3Headers);
+    if (sheet3Data.length > 0) appendTotalRow(worksheet3, sheet3Data, sheet3Headers);
 
     const fitToColumn = (ws) => {
       const objectMaxLength = [];
@@ -806,14 +821,61 @@ window.downloadHistoryAsExcel = async (dateKey) => {
       ws['!cols'] = objectMaxLength.map(w => ({ width: w + 2 }));
     };
 
-    fitToColumn(worksheet1);
-    fitToColumn(worksheet2);
-    fitToColumn(worksheet3);
+    if (worksheet1) fitToColumn(worksheet1);
+    if (worksheet2) fitToColumn(worksheet2);
+    if (worksheet3) fitToColumn(worksheet3);
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet1, '상세 기록');
-    XLSX.utils.book_append_sheet(workbook, worksheet2, '업무별 요약');
-    XLSX.utils.book_append_sheet(workbook, worksheet3, '파트별 인건비');
+    if (worksheet1) XLSX.utils.book_append_sheet(workbook, worksheet1, '상세 기록');
+    if (worksheet2) XLSX.utils.book_append_sheet(workbook, worksheet2, '업무별 요약');
+    if (worksheet3) XLSX.utils.book_append_sheet(workbook, worksheet3, '파트별 인건비');
+
+    // [추가] Sheet 4: 근태 요약 생성
+    if (onLeaveMembers.length > 0) {
+        const sheet4Headers = ['팀원', '근태 유형', '횟수', '총 기간(일)', '총 시간(분)'];
+        const attendanceSummary = {};
+
+        onLeaveMembers.forEach(entry => {
+            const key = `${entry.member}-${entry.type}`;
+            if (!attendanceSummary[key]) {
+                attendanceSummary[key] = {
+                    member: entry.member,
+                    type: entry.type,
+                    count: 0,
+                    totalDays: 0,
+                    totalMinutes: 0
+                };
+            }
+            
+            attendanceSummary[key].count += 1;
+
+            // 기간 계산 (연차, 출장, 결근)
+            if (entry.startDate) {
+                attendanceSummary[key].totalDays += calculateDateDifference(entry.startDate, entry.endDate);
+            }
+            
+            // 시간 계산 (외출, 조퇴)
+            if (entry.startTime) {
+                // 외출/조퇴 모두 17:30 기준으로 집계
+                const endTime = entry.endTime || "17:30"; 
+                attendanceSummary[key].totalMinutes += calcElapsedMinutes(entry.startTime, endTime, []);
+            }
+        });
+
+        const sheet4Data = Object.values(attendanceSummary).map(item => ({
+            '팀원': item.member,
+            '근태 유형': item.type,
+            '횟수': item.count,
+            '총 기간(일)': item.totalDays > 0 ? item.totalDays : '',
+            '총 시간(분)': item.totalMinutes > 0 ? Math.round(item.totalMinutes) : ''
+        })).sort((a, b) => a['팀원'].localeCompare(b['팀원']));
+
+        const worksheet4 = XLSX.utils.json_to_sheet(sheet4Data, { header: sheet4Headers });
+        appendTotalRow(worksheet4, sheet4Data, sheet4Headers); // 근태 시트에도 합계 행 추가
+        fitToColumn(worksheet4);
+        XLSX.utils.book_append_sheet(workbook, worksheet4, '근태');
+    }
+    
     XLSX.writeFile(workbook, `업무기록_${dateKey}.xlsx`);
   } catch (error) {
     console.error('Excel export failed:', error);
