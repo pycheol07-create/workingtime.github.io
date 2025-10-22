@@ -15,8 +15,10 @@ import {
   renderQuantityModalInputs,
   renderLeaveTypeModalOptions,
   renderAttendanceDailyHistory,
-  renderAttendanceWeeklyHistory,
-  renderAttendanceMonthlyHistory
+  renderAttendanceWeeklyHistory, // 이 함수 추가됨
+  renderAttendanceMonthlyHistory, // 이 함수 추가됨
+  renderWeeklyHistory, // 이 함수 추가됨 (주의: Attendance 없는 버전)
+  renderMonthlyHistory // 이 함수 추가됨 (주의: Attendance 없는 버전)
 } from './ui.js';
 
 // ========== DOM Elements ==========
