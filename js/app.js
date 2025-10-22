@@ -1,14 +1,16 @@
 // === 물류팀 업무현황 app.js — 전체 통합 리팩토링 (안정성 + 기존 기능 완전 포함) ===
-// ver.2.6.2 (Fix Leave Modal Date Input & Spinner)
+// ver.2.7 (Persistent Leave Schedule)
 // 변경 요약:
-// - main 함수에서 config 로드 직후 스피너 숨기기 로직 확실히 실행
-// - 휴무 모달 열 때 날짜 입력칸을 강제로 숨기던 코드 제거
-// - 이력 보기 탭 기능 관련 로직 적용
+// - 근태 일정(onLeaveMembers)을 'daily_data'에서 'persistent_data/leaveSchedule'로 분리
+// - 앱 로드 시 '오늘 날짜'에 해당하는 근태만 필터링하여 appState에 적용
+// - 근태 설정/취소 시 persistentLeaveSchedule 문서를 업데이트
+// - '전체 초기화' 시 workRecords와 taskQuantities만 초기화하고 근태 일정은 보존
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirebase, loadConfiguration } from './config.js';
+// [수정] config.js 임포트 변경
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday } from './utils.js';
 import {
   renderRealtimeStatus,
@@ -99,22 +101,29 @@ const toggleSummary = document.getElementById('toggle-summary');
 // ========== Firebase/App State ==========
 let db, auth;
 let unsubscribeToday;
+let unsubscribeLeaveSchedule; // [추가] 근태 일정 실시간 리스너
 let elapsedTimeTimer = null;
 let recordCounter = 0;
 
+// [수정] appState는 '오늘'의 데이터만 가짐
 let appState = {
   workRecords: [],
   taskQuantities: {},
-  onLeaveMembers: [],
+  onLeaveMembers: [], // 오늘 날짜에 해당하는 필터링된 근태 목록
   partTimers: [],
   hiddenGroupIds: []
 };
-let appConfig = {
+// [추가] 모든 근태 일정을 담는 영구 상태
+let persistentLeaveSchedule = {
+    onLeaveMembers: [] // 모든 날짜의 근태 일정
+};
+let appConfig = { // 앱 설정
     teamGroups: [],
     memberWages: {},
     taskGroups: {},
     quantityTaskTypes: []
 };
+
 let selectedTaskForStart = null;
 let selectedGroupForAdd = null;
 let recordToDeleteId = null;
@@ -188,6 +197,49 @@ const updateElapsedTimes = () => {
   if (el) el.textContent = formatDuration(totalCompletedMinutes + totalOngoingMinutes);
 };
 
+// [추가] 오늘 날짜에 해당하는 근태만 필터링하는 함수
+const filterAndApplyLeaveState = () => {
+    const today = getTodayDateString();
+    appState.onLeaveMembers = (persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
+        // 1. 날짜 기반 휴무 (연차, 출장, 결근)
+        if (entry.startDate) {
+            const endDate = entry.endDate || entry.startDate; // 종료일 없으면 시작일 당일
+            return today >= entry.startDate && today <= endDate;
+        }
+        // 2. 시간 기반 휴무 (외출, 조퇴) - 당일 기록만 해당
+        // (이 로직은 '오늘' 설정된 것만 해당, 날짜가 바뀌면 어차피 persistentLeaveSchedule에 없음 - 아, 저장 방식 수정 필요)
+        // -> 수정: 외출/조퇴는 startTime만 있으므로 날짜 정보가 없음. 
+        // -> 이 방식으로는 날짜가 지나도 외출/조퇴가 계속 남게 됨.
+        // -> '외출', '조퇴'는 persistentLeaveSchedule에 저장하면 안 됨.
+        // -> **[정책 수정]** '연차', '출장', '결근' (기간제)만 persistentLeaveSchedule에 저장.
+        // -> '외출', '조퇴' (당일 시간제)는 기존처럼 appState (daily_data)에 저장.
+        if (entry.type === '외출' || entry.type === '조퇴') {
+            return false; // persistent store에서는 시간 기반 휴무 필터링 (daily에서만 처리)
+        }
+        return false; // 혹시 모를 예외 처리
+    });
+
+    // daily_data에서 로드된 시간 기반 휴무(외출, 조퇴)를 추가
+    // -> `main` 함수의 `onSnapshot(todayDocRef)`에서 `loadedState.onLeaveMembers`를 가져와 합쳐야 함.
+    // --> 로직 다시 설계
+
+    // --- [새로운 정책] ---
+    // 1. persistentLeaveSchedule: '연차', '출장', '결근' (기간제)만 저장.
+    // 2. appState (daily_data): '외출', '조퇴' (당일 시간제)만 저장.
+    
+    const dateBasedLeave = (persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
+         if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+             const endDate = entry.endDate || entry.startDate;
+             return today >= entry.startDate && today <= endDate;
+         }
+         return false;
+    });
+
+    // appState.onLeaveMembers는 daily_data에서 로드된 '외출/조퇴' + persistent에서 필터링된 '연차/출장/결근'의 합
+    // `main` 함수의 onSnapshot에서 합치는 로직 필요.
+};
+
+
 // ========== 렌더 ==========
 const render = () => {
   try {
@@ -201,7 +253,7 @@ const render = () => {
   }
 };
 
-// ========== Firestore 저장 ==========
+// [수정] Firestore *일일 데이터* 저장 (onLeaveMembers 제외)
 async function saveStateToFirestore() {
   if (!auth || !auth.currentUser) {
     console.warn('Cannot save state: User not authenticated.');
@@ -209,10 +261,14 @@ async function saveStateToFirestore() {
   }
   try {
     const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+    
+    // [수정] daily_data에는 '외출', '조퇴'만 저장
+    const dailyLeaveMembers = (appState.onLeaveMembers || []).filter(entry => entry.type === '외출' || entry.type === '조퇴');
+
     const stateToSave = JSON.stringify({
       workRecords: appState.workRecords || [],
       taskQuantities: appState.taskQuantities || {},
-      onLeaveMembers: appState.onLeaveMembers || [], 
+      onLeaveMembers: dailyLeaveMembers, // [수정]
       partTimers: appState.partTimers || [],
       hiddenGroupIds: appState.hiddenGroupIds || []
     }, (k, v) => (typeof v === 'function' ? undefined : v));
@@ -230,6 +286,7 @@ async function saveStateToFirestore() {
 }
 
 // ========== 업무 그룹 제어 ==========
+// ... (startWorkGroup ~ resumeWorkGroup 함수 변경 없음) ...
 const startWorkGroup = (members, task) => {
   const groupId = Date.now();
   const startTime = getCurrentTime();
@@ -349,6 +406,7 @@ const resumeWorkGroup = (groupId) => {
 
 
 // ========== 저장/이력 ==========
+// [수정] saveProgress (onLeaveMembers 저장 로직 수정)
 async function saveProgress() {
   const dateStr = getTodayDateString();
   showToast('현재까지 완료된 기록을 저장합니다...');
@@ -364,12 +422,12 @@ async function saveProgress() {
       if (!Number.isNaN(q) && q > 0) currentQuantities[task] = q;
     }
 
+    // [수정] history에 저장할 근태는 현재 appState (필터링된) 기준
     const currentLeaveMembers = appState.onLeaveMembers || [];
 
     if (completedRecordsFromState.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembers.length === 0 && !(existingData.onLeaveMembers?.length > 0)) {
       return showToast('저장할 새로운 완료 기록, 처리량 또는 근태 정보가 없습니다.', true);
     }
-
 
     const combinedRecords = [...(existingData.workRecords || []), ...completedRecordsFromState];
     const uniqueRecords = Array.from(new Map(combinedRecords.map(item => [item.id, item])).values());
@@ -382,7 +440,7 @@ async function saveProgress() {
     const dataToSave = {
       workRecords: uniqueRecords,
       taskQuantities: finalQuantities,
-      onLeaveMembers: currentLeaveMembers,
+      onLeaveMembers: currentLeaveMembers, // [수정] 오늘 날짜에 유효한 근태 기록만 저장
       partTimers: appState.partTimers || []
     };
 
@@ -395,6 +453,7 @@ async function saveProgress() {
   }
 }
 
+// [수정] saveDayDataToHistory (onLeaveMembers 초기화 로직 수정)
 async function saveDayDataToHistory(shouldReset) {
   const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
   if (ongoingRecords.length > 0) {
@@ -408,25 +467,34 @@ async function saveDayDataToHistory(shouldReset) {
       rec.endTime = endTime;
       rec.duration = calcElapsedMinutes(rec.startTime, endTime, rec.pauses);
     });
-    await saveStateToFirestore();
+    // saveStateToFirestore(); // saveProgress에서 daily state를 저장하므로 중복 호출 방지
   }
 
+  // [수정] 당일 시간제 휴무(외출/조퇴)를 포함한 최종 상태를 History에 저장
   await saveProgress(); 
 
-  appState.workRecords = (appState.workRecords || []).filter(r => r.status !== 'completed');
+  // [수정] 업무 기록, 처리량, *당일* 근태(외출/조퇴)만 초기화
+  appState.workRecords = [];
   Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
+  // appState의 기간제 휴무는 어차피 persistent에서 다시 불러오므로, 시간제만 필터링
+  appState.onLeaveMembers = appState.onLeaveMembers.filter(entry => entry.type === '연차' || entry.type === '출장' || entry.type === '결근');
 
   if (shouldReset) {
     appState.hiddenGroupIds = [];
-    appState.onLeaveMembers = []; // 휴무 상태도 초기화
-    await saveStateToFirestore(); // 초기화된 상태 저장
+    // appState.onLeaveMembers는 이미 위에서 필터링됨 (기간제만 남김)
+    await saveStateToFirestore(); // 초기화된 *일일* 상태 저장 (기간제 근태는 저장 안 됨)
     showToast('오늘의 업무 기록을 초기화했습니다.');
-    render(); // 초기화된 화면 렌더링
+    render(); 
+  } else {
+      // 마감이지만 리셋 안 함 (saveProgress만 호출)
+      await saveStateToFirestore(); // 일일 업무/처리량만 비운 상태 저장
+      render();
   }
 }
 
 
 // ========== 이력 보기 ==========
+// ... (fetchAllHistoryData ~ downloadHistoryAsExcel 변경 없음) ...
 async function fetchAllHistoryData() {
   const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
   try {
@@ -458,7 +526,7 @@ const loadAndRenderHistoryList = async () => {
     const dailyView = document.getElementById('history-daily-view');
     const weeklyView = document.getElementById('history-weekly-view');
     const monthlyView = document.getElementById('history-monthly-view');
-    const attendanceView = document.getElementById('history-attendance-daily-view'); // 수정
+    const attendanceView = document.getElementById('history-attendance-daily-view'); 
     if (dailyView) dailyView.innerHTML = '';
     if (weeklyView) weeklyView.innerHTML = '';
     if (monthlyView) monthlyView.innerHTML = '';
@@ -847,7 +915,6 @@ window.downloadHistoryAsExcel = async (dateKey) => {
   }
 };
 
-// [추가] 근태 이력 엑셀 다운로드
 window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
     try {
         const data = allHistoryData.find(d => d.id === dateKey);
@@ -856,7 +923,6 @@ window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
         }
         const onLeaveMembers = data.onLeaveMembers || [];
 
-        // 합계 행 헬퍼
         const appendAttendanceTotalRow = (ws, data, headers) => {
              if (!data || data.length === 0) return;
             const total = {};
@@ -873,7 +939,6 @@ window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
             XLSX.utils.sheet_add_json(ws, [total], { skipHeader: true, origin: -1 });
         };
 
-        // 1. 일별 상세 시트
         const sheet1Headers = ['팀원', '유형', '시작일', '종료일', '시작시간', '종료시간'];
         const sheet1Data = onLeaveMembers.map(entry => ({
             '팀원': entry.member,
@@ -885,7 +950,6 @@ window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
         })).sort((a,b) => a['팀원'].localeCompare(b['팀원']));
         const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
 
-        // 2. 근태 요약 시트 (개인별/유형별)
         const sheet2Headers = ['팀원', '근태 유형', '횟수', '총 기간(일)', '총 시간(분)'];
         const attendanceSummary = {};
 
@@ -910,10 +974,10 @@ window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
             }
             else if (entry.startTime) { // 외출, 조퇴
                 summary.count += 1;
-                const endTime = entry.endTime || "17:30"; // 외출/조퇴 모두 17:30 기준 집계
+                const endTime = entry.endTime || "17:30"; 
                 summary.totalMinutes += calcElapsedMinutes(entry.startTime, endTime, []);
             }
-            else { // 기타 (현재 로직 상 결근은 startDate가 있음)
+            else { 
                  summary.count += 1;
             }
         });
@@ -929,7 +993,6 @@ window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
         const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
         appendAttendanceTotalRow(worksheet2, sheet2Data, sheet2Headers);
 
-        // 컬럼 너비 조절 헬퍼
         const fitToColumn = (ws) => {
             const objectMaxLength = [];
             const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
@@ -962,9 +1025,7 @@ window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
     }
 };
 
-// [수정] switchHistoryView: 'attendance' 뷰 케이스 추가 및 로직 수정
 const switchHistoryView = (view) => {
-  // 모든 뷰 패널 숨기기
   const allViews = [
       document.getElementById('history-daily-view'),
       document.getElementById('history-weekly-view'),
@@ -975,7 +1036,6 @@ const switchHistoryView = (view) => {
   ];
   allViews.forEach(v => v && v.classList.add('hidden'));
 
-  // 모든 탭 버튼 비활성화
   if (historyTabs) {
       historyTabs.querySelectorAll('button').forEach(btn => {
           btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
@@ -989,21 +1049,18 @@ const switchHistoryView = (view) => {
       });
   }
 
-  // 날짜 목록 표시/숨김
   const dateListContainer = document.getElementById('history-date-list-container');
   const isDailyView = view.includes('daily');
   if (dateListContainer) {
       dateListContainer.style.display = isDailyView ? 'block' : 'none';
   }
 
-  // 선택된 날짜 키 가져오기
   let selectedDateKey = null;
   const selectedDateBtn = historyDateList?.querySelector('button.font-bold');
   if (selectedDateBtn) {
     selectedDateKey = selectedDateBtn.dataset.key;
   }
 
-  // 활성화할 탭과 뷰 선택
   let viewToShow = null;
   let tabToActivate = null;
 
@@ -1042,7 +1099,6 @@ const switchHistoryView = (view) => {
           break;
   }
 
-  // 뷰와 탭 활성화
   if (viewToShow) viewToShow.classList.remove('hidden');
   if (tabToActivate) {
       tabToActivate.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
@@ -1054,7 +1110,6 @@ const switchHistoryView = (view) => {
 // ========== 이벤트 리스너 ==========
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
-    // ... (업무 카드 관련 이벤트 리스너는 변경 없음) ...
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
     if (stopGroupButton) { stopWorkGroup(Number(stopGroupButton.dataset.groupId)); return; }
     const pauseGroupButton = e.target.closest('.pause-work-group-btn');
@@ -1075,8 +1130,6 @@ if (teamStatusBoard) {
       return;
     }
 
-
-    // [수정] 팀원 카드 클릭 시 휴무 설정 또는 복귀 확인
     const memberCard = e.target.closest('[data-member-toggle-leave]');
     if (memberCard) {
       const memberName = memberCard.dataset.memberToggleLeave;
@@ -1086,13 +1139,13 @@ if (teamStatusBoard) {
           return showToast(`${memberName}님은 현재 업무 중이므로 휴무 상태를 변경할 수 없습니다.`, true);
       }
 
-      appState.onLeaveMembers = appState.onLeaveMembers || [];
-      const currentLeaveIndex = appState.onLeaveMembers.findIndex(item => item.member === memberName);
+      // [수정] 근태 확인 로직 (appState.onLeaveMembers는 오늘 유효한 목록임)
+      const currentLeaveEntry = appState.onLeaveMembers.find(item => item.member === memberName);
 
-      if (currentLeaveIndex > -1) {
-          // [수정] 이미 휴무 상태 -> 유형에 따라 다른 확인 모달 열기
-          const leaveType = appState.onLeaveMembers[currentLeaveIndex].type;
-          memberToCancelLeave = memberName; // 복귀/취소시킬 멤버 이름 저장
+      if (currentLeaveEntry) {
+          // 이미 휴무 상태 -> 유형에 따라 다른 확인 모달 열기
+          const leaveType = currentLeaveEntry.type;
+          memberToCancelLeave = memberName; 
 
           if(cancelLeaveConfirmMessage) {
               if (leaveType === '외출') {
@@ -1111,11 +1164,8 @@ if (teamStatusBoard) {
           if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
           renderLeaveTypeModalOptions(LEAVE_TYPES); 
           
-          // [수정] 이 라인을 삭제(주석 처리)해야 날짜 입력칸이 기본으로 나옵니다.
-          // if(leaveDateInputsDiv) leaveDateInputsDiv.classList.add('hidden'); 
-          
-          if(leaveStartDateInput) leaveStartDateInput.value = ''; // 날짜 초기화
-          if(leaveEndDateInput) leaveEndDateInput.value = ''; // 날짜 초기화
+          if(leaveStartDateInput) leaveStartDateInput.value = ''; 
+          if(leaveEndDateInput) leaveEndDateInput.value = ''; 
           if(leaveTypeModal) leaveTypeModal.classList.remove('hidden');
       }
       return; 
@@ -1289,7 +1339,7 @@ if (confirmHistoryDeleteBtn) confirmHistoryDeleteBtn.addEventListener('click', a
       showToast('선택한 날짜의 기록이 삭제되었습니다.');
       loadAndRenderHistoryList(); 
       const dailyView = document.getElementById('history-daily-view');
-      const attendanceView = document.getElementById('history-attendance-daily-view'); // 수정
+      const attendanceView = document.getElementById('history-attendance-daily-view'); 
       if (dailyView) dailyView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
       if (attendanceView) attendanceView.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
     } catch (error) {
@@ -1343,36 +1393,26 @@ if (attendanceHistoryTabs) {
 
 if (resetAppBtn) resetAppBtn.addEventListener('click', () => { if (resetAppModal) resetAppModal.classList.remove('hidden'); });
 
+// [수정] '전체 초기화' 버튼 로직 수정 (근태 보존)
 if (confirmResetAppBtn) confirmResetAppBtn.addEventListener('click', async () => {
   try {
-    // [수정] deleteDoc(docRef) 대신, 오늘 날짜 이전의 근태만 필터링하여 덮어쓰기
-    const today = getTodayDateString();
-    const currentLeaveMembers = appState.onLeaveMembers || [];
-    
-    const futureLeaveEntries = currentLeaveMembers.filter(entry => {
-        // 날짜 기반 휴무(연차, 출장, 결근)인지 확인
-        if (entry.startDate) { 
-            const endDate = entry.endDate || entry.startDate; // 종료일이 없으면 시작일 당일
-            return endDate >= today; // 종료일이 오늘이거나 미래인 경우만 남김
-        }
-        // 시간 기반(외출, 조퇴)은 당일 기록이므로 모두 삭제
-        return false; 
+    // 1. 일일 업무 기록만 초기화 (workRecords, taskQuantities)
+    appState.workRecords = [];
+    Object.keys(appState.taskQuantities || {}).forEach(task => {
+        appState.taskQuantities[task] = 0;
     });
-
-    const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
     
-    appState = { 
-        workRecords: [], // 업무 기록 삭제
-        taskQuantities: {}, // 처리량 삭제
-        onLeaveMembers: futureLeaveEntries, // 미래 근태만 남김
-        partTimers: appState.partTimers, // 알바 목록은 유지
-        hiddenGroupIds: [] // 숨김 그룹 초기화
-    };
-    taskTypes.forEach(task => appState.taskQuantities[task] = 0);
+    // 2. '오늘'의 시간 기반 근태(외출, 조퇴)만 appState.onLeaveMembers에서 제거
+    appState.onLeaveMembers = appState.onLeaveMembers.filter(entry => 
+        entry.type === '연차' || entry.type === '출장' || entry.type === '결근'
+    );
     
-    // [수정] deleteDoc 대신 saveStateToFirestore() 호출
-    // 이렇게 하면 onSnapshot 리스너가 "삭제"가 아닌 "수정"으로 감지하여
-    // 보존된 onLeaveMembers가 포함된 새 상태로 앱을 갱신합니다.
+    // 3. partTimers와 hiddenGroupIds는 일일 데이터이므로 초기화
+    appState.partTimers = [];
+    appState.hiddenGroupIds = [];
+    
+    // 4. 초기화된 '일일' 상태를 Firestore에 저장
+    // (persistentLeaveSchedule은 건드리지 않았습니다)
     await saveStateToFirestore(); 
     
     showToast('오늘의 업무 기록이 초기화되었습니다. (근태 일정은 유지됨)');
@@ -1382,6 +1422,7 @@ if (confirmResetAppBtn) confirmResetAppBtn.addEventListener('click', async () =>
   }
   if (resetAppModal) resetAppModal.classList.add('hidden');
 });
+
 
 if (confirmQuantityBtn) confirmQuantityBtn.addEventListener('click', () => {
   const inputs = document.querySelectorAll('#modal-task-quantity-inputs input');
@@ -1445,8 +1486,8 @@ if (confirmStopIndividualBtn) confirmStopIndividualBtn.addEventListener('click',
 });
 
 
-// [수정] 휴무 유형 모달 확인 버튼 리스너 (날짜 입력 처리 '결근' 추가)
-if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
+// [수정] 휴무 유형 모달 확인 버튼 리스너 (저장 위치 변경)
+if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
     if (!memberToSetLeave) return;
 
     const selectedTypeInput = document.querySelector('input[name="leave-type"]:checked');
@@ -1457,14 +1498,20 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
     const leaveType = selectedTypeInput.value;
     const leaveData = { member: memberToSetLeave, type: leaveType };
 
-    // 외출/조퇴: 현재 시간 기록
+    // 외출/조퇴: (시간제) -> appState (daily_data)에 저장
     if (leaveType === '외출' || leaveType === '조퇴') {
         leaveData.startTime = getCurrentTime();
         if (leaveType === '조퇴') {
             leaveData.endTime = "17:30";
         }
+        
+        // appState에 추가
+        appState.onLeaveMembers = appState.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
+        appState.onLeaveMembers.push(leaveData);
+        await saveStateToFirestore(); // 일일 데이터 저장
+
     }
-    // [수정] 연차/출장/결근: 날짜 기록
+    // 연차/출장/결근: (기간제) -> persistentLeaveSchedule (persistent_data)에 저장
     else if (leaveType === '연차' || leaveType === '출장' || leaveType === '결근') {
         const startDate = leaveStartDateInput?.value;
         const endDate = leaveEndDateInput?.value;
@@ -1482,71 +1529,71 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', () => {
             }
             leaveData.endDate = endDate;
         }
+        
+        // persistentLeaveSchedule에 추가
+        persistentLeaveSchedule.onLeaveMembers = persistentLeaveSchedule.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
+        persistentLeaveSchedule.onLeaveMembers.push(leaveData);
+        await saveLeaveSchedule(db, persistentLeaveSchedule); // 영구 근태 일정 저장
     }
 
-    appState.onLeaveMembers = appState.onLeaveMembers || [];
-    appState.onLeaveMembers = appState.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
-    appState.onLeaveMembers.push(leaveData);
-
     showToast(`${memberToSetLeave}님을 '${leaveType}'(으)로 설정했습니다.`);
-    saveStateToFirestore();
-
+    // (저장 후 onSnapshot이 자동으로 갱신하므로 render() 수동 호출 필요 없음)
+    
     if(leaveTypeModal) leaveTypeModal.classList.add('hidden');
     memberToSetLeave = null;
 });
 
-// [추가] 근태 복귀 확인 모달 이벤트 리스너
+// [수정] 근태 복귀/취소 확인 모달 이벤트 리스너 (저장 위치 변경)
 if (confirmCancelLeaveBtn) {
-    confirmCancelLeaveBtn.addEventListener('click', () => {
+    confirmCancelLeaveBtn.addEventListener('click', async () => {
         if (!memberToCancelLeave) return;
 
-        const index = appState.onLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
-        if (index > -1) {
-            const entry = appState.onLeaveMembers[index];
-            const todayDateString = getTodayDateString();
-
-            // 1. '외출'인 경우: 복귀 처리 (endTime 기록)
+        const todayDateString = getTodayDateString();
+        
+        // 1. appState (일일 근태)에서 제거 시도 (외출, 조퇴)
+        const dailyIndex = appState.onLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
+        if (dailyIndex > -1) {
+            const entry = appState.onLeaveMembers[dailyIndex];
             if (entry.type === '외출') {
                 entry.endTime = getCurrentTime();
-                if (entry.endTime <= entry.startTime) {
-                    showToast('외출 복귀 시간이 시작 시간보다 빠를 수 없습니다. 관리자에게 문의하세요.', true);
-                    // 복귀 처리를 중단하지는 않고, 메시지만 표시 (혹은 entry.endTime = entry.startTime; 등으로 처리)
-                }
                 showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다.`);
-            
-            // 2. 기간제 휴무(연차, 출장, 결근)인 경우: 날짜 수정 또는 삭제
-            } else if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
-                
-                const isLeaveActiveToday = entry.startDate <= todayDateString && (!entry.endDate || todayDateString <= entry.endDate);
-
-                if (isLeaveActiveToday) {
-                    // 오늘 복귀했으므로, 휴무는 어제까지
-                    const today = new Date();
-                    today.setDate(today.getDate() - 1); // 어제 날짜
-                    const yesterday = today.toISOString().split('T')[0];
-
-                    if (yesterday < entry.startDate) {
-                        // 휴무 시작일 당일에 복귀/취소한 경우 (시작일 <= 오늘), 기록 자체를 삭제
-                        appState.onLeaveMembers.splice(index, 1);
-                        showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
-                    } else {
-                        // 휴무 기간을 어제까지로 수정
-                        entry.endDate = yesterday;
-                        showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다. (${entry.type}이 ${yesterday}까지로 수정됨)`);
-                    }
-                } else {
-                    // 미래 또는 과거의 휴무를 취소하는 경우, 그냥 삭제
-                    appState.onLeaveMembers.splice(index, 1);
-                    showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
-                }
-            
-            // 3. '조퇴' 및 그 외 경우: 기록 삭제
-            } else {
-                appState.onLeaveMembers.splice(index, 1);
+                await saveStateToFirestore(); // 수정된 일일 근태 저장
+            } else { // 조퇴, 기타 당일 휴무
+                appState.onLeaveMembers.splice(dailyIndex, 1);
                 showToast(`${memberToCancelLeave}님의 '${entry.type}' 상태가 취소되었습니다.`);
+                await saveStateToFirestore(); // 삭제된 일일 근태 저장
             }
+        }
+        
+        // 2. persistentLeaveSchedule (기간제 근태)에서 제거/수정 시도
+        const persistentIndex = persistentLeaveSchedule.onLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
+        if (persistentIndex > -1) {
+            const entry = persistentLeaveSchedule.onLeaveMembers[persistentIndex];
             
-            saveStateToFirestore();
+            // 이 휴무가 오늘 날짜를 포함하는지 확인
+            const isLeaveActiveToday = entry.startDate <= todayDateString && (!entry.endDate || todayDateString <= entry.endDate);
+
+            if (isLeaveActiveToday) {
+                // 오늘 복귀했으므로, 휴무는 어제까지
+                const today = new Date();
+                today.setDate(today.getDate() - 1); // 어제 날짜
+                const yesterday = today.toISOString().split('T')[0];
+
+                if (yesterday < entry.startDate) {
+                    // 휴무 시작일 당일에 복귀/취소한 경우 (시작일 <= 오늘), 기록 자체를 삭제
+                    persistentLeaveSchedule.onLeaveMembers.splice(persistentIndex, 1);
+                    showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
+                } else {
+                    // 휴무 기간을 어제까지로 수정
+                    entry.endDate = yesterday;
+                    showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다. (${entry.type}이 ${yesterday}까지로 수정됨)`);
+                }
+            } else {
+                // 미래 또는 과거의 휴무를 취소하는 경우, 그냥 삭제
+                persistentLeaveSchedule.onLeaveMembers.splice(persistentIndex, 1);
+                showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
+            }
+            await saveLeaveSchedule(db, persistentLeaveSchedule); // 수정된 영구 근태 저장
         }
 
         if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.add('hidden');
@@ -1727,23 +1774,23 @@ async function main() {
       return;
   }
 
+  // [수정] 앱 설정과 영구 근태 일정을 *먼저* 로드
   try {
       if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
-      appConfig = await loadConfiguration(db);
+      appConfig = await loadAppConfig(db);
+      persistentLeaveSchedule = await loadLeaveSchedule(db); // 영구 근태 로드
       
-      // [수정] Config 로드 직후 스피너 숨기기
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
 
       renderTaskSelectionModal(appConfig.taskGroups);
-      renderRealtimeStatus(appState, appConfig.teamGroups); // 스피너 숨긴 후 초기 렌더링
+      // renderRealtimeStatus(appState, appConfig.teamGroups); // onSnapshot에서 처리하므로 지금 호출 X
   } catch (e) {
       console.error("설정 로드 실패:", e);
       showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
-      // [수정] 실패 시에도 스피너 숨기기
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
-      renderRealtimeStatus(appState, appConfig.teamGroups); // 실패 시에도 기본 렌더링
+      // renderRealtimeStatus(appState, appConfig.teamGroups); // 실패 시에도 기본 렌더링
   }
 
   displayCurrentDate();
@@ -1755,8 +1802,35 @@ async function main() {
   taskTypes.forEach(task => defaultQuantities[task] = 0);
   appState.taskQuantities = { ...defaultQuantities, ...appState.taskQuantities };
 
+  // [수정] 인증 및 *두 개의* 스냅샷 리스너 설정
   onAuthStateChanged(auth, async user => {
     if (user) {
+      // 1. [신규] 영구 근태 일정 리스너
+      const leaveScheduleDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
+      if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule();
+      unsubscribeLeaveSchedule = onSnapshot(leaveScheduleDocRef, (docSnap) => {
+          persistentLeaveSchedule = docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] };
+          
+          // 오늘 날짜에 해당하는지 필터링
+          const today = getTodayDateString();
+          const dateBasedLeave = (persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
+              if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+                  const endDate = entry.endDate || entry.startDate;
+                  return today >= entry.startDate && today <= endDate;
+              }
+              return false;
+          });
+          
+          // appState의 기간제 근태를 업데이트하고 일일 근태(외출/조퇴)와 합침
+          const dailyLeave = (appState.onLeaveMembers || []).filter(entry => entry.type === '외출' || entry.type === '조퇴');
+          appState.onLeaveMembers = [...dailyLeave, ...dateBasedLeave];
+          render(); // 화면 갱신
+      }, (error) => {
+          console.error("근태 일정 실시간 연결 실패:", error);
+          showToast("근태 일정 연결에 실패했습니다.", true);
+      });
+
+      // 2. [수정] 일일 업무 데이터 리스너
       const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
       if (unsubscribeToday) unsubscribeToday();
 
@@ -1767,17 +1841,33 @@ async function main() {
           taskTypes.forEach(task => defaultState.taskQuantities[task] = 0);
 
           const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
-          appState = {
-            ...defaultState,
-            ...loadedState,
-            taskQuantities: { ...defaultState.taskQuantities, ...(loadedState.taskQuantities || {}) }
-          };
+          
+          // [수정] 일일 데이터(업무, 처리량, 알바, 당일 근태)만 로드
+          appState.workRecords = loadedState.workRecords || [];
+          appState.taskQuantities = { ...defaultState.taskQuantities, ...(loadedState.taskQuantities || {}) };
+          appState.partTimers = loadedState.partTimers || [];
+          appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
+          
+          // [수정] 일일 근태(외출/조퇴)와 영구 근태(연차 등) 합치기
+          const dailyLeave = loadedState.onLeaveMembers || []; // '외출', '조퇴'
+          const today = getTodayDateString();
+          const dateBasedLeave = (persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
+              if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+                  const endDate = entry.endDate || entry.startDate;
+                  return today >= entry.startDate && today <= endDate;
+              }
+              return false;
+          });
+          
+          appState.onLeaveMembers = [...dailyLeave, ...dateBasedLeave];
+
           render();
           if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
           if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
         } catch (parseError) {
           console.error('Error parsing state from Firestore:', parseError);
           showToast('데이터 로딩 중 오류 발생 (파싱 실패).', true);
+          // ... (오류 시 초기화 로직은 동일) ...
           const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
           appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
           taskTypes.forEach(task => appState.taskQuantities[task] = 0);
@@ -1799,6 +1889,7 @@ async function main() {
       if (connectionStatusEl) connectionStatusEl.textContent = '인증 필요';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
       if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
+      if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; } // 리스너 해제
       const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
       appState = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
       taskTypes.forEach(task => appState.taskQuantities[task] = 0);

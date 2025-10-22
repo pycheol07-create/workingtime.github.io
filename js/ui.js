@@ -228,16 +228,9 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
     
-    // '외출'이고 endTime이 있는 경우(복귀한 경우)는 휴무 맵에서 제외
+    // [수정] appState.onLeaveMembers는 이제 오늘 날짜에 필터링된 *전체* 휴무 목록임
     const onLeaveStatusMap = new Map(
-        (appState.onLeaveMembers || [])
-            .filter(item => {
-                if (item.type === '외출' && item.endTime) {
-                    return false; 
-                }
-                return true;
-            })
-            .map(item => [item.member, item])
+        (appState.onLeaveMembers || []).map(item => [item.member, item])
     );
 
     const orderedTeamGroups = [
@@ -424,13 +417,8 @@ export const updateSummary = (appState, teamGroups = []) => {
     const totalStaffCount = allStaffMembers.size;
     const totalPartTimerCount = allPartTimers.size;
 
-    const onLeaveEntries = (appState.onLeaveMembers || []).filter(item => {
-        // [수정] '외출'이면서 endTime이 있으면 (복귀했으면) 휴무자 수에서 제외
-        if (item.type === '외출' && item.endTime) {
-            return false; 
-        }
-        return true;
-    });
+    // [수정] appState.onLeaveMembers는 이미 필터링된 목록임
+    const onLeaveEntries = appState.onLeaveMembers || [];
     const onLeaveMemberNames = new Set(onLeaveEntries.map(item => item.member));
     const onLeaveTotalCount = onLeaveMemberNames.size; 
 
@@ -468,12 +456,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     const allWorkingMembers = new Set(
         (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused').map(r => r.member)
     );
-    // [수정] 복귀한 '외출' 인원 제외
-    const onLeaveMemberNames = new Set(
-        (appState.onLeaveMembers || [])
-            .filter(item => !(item.type === '외출' && item.endTime))
-            .map(item => item.member)
-    );
+    // [수정] appState.onLeaveMembers는 이미 필터링된 목록임
+    const onLeaveMemberNames = new Set((appState.onLeaveMembers || []).map(item => item.member));
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -617,7 +601,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     }
 };
 
-// [수정] 이름 변경: renderAttendanceHistory -> renderAttendanceDailyHistory
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
@@ -691,7 +674,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     view.innerHTML = html;
 };
 
-// [추가] 근태 주별 요약 렌더링
 export const renderAttendanceWeeklyHistory = (allHistoryData) => {
     const view = document.getElementById('history-attendance-weekly-view');
     if (!view) return;
@@ -763,7 +745,6 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
     view.innerHTML = html;
 };
 
-// [추가] 근태 월별 요약 렌더링
 export const renderAttendanceMonthlyHistory = (allHistoryData) => {
     const view = document.getElementById('history-attendance-monthly-view');
     if (!view) return;

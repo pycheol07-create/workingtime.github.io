@@ -13,7 +13,7 @@ export const firebaseConfig = {
     measurementId: "G-ZZQLKB0057"
 };
 
-// 2. 앱 ID (app.js에서 가져옴)
+// 2. 앱 ID
 const APP_ID = 'team-work-logger-v2';
 let db, auth;
 
@@ -31,8 +31,8 @@ export const initializeFirebase = () => {
     }
 };
 
-// 4. Firestore에서 설정 불러오기 (핵심)
-export const loadConfiguration = async (dbInstance) => {
+// 4. [수정] Firestore에서 *앱 설정* 불러오기
+export const loadAppConfig = async (dbInstance) => {
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
     
@@ -41,36 +41,68 @@ export const loadConfiguration = async (dbInstance) => {
     try {
         const docSnap = await getDoc(configDocRef);
         if (docSnap.exists()) {
-            console.log("Firestore에서 설정을 불러왔습니다.");
+            console.log("Firestore에서 앱 설정을 불러왔습니다.");
             return docSnap.data();
         } else {
-            // 문서가 없으면, 기존 config.js의 내용으로 기본 문서를 생성합니다.
-            console.warn("Firestore에 설정 문서가 없습니다. 기본값으로 새로 생성합니다.");
+            console.warn("Firestore에 앱 설정 문서가 없습니다. 기본값으로 새로 생성합니다.");
             const defaultData = getDefaultConfig();
             await setDoc(configDocRef, defaultData);
             return defaultData;
         }
     } catch (e) {
-        console.error("설정 불러오기 실패:", e);
-        alert("설정 정보를 불러오는 데 실패했습니다.");
-        return getDefaultConfig(); // 실패 시 로컬 기본값 반환
+        console.error("앱 설정 불러오기 실패:", e);
+        alert("앱 설정 정보를 불러오는 데 실패했습니다.");
+        return getDefaultConfig();
     }
 };
 
-// 5. Firestore에 설정 저장하기 (admin.js용)
-export const saveConfiguration = async (dbInstance, configData) => {
+// 5. Firestore에 *앱 설정* 저장하기 (admin.js용)
+export const saveAppConfig = async (dbInstance, configData) => {
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
 
-    // Firestore에 저장할 수 없는 undefined 값 제거
     const cleanedConfig = JSON.parse(JSON.stringify(configData));
-
     const configDocRef = doc(dbToUse, 'artifacts', APP_ID, 'config', 'mainConfig');
     await setDoc(configDocRef, cleanedConfig);
 };
 
+// 6. [추가] Firestore에서 *근태 일정* 불러오기
+export const loadLeaveSchedule = async (dbInstance) => {
+    const dbToUse = dbInstance || db;
+    if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
+    
+    const leaveDocRef = doc(dbToUse, 'artifacts', APP_ID, 'persistent_data', 'leaveSchedule');
+    
+    try {
+        const docSnap = await getDoc(leaveDocRef);
+        if (docSnap.exists()) {
+            console.log("Firestore에서 근태 일정을 불러왔습니다.");
+            return docSnap.data() || { onLeaveMembers: [] };
+        } else {
+            // 문서가 없으면 빈 일정으로 새로 생성
+            console.warn("Firestore에 근태 일정 문서가 없습니다. 새로 생성합니다.");
+            const defaultLeaveData = { onLeaveMembers: [] };
+            await setDoc(leaveDocRef, defaultLeaveData);
+            return defaultLeaveData;
+        }
+    } catch (e) {
+        console.error("근태 일정 불러오기 실패:", e);
+        return { onLeaveMembers: [] }; // 실패 시 빈 일정 반환
+    }
+};
 
-// 6. Firestore 로드 실패 또는 최초 실행 시 사용할 기본 데이터
+// 7. [추가] Firestore에 *근태 일정* 저장하기
+export const saveLeaveSchedule = async (dbInstance, leaveData) => {
+    const dbToUse = dbInstance || db;
+    if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
+
+    const cleanedLeaveData = JSON.parse(JSON.stringify(leaveData));
+    const leaveDocRef = doc(dbToUse, 'artifacts', APP_ID, 'persistent_data', 'leaveSchedule');
+    await setDoc(leaveDocRef, cleanedLeaveData);
+};
+
+
+// 8. 기본 앱 설정 데이터 (근태 일정 제거)
 function getDefaultConfig() {
     return {
         teamGroups: [
