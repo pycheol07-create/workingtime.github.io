@@ -1345,10 +1345,7 @@ if (resetAppBtn) resetAppBtn.addEventListener('click', () => { if (resetAppModal
 
 if (confirmResetAppBtn) confirmResetAppBtn.addEventListener('click', async () => {
   try {
-    const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-    await deleteDoc(docRef);
-    
-    // [수정] 오늘을 포함한 미래의 날짜 기반 근태 기록은 남기도록 수정
+    // [수정] deleteDoc(docRef) 대신, 오늘 날짜 이전의 근태만 필터링하여 덮어쓰기
     const today = getTodayDateString();
     const currentLeaveMembers = appState.onLeaveMembers || [];
     
@@ -1358,23 +1355,26 @@ if (confirmResetAppBtn) confirmResetAppBtn.addEventListener('click', async () =>
             const endDate = entry.endDate || entry.startDate; // 종료일이 없으면 시작일 당일
             return endDate >= today; // 종료일이 오늘이거나 미래인 경우만 남김
         }
-        // 시간 기반 휴무(외출, 조퇴)는 당일 초기화 대상이므로 남기지 않음
+        // 시간 기반(외출, 조퇴)은 당일 기록이므로 모두 삭제
         return false; 
     });
 
     const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
     
-    // [수정] appState를 초기화할 때, 필터링된 futureLeaveEntries를 onLeaveMembers로 설정
     appState = { 
-        workRecords: [], 
-        taskQuantities: {}, 
-        onLeaveMembers: futureLeaveEntries, // <-- 수정된 부분
-        partTimers: [], 
-        hiddenGroupIds: [] 
+        workRecords: [], // 업무 기록 삭제
+        taskQuantities: {}, // 처리량 삭제
+        onLeaveMembers: futureLeaveEntries, // 미래 근태만 남김
+        partTimers: appState.partTimers, // 알바 목록은 유지
+        hiddenGroupIds: [] // 숨김 그룹 초기화
     };
     taskTypes.forEach(task => appState.taskQuantities[task] = 0);
     
-    render();
+    // [수정] deleteDoc 대신 saveStateToFirestore() 호출
+    // 이렇게 하면 onSnapshot 리스너가 "삭제"가 아닌 "수정"으로 감지하여
+    // 보존된 onLeaveMembers가 포함된 새 상태로 앱을 갱신합니다.
+    await saveStateToFirestore(); 
+    
     showToast('오늘의 업무 기록이 초기화되었습니다. (근태 일정은 유지됨)');
   } catch (error) {
     console.error('Error resetting data:', error);
