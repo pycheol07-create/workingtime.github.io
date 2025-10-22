@@ -18,15 +18,15 @@
         .btn-danger { @apply bg-red-500 text-white hover:bg-red-600; }
         .btn-small { @apply px-2 py-1 text-xs; }
 
-        /* ✅ [추가] 드래그 핸들 스타일 */
+        /* [추가] 드래그 핸들 스타일 */
         .drag-handle {
             @apply cursor-move text-gray-400 hover:text-gray-600 mr-2 text-lg inline-block align-middle -mt-1;
         }
-        /* ✅ [추가] 드래그 중인 항목 스타일 */
+        /* [추가] 드래그 중인 항목 스타일 */
         .dragging {
             @apply opacity-50 bg-blue-100;
         }
-        /* ✅ [추가] 드롭 위치 표시 스타일 */
+        /* [추가] 드롭 위치 표시 스타일 */
         .drag-over {
              @apply border-t-2 border-blue-500;
         }
@@ -71,7 +71,6 @@
                 <h2 class="text-2xl font-bold text-gray-800">팀원 및 시급 관리 (그룹 순서 변경 가능)</h2>
                 <button id="add-team-group-btn" class="btn btn-secondary">+ 새 그룹 추가</button>
             </div>
-            {/* ✅ [추가] UI 일관성을 위한 설명 P 태그 */}
             <p class="text-sm text-gray-500 mb-4 -mt-2">(메인 앱의 '팀원 선택' 모달에 표시될 그룹입니다. 순서 변경 시 반영됩니다)</p>
             <div id="team-groups-container" class="space-y-6">
                 </div>
@@ -82,8 +81,10 @@
                 <h2 class="text-2xl font-bold text-gray-800">주요 업무 관리 (순서 변경 가능)</h2>
                  <p class="text-sm text-gray-500">(메인 화면 대시보드에 표시될 업무 카드 목록입니다. 순서 변경 시 메인 화면에도 반영됨)</p>
             </div>
-            <div id="key-tasks-container" class="space-y-2">
-                </div>
+            <div class="p-4 bg-gray-50 rounded-lg border mt-2">
+                <div id="key-tasks-container" class="space-y-1">
+                    </div>
+            </div>
             <button id="add-key-task-btn" class="btn btn-secondary mt-4">+ 주요 업무 추가</button>
         </div>
 
@@ -102,8 +103,10 @@
                 <h2 class="text-2xl font-bold text-gray-800">처리량 집계 업무 관리 (순서 변경 가능)</h2>
                 <p class="text-sm text-gray-500">('업무 관리'에 등록된 업무 이름과 정확히 일치해야 합니다)</p>
             </div>
-            <div id="quantity-tasks-container" class="space-y-2">
-                </div>
+            <div class="p-4 bg-gray-50 rounded-lg border mt-2">
+                <div id="quantity-tasks-container" class="space-y-1">
+                    </div>
+            </div>
             <button id="add-quantity-task-btn" class="btn btn-secondary mt-4">+ 처리량 업무 추가</button>
         </div>
 

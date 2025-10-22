@@ -1,4 +1,4 @@
-// === admin.js (모든 섹션 및 하위 항목 드래그앤드랍 기능 수정) ===
+// === admin.js (드래그앤드랍 이벤트 버블링 버그 수정) ===
 
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 
@@ -74,7 +74,6 @@ function renderTeamGroups(teamGroups, memberWages) {
         groupEl.dataset.index = index;
         groupEl.draggable = true; // 그룹 카드 드래그
 
-        // ✅ [수정] .member-item 에 draggable=true 및 핸들(☰) 추가
         const membersHtml = group.members.map((member, mIndex) => `
             <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item" draggable="true">
                 <span class="drag-handle">☰</span>
@@ -105,8 +104,7 @@ function renderKeyTasks(keyTasks) {
     container.innerHTML = '';
     keyTasks.forEach((task, index) => {
         const taskEl = document.createElement('div');
-        // ✅ [수정] UI 통일성을 위해 배경색/테두리/그림자 추가 (문제 1 해결)
-        taskEl.className = 'flex items-center gap-2 mb-2 p-2 rounded border bg-white shadow-sm hover:bg-gray-50 key-task-item';
+        taskEl.className = 'flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 key-task-item';
         taskEl.dataset.index = index;
         taskEl.draggable = true;
         taskEl.innerHTML = `
@@ -130,7 +128,6 @@ function renderTaskGroups(taskGroups) {
         groupEl.dataset.index = index;
         groupEl.draggable = true; // 그룹 카드 드래그
 
-        // ✅ [수정] .task-item 에 draggable=true 및 핸들(☰) 추가, input에 flex-grow 추가
         const tasksHtml = tasks.map((task, tIndex) => `
             <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item" draggable="true">
                 <span class="drag-handle">☰</span>
@@ -159,8 +156,7 @@ function renderQuantityTasks(quantityTasks) {
     container.innerHTML = '';
     quantityTasks.forEach((task, index) => {
         const taskEl = document.createElement('div');
-        // ✅ [수정] UI 통일성을 위해 배경색/테두리/그림자 추가 (문제 1 해결)
-        taskEl.className = 'flex items-center gap-2 mb-2 p-2 rounded border bg-white shadow-sm hover:bg-gray-50 quantity-task-item';
+        taskEl.className = 'flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 quantity-task-item';
         taskEl.dataset.index = index;
         taskEl.draggable = true;
         taskEl.innerHTML = `
@@ -182,7 +178,7 @@ function setupEventListeners() {
 
     document.body.addEventListener('click', handleDynamicClicks);
 
-    // ✅ [수정] 모든 레벨의 드래그앤드롭 리스너 설정 (문제 2 해결)
+    // [수정] 모든 레벨의 드래그앤드롭 리스너 설정
     setupDragDropListeners('#team-groups-container', '.team-group-card'); // 1. 팀 그룹 (카드)
     setupDragDropListeners('.members-container', '.member-item'); // 2. 팀원 (항목)
     
@@ -194,14 +190,14 @@ function setupEventListeners() {
     setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item'); // 6. 처리량 업무 (항목)
 }
 
-// [추가] 동적 항목 추가 함수들
+// 동적 항목 추가 함수들
 function addTeamGroup() {
     const newGroup = { name: '새 그룹', members: ['새 팀원'] };
     appConfig.teamGroups = appConfig.teamGroups || [];
     appConfig.teamGroups.push(newGroup);
     if (!appConfig.memberWages) appConfig.memberWages = {};
     appConfig.memberWages['새 팀원'] = appConfig.defaultPartTimerWage || 10000;
-    // ✅ [수정] 렌더링 후 리스너 재설정
+    
     renderTeamGroups(appConfig.teamGroups, appConfig.memberWages);
     setupDragDropListeners('.members-container', '.member-item'); // 새로 생긴 .members-container에 리스너 추가
 }
@@ -210,14 +206,13 @@ function addKeyTask() {
     appConfig.keyTasks = appConfig.keyTasks || [];
     appConfig.keyTasks.push('새 주요 업무');
     renderKeyTasks(appConfig.keyTasks);
-    // (키 태스크는 컨테이너가 1개라 setupEventListeners에서 이미 처리됨)
 }
 
 function addTaskGroup() {
     const newGroupName = `새 업무 그룹 ${Object.keys(appConfig.taskGroups || {}).length + 1}`;
     if (!appConfig.taskGroups) appConfig.taskGroups = {};
     appConfig.taskGroups[newGroupName] = ['새 업무'];
-    // ✅ [수정] 렌더링 후 리스너 재설정
+    
     renderTaskGroups(appConfig.taskGroups);
     setupDragDropListeners('.tasks-container', '.task-item'); // 새로 생긴 .tasks-container에 리스너 추가
 }
@@ -226,19 +221,18 @@ function addQuantityTask() {
     appConfig.quantityTaskTypes = appConfig.quantityTaskTypes || [];
     appConfig.quantityTaskTypes.push('새 처리량 업무');
     renderQuantityTasks(appConfig.quantityTaskTypes);
-    // (처리량 태스크는 컨테이너가 1개라 setupEventListeners에서 이미 처리됨)
 }
 
-// [수정] 동적 클릭 이벤트 핸들러 분리
+// 동적 클릭 이벤트 핸들러
 function handleDynamicClicks(e) {
     // 팀원 추가/삭제, 팀 그룹 삭제
     if (e.target.classList.contains('add-member-btn')) {
         const container = e.target.previousElementSibling;
         const newMemberEl = document.createElement('div');
-        newMemberEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item'; // ✅ 스타일 일치
-        newMemberEl.draggable = true; // ✅ 드래그 가능
+        newMemberEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item';
+        newMemberEl.draggable = true;
         newMemberEl.innerHTML = `
-            <span class="drag-handle">☰</span> {/* ✅ 핸들 추가 */}
+            <span class="drag-handle">☰</span>
             <input type="text" value="새 팀원" class="member-name" placeholder="팀원 이름">
             <label class="text-sm whitespace-nowrap">시급:</label>
             <input type="number" value="${appConfig.defaultPartTimerWage || 10000}" class="member-wage w-28" placeholder="시급">
@@ -258,10 +252,10 @@ function handleDynamicClicks(e) {
     else if (e.target.classList.contains('add-task-btn')) {
         const container = e.target.previousElementSibling;
         const newTaskEl = document.createElement('div');
-        newTaskEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item'; // ✅ 스타일 일치
-        newTaskEl.draggable = true; // ✅ 드래그 가능
+        newTaskEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item';
+        newTaskEl.draggable = true;
         newTaskEl.innerHTML = `
-            <span class="drag-handle">☰</span> {/* ✅ 핸들 추가 */}
+            <span class="drag-handle">☰</span>
             <input type="text" value="새 업무" class="task-name flex-grow">
             <button class="btn btn-danger btn-small delete-task-btn">삭제</button>
         `;
@@ -277,14 +271,12 @@ function handleDynamicClicks(e) {
     }
 }
 
-// ✅ [수정] 드래그 앤 드롭 설정 함수 (로직 대폭 수정)
+// 드래그 앤 드롭 설정 함수
 function setupDragDropListeners(containerSelector, itemSelector) {
-    // 1. [수정] 여러 컨테이너(예: .members-container)에 적용하기 위해 querySelectorAll 사용
     const containers = document.querySelectorAll(containerSelector);
     if (containers.length === 0) return;
 
     containers.forEach(container => {
-        // 2. [수정] 중복 리스너 부착 방지 (고유 ID 사용)
         const listenerId = `drag-${itemSelector}`;
         if (container.dataset.dragListenersAttached?.includes(listenerId)) {
             return;
@@ -294,18 +286,20 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
         container.addEventListener('dragstart', (e) => {
             const item = e.target.closest(itemSelector);
-
-            // 3. [수정] 핸들(☰)을 클릭했을 때만 드래그 시작 (Input 등 방해 방지)
+            
+            // [수정] 핸들(☰)을 클릭했을 때만 드래그 시작
             if (!item || !e.target.classList.contains('drag-handle')) {
-                e.preventDefault();
+                // e.preventDefault(); // 핸들 아닌 곳 클릭 시 기본 동작(예: 텍스트 선택) 방해 안 함
                 return;
             }
-
-            // 4. [수정] 이벤트 버블링 방지: 리스너가 부착된 컨테이너의 '직계 자식' 아이템이 맞는지 확인
-            // (예: #team-groups-container(상위) 리스너가 .member-item(하위) 이벤트를 무시하도록)
+            
             if (item.parentElement !== container) {
                 return;
             }
+
+            // ✅ [BUGFIX] 이벤트가 부모로 전파되는 것을 막습니다.
+            // (예: .member-item의 드래그가 #team-groups-container에 잡히는 것 방지)
+            e.stopPropagation();
 
             draggedItem = item;
             setTimeout(() => draggedItem.classList.add('dragging'), 0);
@@ -317,19 +311,19 @@ function setupDragDropListeners(containerSelector, itemSelector) {
                 draggedItem.classList.remove('dragging');
                 draggedItem = null;
             }
-            // 모든 드래그 오버 효과 제거
             document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
         });
 
         container.addEventListener('dragover', (e) => {
             e.preventDefault();
+            // ✅ [FIX] 버블링 방지를 위해 stopPropagation 추가
+            e.stopPropagation(); 
+            
             const targetItem = e.target.closest(itemSelector);
             
-            // 이 컨테이너 내의 항목인지 확인
             if (targetItem && targetItem !== draggedItem && targetItem.parentElement === container) {
-                 // 기존 효과 지우기 (같은 컨테이너 내에서만)
                  container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-                 targetItem.classList.add('drag-over'); // 드롭 위치 시각적 피드백
+                 targetItem.classList.add('drag-over');
             }
         });
 
@@ -343,10 +337,12 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
         container.addEventListener('drop', (e) => {
             e.preventDefault();
+            // ✅ [FIX] 버블링 방지를 위해 stopPropagation 추가
+            e.stopPropagation(); 
+            
             const targetItem = e.target.closest(itemSelector);
             document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
 
-            // 5. [수정] 드롭 유효성 검사 (반드시 같은 컨테이너 내에서만 이동)
             if (targetItem && draggedItem && targetItem !== draggedItem && 
                 targetItem.parentElement === container && 
                 draggedItem.parentElement === container) 
@@ -355,7 +351,6 @@ function setupDragDropListeners(containerSelector, itemSelector) {
                 const draggedIndex = children.indexOf(draggedItem);
                 const targetIndex = children.indexOf(targetItem);
 
-                // 삽입
                 if (draggedIndex < targetIndex) {
                     container.insertBefore(draggedItem, targetItem.nextSibling);
                 } else {
@@ -392,7 +387,6 @@ async function handleSaveAll() {
 
             const newGroup = { name: groupName, members: [] };
             
-            // ✅ [수정] DOM에서 순서대로 읽기 (이미 올바르게 되어 있었음)
             groupCard.querySelectorAll('.member-item').forEach(memberItem => {
                 const memberName = memberItem.querySelector('.member-name').value.trim();
                 const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
@@ -419,7 +413,7 @@ async function handleSaveAll() {
             if (!groupName) return;
 
             const tasks = [];
-            // ✅ [수정] DOM에서 순서대로 읽기 (이미 올바르게 되어 있었음)
+            
             groupCard.querySelectorAll('.task-item').forEach(taskItem => {
                 const taskName = taskItem.querySelector('.task-name').value.trim();
                 if (taskName) tasks.push(taskName);
@@ -448,9 +442,7 @@ async function handleSaveAll() {
 
         // 7. UI 다시 렌더링 (리스너 재설정 포함)
         renderAdminUI(appConfig);
-        // 렌더링 함수가 내부 컨테이너(.members-container 등)를 다시 만들었으므로,
-        // 리스너를 다시 설정해줘야 합니다.
-        setupEventListeners();
+        setupEventListeners(); // 렌더링 후 리스너 재설정
 
 
     } catch (e) {
