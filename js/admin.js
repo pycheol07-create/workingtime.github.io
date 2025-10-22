@@ -1,4 +1,4 @@
-// === admin.js (드래그앤드랍 e.preventDefault() 버그 수정) ===
+// === admin.js (드래그앤드랍 로직 수정) ===
 
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- UI 렌더링 ---
-// (renderAdminUI, renderTeamGroups, renderKeyTasks, renderTaskGroups, renderQuantityTasks 함수는 이전과 동일)
+// (renderAdminUI 함수는 이전과 동일)
 function renderAdminUI(config) {
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) {
@@ -87,31 +87,32 @@ function renderTeamGroups(teamGroups, memberWages) {
     container.innerHTML = '';
     teamGroups.forEach((group, index) => {
         const groupEl = document.createElement('div');
+        // [수정] groupEl에서 draggable="true" 제거
         groupEl.className = 'p-4 border rounded-lg bg-gray-50 team-group-card';
         groupEl.dataset.index = index;
-        groupEl.draggable = true; // 그룹 카드 드래그
+        // groupEl.draggable = true; // [제거]
 
         const membersHtml = group.members.map((member, mIndex) => `
-            <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item" draggable="true">
-                <span class="drag-handle">☰</span>
+            <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item">
+                <span class="drag-handle" draggable="true">☰</span>
                 <input type="text" value="${member}" class="member-name" placeholder="팀원 이름">
                 <label class="text-sm whitespace-nowrap">시급:</label>
                 <input type="number" value="${memberWages[member] || 0}" class="member-wage w-28" placeholder="시급">
                 <button class="btn btn-danger btn-small delete-member-btn" data-m-index="${mIndex}">삭제</button>
             </div>
-        `).join('');
+        `).join(''); // [수정] member-item에서 draggable="true" 제거, handle에 draggable="true" 추가
 
         groupEl.innerHTML = `
             <div class="flex justify-between items-center mb-4">
                 <div class="flex items-center">
-                    <span class="drag-handle">☰</span> 
+                    <span class="drag-handle" draggable="true">☰</span> 
                     <input type="text" value="${group.name}" class="text-lg font-semibold team-group-name w-auto">
                 </div>
                 <button class="btn btn-danger btn-small delete-team-group-btn">그룹 삭제</button>
             </div>
             <div class="pl-4 border-l-2 border-gray-200 space-y-2 members-container">${membersHtml}</div>
             <button class="btn btn-secondary btn-small mt-3 add-member-btn">+ 팀원 추가</button>
-        `;
+        `; // [수정] group-card의 handle에 draggable="true" 추가
         container.appendChild(groupEl);
     });
 }
@@ -121,13 +122,14 @@ function renderKeyTasks(keyTasks) {
     container.innerHTML = '';
     keyTasks.forEach((task, index) => {
         const taskEl = document.createElement('div');
+        // [수정] key-task-item에서 draggable="true" 제거
         taskEl.className = 'flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 key-task-item';
         taskEl.dataset.index = index;
-        taskEl.draggable = true;
+        // taskEl.draggable = true; // [제거]
         taskEl.innerHTML = `
-            <span class="drag-handle">☰</span> <input type="text" value="${task}" class="key-task-name flex-grow">
+            <span class="drag-handle" draggable="true">☰</span> <input type="text" value="${task}" class="key-task-name flex-grow">
             <button class="btn btn-danger btn-small delete-key-task-btn" data-index="${index}">삭제</button>
-        `;
+        `; // [수정] handle에 draggable="true" 추가
         container.appendChild(taskEl);
     });
 }
@@ -141,29 +143,30 @@ function renderTaskGroups(taskGroups) {
     groupNames.forEach((groupName, index) => {
         const tasks = taskGroups[groupName] || [];
         const groupEl = document.createElement('div');
+        // [수정] task-group-card에서 draggable="true" 제거
         groupEl.className = 'p-4 border rounded-lg bg-gray-50 task-group-card';
         groupEl.dataset.index = index;
-        groupEl.draggable = true; // 그룹 카드 드래그
+        // groupEl.draggable = true; // [제거]
 
         const tasksHtml = tasks.map((task, tIndex) => `
-            <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item" draggable="true">
-                <span class="drag-handle">☰</span>
+            <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item">
+                <span class="drag-handle" draggable="true">☰</span>
                 <input type="text" value="${task}" class="task-name flex-grow">
                 <button class="btn btn-danger btn-small delete-task-btn" data-t-index="${tIndex}">삭제</button>
             </div>
-        `).join('');
+        `).join(''); // [수정] task-item에서 draggable="true" 제거, handle에 draggable="true" 추가
 
         groupEl.innerHTML = `
              <div class="flex justify-between items-center mb-4">
                 <div class="flex items-center"> 
-                   <span class="drag-handle">☰</span>
+                   <span class="drag-handle" draggable="true">☰</span>
                    <input type="text" value="${groupName}" class="text-lg font-semibold task-group-name w-auto">
                  </div>
                 <button class="btn btn-danger btn-small delete-task-group-btn">그룹 삭제</button>
             </div>
             <div class="pl-4 border-l-2 border-gray-200 space-y-2 tasks-container">${tasksHtml}</div>
             <button class="btn btn-secondary btn-small mt-3 add-task-btn">+ 업무 추가</button>
-        `;
+        `; // [수정] group-card의 handle에 draggable="true" 추가
         container.appendChild(groupEl);
     });
 }
@@ -173,13 +176,14 @@ function renderQuantityTasks(quantityTasks) {
     container.innerHTML = '';
     quantityTasks.forEach((task, index) => {
         const taskEl = document.createElement('div');
+        // [수정] quantity-task-item에서 draggable="true" 제거
         taskEl.className = 'flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 quantity-task-item';
         taskEl.dataset.index = index;
-        taskEl.draggable = true;
+        // taskEl.draggable = true; // [제거]
         taskEl.innerHTML = `
-            <span class="drag-handle">☰</span> <input type="text" value="${task}" class="quantity-task-name flex-grow">
+            <span class="drag-handle" draggable="true">☰</span> <input type="text" value="${task}" class="quantity-task-name flex-grow">
             <button class="btn btn-danger btn-small delete-quantity-task-btn" data-index="${index}">삭제</button>
-        `;
+        `; // [수정] handle에 draggable="true" 추가
         container.appendChild(taskEl);
     });
 }
@@ -208,7 +212,7 @@ function setupEventListeners() {
     setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item'); // 6. 처리량 업무 (항목)
 }
 
-// (addTeamGroup, addKeyTask, addTaskGroup, addQuantityTask, handleDynamicClicks 함수는 이전과 동일)
+// (addTeamGroup, addKeyTask, addTaskGroup, addQuantityTask 함수는 이전과 동일)
 function addTeamGroup() {
     const newGroup = { name: '새 그룹', members: ['새 팀원'] };
     appConfig.teamGroups = appConfig.teamGroups || [];
@@ -247,14 +251,14 @@ function handleDynamicClicks(e) {
         const container = e.target.previousElementSibling;
         const newMemberEl = document.createElement('div');
         newMemberEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item';
-        newMemberEl.draggable = true;
+        // newMemberEl.draggable = true; // [제거]
         newMemberEl.innerHTML = `
-            <span class="drag-handle">☰</span>
+            <span class="drag-handle" draggable="true">☰</span>
             <input type="text" value="새 팀원" class="member-name" placeholder="팀원 이름">
             <label class="text-sm whitespace-nowrap">시급:</label>
             <input type="number" value="${appConfig.defaultPartTimerWage || 10000}" class="member-wage w-28" placeholder="시급">
             <button class="btn btn-danger btn-small delete-member-btn">삭제</button>
-        `;
+        `; // [수정] handle에 draggable="true" 추가
         container.appendChild(newMemberEl);
     } else if (e.target.classList.contains('delete-member-btn')) {
         e.target.closest('.member-item').remove();
@@ -270,12 +274,12 @@ function handleDynamicClicks(e) {
         const container = e.target.previousElementSibling;
         const newTaskEl = document.createElement('div');
         newTaskEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item';
-        newTaskEl.draggable = true;
+        // newTaskEl.draggable = true; // [제거]
         newTaskEl.innerHTML = `
-            <span class="drag-handle">☰</span>
+            <span class="drag-handle" draggable="true">☰</span>
             <input type="text" value="새 업무" class="task-name flex-grow">
             <button class="btn btn-danger btn-small delete-task-btn">삭제</button>
-        `;
+        `; // [수정] handle에 draggable="true" 추가
         container.appendChild(newTaskEl);
     } else if (e.target.classList.contains('delete-task-btn')) {
         e.target.closest('.task-item').remove();
@@ -289,7 +293,7 @@ function handleDynamicClicks(e) {
 }
 
 
-// ✅ [수정] 드래그 앤 드롭 설정 함수 (preventDefault 위치 수정)
+// ✅ [수정] 드래그 앤 드롭 설정 함수 (로직 변경)
 function setupDragDropListeners(containerSelector, itemSelector) {
     const containers = document.querySelectorAll(containerSelector);
     if (containers.length === 0) return;
@@ -305,13 +309,21 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
         // [dragstart] - 핸들 클릭 시, 올바른 아이템이면 draggedItem 설정
         container.addEventListener('dragstart', (e) => {
-            const item = e.target.closest(itemSelector);
-            if (!item || !e.target.classList.contains('drag-handle')) {
-                return; 
-            }
-            if (item.parentElement !== container) {
+            // [수정] e.target이 drag-handle인지 확인
+            if (!e.target.classList.contains('drag-handle')) {
+                // 핸들이 아니면(예: input 클릭) 드래그 시작 안 함
+                e.preventDefault(); 
                 return;
             }
+
+            // [수정] e.target은 핸들(span)이므로, 부모 아이템(card/item)을 찾음
+            const item = e.target.closest(itemSelector); 
+            
+            if (!item || item.parentElement !== container) {
+                // 올바른 아이템이 아니거나, 해당 컨테이너의 자식이 아니면 무시
+                return;
+            }
+            
             e.stopPropagation();
             draggedItem = item;
             setTimeout(() => draggedItem.classList.add('dragging'), 0);
