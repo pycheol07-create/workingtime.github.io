@@ -1058,7 +1058,19 @@ if (cancelTeamSelectBtn) { /* ... */ }
 [toggleCompletedLog, toggleAnalysis, toggleSummary].forEach(toggle => { /* ... */ });
 if (teamSelectModal) { /* ... */ }
 if (confirmEditPartTimerBtn) { /* ... */ }
-if (confirmTeamSelectBtn) { /* ... */ }
+const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
+if (confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
+  if (tempSelectedMembers.length === 0) { showToast('추가할 팀원을 선택해주세요.', true); return; }
+  if (selectedGroupForAdd !== null) {
+    addMembersToWorkGroup(tempSelectedMembers, selectedTaskForStart, selectedGroupForAdd);
+    showToast(`${selectedTaskForStart} 업무에 인원이 추가되었습니다.`);
+  } else if (selectedTaskForStart) {
+    startWorkGroup(tempSelectedMembers, selectedTaskForStart);
+    showToast(`${selectedTaskForStart} 업무를 시작합니다.`);
+  }
+  if (teamSelectModal) teamSelectModal.classList.add('hidden');
+  tempSelectedMembers = []; selectedTaskForStart = null; selectedGroupForAdd = null;
+});
 
 // ========== 앱 초기화 ==========
 async function main() {
