@@ -1,35 +1,66 @@
 import { formatTimeTo24H, formatDuration } from './utils.js';
 
-// [수정] 업무별 카드 스타일 정의 -> 기본/일시정지로 통일
+// [수정] 업무별 카드 스타일 정의 -> 전광판 느낌 + 불 켜진 느낌
 const taskCardStyles = {
-    'default': ['bg-white', 'border-gray-200'],
-    'paused': ['bg-yellow-50', 'border-yellow-200']
+    // [추가] 시작 전 (전광판 OFF)
+    'default': {
+        card: ['bg-zinc-800', 'border-zinc-700', 'text-zinc-300', 'shadow-inner'], // 어두운 배경, 어두운 테두리, 밝은 텍스트
+        hover: 'hover:border-blue-500 hover:shadow-lg',
+        title: 'text-zinc-100', // 업무 제목은 약간 더 밝게
+        subtitle: 'text-zinc-400', // 시작시간, 참여인원 텍스트
+        buttonBgOff: 'bg-zinc-700',
+        buttonTextOff: 'text-zinc-400',
+        buttonHoverOff: 'hover:bg-zinc-600'
+    },
+    // [추가] 업무 진행 중 (전광판 ON)
+    'ongoing': {
+        card: ['bg-blue-50', 'border-blue-400', 'text-gray-800', 'shadow-lg', 'shadow-blue-200/50'], // 밝은 배경, 파란 테두리, 어두운 텍스트
+        hover: 'hover:border-blue-600 hover:shadow-xl',
+        title: '', // 여기에 taskTitleColors[task]가 들어갈 예정
+        subtitle: 'text-gray-600',
+        buttonBgOn: 'bg-blue-600',
+        buttonTextOn: 'text-white',
+        buttonHoverOn: 'hover:bg-blue-700'
+    },
+    // [유지] 일시정지 (일시정지 표시)
+    'paused': {
+        card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
+        hover: 'hover:border-yellow-400 hover:shadow-lg',
+        title: 'text-yellow-800',
+        subtitle: 'text-yellow-700',
+        buttonBgOn: 'bg-yellow-600',
+        buttonTextOn: 'text-white',
+        buttonHoverOn: 'hover:bg-yellow-700'
+    }
 };
 
-// [추가] 업무별 *제목* 색상 정의
+// [수정] 업무별 *제목* 색상 정의 (ongoing 상태일 때 사용)
+// default는 taskCardStyles의 title로 대체
 const taskTitleColors = {
-    '국내배송': 'text-green-600',
-    '중국제작': 'text-purple-600',
-    '직진배송': 'text-emerald-600',
-    '채우기': 'text-sky-600',
-    '개인담당업무': 'text-indigo-600',
-    '티니': 'text-red-600',
-    '택배포장': 'text-orange-600',
-    '해외배송': 'text-cyan-600',
-    '재고조사': 'text-fuchsia-600',
-    '앵글정리': 'text-amber-600',
-    '상품재작업': 'text-yellow-700',
-    '상.하차': 'text-stone-600',
-    '검수': 'text-teal-600',
-    '아이롱': 'text-violet-600',
-    '오류': 'text-rose-600',
-    '강성': 'text-pink-600',
-    '2층업무': 'text-neutral-600',
-    '재고찾는시간': 'text-lime-600',
-    '매장근무': 'text-cyan-600',
-    '출장': 'text-gray-600',
-    'default': 'text-blue-600' // 위에 없는 업무의 기본값
+    '국내배송': 'text-green-700',
+    '중국제작': 'text-purple-700',
+    '직진배송': 'text-emerald-700',
+    '채우기': 'text-sky-700',
+    '개인담당업무': 'text-indigo-700',
+    '티니': 'text-red-700',
+    '택배포장': 'text-orange-700',
+    '해외배송': 'text-cyan-700',
+    '재고조사': 'text-fuchsia-700',
+    '앵글정리': 'text-amber-700',
+    '상품재작업': 'text-yellow-800',
+    '상.하차': 'text-stone-700',
+    '검수': 'text-teal-700',
+    '아이롱': 'text-violet-700',
+    '오류': 'text-rose-700',
+    '강성': 'text-pink-700',
+    '2층업무': 'text-neutral-700',
+    '재고찾는시간': 'text-lime-700',
+    '매장근무': 'text-blue-700',
+    '출장': 'text-gray-700',
+    'default': 'text-blue-700' // 위에 없는 업무의 기본값 (ongoing 전용)
 };
+
+// ... (renderQuantityModalInputs, renderTaskSelectionModal, renderTaskAnalysis 함수는 변경 없음) ...
 
 
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
@@ -108,15 +139,11 @@ export const renderTaskAnalysis = (appState) => {
 
 
 export const renderRealtimeStatus = (appState, teamGroups = []) => {
-    // [삭제] 로딩 스피너 숨기기 로직 제거 (app.js에서 처리)
-    
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
         console.error("Element #team-status-board not found!");
         return;
     }
-    // `app.js`에서 스피너를 숨긴 후 이 함수가 호출되므로,
-    // `innerHTML`을 비우는 것이 안전합니다.
     teamStatusBoard.innerHTML = '';
 
     const memberGroupMap = new Map();
@@ -140,71 +167,84 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
+        const isOngoing = groupRecords.some(r => r.status === 'ongoing');
         const isPaused = groupRecords.some(r => r.status === 'paused');
 
-        // [수정] Get base style: paused or default
-        let styleClasses = isPaused ? taskCardStyles['paused'] : taskCardStyles['default'];
-        const [bgColor, borderColor] = styleClasses;
+        let currentStyle;
+        if (isPaused) {
+            currentStyle = taskCardStyles['paused'];
+        } else if (isOngoing) {
+            currentStyle = taskCardStyles['ongoing'];
+        } else {
+            currentStyle = taskCardStyles['default'];
+        }
 
-        // [수정] Get specific title color
-        const titleColorClass = isPaused ? 'text-yellow-800' : (taskTitleColors[task] || taskTitleColors['default']);
-        
-        // [수정] Hover color logic (일시정지 아닐 때만 파란색)
-        const hoverBorderColor = isPaused ? 'hover:border-yellow-400' : 'hover:border-blue-400';
+        // Apply base card styles
+        card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-all duration-300 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
 
-        card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-shadow cursor-pointer hover:shadow-md ${bgColor} ${borderColor} ${hoverBorderColor}`;
-
-
-        if (groupRecords.length > 0) {
+        if (groupRecords.length > 0) { // Task has active members
             const firstRecord = groupRecords[0];
+
             card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
-                membersHtml += `<div class="text-sm text-gray-700 hover:bg-gray-100 rounded p-1 group flex justify-between items-center">
-                    <span class="font-semibold text-gray-800 break-keep mr-1 inline-block w-12 text-left truncate" title="${rec.member}">${rec.member}</span>
-                    <span class="text-xs text-gray-500 flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
-                    <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded hover:bg-red-200 ml-1 flex-shrink-0">종료</button>
+                // [수정] 진행중/일시정지 상태에 따른 멤버 텍스트 색상
+                const memberTextColor = isPaused ? 'text-yellow-800' : 'text-gray-800';
+                const timeTextColor = isPaused ? 'text-yellow-600' : 'text-gray-500';
+                const stopButtonBg = isPaused ? 'bg-yellow-200 hover:bg-yellow-300' : 'bg-red-100 hover:bg-red-200';
+                const stopButtonText = isPaused ? 'text-yellow-700' : 'text-red-700';
+
+                membersHtml += `<div class="text-sm ${currentStyle.subtitle} hover:bg-opacity-10 rounded p-1 group flex justify-between items-center">
+                    <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block w-12 text-left truncate" title="${rec.member}">${rec.member}</span>
+                    <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)})</span>
+                    <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs ${stopButtonBg} ${stopButtonText} px-2 py-0.5 rounded ml-1 flex-shrink-0">종료</button>
                 </div>`;
             });
             membersHtml += '</div>';
-
-            let statusText = isPaused ? ' (일시정지)' : '';
-            let participationCount = groupRecords.length;
-
-            const buttonHtml = `<div class="mt-auto space-y-2 pt-2">
-                                <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">${isPaused ? '업무재개' : '일시정지'}</button>
-                                <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
-                            </div>`;
 
             const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && (!earliest || current.startTime < earliest)) ? current.startTime : earliest), null);
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
             const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id;
             const durationStatus = isPaused ? 'paused' : 'ongoing';
 
+            // [수정] 업무 제목 색상 (ongoing이면 taskTitleColors 사용, 아니면 default)
+            const titleClass = isOngoing ? (taskTitleColors[task] || taskTitleColors['default']) : currentStyle.title;
+
+            // [수정] 버튼 스타일
+            const pauseResumeBtnClass = isPaused 
+                ? `${currentStyle.buttonBgOn} ${currentStyle.buttonTextOn} ${currentStyle.buttonHoverOn}`
+                : `${currentStyle.buttonBgOn} ${currentStyle.buttonTextOn} ${currentStyle.buttonHoverOn}`; // 일시정지 버튼도 활성화된 색상
+            const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
+
             card.innerHTML = `<div class="flex flex-col h-full">
-                                <div class="font-bold text-lg ${titleColorClass} break-keep">${firstRecord.task}${statusText}</div>
-                                <div class="text-xs text-gray-500 my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${durationStatus}" data-record-id="${recordIdForDuration || ''}"></span></div>
-                                <div class="font-semibold text-gray-600 text-sm mb-1">${participationCount}명 참여중:</div>
+                                <div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div>
+                                <div class="text-xs ${currentStyle.subtitle} my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${durationStatus}" data-record-id="${recordIdForDuration || ''}"></span></div>
+                                <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
-                                ${buttonHtml}
+                                <div class="mt-auto space-y-2 pt-2">
+                                    <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">
+                                        ${isPaused ? '업무재개' : '일시정지'}
+                                    </button>
+                                    <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} w-full text-white font-bold py-2 rounded-md transition text-sm">종료</button>
+                                </div>
                             </div>`;
-        } else {
+        } else { // Task has no active members (pre-start state)
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
             card.innerHTML = `
                 <div class="flex-grow">
-                    <div class="font-bold text-lg ${titleColorClass} break-keep">${task}</div>
-                    <div class="text-xs text-gray-500 my-2">시작: 시작 전</div>
-                    <div class="font-semibold text-gray-600 text-sm mb-1">참여 인원 (0명):</div>
-                    <div class="text-xs text-gray-400 italic flex-grow flex items-center">카드를 클릭하여 팀원 선택</div>
+                    <div class="font-bold text-lg ${currentStyle.title} break-keep">${task}</div>
+                    <div class="text-xs ${currentStyle.subtitle} my-2">시작: 시작 전</div>
+                    <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">참여 인원 (0명):</div>
+                    <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
                 </div>
                 <div class="mt-auto space-y-2 pt-2">
-                    <button class="bg-yellow-500 text-white font-bold py-2 rounded-md text-sm w-full opacity-50 cursor-not-allowed">일시정지</button>
-                    <button class="bg-red-600 text-white font-bold py-2 rounded-md text-sm w-full opacity-50 cursor-not-allowed">종료</button>
+                    <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full font-bold py-2 rounded-md text-sm opacity-50 cursor-not-allowed">일시정지</button>
+                    <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full font-bold py-2 rounded-md text-sm opacity-50 cursor-not-allowed">종료</button>
                 </div>
             `;
         }
@@ -212,15 +252,16 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
     });
 
     const otherTaskCard = document.createElement('div');
-    // [수정] '기타 업무' 카드도 흰색 배경으로 통일
-    otherTaskCard.className = 'p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-shadow cursor-pointer hover:shadow-md hover:border-blue-400 bg-white border-gray-200';
+    // [수정] '기타 업무' 카드도 전광판 느낌으로
+    const otherStyle = taskCardStyles['default'];
+    otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-300 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
-        <div class="font-bold text-lg text-gray-700">기타 업무</div>
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mt-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <div class="font-bold text-lg ${otherStyle.title}">기타 업무</div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 ${otherStyle.subtitle} mt-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
+        <div class="text-xs ${otherStyle.subtitle} mt-3">새로운 업무 시작</div>
     `;
     presetGrid.appendChild(otherTaskCard);
     presetTaskContainer.appendChild(presetGrid);
@@ -229,7 +270,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
     const allMembersContainer = document.createElement('div');
-    // ... (이하 renderRealtimeStatus 함수의 나머지 부분은 변경 없음) ...
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 휴무 설정/취소)</h3>`;
@@ -320,12 +360,13 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         allMembersContainer.appendChild(groupContainer);
     });
 
-    const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
-    const activePartTimers = (appState.partTimers || []).filter(pt => {
-        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
-    });
+    const workingAlbaMembers = new Set((appState.partTimers || []).filter(pt => {
+        const isWorking = workingMembers.has(pt.name) || pausedMembers.has(pt.name);
+        const isOnLeave = onLeaveStatusMap.has(pt.name);
+        return isWorking || isOnLeave;
+    }).map(pt => pt.name));
 
-    if (activePartTimers.length > 0) {
+    if (workingAlbaMembers.size > 0) { // 활성화된 알바가 한 명이라도 있을 경우에만 섹션 렌더링
         const albaContainer = document.createElement('div');
         albaContainer.className = 'mb-4';
         albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2">알바</h4>`;
@@ -333,7 +374,10 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         const albaGrid = document.createElement('div');
         albaGrid.className = 'flex flex-wrap gap-2';
 
-        activePartTimers.forEach(pt => {
+        appState.partTimers.forEach(pt => {
+             // 활성화된 알바만 표시
+             if (!workingAlbaMembers.has(pt.name)) return;
+
              const card = document.createElement('button');
              card.type = 'button';
              card.dataset.memberToggleLeave = pt.name;
@@ -382,7 +426,6 @@ export const renderRealtimeStatus = (appState, teamGroups = []) => {
         albaContainer.appendChild(albaGrid);
         allMembersContainer.appendChild(albaContainer);
     }
-    teamStatusBoard.appendChild(presetTaskContainer);
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
