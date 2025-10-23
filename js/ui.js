@@ -209,8 +209,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     pauseResumeButtonHtml = `<button data-action="resume-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-0.5 rounded ml-1 flex-shrink-0">재개</button>`;
                 }
 
+                // ✅ [수정] 아래 줄의 span 태그에서 'w-12'와 'truncate' 클래스 제거
                 membersHtml += `<div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center">
-                    <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block w-12 text-left truncate" title="${rec.member}">${rec.member}</span>
+                    <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block text-left" title="${rec.member}">${rec.member}</span>
                     <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
                     <div class="flex-shrink-0 flex items-center">
                         ${pauseResumeButtonHtml}
