@@ -1,4 +1,4 @@
-// === app.js (keyTasks를 renderRealtimeStatus로 전달) ===
+// === app.js (자동 저장 기능 추가) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -93,12 +93,17 @@ const toggleAnalysis = document.getElementById('toggle-analysis');
 const toggleSummary = document.getElementById('toggle-summary');
 
 // ========== Firebase/App State ==========
-// ... (이전과 동일) ...
+// ... (db, auth 선언은 이전과 동일) ...
 let db, auth;
 let unsubscribeToday;
 let unsubscribeLeaveSchedule;
 let elapsedTimeTimer = null;
 let recordCounter = 0;
+
+// ✅ [Auto-save] 자동 저장 관련 변수 추가
+let isDataDirty = false; // '중간 저장'이 필요한 변경사항 감지 플래그
+let autoSaveTimer = null; // 자동 저장 타이머 ID
+const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5분 (300000 ms)
 
 let appState = {
   workRecords: [],
@@ -120,6 +125,7 @@ let appConfig = {
     keyTasks: [] // [추가]
 };
 
+// ... (다른 상태 변수들은 이전과 동일) ...
 let selectedTaskForStart = null;
 let selectedGroupForAdd = null;
 let recordToDeleteId = null;
@@ -138,7 +144,7 @@ let activeMainHistoryTab = 'work';
 const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // ========== Helpers ==========
-// ... (이전과 동일) ...
+// ... (generateId, normalizeName, calcElapsedMinutes, calculateDateDifference 함수는 이전과 동일) ...
 const generateId = () => `${Date.now()}-${++recordCounter}`;
 const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
 const calcElapsedMinutes = (start, end, pauses = []) => {
@@ -222,8 +228,27 @@ const render = () => {
 };
 
 // ========== Firestore 저장 ==========
+
+// ✅ [Auto-save] '중간 저장'이 필요함을 표시하는 함수
+const markDataAsDirty = () => {
+    if (!isDataDirty) {
+        // console.log("Auto-save: Data marked as dirty.");
+    }
+    isDataDirty = true;
+};
+
+// ✅ [Auto-save] 자동 저장 타이머가 호출할 함수
+const autoSaveProgress = () => {
+    if (isDataDirty) {
+        // console.log("Auto-save: Dirty data found. Saving progress...");
+        saveProgress(true); // true = 자동 저장 모드
+    } else {
+        // console.log("Auto-save: No changes to save.");
+    }
+};
+
+// [수정] saveStateToFirestore: 'daily_data' 저장 및 'dirty' 플래그 설정
 async function saveStateToFirestore() {
-  // ... (이전과 동일) ...
   if (!auth || !auth.currentUser) {
     console.warn('Cannot save state: User not authenticated.');
     return;
@@ -245,6 +270,12 @@ async function saveStateToFirestore() {
     }
 
     await setDoc(docRef, { state: stateToSave });
+    
+    // ✅ [Auto-save] 'daily_data'가 변경되었다는 것은 'history'에도 영향을 줄 수 있음을 의미
+    // (예: 알바생 추가/삭제, 근태 변경, 업무 완료 등)
+    // 따라서 '중간 저장'이 필요하다고 표시(mark)합니다.
+    markDataAsDirty();
+
   } catch (error) {
     console.error('Error saving state to Firestore:', error);
     showToast('데이터 동기화 중 오류 발생.', true);
@@ -252,7 +283,8 @@ async function saveStateToFirestore() {
 }
 
 // ========== 업무 그룹/개인 제어 ==========
-// ... (이하 모든 업무 제어 함수, 저장/이력 함수, 이벤트 리스너는 이전과 동일) ...
+// ... (startWorkGroup, addMembersToWorkGroup, stopWorkGroup, finalizeStopGroup, stopWorkIndividual, pause/resume 함수들은 이전과 동일) ...
+// (단, 이 함수들이 saveStateToFirestore()를 호출하면 자동으로 markDataAsDirty()가 호출됩니다)
 const startWorkGroup = (members, task) => {
   const groupId = Date.now();
   const startTime = getCurrentTime();
@@ -396,10 +428,18 @@ const resumeWorkIndividual = (recordId) => {
   }
 };
 
-async function saveProgress() {
+// [수정] '중간 저장' (history 저장) 함수
+// isAutoSave 플래그를 받아 자동/수동 저장에 따라 다른 알림을 표시
+async function saveProgress(isAutoSave = false) {
   const dateStr = getTodayDateString();
-  showToast('현재까지 완료된 기록을 저장합니다...');
+  
+  // 수동 저장일 때만 시작 알림 표시
+  if (!isAutoSave) {
+    showToast('현재까지 완료된 기록을 저장합니다...');
+  }
+  
   const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
+  
   try {
     const docSnap = await getDoc(historyDocRef);
     const existingData = docSnap.exists() ? (docSnap.data() || { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] }) : { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
@@ -417,8 +457,17 @@ async function saveProgress() {
     ];
     const currentPartTimers = appState.partTimers || [];
 
+    // [수정] 저장할 내용이 없는지 검사
     if (completedRecordsFromState.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0 && !(existingData.onLeaveMembers?.length > 0) && !(existingData.partTimers?.length > 0)) {
-        return showToast('저장할 새로운 완료 기록, 처리량, 근태 정보 또는 알바 정보가 없습니다.', true);
+        
+        // 수동 저장일 때만 "저장할 내용 없음" 알림 표시
+        if (!isAutoSave) {
+            showToast('저장할 새로운 완료 기록, 처리량, 근태 정보 또는 알바 정보가 없습니다.', true);
+        }
+        
+        isDataDirty = false; // 저장할 것이 없으므로 플래그 리셋
+        // console.log("Auto-save: No changes to save, flag reset.");
+        return;
     }
 
     const combinedRecords = [...(existingData.workRecords || []), ...completedRecordsFromState];
@@ -441,13 +490,26 @@ async function saveProgress() {
 
     await setDoc(historyDocRef, dataToSave);
 
-    showToast('현재까지의 기록이 성공적으로 저장되었습니다.');
+    // [수정] 자동/수동에 따라 다른 성공 알림 표시
+    if (isAutoSave) {
+        showToast('진행 상황이 자동 저장되었습니다.', false);
+    } else {
+        showToast('현재까지의 기록이 성공적으로 저장되었습니다.');
+    }
+    
+    // ✅ [Auto-save] 저장이 성공했으므로 dirty 플래그 리셋
+    isDataDirty = false;
+    // console.log("Auto-save: Data saved, flag reset.");
+
   } catch (e) {
     console.error('Error in saveProgress: ', e);
     showToast(`중간 저장 중 오류가 발생했습니다: ${e.message}`, true);
+    // [중요] 저장 실패 시, isDataDirty 플래그를 리셋하지 않음
+    // -> 다음 자동 저장 사이클(5분 뒤)에 다시 저장을 시도함
   }
 }
 
+// [수정] '업무 마감' 또는 '초기화' 시 호출되는 함수
 async function saveDayDataToHistory(shouldReset) {
   const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
   if (ongoingRecords.length > 0) {
@@ -463,7 +525,8 @@ async function saveDayDataToHistory(shouldReset) {
     });
   }
 
-  await saveProgress(); // 현재 상태를 이력에 저장
+  // [수정] 수동 저장(false)으로 saveProgress 호출
+  await saveProgress(false); // 현재 상태를 이력에 저장
 
   // 일일 데이터 초기화
   appState.workRecords = [];
@@ -483,6 +546,7 @@ async function saveDayDataToHistory(shouldReset) {
 }
 
 
+// ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal, renderHistoryDetail, requestHistoryDeletion, downloadHistoryAsExcel, downloadAttendanceHistoryAsExcel, switchHistoryView 함수들은 이전과 동일) ...
 async function fetchAllHistoryData() {
   const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
   try {
@@ -859,6 +923,60 @@ window.downloadHistoryAsExcel = async (dateKey) => {
 
 window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
     // ... (이전과 동일) ...
+    try {
+        const data = allHistoryData.find(d => d.id === dateKey);
+        if (!data || !data.onLeaveMembers || data.onLeaveMembers.length === 0) {
+            return showToast('다운로드할 근태 기록이 없습니다.', true);
+        }
+        const records = data.onLeaveMembers;
+        const sheetData = records
+            .sort((a, b) => (a.member || '').localeCompare(b.member || ''))
+            .map(entry => {
+                let detailText = '-';
+                if (entry.startTime) {
+                    detailText = formatTimeTo24H(entry.startTime);
+                    if (entry.endTime) detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+                    else if (entry.type === '외출') detailText += ' ~';
+                } else if (entry.startDate) {
+                    detailText = entry.startDate;
+                    if (entry.endDate && entry.endDate !== entry.startDate) detailText += ` ~ ${entry.endDate}`;
+                }
+                return {
+                    '이름': entry.member || '',
+                    '유형': entry.type || '',
+                    '시간 / 기간': detailText
+                };
+            });
+        
+        const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: ['이름', '유형', '시간 / 기간'] });
+
+        const fitToColumn = (ws) => {
+            const objectMaxLength = [];
+            const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+            if (!data || data.length === 0) return;
+            if (data[0]) {
+                Object.keys(data[0]).forEach((key, index) => {
+                    objectMaxLength[index] = String(data[0][key]).length;
+                });
+            }
+            data.slice(1).forEach(row => {
+                Object.keys(row).forEach((key, index) => {
+                    const cellLength = String(row[key] ?? '').length;
+                    objectMaxLength[index] = Math.max(objectMaxLength[index] || 10, cellLength);
+                });
+            });
+            ws['!cols'] = objectMaxLength.map(w => ({ width: w + 2 }));
+        };
+        fitToColumn(worksheet);
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, '근태 기록');
+        XLSX.writeFile(workbook, `근태기록_${dateKey}.xlsx`);
+
+    } catch (error) {
+        console.error('Attendance Excel export failed:', error);
+        showToast('근태 Excel 파일 생성에 실패했습니다.', true);
+    }
 };
 
 const switchHistoryView = (view) => {
@@ -945,7 +1063,7 @@ const switchHistoryView = (view) => {
 
 
 // ========== 이벤트 리스너 ==========
-// ... (모든 이벤트 리스너 코드는 이전과 동일) ...
+// ... (teamStatusBoard 클릭 리스너는 이전과 동일) ...
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
@@ -1111,7 +1229,7 @@ if (confirmDeleteBtn) {
       appState.workRecords = (appState.workRecords || []).filter(r => String(r.id) !== String(recordToDeleteId));
       showToast('선택한 기록이 삭제되었습니다.');
     }
-    saveStateToFirestore();
+    saveStateToFirestore(); // [Auto-save] 이 함수는 markDataAsDirty()를 호출
     if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
     recordToDeleteId = null;
     deleteMode = 'single';
@@ -1125,8 +1243,9 @@ if (endShiftBtn) {
   });
 }
 
+// [수정] '중간 저장' 버튼 리스너
 if (saveProgressBtn) {
-  saveProgressBtn.addEventListener('click', saveProgress);
+  saveProgressBtn.addEventListener('click', () => saveProgress(false)); // false = 수동 저장
 }
 
 if (openHistoryBtn) {
@@ -1138,6 +1257,7 @@ if (openHistoryBtn) {
   });
 }
 
+// ... (historyModal, historyDateList, historyTabs, confirmHistoryDeleteBtn, historyMainTabs, attendanceHistoryTabs 리스너들은 이전과 동일) ...
 if (closeHistoryBtn) {
   closeHistoryBtn.addEventListener('click', () => {
     if (historyModal) historyModal.classList.add('hidden');
@@ -1227,7 +1347,6 @@ if (historyMainTabs) {
   });
 }
 
-// [수정] 이력 - 근태 탭 (일별/주별/월별)
 if (attendanceHistoryTabs) {
   attendanceHistoryTabs.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-view]');
@@ -1237,14 +1356,13 @@ if (attendanceHistoryTabs) {
   });
 }
 
-// [수정] 앱 초기화 버튼
+
+// '앱 초기화' 관련 리스너 (이전과 동일)
 if (resetAppBtn) {
   resetAppBtn.addEventListener('click', () => {
     if (resetAppModal) resetAppModal.classList.remove('hidden');
   });
 }
-
-// [수정] 앱 초기화 확인
 if (confirmResetAppBtn) {
   confirmResetAppBtn.addEventListener('click', async () => {
     await saveDayDataToHistory(true); // true = reset
@@ -1252,7 +1370,7 @@ if (confirmResetAppBtn) {
   });
 }
 
-// [수정] 처리량 모달 확인
+// '처리량' 모달 (이력 수정용) 리스너 (이전과 동일)
 if (confirmQuantityBtn) {
   confirmQuantityBtn.addEventListener('click', () => {
     const inputs = quantityModal.querySelectorAll('input[data-task]');
@@ -1270,7 +1388,7 @@ if (confirmQuantityBtn) {
   });
 }
 
-// [수정] 기록 수정 확인
+// '기록 수정' (오늘 완료된 업무) 리스너
 if (confirmEditBtn) {
   confirmEditBtn.addEventListener('click', () => {
     if (!recordToEditId) return;
@@ -1303,26 +1421,26 @@ if (confirmEditBtn) {
     record.endTime = newEnd;
     record.duration = calcElapsedMinutes(newStart, newEnd, record.pauses); // 재계산
 
-    saveStateToFirestore();
+    saveStateToFirestore(); // [Auto-save] 이 함수는 markDataAsDirty()를 호출
     showToast('기록이 수정되었습니다.');
     if (editRecordModal) editRecordModal.classList.add('hidden');
     recordToEditId = null;
   });
 }
 
-// [수정] 그룹 종료 시 처리량 입력 확인
+// '종료 시 처리량' 모달 리스너 (이전과 동일)
 if (confirmQuantityOnStopBtn) {
   confirmQuantityOnStopBtn.addEventListener('click', () => {
     if (groupToStopId) {
       const input = document.getElementById('quantity-on-stop-input');
       const quantity = input ? (Number(input.value) || 0) : null;
-      finalizeStopGroup(groupToStopId, quantity);
+      finalizeStopGroup(groupToStopId, quantity); // 이 함수는 saveStateToFirestore()를 호출
       if(input) input.value = ''; // 입력값 초기화
     }
   });
 }
 
-// [수정] '기타 업무' 선택 모달
+// '기타 업무' 모달 리스너 (이전과 동일)
 if (taskSelectModal) {
   taskSelectModal.addEventListener('click', (e) => {
     const btn = e.target.closest('.task-select-btn');
@@ -1341,17 +1459,18 @@ if (taskSelectModal) {
   });
 }
 
-// [수정] 개인 업무 종료 확인
+// '개인 업무 종료' 모달 리스너
 if (confirmStopIndividualBtn) {
   confirmStopIndividualBtn.addEventListener('click', () => {
     if (recordToStopId) {
-      stopWorkIndividual(recordToStopId);
+      stopWorkIndividual(recordToStopId); // 이 함수는 saveStateToFirestore()를 호출
     }
     if (stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden');
     recordToStopId = null;
   });
 }
 
+// '근태 설정' 모달 리스너
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
     if (!memberToSetLeave) return;
 
@@ -1369,7 +1488,7 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
 
         appState.dailyOnLeaveMembers = appState.dailyOnLeaveMembers.filter(item => item.member !== memberToSetLeave);
         appState.dailyOnLeaveMembers.push(leaveData);
-        await saveStateToFirestore();
+        await saveStateToFirestore(); // [Auto-save] 이 함수는 markDataAsDirty()를 호출
 
     } else if (leaveType === '연차' || leaveType === '출장' || leaveType === '결근') {
         const startDate = leaveStartDateInput?.value;
@@ -1383,7 +1502,8 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
 
         persistentLeaveSchedule.onLeaveMembers = persistentLeaveSchedule.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
         persistentLeaveSchedule.onLeaveMembers.push(leaveData);
-        await saveLeaveSchedule(db, persistentLeaveSchedule);
+        await saveLeaveSchedule(db, persistentLeaveSchedule); // 이것은 daily_data가 아니므로 dirty 플래그를 직접 호출
+        markDataAsDirty(); // ✅ [Auto-save] 영구 일정도 이력에 영향을 주므로 dirty 플래그 설정
     }
 
     showToast(`${memberToSetLeave}님을 '${leaveType}'(으)로 설정했습니다.`);
@@ -1391,6 +1511,7 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
     memberToSetLeave = null;
 });
 
+// '근태 취소' 모달 리스너
 if (confirmCancelLeaveBtn) {
     confirmCancelLeaveBtn.addEventListener('click', async () => {
         if (!memberToCancelLeave) return;
@@ -1410,7 +1531,7 @@ if (confirmCancelLeaveBtn) {
                 showToast(`${memberToCancelLeave}님의 '${entry.type}' 상태가 취소되었습니다.`);
                 actionTaken = true;
             }
-            await saveStateToFirestore();
+            await saveStateToFirestore(); // [Auto-save] 이 함수는 markDataAsDirty()를 호출
         }
 
         const persistentIndex = persistentLeaveSchedule.onLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
@@ -1434,6 +1555,7 @@ if (confirmCancelLeaveBtn) {
                 showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
             }
             await saveLeaveSchedule(db, persistentLeaveSchedule);
+            markDataAsDirty(); // ✅ [Auto-save] 영구 일정도 이력에 영향을 주므로 dirty 플래그 설정
             actionTaken = true;
         }
 
@@ -1446,7 +1568,7 @@ if (confirmCancelLeaveBtn) {
     });
 }
 
-// [수정] 모달 공통 닫기 버튼 ('X' 버튼) 리스너
+// ... (모달 공통 닫기 버튼 및 나머지 닫기 버튼 리스너들은 이전과 동일) ...
 document.querySelectorAll('.modal-close-btn').forEach(btn => {
   btn.addEventListener('click', (e) => {
       const modal = e.target.closest('.fixed.inset-0');
@@ -1520,6 +1642,7 @@ if (cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => {
   });
 });
 
+// '팀 선택' 모달 (알바 추가/수정/삭제 포함)
 if (teamSelectModal) teamSelectModal.addEventListener('click', e => {
     const card = e.target.closest('button[data-member-name]');
     if (card && !card.disabled) {
@@ -1586,6 +1709,8 @@ if (teamSelectModal) teamSelectModal.addEventListener('click', e => {
         return;
     }
 });
+
+// '알바 수정' 모달
 if (confirmEditPartTimerBtn) confirmEditPartTimerBtn.addEventListener('click', () => {
     const id = Number(partTimerEditIdInput?.value);
     const idx = (appState.partTimers || []).findIndex(p => p.id === id);
@@ -1612,6 +1737,8 @@ if (confirmEditPartTimerBtn) confirmEditPartTimerBtn.addEventListener('click', (
         showToast('알바 이름이 수정되었습니다.');
     });
 });
+
+// '팀 선택 완료' (업무 시작/추가) 버튼
 const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
 if (confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
   if (tempSelectedMembers.length === 0) { showToast('추가할 팀원을 선택해주세요.', true); return; }
@@ -1666,6 +1793,11 @@ async function main() {
   if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
   elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
 
+  // ✅ [Auto-save] 자동 저장 타이머 시작
+  if (autoSaveTimer) clearInterval(autoSaveTimer);
+  autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
+  // console.log(`Auto-save timer started with interval ${AUTO_SAVE_INTERVAL}ms`);
+
   const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
   const defaultQuantities = {};
   taskTypes.forEach(task => defaultQuantities[task] = 0);
@@ -1689,8 +1821,10 @@ async function main() {
               }
               return false;
           });
-
+          
+          markDataAsDirty(); // ✅ [Auto-save] 영구 근태 일정이 변경되면 이력 저장이 필요함
           render();
+          
       }, (error) => {
           console.error("근태 일정 실시간 연결 실패:", error);
           showToast("근태 일정 연결에 실패했습니다.", true);
@@ -1715,6 +1849,11 @@ async function main() {
           appState.partTimers = loadedState.partTimers || [];
           appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
           appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
+
+          // ✅ [Auto-save] 데이터를 방금 불러왔으므로, dirty 플래그를 리셋
+          // (다른 사용자가 저장한 내용을 내가 또 저장할 필요 없음)
+          isDataDirty = false;
+          // console.log("Auto-save: Data loaded from snapshot, flag reset.");
 
           render();
           if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
