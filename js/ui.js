@@ -1,8 +1,8 @@
-// === ui.js (이력: 일별 상세 멤버 목록 토글 기능 추가, 외출 복귀 상태 반영 수정) ===
+// === ui.js (renderHistoryDetail 함수 export 추가) ===
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday } from './utils.js'; // isWeekday import 추가
 
-// Task Card Styling Configuration
+// ... (taskCardStyles, taskTitleColors 등 다른 코드는 이전과 동일) ...
 const taskCardStyles = {
     'default': {
         card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
@@ -29,8 +29,6 @@ const taskCardStyles = {
         buttonHoverOn: 'hover:bg-yellow-700'
     }
 };
-
-// Task Title Colors (Map task names to Tailwind text color classes)
 const taskTitleColors = {
     '국내배송': 'text-green-700',
     '중국제작': 'text-purple-700',
@@ -55,11 +53,6 @@ const taskTitleColors = {
     'default': 'text-blue-700' // Fallback color
 };
 
-/**
- * Renders input fields for task quantities in a modal.
- * @param {Object} sourceQuantities - An object mapping task names to their current quantities.
- * @param {string[]} quantityTaskTypes - An array of task names for which quantities should be tracked.
- */
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
@@ -75,10 +68,6 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
     });
 };
 
-/**
- * Renders task selection buttons grouped by category in a modal.
- * @param {Object} taskGroups - An object where keys are group names and values are arrays of task names.
- */
 export const renderTaskSelectionModal = (taskGroups = {}) => {
     const container = document.getElementById('task-modal-content');
     if (!container) return;
@@ -102,10 +91,6 @@ export const renderTaskSelectionModal = (taskGroups = {}) => {
     });
 };
 
-/**
- * Renders a donut chart and legend showing the proportion of time spent on each completed task.
- * @param {Object} appState - The current application state containing workRecords.
- */
 export const renderTaskAnalysis = (appState) => {
     const analysisContainer = document.getElementById('analysis-content');
     if (!analysisContainer) return;
@@ -180,12 +165,6 @@ export const renderTaskAnalysis = (appState) => {
         </div>`;
 };
 
-/**
- * Renders the main real-time status board, including task cards and team member status.
- * @param {Object} appState - The current application state.
- * @param {Array} teamGroups - Array of team group objects from config.
- * @param {Array} keyTasks - Array of key task names from config.
- */
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
@@ -265,11 +244,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                 // Add member row HTML
                 membersHtml += `
                     <div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center">
-                        {/* Name - removed w-12 and truncate */}
                         <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block text-left" title="${rec.member}">${rec.member}</span>
-                        {/* Time and Pause Status */}
                         <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
-                        {/* Action Buttons */}
                         <div class="flex-shrink-0 flex items-center">
                             ${pauseResumeButtonHtml}
                             <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs ${stopButtonBg} ${stopButtonText} px-2 py-0.5 rounded ml-1">종료</button>
@@ -288,14 +264,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             // Set the inner HTML for the active task card
             card.innerHTML = `
                 <div class="flex flex-col h-full">
-                    {/* Task Title and Pause Indicator */}
                     <div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div>
-                    {/* Start Time and Live Duration */}
                     <div class="text-xs ${currentStyle.subtitle} my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${durationStatus}" data-record-id="${recordIdForDuration || ''}"></span></div>
-                    {/* Member Count and List */}
                     <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
                     <div class="flex-grow">${membersHtml}</div>
-                    {/* Group Action Buttons */}
                     <div class="mt-auto space-y-2 pt-2">
                         <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">
                             ${isPaused ? '전체 재개' : '전체 정지'}
@@ -316,7 +288,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
                 </div>
-                {/* Disabled Action Buttons */}
                 <div class="mt-auto space-y-2 pt-2">
                     <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full font-bold py-2 rounded-md text-sm opacity-50 cursor-not-allowed">일시정지</button>
                     <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full font-bold py-2 rounded-md text-sm opacity-50 cursor-not-allowed">종료</button>
@@ -520,10 +491,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
-/**
- * Renders the table body for completed work logs.
- * @param {Object} appState - The current application state.
- */
 export const renderCompletedWorkLog = (appState) => {
     const workLogBody = document.getElementById('work-log-body');
     if (!workLogBody) return;
@@ -575,11 +542,6 @@ export const renderCompletedWorkLog = (appState) => {
     }
 };
 
-/**
- * Updates the summary dashboard numbers (total staff, on leave, working, etc.).
- * @param {Object} appState - The current application state.
- * @param {Array} teamGroups - Array of team group objects from config.
- */
 export const updateSummary = (appState, teamGroups = []) => {
     // Get DOM elements for summary numbers
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
@@ -636,12 +598,6 @@ export const updateSummary = (appState, teamGroups = []) => {
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
 };
 
-/**
- * Renders the content of the team selection modal.
- * @param {string} task - The task for which members are being selected.
- * @param {Object} appState - The current application state.
- * @param {Array} teamGroups - Array of team group objects from config.
- */
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     // Get modal title and content container
     const titleEl = document.getElementById('team-select-modal-title');
@@ -778,10 +734,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     container.appendChild(albaGroupContainer); // Add alba section to modal content
 };
 
-/**
- * Renders radio button options for leave types in the leave modal.
- * @param {string[]} leaveTypes - Array of leave type names.
- */
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs'); // Date input section
@@ -817,14 +769,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     }
 };
 
-/**
- * Renders a summary block for weekly or monthly history data.
- * @param {string} mode - 'weekly' or 'monthly'.
- * @param {Object} dataset - The aggregated data for the period (workRecords, taskQuantities).
- * @param {string} periodKey - The identifier for the period (e.g., '2023-W42' or '2023-10').
- * @param {Object} wageMap - Map of member names to their hourly wages.
- * @returns {string} HTML string for the summary block.
- */
 const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
     const records = dataset.workRecords || [];
     const quantities = dataset.taskQuantities || {};
@@ -920,11 +864,6 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
     return html;
 };
 
-/**
- * Renders the weekly work history summary view.
- * @param {Array} allHistoryData - Array of all daily history objects.
- * @param {Object} appConfig - The application configuration containing memberWages.
- */
 export const renderWeeklyHistory = (allHistoryData, appConfig) => {
     const view = document.getElementById('history-weekly-view');
     if (!view) return;
@@ -982,11 +921,6 @@ export const renderWeeklyHistory = (allHistoryData, appConfig) => {
     }
 };
 
-/**
- * Renders the monthly work history summary view.
- * @param {Array} allHistoryData - Array of all daily history objects.
- * @param {Object} appConfig - The application configuration containing memberWages.
- */
 export const renderMonthlyHistory = (allHistoryData, appConfig) => {
     const view = document.getElementById('history-monthly-view');
     if (!view) return;
@@ -1040,11 +974,186 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
     }
 };
 
-/**
- * Renders the daily attendance history view for a specific date.
- * @param {string} dateKey - The date to display (YYYY-MM-DD).
- * @param {Array} allHistoryData - Array of all daily history objects.
- */
+// ✅ [이력 멤버] '일별 상세' 렌더링 함수 수정 (export 추가)
+export const renderHistoryDetail = (dateKey) => {
+  const view = document.getElementById('history-daily-view');
+  if (!view) return;
+  view.innerHTML = '<div class="text-center text-gray-500">데이터 로딩 중...</div>';
+  const data = allHistoryData.find(d => d.id === dateKey);
+  if (!data) { view.innerHTML = '<div class="text-center text-red-500">해당 날짜의 데이터를 찾을 수 없습니다.</div>'; return; }
+
+  const records = data.workRecords || [];
+  const quantities = data.taskQuantities || {};
+  const onLeaveMemberEntries = data.onLeaveMembers || [];
+  const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
+  const partTimersFromHistory = data.partTimers || [];
+
+  const wageMap = { ...appConfig.memberWages };
+  partTimersFromHistory.forEach(pt => {
+      if (!wageMap[pt.name]) {
+          wageMap[pt.name] = pt.wage || 0;
+      }
+  });
+
+  const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
+  // Correctly calculate active members count
+  const onLeaveRegularMembers = onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length;
+  const onLeavePartTimers = onLeaveMemberNames.filter(name => partTimersFromHistory.some(pt => pt.name === name)).length;
+  const activeMembersCount = allRegularMembers.size - onLeaveRegularMembers + partTimersFromHistory.length - onLeavePartTimers;
+
+
+  const totalSumDuration = records.reduce((sum, r) => sum + (r.duration || 0), 0);
+  const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (rec.duration || 0); return acc; }, {});
+  const taskCosts = records.reduce((acc, rec) => {
+      const wage = wageMap[rec.member] || 0;
+      const cost = ((Number(rec.duration) || 0) / 60) * wage;
+      acc[rec.task] = (acc[rec.task] || 0) + cost;
+      return acc;
+  }, {});
+  const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
+  const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
+
+  let nonWorkHtml = '';
+  // Calculate non-work time estimate (only for weekdays)
+  if (isWeekday(dateKey)) {
+    const totalPotentialMinutes = activeMembersCount * 8 * 60; // Assuming 8-hour workday
+    const nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalSumDuration);
+    const percentage = totalPotentialMinutes > 0 ? (nonWorkMinutes / totalPotentialMinutes * 100).toFixed(1) : 0;
+    nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-xl font-bold text-gray-700">${formatDuration(nonWorkMinutes)}</p><p class="text-xs text-gray-500 mt-1">(추정치, ${percentage}%)</p></div>`;
+  } else {
+    nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex flex-col justify-center items-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-lg font-bold text-gray-400">주말</p></div>`; // Indicate weekend
+  }
+
+  // Top summary section HTML
+  let html = `
+    <div class="mb-6 pb-4 border-b flex justify-between items-center">
+      <h3 class="text-2xl font-bold text-gray-800">${dateKey}</h3>
+      {/* Action Buttons */}
+      <div>
+        <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm" onclick="openHistoryQuantityModal('${dateKey}')">처리량 수정</button>
+        <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="downloadHistoryAsExcel('${dateKey}')">엑셀</button>
+        <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="requestHistoryDeletion('${dateKey}')">삭제</button>
+      </div>
+    </div>
+    {/* Key Metrics Grid */}
+    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">근무 인원</h4><p class="text-2xl font-bold text-gray-800">${activeMembersCount} 명</p></div>
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${formatDuration(totalSumDuration)}</p></div>
+      ${nonWorkHtml}
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center col-span-2"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${totalQuantity} 개</p></div>
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
+    </div>
+  `;
+
+  // Middle section: Quantity, Throughput/Task, Cost/Item
+  html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">`;
+  // Quantity per Task
+  html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 처리량</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
+  let hasQuantities = false;
+  Object.entries(quantities)
+    .filter(([, qty]) => Number(qty) > 0) // Only show tasks with quantity > 0
+    .sort(([a],[b]) => a.localeCompare(b)) // Sort alphabetically
+    .forEach(([task, qty]) => {
+      hasQuantities = true;
+      html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${qty} 개</span></div>`;
+    });
+  if (!hasQuantities) html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
+  html += `</div></div>`;
+
+  // Throughput per Task (Items/Minute)
+  html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 분당 처리량</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
+  let hasThroughput = false;
+  Object.entries(quantities)
+    .filter(([, qty]) => Number(qty) > 0)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .forEach(([task, qty]) => {
+      hasThroughput = true;
+      const durationForTask = taskDurations[task] || 0;
+      const throughputForTask = durationForTask > 0 ? ((Number(qty) || 0) / durationForTask).toFixed(2) : '0.00';
+      html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${throughputForTask} 개/분</span></div>`;
+    });
+  if (!hasThroughput) html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
+  html += `</div></div>`;
+
+  // Cost per Item per Task
+  html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 개당 처리비용</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
+  let hasCostPerItem = false;
+  Object.entries(quantities)
+    .filter(([, qty]) => Number(qty) > 0)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .forEach(([task, qty]) => {
+      hasCostPerItem = true;
+      const costForTask = taskCosts[task] || 0;
+      const qtyNum = Number(qty) || 1; // Avoid division by zero
+      const costPerItem = costForTask / qtyNum;
+      html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${costPerItem.toFixed(0)} 원/개</span></div>`;
+    });
+  if (!hasCostPerItem) html += `<p class="text-gray-500 text-sm">처리량이 없어 계산 불가.</p>`;
+  html += `</div></div>`;
+
+  html += `</div>`; // End middle section grid
+
+
+  // ✅ [이력 멤버] Bottom section: Task Time Distribution with Member Toggle
+  html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 시간 비중 (클릭하여 멤버 보기)</h4><div class="space-y-3">`;
+  Object.entries(taskDurations)
+    .filter(([, duration]) => duration > 0) // Only show tasks with recorded time
+    .sort(([,a],[,b]) => b - a) // Sort by duration descending
+    .forEach(([task, duration]) => {
+      const percentage = totalSumDuration > 0 ? (duration / totalSumDuration * 100).toFixed(1) : 0;
+      
+      // Find members who worked on this task and their durations
+      const membersInTask = records
+          .filter(r => r.task === task && r.duration > 0)
+          .sort((a, b) => (a.member || '').localeCompare(b.member || '')); // Sort members alphabetically
+      
+      // Generate HTML for the member list (initially hidden)
+      let membersHtml = '';
+      if (membersInTask.length > 0) {
+          membersHtml = membersInTask.map(r => 
+              `<div class="flex justify-between text-xs text-gray-600 pl-4 py-0.5">
+                  <span>${r.member || 'N/A'}</span>
+                  <span>${formatDuration(r.duration)}</span>
+               </div>`
+          ).join('');
+      } else {
+          membersHtml = '<p class="text-xs text-gray-400 pl-4 py-0.5">참여 기록 없음</p>';
+      }
+
+      // Create the clickable task entry with progress bar and hidden member list
+      html += `
+        <div class="border-b pb-2">
+          {/* Clickable Button for Toggling */}
+          <button type="button" class="w-full text-left focus:outline-none" data-task-toggle="${task}">
+            <div class="flex justify-between items-center mb-1 text-sm">
+              <span class="font-semibold text-gray-600">${task}</span>
+              <div class="flex items-center">
+                  <span class="mr-2">${formatDuration(duration)} (${percentage}%)</span>
+                  {/* Arrow Icon */}
+                  <svg class="task-toggle-arrow h-4 w-4 text-gray-400 transform transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+              </div>
+            </div>
+            {/* Progress Bar */}
+            <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${percentage}%"></div></div>
+          </button>
+          {/* Hidden Member List Container */}
+          <div id="members-for-${task}" class="hidden mt-2 space-y-0.5 bg-gray-50 rounded p-2">
+            ${membersHtml}
+          </div>
+        </div>`;
+    });
+  // Message if no work time was recorded
+  if (Object.keys(taskDurations).every(k => (taskDurations[k] || 0) <= 0)) {
+    html += `<p class="text-gray-500 text-sm">기록된 업무 시간이 없습니다.</p>`;
+  }
+  html += `</div></div>`; // End bottom section
+
+  view.innerHTML = html; // Update the view content
+};
+
+
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
@@ -1130,10 +1239,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     view.innerHTML = html; // Update the view content
 };
 
-/**
- * Renders the weekly attendance history summary view.
- * @param {Array} allHistoryData - Array of all daily history objects.
- */
 export const renderAttendanceWeeklyHistory = (allHistoryData) => {
     const view = document.getElementById('history-attendance-weekly-view');
     if (!view) return;
@@ -1233,10 +1338,6 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
     view.innerHTML = html; // Update view content
 };
 
-/**
- * Renders the monthly attendance history summary view.
- * @param {Array} allHistoryData - Array of all daily history objects.
- */
 export const renderAttendanceMonthlyHistory = (allHistoryData) => {
     const view = document.getElementById('history-attendance-monthly-view');
     if (!view) return;
