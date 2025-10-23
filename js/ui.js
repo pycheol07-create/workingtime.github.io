@@ -1,4 +1,4 @@
-// === ui.js (주별/월별 엑셀 버튼 제거, 일별 버튼 텍스트 수정) ===
+// === ui.js (업무 카드 그리드 및 직원 카드 크기 조정) ===
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
 
@@ -132,7 +132,6 @@ export const renderTaskAnalysis = (appState) => {
 };
 
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
-    // ... (이전과 동일) ...
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
         console.error("Element #team-status-board not found!");
@@ -151,9 +150,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
 
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4';
+    // ✅ [수정] 그리드 컬럼 설정 변경 (xl: 7개 추가)
+    presetGrid.className = 'grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4';
 
-    const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무']; // (폴백)
+    const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
     
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
@@ -258,7 +258,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     });
 
     const otherTaskCard = document.createElement('div');
-    // ... (이하 '기타 업무' 카드 렌더링은 이전과 동일) ...
     const otherStyle = taskCardStyles['default'];
     otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';
@@ -275,7 +274,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
-    // ... ('전체 팀원 현황' 섹션 렌더링은 이전과 동일, 이미 올바른 필터가 적용되어 있음) ...
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
@@ -292,7 +290,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     ];
     const onLeaveStatusMap = new Map(
         combinedOnLeaveMembers
-            .filter(item => !(item.type === '외출' && item.endTime)) // 복귀한 외출 제외
+            .filter(item => !(item.type === '외출' && item.endTime))
             .map(item => [item.member, item])
     );
 
@@ -318,11 +316,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         uniqueMembersInGroup.forEach(member => {
             const card = document.createElement('button');
             card.type = 'button';
-            const leaveInfo = onLeaveStatusMap.get(member); // 수정된 Map 사용
+            const leaveInfo = onLeaveStatusMap.get(member);
             const isOnLeave = !!leaveInfo;
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
 
-            card.className = 'p-1 rounded-lg border text-center transition-shadow min-h-[64px] w-24 flex flex-col justify-center';
+            // ✅ [수정] 직원 카드 크기 조정: w-24 -> w-28, min-h-[64px] -> min-h-[72px]
+            card.className = 'p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex flex-col justify-center';
             card.dataset.memberToggleLeave = member;
             if (!isWorking) {
                 card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
@@ -342,7 +341,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     }
                 }
                 else if (leaveInfo.startDate) {
-                    detailText = leaveInfo.startDate.substring(5); // 월-일 만 표시
+                    detailText = leaveInfo.startDate.substring(5);
                     if (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate) {
                         detailText += ` ~ ${leaveInfo.endDate.substring(5)}`;
                     }
@@ -369,7 +368,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     // --- 알바 섹션 ---
     const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
     const activePartTimers = (appState.partTimers || []).filter(pt => {
-        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name); // 수정된 Map 사용
+        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
     });
 
     if (activePartTimers.length > 0) {
@@ -384,11 +383,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              const card = document.createElement('button');
              card.type = 'button';
              card.dataset.memberToggleLeave = pt.name;
-             card.className = 'relative p-1 rounded-lg border text-center transition-shadow min-h-[64px] w-24 flex flex-col justify-center';
+             // ✅ [수정] 알바 카드 크기 조정: w-24 -> w-28, min-h-[64px] -> min-h-[72px]
+             card.className = 'relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex flex-col justify-center';
 
              const currentlyWorkingTask = workingMembers.get(pt.name);
              const isPaused = pausedMembers.has(pt.name);
-             const albaLeaveInfo = onLeaveStatusMap.get(pt.name); // 수정된 Map 사용
+             const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = currentlyWorkingTask || isPaused;
 
@@ -428,8 +428,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
+// ... (renderCompletedWorkLog, updateSummary, renderTeamSelectionModalContent, renderLeaveTypeModalOptions, renderSummaryView, renderWeeklyHistory, renderMonthlyHistory, renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory 함수들은 이전과 동일) ...
 export const renderCompletedWorkLog = (appState) => {
-    // ... (이전과 동일) ...
     const workLogBody = document.getElementById('work-log-body');
     if (!workLogBody) return;
     workLogBody.innerHTML = '';
@@ -465,7 +465,6 @@ export const renderCompletedWorkLog = (appState) => {
 };
 
 export const updateSummary = (appState, teamGroups = []) => {
-    // ... (이전과 동일) ...
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
     const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
     const summaryActiveStaffEl = document.getElementById('summary-active-staff');
@@ -483,7 +482,6 @@ export const updateSummary = (appState, teamGroups = []) => {
         ...(appState.dateBasedOnLeaveMembers || [])
     ];
     
-    // ✅ [수정] 복귀한 '외출' 인원을 휴무 인원에서 제외합니다.
     const onLeaveMemberNames = new Set(
         combinedOnLeaveMembers
             .filter(item => !(item.type === '외출' && item.endTime)) 
@@ -501,7 +499,6 @@ export const updateSummary = (appState, teamGroups = []) => {
     const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
 
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
-    // 현재 알바 대기 상태 계산 안 함
     const totalIdleCount = idleStaffCount;
 
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
@@ -515,7 +512,6 @@ export const updateSummary = (appState, teamGroups = []) => {
 };
 
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
-    // ... (이전과 동일) ...
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
     if (!titleEl || !container) return;
@@ -531,7 +527,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         ...(appState.dateBasedOnLeaveMembers || [])
     ];
     
-    // ✅ [수정] 복귀한 '외출' 인원을 휴무 인원에서 제외합니다.
     const onLeaveMemberMap = new Map(
         combinedOnLeaveMembers
             .filter(item => !(item.type === '외출' && item.endTime)) 
@@ -561,7 +556,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const uniqueMembersInGroup = [...new Set(group.members)];
         uniqueMembersInGroup.forEach(member => {
             const isWorking = allWorkingMembers.has(member);
-            const leaveEntry = onLeaveMemberMap.get(member); // 수정된 Map 사용
+            const leaveEntry = onLeaveMemberMap.get(member);
             const isOnLeave = !!leaveEntry;
             const card = document.createElement('button');
             card.type = 'button';
@@ -581,7 +576,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         container.appendChild(groupContainer);
     });
 
-    // ... (알바 그룹 렌더링 로직은 이전과 동일, onLeaveMemberMap이 수정되었으므로 자동 반영됨) ...
     const albaGroupContainer = document.createElement('div');
     albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
     albaGroupContainer.innerHTML = `<div class="flex justify-between items-center p-2 border-b border-gray-200">
@@ -597,7 +591,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
     (appState.partTimers || []).forEach(pt => {
         const isWorking = allWorkingMembers.has(pt.name);
-        const leaveEntry = onLeaveMemberMap.get(pt.name); // 수정된 Map 사용
+        const leaveEntry = onLeaveMemberMap.get(pt.name);
         const isOnLeave = !!leaveEntry;
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'relative';
@@ -636,7 +630,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 };
 
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
-    // ... (이전과 동일) ...
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs');
     if (!container || !dateInputsDiv) return;
@@ -675,7 +668,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
 };
 
 const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
-    // ... (이전과 동일) ...
     const records = dataset.workRecords || [];
     const quantities = dataset.taskQuantities || {};
 
@@ -761,7 +753,6 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}) => {
 };
 
 export const renderWeeklyHistory = (allHistoryData, appConfig) => {
-    // ... (이전과 동일) ...
     const view = document.getElementById('history-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 데이터 집계 중...</div>';
@@ -805,7 +796,6 @@ export const renderWeeklyHistory = (allHistoryData, appConfig) => {
             return;
         }
 
-        // ✅ [수정] 헤더 및 엑셀 버튼 제거
         view.innerHTML = sortedWeeks.map(weekKey => renderSummaryView('weekly', weeklyData[weekKey], weekKey, combinedWageMap)).join('');
     } catch (error) {
         console.error("Error in renderWeeklyHistory:", error);
@@ -814,7 +804,6 @@ export const renderWeeklyHistory = (allHistoryData, appConfig) => {
 };
 
 export const renderMonthlyHistory = (allHistoryData, appConfig) => {
-    // ... (이전과 동일) ...
     const view = document.getElementById('history-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 데이터 집계 중...</div>';
@@ -854,7 +843,6 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
             return;
         }
 
-        // ✅ [수정] 헤더 및 엑셀 버튼 제거
         view.innerHTML = sortedMonths.map(monthKey => renderSummaryView('monthly', monthlyData[monthKey], monthKey, combinedWageMap)).join('');
     } catch (error) {
         console.error("Error in renderMonthlyHistory:", error);
@@ -863,7 +851,6 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
 };
 
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
-    // ... (이전과 동일) ...
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
@@ -943,7 +930,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 };
 
 export const renderAttendanceWeeklyHistory = (allHistoryData) => {
-    // ... (이전과 동일) ...
     const view = document.getElementById('history-attendance-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터 집계 중...</div>';
@@ -959,7 +945,7 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
             if (!acc[weekKey]) acc[weekKey] = { leaveEntries: [], dateKeys: new Set() };
 
             day.onLeaveMembers.forEach(entry => {
-                if (entry && entry.type && entry.member) { // entry 유효성 검사 추가
+                if (entry && entry.type && entry.member) {
                     if (entry.startDate) {
                         const currentDate = day.id;
                         const startDate = entry.startDate;
@@ -968,7 +954,7 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
                             acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
                         }
                     } else {
-                        acc[weekKey].leaveEntries.push({ ...entry, date: day.id }); // 날짜 정보 추가
+                        acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
                     }
                 }
             });
@@ -983,18 +969,15 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
         return;
     }
 
-    // ✅ [수정] 헤더 및 엑셀 버튼 제거
     let html = '';
     sortedWeeks.forEach(weekKey => {
         const data = weeklyData[weekKey];
-        // 각 멤버별, 타입별 집계
         const summary = data.leaveEntries.reduce((acc, entry) => {
             const key = `${entry.member}-${entry.type}`;
             if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
 
-             // startDate가 있으면 일수 기반, 없으면 횟수 기반
             if(entry.startDate) {
-                 acc[key].count += 1; // 날짜별로 1회씩 카운트
+                 acc[key].count += 1;
             } else {
                 acc[key].count += 1;
             }
@@ -1003,7 +986,7 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
 
         Object.values(summary).forEach(item => {
              if (['연차', '출장', '결근'].includes(item.type)) {
-                 item.days = item.count; // count를 days로 옮김
+                 item.days = item.count;
              }
         });
 
@@ -1030,7 +1013,6 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
 };
 
 export const renderAttendanceMonthlyHistory = (allHistoryData) => {
-    // ... (이전과 동일) ...
     const view = document.getElementById('history-attendance-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터 집계 중...</div>';
@@ -1068,7 +1050,6 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
         return;
     }
 
-    // ✅ [수정] 헤더 및 엑셀 버튼 제거
     let html = '';
     sortedMonths.forEach(monthKey => {
         const data = monthlyData[monthKey];
