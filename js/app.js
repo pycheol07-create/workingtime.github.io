@@ -1,4 +1,4 @@
-// === app.js (자동 저장 기능 추가) ===
+// === app.js (오늘의 처리량 모달, 이력 멤버 목록 토글, 자동 저장 기능 추가) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -18,11 +18,11 @@ import {
   renderAttendanceWeeklyHistory,
   renderAttendanceMonthlyHistory,
   renderWeeklyHistory,
-  renderMonthlyHistory
+  renderMonthlyHistory,
+  renderHistoryDetail // ✅ [이력 멤버] renderHistoryDetail import 확인
 } from './ui.js';
 
 // ========== DOM Elements ==========
-// ... (이전과 동일) ...
 const connectionStatusEl = document.getElementById('connection-status');
 const statusDotEl = document.getElementById('status-dot');
 const teamStatusBoard = document.getElementById('team-status-board');
@@ -91,9 +91,10 @@ const cancelLeaveConfirmMessage = document.getElementById('cancel-leave-confirm-
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
 const toggleAnalysis = document.getElementById('toggle-analysis');
 const toggleSummary = document.getElementById('toggle-summary');
+const historyDailyView = document.getElementById('history-daily-view'); // ✅ [이력 멤버]
+const editTodayQuantityBtn = document.getElementById('edit-today-quantity-btn'); // ✅ [오늘 처리량]
 
 // ========== Firebase/App State ==========
-// ... (db, auth 선언은 이전과 동일) ...
 let db, auth;
 let unsubscribeToday;
 let unsubscribeLeaveSchedule;
@@ -122,10 +123,9 @@ let appConfig = {
     taskGroups: {},
     quantityTaskTypes: [],
     defaultPartTimerWage: 10000,
-    keyTasks: [] // [추가]
+    keyTasks: []
 };
 
-// ... (다른 상태 변수들은 이전과 동일) ...
 let selectedTaskForStart = null;
 let selectedGroupForAdd = null;
 let recordToDeleteId = null;
@@ -144,7 +144,6 @@ let activeMainHistoryTab = 'work';
 const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // ========== Helpers ==========
-// ... (generateId, normalizeName, calcElapsedMinutes, calculateDateDifference 함수는 이전과 동일) ...
 const generateId = () => `${Date.now()}-${++recordCounter}`;
 const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
 const calcElapsedMinutes = (start, end, pauses = []) => {
@@ -174,7 +173,6 @@ const calculateDateDifference = (start, end) => {
 
 // ========== 타이머 ==========
 const updateElapsedTimes = () => {
-  // ... (이전과 동일) ...
   const now = getCurrentTime();
   document.querySelectorAll('.ongoing-duration').forEach(el => {
     try {
@@ -216,7 +214,6 @@ const updateElapsedTimes = () => {
 // ========== 렌더 ==========
 const render = () => {
   try {
-    // [수정] appConfig.keyTasks 전달
     renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || []);
     renderCompletedWorkLog(appState);
     updateSummary(appState, appConfig.teamGroups);
@@ -283,8 +280,6 @@ async function saveStateToFirestore() {
 }
 
 // ========== 업무 그룹/개인 제어 ==========
-// ... (startWorkGroup, addMembersToWorkGroup, stopWorkGroup, finalizeStopGroup, stopWorkIndividual, pause/resume 함수들은 이전과 동일) ...
-// (단, 이 함수들이 saveStateToFirestore()를 호출하면 자동으로 markDataAsDirty()가 호출됩니다)
 const startWorkGroup = (members, task) => {
   const groupId = Date.now();
   const startTime = getCurrentTime();
@@ -545,8 +540,7 @@ async function saveDayDataToHistory(shouldReset) {
   }
 }
 
-
-// ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal, renderHistoryDetail, requestHistoryDeletion, downloadHistoryAsExcel, downloadAttendanceHistoryAsExcel, switchHistoryView 함수들은 이전과 동일) ...
+// ========== 이력 관련 함수 ==========
 async function fetchAllHistoryData() {
   const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
   try {
@@ -554,10 +548,12 @@ async function fetchAllHistoryData() {
     allHistoryData = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      // Ensure essential data exists before adding
       if (data && ( (data.workRecords && data.workRecords.length > 0) || (data.onLeaveMembers && data.onLeaveMembers.length > 0) || (data.partTimers && data.partTimers.length > 0) )) {
          allHistoryData.push({ id: doc.id, ...data });
       }
     });
+    // Sort descending by date (document ID)
     allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
     return allHistoryData;
   } catch (error) {
@@ -570,12 +566,13 @@ async function fetchAllHistoryData() {
 const loadAndRenderHistoryList = async () => {
     if (!historyDateList) return;
     historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
-    allHistoryData = [];
+    allHistoryData = []; // Clear previous data
 
     const historyData = await fetchAllHistoryData();
 
     if (historyData.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
+        // Clear all view panes if no history
         const viewsToClear = ['history-daily-view', 'history-weekly-view', 'history-monthly-view', 'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view'];
         viewsToClear.forEach(viewId => {
             const viewEl = document.getElementById(viewId);
@@ -585,25 +582,29 @@ const loadAndRenderHistoryList = async () => {
     }
 
     const dates = historyData.map(d => d.id);
-    historyDateList.innerHTML = '';
+    historyDateList.innerHTML = ''; // Clear loading message
     dates.forEach(dateKey => {
         const li = document.createElement('li');
         li.innerHTML = `<button data-key="${dateKey}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300">${dateKey}</button>`;
         historyDateList.appendChild(li);
     });
 
+    // Automatically select and load the first date in the list
     if (historyDateList.firstChild) {
         const firstButton = historyDateList.firstChild.querySelector('button');
         if (firstButton) {
-            firstButton.classList.add('bg-blue-100', 'font-bold');
+            firstButton.classList.add('bg-blue-100', 'font-bold'); // Highlight the first item
+            // Determine the active sub-tab view (daily, weekly, etc.)
             const activeSubTabBtn = (activeMainHistoryTab === 'work')
                 ? historyTabs?.querySelector('button.font-semibold')
                 : attendanceHistoryTabs?.querySelector('button.font-semibold');
             const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
+            // Load the detail view for the selected date and active sub-tab
             switchHistoryView(activeView);
         }
     } else {
-        switchHistoryView('daily');
+        // If somehow list is empty after fetch (should not happen if historyData > 0)
+        switchHistoryView('daily'); // Default to daily view
         const dailyView = document.getElementById('history-daily-view');
         if (dailyView) dailyView.innerHTML = '<div class="text-center text-gray-500 p-8">표시할 이력이 없습니다.</div>';
     }
@@ -618,167 +619,43 @@ window.openHistoryQuantityModal = (dateKey) => {
   const title = document.getElementById('quantity-modal-title');
   if (title) title.textContent = `${dateKey} 처리량 수정`;
 
+  // Setup context for the quantity modal (history mode)
   quantityModalContext = {
     mode: 'history',
     dateKey,
     onConfirm: async (newQuantities) => {
+      // Find the index of the data to update
       const idx = allHistoryData.findIndex(d => d.id === dateKey);
-      if (idx === -1) return;
+      if (idx === -1) return; // Should not happen if data was found initially
+      // Update the local cache
       allHistoryData[idx] = { ...allHistoryData[idx], taskQuantities: newQuantities };
+      // Update Firestore document
       const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
       try {
-        await setDoc(historyDocRef, allHistoryData[idx]);
+        await setDoc(historyDocRef, allHistoryData[idx]); // Overwrite with updated data
         showToast(`${dateKey}의 처리량이 수정되었습니다.`);
+         // Refresh the current view to reflect changes
          const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
          const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-         switchHistoryView(currentView);
+         switchHistoryView(currentView); // Reload daily, weekly or monthly view
       } catch (e) {
         console.error('Error updating history quantities:', e);
         showToast('처리량 업데이트 중 오류 발생.', true);
       }
     },
-    onCancel: () => {}
+    onCancel: () => {} // No action needed on cancel
   };
 
+  // Update modal button text for clarity
   const cBtn = document.getElementById('confirm-quantity-btn');
   const xBtn = document.getElementById('cancel-quantity-btn');
   if (cBtn) cBtn.textContent = '수정 저장';
   if (xBtn) xBtn.textContent = '취소';
+  // Show the modal
   if (quantityModal) quantityModal.classList.remove('hidden');
 };
 
-const renderHistoryDetail = (dateKey) => {
-  const view = document.getElementById('history-daily-view');
-  if (!view) return;
-  view.innerHTML = '<div class="text-center text-gray-500">데이터 로딩 중...</div>';
-  const data = allHistoryData.find(d => d.id === dateKey);
-  if (!data) { view.innerHTML = '<div class="text-center text-red-500">해당 날짜의 데이터를 찾을 수 없습니다.</div>'; return; }
-
-  const records = data.workRecords || [];
-  const quantities = data.taskQuantities || {};
-  const onLeaveMemberEntries = data.onLeaveMembers || [];
-  const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
-  const partTimersFromHistory = data.partTimers || [];
-
-  const wageMap = { ...appConfig.memberWages };
-  partTimersFromHistory.forEach(pt => {
-      if (!wageMap[pt.name]) {
-          wageMap[pt.name] = pt.wage || 0;
-      }
-  });
-
-  const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
-  const activeMembersCount = allRegularMembers.size - onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length
-                           + partTimersFromHistory.length - onLeaveMemberNames.filter(name => partTimersFromHistory.some(pt => pt.name === name)).length;
-
-  const totalSumDuration = records.reduce((sum, r) => sum + (r.duration || 0), 0);
-
-  const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (rec.duration || 0); return acc; }, {});
-
-  const taskCosts = records.reduce((acc, rec) => {
-      const wage = wageMap[rec.member] || 0;
-      const cost = ((Number(rec.duration) || 0) / 60) * wage;
-      acc[rec.task] = (acc[rec.task] || 0) + cost;
-      return acc;
-  }, {});
-
-  const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
-  const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
-
-  let nonWorkHtml = '';
-  if (isWeekday(dateKey)) {
-    const totalPotentialMinutes = activeMembersCount * 8 * 60; // 8시간 기준
-    const nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalSumDuration);
-    const percentage = totalPotentialMinutes > 0 ? (nonWorkMinutes / totalPotentialMinutes * 100).toFixed(1) : 0;
-    nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-xl font-bold text-gray-700">${formatDuration(nonWorkMinutes)}</p><p class="text-xs text-gray-500 mt-1">(추정치, ${percentage}%)</p></div>`;
-  } else {
-    nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex flex-col justify-center items-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-lg font-bold text-gray-400">주말</p></div>`;
-  }
-
-  let html = `
-    <div class="mb-6 pb-4 border-b flex justify-between items-center">
-      <h3 class="text-2xl font-bold text-gray-800">${dateKey}</h3>
-      <div>
-        <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm" onclick="openHistoryQuantityModal('${dateKey}')">처리량 수정</button>
-        <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="downloadHistoryAsExcel('${dateKey}')">엑셀</button>
-        <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="requestHistoryDeletion('${dateKey}')">삭제</button>
-      </div>
-    </div>
-    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">근무 인원</h4><p class="text-2xl font-bold text-gray-800">${activeMembersCount} 명</p></div>
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${formatDuration(totalSumDuration)}</p></div>
-      ${nonWorkHtml}
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center col-span-2"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${totalQuantity} 개</p></div>
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
-    </div>
-  `;
-
-  html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">`;
-  html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 처리량</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
-  let hasQuantities = false;
-  Object.entries(quantities)
-    .filter(([, qty]) => Number(qty) > 0)
-    .sort(([a],[b]) => a.localeCompare(b))
-    .forEach(([task, qty]) => {
-      hasQuantities = true;
-      html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${qty} 개</span></div>`;
-    });
-  if (!hasQuantities) html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
-  html += `</div></div>`;
-
-  html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 분당 처리량</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
-  let hasThroughput = false;
-  Object.entries(quantities)
-    .filter(([, qty]) => Number(qty) > 0)
-    .sort(([a],[b]) => a.localeCompare(b))
-    .forEach(([task, qty]) => {
-      hasThroughput = true;
-      const durationForTask = taskDurations[task] || 0;
-      const throughputForTask = durationForTask > 0 ? ((Number(qty) || 0) / durationForTask).toFixed(2) : '0.00';
-      html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${throughputForTask} 개/분</span></div>`;
-    });
-  if (!hasThroughput) html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
-  html += `</div></div>`;
-
-  html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 개당 처리비용</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
-  let hasCostPerItem = false;
-  Object.entries(quantities)
-    .filter(([, qty]) => Number(qty) > 0)
-    .sort(([a],[b]) => a.localeCompare(b))
-    .forEach(([task, qty]) => {
-      hasCostPerItem = true;
-      const costForTask = taskCosts[task] || 0;
-      const qtyNum = Number(qty) || 1;
-      const costPerItem = costForTask / qtyNum;
-      html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${costPerItem.toFixed(0)} 원/개</span></div>`;
-    });
-  if (!hasCostPerItem) html += `<p class="text-gray-500 text-sm">처리량이 없어 계산 불가.</p>`;
-  html += `</div></div>`;
-
-  html += `</div>`;
-
-  html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 시간 비중</h4><div class="space-y-3">`;
-  Object.entries(taskDurations)
-    .filter(([, duration]) => duration > 0)
-    .sort(([,a],[,b]) => b - a)
-    .forEach(([task, duration]) => {
-      const percentage = totalSumDuration > 0 ? (duration / totalSumDuration * 100).toFixed(1) : 0;
-      html += `
-        <div>
-          <div class="flex justify-between items-center mb-1 text-sm">
-            <span class="font-semibold text-gray-600">${task}</span>
-            <span>${formatDuration(duration)} (${percentage}%)</span>
-          </div>
-          <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${percentage}%"></div></div>
-        </div>`;
-    });
-  if (Object.keys(taskDurations).every(k => (taskDurations[k] || 0) <= 0)) {
-    html += `<p class="text-gray-500 text-sm">기록된 업무 시간이 없습니다.</p>`;
-  }
-  html += `</div></div>`;
-
-  view.innerHTML = html;
-};
+// Note: renderHistoryDetail is now in ui.js
 
 window.requestHistoryDeletion = (dateKey) => {
   historyKeyToDelete = dateKey;
@@ -787,7 +664,6 @@ window.requestHistoryDeletion = (dateKey) => {
 
 
 window.downloadHistoryAsExcel = async (dateKey) => {
-    // ... (이전과 동일) ...
     try {
         const data = allHistoryData.find(d => d.id === dateKey);
         if (!data || !data.workRecords || data.workRecords.length === 0) {
@@ -797,41 +673,48 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         const quantities = data.taskQuantities || {};
         const partTimersFromHistory = data.partTimers || [];
 
+        // Combine base wages with history-specific part-timer wages
         const wageMap = { ...appConfig.memberWages };
         partTimersFromHistory.forEach(pt => {
-            if (!wageMap[pt.name]) {
+            if (!wageMap[pt.name]) { // Only add if not already present (config might be newer)
                 wageMap[pt.name] = pt.wage || 0;
             }
         });
 
+        // Helper to add a 'Total' row to a worksheet
         const appendTotalRow = (ws, data, headers) => {
             if (!data || data.length === 0) return;
             const total = {};
             const sums = {};
 
+            // Calculate sums for relevant columns
             headers.forEach(header => {
                 if (header.includes('(분)') || header.includes('(원)') || header.includes('(개)')) {
                     sums[header] = data.reduce((acc, row) => acc + (Number(row[header]) || 0), 0);
                 }
             });
 
+            // Build the total row object
             headers.forEach((header, index) => {
                 if (index === 0) {
                     total[header] = '총 합계';
                 } else if (header.includes('(분)') || header.includes('총 인건비(원)') || header.includes('총 처리량(개)')) {
                     total[header] = Math.round(sums[header]);
                 } else if (header === '개당 처리비용(원)') {
+                    // Calculate overall cost per item
                     const totalCost = sums['총 인건비(원)'] || 0;
                     const totalQty = sums['총 처리량(개)'] || 0;
                     const totalCostPerItem = (totalQty > 0) ? (totalCost / totalQty) : 0;
                     total[header] = Math.round(totalCostPerItem);
                 } else {
-                    total[header] = '';
+                    total[header] = ''; // Blank for non-numeric columns
                 }
             });
+            // Append the total row to the sheet
             XLSX.utils.sheet_add_json(ws, [total], { skipHeader: true, origin: -1 });
         };
 
+        // --- Sheet 1: Detailed Records ---
         const sheet1Headers = ['팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)'];
         const sheet1Data = records.map(r => ({
             '팀원': r.member || '',
@@ -843,8 +726,10 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
         if (sheet1Data.length > 0) appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
 
+        // --- Sheet 2: Summary by Task ---
         const sheet2Headers = ['업무 종류', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)'];
         const summaryByTask = {};
+        // Aggregate duration and cost per task
         records.forEach(r => {
             if (!summaryByTask[r.task]) summaryByTask[r.task] = { totalDuration: 0, totalCost: 0 };
             const wage = wageMap[r.member] || 0;
@@ -852,11 +737,11 @@ window.downloadHistoryAsExcel = async (dateKey) => {
             summaryByTask[r.task].totalDuration += (Number(r.duration) || 0);
             summaryByTask[r.task].totalCost += cost;
         });
-
+        // Map aggregated data to sheet format
         const sheet2Data = Object.keys(summaryByTask).sort().map(task => {
             const taskQty = Number(quantities[task]) || 0;
             const taskCost = summaryByTask[task].totalCost;
-            const costPerItem = (taskQty > 0) ? (taskCost / taskQty) : 0;
+            const costPerItem = (taskQty > 0) ? (taskCost / taskQty) : 0; // Avoid division by zero
 
             return {
                 '업무 종류': task,
@@ -869,17 +754,21 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
         if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers);
 
+        // --- Sheet 3: Cost by Part/Group ---
         const sheet3Headers = ['파트', '총 인건비(원)'];
         const memberToPartMap = new Map();
+        // Create a map from member name to their group name
         (appConfig.teamGroups || []).forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
         const summaryByPart = {};
+        // Aggregate cost per part/group
         records.forEach(r => {
-            const part = memberToPartMap.get(r.member) || '알바'; // 파트 없으면 알바로 간주
+            const part = memberToPartMap.get(r.member) || '알바'; // Default to '알바' if not in a group
             if (!summaryByPart[part]) summaryByPart[part] = { totalCost: 0 };
             const wage = wageMap[r.member] || 0;
             const cost = ((Number(r.duration) || 0) / 60) * wage;
             summaryByPart[part].totalCost += cost;
         });
+        // Map aggregated data to sheet format
         const sheet3Data = Object.keys(summaryByPart).sort().map(part => ({
             '파트': part,
             '총 인건비(원)': Math.round(summaryByPart[part].totalCost)
@@ -887,21 +776,26 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
         if (sheet3Data.length > 0) appendTotalRow(worksheet3, sheet3Data, sheet3Headers);
 
+        // --- Auto-fit columns ---
         const fitToColumn = (ws) => {
             const objectMaxLength = [];
+            // Get data as array of arrays
             const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
             if (!data || data.length === 0) return;
+            // Calculate max width for header row
             if (data[0]) {
                 Object.keys(data[0]).forEach((key, index) => {
                     objectMaxLength[index] = String(data[0][key]).length;
                 });
             }
+            // Calculate max width for data rows
             data.slice(1).forEach(row => {
                 Object.keys(row).forEach((key, index) => {
-                    const cellLength = String(row[key] ?? '').length;
-                    objectMaxLength[index] = Math.max(objectMaxLength[index] || 10, cellLength);
+                    const cellLength = String(row[key] ?? '').length; // Handle null/undefined
+                    objectMaxLength[index] = Math.max(objectMaxLength[index] || 10, cellLength); // Use a minimum width
                 });
             });
+            // Set column widths with padding
             ws['!cols'] = objectMaxLength.map(w => ({ width: w + 2 }));
         };
 
@@ -909,6 +803,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         if (worksheet2) fitToColumn(worksheet2);
         if (worksheet3) fitToColumn(worksheet3);
 
+        // --- Create and Download Workbook ---
         const workbook = XLSX.utils.book_new();
         if (worksheet1) XLSX.utils.book_append_sheet(workbook, worksheet1, '상세 기록');
         if (worksheet2) XLSX.utils.book_append_sheet(workbook, worksheet2, '업무별 요약');
@@ -922,21 +817,22 @@ window.downloadHistoryAsExcel = async (dateKey) => {
 };
 
 window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
-    // ... (이전과 동일) ...
     try {
         const data = allHistoryData.find(d => d.id === dateKey);
         if (!data || !data.onLeaveMembers || data.onLeaveMembers.length === 0) {
             return showToast('다운로드할 근태 기록이 없습니다.', true);
         }
         const records = data.onLeaveMembers;
+        // Prepare data for the sheet
         const sheetData = records
-            .sort((a, b) => (a.member || '').localeCompare(b.member || ''))
+            .sort((a, b) => (a.member || '').localeCompare(b.member || '')) // Sort by member name
             .map(entry => {
                 let detailText = '-';
+                // Format time/date range
                 if (entry.startTime) {
                     detailText = formatTimeTo24H(entry.startTime);
                     if (entry.endTime) detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
-                    else if (entry.type === '외출') detailText += ' ~';
+                    else if (entry.type === '외출') detailText += ' ~'; // Indicate ongoing leave
                 } else if (entry.startDate) {
                     detailText = entry.startDate;
                     if (entry.endDate && entry.endDate !== entry.startDate) detailText += ` ~ ${entry.endDate}`;
@@ -950,6 +846,7 @@ window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
         
         const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: ['이름', '유형', '시간 / 기간'] });
 
+        // --- Auto-fit columns ---
         const fitToColumn = (ws) => {
             const objectMaxLength = [];
             const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
@@ -969,6 +866,7 @@ window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
         };
         fitToColumn(worksheet);
 
+        // --- Create and Download Workbook ---
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, '근태 기록');
         XLSX.writeFile(workbook, `근태기록_${dateKey}.xlsx`);
@@ -980,7 +878,7 @@ window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
 };
 
 const switchHistoryView = (view) => {
-  // ... (이전과 동일) ...
+  // Hide all view panels first
   const allViews = [
       document.getElementById('history-daily-view'),
       document.getElementById('history-weekly-view'),
@@ -991,6 +889,7 @@ const switchHistoryView = (view) => {
   ];
   allViews.forEach(v => v && v.classList.add('hidden'));
 
+  // Reset styles for all sub-tabs (both work and attendance)
   if (historyTabs) {
       historyTabs.querySelectorAll('button').forEach(btn => {
           btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
@@ -1004,12 +903,14 @@ const switchHistoryView = (view) => {
       });
   }
 
+  // Show/hide the date list based on whether it's a daily view
   const dateListContainer = document.getElementById('history-date-list-container');
-  const isDailyView = view.includes('daily');
+  const isDailyView = view.includes('daily'); // Covers 'daily' and 'attendance-daily'
   if (dateListContainer) {
       dateListContainer.style.display = isDailyView ? 'block' : 'none';
   }
 
+  // Get the currently selected date key from the list
   let selectedDateKey = null;
   const selectedDateBtn = historyDateList?.querySelector('button.font-bold');
   if (selectedDateBtn) {
@@ -1019,41 +920,43 @@ const switchHistoryView = (view) => {
   let viewToShow = null;
   let tabToActivate = null;
 
+  // Determine which view panel and tab to activate based on the 'view' argument
   switch(view) {
       case 'daily':
           viewToShow = document.getElementById('history-daily-view');
           tabToActivate = historyTabs?.querySelector('button[data-view="daily"]');
-          if (selectedDateKey) renderHistoryDetail(selectedDateKey);
-          else if (viewToShow) viewToShow.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
+          if (selectedDateKey) renderHistoryDetail(selectedDateKey); // Render daily details if a date is selected
+          else if (viewToShow) viewToShow.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>'; // Prompt if no date selected
           break;
       case 'weekly':
           viewToShow = document.getElementById('history-weekly-view');
           tabToActivate = historyTabs?.querySelector('button[data-view="weekly"]');
-          renderWeeklyHistory(allHistoryData, appConfig); // appConfig 전달
+          renderWeeklyHistory(allHistoryData, appConfig); // Render weekly summary
           break;
       case 'monthly':
           viewToShow = document.getElementById('history-monthly-view');
           tabToActivate = historyTabs?.querySelector('button[data-view="monthly"]');
-          renderMonthlyHistory(allHistoryData, appConfig); // appConfig 전달
+          renderMonthlyHistory(allHistoryData, appConfig); // Render monthly summary
           break;
       case 'attendance-daily':
           viewToShow = document.getElementById('history-attendance-daily-view');
           tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-daily"]');
-          if (selectedDateKey) renderAttendanceDailyHistory(selectedDateKey, allHistoryData);
+          if (selectedDateKey) renderAttendanceDailyHistory(selectedDateKey, allHistoryData); // Render daily attendance if date selected
           else if (viewToShow) viewToShow.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
           break;
       case 'attendance-weekly':
           viewToShow = document.getElementById('history-attendance-weekly-view');
           tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
-          renderAttendanceWeeklyHistory(allHistoryData);
+          renderAttendanceWeeklyHistory(allHistoryData); // Render weekly attendance summary
           break;
       case 'attendance-monthly':
           viewToShow = document.getElementById('history-attendance-monthly-view');
           tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
-          renderAttendanceMonthlyHistory(allHistoryData);
+          renderAttendanceMonthlyHistory(allHistoryData); // Render monthly attendance summary
           break;
   }
 
+  // Show the selected view panel and highlight the corresponding tab
   if (viewToShow) viewToShow.classList.remove('hidden');
   if (tabToActivate) {
       tabToActivate.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
@@ -1063,33 +966,38 @@ const switchHistoryView = (view) => {
 
 
 // ========== 이벤트 리스너 ==========
-// ... (teamStatusBoard 클릭 리스너는 이전과 동일) ...
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
+    // Stop Group Button
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
     if (stopGroupButton) { stopWorkGroup(Number(stopGroupButton.dataset.groupId)); return; }
+    // Pause Group Button
     const pauseGroupButton = e.target.closest('.pause-work-group-btn');
     if (pauseGroupButton) { pauseWorkGroup(Number(pauseGroupButton.dataset.groupId)); return; }
+    // Resume Group Button
     const resumeGroupButton = e.target.closest('.resume-work-group-btn');
     if (resumeGroupButton) { resumeWorkGroup(Number(resumeGroupButton.dataset.groupId)); return; }
 
+    // Pause Individual Button
     const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
     if (individualPauseBtn) {
-        e.stopPropagation();
+        e.stopPropagation(); // Prevent card click action
         pauseWorkIndividual(individualPauseBtn.dataset.recordId);
         return;
     }
 
+    // Resume Individual Button
     const individualResumeBtn = e.target.closest('[data-action="resume-individual"]');
     if (individualResumeBtn) {
-        e.stopPropagation();
+        e.stopPropagation(); // Prevent card click action
         resumeWorkIndividual(individualResumeBtn.dataset.recordId);
         return;
     }
 
+    // Stop Individual Button -> Show Confirmation Modal
     const individualStopBtn = e.target.closest('[data-action="stop-individual"]');
     if (individualStopBtn) {
-      e.stopPropagation();
+      e.stopPropagation(); // Prevent card click action
       const recordId = individualStopBtn.dataset.recordId;
       const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
       if (record) {
@@ -1100,20 +1008,23 @@ if (teamStatusBoard) {
       return;
     }
 
+    // Member Card (for Leave Status Toggle)
     const memberCard = e.target.closest('[data-member-toggle-leave]');
     if (memberCard) {
       const memberName = memberCard.dataset.memberToggleLeave;
 
+      // Check if member is currently working (cannot change leave status)
       const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
       if (isWorking) {
           return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
       }
 
+      // Check current leave status (including date-based leave)
       const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
-      const currentLeaveEntry = combinedOnLeaveMembers.find(item => item.member === memberName && !(item.type === '외출' && item.endTime));
-
+      const currentLeaveEntry = combinedOnLeaveMembers.find(item => item.member === memberName && !(item.type === '외출' && item.endTime)); // Exclude returned '외출'
 
       if (currentLeaveEntry) {
+          // If currently on leave -> Show Cancel/Return Confirmation Modal
           const leaveType = currentLeaveEntry.type;
           memberToCancelLeave = memberName;
 
@@ -1129,10 +1040,12 @@ if (teamStatusBoard) {
           if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.remove('hidden');
 
       } else {
+          // If not on leave -> Show Leave Type Selection Modal
           memberToSetLeave = memberName;
           if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
-          renderLeaveTypeModalOptions(LEAVE_TYPES);
+          renderLeaveTypeModalOptions(LEAVE_TYPES); // Populate leave types
 
+          // Reset and configure date inputs based on default selection
           if(leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
           if(leaveEndDateInput) leaveEndDateInput.value = '';
           const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
@@ -1140,28 +1053,35 @@ if (teamStatusBoard) {
               const initialType = firstRadio.value;
               if (leaveDateInputsDiv) leaveDateInputsDiv.classList.toggle('hidden', !(initialType === '연차' || initialType === '출장' || initialType === '결근'));
           } else if (leaveDateInputsDiv) {
-               leaveDateInputsDiv.classList.add('hidden');
+               leaveDateInputsDiv.classList.add('hidden'); // Hide if no options (error case)
           }
           if(leaveTypeModal) leaveTypeModal.classList.remove('hidden');
       }
       return;
     }
 
+    // Task Card Click (Start Task / Add Member / Other Task)
     const card = e.target.closest('div[data-action]');
     if (card) {
+      // Ignore clicks on buttons or the member list within the card
       if (e.target.closest('button, .members-list')) return;
+
       const action = card.dataset.action;
       const task = card.dataset.task;
+
       if (action === 'start-task') {
+        // Open team selection modal to start a new task group
         selectedTaskForStart = task; selectedGroupForAdd = null;
         renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
         const titleEl = document.getElementById('team-select-modal-title');
         if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
         if (teamSelectModal) teamSelectModal.classList.remove('hidden');
       } else if (action === 'other') {
+        // Open the 'select other task' modal
         selectedTaskForStart = null; selectedGroupForAdd = null;
         if (taskSelectModal) taskSelectModal.classList.remove('hidden');
       } else if (action === 'add-member') {
+        // Open team selection modal to add members to an existing group
         const groupId = Number(card.dataset.groupId);
         selectedTaskForStart = task; selectedGroupForAdd = groupId;
         renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
@@ -1175,6 +1095,7 @@ if (teamStatusBoard) {
 
 if (workLogBody) {
   workLogBody.addEventListener('click', (e) => {
+    // Delete Button (Single Record) -> Show Confirmation Modal
     const deleteBtn = e.target.closest('button[data-action="delete"]');
     if (deleteBtn) {
       recordToDeleteId = deleteBtn.dataset.recordId;
@@ -1184,23 +1105,26 @@ if (workLogBody) {
       if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
       return;
     }
+    // Edit Button -> Show Edit Modal
     const editBtn = e.target.closest('button[data-action="edit"]');
     if (editBtn) {
       recordToEditId = editBtn.dataset.recordId;
       const record = (appState.workRecords || []).find(r => String(r.id) === String(recordToEditId));
       if (record) {
+        // Populate the edit modal fields
         document.getElementById('edit-member-name').value = record.member;
         document.getElementById('edit-start-time').value = record.startTime || '';
         document.getElementById('edit-end-time').value = record.endTime || '';
 
+        // Populate the task dropdown
         const taskSelect = document.getElementById('edit-task-type');
-        taskSelect.innerHTML = ''; // Clear options
-        const allTasks = [].concat(...Object.values(appConfig.taskGroups || {}));
+        taskSelect.innerHTML = ''; // Clear previous options
+        const allTasks = [].concat(...Object.values(appConfig.taskGroups || {})); // Get all possible tasks
         allTasks.forEach(task => {
             const option = document.createElement('option');
             option.value = task;
             option.textContent = task;
-            if (task === record.task) option.selected = true;
+            if (task === record.task) option.selected = true; // Select the current task
             taskSelect.appendChild(option);
         });
 
@@ -1211,6 +1135,7 @@ if (workLogBody) {
   });
 }
 
+// Delete All Completed Button -> Show Confirmation Modal
 if (deleteAllCompletedBtn) {
   deleteAllCompletedBtn.addEventListener('click', () => {
     deleteMode = 'all';
@@ -1220,157 +1145,173 @@ if (deleteAllCompletedBtn) {
   });
 }
 
+// Confirm Delete Button (handles both single and all)
 if (confirmDeleteBtn) {
   confirmDeleteBtn.addEventListener('click', () => {
     if (deleteMode === 'all') {
+      // Filter out completed records
       appState.workRecords = (appState.workRecords || []).filter(r => r.status !== 'completed');
       showToast('완료된 모든 기록이 삭제되었습니다.');
     } else if (recordToDeleteId) {
+      // Filter out the specific record
       appState.workRecords = (appState.workRecords || []).filter(r => String(r.id) !== String(recordToDeleteId));
       showToast('선택한 기록이 삭제되었습니다.');
     }
-    saveStateToFirestore(); // [Auto-save] 이 함수는 markDataAsDirty()를 호출
+    saveStateToFirestore(); // Persist the changes and mark data as dirty
     if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
+    // Reset state variables
     recordToDeleteId = null;
     deleteMode = 'single';
   });
 }
 
+// End Shift Button -> Save final state to history and clear daily data
 if (endShiftBtn) {
   endShiftBtn.addEventListener('click', () => {
-    saveDayDataToHistory(false); // false = 마감 (초기화 아님)
+    saveDayDataToHistory(false); // false = End Shift (save to history, clear daily, but don't reset history)
     showToast('업무 마감 처리 완료. 오늘의 기록을 이력에 저장하고 초기화했습니다.');
   });
 }
 
-// [수정] '중간 저장' 버튼 리스너
+// Manual Save Progress Button
 if (saveProgressBtn) {
-  saveProgressBtn.addEventListener('click', () => saveProgress(false)); // false = 수동 저장
+  saveProgressBtn.addEventListener('click', () => saveProgress(false)); // false = Manual save
 }
 
+// Open History Modal Button
 if (openHistoryBtn) {
   openHistoryBtn.addEventListener('click', async () => {
     if (historyModal) {
       historyModal.classList.remove('hidden');
-      await loadAndRenderHistoryList();
+      await loadAndRenderHistoryList(); // Fetch and display history dates
     }
   });
 }
 
-// ... (historyModal, historyDateList, historyTabs, confirmHistoryDeleteBtn, historyMainTabs, attendanceHistoryTabs 리스너들은 이전과 동일) ...
+// Close History Modal Button
 if (closeHistoryBtn) {
   closeHistoryBtn.addEventListener('click', () => {
     if (historyModal) historyModal.classList.add('hidden');
   });
 }
 
+// History Date List Click Handler
 if (historyDateList) {
   historyDateList.addEventListener('click', (e) => {
     const btn = e.target.closest('.history-date-btn');
     if (btn) {
+      // Update selected date styling
       historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
       btn.classList.add('bg-blue-100', 'font-bold');
       const dateKey = btn.dataset.key;
+      // Re-render the detail view for the newly selected date based on the active sub-tab
       const activeSubTabBtn = (activeMainHistoryTab === 'work')
         ? historyTabs?.querySelector('button.font-semibold')
         : attendanceHistoryTabs?.querySelector('button.font-semibold');
       const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
+
+      // Only re-render if it's a daily view that depends on the selected date
       if (activeView === 'daily') {
         renderHistoryDetail(dateKey);
       } else if (activeView === 'attendance-daily') {
         renderAttendanceDailyHistory(dateKey, allHistoryData);
       }
+      // Weekly/Monthly views are independent of the selected date, so no re-render needed here
     }
   });
 }
 
+// History Work Sub-Tabs (Daily, Weekly, Monthly) Click Handler
 if (historyTabs) {
   historyTabs.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-view]');
     if (btn) {
-      switchHistoryView(btn.dataset.view);
+      switchHistoryView(btn.dataset.view); // Switch the view panel
     }
   });
 }
 
+// Confirm History Deletion Button
 if (confirmHistoryDeleteBtn) {
   confirmHistoryDeleteBtn.addEventListener('click', async () => {
     if (historyKeyToDelete) {
       const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', historyKeyToDelete);
       try {
-        await deleteDoc(historyDocRef);
+        await deleteDoc(historyDocRef); // Delete the document from Firestore
         showToast(`${historyKeyToDelete} 이력이 삭제되었습니다.`);
-        await loadAndRenderHistoryList(); // 삭제 후 목록 새로고침
+        await loadAndRenderHistoryList(); // Refresh the history list and views
       } catch (e) {
         console.error('Error deleting history:', e);
         showToast('이력 삭제 중 오류 발생.', true);
       }
     }
     if (deleteHistoryModal) deleteHistoryModal.classList.add('hidden');
-    historyKeyToDelete = null;
+    historyKeyToDelete = null; // Reset state variable
   });
 }
 
+// History Main Tabs (Work vs Attendance) Click Handler
 if (historyMainTabs) {
   historyMainTabs.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-main-tab]');
     if (btn) {
       const tabName = btn.dataset.mainTab;
-      activeMainHistoryTab = tabName; // 현재 활성 탭 상태 저장
+      activeMainHistoryTab = tabName; // Store the active main tab
 
-      // 모든 메인 탭 스타일 초기화
+      // Update main tab styling
       document.querySelectorAll('.history-main-tab-btn').forEach(b => {
           b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
           b.classList.add('font-medium', 'text-gray-500');
       });
-      // 클릭된 탭 활성화
       btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
       btn.classList.remove('font-medium', 'text-gray-500');
 
-      // 패널 교체
+      // Show the corresponding panel and hide the other
       if (tabName === 'work') {
         if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
         if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
-        // 현재 활성화된 서브 탭 뷰로 전환
+        // Switch to the currently active sub-tab within the work panel
         const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
-        const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
+        const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily'; // Default to daily
         switchHistoryView(view);
       } else { // 'attendance'
         if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
         if (attendanceHistoryPanel) attendanceHistoryPanel.classList.remove('hidden');
-        // 현재 활성화된 서브 탭 뷰로 전환
+        // Switch to the currently active sub-tab within the attendance panel
         const activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
-        const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
+        const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily'; // Default to daily attendance
         switchHistoryView(view);
       }
     }
   });
 }
 
+// History Attendance Sub-Tabs Click Handler
 if (attendanceHistoryTabs) {
   attendanceHistoryTabs.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-view]');
     if (btn) {
-      switchHistoryView(btn.dataset.view);
+      switchHistoryView(btn.dataset.view); // Switch the view panel
     }
   });
 }
 
 
-// '앱 초기화' 관련 리스너 (이전과 동일)
+// Reset App Button -> Show Confirmation Modal
 if (resetAppBtn) {
   resetAppBtn.addEventListener('click', () => {
     if (resetAppModal) resetAppModal.classList.remove('hidden');
   });
 }
+// Confirm Reset App Button
 if (confirmResetAppBtn) {
   confirmResetAppBtn.addEventListener('click', async () => {
-    await saveDayDataToHistory(true); // true = reset
+    await saveDayDataToHistory(true); // true = Reset (save to history AND clear daily data)
     if (resetAppModal) resetAppModal.classList.add('hidden');
   });
 }
 
-// '처리량' 모달 (이력 수정용) 리스너 (이전과 동일)
+// Confirm Quantity Button (used for both Today and History)
 if (confirmQuantityBtn) {
   confirmQuantityBtn.addEventListener('click', () => {
     const inputs = quantityModal.querySelectorAll('input[data-task]');
@@ -1378,9 +1319,10 @@ if (confirmQuantityBtn) {
     inputs.forEach(input => {
       const task = input.dataset.task;
       const quantity = Number(input.value) || 0;
-      if (quantity > 0) newQuantities[task] = quantity;
+      // Store 0 as well to allow resetting quantities
+      newQuantities[task] = quantity;
     });
-    // 컨텍스트에 저장된 콜백 실행
+    // Execute the appropriate callback based on the context (Today or History)
     if (quantityModalContext.onConfirm) {
       quantityModalContext.onConfirm(newQuantities);
     }
@@ -1388,7 +1330,7 @@ if (confirmQuantityBtn) {
   });
 }
 
-// '기록 수정' (오늘 완료된 업무) 리스너
+// Confirm Edit Record Button (for Today's Completed Log)
 if (confirmEditBtn) {
   confirmEditBtn.addEventListener('click', () => {
     if (!recordToEditId) return;
@@ -1405,42 +1347,42 @@ if (confirmEditBtn) {
     const newStart = document.getElementById('edit-start-time').value;
     const newEnd = document.getElementById('edit-end-time').value;
 
+    // Basic validation
     if (!newStart || !newEnd || !newTask) {
       showToast('모든 필드를 올바르게 입력해주세요.', true);
       return;
     }
-
     if (newEnd < newStart) {
         showToast('종료 시간은 시작 시간보다 이후여야 합니다.', true);
         return;
     }
 
-    // 데이터 업데이트
+    // Update record data
     record.task = newTask;
     record.startTime = newStart;
     record.endTime = newEnd;
-    record.duration = calcElapsedMinutes(newStart, newEnd, record.pauses); // 재계산
+    record.duration = calcElapsedMinutes(newStart, newEnd, record.pauses); // Recalculate duration
 
-    saveStateToFirestore(); // [Auto-save] 이 함수는 markDataAsDirty()를 호출
+    saveStateToFirestore(); // Persist changes and mark data as dirty
     showToast('기록이 수정되었습니다.');
     if (editRecordModal) editRecordModal.classList.add('hidden');
-    recordToEditId = null;
+    recordToEditId = null; // Reset state variable
   });
 }
 
-// '종료 시 처리량' 모달 리스너 (이전과 동일)
+// Confirm Quantity On Stop Button (when stopping a group)
 if (confirmQuantityOnStopBtn) {
   confirmQuantityOnStopBtn.addEventListener('click', () => {
     if (groupToStopId) {
       const input = document.getElementById('quantity-on-stop-input');
       const quantity = input ? (Number(input.value) || 0) : null;
-      finalizeStopGroup(groupToStopId, quantity); // 이 함수는 saveStateToFirestore()를 호출
-      if(input) input.value = ''; // 입력값 초기화
+      finalizeStopGroup(groupToStopId, quantity); // Finalize stop with quantity
+      if(input) input.value = ''; // Clear input
     }
   });
 }
 
-// '기타 업무' 모달 리스너 (이전과 동일)
+// Task Selection Modal (for 'Other Task') Click Handler
 if (taskSelectModal) {
   taskSelectModal.addEventListener('click', (e) => {
     const btn = e.target.closest('.task-select-btn');
@@ -1448,9 +1390,9 @@ if (taskSelectModal) {
       const task = btn.dataset.task;
       if (taskSelectModal) taskSelectModal.classList.add('hidden');
 
-      // 팀 선택 모달 열기 로직
+      // Open the team selection modal for the chosen task
       selectedTaskForStart = task;
-      selectedGroupForAdd = null;
+      selectedGroupForAdd = null; // Not adding to an existing group
       renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
       const titleEl = document.getElementById('team-select-modal-title');
       if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
@@ -1459,18 +1401,19 @@ if (taskSelectModal) {
   });
 }
 
-// '개인 업무 종료' 모달 리스너
+// Confirm Stop Individual Button
 if (confirmStopIndividualBtn) {
   confirmStopIndividualBtn.addEventListener('click', () => {
     if (recordToStopId) {
-      stopWorkIndividual(recordToStopId); // 이 함수는 saveStateToFirestore()를 호출
+      stopWorkIndividual(recordToStopId); // Stop the individual record
     }
     if (stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden');
-    recordToStopId = null;
+    recordToStopId = null; // Reset state variable
   });
 }
 
-// '근태 설정' 모달 리스너
+
+// Confirm Leave Button (Setting leave status)
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
     if (!memberToSetLeave) return;
 
@@ -1482,15 +1425,18 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
     const leaveType = selectedTypeInput.value;
     const leaveData = { member: memberToSetLeave, type: leaveType };
 
+    // Handle time-based leave (today only) vs date-based leave (persistent)
     if (leaveType === '외출' || leaveType === '조퇴') {
         leaveData.startTime = getCurrentTime();
-        if (leaveType === '조퇴') leaveData.endTime = "17:30";
+        if (leaveType === '조퇴') leaveData.endTime = "17:30"; // Assuming standard end time
 
-        appState.dailyOnLeaveMembers = appState.dailyOnLeaveMembers.filter(item => item.member !== memberToSetLeave);
+        // Update daily leave members and save to daily state
+        appState.dailyOnLeaveMembers = appState.dailyOnLeaveMembers.filter(item => item.member !== memberToSetLeave); // Remove previous entries for the member
         appState.dailyOnLeaveMembers.push(leaveData);
-        await saveStateToFirestore(); // [Auto-save] 이 함수는 markDataAsDirty()를 호출
+        await saveStateToFirestore(); // Persist and mark dirty
 
     } else if (leaveType === '연차' || leaveType === '출장' || leaveType === '결근') {
+        // Handle date-range leave
         const startDate = leaveStartDateInput?.value;
         const endDate = leaveEndDateInput?.value;
         if (!startDate) { showToast('시작일을 입력해주세요.', true); return; }
@@ -1500,18 +1446,19 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
             leaveData.endDate = endDate;
         }
 
-        persistentLeaveSchedule.onLeaveMembers = persistentLeaveSchedule.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
+        // Update persistent leave schedule
+        persistentLeaveSchedule.onLeaveMembers = persistentLeaveSchedule.onLeaveMembers.filter(item => item.member !== memberToSetLeave); // Remove previous entries
         persistentLeaveSchedule.onLeaveMembers.push(leaveData);
-        await saveLeaveSchedule(db, persistentLeaveSchedule); // 이것은 daily_data가 아니므로 dirty 플래그를 직접 호출
-        markDataAsDirty(); // ✅ [Auto-save] 영구 일정도 이력에 영향을 주므로 dirty 플래그 설정
+        await saveLeaveSchedule(db, persistentLeaveSchedule); // Save to persistent store
+        markDataAsDirty(); // Mark data as dirty as persistent changes affect history
     }
 
     showToast(`${memberToSetLeave}님을 '${leaveType}'(으)로 설정했습니다.`);
     if(leaveTypeModal) leaveTypeModal.classList.add('hidden');
-    memberToSetLeave = null;
+    memberToSetLeave = null; // Reset state variable
 });
 
-// '근태 취소' 모달 리스너
+// Confirm Cancel Leave / Return Button
 if (confirmCancelLeaveBtn) {
     confirmCancelLeaveBtn.addEventListener('click', async () => {
         if (!memberToCancelLeave) return;
@@ -1519,75 +1466,86 @@ if (confirmCancelLeaveBtn) {
         const todayDateString = getTodayDateString();
         let actionTaken = false;
 
+        // Check daily leave entries first (외출, 조퇴)
         const dailyIndex = appState.dailyOnLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
         if (dailyIndex > -1) {
             const entry = appState.dailyOnLeaveMembers[dailyIndex];
-            if (entry.type === '외출') {
-                entry.endTime = getCurrentTime();
+            if (entry.type === '외출' && !entry.endTime) { // Only handle 'return' for ongoing '외출'
+                entry.endTime = getCurrentTime(); // Mark as returned
                 showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다.`);
                 actionTaken = true;
-            } else {
+            } else { // Cancel other daily types (like 조퇴) by removing
+                const removedType = entry.type;
                 appState.dailyOnLeaveMembers.splice(dailyIndex, 1);
-                showToast(`${memberToCancelLeave}님의 '${entry.type}' 상태가 취소되었습니다.`);
+                showToast(`${memberToCancelLeave}님의 '${removedType}' 상태가 취소되었습니다.`);
                 actionTaken = true;
             }
-            await saveStateToFirestore(); // [Auto-save] 이 함수는 markDataAsDirty()를 호출
+            await saveStateToFirestore(); // Persist changes and mark dirty
         }
 
+        // Check persistent leave entries (연차, 출장, 결근)
         const persistentIndex = persistentLeaveSchedule.onLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
         if (persistentIndex > -1) {
             const entry = persistentLeaveSchedule.onLeaveMembers[persistentIndex];
             const isLeaveActiveToday = entry.startDate <= todayDateString && (!entry.endDate || todayDateString <= entry.endDate);
 
             if (isLeaveActiveToday) {
+                // If the leave period includes today, adjust the end date to yesterday
                 const today = new Date();
-                today.setDate(today.getDate() - 1);
+                today.setDate(today.getDate() - 1); // Get yesterday's date
                 const yesterday = today.toISOString().split('T')[0];
                 if (yesterday < entry.startDate) {
+                    // If start date is today or later, just remove the entry
                     persistentLeaveSchedule.onLeaveMembers.splice(persistentIndex, 1);
                     showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
                 } else {
+                    // Otherwise, set end date to yesterday
                     entry.endDate = yesterday;
                     showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다. (${entry.type}이 ${yesterday}까지로 수정됨)`);
                 }
             } else {
+                // If leave period is entirely in the future/past, just remove it
                 persistentLeaveSchedule.onLeaveMembers.splice(persistentIndex, 1);
                 showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
             }
-            await saveLeaveSchedule(db, persistentLeaveSchedule);
-            markDataAsDirty(); // ✅ [Auto-save] 영구 일정도 이력에 영향을 주므로 dirty 플래그 설정
+            await saveLeaveSchedule(db, persistentLeaveSchedule); // Save changes to persistent store
+            markDataAsDirty(); // Mark data as dirty
             actionTaken = true;
         }
 
         if (!actionTaken) {
-             showToast(`${memberToCancelLeave}님의 근태 정보를 찾을 수 없습니다.`, true);
+             showToast(`${memberToCancelLeave}님의 근태 정보를 찾을 수 없습니다.`, true); // Should not happen if modal opened
         }
 
         if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.add('hidden');
-        memberToCancelLeave = null;
+        memberToCancelLeave = null; // Reset state variable
     });
 }
 
-// ... (모달 공통 닫기 버튼 및 나머지 닫기 버튼 리스너들은 이전과 동일) ...
+// Common Modal Close Button ('X') Listener
 document.querySelectorAll('.modal-close-btn').forEach(btn => {
   btn.addEventListener('click', (e) => {
-      const modal = e.target.closest('.fixed.inset-0');
+      const modal = e.target.closest('.fixed.inset-0'); // Find the parent modal
       if (!modal) return;
 
-      modal.classList.add('hidden');
+      modal.classList.add('hidden'); // Hide the modal
 
+      // Reset specific modal states if necessary
       const modalId = modal.id;
       if (modalId === 'leave-type-modal') {
           memberToSetLeave = null;
+          // Reset date inputs visibility and radio selection
           if(leaveDateInputsDiv) leaveDateInputsDiv.classList.add('hidden');
           const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
           if (firstRadio) firstRadio.checked = true;
       } else if (modalId === 'cancel-leave-confirm-modal') {
           memberToCancelLeave = null;
       } else if (modalId === 'team-select-modal') {
+          // Clear selections and reset state
           tempSelectedMembers = [];
           selectedTaskForStart = null;
           selectedGroupForAdd = null;
+          // Remove visual selection indicators
           modal.querySelectorAll('button[data-member-name].ring-2').forEach(card => {
               card.classList.remove('ring-2','ring-blue-500','bg-blue-100');
           });
@@ -1601,17 +1559,15 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
       } else if (modalId === 'quantity-on-stop-modal') {
           groupToStopId = null;
           const input = document.getElementById('quantity-on-stop-input');
-          if(input) input.value = '';
+          if(input) input.value = ''; // Clear input
       } else if (modalId === 'stop-individual-confirm-modal') {
           recordToStopId = null;
-      } else if (modalId === 'history-modal') {
-          // '이력 보기' 모달 닫기
       }
-      // 다른 모달 ID에 대한 초기화 로직 추가...
+      // Add more else if blocks for other modals if needed
   });
 });
 
-// 나머지 닫기 버튼들 및 모달 관련 리스너 (일부 ID 중복될 수 있으므로 확인)
+// Specific Cancel Button Listeners (redundant but safe)
 if (cancelCancelLeaveBtn) cancelCancelLeaveBtn.addEventListener('click', () => { if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.add('hidden'); memberToCancelLeave = null; });
 if (cancelLeaveBtn) cancelLeaveBtn.addEventListener('click', () => { if(leaveTypeModal) leaveTypeModal.classList.add('hidden'); memberToSetLeave = null; });
 if (cancelDeleteBtn) cancelDeleteBtn.addEventListener('click', () => { if(deleteConfirmModal) deleteConfirmModal.classList.add('hidden'); recordToDeleteId = null; });
@@ -1622,78 +1578,102 @@ if (cancelResetAppBtn) cancelResetAppBtn.addEventListener('click', () => { if(re
 if (cancelQuantityOnStopBtn) cancelQuantityOnStopBtn.addEventListener('click', () => { if(quantityOnStopModal) quantityOnStopModal.classList.add('hidden'); groupToStopId = null; });
 if (cancelStopIndividualBtn) cancelStopIndividualBtn.addEventListener('click', () => { if(stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden'); recordToStopId = null; });
 if (cancelEditPartTimerBtn) cancelEditPartTimerBtn.addEventListener('click', () => { if(editPartTimerModal) editPartTimerModal.classList.add('hidden'); });
+// Team Select Modal Cancel Button
 if (cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => {
      if(teamSelectModal) teamSelectModal.classList.add('hidden');
+     // Reset selections and state
      tempSelectedMembers = []; selectedTaskForStart = null; selectedGroupForAdd = null;
+     // Remove visual selection indicators
      teamSelectModal.querySelectorAll('button[data-member-name].ring-2').forEach(card => {
         card.classList.remove('ring-2','ring-blue-500','bg-blue-100');
      });
 });
 
+// Accordion Toggles for Mobile View
 [toggleCompletedLog, toggleAnalysis, toggleSummary].forEach(toggle => {
   if (!toggle) return;
   toggle.addEventListener('click', () => {
-    if (window.innerWidth >= 768) return;
-    const content = toggle.nextElementSibling;
-    const arrow = toggle.querySelector('svg');
+    // Only toggle on smaller screens (mobile)
+    if (window.innerWidth >= 768) return; // 768px is Tailwind's 'md' breakpoint
+    const content = toggle.nextElementSibling; // Assumes content is the next sibling
+    const arrow = toggle.querySelector('svg'); // Find the arrow icon
     if (!content) return;
-    content.classList.toggle('hidden');
-    if (arrow) arrow.classList.toggle('rotate-180');
+    content.classList.toggle('hidden'); // Toggle visibility
+    if (arrow) arrow.classList.toggle('rotate-180'); // Rotate arrow
   });
 });
 
-// '팀 선택' 모달 (알바 추가/수정/삭제 포함)
+// Team Selection Modal Interaction Logic (Member Selection, Select All, Add/Edit/Delete Part-timer)
 if (teamSelectModal) teamSelectModal.addEventListener('click', e => {
+    // Member Card Click (Toggle Selection)
     const card = e.target.closest('button[data-member-name]');
     if (card && !card.disabled) {
         const memberName = card.dataset.memberName;
         const i = tempSelectedMembers.indexOf(memberName);
-        if (i > -1) { tempSelectedMembers.splice(i,1); card.classList.remove('ring-2','ring-blue-500','bg-blue-100'); }
-        else { tempSelectedMembers.push(memberName); card.classList.add('ring-2','ring-blue-500','bg-blue-100'); }
-        return;
+        if (i > -1) { // If already selected, deselect
+            tempSelectedMembers.splice(i,1);
+            card.classList.remove('ring-2','ring-blue-500','bg-blue-100');
+        } else { // If not selected, select
+            tempSelectedMembers.push(memberName);
+            card.classList.add('ring-2','ring-blue-500','bg-blue-100');
+        }
+        return; // Prevent further actions if card was clicked
     }
 
+    // 'Select All' Button Click (Toggle Group Selection)
     const selectAllBtn = e.target.closest('.group-select-all-btn');
     if (selectAllBtn) {
         const groupName = selectAllBtn.dataset.groupName;
         const memberListContainer = teamSelectModal.querySelector(`div[data-group-name="${groupName}"]`);
         if (!memberListContainer) return;
+
+        // Get all member cards and filter available ones
         const memberCards = Array.from(memberListContainer.querySelectorAll('button[data-member-name]'));
         const availableMembers = memberCards.filter(c => !c.disabled).map(c => c.dataset.memberName);
-        if (availableMembers.length === 0) return;
+        if (availableMembers.length === 0) return; // No available members in this group
+
         const areAllSelected = availableMembers.every(m => tempSelectedMembers.includes(m));
+
         if (areAllSelected) {
+            // Deselect all available members in this group
             tempSelectedMembers = tempSelectedMembers.filter(m => !availableMembers.includes(m));
             memberCards.forEach(c => { if (!c.disabled) c.classList.remove('ring-2','ring-blue-500','bg-blue-100'); });
         } else {
+            // Select all available members in this group
             availableMembers.forEach(m => { if (!tempSelectedMembers.includes(m)) tempSelectedMembers.push(m); });
             memberCards.forEach(c => { if (!c.disabled) c.classList.add('ring-2','ring-blue-500','bg-blue-100'); });
         }
         return;
     }
 
+    // 'Add Part-timer' Button Click
     const addPartTimerBtn = e.target.closest('#add-part-timer-modal-btn');
     if (addPartTimerBtn) {
         appState.partTimers = appState.partTimers || [];
+        // Generate a unique default name (e.g., '알바 1', '알바 2')
         let counter = appState.partTimers.length + 1;
         const baseName = '알바 ';
         const existingNames = (appConfig.teamGroups || []).flatMap(g => g.members).concat(appState.partTimers.map(p => p.name));
         let newName = `${baseName}${counter}`;
         while (existingNames.includes(newName)) { counter++; newName = `${baseName}${counter}`; }
 
-        const newId = Date.now();
-        const newWage = appConfig.defaultPartTimerWage || 10000;
+        const newId = Date.now(); // Simple unique ID
+        const newWage = appConfig.defaultPartTimerWage || 10000; // Use configured default wage
+        // Add new part-timer to state
         appState.partTimers.push({ id: newId, name: newName, wage: newWage });
 
+        // Save state and re-render the modal content
         saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups));
         return;
     }
 
+    // 'Edit Part-timer' Button Click -> Show Edit Modal
     const editPartTimerBtn = e.target.closest('.edit-part-timer-btn');
     if (editPartTimerBtn) {
         const id = Number(editPartTimerBtn.dataset.partTimerId);
         const pt = (appState.partTimers || []).find(p => p.id === id);
         if (pt) {
+            // Populate the edit modal
             if (partTimerEditIdInput) partTimerEditIdInput.value = id;
             if (partTimerNewNameInput) partTimerNewNameInput.value = pt.name;
             if (editPartTimerModal) editPartTimerModal.classList.remove('hidden');
@@ -1701,65 +1681,100 @@ if (teamSelectModal) teamSelectModal.addEventListener('click', e => {
         return;
     }
 
+    // 'Delete Part-timer' Button Click
     const deletePartTimerBtn = e.target.closest('.delete-part-timer-btn');
     if (deletePartTimerBtn) {
         const id = Number(deletePartTimerBtn.dataset.partTimerId);
+        // Remove part-timer from state
         appState.partTimers = (appState.partTimers || []).filter(p => p.id !== id);
+        // Save state and re-render the modal content
         saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups));
         return;
     }
 });
-
-// '알바 수정' 모달
+// Confirm Edit Part-timer Button
 if (confirmEditPartTimerBtn) confirmEditPartTimerBtn.addEventListener('click', () => {
     const id = Number(partTimerEditIdInput?.value);
     const idx = (appState.partTimers || []).findIndex(p => p.id === id);
-    if (idx === -1) { if (editPartTimerModal) editPartTimerModal.classList.add('hidden'); return; }
+    if (idx === -1) { if (editPartTimerModal) editPartTimerModal.classList.add('hidden'); return; } // Should not happen
+
     const partTimer = appState.partTimers[idx];
     const newNameRaw = partTimerNewNameInput?.value || '';
     const newName = newNameRaw.trim();
     if (!newName) { showToast('알바 이름은 비워둘 수 없습니다.', true); return; }
 
+    // Normalize names for comparison and checking duplicates
     const nOld = normalizeName(partTimer.name);
     const nNew = normalizeName(newName);
+
+    // If name hasn't changed, just close the modal
     if (nOld === nNew) { if (editPartTimerModal) editPartTimerModal.classList.add('hidden'); return; }
 
+    // Check if the new name already exists among other members/part-timers
     const allNamesNorm = (appConfig.teamGroups || []).flatMap(g => g.members).map(normalizeName)
-        .concat((appState.partTimers || []).filter((p, i) => i !== idx).map(p => normalizeName(p.name)));
+        .concat((appState.partTimers || []).filter((p, i) => i !== idx).map(p => normalizeName(p.name))); // Exclude self
     if (allNamesNorm.includes(nNew)) { showToast('해당 이름은 이미 사용 중입니다.', true); return; }
 
     const oldName = partTimer.name;
+    // Update part-timer name in state
     appState.partTimers[idx] = { ...partTimer, name: newName };
+    // Update any existing work records with the old name
     appState.workRecords = (appState.workRecords || []).map(r => (r.member === oldName ? { ...r, member: newName } : r));
+    // Save state and re-render modal
     saveStateToFirestore().then(() => {
         renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups);
         if (editPartTimerModal) editPartTimerModal.classList.add('hidden');
         showToast('알바 이름이 수정되었습니다.');
     });
 });
-
-// '팀 선택 완료' (업무 시작/추가) 버튼
-const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
+// Confirm Team Selection Button (Start Task or Add Members)
 if (confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
   if (tempSelectedMembers.length === 0) { showToast('추가할 팀원을 선택해주세요.', true); return; }
+
   if (selectedGroupForAdd !== null) {
+    // Add selected members to the existing group
     addMembersToWorkGroup(tempSelectedMembers, selectedTaskForStart, selectedGroupForAdd);
     showToast(`${selectedTaskForStart} 업무에 인원이 추가되었습니다.`);
   } else if (selectedTaskForStart) {
+    // Start a new work group with selected members
     startWorkGroup(tempSelectedMembers, selectedTaskForStart);
     showToast(`${selectedTaskForStart} 업무를 시작합니다.`);
   }
+  // Close modal and reset state
   if (teamSelectModal) teamSelectModal.classList.add('hidden');
   tempSelectedMembers = []; selectedTaskForStart = null; selectedGroupForAdd = null;
 });
+
+// ✅ [이력 멤버] 이력 보기 > 일별 상세 뷰에서 업무 클릭 시 멤버 목록 토글
+if (historyDailyView) {
+    historyDailyView.addEventListener('click', (e) => {
+        const toggleButton = e.target.closest('[data-task-toggle]');
+        if (toggleButton) {
+            const taskName = toggleButton.dataset.taskToggle;
+            // Find the corresponding members div using CSS.escape for special characters in ID
+            const membersDiv = historyDailyView.querySelector(`#members-for-${CSS.escape(taskName)}`);
+            const arrowIcon = toggleButton.querySelector('.task-toggle-arrow');
+
+            if (membersDiv) {
+                membersDiv.classList.toggle('hidden'); // Toggle visibility
+            }
+            if (arrowIcon) {
+                arrowIcon.classList.toggle('rotate-180'); // Rotate arrow
+            }
+        }
+    });
+}
+
 
 // ========== 앱 초기화 ==========
 async function main() {
   if (connectionStatusEl) connectionStatusEl.textContent = '연결 중...';
   if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse';
 
+  // Initialize local app state
   appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
 
+  // Initialize Firebase
   try {
       const { app, db: fdb, auth: fath } = initializeFirebase();
       if (!app || !fdb || !fath) throw new Error("Firebase 초기화 실패");
@@ -1770,120 +1785,138 @@ async function main() {
       showToast('Firebase 초기화에 실패했습니다.', true);
       if (connectionStatusEl) connectionStatusEl.textContent = '초기화 실패';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-      return;
+      return; // Stop initialization if Firebase fails
   }
 
+  // Load app configuration and persistent leave schedule
   try {
       if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
       appConfig = await loadAppConfig(db);
       persistentLeaveSchedule = await loadLeaveSchedule(db);
 
+      // Hide loading spinner after config load
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
 
+      // Render the 'Other Task' modal content now that config is loaded
       renderTaskSelectionModal(appConfig.taskGroups);
   } catch (e) {
       console.error("설정 로드 실패:", e);
       showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
+      // Still hide spinner even if config load fails
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
+      // Proceed with default/empty config
   }
 
+  // Display current date and start the elapsed time updater
   displayCurrentDate();
   if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
   elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
 
-  // ✅ [Auto-save] 자동 저장 타이머 시작
+  // ✅ [Auto-save] Start the auto-save timer
   if (autoSaveTimer) clearInterval(autoSaveTimer);
   autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
   // console.log(`Auto-save timer started with interval ${AUTO_SAVE_INTERVAL}ms`);
 
+  // Initialize task quantities based on loaded config
   const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
   const defaultQuantities = {};
   taskTypes.forEach(task => defaultQuantities[task] = 0);
-  appState.taskQuantities = { ...defaultQuantities, ...appState.taskQuantities };
+  appState.taskQuantities = { ...defaultQuantities, ...appState.taskQuantities }; // Merge defaults with any potentially loaded state
 
-  // [수정] 인증 및 *두 개의* 스냅샷 리스너 설정
+  // Set up Firebase Authentication and Snapshot Listeners
   onAuthStateChanged(auth, async user => {
     if (user) {
-      // 1. [수정] 영구 근태 일정 리스너 -> dateBasedOnLeaveMembers만 업데이트
+      // --- Listener 1: Persistent Leave Schedule ---
       const leaveScheduleDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
-      if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule();
+      if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule(); // Unsubscribe previous listener if exists
       unsubscribeLeaveSchedule = onSnapshot(leaveScheduleDocRef, (docSnap) => {
           persistentLeaveSchedule = docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] };
-
+          // Filter persistent schedule to get members on leave today
           const today = getTodayDateString();
           appState.dateBasedOnLeaveMembers = (persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
               if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
-                  const endDate = entry.endDate || entry.startDate;
+                  const endDate = entry.endDate || entry.startDate; // Use start date if end date is missing
                   return entry.startDate && typeof entry.startDate === 'string' &&
-                         today >= entry.startDate && today <= (endDate || entry.startDate);
+                         today >= entry.startDate && today <= endDate;
               }
-              return false;
+              return false; // Ignore other types like '외출', '조퇴' from persistent store
           });
           
-          markDataAsDirty(); // ✅ [Auto-save] 영구 근태 일정이 변경되면 이력 저장이 필요함
-          render();
+          markDataAsDirty(); // Mark data dirty as leave changes affect history totals
+          render(); // Re-render UI with updated leave status
           
       }, (error) => {
           console.error("근태 일정 실시간 연결 실패:", error);
           showToast("근태 일정 연결에 실패했습니다.", true);
-          appState.dateBasedOnLeaveMembers = [];
+          appState.dateBasedOnLeaveMembers = []; // Clear local state on error
           render();
       });
 
-      // 2. [수정] 일일 업무 데이터 리스너 -> dailyOnLeaveMembers만 업데이트
+      // --- Listener 2: Today's Daily Data ---
       const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-      if (unsubscribeToday) unsubscribeToday();
+      if (unsubscribeToday) unsubscribeToday(); // Unsubscribe previous listener
 
       unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
         try {
+          // Initialize default quantities again in case config changed between initial load and snapshot
           const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
           const defaultQuantities = {};
           taskTypes.forEach(task => defaultQuantities[task] = 0);
 
+          // Parse state from Firestore or use empty object
           const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
 
+          // Update local appState with loaded data
           appState.workRecords = loadedState.workRecords || [];
+          // Merge default quantities with loaded quantities
           appState.taskQuantities = { ...defaultQuantities, ...(loadedState.taskQuantities || {}) };
           appState.partTimers = loadedState.partTimers || [];
           appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
-          appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
+          appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || []; // Load daily leave members specifically
 
-          // ✅ [Auto-save] 데이터를 방금 불러왔으므로, dirty 플래그를 리셋
-          // (다른 사용자가 저장한 내용을 내가 또 저장할 필요 없음)
+          // ✅ [Auto-save] Reset dirty flag because we just loaded the latest state
           isDataDirty = false;
           // console.log("Auto-save: Data loaded from snapshot, flag reset.");
 
-          render();
+          render(); // Render UI with updated state
+          // Update connection status indicator
           if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
           if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
         } catch (parseError) {
           console.error('Error parsing state from Firestore:', parseError);
           showToast('데이터 로딩 중 오류 발생 (파싱 실패).', true);
+          // Reset local state to defaults on parsing error
           appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
           render();
           if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
           if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
         }
       }, (error) => {
+        // Handle snapshot listener errors
         console.error('Firebase onSnapshot error:', error);
         showToast('실시간 연결에 실패했습니다.', true);
+        // Reset local state on connection error
         appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
         render();
         if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
         if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
       });
     } else {
+      // User is signed out - update UI and clear listeners/state
       if (connectionStatusEl) connectionStatusEl.textContent = '인증 필요';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
+      // Unsubscribe from listeners
       if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
       if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; }
+      // Reset local state
       appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
       render();
     }
   });
 
+   // Attempt anonymous sign-in
    signInAnonymously(auth).catch(error => {
     console.error('Anonymous sign-in failed:', error);
     showToast('자동 인증에 실패했습니다.', true);
@@ -1892,4 +1925,4 @@ async function main() {
   });
 }
 
-main(); // 앱 시작
+main(); // Start the application
