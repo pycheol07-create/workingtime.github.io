@@ -1,4 +1,4 @@
-// === admin.js (드래그앤드랍 로직 수정) ===
+// === admin.js (모달 추가 및 로직 수정) ===
 
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 
@@ -8,6 +8,10 @@ const ADMIN_PASSWORD = "anffbxla123";
 
 // 드래그 상태 관리 변수
 let draggedItem = null;
+
+// [추가] 모달 상태 관리 변수
+let currentModalTarget = null; // 'key' 또는 'quantity'
+let taskJustAdded = null; // '업무 관리'에서 방금 추가한 업무 이름
 
 // [추가] 드롭 위치를 계산하는 헬퍼 함수 (이전과 동일)
 function getDragAfterElement(container, y, itemSelector) {
@@ -23,6 +27,57 @@ function getDragAfterElement(container, y, itemSelector) {
             return closest;
         }
     }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+// [추가] '업무 관리' 섹션에서 모든 업무 이름 가져오기
+function getAllTaskNamesFromDOM() {
+    const taskNames = new Set();
+    document.querySelectorAll('#task-groups-container .task-name').forEach(input => {
+        const taskName = input.value.trim();
+        if (taskName) taskNames.add(taskName);
+    });
+    return Array.from(taskNames);
+}
+
+// [추가] '처리량 집계 업무 관리' 섹션에서 모든 업무 이름 가져오기
+function getAllQuantityTaskNamesFromDOM() {
+    const taskNames = new Set();
+    document.querySelectorAll('#quantity-tasks-container .quantity-task-name').forEach(input => {
+        const taskName = input.value.trim();
+        if (taskName) taskNames.add(taskName);
+    });
+    return Array.from(taskNames);
+}
+
+// [추가] '업무 선택' 모달 내용 채우기
+function populateTaskSelectModal() {
+    const allTasks = getAllTaskNamesFromDOM();
+    const listContainer = document.getElementById('select-task-list');
+    const modalTitle = document.getElementById('select-task-modal-title');
+    
+    if (!listContainer || !modalTitle) return;
+    
+    listContainer.innerHTML = ''; // 초기화
+    
+    if (currentModalTarget === 'key') {
+        modalTitle.textContent = "주요 업무로 추가할 업무 선택";
+    } else if (currentModalTarget === 'quantity') {
+        modalTitle.textContent = "처리량 집계 업무로 추가할 업무 선택";
+    }
+
+    if (allTasks.length === 0) {
+        listContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center">먼저 \'업무 관리\' 섹션에서 업무를 1개 이상 등록해주세요.</p>';
+        return;
+    }
+
+    allTasks.sort((a, b) => a.localeCompare(b)).forEach(taskName => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'task-select-list-btn w-full text-left p-2 rounded-md border btn-secondary focus:ring-2 focus:ring-blue-300';
+        button.textContent = taskName;
+        button.dataset.taskName = taskName;
+        listContainer.appendChild(button);
+    });
 }
 
 
@@ -69,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- UI 렌더링 ---
-// (renderAdminUI 함수는 이전과 동일)
+// (renderAdminUI, renderTeamGroups, renderKeyTasks, renderTaskGroups, renderQuantityTasks 함수는 이전과 동일)
 function renderAdminUI(config) {
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) {
@@ -191,14 +246,58 @@ function renderQuantityTasks(quantityTasks) {
 
 // --- 이벤트 리스너 설정 ---
 
+// [수정] 이벤트 리스너 설정 함수
 function setupEventListeners() {
     document.getElementById('save-all-btn').addEventListener('click', handleSaveAll);
     document.getElementById('add-team-group-btn').addEventListener('click', addTeamGroup);
-    document.getElementById('add-key-task-btn').addEventListener('click', addKeyTask);
-    document.getElementById('add-task-group-btn').addEventListener('click', addTaskGroup);
-    document.getElementById('add-quantity-task-btn').addEventListener('click', addQuantityTask);
+    
+    // [수정] '주요 업무 추가' 버튼 리스너
+    document.getElementById('add-key-task-btn').addEventListener('click', () => {
+        currentModalTarget = 'key';
+        populateTaskSelectModal();
+        document.getElementById('select-task-modal').classList.remove('hidden');
+    });
 
+    document.getElementById('add-task-group-btn').addEventListener('click', addTaskGroup);
+
+    // [수정] '처리량 업무 추가' 버튼 리스너
+    document.getElementById('add-quantity-task-btn').addEventListener('click', () => {
+        currentModalTarget = 'quantity';
+        populateTaskSelectModal();
+        document.getElementById('select-task-modal').classList.remove('hidden');
+    });
+
+    // [수정] 동적 클릭 핸들러 (모달 닫기 포함)
     document.body.addEventListener('click', handleDynamicClicks);
+
+    // [추가] '업무 선택' 모달에서 업무 클릭 시
+    document.getElementById('select-task-list').addEventListener('click', (e) => {
+        const button = e.target.closest('.task-select-list-btn');
+        if (button) {
+            const taskName = button.dataset.taskName;
+            if (currentModalTarget === 'key') {
+                addKeyTask(taskName);
+            } else if (currentModalTarget === 'quantity') {
+                addQuantityTask(taskName);
+            }
+            document.getElementById('select-task-modal').classList.add('hidden');
+            currentModalTarget = null;
+        }
+    });
+
+    // [추가] '처리량 집계 추가' 확인 모달 버튼
+    document.getElementById('confirm-add-to-quantity-btn').addEventListener('click', () => {
+        if (taskJustAdded) {
+            addQuantityTask(taskJustAdded);
+        }
+        document.getElementById('confirm-add-to-quantity-modal').classList.add('hidden');
+        taskJustAdded = null;
+    });
+    document.getElementById('cancel-add-to-quantity-btn').addEventListener('click', () => {
+        document.getElementById('confirm-add-to-quantity-modal').classList.add('hidden');
+        taskJustAdded = null;
+    });
+
 
     // [수정] 모든 레벨의 드래그앤드롭 리스너 설정
     setupDragDropListeners('#team-groups-container', '.team-group-card'); // 1. 팀 그룹 (카드)
@@ -212,7 +311,7 @@ function setupEventListeners() {
     setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item'); // 6. 처리량 업무 (항목)
 }
 
-// (addTeamGroup, addKeyTask, addTaskGroup, addQuantityTask 함수는 이전과 동일)
+// ... (addTeamGroup 함수는 이전과 동일) ...
 function addTeamGroup() {
     const newGroup = { name: '새 그룹', members: ['새 팀원'] };
     appConfig.teamGroups = appConfig.teamGroups || [];
@@ -224,12 +323,23 @@ function addTeamGroup() {
     setupDragDropListeners('.members-container', '.member-item'); 
 }
 
-function addKeyTask() {
+// [수정] addKeyTask 함수
+function addKeyTask(taskName) {
+    const nameToAdd = taskName || '새 주요 업무'; // taskName이 없는 경우 (혹시 모를 예외처리)
     appConfig.keyTasks = appConfig.keyTasks || [];
-    appConfig.keyTasks.push('새 주요 업무');
+    
+    // 중복 확인
+    const existingTasks = (appConfig.keyTasks || []).map(t => t.trim().toLowerCase());
+    if (existingTasks.includes(nameToAdd.trim().toLowerCase())) {
+        alert("이미 '주요 업무'에 등록된 업무입니다.");
+        return;
+    }
+    
+    appConfig.keyTasks.push(nameToAdd);
     renderKeyTasks(appConfig.keyTasks);
 }
 
+// ... (addTaskGroup 함수는 이전과 동일) ...
 function addTaskGroup() {
     const newGroupName = `새 업무 그룹 ${Object.keys(appConfig.taskGroups || {}).length + 1}`;
     if (!appConfig.taskGroups) appConfig.taskGroups = {};
@@ -239,13 +349,61 @@ function addTaskGroup() {
     setupDragDropListeners('.tasks-container', '.task-item');
 }
 
-function addQuantityTask() {
+// [수정] addQuantityTask 함수
+function addQuantityTask(taskName) {
+    const nameToAdd = taskName || '새 처리량 업무'; // taskName이 없는 경우
     appConfig.quantityTaskTypes = appConfig.quantityTaskTypes || [];
-    appConfig.quantityTaskTypes.push('새 처리량 업무');
+
+    // 중복 확인
+    const existingTasks = (appConfig.quantityTaskTypes || []).map(t => t.trim().toLowerCase());
+     if (existingTasks.includes(nameToAdd.trim().toLowerCase())) {
+        // 'confirm' 모달에서 추가할 때 이미 목록에 있다면 조용히 무시 (경고창 X)
+        if (taskJustAdded === taskName) return; 
+        
+        alert("이미 '처리량 집계 업무'에 등록된 업무입니다.");
+        return;
+    }
+    
+    appConfig.quantityTaskTypes.push(nameToAdd);
     renderQuantityTasks(appConfig.quantityTaskTypes);
 }
 
+// [추가] '업무 관리'에서 '새 업무' 추가 후 이름 변경 시(blur) 호출될 함수
+function handleNewTaskNameBlur(e) {
+    const newTaskName = e.target.value.trim();
+    
+    // 비어있거나 기본값이면 무시
+    if (!newTaskName || newTaskName === '새 업무') return;
+
+    // '처리량 집계' 목록에 이미 있는지 확인
+    const allQuantityTasks = (appConfig.quantityTaskTypes || []).map(t => t.trim().toLowerCase());
+    
+    if (allQuantityTasks.includes(newTaskName.toLowerCase())) {
+        return; // 이미 있으므로 팝업 띄우지 않음
+    }
+
+    // 팝업 띄우기
+    taskJustAdded = newTaskName; // 전역 변수에 저장
+    const msgEl = document.getElementById('confirm-add-to-quantity-message');
+    if (msgEl) {
+        msgEl.textContent = `방금 추가한 '${newTaskName}' 업무를 처리량 집계 목록에도 추가하시겠습니까?`;
+    }
+    document.getElementById('confirm-add-to-quantity-modal').classList.remove('hidden');
+}
+
+
+// [수정] handleDynamicClicks 함수
 function handleDynamicClicks(e) {
+    // [추가] 모달 닫기 버튼
+    const closeBtn = e.target.closest('.modal-close-btn');
+    if (closeBtn) {
+        const modalId = closeBtn.dataset.modalId;
+        if (modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('hidden');
+        }
+    }
+    
     // 팀원 추가/삭제, 팀 그룹 삭제
     if (e.target.classList.contains('add-member-btn')) {
         const container = e.target.previousElementSibling;
@@ -281,6 +439,15 @@ function handleDynamicClicks(e) {
             <button class="btn btn-danger btn-small delete-task-btn">삭제</button>
         `; // [수정] handle에 draggable="true" 추가
         container.appendChild(newTaskEl);
+
+        // [추가] 방금 추가된 '새 업무' input에 blur 이벤트 리스너 추가
+        const newTaskNameInput = newTaskEl.querySelector('.task-name');
+        if (newTaskNameInput) {
+            newTaskNameInput.focus(); // 바로 이름 수정하도록 포커스
+            // 포커스를 잃었을 때(이름 수정 완료 시) 팝업을 띄우기 위한 리스너
+            newTaskNameInput.addEventListener('blur', handleNewTaskNameBlur, { once: true });
+        }
+
     } else if (e.target.classList.contains('delete-task-btn')) {
         e.target.closest('.task-item').remove();
     } else if (e.target.classList.contains('delete-task-group-btn')) {
@@ -390,7 +557,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
 
 // --- 데이터 저장 ---
-// (handleSaveAll 함수는 이전과 동일)
+// [수정] handleSaveAll (읽는 방식은 input으로 동일)
 async function handleSaveAll() {
     try {
         const newConfig = {
@@ -422,6 +589,7 @@ async function handleSaveAll() {
 
         // 2. 주요 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
+             // [수정] input의 클래스 이름 확인 (key-task-name)
              const taskName = item.querySelector('.key-task-name').value.trim();
              if (taskName) newConfig.keyTasks.push(taskName);
         });
@@ -447,6 +615,7 @@ async function handleSaveAll() {
 
         // 4. 처리량 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
+            // [수정] input의 클래스 이름 확인 (quantity-task-name)
             const taskName = item.querySelector('.quantity-task-name').value.trim();
             if (taskName) newConfig.quantityTaskTypes.push(taskName);
         });
@@ -456,13 +625,33 @@ async function handleSaveAll() {
         if (wageInput) {
             newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
         }
+        
+        // [추가] 6. 데이터 유효성 검사
+        const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
+        
+        const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
+        const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
 
-        // 6. Firestore에 저장
+        if (invalidKeyTasks.length > 0 || invalidQuantityTasks.length > 0) {
+            let errorMsg = "[저장 실패] '업무 관리' 목록에 존재하지 않는 업무 이름이 포함되어 있습니다.\n\n";
+            if (invalidKeyTasks.length > 0) {
+                errorMsg += `▶ 주요 업무 오류:\n- ${invalidKeyTasks.join('\n- ')}\n\n`;
+            }
+            if (invalidQuantityTasks.length > 0) {
+                errorMsg += `▶ 처리량 집계 오류:\n- ${invalidQuantityTasks.join('\n- ')}\n\n`;
+            }
+            errorMsg += "오타를 수정하거나 '업무 관리' 섹션에 해당 업무를 먼저 추가해주세요.";
+            alert(errorMsg);
+            return; // 저장 중단
+        }
+
+
+        // 7. Firestore에 저장
         await saveAppConfig(db, newConfig);
         appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');
 
-        // 7. UI 다시 렌더링 (리스너 재설정 포함)
+        // 8. UI 다시 렌더링 (리스너 재설정 포함)
         renderAdminUI(appConfig);
         setupEventListeners(); // 렌더링 후 리스너 재설정
 

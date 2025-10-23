@@ -31,6 +31,22 @@
              @apply border-t-2 border-blue-500;
         }
 
+        /* [추가] 모달 닫기 버튼 */
+        .modal-close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            line-height: 1;
+            color: #9ca3af;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+        .modal-close-btn:hover {
+            color: #1f2937;
+        }
+
     </style>
 </head>
 <body class="bg-gray-100 p-8">
@@ -74,7 +90,7 @@
                 <div id="key-tasks-container" class="space-y-1">
                     </div>
             </div>
-            <button id="add-key-task-btn" class="btn btn-secondary mt-4">+ 주요 업무 추가</button>
+            <button id="add-key-task-btn" class="btn btn-secondary mt-4">+ '업무 관리'에서 가져오기</button>
         </div>
 
         <div class="config-card">
@@ -96,7 +112,7 @@
                 <div id="quantity-tasks-container" class="space-y-1">
                     </div>
             </div>
-            <button id="add-quantity-task-btn" class="btn btn-secondary mt-4">+ 처리량 업무 추가</button>
+            <button id="add-quantity-task-btn" class="btn btn-secondary mt-4">+ '업무 관리'에서 가져오기</button>
         </div>
 
         <div class="config-card">
@@ -111,6 +127,33 @@
         </div>
 
     </div>
+
+    <div id="select-task-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                <h2 id="select-task-modal-title" class="text-xl font-bold text-gray-900">업무 선택</h2>
+                <button class="modal-close-btn" data-modal-id="select-task-modal">&times;</button>
+            </div>
+            <div id="select-task-list" class="p-6 max-h-[60vh] overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-2">
+                </div>
+        </div>
+    </div>
+
+    <div id="confirm-add-to-quantity-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+            <button class="modal-close-btn" data-modal-id="confirm-add-to-quantity-modal">&times;</button>
+            <div class="p-6 text-center">
+                <svg class="mx-auto mb-4 text-blue-500 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                <h3 class="mb-5 text-lg font-normal text-gray-700">처리량 집계</h3>
+                <p id="confirm-add-to-quantity-message" class="mb-6 text-sm text-gray-500">이 업무를 처리량 집계 목록에도 추가하시겠습니까?</p>
+                <div class="flex justify-center gap-3">
+                    <button type="button" id="confirm-add-to-quantity-btn" class="btn btn-primary">예, 추가합니다</button>
+                    <button type="button" id="cancel-add-to-quantity-btn" class="btn btn-secondary">아니요</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
     <script type="module" src="js/admin.js"></script>
 </body>
