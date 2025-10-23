@@ -42,8 +42,10 @@ function getAllTaskNamesFromDOM() {
 // [추가] '처리량 집계 업무 관리' 섹션에서 모든 업무 이름 가져오기
 function getAllQuantityTaskNamesFromDOM() {
     const taskNames = new Set();
-    document.querySelectorAll('#quantity-tasks-container .quantity-task-name').forEach(input => {
-        const taskName = input.value.trim();
+    // ✅ [수정] '.quantity-task-name'이 input이 아닌 span이므로 textContent로 읽도록 변경 (하지만 이 함수는 현재 사용되지 않음 - getAllTaskNamesFromDOM()을 사용)
+    // 이 함수는 현재 로직(admin.js)에서 직접 호출되지는 않지만, 만약을 위해 textContent로 수정합니다.
+    document.querySelectorAll('#quantity-tasks-container .quantity-task-name').forEach(item => {
+        const taskName = item.textContent.trim(); // .value -> .textContent
         if (taskName) taskNames.add(taskName);
     });
     return Array.from(taskNames);
@@ -124,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- UI 렌더링 ---
-// (renderAdminUI, renderTeamGroups, renderKeyTasks, renderTaskGroups, renderQuantityTasks 함수는 이전과 동일)
+// (renderAdminUI, renderTeamGroups 함수는 이전과 동일)
 function renderAdminUI(config) {
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) {
@@ -172,6 +174,7 @@ function renderTeamGroups(teamGroups, memberWages) {
     });
 }
 
+// ✅ [수정] renderKeyTasks 함수: input을 span으로 변경
 function renderKeyTasks(keyTasks) {
     const container = document.getElementById('key-tasks-container');
     container.innerHTML = '';
@@ -182,9 +185,10 @@ function renderKeyTasks(keyTasks) {
         taskEl.dataset.index = index;
         // taskEl.draggable = true; // [제거]
         taskEl.innerHTML = `
-            <span class="drag-handle" draggable="true">☰</span> <input type="text" value="${task}" class="key-task-name flex-grow">
+            <span class="drag-handle" draggable="true">☰</span> 
+            <span class="key-task-name flex-grow p-2 bg-gray-100 rounded">${task}</span>
             <button class="btn btn-danger btn-small delete-key-task-btn" data-index="${index}">삭제</button>
-        `; // [수정] handle에 draggable="true" 추가
+        `; // [수정] handle에 draggable="true" 추가 및 input을 span으로 변경
         container.appendChild(taskEl);
     });
 }
@@ -226,6 +230,7 @@ function renderTaskGroups(taskGroups) {
     });
 }
 
+// ✅ [수정] renderQuantityTasks 함수: input을 span으로 변경
 function renderQuantityTasks(quantityTasks) {
     const container = document.getElementById('quantity-tasks-container');
     container.innerHTML = '';
@@ -236,9 +241,10 @@ function renderQuantityTasks(quantityTasks) {
         taskEl.dataset.index = index;
         // taskEl.draggable = true; // [제거]
         taskEl.innerHTML = `
-            <span class="drag-handle" draggable="true">☰</span> <input type="text" value="${task}" class="quantity-task-name flex-grow">
+            <span class="drag-handle" draggable="true">☰</span> 
+            <span class="quantity-task-name flex-grow p-2 bg-gray-100 rounded">${task}</span>
             <button class="btn btn-danger btn-small delete-quantity-task-btn" data-index="${index}">삭제</button>
-        `; // [수정] handle에 draggable="true" 추가
+        `; // [수정] handle에 draggable="true" 추가 및 input을 span으로 변경
         container.appendChild(taskEl);
     });
 }
@@ -285,7 +291,7 @@ function setupEventListeners() {
         }
     });
 
-    // [추가] '처리량 집계 추가' 확인 모달 버튼
+    // [추가] '처리량 집계 추가' 확인 모달 버튼 (요청한 팝업 기능)
     document.getElementById('confirm-add-to-quantity-btn').addEventListener('click', () => {
         if (taskJustAdded) {
             addQuantityTask(taskJustAdded);
@@ -368,7 +374,7 @@ function addQuantityTask(taskName) {
     renderQuantityTasks(appConfig.quantityTaskTypes);
 }
 
-// [추가] '업무 관리'에서 '새 업무' 추가 후 이름 변경 시(blur) 호출될 함수
+// [추가] '업무 관리'에서 '새 업무' 추가 후 이름 변경 시(blur) 호출될 함수 (요청한 팝업 기능)
 function handleNewTaskNameBlur(e) {
     const newTaskName = e.target.value.trim();
     
@@ -440,7 +446,7 @@ function handleDynamicClicks(e) {
         `; // [수정] handle에 draggable="true" 추가
         container.appendChild(newTaskEl);
 
-        // [추가] 방금 추가된 '새 업무' input에 blur 이벤트 리스너 추가
+        // [추가] 방금 추가된 '새 업무' input에 blur 이벤트 리스너 추가 (요청한 팝업 기능)
         const newTaskNameInput = newTaskEl.querySelector('.task-name');
         if (newTaskNameInput) {
             newTaskNameInput.focus(); // 바로 이름 수정하도록 포커스
@@ -557,7 +563,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
 
 // --- 데이터 저장 ---
-// [수정] handleSaveAll (읽는 방식은 input으로 동일)
+// ✅ [수정] handleSaveAll (읽는 방식 수정)
 async function handleSaveAll() {
     try {
         const newConfig = {
@@ -589,8 +595,8 @@ async function handleSaveAll() {
 
         // 2. 주요 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
-             // [수정] input의 클래스 이름 확인 (key-task-name)
-             const taskName = item.querySelector('.key-task-name').value.trim();
+             // [수정] .value -> .textContent
+             const taskName = item.querySelector('.key-task-name').textContent.trim();
              if (taskName) newConfig.keyTasks.push(taskName);
         });
 
@@ -615,8 +621,8 @@ async function handleSaveAll() {
 
         // 4. 처리량 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
-            // [수정] input의 클래스 이름 확인 (quantity-task-name)
-            const taskName = item.querySelector('.quantity-task-name').value.trim();
+            // [수정] .value -> .textContent
+            const taskName = item.querySelector('.quantity-task-name').textContent.trim();
             if (taskName) newConfig.quantityTaskTypes.push(taskName);
         });
 
