@@ -1,4 +1,4 @@
-// === ui.js (외출 복귀 상태 반영 수정) ===
+// === ui.js (주별/월별 엑셀 버튼 제거, 일별 버튼 텍스트 수정) ===
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
 
@@ -132,7 +132,7 @@ export const renderTaskAnalysis = (appState) => {
 };
 
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
-    // ... (이 함수는 이미 올바른 필터가 적용되어 있어 수정 없음) ...
+    // ... (이전과 동일) ...
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
         console.error("Element #team-status-board not found!");
@@ -465,7 +465,7 @@ export const renderCompletedWorkLog = (appState) => {
 };
 
 export const updateSummary = (appState, teamGroups = []) => {
-    // ... (이전과 동일한 DOM 요소들) ...
+    // ... (이전과 동일) ...
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
     const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
     const summaryActiveStaffEl = document.getElementById('summary-active-staff');
@@ -515,7 +515,7 @@ export const updateSummary = (appState, teamGroups = []) => {
 };
 
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
-    // ... (이전과 동일한 DOM 요소들) ...
+    // ... (이전과 동일) ...
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
     if (!titleEl || !container) return;
@@ -804,6 +804,8 @@ export const renderWeeklyHistory = (allHistoryData, appConfig) => {
             view.innerHTML = '<div class="text-center text-gray-500">주별 데이터가 없습니다.</div>';
             return;
         }
+
+        // ✅ [수정] 헤더 및 엑셀 버튼 제거
         view.innerHTML = sortedWeeks.map(weekKey => renderSummaryView('weekly', weeklyData[weekKey], weekKey, combinedWageMap)).join('');
     } catch (error) {
         console.error("Error in renderWeeklyHistory:", error);
@@ -851,6 +853,8 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
             view.innerHTML = '<div class="text-center text-gray-500">월별 데이터가 없습니다.</div>';
             return;
         }
+
+        // ✅ [수정] 헤더 및 엑셀 버튼 제거
         view.innerHTML = sortedMonths.map(monthKey => renderSummaryView('monthly', monthlyData[monthKey], monthKey, combinedWageMap)).join('');
     } catch (error) {
         console.error("Error in renderMonthlyHistory:", error);
@@ -872,7 +876,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
             <div>
                 <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm"
                         onclick="downloadAttendanceHistoryAsExcel('${dateKey}')">
-                    근태 엑셀
+                    근태 엑셀 (전체)
                 </button>
                 <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" 
                         onclick="requestHistoryDeletion('${dateKey}')">
@@ -979,6 +983,7 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
         return;
     }
 
+    // ✅ [수정] 헤더 및 엑셀 버튼 제거
     let html = '';
     sortedWeeks.forEach(weekKey => {
         const data = weeklyData[weekKey];
@@ -1063,6 +1068,7 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
         return;
     }
 
+    // ✅ [수정] 헤더 및 엑셀 버튼 제거
     let html = '';
     sortedMonths.forEach(monthKey => {
         const data = monthlyData[monthKey];
