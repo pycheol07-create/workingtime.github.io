@@ -1,4 +1,4 @@
-// === app.js (업무 마감 확인 팝업 추가) ===
+// === app.js (업무 마감 팝업 로직 수정) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -1486,15 +1486,19 @@ if (confirmDeleteBtn) {
   });
 }
 
-// ✅ [수정] '업무 마감' 버튼 리스너
+// ✅ [수정] '업무 마감' 버튼 리스너 (카운트 로직 변경)
 if (endShiftBtn) {
   endShiftBtn.addEventListener('click', () => {
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     
     if (ongoingRecords.length > 0) {
+        // [수정] 진행 중인 '업무 종류'의 갯수를 셉니다.
+        const ongoingTaskNames = new Set(ongoingRecords.map(r => r.task));
+        const ongoingTaskCount = ongoingTaskNames.size;
+
         // 진행 중인 업무가 있으면 모달 표시
-        if (endShiftConfirmTitle) endShiftConfirmTitle.textContent = `진행 중인 업무 ${ongoingRecords.length}건`;
-        if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = '모든 진행 중인 업무를 자동으로 종료하고 마감하시겠습니까?';
+        if (endShiftConfirmTitle) endShiftConfirmTitle.textContent = `진행 중인 업무 ${ongoingTaskCount}종`;
+        if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = `총 ${ongoingRecords.length}명이 참여 중인 ${ongoingTaskCount}종의 업무가 있습니다. 모두 종료하고 마감하시겠습니까?`;
         if (endShiftConfirmModal) endShiftConfirmModal.classList.remove('hidden');
     } else {
         // 진행 중인 업무가 없으면 즉시 마감
