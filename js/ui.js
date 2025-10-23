@@ -526,21 +526,15 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         ...(appState.dailyOnLeaveMembers || []),
         ...(appState.dateBasedOnLeaveMembers || [])
     ];
-    
+
     const onLeaveMemberMap = new Map(
         combinedOnLeaveMembers
-            .filter(item => !(item.type === '외출' && item.endTime)) 
+            .filter(item => !(item.type === '외출' && item.endTime))
             .map(item => [item.member, item])
     );
 
-    const orderedTeamGroups = [
-        teamGroups.find(g => g.name === '관리'),
-        teamGroups.find(g => g.name === '공통파트'),
-        teamGroups.find(g => g.name === '담당파트'),
-        teamGroups.find(g => g.name === '제작파트'),
-    ].filter(Boolean);
-
-    orderedTeamGroups.forEach(group => {
+    // [수정] teamGroups 배열을 직접 순회하여 관리자 페이지 순서 반영
+    teamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
         groupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
         groupContainer.innerHTML = `
@@ -576,6 +570,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         container.appendChild(groupContainer);
     });
 
+    // 알바 섹션 (이전과 동일)
     const albaGroupContainer = document.createElement('div');
     albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
     albaGroupContainer.innerHTML = `<div class="flex justify-between items-center p-2 border-b border-gray-200">
