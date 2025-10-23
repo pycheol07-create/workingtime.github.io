@@ -1,4 +1,4 @@
-// === ui.js (keyTasks를 파라미터로 받도록 수정) ===
+// === ui.js (외출 복귀 상태 반영 수정) ===
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
 
@@ -131,8 +131,8 @@ export const renderTaskAnalysis = (appState) => {
     analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8"><div class="flex-shrink-0"><div class="chart" style="background: ${finalGradient};"><div class="chart-center"><span class="text-sm text-gray-500">총 업무</span><span class="text-xl font-bold text-blue-600 mt-1">${formatDuration(totalLoggedMinutes)}</span></div></div></div>${legendHTML}</div>`;
 };
 
-// [수정] 함수 시그니처 변경 (keyTasks 파라미터 추가)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
+    // ... (이 함수는 이미 올바른 필터가 적용되어 있어 수정 없음) ...
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
         console.error("Element #team-status-board not found!");
@@ -153,17 +153,14 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     const presetGrid = document.createElement('div');
     presetGrid.className = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4';
 
-    // [수정] 하드코딩된 baseTasks 대신, 파라미터로 받은 keyTasks 사용
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무']; // (폴백)
     
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
     
-    // [수정] 렌더링할 작업 목록: (관리자가 설정한 주요 업무) + (현재 진행중인 업무)
     const tasksToRender = [...new Set([...baseTasks, ...activeTaskNames])];
 
     tasksToRender.forEach(task => {
-        // ... (이하 카드 렌더링 로직은 이전과 동일) ...
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
 
@@ -209,7 +206,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     pauseResumeButtonHtml = `<button data-action="resume-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-0.5 rounded ml-1 flex-shrink-0">재개</button>`;
                 }
 
-                // ✅ [수정] 아래 줄의 span 태그에서 'w-12'와 'truncate' 클래스 제거
                 membersHtml += `<div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center">
                     <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block text-left" title="${rec.member}">${rec.member}</span>
                     <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
@@ -279,7 +275,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
-    // ... (이하 '전체 팀원 현황' 렌더링은 이전과 동일) ...
+    // ... ('전체 팀원 현황' 섹션 렌더링은 이전과 동일, 이미 올바른 필터가 적용되어 있음) ...
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
@@ -469,7 +465,7 @@ export const renderCompletedWorkLog = (appState) => {
 };
 
 export const updateSummary = (appState, teamGroups = []) => {
-    // ... (이전과 동일) ...
+    // ... (이전과 동일한 DOM 요소들) ...
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
     const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
     const summaryActiveStaffEl = document.getElementById('summary-active-staff');
@@ -486,7 +482,13 @@ export const updateSummary = (appState, teamGroups = []) => {
         ...(appState.dailyOnLeaveMembers || []),
         ...(appState.dateBasedOnLeaveMembers || [])
     ];
-    const onLeaveMemberNames = new Set(combinedOnLeaveMembers.map(item => item.member));
+    
+    // ✅ [수정] 복귀한 '외출' 인원을 휴무 인원에서 제외합니다.
+    const onLeaveMemberNames = new Set(
+        combinedOnLeaveMembers
+            .filter(item => !(item.type === '외출' && item.endTime)) 
+            .map(item => item.member)
+    );
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
     const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
@@ -513,7 +515,7 @@ export const updateSummary = (appState, teamGroups = []) => {
 };
 
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
-    // ... (이전과 동일) ...
+    // ... (이전과 동일한 DOM 요소들) ...
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
     if (!titleEl || !container) return;
@@ -528,7 +530,13 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         ...(appState.dailyOnLeaveMembers || []),
         ...(appState.dateBasedOnLeaveMembers || [])
     ];
-    const onLeaveMemberMap = new Map(combinedOnLeaveMembers.map(item => [item.member, item]));
+    
+    // ✅ [수정] 복귀한 '외출' 인원을 휴무 인원에서 제외합니다.
+    const onLeaveMemberMap = new Map(
+        combinedOnLeaveMembers
+            .filter(item => !(item.type === '외출' && item.endTime)) 
+            .map(item => [item.member, item])
+    );
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -553,7 +561,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const uniqueMembersInGroup = [...new Set(group.members)];
         uniqueMembersInGroup.forEach(member => {
             const isWorking = allWorkingMembers.has(member);
-            const leaveEntry = onLeaveMemberMap.get(member);
+            const leaveEntry = onLeaveMemberMap.get(member); // 수정된 Map 사용
             const isOnLeave = !!leaveEntry;
             const card = document.createElement('button');
             card.type = 'button';
@@ -573,6 +581,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         container.appendChild(groupContainer);
     });
 
+    // ... (알바 그룹 렌더링 로직은 이전과 동일, onLeaveMemberMap이 수정되었으므로 자동 반영됨) ...
     const albaGroupContainer = document.createElement('div');
     albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
     albaGroupContainer.innerHTML = `<div class="flex justify-between items-center p-2 border-b border-gray-200">
@@ -588,7 +597,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
     (appState.partTimers || []).forEach(pt => {
         const isWorking = allWorkingMembers.has(pt.name);
-        const leaveEntry = onLeaveMemberMap.get(pt.name);
+        const leaveEntry = onLeaveMemberMap.get(pt.name); // 수정된 Map 사용
         const isOnLeave = !!leaveEntry;
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'relative';
@@ -850,7 +859,7 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
 };
 
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
-    // ... (이전과 동일, 삭제 버튼 이미 추가됨) ...
+    // ... (이전과 동일) ...
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
