@@ -1,4 +1,4 @@
-// === app.js (엑셀 다운로드 시트 통합) ===
+// === app.js (전체 화면 토글 기능 추가, 일별 상세 카드 레이아웃 수정) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -91,6 +91,7 @@ const cancelLeaveConfirmMessage = document.getElementById('cancel-leave-confirm-
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
 const toggleAnalysis = document.getElementById('toggle-analysis');
 const toggleSummary = document.getElementById('toggle-summary');
+const fullscreenHistoryBtn = document.getElementById('fullscreen-history-btn'); // ✅ [신규] 전체 화면 버튼
 
 // ========== Firebase/App State ==========
 // ... (db, auth 선언은 이전과 동일) ...
@@ -546,7 +547,7 @@ async function saveDayDataToHistory(shouldReset) {
 }
 
 
-// ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal, renderHistoryDetail, requestHistoryDeletion 함수들은 이전과 동일) ...
+// ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal 함수들은 이전과 동일) ...
 async function fetchAllHistoryData() {
   const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
   try {
@@ -647,6 +648,7 @@ window.openHistoryQuantityModal = (dateKey) => {
   if (quantityModal) quantityModal.classList.remove('hidden');
 };
 
+// ✅ [수정] 일별 상세 보기 렌더링 함수 - 상단 카드 레이아웃 변경
 const renderHistoryDetail = (dateKey) => {
   const view = document.getElementById('history-daily-view');
   if (!view) return;
@@ -690,9 +692,9 @@ const renderHistoryDetail = (dateKey) => {
     const totalPotentialMinutes = activeMembersCount * 8 * 60; // 8시간 기준
     const nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalSumDuration);
     const percentage = totalPotentialMinutes > 0 ? (nonWorkMinutes / totalPotentialMinutes * 100).toFixed(1) : 0;
-    nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-xl font-bold text-gray-700">${formatDuration(nonWorkMinutes)}</p><p class="text-xs text-gray-500 mt-1">(추정치, ${percentage}%)</p></div>`;
+    nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-xl font-bold text-gray-700">${formatDuration(nonWorkMinutes)}</p><p class="text-xs text-gray-500 mt-1">(추정치, ${percentage}%)</p></div>`;
   } else {
-    nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex flex-col justify-center items-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-lg font-bold text-gray-400">주말</p></div>`;
+    nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px] flex flex-col justify-center items-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-lg font-bold text-gray-400">주말</p></div>`;
   }
 
   let html = `
@@ -704,15 +706,15 @@ const renderHistoryDetail = (dateKey) => {
         <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="requestHistoryDeletion('${dateKey}')">삭제</button>
       </div>
     </div>
-    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">근무 인원</h4><p class="text-2xl font-bold text-gray-800">${activeMembersCount} 명</p></div>
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${formatDuration(totalSumDuration)}</p></div>
+    <div class="flex flex-wrap gap-4 mb-6">
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">근무 인원</h4><p class="text-2xl font-bold text-gray-800">${activeMembersCount} 명</p></div>
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${formatDuration(totalSumDuration)}</p></div>
       ${nonWorkHtml}
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center col-span-2"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${totalQuantity} 개</p></div>
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${totalQuantity} 개</p></div>
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
     </div>
   `;
-
+  // ... (이하 나머지 HTML 생성 로직은 동일) ...
   html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">`;
   html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 처리량</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
   let hasQuantities = false;
@@ -780,6 +782,7 @@ const renderHistoryDetail = (dateKey) => {
   view.innerHTML = html;
 };
 
+// ... (requestHistoryDeletion, 엑셀 다운로드 함수(downloadHistoryAsExcel, downloadAttendanceHistoryAsExcel), switchHistoryView 함수들은 이전과 동일) ...
 window.requestHistoryDeletion = (dateKey) => {
   historyKeyToDelete = dateKey;
   if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
@@ -1313,7 +1316,52 @@ const switchHistoryView = (view) => {
 
 
 // ========== 이벤트 리스너 ==========
-// ... (teamStatusBoard 클릭 리스너는 이전과 동일) ...
+// ... (나머지 이벤트 리스너 코드는 이전과 동일) ...
+// ✅ [신규] 전체 화면 토글 버튼 이벤트 리스너
+if (fullscreenHistoryBtn) {
+    fullscreenHistoryBtn.addEventListener('click', () => {
+        const modalElement = document.getElementById('history-modal'); // 전체 모달
+        const openIcon = document.getElementById('fullscreen-icon-open');
+        const exitIcon = document.getElementById('fullscreen-icon-exit');
+
+        if (!document.fullscreenElement) {
+            // 전체 화면 시작
+            if (modalElement.requestFullscreen) {
+                modalElement.requestFullscreen();
+            } else if (modalElement.webkitRequestFullscreen) { /* Safari */
+                modalElement.webkitRequestFullscreen();
+            } else if (modalElement.msRequestFullscreen) { /* IE11 */
+                modalElement.msRequestFullscreen();
+            }
+            openIcon.classList.add('hidden');
+            exitIcon.classList.remove('hidden');
+        } else {
+            // 전체 화면 종료
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { /* Safari */
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) { /* IE11 */
+                document.msExitFullscreen();
+            }
+            openIcon.classList.remove('hidden');
+            exitIcon.classList.add('hidden');
+        }
+    });
+
+    // 전체 화면 상태 변경 감지 (ESC 키 등으로 종료 시 아이콘 업데이트)
+    document.addEventListener('fullscreenchange', () => {
+        const openIcon = document.getElementById('fullscreen-icon-open');
+        const exitIcon = document.getElementById('fullscreen-icon-exit');
+        if (!document.fullscreenElement) {
+            openIcon.classList.remove('hidden');
+            exitIcon.classList.add('hidden');
+        } else {
+            openIcon.classList.add('hidden');
+            exitIcon.classList.remove('hidden');
+        }
+    });
+}
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
@@ -1822,7 +1870,8 @@ if (confirmCancelLeaveBtn) {
 document.querySelectorAll('.modal-close-btn').forEach(btn => {
   btn.addEventListener('click', (e) => {
       const modal = e.target.closest('.fixed.inset-0');
-      if (!modal) return;
+      // ✅ [수정] history-modal 내부의 닫기 버튼은 제외 (별도 처리)
+      if (!modal || modal.id === 'history-modal') return;
 
       modal.classList.add('hidden');
 
@@ -1854,8 +1903,6 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
           if(input) input.value = '';
       } else if (modalId === 'stop-individual-confirm-modal') {
           recordToStopId = null;
-      } else if (modalId === 'history-modal') {
-          // '이력 보기' 모달 닫기
       }
       // 다른 모달 ID에 대한 초기화 로직 추가...
   });
