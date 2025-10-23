@@ -8,27 +8,30 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Noto Sans KR', sans-serif; }
-        input[type="text"], input[type="number"], select { /* [추가] select 스타일 */
-            @apply w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white; /* bg-white 추가 */
+        input[type="text"], input[type="number"] {
+            @apply w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500;
         }
         .config-card { @apply bg-white p-6 rounded-lg shadow-md border border-gray-200; }
         .btn { @apply px-4 py-2 rounded-md font-semibold text-sm transition; }
         .btn-primary { @apply bg-blue-600 text-white hover:bg-blue-700; }
         .btn-secondary { @apply bg-gray-200 text-gray-800 hover:bg-gray-300; }
         .btn-danger { @apply bg-red-500 text-white hover:bg-red-600; }
-        .btn-warning { @apply bg-yellow-500 text-white hover:bg-yellow-600; } /* [추가] */
         .btn-small { @apply px-2 py-1 text-xs; }
 
+        /* [수정] 드래그 핸들 스타일 (draggable="true"가 핸들로 이동) */
         .drag-handle {
             @apply cursor-move text-gray-400 hover:text-gray-600 mr-2 text-lg inline-block align-middle -mt-1;
         }
+        /* [추가] 드래그 중인 항목 스타일 */
         .dragging {
             @apply opacity-50 bg-blue-100;
         }
+        /* [추가] 드롭 위치 표시 스타일 */
         .drag-over {
              @apply border-t-2 border-blue-500;
         }
 
+        /* [추가] 모달 닫기 버튼 */
         .modal-close-btn {
             position: absolute;
             top: 1rem;
@@ -43,13 +46,6 @@
         .modal-close-btn:hover {
             color: #1f2937;
         }
-
-        /* [추가] 수정 모드 버튼 */
-        .edit-task-btn, .save-task-btn, .cancel-task-btn {
-            @apply p-1 text-gray-500 hover:text-blue-600;
-        }
-        .save-task-btn { @apply hover:text-green-600; }
-        .cancel-task-btn { @apply hover:text-red-600; }
 
     </style>
 </head>
@@ -133,11 +129,12 @@
     </div>
 
     <div id="select-task-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative"> <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
                 <h2 id="select-task-modal-title" class="text-xl font-bold text-gray-900">업무 선택</h2>
                 <button class="modal-close-btn" data-modal-id="select-task-modal">&times;</button>
             </div>
-            <div id="select-task-list" class="p-6 max-h-[70vh] overflow-y-auto flex flex-col md:flex-row gap-4">
+            <div id="select-task-list" class="p-6 max-h-[60vh] overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-2">
                 </div>
         </div>
     </div>
@@ -152,21 +149,6 @@
                 <div class="flex justify-center gap-3">
                     <button type="button" id="confirm-add-to-quantity-btn" class="btn btn-primary">예, 추가합니다</button>
                     <button type="button" id="cancel-add-to-quantity-btn" class="btn btn-secondary">아니요</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="confirm-delete-linked-task-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md relative"> <button class="modal-close-btn" data-modal-id="confirm-delete-linked-task-modal">&times;</button>
-            <div class="p-6 text-center">
-                <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                <h3 class="mb-3 text-lg font-semibold text-gray-800">연결된 업무 삭제 확인</h3>
-                <p id="confirm-delete-linked-task-message" class="mb-5 text-sm text-gray-600">이 업무는 다른 목록에도 사용되고 있습니다. 어떻게 삭제하시겠습니까?</p>
-                <div class="space-y-3">
-                    <button type="button" id="confirm-delete-everywhere-btn" class="btn btn-danger w-full">모든 목록에서 삭제</button>
-                    <button type="button" id="confirm-delete-here-btn" class="btn btn-warning w-full">'업무 관리'에서만 삭제</button>
-                    <button type="button" id="cancel-delete-linked-task-btn" class="btn btn-secondary w-full">취소</button>
                 </div>
             </div>
         </div>
