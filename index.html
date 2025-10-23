@@ -9,10 +9,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen flex items-center justify-center p-4">
+<body class="bg-gray-100 text-gray-800">
     <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2 w-full max-w-xs"></div>
 
-    <div id="app-content" class="w-full max-w-7xl mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-gray-200 relative">
+    <div id="app-content" class="w-full min-h-screen bg-white p-6 md:p-8 relative flex flex-col">
 
         <div id="current-date-display" class="absolute top-4 left-6 text-lg font-bold text-gray-700"></div>
 
@@ -81,7 +81,7 @@
         </div>
 
 
-        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 flex-grow flex flex-col">
             <h2 class="text-xl font-bold text-gray-900 mb-4">업무 배정 및 팀 현황</h2>
 
             <div id="loading-spinner" class="text-center py-10">
@@ -92,7 +92,7 @@
                 <p class="mt-2 text-gray-500 font-semibold">설정 및 데이터를 불러오는 중...</p>
             </div>
 
-            <div id="team-status-board" class="space-y-8">
+            <div id="team-status-board" class="space-y-8 flex-grow">
                 </div>
         </div>
 
@@ -109,7 +109,7 @@
                     <button id="save-progress-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">중간 저장</button>
                     <button id="end-shift-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">업무 마감</button>
                 </div>
-                <div class="overflow-auto max-h-[40vh] relative bg-white rounded-md">
+                <div class="overflow-auto relative bg-white rounded-md">
                     <table class="w-full text-sm text-left text-gray-600">
                         <thead class="text-xs text-blue-500 uppercase bg-gray-100 sticky top-0 z-10">
                             <tr>
@@ -142,7 +142,7 @@
     </div>
 
     <div id="team-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col relative">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
                 <h2 id="team-select-modal-title" class="text-xl font-bold text-gray-900">팀원 선택</h2>
                 <button class="modal-close-btn">&times;</button>

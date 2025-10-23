@@ -1,4 +1,4 @@
-// === app.js (기본 전체 화면 열기, 전체 화면 버튼 관련 코드 제거) ===
+// === app.js (이력 보기 기본 전체 화면, 관련 버튼 및 리스너 제거) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -91,7 +91,6 @@ const cancelLeaveConfirmMessage = document.getElementById('cancel-leave-confirm-
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
 const toggleAnalysis = document.getElementById('toggle-analysis');
 const toggleSummary = document.getElementById('toggle-summary');
-
 
 // ========== Firebase/App State ==========
 // ... (이전과 동일) ...
@@ -520,7 +519,7 @@ async function saveDayDataToHistory(shouldReset) {
 }
 
 
-// ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal 함수들은 이전과 동일) ...
+// ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal, renderHistoryDetail, requestHistoryDeletion, 엑셀 함수, switchHistoryView 함수들은 이전과 동일) ...
 async function fetchAllHistoryData() {
   const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
   try {
@@ -621,7 +620,6 @@ window.openHistoryQuantityModal = (dateKey) => {
   if (quantityModal) quantityModal.classList.remove('hidden');
 };
 
-// ✅ [수정] 일별 상세 보기 렌더링 함수 - 상단 카드 레이아웃 변경
 const renderHistoryDetail = (dateKey) => {
   const view = document.getElementById('history-daily-view');
   if (!view) return;
@@ -754,7 +752,6 @@ const renderHistoryDetail = (dateKey) => {
   view.innerHTML = html;
 };
 
-// ... (requestHistoryDeletion, 엑셀 다운로드 함수(downloadHistoryAsExcel, downloadAttendanceHistoryAsExcel), switchHistoryView 함수들은 이전과 동일) ...
 window.requestHistoryDeletion = (dateKey) => {
   historyKeyToDelete = dateKey;
   if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
@@ -1260,13 +1257,13 @@ const switchHistoryView = (view) => {
 
 
 // ========== 이벤트 리스너 ==========
-// ✅ [수정] #open-history-btn 리스너: 전체 화면 요청 추가
+// ✅ [수정] #open-history-btn 리스너: 전체 화면 요청 대상 수정
 if (openHistoryBtn) {
   openHistoryBtn.addEventListener('click', async () => {
     if (historyModal) {
       historyModal.classList.remove('hidden');
       // 흰색 내용 컨테이너 선택
-      const contentElement = historyModal.querySelector('.bg-white');
+      const contentElement = historyModal.querySelector('.bg-white'); // ✅ 수정: 실제 내용 영역 선택
       if (contentElement) {
         try {
           if (contentElement.requestFullscreen) {
@@ -1279,9 +1276,11 @@ if (openHistoryBtn) {
         } catch (err) {
           console.error("전체 화면 요청 실패:", err);
           showToast("전체 화면 모드를 시작할 수 없습니다.", true);
-          // 전체 화면 실패 시 모달은 그대로 열어둠
+          // 전체 화면 실패 시 모달은 그대로 열어둠 (닫지 않음)
+          historyModal.classList.remove('hidden'); // 혹시 모르니 다시 보이게
         }
       }
+      // 데이터 로드는 전체 화면 요청 성공 여부와 관계없이 진행
       await loadAndRenderHistoryList();
     }
   });
@@ -1289,7 +1288,7 @@ if (openHistoryBtn) {
 
 // ✅ [수정] 전체 화면 버튼 관련 리스너 제거
 // if (fullscreenHistoryBtn) { ... } // 이 부분 전체 삭제
-// document.addEventListener('fullscreenchange', ...) // 이 부분 전체 삭제
+// document.addEventListener('fullscreenchange', ...) // 첫 번째 fullscreenchange 리스너 삭제
 
 // ✅ [수정] ESC 키 등으로 전체 화면 종료 시 모달 닫기
 document.addEventListener('fullscreenchange', () => {
