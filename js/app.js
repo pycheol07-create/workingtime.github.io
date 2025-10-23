@@ -1,4 +1,4 @@
-// === app.js (이력 보기 기본 전체 화면, 관련 버튼 및 리스너 제거) ===
+// === app.js (업무 마감 확인 팝업 추가) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -91,6 +91,14 @@ const cancelLeaveConfirmMessage = document.getElementById('cancel-leave-confirm-
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
 const toggleAnalysis = document.getElementById('toggle-analysis');
 const toggleSummary = document.getElementById('toggle-summary');
+
+// ✅ [추가] 업무 마감 확인 모달 요소
+const endShiftConfirmModal = document.getElementById('end-shift-confirm-modal');
+const endShiftConfirmTitle = document.getElementById('end-shift-confirm-title');
+const endShiftConfirmMessage = document.getElementById('end-shift-confirm-message');
+const confirmEndShiftBtn = document.getElementById('confirm-end-shift-btn');
+const cancelEndShiftBtn = document.getElementById('cancel-end-shift-btn');
+
 
 // ========== Firebase/App State ==========
 // ... (이전과 동일) ...
@@ -417,7 +425,7 @@ const resumeWorkIndividual = (recordId) => {
   }
 };
 
-// ... (saveProgress, saveDayDataToHistory 함수는 이전과 동일) ...
+// ... (saveProgress 함수는 이전과 동일) ...
 async function saveProgress(isAutoSave = false) {
   const dateStr = getTodayDateString();
   
@@ -485,6 +493,8 @@ async function saveProgress(isAutoSave = false) {
   }
 }
 
+// ✅ [수정] saveDayDataToHistory (업무 마감 로직)
+// (진행 중인 업무를 자동으로 종료하는 로직이 이미 포함되어 있음)
 async function saveDayDataToHistory(shouldReset) {
   const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
   if (ongoingRecords.length > 0) {
@@ -500,7 +510,7 @@ async function saveDayDataToHistory(shouldReset) {
     });
   }
 
-  await saveProgress(false);
+  await saveProgress(false); // 수동 저장(false)으로 호출
 
   appState.workRecords = [];
   Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
@@ -1301,7 +1311,7 @@ document.addEventListener('fullscreenchange', () => {
 });
 
 
-// ... (나머지 이벤트 리스너 코드는 이전과 동일) ...
+// ... (teamStatusBoard 리스너는 이전과 동일) ...
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
@@ -1411,6 +1421,7 @@ if (teamStatusBoard) {
   });
 }
 
+// ... (workLogBody 리스너는 이전과 동일) ...
 if (workLogBody) {
   workLogBody.addEventListener('click', (e) => {
     const deleteBtn = e.target.closest('button[data-action="delete"]');
@@ -1449,6 +1460,7 @@ if (workLogBody) {
   });
 }
 
+// ... (deleteAllCompletedBtn, confirmDeleteBtn 리스너는 이전과 동일) ...
 if (deleteAllCompletedBtn) {
   deleteAllCompletedBtn.addEventListener('click', () => {
     deleteMode = 'all';
@@ -1474,17 +1486,46 @@ if (confirmDeleteBtn) {
   });
 }
 
+// ✅ [수정] '업무 마감' 버튼 리스너
 if (endShiftBtn) {
   endShiftBtn.addEventListener('click', () => {
-    saveDayDataToHistory(false);
-    showToast('업무 마감 처리 완료. 오늘의 기록을 이력에 저장하고 초기화했습니다.');
+    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+    
+    if (ongoingRecords.length > 0) {
+        // 진행 중인 업무가 있으면 모달 표시
+        if (endShiftConfirmTitle) endShiftConfirmTitle.textContent = `진행 중인 업무 ${ongoingRecords.length}건`;
+        if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = '모든 진행 중인 업무를 자동으로 종료하고 마감하시겠습니까?';
+        if (endShiftConfirmModal) endShiftConfirmModal.classList.remove('hidden');
+    } else {
+        // 진행 중인 업무가 없으면 즉시 마감
+        saveDayDataToHistory(false);
+        showToast('업무 마감 처리 완료. 오늘의 기록을 이력에 저장하고 초기화했습니다.');
+    }
   });
 }
+
+// ✅ [추가] '업무 마감 확인' 모달 버튼 리스너
+if (confirmEndShiftBtn) {
+    confirmEndShiftBtn.addEventListener('click', () => {
+        // saveDayDataToHistory(false)가 이미 자동 종료 로직을 포함함
+        saveDayDataToHistory(false);
+        showToast('업무 마감 처리 완료. 오늘의 기록을 이력에 저장하고 초기화했습니다.');
+        if (endShiftConfirmModal) endShiftConfirmModal.classList.add('hidden');
+    });
+}
+
+if (cancelEndShiftBtn) {
+    cancelEndShiftBtn.addEventListener('click', () => {
+        if (endShiftConfirmModal) endShiftConfirmModal.classList.add('hidden');
+    });
+}
+
 
 if (saveProgressBtn) {
   saveProgressBtn.addEventListener('click', () => saveProgress(false));
 }
 
+// ... (closeHistoryBtn, historyDateList, historyTabs, confirmHistoryDeleteBtn, historyMainTabs, attendanceHistoryTabs, resetAppBtn, confirmResetAppBtn, confirmQuantityBtn, confirmEditBtn, confirmQuantityOnStopBtn, taskSelectModal, confirmStopIndividualBtn, confirmLeaveBtn, confirmCancelLeaveBtn 리스너는 이전과 동일) ...
 if (closeHistoryBtn) {
   closeHistoryBtn.addEventListener('click', () => {
     if (document.fullscreenElement) { // 전체 화면 상태에서 닫기 버튼 누르면
@@ -1843,6 +1884,9 @@ if (cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => {
         card.classList.remove('ring-2','ring-blue-500','bg-blue-100');
      });
 });
+// ✅ [추가] '업무 마감 확인' 모달의 취소 버튼
+if (cancelEndShiftBtn) cancelEndShiftBtn.addEventListener('click', () => { if(endShiftConfirmModal) endShiftConfirmModal.classList.add('hidden'); });
+
 
 [toggleCompletedLog, toggleAnalysis, toggleSummary].forEach(toggle => {
   if (!toggle) return;
