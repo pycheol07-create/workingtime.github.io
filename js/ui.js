@@ -362,8 +362,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             membersHtml += '</div>';
 
             const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && (!earliest || current.startTime < earliest)) ? current.startTime : earliest), null);
-            const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime);
+            // ✅ [수정] find 대신 || groupRecords[0] 추가 (안정성)
+            const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
             const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id;
+
+            // ✅ [추가] 타이머 최적화를 위해 pauses 정보 추가
+            const pauses = representativeRecord ? representativeRecord.pauses : [];
+            const pausesJson = JSON.stringify(pauses || []);
 
             const durationStatus = isOngoing ? 'ongoing' : 'paused';
 
@@ -371,7 +376,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div>
-                                <div class="text-xs ${currentStyle.subtitle} my-2">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${durationStatus}" data-record-id="${recordIdForDuration || ''}"></span></div>
+                                <div class="text-xs ${currentStyle.subtitle} my-2">시작: ${formatTimeTo24H(earliestStartTime)} 
+                                    <span class="ongoing-duration" 
+                                          data-start-time="${earliestStartTime || ''}" 
+                                          data-status="${durationStatus}" 
+                                          data-record-id="${recordIdForDuration || ''}"
+                                          data-pauses-json='${pausesJson}'></span>
+                                </div>
                                 <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
                                 <div class="mt-auto space-y-2 pt-2">
@@ -1127,11 +1138,64 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     view.innerHTML = html;
 };
 
+// ✅ [추가] 주별/월별 근태 요약 렌더링을 위한 공통 헬퍼 함수
+const renderAggregatedAttendanceSummary = (viewElement, aggregationMap) => {
+    const sortedKeys = Object.keys(aggregationMap).sort((a,b) => b.localeCompare(a));
+    if (sortedKeys.length === 0) {
+        viewElement.innerHTML = `<div class="text-center text-gray-500">해당 기간의 근태 데이터가 없습니다.</div>`;
+        return;
+    }
+
+    let html = '';
+    sortedKeys.forEach(periodKey => {
+        const data = aggregationMap[periodKey];
+        // 근태 항목 집계 (member-type 기준)
+        const summary = data.leaveEntries.reduce((acc, entry) => {
+            const key = `${entry.member}-${entry.type}`;
+            if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
+
+            if(entry.startDate) {
+                acc[key].count += 1;
+            } else {
+                acc[key].count += 1;
+            }
+            return acc;
+        }, {});
+
+        // '일' 단위 휴가(연차 등) 계산
+        Object.values(summary).forEach(item => {
+             if (['연차', '출장', '결근'].includes(item.type)) {
+                 item.days = item.count;
+             }
+        });
+
+        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                    <h3 class="text-xl font-bold mb-3">${periodKey}</h3>
+                    <div class="space-y-1">`;
+
+        if (Object.keys(summary).length === 0) {
+             html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
+        } else {
+            Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
+                 html += `<div class="flex justify-between text-sm">
+                            <span class="font-semibold text-gray-700">${item.member}</span>
+                            <span>${item.type}</span>
+                            <span class="text-right">${item.days > 0 ? `${item.days}일` : `${item.count}회`}</span>
+                         </div>`;
+            });
+        }
+        html += `</div></div>`;
+    });
+
+    viewElement.innerHTML = html;
+};
+
 export const renderAttendanceWeeklyHistory = (allHistoryData) => {
     const view = document.getElementById('history-attendance-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터 집계 중...</div>';
 
+    // 주별 데이터 집계 로직
     const weeklyData = (allHistoryData || []).reduce((acc, day) => {
         if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string') return acc;
         try {
@@ -1161,53 +1225,8 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
         return acc;
     }, {});
 
-    const sortedWeeks = Object.keys(weeklyData).sort((a,b) => b.localeCompare(a));
-    if (sortedWeeks.length === 0) {
-        view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터가 없습니다.</div>';
-        return;
-    }
-
-    let html = '';
-    sortedWeeks.forEach(weekKey => {
-        const data = weeklyData[weekKey];
-        const summary = data.leaveEntries.reduce((acc, entry) => {
-            const key = `${entry.member}-${entry.type}`;
-            if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
-
-            if(entry.startDate) {
-                 acc[key].count += 1;
-            } else {
-                acc[key].count += 1;
-            }
-            return acc;
-        }, {});
-
-        Object.values(summary).forEach(item => {
-             if (['연차', '출장', '결근'].includes(item.type)) {
-                 item.days = item.count;
-             }
-        });
-
-
-        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-                    <h3 class="text-xl font-bold mb-3">${weekKey}</h3>
-                    <div class="space-y-1">`;
-
-        if (Object.keys(summary).length === 0) {
-             html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
-        } else {
-            Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
-                 html += `<div class="flex justify-between text-sm">
-                            <span class="font-semibold text-gray-700">${item.member}</span>
-                            <span>${item.type}</span>
-                            <span class="text-right">${item.days > 0 ? `${item.days}일` : `${item.count}회`}</span>
-                         </div>`;
-            });
-        }
-        html += `</div></div>`;
-    });
-
-    view.innerHTML = html;
+    // ✅ [수정] 공통 헬퍼 함수로 렌더링 위임 (기존 중복 로직 삭제)
+    renderAggregatedAttendanceSummary(view, weeklyData);
 };
 
 export const renderAttendanceMonthlyHistory = (allHistoryData) => {
@@ -1215,6 +1234,7 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터 집계 중...</div>';
 
+    // 월별 데이터 집계 로직
     const monthlyData = (allHistoryData || []).reduce((acc, day) => {
         if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string' || day.id.length < 7) return acc;
          try {
@@ -1242,50 +1262,6 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
         return acc;
     }, {});
 
-    const sortedMonths = Object.keys(monthlyData).sort((a,b) => b.localeCompare(a));
-    if (sortedMonths.length === 0) {
-        view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터가 없습니다.</div>';
-        return;
-    }
-
-    let html = '';
-    sortedMonths.forEach(monthKey => {
-        const data = monthlyData[monthKey];
-        const summary = data.leaveEntries.reduce((acc, entry) => {
-            const key = `${entry.member}-${entry.type}`;
-            if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
-
-            if(entry.startDate) {
-                acc[key].count += 1;
-            } else {
-                acc[key].count += 1;
-            }
-            return acc;
-        }, {});
-
-        Object.values(summary).forEach(item => {
-             if (['연차', '출장', '결근'].includes(item.type)) {
-                 item.days = item.count;
-             }
-        });
-
-        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-                    <h3 class="text-xl font-bold mb-3">${monthKey}</h3>
-                    <div class="space-y-1">`;
-
-        if (Object.keys(summary).length === 0) {
-             html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
-        } else {
-            Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
-                 html += `<div class="flex justify-between text-sm">
-                            <span class="font-semibold text-gray-700">${item.member}</span>
-                            <span>${item.type}</span>
-                            <span class="text-right">${item.days > 0 ? `${item.days}일` : `${item.count}회`}</span>
-                         </div>`;
-            });
-        }
-        html += `</div></div>`;
-    });
-
-    view.innerHTML = html;
+    // ✅ [수정] 공통 헬퍼 함수로 렌더링 위임 (기존 중복 로직 삭제)
+    renderAggregatedAttendanceSummary(view, monthlyData);
 };

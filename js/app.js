@@ -180,32 +180,52 @@ const calculateDateDifference = (start, end) => {
     return diffDays + 1;
 };
 
+// ✅ [추가] 디바운스 헬퍼 함수
+const debounce = (func, delay) => {
+    let timeout;
+    return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            func.apply(this, args);
+        }, delay);
+    };
+};
+
 // ========== 타이머 ==========
+// ✅ [수정] updateElapsedTimes 함수 (DOM에서 직접 데이터 읽도록 최적화)
 const updateElapsedTimes = () => {
-  // ... (이전과 동일) ...
   const now = getCurrentTime();
   document.querySelectorAll('.ongoing-duration').forEach(el => {
     try {
-      if (!el?.dataset?.startTime) return;
-      const rec = (appState.workRecords || []).find(r => String(r.id) === el.dataset.recordId);
-      if (!rec) return;
+      const startTime = el.dataset.startTime;
+      if (!startTime) return;
 
-      let currentPauses = rec.pauses || [];
-      if (rec.status === 'paused') {
+      const status = el.dataset.status;
+      // ✅ [수정] data-pauses-json 속성 읽기
+      const pauses = JSON.parse(el.dataset.pausesJson || '[]'); 
+      
+      let currentPauses = pauses || [];
+
+      if (status === 'paused') {
           const lastPause = currentPauses.length > 0 ? currentPauses[currentPauses.length - 1] : null;
+          // 이 로직은 그룹 대표 레코드 1개를 기준으로 하므로,
+          // UI.js에서 data-status="paused"를 올바르게 설정해주는 것이 중요합니다.
           const tempPauses = [
               ...currentPauses.slice(0, -1),
-              { start: lastPause?.start || rec.startTime, end: now }
+              { start: lastPause?.start || startTime, end: now }
           ];
-          const dur = calcElapsedMinutes(el.dataset.startTime, now, tempPauses);
+          const dur = calcElapsedMinutes(startTime, now, tempPauses);
           el.textContent = `(진행: ${formatDuration(dur)})`;
 
-      } else {
-          const dur = calcElapsedMinutes(el.dataset.startTime, now, rec.pauses);
+      } else { // status === 'ongoing'
+          const dur = calcElapsedMinutes(startTime, now, currentPauses);
           el.textContent = `(진행: ${formatDuration(dur)})`;
       }
 
-    } catch { /* noop */ }
+    } catch(e) { 
+        /* noop */ 
+        // console.error("Timer update error", e) // 디버깅 시 주석 해제
+    }
   });
 
   const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
@@ -274,7 +294,7 @@ async function saveStateToFirestore() {
     }
 
     await setDoc(docRef, { state: stateToSave });
-    markDataAsDirty();
+    markDataAsDirty(); // Firestore 저장 시 dirty 플래그 설정 (기존 로직 유지)
 
   } catch (error) {
     console.error('Error saving state to Firestore:', error);
@@ -282,8 +302,12 @@ async function saveStateToFirestore() {
   }
 }
 
+// ✅ [추가] 디바운스된 Firestore 저장 함수 (1초 딜레이)
+const debouncedSaveState = debounce(saveStateToFirestore, 1000);
+
 // ========== 업무 그룹/개인 제어 ==========
 // ... (startWorkGroup, addMembersToWorkGroup, stopWorkGroup, finalizeStopGroup, stopWorkIndividual, pause/resume 함수들은 이전과 동일) ...
+// ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const startWorkGroup = (members, task) => {
   const groupId = Date.now();
   const startTime = getCurrentTime();
@@ -300,9 +324,10 @@ const startWorkGroup = (members, task) => {
   }));
   appState.workRecords = appState.workRecords || [];
   appState.workRecords.push(...newRecords);
-  saveStateToFirestore();
+  debouncedSaveState();
 };
 
+// ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const addMembersToWorkGroup = (members, task, groupId) => {
   const startTime = getCurrentTime();
   const newRecords = members.map(member => ({
@@ -318,7 +343,7 @@ const addMembersToWorkGroup = (members, task, groupId) => {
   }));
   appState.workRecords = appState.workRecords || [];
   appState.workRecords.push(...newRecords);
-  saveStateToFirestore();
+  debouncedSaveState();
 };
 
 const stopWorkGroup = (groupId) => {
@@ -327,6 +352,7 @@ const stopWorkGroup = (groupId) => {
   finalizeStopGroup(groupId, null);
 };
 
+/ ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const finalizeStopGroup = (groupId, quantity) => {
   const endTime = getCurrentTime();
   let taskName = '';
@@ -350,11 +376,12 @@ const finalizeStopGroup = (groupId, quantity) => {
     appState.taskQuantities[taskName] = (appState.taskQuantities[taskName] || 0) + (Number(quantity) || 0);
   }
 
-  if (changed) saveStateToFirestore();
+  if (changed) debouncedSaveState();
   if (quantityOnStopModal) quantityOnStopModal.classList.add('hidden');
   groupToStopId = null;
 };
 
+// ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const stopWorkIndividual = (recordId) => {
   const endTime = getCurrentTime();
   const record = (appState.workRecords || []).find(r => r.id === recordId);
@@ -366,13 +393,14 @@ const stopWorkIndividual = (recordId) => {
     record.status = 'completed';
     record.endTime = endTime;
     record.duration = calcElapsedMinutes(record.startTime, endTime, record.pauses);
-    saveStateToFirestore();
+    debouncedSaveState();
     showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
   } else {
     showToast('이미 완료되었거나 찾을 수 없는 기록입니다.', true);
   }
 };
 
+// ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const pauseWorkGroup = (groupId) => {
   const currentTime = getCurrentTime();
   let changed = false;
@@ -385,9 +413,10 @@ const pauseWorkGroup = (groupId) => {
       changed = true;
     }
   });
-  if (changed) { saveStateToFirestore(); showToast('그룹 업무가 일시정지 되었습니다.'); }
+  if (changed) { debouncedSaveState(); showToast('그룹 업무가 일시정지 되었습니다.'); }
 };
 
+// ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const resumeWorkGroup = (groupId) => {
   const currentTime = getCurrentTime();
   let changed = false;
@@ -399,11 +428,12 @@ const resumeWorkGroup = (groupId) => {
       changed = true;
     }
   });
-  if (changed) { saveStateToFirestore(); showToast('그룹 업무를 다시 시작합니다.'); }
+  if (changed) { debouncedSaveState(); showToast('그룹 업무를 다시 시작합니다.'); }
 };
 
 // === app.js (일부) ===
 
+/ ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const pauseWorkIndividual = (recordId) => {
   const currentTime = getCurrentTime();
   const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
@@ -412,11 +442,12 @@ const pauseWorkIndividual = (recordId) => {
     record.pauses = record.pauses || [];
     // ✅ [수정] 'type: 'break'' 추가
     record.pauses.push({ start: currentTime, end: null, type: 'break' });
-    saveStateToFirestore();
+    debouncedSaveState();
     showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
   }
 };
 
+// ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const resumeWorkIndividual = (recordId) => {
   const currentTime = getCurrentTime();
   const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
@@ -426,7 +457,7 @@ const resumeWorkIndividual = (recordId) => {
     if (lastPause && lastPause.end === null) {
       lastPause.end = currentTime;
     }
-    saveStateToFirestore();
+    debouncedSaveState();
     showToast(`${record.member}님 ${record.task} 업무 재개.`);
   }
 };
@@ -501,6 +532,7 @@ async function saveProgress(isAutoSave = false) {
 
 // ✅ [수정] saveDayDataToHistory (업무 마감 로직)
 // (진행 중인 업무를 자동으로 종료하는 로직이 이미 포함되어 있음)
+// ✅ [수정] shouldReset 시 debouncedSaveState가 아닌 즉시 saveStateToFirestore 호출
 async function saveDayDataToHistory(shouldReset) {
   const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
   if (ongoingRecords.length > 0) {
@@ -525,10 +557,12 @@ async function saveDayDataToHistory(shouldReset) {
   appState.hiddenGroupIds = [];
 
   if (shouldReset) {
-    await saveStateToFirestore();
+    // ✅ [수정] 초기화 시에는 디바운스를 사용하지 않고 즉시 저장하여 반영합니다.
+    await saveStateToFirestore(); 
     showToast('오늘의 업무 기록을 초기화했습니다.');
     render();
   } else {
+      // ✅ [수정] 단순 마감 시에도 즉시 저장합니다.
       await saveStateToFirestore();
       render();
   }
@@ -1485,7 +1519,7 @@ if (confirmDeleteBtn) {
       appState.workRecords = (appState.workRecords || []).filter(r => String(r.id) !== String(recordToDeleteId));
       showToast('선택한 기록이 삭제되었습니다.');
     }
-    saveStateToFirestore();
+    debouncedSaveState(); // ✅ [수정]
     if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
     recordToDeleteId = null;
     deleteMode = 'single';
@@ -1693,7 +1727,7 @@ if (confirmEditBtn) {
     record.endTime = newEnd;
     record.duration = calcElapsedMinutes(newStart, newEnd, record.pauses);
 
-    saveStateToFirestore();
+    debouncedSaveState(); // ✅ [수정]
     showToast('기록이 수정되었습니다.');
     if (editRecordModal) editRecordModal.classList.add('hidden');
     recordToEditId = null;
@@ -1755,7 +1789,7 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
 
         appState.dailyOnLeaveMembers = appState.dailyOnLeaveMembers.filter(item => item.member !== memberToSetLeave);
         appState.dailyOnLeaveMembers.push(leaveData);
-        await saveStateToFirestore();
+        debouncedSaveState(); // ✅ [수정]
 
     } else if (leaveType === '연차' || leaveType === '출장' || leaveType === '결근') {
         const startDate = leaveStartDateInput?.value;
@@ -1769,7 +1803,7 @@ if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
 
         persistentLeaveSchedule.onLeaveMembers = persistentLeaveSchedule.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
         persistentLeaveSchedule.onLeaveMembers.push(leaveData);
-        await saveLeaveSchedule(db, persistentLeaveSchedule);
+        await saveLeaveSchedule(db, persistentLeaveSchedule); // ✅ [유지] 이건 즉시 실행 (onSnapshot 트리거)
         markDataAsDirty();
     }
 
@@ -1797,7 +1831,7 @@ if (confirmCancelLeaveBtn) {
                 showToast(`${memberToCancelLeave}님의 '${entry.type}' 상태가 취소되었습니다.`);
                 actionTaken = true;
             }
-            await saveStateToFirestore();
+            debouncedSaveState(); // ✅ [수정]
         }
 
         const persistentIndex = persistentLeaveSchedule.onLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
@@ -1820,7 +1854,7 @@ if (confirmCancelLeaveBtn) {
                 persistentLeaveSchedule.onLeaveMembers.splice(persistentIndex, 1);
                 showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
             }
-            await saveLeaveSchedule(db, persistentLeaveSchedule);
+            await saveLeaveSchedule(db, persistentLeaveSchedule); // ✅ [유지] 이건 즉시 실행 (onSnapshot 트리거)
             markDataAsDirty();
             actionTaken = true;
         }
@@ -1952,7 +1986,9 @@ if (teamSelectModal) teamSelectModal.addEventListener('click', e => {
         const newWage = appConfig.defaultPartTimerWage || 10000;
         appState.partTimers.push({ id: newId, name: newName, wage: newWage });
 
-        saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups));
+        debouncedSaveState(); // ✅ [수정]
+        // 즉각적인 UI 반응을 위해 렌더링은 바로 호출
+        renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups);
         return;
     }
 
@@ -1972,7 +2008,9 @@ if (teamSelectModal) teamSelectModal.addEventListener('click', e => {
     if (deletePartTimerBtn) {
         const id = Number(deletePartTimerBtn.dataset.partTimerId);
         appState.partTimers = (appState.partTimers || []).filter(p => p.id !== id);
-        saveStateToFirestore().then(() => renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups));
+        debouncedSaveState(); // ✅ [수정]
+        // 즉각적인 UI 반응을 위해 렌더링은 바로 호출
+        renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups);
         return;
     }
 });
@@ -1997,11 +2035,13 @@ if (confirmEditPartTimerBtn) confirmEditPartTimerBtn.addEventListener('click', (
     const oldName = partTimer.name;
     appState.partTimers[idx] = { ...partTimer, name: newName };
     appState.workRecords = (appState.workRecords || []).map(r => (r.member === oldName ? { ...r, member: newName } : r));
-    saveStateToFirestore().then(() => {
-        renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups);
-        if (editPartTimerModal) editPartTimerModal.classList.add('hidden');
-        showToast('알바 이름이 수정되었습니다.');
-    });
+    
+    debouncedSaveState(); // ✅ [수정]
+    
+    // 즉각적인 UI 반응을 위해 렌더링은 바로 호출
+    renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups);
+    if (editPartTimerModal) editPartTimerModal.classList.add('hidden');
+    showToast('알바 이름이 수정되었습니다.');
 });
 
 const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
