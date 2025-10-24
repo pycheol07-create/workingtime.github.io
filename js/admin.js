@@ -139,45 +139,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 });
 
-// ✅ [수정] 현황판 항목 설정 렌더링 함수 (수량 입력 필드 추가)
-function renderDashboardItemsConfig(itemIds, quantities) { // quantities 파라미터 추가
-    const container = document.getElementById('dashboard-items-container');
-    container.innerHTML = '';
-    itemIds.forEach((id, index) => {
-        const itemDef = DASHBOARD_ITEM_DEFINITIONS[id];
-        if (!itemDef) return;
-
-        const itemEl = document.createElement('div');
-        // ✅ [수정] 수량 항목일 경우 flex-wrap 추가
-        itemEl.className = `flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 dashboard-item-config ${itemDef.isQuantity ? 'flex-wrap' : ''}`;
-        itemEl.dataset.index = index;
-
-        // 기본 항목 HTML (핸들, 이름, 삭제 버튼)
-        let itemHtml = `
-            <span class="drag-handle" draggable="true">☰</span> 
-            <span class="dashboard-item-name flex-grow p-2 bg-gray-100 rounded" data-id="${id}">${itemDef.title}</span>
-        `;
-
-        // ✅ [추가] 수량 입력 필드 (isQuantity가 true일 때)
-        if (itemDef.isQuantity) {
-            itemHtml += `
-                <div class="w-full pl-8 flex items-center gap-2 mt-1"> <label for="qty-${id}" class="text-xs font-medium text-gray-600">수량:</label>
-                    <input type="number" id="qty-${id}" 
-                           class="dashboard-item-quantity w-20 p-1 border border-gray-300 rounded text-sm" 
-                           value="${quantities[id] || 0}" 
-                           min="0"
-                           data-id="${id}">
-                </div>
-            `;
-        }
-
-         // 삭제 버튼은 항상 마지막에 추가
-         itemHtml += `<button class="btn btn-danger btn-small delete-dashboard-item-btn ml-auto" data-id="${id}">삭제</button>`; // ml-auto 추가
-
-        itemEl.innerHTML = itemHtml;
-        container.appendChild(itemEl);
-    });
-}
 
 // --- UI 렌더링 ---
 // (renderAdminUI, renderTeamGroups 함수는 이전과 동일)
