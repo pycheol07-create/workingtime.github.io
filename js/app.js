@@ -352,7 +352,7 @@ const stopWorkGroup = (groupId) => {
   finalizeStopGroup(groupId, null);
 };
 
-/ ✅ [수정] saveStateToFirestore -> debouncedSaveState
+// ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const finalizeStopGroup = (groupId, quantity) => {
   const endTime = getCurrentTime();
   let taskName = '';
@@ -433,7 +433,7 @@ const resumeWorkGroup = (groupId) => {
 
 // === app.js (일부) ===
 
-/ ✅ [수정] saveStateToFirestore -> debouncedSaveState
+// ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const pauseWorkIndividual = (recordId) => {
   const currentTime = getCurrentTime();
   const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
