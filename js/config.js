@@ -53,10 +53,11 @@ export const loadAppConfig = async (dbInstance) => {
             // 배열 및 객체 필드 기본값 확인
             mergedConfig.teamGroups = loadedData.teamGroups || defaultData.teamGroups;
             mergedConfig.keyTasks = loadedData.keyTasks || defaultData.keyTasks;
-            mergedConfig.dashboardItems = loadedData.dashboardItems || defaultData.dashboardItems; // 현황판 항목 순서
-            mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) }; // ✅ [수정] 현황판 수량 병합
+            mergedConfig.dashboardItems = loadedData.dashboardItems || defaultData.dashboardItems;
+            mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) };
+            // ✅ [추가] 커스텀 항목 병합
+            mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
-            // taskGroups는 객체이므로 기본값 방식 유지 가능
             mergedConfig.taskGroups = loadedData.taskGroups || defaultData.taskGroups;
 
             return mergedConfig;
@@ -138,20 +139,19 @@ function getDefaultConfig() {
             '김현': 10287, '배은정': 10287, '박상희': 10287, '김동훈': 10287,
             '신민재': 10047, '황호석': 10047
         },
-        // [추가] keyTasks 기본값 정의
         keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'],
-        // ✅ [수정] 현황판 기본 항목 (새 ID 추가)
         dashboardItems: [
             'total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff',
             'ongoing-tasks', 'total-work-time',
-            'domestic-invoice', 'china-production', 'direct-delivery' // 새 항목 ID
+            'domestic-invoice', 'china-production', 'direct-delivery'
         ],
-        // ✅ [추가] 현황판 수량 기본값
         dashboardQuantities: {
             'domestic-invoice': 0,
             'china-production': 0,
             'direct-delivery': 0
         },
+        // ✅ [추가] 커스텀 현황판 항목 정의
+        dashboardCustomItems: {},
         taskGroups: {
             '공통': ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업'],
             '담당': ['개인담당업무', '상.하차', '검수', '아이롱', '오류'],

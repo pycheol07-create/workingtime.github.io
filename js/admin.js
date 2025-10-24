@@ -20,6 +20,14 @@ const DASHBOARD_ITEM_DEFINITIONS = {
     'direct-delivery': { title: '직진배송', isQuantity: true }
 };
 
+// ✅ [추가] 모든 현황판 항목 정의 가져오기 (기본 + 커스텀)
+function getAllDashboardDefinitions(config) {
+    return {
+        ...DASHBOARD_ITEM_DEFINITIONS,
+        ...(config.dashboardCustomItems || {})
+    };
+}
+
 // 드래그 상태 관리 변수
 let draggedItem = null;
 
@@ -190,40 +198,47 @@ function renderTeamGroups(teamGroups, memberWages) {
     });
 }
 
-// ✅ [수정] 현황판 항목 설정 렌더링 함수 (수량 입력 필드 추가)
-function renderDashboardItemsConfig(itemIds, quantities) { // quantities 파라미터 추가
+// ✅ [수정] 현황판 항목 설정 렌더링 함수 (커스텀 항목 처리 및 클래스 추가)
+function renderDashboardItemsConfig(itemIds, quantities) {
     const container = document.getElementById('dashboard-items-container');
     container.innerHTML = '';
+    // ✅ [수정] 모든 정의 가져오기
+    const allDefinitions = getAllDashboardDefinitions(appConfig);
+
     itemIds.forEach((id, index) => {
-        const itemDef = DASHBOARD_ITEM_DEFINITIONS[id];
-        if (!itemDef) return;
+        // ✅ [수정] 모든 정의에서 찾기
+        const itemDef = allDefinitions[id];
+        // 정의를 찾을 수 없는 ID는 건너뜀 (삭제된 커스텀 항목 등)
+        if (!itemDef) {
+            console.warn(`Dashboard item definition not found for ID: ${id}. Skipping render.`);
+            return;
+        }
 
         const itemEl = document.createElement('div');
-        // ✅ [수정] 수량 항목일 경우 flex-wrap 추가
-        itemEl.className = `flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 dashboard-item-config ${itemDef.isQuantity ? 'flex-wrap' : ''}`;
+        // ✅ [수정] isQuantity 여부에 따라 클래스 및 flex-wrap 추가
+        const isQuantity = itemDef.isQuantity === true;
+        itemEl.className = `flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 dashboard-item-config ${isQuantity ? 'flex-wrap is-quantity-item' : ''}`;
         itemEl.dataset.index = index;
 
-        // 기본 항목 HTML (핸들, 이름, 삭제 버튼)
         let itemHtml = `
             <span class="drag-handle" draggable="true">☰</span>
-            <span class="dashboard-item-name flex-grow p-2 bg-gray-100 rounded" data-id="${id}">${itemDef.title}</span>
-        `;
+            <span class="dashboard-item-name flex-grow p-2 ${isQuantity ? 'bg-yellow-50' : 'bg-gray-100'} rounded" data-id="${id}">${itemDef.title}</span>
+        `; // 배경색 약간 조정
 
-        // ✅ [추가] 수량 입력 필드 (isQuantity가 true일 때)
-        if (itemDef.isQuantity) {
+        if (isQuantity) {
             itemHtml += `
-                <div class="w-full pl-8 flex items-center gap-2 mt-1"> <label for="qty-${id}" class="text-xs font-medium text-gray-600">수량:</label>
+                <div class="w-full pl-8 flex items-center gap-2 mt-1">
+                    <label for="qty-${id}" class="text-xs font-medium text-gray-600">수량:</label>
                     <input type="number" id="qty-${id}"
-                           class="dashboard-item-quantity w-20 p-1 border border-gray-300 rounded text-sm"
+                           class="dashboard-item-quantity w-20 p-1 border border-gray-300 rounded text-sm bg-white"
                            value="${quantities[id] || 0}"
                            min="0"
                            data-id="${id}">
                 </div>
-            `;
+            `; // bg-white 추가
         }
 
-         // 삭제 버튼은 항상 마지막에 추가
-         itemHtml += `<button class="btn btn-danger btn-small delete-dashboard-item-btn ml-auto" data-id="${id}">삭제</button>`; // ml-auto 추가
+         itemHtml += `<button class="btn btn-danger btn-small delete-dashboard-item-btn ml-auto" data-id="${id}">삭제</button>`;
 
         itemEl.innerHTML = itemHtml;
         container.appendChild(itemEl);
@@ -312,9 +327,12 @@ function renderQuantityTasks(quantityTasks) {
 function setupEventListeners() {
     document.getElementById('save-all-btn').addEventListener('click', handleSaveAll);
     document.getElementById('add-team-group-btn').addEventListener('click', addTeamGroup);
-    
-    // ✅ [추가] 현황판 항목 추가 버튼 리스너
+
+    // ✅ [수정] 현황판 항목 추가 버튼 리스너 (기존 + 커스텀)
     document.getElementById('add-dashboard-item-btn').addEventListener('click', openDashboardItemModal);
+    document.getElementById('add-custom-dashboard-item-btn').addEventListener('click', addCustomDashboardItem); // 새 리스너
+
+    document.getElementById('add-key-task-btn').addEventListener('click', () => {
 
     // [수정] '주요 업무 추가' 버튼 리스너
     document.getElementById('add-key-task-btn').addEventListener('click', () => {
@@ -550,55 +568,52 @@ function handleNewTaskNameBlur(e) {
 }
 
 
-// ✅ [수정] 현황판 항목 추가 모달 열기 (비활성화 로직 추가)
+// ✅ [수정] 현황판 항목 추가 모달 열기 (모든 정의 사용)
 function openDashboardItemModal() {
     const listContainer = document.getElementById('select-dashboard-item-list');
     listContainer.innerHTML = '';
 
-    // 현재 DOM에 있는 항목 ID들
     const currentItemIds = new Set();
     document.querySelectorAll('#dashboard-items-container .dashboard-item-name').forEach(item => {
         currentItemIds.add(item.dataset.id);
     });
 
+    // ✅ [수정] 모든 정의 가져오기
+    const allDefinitions = getAllDashboardDefinitions(appConfig);
     let hasItemsToAdd = false;
-    
-    // ✅ [수정] 전체 정의를 순회하며 비활성화/활성화 버튼 생성
-    Object.keys(DASHBOARD_ITEM_DEFINITIONS).forEach(id => {
-        const itemDef = DASHBOARD_ITEM_DEFINITIONS[id];
+
+    // ✅ [수정] 모든 정의를 순회하며 버튼 생성
+    Object.keys(allDefinitions).sort((a, b) => allDefinitions[a].title.localeCompare(allDefinitions[b].title)).forEach(id => {
+        const itemDef = allDefinitions[id];
         const isAlreadyAdded = currentItemIds.has(id);
 
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'dashboard-item-select-btn w-full text-left p-2 rounded-md border focus:ring-2 focus:ring-blue-300';
-        button.textContent = itemDef.title;
+        // ✅ [수정] 커스텀 항목 구분 표시 (선택 사항)
+        button.textContent = itemDef.title + (id.startsWith('custom-') ? ' (커스텀)' : '');
         button.dataset.id = id;
 
         if (isAlreadyAdded) {
             button.disabled = true;
             button.classList.add('btn-secondary', 'opacity-50', 'cursor-not-allowed');
-            button.classList.remove('btn-secondary'); // btn-secondary는 활성화 스타일일 수 있으므로 제거
+            button.classList.remove('btn-secondary');
         } else {
-            hasItemsToAdd = true; // 추가할 수 있는 항목이 하나라도 있음
-            button.classList.add('btn-secondary'); // 활성화된 버튼 스타일
+            hasItemsToAdd = true;
+            button.classList.add('btn-secondary');
         }
-        
+
         listContainer.appendChild(button);
     });
 
     if (!hasItemsToAdd) {
-        // 모든 항목이 이미 추가된 경우 (모두 비활성화된 상태)
-        // listContainer에 "추가할 항목 없음" 메시지를 추가할 수 있으나,
-        // 비활성화된 버튼을 보여주는 것만으로도 충분할 수 있습니다.
-        // 만약 비활성화된 버튼조차 안보이게 하려면, 
-        // 윗 로직에서 if (isAlreadyAdded) continue; 를 사용하고 이 메시지를 활성화합니다.
-        
-        // 현재 로직: 비활성화된 버튼을 보여주므로, '추가할 항목 없음' 메시지는 필요 없음
-        // if (!hasItemsToAdd) {
-        //    listContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center">추가할 수 있는 항목이 없습니다.</p>';
-        // }
+        // 이미 모든 항목이 추가된 경우, 추가 메시지 표시
+         const noItemsMsg = document.createElement('p');
+         noItemsMsg.className = 'text-gray-500 col-span-full text-center';
+         noItemsMsg.textContent = '추가할 수 있는 항목이 없습니다.';
+         listContainer.appendChild(noItemsMsg);
     }
-    
+
     document.getElementById('select-dashboard-item-modal').classList.remove('hidden');
 }
 
@@ -626,6 +641,44 @@ function addDashboardItem(id) {
         <button class="btn btn-danger btn-small delete-dashboard-item-btn" data-id="${id}">삭제</button>
     `;
     container.appendChild(itemEl);
+}
+
+// ✅ [추가] 새 커스텀 수량 항목 추가 함수
+function addCustomDashboardItem() {
+    const newTitle = prompt("새로 추가할 수량 항목의 이름을 입력하세요:");
+    if (!newTitle || newTitle.trim() === '') {
+        alert("항목 이름은 비워둘 수 없습니다.");
+        return;
+    }
+    const trimmedTitle = newTitle.trim();
+
+    // ID 생성 (단순화: 현재 시간 + 랜덤 숫자) - 충돌 가능성 낮음
+    const newId = `custom-${Date.now()}-${Math.random().toString(16).substring(2, 6)}`;
+
+    // 모든 정의 가져와서 중복 타이틀 확인
+    const allDefinitions = getAllDashboardDefinitions(appConfig);
+    const titleExists = Object.values(allDefinitions).some(def => def.title.toLowerCase() === trimmedTitle.toLowerCase());
+    if (titleExists) {
+        alert("이미 같은 이름의 항목이 존재합니다.");
+        return;
+    }
+
+    // appConfig에 커스텀 항목 정보 추가 (임시)
+    if (!appConfig.dashboardCustomItems) appConfig.dashboardCustomItems = {};
+    appConfig.dashboardCustomItems[newId] = { title: trimmedTitle, isQuantity: true };
+
+    // appConfig 수량 정보 초기화 (임시)
+    if (!appConfig.dashboardQuantities) appConfig.dashboardQuantities = {};
+    appConfig.dashboardQuantities[newId] = 0;
+
+    // appConfig 아이템 목록에 추가 (임시) - UI 렌더링용
+    if (!appConfig.dashboardItems) appConfig.dashboardItems = [];
+    appConfig.dashboardItems.push(newId);
+
+    // UI 즉시 업데이트 (전체 다시 그리기)
+    renderDashboardItemsConfig(appConfig.dashboardItems, appConfig.dashboardQuantities);
+
+    alert(`'${trimmedTitle}' 항목이 추가되었습니다. '모든 변경사항 저장'을 눌러야 최종 반영됩니다.`);
 }
 
 
@@ -826,9 +879,10 @@ async function handleSaveAll() {
         const newConfig = {
             teamGroups: [],
             memberWages: {},
-            dashboardItems: [], 
-            dashboardQuantities: {}, // ✅ [추가] 현황판 수량 객체
-            keyTasks: [], 
+            dashboardItems: [],
+            dashboardQuantities: {}, // ✅ 현황판 수량 객체
+            dashboardCustomItems: {}, // ✅ [추가] 커스텀 항목 저장 객체
+            keyTasks: [],
             taskGroups: {},
             quantityTaskTypes: [],
             defaultPartTimerWage: 10000
@@ -840,7 +894,7 @@ async function handleSaveAll() {
             if (!groupName) return;
 
             const newGroup = { name: groupName, members: [] };
-            
+
             groupCard.querySelectorAll('.member-item').forEach(memberItem => {
                 const memberName = memberItem.querySelector('.member-name').value.trim();
                 const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
@@ -852,19 +906,32 @@ async function handleSaveAll() {
             newConfig.teamGroups.push(newGroup);
         });
 
-        // ✅ [수정] 2. 현황판 항목 순서 및 수량 읽기
+        // ✅ [수정] 2. 현황판 항목 순서, 수량 및 커스텀 정의 읽기
+        const allDefinitions = getAllDashboardDefinitions(appConfig); // 현재 로드된 모든 정의 사용
         document.querySelectorAll('#dashboard-items-container .dashboard-item-config').forEach(item => {
             const nameSpan = item.querySelector('.dashboard-item-name');
             const quantityInput = item.querySelector('.dashboard-item-quantity');
-            
+
             if (nameSpan) {
                 const id = nameSpan.dataset.id;
                 newConfig.dashboardItems.push(id); // 순서 저장
 
-                // 수량 입력 필드가 있으면 값 읽기
-                if (quantityInput) {
+                // 정의 가져오기
+                const itemDef = allDefinitions[id];
+                if (!itemDef) return; // 정의 없으면 무시
+
+                // 수량 항목이면 값 읽기
+                if (itemDef.isQuantity && quantityInput) {
                     const quantity = parseInt(quantityInput.value, 10) || 0;
-                    newConfig.dashboardQuantities[id] = Math.max(0, quantity); // 음수 방지
+                    newConfig.dashboardQuantities[id] = Math.max(0, quantity);
+                }
+
+                // ✅ [추가] 커스텀 항목이면 정의 저장
+                if (id.startsWith('custom-')) {
+                    newConfig.dashboardCustomItems[id] = {
+                        title: itemDef.title,
+                        isQuantity: true // 커스텀은 항상 수량 항목
+                    };
                 }
             }
         });
@@ -885,7 +952,7 @@ async function handleSaveAll() {
             if (!groupName) return;
 
             const tasks = [];
-            
+
             groupCard.querySelectorAll('.task-item').forEach(taskItem => {
                 const taskName = taskItem.querySelector('.task-name').value.trim();
                 if (taskName) tasks.push(taskName);
@@ -907,10 +974,10 @@ async function handleSaveAll() {
         if (wageInput) {
             newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
         }
-        
+
         // [추가] 7. 데이터 유효성 검사
         const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
-        
+
         const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
         const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
 

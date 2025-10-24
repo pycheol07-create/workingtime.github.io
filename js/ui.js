@@ -16,6 +16,26 @@ const DASHBOARD_ITEM_DEFINITIONS = {
     'direct-delivery': { title: '직진배송', valueId: 'summary-direct-delivery', isQuantity: true }
 };
 
+// ✅ [추가] 모든 현황판 항목 정의 가져오기 (기본 + 커스텀)
+function getAllDashboardDefinitions(config) {
+    // 커스텀 항목 정의를 기본 정의 형식에 맞게 변환
+    const customDefinitions = {};
+    if (config.dashboardCustomItems) {
+        for (const id in config.dashboardCustomItems) {
+            const item = config.dashboardCustomItems[id];
+            customDefinitions[id] = {
+                title: item.title,
+                valueId: `summary-${id}`, // valueId 자동 생성
+                isQuantity: item.isQuantity
+            };
+        }
+    }
+    return {
+        ...DASHBOARD_ITEM_DEFINITIONS,
+        ...customDefinitions
+    };
+}
+
 // ... (taskCardStyles, taskTitleColors 정의는 이전과 동일) ...
 const taskCardStyles = {
     'default': {
@@ -589,58 +609,61 @@ export const renderCompletedWorkLog = (appState) => {
 };
 
 // ✅ [수정] 현황판 레이아웃 렌더링 함수 (초기 수량 로드 및 클릭 div 제거)
-export const renderDashboardLayout = (appConfig) => { // appState 파라미터 제거
+export const renderDashboardLayout = (appConfig) => {
     const container = document.getElementById('summary-content');
     if (!container) return;
 
-    // config에 정의된 순서
     const itemIds = appConfig.dashboardItems || [];
-    // ✅ [수정] appConfig에서 수량 가져오기
-    const quantities = appConfig.dashboardQuantities || {}; 
-    
-    container.innerHTML = ''; // 초기화
+    const quantities = appConfig.dashboardQuantities || {};
+    const allDefinitions = getAllDashboardDefinitions(appConfig);
+
+    container.innerHTML = '';
     let html = '';
 
     itemIds.forEach(id => {
-        const def = DASHBOARD_ITEM_DEFINITIONS[id];
-        if (def) {
-            let valueContent;
-            // ✅ [수정] isQuantity 여부에 따라 초기값 설정 분기
-            if (def.isQuantity) {
-                 const currentQuantity = quantities[id] ?? 0; // config에서 수량 가져오기
-                 valueContent = `<p id="${def.valueId}">${currentQuantity}</p>`; // 그냥 p 태그
-            } else {
-                 valueContent = `<p id="${def.valueId}">0</p>`; // 일반 항목은 0으로 시작 (updateSummary가 업데이트)
-            }
-
-            html += `
-                <div class="dashboard-card p-4 rounded-lg">
-                    <h4 class="text-sm font-bold uppercase tracking-wider">${def.title}</h4>
-                    ${valueContent}
-                </div>
-            `;
+        const def = allDefinitions[id];
+        if (!def) {
+            console.warn(`Main App: Dashboard definition not found for ID: ${id}. Skipping render.`);
+            return;
         }
+
+        let valueContent;
+        const isQuantity = def.isQuantity === true; // isQuantity 확인
+
+        if (isQuantity) {
+             const currentQuantity = quantities[id] ?? 0;
+             valueContent = `<p id="${def.valueId}">${currentQuantity}</p>`;
+        } else {
+             valueContent = `<p id="${def.valueId}">0</p>`;
+        }
+
+        // isQuantity일 경우 dashboard-card-quantity 클래스 추가 (유지)
+        html += `
+            <div class="dashboard-card p-4 rounded-lg ${isQuantity ? 'dashboard-card-quantity' : ''}">
+                <h4 class="text-sm font-bold uppercase tracking-wider">${def.title}</h4>
+                ${valueContent}
+            </div>
+        `;
     });
 
     container.innerHTML = html;
 };
 
-// ✅ [수정] updateSummary 함수 (수량 항목 업데이트 제외)
+// ✅ [수정] updateSummary 함수 (커스텀 항목 ID 처리, 수량 업데이트 제외 유지)
 export const updateSummary = (appState, appConfig) => {
-    // 항목 ID 가져오기 (수량 항목 ID는 가져오지만 사용 안 함)
-    const summaryTotalStaffEl = document.getElementById('summary-total-staff');
-    const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
-    const summaryActiveStaffEl = document.getElementById('summary-active-staff');
-    const summaryWorkingStaffEl = document.getElementById('summary-working-staff');
-    const summaryIdleStaffEl = document.getElementById('summary-idle-staff');
-    const summaryOngoingTasksEl = document.getElementById('summary-ongoing-tasks');
-    // total-work-time은 타이머가 별도 관리
+    // ✅ [수정] 모든 정의 가져오기
+    const allDefinitions = getAllDashboardDefinitions(appConfig);
 
-    // ✅ [수정] 수량 항목 ID 가져오기 (업데이트는 안 함)
-    const summaryDomesticInvoiceEl = document.getElementById('summary-domestic-invoice');
-    const summaryChinaProductionEl = document.getElementById('summary-china-production');
-    const summaryDirectDeliveryEl = document.getElementById('summary-direct-delivery');
+    // ✅ [수정] 정의된 모든 ID에 대해 요소 가져오기 시도 (수량 항목 포함)
+    const elements = {};
+    Object.keys(allDefinitions).forEach(id => {
+        const def = allDefinitions[id];
+        if (def && def.valueId) {
+            elements[id] = document.getElementById(def.valueId);
+        }
+    });
 
+    // 계산 로직 (변경 없음)
     const teamGroups = appConfig.teamGroups || [];
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
@@ -651,10 +674,10 @@ export const updateSummary = (appState, appConfig) => {
         ...(appState.dailyOnLeaveMembers || []),
         ...(appState.dateBasedOnLeaveMembers || [])
     ];
-    
+
     const onLeaveMemberNames = new Set(
         combinedOnLeaveMembers
-            .filter(item => !(item.type === '외출' && item.endTime)) 
+            .filter(item => !(item.type === '외출' && item.endTime))
             .map(item => item.member)
     );
     const onLeaveTotalCount = onLeaveMemberNames.size;
@@ -668,19 +691,22 @@ export const updateSummary = (appState, appConfig) => {
     const availableStaffCount = totalStaffCount - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
     const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
 
+    // 대기 인원 계산 시, 근무 가능 인원 중 업무 중이지 않은 인원만 카운트
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
+    // 현재 로직에서는 알바의 대기 상태는 명시적으로 표시하지 않음
     const totalIdleCount = idleStaffCount;
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
-    // ✅ [수정] 수량 항목 업데이트 로직 제거
-    if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaffCount}/${totalPartTimerCount}`;
-    if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveTotalCount}`;
-    if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`;
-    if (summaryWorkingStaffEl) summaryWorkingStaffEl.textContent = `${totalWorkingCount}`;
-    if (summaryIdleStaffEl) summaryIdleStaffEl.textContent = `${totalIdleCount}`;
-    if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
-    
-    // 수량 항목(domestic-invoice 등)은 config 로드 시 설정된 값 유지
+    // ✅ [수정] 동적으로 요소 업데이트 (수량 항목 제외)
+    if (elements['total-staff']) elements['total-staff'].textContent = `${totalStaffCount}/${totalPartTimerCount}`;
+    if (elements['leave-staff']) elements['leave-staff'].textContent = `${onLeaveTotalCount}`;
+    if (elements['active-staff']) elements['active-staff'].textContent = `${availableStaffCount}/${availablePartTimerCount}`;
+    if (elements['working-staff']) elements['working-staff'].textContent = `${totalWorkingCount}`;
+    if (elements['idle-staff']) elements['idle-staff'].textContent = `${totalIdleCount}`;
+    if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`;
+
+    // total-work-time은 타이머(updateElapsedTimes)가 관리
+    // isQuantity 항목 (기본 및 커스텀)은 업데이트하지 않음 (config 로드 시 설정된 값 유지)
 };
 
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {

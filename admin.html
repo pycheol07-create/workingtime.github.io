@@ -47,9 +47,17 @@
             color: #1f2937;
         }
 
-        /* ✅ [추가] 접기/펴기 화살표 회전 */
+       /* ✅ [추가] 접기/펴기 화살표 회전 */
         .arrow-rotated {
             transform: rotate(-180deg);
+        }
+
+        /* ✅ [추가] 수량 항목 배경색 */
+        .is-quantity-item {
+            background-color: #fef9c3; /* Tailwind yellow-100 */
+        }
+        .is-quantity-item:hover {
+            background-color: #fef08a; /* Tailwind yellow-200 */
         }
 
     </style>
@@ -93,7 +101,10 @@
                     <div id="dashboard-items-container" class="space-y-1">
                         </div>
                 </div>
-                <button id="add-dashboard-item-btn" class="btn btn-secondary mt-4">+ 현황판 항목 추가</button>
+                <div class="flex gap-2 mt-4">
+                    <button id="add-dashboard-item-btn" class="btn btn-secondary">+ 현황판 항목 추가</button>
+                    <button id="add-custom-dashboard-item-btn" class="btn btn-secondary">+ 새 수량 항목 추가</button>
+                </div>
             </div>
         </div>
 

@@ -87,6 +87,12 @@ body {
     margin-top: 0.25rem; /* 제목과 숫자 간격 */
 }
 
+/* ✅ [수정] 수량 항목 숫자 스타일 (빛나는 노란색) */
+.dashboard-card-quantity p {
+    color: #fde047; /* text-yellow-300 (밝은 노란색) */
+    text-shadow: 0 0 8px rgba(253, 224, 71, 0.7); /* 노란색 빛 효과 */
+}
+
 /* 상단 초기화 버튼 보정 */
 #reset-app-btn {
     transition: all 0.2s ease-in-out;
