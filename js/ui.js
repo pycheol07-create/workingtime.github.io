@@ -2,7 +2,7 @@
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
 
-// ✅ [추가] 현황판 아이템 정의 (admin.js와 동일)
+// ✅ [수정] 현황판 아이템 정의 (isQuantity 플래그 추가)
 const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원<br>(직원/알바)', valueId: 'summary-total-staff' },
     'leave-staff': { title: '휴무', valueId: 'summary-leave-staff' },
@@ -10,7 +10,60 @@ const DASHBOARD_ITEM_DEFINITIONS = {
     'working-staff': { title: '업무중', valueId: 'summary-working-staff' },
     'idle-staff': { title: '대기', valueId: 'summary-idle-staff' },
     'ongoing-tasks': { title: '진행업무', valueId: 'summary-ongoing-tasks' },
-    'total-work-time': { title: '업무진행시간', valueId: 'summary-total-work-time' }
+    'total-work-time': { title: '업무진행시간', valueId: 'summary-total-work-time' },
+    'domestic-invoice': { title: '국내송장', valueId: 'summary-domestic-invoice', isQuantity: true },
+    'china-production': { title: '중국제작', valueId: 'summary-china-production', isQuantity: true },
+    'direct-delivery': { title: '직진배송', valueId: 'summary-direct-delivery', isQuantity: true }
+};
+
+const taskCardStyles = {
+    'default': {
+        card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
+        hover: 'hover:border-blue-500 hover:shadow-md',
+        subtitle: 'text-gray-500',
+        buttonBgOff: 'bg-gray-200',
+        buttonTextOff: 'text-gray-500'
+    },
+    'ongoing': {
+        card: ['bg-blue-100', 'border-blue-500', 'text-gray-900', 'shadow-xl', 'shadow-blue-200/50'], // 진행 중 강조
+        hover: 'hover:border-blue-600',
+        subtitle: 'text-gray-600',
+        buttonBgOn: 'bg-blue-600',
+        buttonTextOn: 'text-white',
+        buttonHoverOn: 'hover:bg-blue-700'
+    },
+    'paused': {
+        card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
+        hover: 'hover:border-yellow-400 hover:shadow-lg',
+        title: 'text-yellow-800',
+        subtitle: 'text-yellow-700',
+        buttonBgOn: 'bg-yellow-600',
+        buttonTextOn: 'text-white',
+        buttonHoverOn: 'hover:bg-yellow-700'
+    }
+};
+const taskTitleColors = {
+    '국내배송': 'text-green-700',
+    '중국제작': 'text-purple-700',
+    '직진배송': 'text-emerald-700',
+    '채우기': 'text-sky-700',
+    '개인담당업무': 'text-indigo-700',
+    '티니': 'text-red-700',
+    '택배포장': 'text-orange-700',
+    '해외배송': 'text-cyan-700',
+    '재고조사': 'text-fuchsia-700',
+    '앵글정리': 'text-amber-700',
+    '상품재작업': 'text-yellow-800',
+    '상.하차': 'text-stone-700',
+    '검수': 'text-teal-700',
+    '아이롱': 'text-violet-700',
+    '오류': 'text-rose-700',
+    '강성': 'text-pink-700',
+    '2층업무': 'text-neutral-700',
+    '재고찾는시간': 'text-lime-700',
+    '매장근무': 'text-blue-700',
+    '출장': 'text-gray-700',
+    'default': 'text-blue-700'
 };
 
 // ... (taskCardStyles, taskTitleColors 정의는 이전과 동일) ...
@@ -585,16 +638,15 @@ export const renderCompletedWorkLog = (appState) => {
     }
 };
 
-// ✅ [추가] 현황판 레이아웃 렌더링 함수
-export const renderDashboardLayout = (appConfig) => {
+// ✅ [수정] 현황판 레이아웃 렌더링 함수 (초기 수량 로드 및 클릭 div 제거)
+export const renderDashboardLayout = (appConfig) => { // appState 파라미터 제거
     const container = document.getElementById('summary-content');
     if (!container) return;
 
-    // config에 정의된 순서 (없으면 기본값)
-    const itemIds = appConfig.dashboardItems || [
-        'total-staff', 'leave-staff', 'active-staff', 
-        'working-staff', 'idle-staff', 'ongoing-tasks', 'total-work-time'
-    ];
+    // config에 정의된 순서
+    const itemIds = appConfig.dashboardItems || [];
+    // ✅ [수정] appConfig에서 수량 가져오기
+    const quantities = appConfig.dashboardQuantities || {}; 
     
     container.innerHTML = ''; // 초기화
     let html = '';
@@ -602,35 +654,44 @@ export const renderDashboardLayout = (appConfig) => {
     itemIds.forEach(id => {
         const def = DASHBOARD_ITEM_DEFINITIONS[id];
         if (def) {
+            let valueContent;
+            // ✅ [수정] isQuantity 여부에 따라 초기값 설정 분기
+            if (def.isQuantity) {
+                 const currentQuantity = quantities[id] ?? 0; // config에서 수량 가져오기
+                 valueContent = `<p id="${def.valueId}">${currentQuantity}</p>`; // 그냥 p 태그
+            } else {
+                 valueContent = `<p id="${def.valueId}">0</p>`; // 일반 항목은 0으로 시작 (updateSummary가 업데이트)
+            }
+
             html += `
                 <div class="dashboard-card p-4 rounded-lg">
                     <h4 class="text-sm font-bold uppercase tracking-wider">${def.title}</h4>
-                    <p id="${def.valueId}">0</p>
+                    ${valueContent}
                 </div>
             `;
         }
     });
 
     container.innerHTML = html;
-
-    // ✅ [수정] 동적으로 그리드 컬럼을 제어하던 JS 로직 전체 삭제
-    // (Tailwind 클래스가 반응형으로 처리하도록 둠)
 };
 
-// ✅ [수정] updateSummary 함수 시그니처 및 내용 변경
+// ✅ [수정] updateSummary 함수 (수량 항목 업데이트 제외)
 export const updateSummary = (appState, appConfig) => {
-    // 항목 ID 가져오기
+    // 항목 ID 가져오기 (수량 항목 ID는 가져오지만 사용 안 함)
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
     const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
     const summaryActiveStaffEl = document.getElementById('summary-active-staff');
     const summaryWorkingStaffEl = document.getElementById('summary-working-staff');
     const summaryIdleStaffEl = document.getElementById('summary-idle-staff');
     const summaryOngoingTasksEl = document.getElementById('summary-ongoing-tasks');
-    // total-work-time은 타이머가 별도 관리하므로 여기선 제외
+    // total-work-time은 타이머가 별도 관리
 
-    // ✅ [수정] teamGroups를 appConfig에서 가져오기
+    // ✅ [수정] 수량 항목 ID 가져오기 (업데이트는 안 함)
+    const summaryDomesticInvoiceEl = document.getElementById('summary-domestic-invoice');
+    const summaryChinaProductionEl = document.getElementById('summary-china-production');
+    const summaryDirectDeliveryEl = document.getElementById('summary-direct-delivery');
+
     const teamGroups = appConfig.teamGroups || [];
-
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
     const totalStaffCount = allStaffMembers.size;
@@ -659,16 +720,17 @@ export const updateSummary = (appState, appConfig) => {
 
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
     const totalIdleCount = idleStaffCount;
-
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
-    // ✅ [수정] 렌더링된 요소가 있을 때만 업데이트
+    // ✅ [수정] 수량 항목 업데이트 로직 제거
     if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaffCount}/${totalPartTimerCount}`;
     if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveTotalCount}`;
     if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`;
     if (summaryWorkingStaffEl) summaryWorkingStaffEl.textContent = `${totalWorkingCount}`;
     if (summaryIdleStaffEl) summaryIdleStaffEl.textContent = `${totalIdleCount}`;
     if (summaryOngoingTasksEl) summaryOngoingTasksEl.textContent = `${ongoingTaskCount}`;
+    
+    // 수량 항목(domestic-invoice 등)은 config 로드 시 설정된 값 유지
 };
 
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {

@@ -50,9 +50,11 @@ export const loadAppConfig = async (dbInstance) => {
             const defaultData = getDefaultConfig();
             // Firestore 데이터와 기본값 병합 (Firestore 우선)
             const mergedConfig = { ...defaultData, ...loadedData };
-            // 배열 필드도 기본값 확인 (Firestore에 없을 경우 대비)
+            // 배열 및 객체 필드 기본값 확인
             mergedConfig.teamGroups = loadedData.teamGroups || defaultData.teamGroups;
-            mergedConfig.keyTasks = loadedData.keyTasks || defaultData.keyTasks; // keyTasks 추가
+            mergedConfig.keyTasks = loadedData.keyTasks || defaultData.keyTasks;
+            mergedConfig.dashboardItems = loadedData.dashboardItems || defaultData.dashboardItems; // 현황판 항목 순서
+            mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) }; // ✅ [수정] 현황판 수량 병합
             mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             // taskGroups는 객체이므로 기본값 방식 유지 가능
             mergedConfig.taskGroups = loadedData.taskGroups || defaultData.taskGroups;
@@ -120,7 +122,6 @@ export const saveLeaveSchedule = async (dbInstance, leaveData) => {
 };
 
 
-// 8. 기본 앱 설정 데이터 (근태 일정 제거)
 // === config.js (일부) ===
 // 8. 기본 앱 설정 데이터 (근태 일정 제거)
 function getDefaultConfig() {
@@ -139,8 +140,18 @@ function getDefaultConfig() {
         },
         // [추가] keyTasks 기본값 정의
         keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'],
-        // ✅ [추가] 현황판 기본 항목
-        dashboardItems: ['total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff', 'ongoing-tasks', 'total-work-time'],
+        // ✅ [수정] 현황판 기본 항목 (새 ID 추가)
+        dashboardItems: [
+            'total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff',
+            'ongoing-tasks', 'total-work-time',
+            'domestic-invoice', 'china-production', 'direct-delivery' // 새 항목 ID
+        ],
+        // ✅ [추가] 현황판 수량 기본값
+        dashboardQuantities: {
+            'domestic-invoice': 0,
+            'china-production': 0,
+            'direct-delivery': 0
+        },
         taskGroups: {
             '공통': ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업'],
             '담당': ['개인담당업무', '상.하차', '검수', '아이롱', '오류'],

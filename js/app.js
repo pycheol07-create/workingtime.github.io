@@ -10,7 +10,7 @@ import {
   renderCompletedWorkLog,
   updateSummary,
   renderTaskAnalysis,
-  renderPersonalAnalysis, 
+  renderPersonalAnalysis,
   renderTaskSelectionModal,
   renderTeamSelectionModalContent,
   renderQuantityModalInputs,
@@ -20,7 +20,7 @@ import {
   renderAttendanceMonthlyHistory,
   renderWeeklyHistory,
   renderMonthlyHistory,
-  renderDashboardLayout // ✅ [추가]
+  renderDashboardLayout // ✅ 포함 확인
 } from './ui.js';
 
 // ========== DOM Elements ==========
@@ -226,8 +226,8 @@ const render = () => {
   try {
     renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || []);
     renderCompletedWorkLog(appState);
-    updateSummary(appState, appConfig); // ✅ [수정] appConfig 전체 전달
-    renderTaskAnalysis(appState, appConfig); // ✅ [수정] appConfig 전달
+    updateSummary(appState, appConfig); // ✅ appConfig 전체 전달 확인
+    renderTaskAnalysis(appState, appConfig); // ✅ appConfig 전달 확인
   } catch (e) {
     console.error('Render error:', e);
     showToast('화면 렌더링 오류 발생.', true);
@@ -2040,19 +2040,23 @@ async function main() {
 
   try {
       if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
-      appConfig = await loadAppConfig(db);
+      appConfig = await loadAppConfig(db); // appConfig 로드
       persistentLeaveSchedule = await loadLeaveSchedule(db);
 
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
 
-      renderDashboardLayout(appConfig); // ✅ [추가] 현황판 레이아웃 렌더링
+      // ✅ [수정] appState 전달 제거 (config만 사용)
+      renderDashboardLayout(appConfig); 
       renderTaskSelectionModal(appConfig.taskGroups);
   } catch (e) {
       console.error("설정 로드 실패:", e);
       showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
+      // 설정 로드 실패 시에도 기본 config로 레이아웃 렌더링 시도
+      renderDashboardLayout(getDefaultConfig()); 
+      renderTaskSelectionModal(getDefaultConfig().taskGroups); 
   }
 
   displayCurrentDate();
@@ -2062,10 +2066,11 @@ async function main() {
   if (autoSaveTimer) clearInterval(autoSaveTimer);
   autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
 
-  const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
-  const defaultQuantities = {};
-  taskTypes.forEach(task => defaultQuantities[task] = 0);
-  appState.taskQuantities = { ...defaultQuantities, ...appState.taskQuantities };
+  // appState.taskQuantities 초기화는 Firestore 로드 시 처리되므로 여기선 제거해도 됨
+  // const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
+  // const defaultQuantities = {};
+  // taskTypes.forEach(task => defaultQuantities[task] = 0);
+  // appState.taskQuantities = { ...defaultQuantities, ...appState.taskQuantities };
 
   onAuthStateChanged(auth, async user => {
     if (user) {
@@ -2106,6 +2111,7 @@ async function main() {
           const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
 
           appState.workRecords = loadedState.workRecords || [];
+          // taskQuantities는 현황판 항목과는 별개이므로 그대로 둠 (업무 로그용)
           appState.taskQuantities = { ...defaultQuantities, ...(loadedState.taskQuantities || {}) };
           appState.partTimers = loadedState.partTimers || [];
           appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
@@ -2113,13 +2119,16 @@ async function main() {
 
           isDataDirty = false;
 
-          render();
+          // ✅ [수정] Firestore 로드 후에도 config만 사용하여 다시 렌더링 (일관성 유지)
+          renderDashboardLayout(appConfig); 
+          render(); // 나머지 UI 업데이트
           if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
           if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
         } catch (parseError) {
           console.error('Error parsing state from Firestore:', parseError);
           showToast('데이터 로딩 중 오류 발생 (파싱 실패).', true);
           appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+          renderDashboardLayout(appConfig); // 오류 시에도 config 사용
           render();
           if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
           if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
@@ -2128,6 +2137,7 @@ async function main() {
         console.error('Firebase onSnapshot error:', error);
         showToast('실시간 연결에 실패했습니다.', true);
         appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+        renderDashboardLayout(appConfig); // 오류 시에도 config 사용
         render();
         if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
         if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
@@ -2138,6 +2148,7 @@ async function main() {
       if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
       if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; }
       appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+      renderDashboardLayout(appConfig); // 로그아웃 시에도 config 사용
       render();
     }
   });
