@@ -139,7 +139,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 });
 
-
 // --- UI 렌더링 ---
 // (renderAdminUI, renderTeamGroups 함수는 이전과 동일)
 function renderAdminUI(config) {
