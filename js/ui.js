@@ -88,16 +88,21 @@ export const renderTaskSelectionModal = (taskGroups = {}) => {
     });
 };
 
-export const renderTaskAnalysis = (appState) => {
-    // ... (이전과 동일) ...
-    const analysisContainer = document.getElementById('analysis-content');
+// ✅ [수정] appConfig 파라미터 추가 및 로직 변경
+export const renderTaskAnalysis = (appState, appConfig) => {
+    // ✅ [수정] 렌더링 대상을 #analysis-task-summary-panel로 변경
+    const analysisContainer = document.getElementById('analysis-task-summary-panel'); 
     if (!analysisContainer) return;
-    analysisContainer.innerHTML = '';
+    analysisContainer.innerHTML = ''; // 이 패널만 초기화
+    
     const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
     const totalLoggedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
 
     if (totalLoggedMinutes === 0) {
         analysisContainer.innerHTML = `<div class="text-center text-gray-500 py-4">완료된 업무가 없어 분석을 시작할 수 없습니다.</div>`;
+        // ✅ [추가] 개인별 통계 드롭다운도 비워둠
+        const memberSelect = document.getElementById('analysis-member-select');
+        if (memberSelect) memberSelect.innerHTML = '<option value="">--- 직원/알바 선택 ---</option>';
         return;
     }
 
@@ -128,7 +133,51 @@ export const renderTaskAnalysis = (appState) => {
     legendHTML += '</div>';
 
     const finalGradient = `conic-gradient(${gradientParts.join(', ')})`;
-    analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8"><div class="flex-shrink-0"><div class="chart" style="background: ${finalGradient};"><div class="chart-center"><span class="text-sm text-gray-500">총 업무</span><span class="text-xl font-bold text-blue-600 mt-1">${formatDuration(totalLoggedMinutes)}</span></div></div></div>${legendHTML}</div>`;
+    
+    // ✅ [추가] 총 휴식 시간 계산
+    let totalBreakMinutes = 0;
+    completedRecords.forEach(record => {
+        (record.pauses || []).forEach(pause => {
+            // 'break' 타입이거나, 타입이 없는 구(old) 데이터도 휴식으로 간주
+            if (pause.start && pause.end && (pause.type === 'break' || !pause.type)) { 
+                const s = new Date(`1970-01-01T${pause.start}:00Z`).getTime();
+                const e = new Date(`1970-01-01T${pause.end}:00Z`).getTime();
+                if (e > s) {
+                    totalBreakMinutes += (e - s) / 60000;
+                }
+            }
+        });
+    });
+    
+    // ✅ [수정] 렌더링 위치 변경 및 '총 휴식' 시간 추가
+    analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8">
+        <div class="flex-shrink-0">
+            <div class="chart" style="background: ${finalGradient};">
+                <div class="chart-center">
+                    <span class="text-sm text-gray-500">총 업무</span>
+                    <span class="text-xl font-bold text-blue-600">${formatDuration(totalLoggedMinutes)}</span>
+                    <span class="text-xs text-gray-500 mt-1">총 휴식: ${formatDuration(Math.round(totalBreakMinutes))}</span>
+                </div>
+            </div>
+        </div>
+        ${legendHTML}
+    </div>`;
+
+
+    // ✅ [추가] 개인별 통계 드롭다운 채우기
+    const memberSelect = document.getElementById('analysis-member-select');
+    if (memberSelect) {
+        const staff = (appConfig.teamGroups || []).flatMap(g => g.members);
+        const partTimers = (appState.partTimers || []).map(p => p.name);
+        
+        const allMembers = [...new Set([...staff, ...partTimers])].sort((a, b) => a.localeCompare(b));
+        
+        let optionsHtml = '<option value="">--- 직원/알바 선택 ---</option>';
+        allMembers.forEach(member => {
+            optionsHtml += `<option value="${member}">${member}</option>`;
+        });
+        memberSelect.innerHTML = optionsHtml;
+    }
 };
 
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {

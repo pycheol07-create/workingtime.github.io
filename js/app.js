@@ -378,7 +378,8 @@ const pauseWorkGroup = (groupId) => {
     if (record.groupId === groupId && record.status === 'ongoing') {
       record.status = 'paused';
       record.pauses = record.pauses || [];
-      record.pauses.push({ start: currentTime, end: null });
+      // ✅ [수정] 'type: 'break'' 추가
+      record.pauses.push({ start: currentTime, end: null, type: 'break' });
       changed = true;
     }
   });
@@ -399,13 +400,16 @@ const resumeWorkGroup = (groupId) => {
   if (changed) { saveStateToFirestore(); showToast('그룹 업무를 다시 시작합니다.'); }
 };
 
+// === app.js (일부) ===
+
 const pauseWorkIndividual = (recordId) => {
   const currentTime = getCurrentTime();
   const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
   if (record && record.status === 'ongoing') {
     record.status = 'paused';
     record.pauses = record.pauses || [];
-    record.pauses.push({ start: currentTime, end: null });
+    // ✅ [수정] 'type: 'break'' 추가
+    record.pauses.push({ start: currentTime, end: null, type: 'break' });
     saveStateToFirestore();
     showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
   }
