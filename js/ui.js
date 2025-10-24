@@ -191,6 +191,67 @@ export const renderTaskAnalysis = (appState, appConfig) => {
     }
 };
 
+// ✅ [추가] 개인별 통계 렌더링 함수
+export const renderPersonalAnalysis = (selectedMember, appState) => {
+    const container = document.getElementById('analysis-personal-stats-container');
+    if (!container) return;
+
+    if (!selectedMember) {
+        container.innerHTML = `<p class="text-center text-gray-500">통계를 보려면 위에서 직원을 선택하세요.</p>`;
+        return;
+    }
+
+    const memberRecords = (appState.workRecords || []).filter(
+        r => r.status === 'completed' && r.member === selectedMember
+    );
+
+    if (memberRecords.length === 0) {
+        container.innerHTML = `<p class="text-center text-gray-500">${selectedMember} 님은 오늘 완료된 업무 기록이 없습니다.</p>`;
+        return;
+    }
+
+    const totalMinutes = memberRecords.reduce((sum, r) => sum + (r.duration || 0), 0);
+
+    const taskTimes = memberRecords.reduce((acc, r) => {
+        acc[r.task] = (acc[r.task] || 0) + (r.duration || 0);
+        return acc;
+    }, {});
+
+    const sortedTasks = Object.entries(taskTimes).sort(([, a], [, b]) => b - a);
+    const top3Tasks = sortedTasks.slice(0, 3);
+
+    let html = `
+        <h4 class="text-lg font-bold text-gray-800 mb-3">${selectedMember} 님 요약</h4>
+        <div class="mb-4">
+            <span class="text-sm font-semibold text-gray-500">총 완료 업무 시간:</span>
+            <span class="text-xl font-bold text-blue-600 ml-2">${formatDuration(totalMinutes)}</span>
+        </div>
+        <div>
+            <h5 class="text-md font-semibold text-gray-700 mb-2">주요 업무 (Top 3)</h5>
+            <ul class="list-decimal list-inside space-y-1">
+    `;
+
+    if (top3Tasks.length > 0) {
+        top3Tasks.forEach(([task, minutes]) => {
+            html += `
+                <li class="text-sm">
+                    <span class="font-semibold">${task}:</span>
+                    <span class="text-gray-600">${formatDuration(minutes)}</span>
+                </li>
+            `;
+        });
+    } else {
+        html += `<li class="text-sm text-gray-500">데이터 없음</li>`;
+    }
+
+    html += `
+            </ul>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+};
+
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
