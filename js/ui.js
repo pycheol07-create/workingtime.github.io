@@ -1265,3 +1265,38 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
     // ✅ [수정] 공통 헬퍼 함수로 렌더링 위임 (기존 중복 로직 삭제)
     renderAggregatedAttendanceSummary(view, monthlyData);
 };
+
+// === ui.js (파일 맨 끝에 추가) ===
+
+/**
+ * [수동 기록 추가] 모달의 <datalist>에 직원 및 업무 목록을 채웁니다.
+ */
+export const renderManualAddModalDatalists = (appState, appConfig) => {
+    const memberDatalist = document.getElementById('manual-add-member-list');
+    const taskDatalist = document.getElementById('manual-add-task-list');
+
+    if (!memberDatalist || !taskDatalist) return;
+
+    // 1. 직원 목록 채우기
+    memberDatalist.innerHTML = '';
+    const staffMembers = (appConfig.teamGroups || []).flatMap(g => g.members);
+    const partTimerMembers = (appState.partTimers || []).map(p => p.name);
+    
+    const allMembers = [...new Set([...staffMembers, ...partTimerMembers])].sort();
+    
+    allMembers.forEach(member => {
+        const option = document.createElement('option');
+        option.value = member;
+        memberDatalist.appendChild(option);
+    });
+
+    // 2. 업무 목록 채우기
+    taskDatalist.innerHTML = '';
+    const allTasks = [...new Set(Object.values(appConfig.taskGroups || {}).flat())].sort();
+
+    allTasks.forEach(task => {
+        const option = document.createElement('option');
+        option.value = task;
+        taskDatalist.appendChild(option);
+    });
+};

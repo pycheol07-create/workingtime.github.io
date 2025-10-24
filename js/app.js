@@ -20,7 +20,8 @@ import {
   renderAttendanceMonthlyHistory,
   renderWeeklyHistory,
   renderMonthlyHistory,
-  renderDashboardLayout // ✅ 포함 확인
+  renderDashboardLayout,
+  renderManualAddModalDatalists // ✅ [추가]
 } from './ui.js';
 
 // ========== DOM Elements ==========
@@ -93,6 +94,13 @@ const cancelLeaveConfirmMessage = document.getElementById('cancel-leave-confirm-
 const toggleCompletedLog = document.getElementById('toggle-completed-log');
 const toggleAnalysis = document.getElementById('toggle-analysis');
 const toggleSummary = document.getElementById('toggle-summary');
+
+// ✅ [추가] 수동 기록 추가 모달 요소
+const openManualAddBtn = document.getElementById('open-manual-add-btn');
+const manualAddRecordModal = document.getElementById('manual-add-record-modal');
+const confirmManualAddBtn = document.getElementById('confirm-manual-add-btn');
+const cancelManualAddBtn = document.getElementById('cancel-manual-add-btn');
+const manualAddForm = document.getElementById('manual-add-form');
 
 // ✅ [추가] 업무 마감 확인 모달 요소
 const endShiftConfirmModal = document.getElementById('end-shift-confirm-modal');
@@ -1336,6 +1344,72 @@ if (openHistoryBtn) {
   });
 }
 
+// ✅ [추가] 수동 기록 추가 모달 열기
+if (openManualAddBtn) {
+    openManualAddBtn.addEventListener('click', () => {
+        // 모달을 열 때마다 최신 직원/업무 목록으로 채웁니다.
+        renderManualAddModalDatalists(appState, appConfig);
+        if (manualAddForm) manualAddForm.reset(); // 폼 초기화
+        if (manualAddRecordModal) manualAddRecordModal.classList.remove('hidden');
+    });
+}
+
+// ✅ [추가] 수동 기록 추가 모달 - 저장
+if (confirmManualAddBtn) {
+    confirmManualAddBtn.addEventListener('click', () => {
+        const member = document.getElementById('manual-add-member')?.value.trim();
+        const task = document.getElementById('manual-add-task')?.value.trim();
+        const startTime = document.getElementById('manual-add-start-time')?.value;
+        const endTime = document.getElementById('manual-add-end-time')?.value;
+
+        if (!member || !task || !startTime || !endTime) {
+            showToast('모든 필드를 올바르게 입력해주세요.', true);
+            return;
+        }
+
+        if (endTime < startTime) {
+            showToast('종료 시간은 시작 시간보다 이후여야 합니다.', true);
+            return;
+        }
+
+        const newId = generateId();
+        const duration = calcElapsedMinutes(startTime, endTime, []);
+
+        const newRecord = {
+            id: newId,
+            member: member,
+            task: task,
+            startTime: startTime,
+            endTime: endTime,
+            duration: duration,
+            status: 'completed', // 수동 추가는 항상 '완료' 상태
+            groupId: null,
+            pauses: []
+        };
+
+        appState.workRecords.push(newRecord);
+        debouncedSaveState(); // 변경사항 저장
+
+        showToast('수동 기록이 추가되었습니다.');
+        if (manualAddRecordModal) manualAddRecordModal.classList.add('hidden');
+        if (manualAddForm) manualAddForm.reset();
+    });
+}
+
+// ✅ [추가] 수동 기록 추가 모달 - 취소
+if (cancelManualAddBtn) {
+    cancelManualAddBtn.addEventListener('click', () => {
+        if (manualAddRecordModal) manualAddRecordModal.classList.add('hidden');
+        if (manualAddForm) manualAddForm.reset();
+    });
+}
+
+// ✅ [추가] 수동 기록 추가 모달 (공통 닫기 버튼용)
+// document.querySelectorAll('.modal-close-btn').forEach(btn => { ... } 리스너 내부에
+// else if (modalId === 'manual-add-record-modal') {
+//    if (manualAddForm) manualAddForm.reset();
+// }
+
 // ✅ [수정] 전체 화면 버튼 관련 리스너 제거
 // if (fullscreenHistoryBtn) { ... } // 이 부분 전체 삭제
 // document.addEventListener('fullscreenchange', ...) // 첫 번째 fullscreenchange 리스너 삭제
@@ -1869,6 +1943,7 @@ if (confirmCancelLeaveBtn) {
 }
 
 // ... (모달 공통 닫기 버튼 및 나머지 닫기 버튼 리스너들은 이전과 동일) ...
+// === app.js (기존 modal-close-btn 리스너 덮어쓰기) ===
 document.querySelectorAll('.modal-close-btn').forEach(btn => {
   btn.addEventListener('click', (e) => {
       const modal = e.target.closest('.fixed.inset-0');
@@ -1905,6 +1980,10 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
           if(input) input.value = '';
       } else if (modalId === 'stop-individual-confirm-modal') {
           recordToStopId = null;
+      } else if (modalId === 'edit-part-timer-modal') {
+          // (알바 수정 모달 닫기 로직 - 이미 존재)
+      } else if (modalId === 'manual-add-record-modal') { // ✅ [추가]
+          if (manualAddForm) manualAddForm.reset();
       }
       // 다른 모달 ID에 대한 초기화 로직 추가...
   });
