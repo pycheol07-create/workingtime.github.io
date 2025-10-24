@@ -525,7 +525,7 @@ function handleNewTaskNameBlur(e) {
 }
 
 
-// ✅ [추가] 현황판 항목 추가 모달 열기
+// ✅ [수정] 현황판 항목 추가 모달 열기 (비활성화 로직 추가)
 function openDashboardItemModal() {
     const listContainer = document.getElementById('select-dashboard-item-list');
     listContainer.innerHTML = '';
@@ -537,22 +537,41 @@ function openDashboardItemModal() {
     });
 
     let hasItemsToAdd = false;
-    // 전체 정의에서 현재 없는 것만 버튼으로 만듦
+    
+    // ✅ [수정] 전체 정의를 순회하며 비활성화/활성화 버튼 생성
     Object.keys(DASHBOARD_ITEM_DEFINITIONS).forEach(id => {
-        if (!currentItemIds.has(id)) {
-            hasItemsToAdd = true;
-            const itemDef = DASHBOARD_ITEM_DEFINITIONS[id];
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'dashboard-item-select-btn w-full text-left p-2 rounded-md border btn-secondary focus:ring-2 focus:ring-blue-300';
-            button.textContent = itemDef.title;
-            button.dataset.id = id;
-            listContainer.appendChild(button);
+        const itemDef = DASHBOARD_ITEM_DEFINITIONS[id];
+        const isAlreadyAdded = currentItemIds.has(id);
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'dashboard-item-select-btn w-full text-left p-2 rounded-md border focus:ring-2 focus:ring-blue-300';
+        button.textContent = itemDef.title;
+        button.dataset.id = id;
+
+        if (isAlreadyAdded) {
+            button.disabled = true;
+            button.classList.add('btn-secondary', 'opacity-50', 'cursor-not-allowed');
+            button.classList.remove('btn-secondary'); // btn-secondary는 활성화 스타일일 수 있으므로 제거
+        } else {
+            hasItemsToAdd = true; // 추가할 수 있는 항목이 하나라도 있음
+            button.classList.add('btn-secondary'); // 활성화된 버튼 스타일
         }
+        
+        listContainer.appendChild(button);
     });
 
     if (!hasItemsToAdd) {
-        listContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center">추가할 수 있는 항목이 없습니다.</p>';
+        // 모든 항목이 이미 추가된 경우 (모두 비활성화된 상태)
+        // listContainer에 "추가할 항목 없음" 메시지를 추가할 수 있으나,
+        // 비활성화된 버튼을 보여주는 것만으로도 충분할 수 있습니다.
+        // 만약 비활성화된 버튼조차 안보이게 하려면, 
+        // 윗 로직에서 if (isAlreadyAdded) continue; 를 사용하고 이 메시지를 활성화합니다.
+        
+        // 현재 로직: 비활성화된 버튼을 보여주므로, '추가할 항목 없음' 메시지는 필요 없음
+        // if (!hasItemsToAdd) {
+        //    listContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center">추가할 수 있는 항목이 없습니다.</p>';
+        // }
     }
     
     document.getElementById('select-dashboard-item-modal').classList.remove('hidden');
@@ -595,6 +614,21 @@ function handleDynamicClicks(e) {
             const modal = document.getElementById(modalId);
             if (modal) modal.classList.add('hidden');
         }
+    }
+    
+    // ✅ [추가] 설정 카드 접기/펴기
+    const toggleBtn = e.target.closest('.config-card-toggle');
+    if (toggleBtn) {
+        const card = toggleBtn.closest('.config-card');
+        const content = card.querySelector('.config-card-content');
+        const arrow = toggleBtn.querySelector('svg');
+        if (content) {
+            content.classList.toggle('hidden');
+        }
+        if (arrow) {
+            arrow.classList.toggle('arrow-rotated');
+        }
+        return; // 토글 클릭 시 다른 동작(삭제 등) 방지
     }
     
     // 팀원 추가/삭제, 팀 그룹 삭제

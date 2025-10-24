@@ -613,26 +613,8 @@ export const renderDashboardLayout = (appConfig) => {
 
     container.innerHTML = html;
 
-    // 동적으로 생성된 그리드 컬럼 수 조절 (Tailwind JIT가 인식 못할 수 있으므로 style로 직접 제어)
-    const count = itemIds.length;
-    let gridCols = `repeat(${count}, minmax(0, 1fr))`;
-    if (count <= 4) {
-        gridCols = `repeat(${count}, minmax(0, 1fr))`;
-    } else if (count === 5) {
-         gridCols = `repeat(5, minmax(0, 1fr))`;
-    } else if (count === 6) {
-         gridCols = `repeat(6, minmax(0, 1fr))`;
-    } else {
-         gridCols = `repeat(7, minmax(0, 1fr))`;
-    }
-    
-    // md 이상일 때만 grid-template-columns 적용
-    if (window.innerWidth >= 768) {
-         container.style.gridTemplateColumns = gridCols;
-    } else {
-        // 모바일에서는 2열 (기본 클래스 `grid-cols-2`가 담당)
-         container.style.gridTemplateColumns = ''; 
-    }
+    // ✅ [수정] 동적으로 그리드 컬럼을 제어하던 JS 로직 전체 삭제
+    // (Tailwind 클래스가 반응형으로 처리하도록 둠)
 };
 
 // ✅ [수정] updateSummary 함수 시그니처 및 내용 변경
