@@ -363,16 +363,55 @@ function setupEventListeners() {
     setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item'); // 6. 처리량 업무 (항목)
 }
 
-// ... (addTeamGroup 함수는 이전과 동일) ...
+// ✅ [수정] addTeamGroup 함수 (DOM 직접 추가 방식으로 변경)
 function addTeamGroup() {
-    const newGroup = { name: '새 그룹', members: ['새 팀원'] };
-    appConfig.teamGroups = appConfig.teamGroups || [];
-    appConfig.teamGroups.push(newGroup);
-    if (!appConfig.memberWages) appConfig.memberWages = {};
-    appConfig.memberWages['새 팀원'] = appConfig.defaultPartTimerWage || 10000;
+    const container = document.getElementById('team-groups-container');
+    if (!container) return;
+
+    // 새 그룹을 위한 데이터 (로컬 appConfig는 '저장' 시에만 업데이트)
+    const newGroupName = '새 그룹';
+    const newMemberName = '새 팀원';
+    const defaultWage = appConfig.defaultPartTimerWage || 10000;
+
+    // 새 그룹 DOM 생성
+    const groupEl = document.createElement('div');
+    groupEl.className = 'p-4 border rounded-lg bg-gray-50 team-group-card';
     
-    renderTeamGroups(appConfig.teamGroups, appConfig.memberWages);
-    setupDragDropListeners('.members-container', '.member-item'); 
+    // 새 멤버 HTML
+    const membersHtml = `
+        <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item">
+            <span class="drag-handle" draggable="true">☰</span>
+            <input type="text" value="${newMemberName}" class="member-name" placeholder="팀원 이름">
+            <label class="text-sm whitespace-nowrap">시급:</label>
+            <input type="number" value="${defaultWage}" class="member-wage w-28" placeholder="시급">
+            <button class="btn btn-danger btn-small delete-member-btn">삭제</button>
+        </div>
+    `;
+
+    groupEl.innerHTML = `
+        <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center">
+                <span class="drag-handle" draggable="true">☰</span> 
+                <input type="text" value="${newGroupName}" class="text-lg font-semibold team-group-name w-auto">
+            </div>
+            <button class="btn btn-danger btn-small delete-team-group-btn">그룹 삭제</button>
+        </div>
+        <div class="pl-4 border-l-2 border-gray-200 space-y-2 members-container">${membersHtml}</div>
+        <button class="btn btn-secondary btn-small mt-3 add-member-btn">+ 팀원 추가</button>
+    `;
+    
+    // DOM에 추가
+    container.appendChild(groupEl);
+
+    // ✅ [추가] 방금 생성된 새 .members-container에 드래그 리스너 수동 부착
+    const newMembersContainer = groupEl.querySelector('.members-container');
+    if (newMembersContainer) {
+        // setupDragDropListeners 함수는 여러 컨테이너를 대상으로 하므로,
+        // 여기서는 단일 엘리먼트에 리스너를 붙이는 로직을 직접 수행하거나,
+        // setupDragDropListeners가 단일 엘리먼트도 처리할 수 있게 해야 합니다.
+        // 가장 간단한 해결책은 setupDragDropListeners를 다시 호출하는 것입니다.
+        setupDragDropListeners('.members-container', '.member-item');
+    }
 }
 
 // [수정] addKeyTask 함수
@@ -392,13 +431,55 @@ function addKeyTask(taskName) {
 }
 
 // ... (addTaskGroup 함수는 이전과 동일) ...
+// ✅ [수정] addTaskGroup 함수 (DOM 직접 추가 방식으로 변경)
 function addTaskGroup() {
-    const newGroupName = `새 업무 그룹 ${Object.keys(appConfig.taskGroups || {}).length + 1}`;
-    if (!appConfig.taskGroups) appConfig.taskGroups = {};
-    appConfig.taskGroups[newGroupName] = ['새 업무'];
+    const container = document.getElementById('task-groups-container');
+    if (!container) return;
+
+    // 새 그룹을 위한 데이터 (로컬 appConfig는 '저장' 시에만 업데이트)
+    const newGroupName = `새 업무 그룹 ${container.children.length + 1}`;
+    const newTaskName = '새 업무';
+
+    // 새 그룹 DOM 생성
+    const groupEl = document.createElement('div');
+    groupEl.className = 'p-4 border rounded-lg bg-gray-50 task-group-card';
     
-    renderTaskGroups(appConfig.taskGroups);
-    setupDragDropListeners('.tasks-container', '.task-item');
+    // 새 업무 HTML
+    const tasksHtml = `
+        <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item">
+            <span class="drag-handle" draggable="true">☰</span>
+            <input type="text" value="${newTaskName}" class="task-name flex-grow">
+            <button class="btn btn-danger btn-small delete-task-btn">삭제</button>
+        </div>
+    `;
+
+    groupEl.innerHTML = `
+         <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center"> 
+               <span class="drag-handle" draggable="true">☰</span>
+               <input type="text" value="${newGroupName}" class="text-lg font-semibold task-group-name w-auto">
+             </div>
+            <button class="btn btn-danger btn-small delete-task-group-btn">그룹 삭제</button>
+        </div>
+        <div class="pl-4 border-l-2 border-gray-200 space-y-2 tasks-container">${tasksHtml}</div>
+        <button class="btn btn-secondary btn-small mt-3 add-task-btn">+ 업무 추가</button>
+    `;
+    
+    // DOM에 추가
+    container.appendChild(groupEl);
+
+    // ✅ [추가] 방금 생성된 새 .tasks-container에 드래그 리스너 수동 부착
+    // 및 새 input에 blur 리스너 부착
+    const newTasksContainer = groupEl.querySelector('.tasks-container');
+    if (newTasksContainer) {
+        setupDragDropListeners('.tasks-container', '.task-item');
+        
+        const newTaskNameInput = newTasksContainer.querySelector('.task-name');
+        if (newTaskNameInput) {
+            newTaskNameInput.focus();
+            newTaskNameInput.addEventListener('blur', handleNewTaskNameBlur, { once: true });
+        }
+    }
 }
 
 // [수정] addQuantityTask 함수
@@ -576,17 +657,19 @@ function handleDynamicClicks(e) {
 }
 
 
-// ✅ [수정] 드래그 앤 드롭 설정 함수 (로직 변경)
+// ✅ [수정] 드래그 앤 드롭 설정 함수 (중복 부착 방지 로직 수정)
 function setupDragDropListeners(containerSelector, itemSelector) {
     const containers = document.querySelectorAll(containerSelector);
     if (containers.length === 0) return;
 
+    const listenerId = `drag-${itemSelector.replace('.', '')}`;
+
     containers.forEach(container => {
-        // 중복 부착 방지
-        const listenerId = `drag-${itemSelector.replace('.', '')}`;
+        // ✅ [수정] 중복 부착 방지: 이미 이 컨테이너(DOM element)에 리스너가 붙었는지 확인
         if (container.dataset.dragListenersAttached?.includes(listenerId)) {
             return;
         }
+        // ✅ [수정] 리스너가 부착되었다고 표시
         container.dataset.dragListenersAttached = (container.dataset.dragListenersAttached || '') + listenerId;
 
 
@@ -602,6 +685,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
             // [수정] e.target은 핸들(span)이므로, 부모 아이템(card/item)을 찾음
             const item = e.target.closest(itemSelector); 
             
+            // ✅ [수정] item의 부모가 이 리스너가 부착된 container와 일치하는지 확인
             if (!item || item.parentElement !== container) {
                 // 올바른 아이템이 아니거나, 해당 컨테이너의 자식이 아니면 무시
                 return;
@@ -615,6 +699,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
         // [dragend] - 드래그 종료 시, 모든 상태 초기화
         container.addEventListener('dragend', (e) => {
+            // ✅ [수정] draggedItem이 있고, 그 부모가 이 container인지 확인
             if (!draggedItem || draggedItem.parentElement !== container) return;
             
             e.stopPropagation();
@@ -628,6 +713,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
             // ✅ [핵심 수정] preventDefault()를 *무조건 맨 먼저* 호출
             e.preventDefault(); 
             
+            // ✅ [수정] draggedItem이 있고, 그 부모가 이 container인지 확인
             if (!draggedItem || draggedItem.parentElement !== container) return;
             
             e.stopPropagation(); 
@@ -643,6 +729,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
         });
 
          container.addEventListener('dragleave', (e) => {
+             // ✅ [수정] draggedItem이 있고, 그 부모가 이 container인지 확인
              if (!draggedItem || draggedItem.parentElement !== container) return;
              e.stopPropagation(); 
              // .drag-over 클래스 정리
@@ -653,6 +740,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
         container.addEventListener('drop', (e) => {
             // ✅ [수정] preventDefault()는 여기서도 필요함 (브라우저 기본 동작 방지)
             e.preventDefault(); 
+            // ✅ [수정] draggedItem이 있고, 그 부모가 이 container인지 확인
             if (!draggedItem || draggedItem.parentElement !== container) return;
             e.stopPropagation(); 
             
