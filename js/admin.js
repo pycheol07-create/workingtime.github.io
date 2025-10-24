@@ -332,9 +332,7 @@ function setupEventListeners() {
     document.getElementById('add-dashboard-item-btn').addEventListener('click', openDashboardItemModal);
     document.getElementById('add-custom-dashboard-item-btn').addEventListener('click', addCustomDashboardItem); // 새 리스너
 
-    document.getElementById('add-key-task-btn').addEventListener('click', () => {
-
-    // [수정] '주요 업무 추가' 버튼 리스너
+    // ✅ [수정] '주요 업무 추가' 버튼 리스너 (중복 제거 및 올바른 위치)
     document.getElementById('add-key-task-btn').addEventListener('click', () => {
         currentModalTarget = 'key';
         populateTaskSelectModal();
@@ -373,7 +371,19 @@ function setupEventListeners() {
         const button = e.target.closest('.dashboard-item-select-btn');
         if (button) {
             const itemId = button.dataset.id;
-            addDashboardItem(itemId);
+            // ✅ [수정] addDashboardItem 호출 부분을 render 후 재호출하도록 변경 (임시 추가 대응)
+            // addDashboardItem(itemId); // 직접 DOM 추가 대신, appConfig 업데이트 후 다시 그림
+            if (appConfig.dashboardItems && !appConfig.dashboardItems.includes(itemId)) {
+                appConfig.dashboardItems.push(itemId);
+                // 새 항목 추가 시 기본 수량 0 설정 (커스텀 항목은 addCustomDashboardItem에서 처리)
+                if (!itemId.startsWith('custom-')) {
+                   if (!appConfig.dashboardQuantities) appConfig.dashboardQuantities = {};
+                   appConfig.dashboardQuantities[itemId] = 0;
+                }
+                renderDashboardItemsConfig(appConfig.dashboardItems, appConfig.dashboardQuantities);
+            } else {
+                alert("이미 추가된 항목입니다.");
+            }
             document.getElementById('select-dashboard-item-modal').classList.add('hidden');
         }
     });
@@ -395,11 +405,11 @@ function setupEventListeners() {
     // [수정] 모든 레벨의 드래그앤드롭 리스너 설정
     setupDragDropListeners('#team-groups-container', '.team-group-card'); // 1. 팀 그룹 (카드)
     setupDragDropListeners('.members-container', '.member-item'); // 2. 팀원 (항목)
-    
+
     setupDragDropListeners('#dashboard-items-container', '.dashboard-item-config'); // ✅ [추가] 현황판 항목 (항목)
-    
+
     setupDragDropListeners('#key-tasks-container', '.key-task-item'); // 3. 주요 업무 (항목)
-    
+
     setupDragDropListeners('#task-groups-container', '.task-group-card'); // 4. 업무 그룹 (카드)
     setupDragDropListeners('.tasks-container', '.task-item'); // 5. 업무 (항목)
 
