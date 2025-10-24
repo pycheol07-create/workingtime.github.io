@@ -16,56 +16,6 @@ const DASHBOARD_ITEM_DEFINITIONS = {
     'direct-delivery': { title: '직진배송', valueId: 'summary-direct-delivery', isQuantity: true }
 };
 
-const taskCardStyles = {
-    'default': {
-        card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
-        hover: 'hover:border-blue-500 hover:shadow-md',
-        subtitle: 'text-gray-500',
-        buttonBgOff: 'bg-gray-200',
-        buttonTextOff: 'text-gray-500'
-    },
-    'ongoing': {
-        card: ['bg-blue-100', 'border-blue-500', 'text-gray-900', 'shadow-xl', 'shadow-blue-200/50'], // 진행 중 강조
-        hover: 'hover:border-blue-600',
-        subtitle: 'text-gray-600',
-        buttonBgOn: 'bg-blue-600',
-        buttonTextOn: 'text-white',
-        buttonHoverOn: 'hover:bg-blue-700'
-    },
-    'paused': {
-        card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
-        hover: 'hover:border-yellow-400 hover:shadow-lg',
-        title: 'text-yellow-800',
-        subtitle: 'text-yellow-700',
-        buttonBgOn: 'bg-yellow-600',
-        buttonTextOn: 'text-white',
-        buttonHoverOn: 'hover:bg-yellow-700'
-    }
-};
-const taskTitleColors = {
-    '국내배송': 'text-green-700',
-    '중국제작': 'text-purple-700',
-    '직진배송': 'text-emerald-700',
-    '채우기': 'text-sky-700',
-    '개인담당업무': 'text-indigo-700',
-    '티니': 'text-red-700',
-    '택배포장': 'text-orange-700',
-    '해외배송': 'text-cyan-700',
-    '재고조사': 'text-fuchsia-700',
-    '앵글정리': 'text-amber-700',
-    '상품재작업': 'text-yellow-800',
-    '상.하차': 'text-stone-700',
-    '검수': 'text-teal-700',
-    '아이롱': 'text-violet-700',
-    '오류': 'text-rose-700',
-    '강성': 'text-pink-700',
-    '2층업무': 'text-neutral-700',
-    '재고찾는시간': 'text-lime-700',
-    '매장근무': 'text-blue-700',
-    '출장': 'text-gray-700',
-    'default': 'text-blue-700'
-};
-
 // ... (taskCardStyles, taskTitleColors 정의는 이전과 동일) ...
 const taskCardStyles = {
     'default': {
