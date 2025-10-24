@@ -6,6 +6,17 @@ let db;
 let appConfig = {};
 const ADMIN_PASSWORD = "anffbxla123";
 
+// ✅ [추가] 현황판 아이템 정의
+const DASHBOARD_ITEM_DEFINITIONS = {
+    'total-staff': { title: '총원 (직원/알바)' },
+    'leave-staff': { title: '휴무' },
+    'active-staff': { title: '근무 (직원/알바)' },
+    'working-staff': { title: '업무중' },
+    'idle-staff': { title: '대기' },
+    'ongoing-tasks': { title: '진행업무' },
+    'total-work-time': { title: '업무진행시간' }
+};
+
 // 드래그 상태 관리 변수
 let draggedItem = null;
 
@@ -134,6 +145,7 @@ function renderAdminUI(config) {
     }
 
     renderTeamGroups(config.teamGroups || [], config.memberWages || {});
+    renderDashboardItemsConfig(config.dashboardItems || []); // ✅ [추가]
     renderKeyTasks(config.keyTasks || []);
     renderTaskGroups(config.taskGroups || {});
     renderQuantityTasks(config.quantityTaskTypes || []);
@@ -171,6 +183,25 @@ function renderTeamGroups(teamGroups, memberWages) {
             <button class="btn btn-secondary btn-small mt-3 add-member-btn">+ 팀원 추가</button>
         `; // [수정] group-card의 handle에 draggable="true" 추가
         container.appendChild(groupEl);
+    });
+}
+
+// ✅ [추가] 현황판 항목 설정 렌더링 함수
+function renderDashboardItemsConfig(itemIds) {
+    const container = document.getElementById('dashboard-items-container');
+    container.innerHTML = '';
+    itemIds.forEach((id, index) => {
+        const itemDef = DASHBOARD_ITEM_DEFINITIONS[id];
+        if (!itemDef) return;
+        const itemEl = document.createElement('div');
+        itemEl.className = 'flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 dashboard-item-config';
+        itemEl.dataset.index = index;
+        itemEl.innerHTML = `
+            <span class="drag-handle" draggable="true">☰</span> 
+            <span class="dashboard-item-name flex-grow p-2 bg-gray-100 rounded" data-id="${id}">${itemDef.title}</span>
+            <button class="btn btn-danger btn-small delete-dashboard-item-btn" data-id="${id}">삭제</button>
+        `;
+        container.appendChild(itemEl);
     });
 }
 
@@ -257,6 +288,9 @@ function setupEventListeners() {
     document.getElementById('save-all-btn').addEventListener('click', handleSaveAll);
     document.getElementById('add-team-group-btn').addEventListener('click', addTeamGroup);
     
+    // ✅ [추가] 현황판 항목 추가 버튼 리스너
+    document.getElementById('add-dashboard-item-btn').addEventListener('click', openDashboardItemModal);
+
     // [수정] '주요 업무 추가' 버튼 리스너
     document.getElementById('add-key-task-btn').addEventListener('click', () => {
         currentModalTarget = 'key';
@@ -291,7 +325,17 @@ function setupEventListeners() {
         }
     });
 
-    // [추가] '처리량 집계 추가' 확인 모달 버튼 (요청한 팝업 기능)
+    // ✅ [추가] '현황판 항목 선택' 모달에서 항목 클릭 시
+    document.getElementById('select-dashboard-item-list').addEventListener('click', (e) => {
+        const button = e.target.closest('.dashboard-item-select-btn');
+        if (button) {
+            const itemId = button.dataset.id;
+            addDashboardItem(itemId);
+            document.getElementById('select-dashboard-item-modal').classList.add('hidden');
+        }
+    });
+
+    // [추가] '처리량 집계 추가' 확인 모달 버튼
     document.getElementById('confirm-add-to-quantity-btn').addEventListener('click', () => {
         if (taskJustAdded) {
             addQuantityTask(taskJustAdded);
@@ -308,6 +352,8 @@ function setupEventListeners() {
     // [수정] 모든 레벨의 드래그앤드롭 리스너 설정
     setupDragDropListeners('#team-groups-container', '.team-group-card'); // 1. 팀 그룹 (카드)
     setupDragDropListeners('.members-container', '.member-item'); // 2. 팀원 (항목)
+    
+    setupDragDropListeners('#dashboard-items-container', '.dashboard-item-config'); // ✅ [추가] 현황판 항목 (항목)
     
     setupDragDropListeners('#key-tasks-container', '.key-task-item'); // 3. 주요 업무 (항목)
     
@@ -398,6 +444,66 @@ function handleNewTaskNameBlur(e) {
 }
 
 
+// ✅ [추가] 현황판 항목 추가 모달 열기
+function openDashboardItemModal() {
+    const listContainer = document.getElementById('select-dashboard-item-list');
+    listContainer.innerHTML = '';
+
+    // 현재 DOM에 있는 항목 ID들
+    const currentItemIds = new Set();
+    document.querySelectorAll('#dashboard-items-container .dashboard-item-name').forEach(item => {
+        currentItemIds.add(item.dataset.id);
+    });
+
+    let hasItemsToAdd = false;
+    // 전체 정의에서 현재 없는 것만 버튼으로 만듦
+    Object.keys(DASHBOARD_ITEM_DEFINITIONS).forEach(id => {
+        if (!currentItemIds.has(id)) {
+            hasItemsToAdd = true;
+            const itemDef = DASHBOARD_ITEM_DEFINITIONS[id];
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'dashboard-item-select-btn w-full text-left p-2 rounded-md border btn-secondary focus:ring-2 focus:ring-blue-300';
+            button.textContent = itemDef.title;
+            button.dataset.id = id;
+            listContainer.appendChild(button);
+        }
+    });
+
+    if (!hasItemsToAdd) {
+        listContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center">추가할 수 있는 항목이 없습니다.</p>';
+    }
+    
+    document.getElementById('select-dashboard-item-modal').classList.remove('hidden');
+}
+
+// ✅ [추가] 현황판 항목 DOM에 추가
+function addDashboardItem(id) {
+    const itemDef = DASHBOARD_ITEM_DEFINITIONS[id];
+    if (!itemDef) return;
+
+    // 중복 확인 (모달에서 이미 했지만, 안전장치)
+    const currentItemIds = new Set();
+    document.querySelectorAll('#dashboard-items-container .dashboard-item-name').forEach(item => {
+        currentItemIds.add(item.dataset.id);
+    });
+    if (currentItemIds.has(id)) {
+        alert("이미 추가된 항목입니다.");
+        return;
+    }
+
+    const container = document.getElementById('dashboard-items-container');
+    const itemEl = document.createElement('div');
+    itemEl.className = 'flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 dashboard-item-config';
+    itemEl.innerHTML = `
+        <span class="drag-handle" draggable="true">☰</span> 
+        <span class="dashboard-item-name flex-grow p-2 bg-gray-100 rounded" data-id="${id}">${itemDef.title}</span>
+        <button class="btn btn-danger btn-small delete-dashboard-item-btn" data-id="${id}">삭제</button>
+    `;
+    container.appendChild(itemEl);
+}
+
+
 // [수정] handleDynamicClicks 함수
 function handleDynamicClicks(e) {
     // [추가] 모달 닫기 버튼
@@ -429,6 +535,10 @@ function handleDynamicClicks(e) {
     } else if (e.target.classList.contains('delete-team-group-btn')) {
         e.target.closest('.team-group-card').remove();
     }
+    // ✅ [추가] 현황판 항목 삭제
+    else if (e.target.classList.contains('delete-dashboard-item-btn')) {
+        e.target.closest('.dashboard-item-config').remove();
+    }
     // 주요 업무 삭제
     else if (e.target.classList.contains('delete-key-task-btn')) {
         e.target.closest('.key-task-item').remove();
@@ -446,7 +556,7 @@ function handleDynamicClicks(e) {
         `; // [수정] handle에 draggable="true" 추가
         container.appendChild(newTaskEl);
 
-        // [추가] 방금 추가된 '새 업무' input에 blur 이벤트 리스너 추가 (요청한 팝업 기능)
+        // [추가] 방금 추가된 '새 업무' input에 blur 이벤트 리스너 추가
         const newTaskNameInput = newTaskEl.querySelector('.task-name');
         if (newTaskNameInput) {
             newTaskNameInput.focus(); // 바로 이름 수정하도록 포커스
@@ -569,6 +679,7 @@ async function handleSaveAll() {
         const newConfig = {
             teamGroups: [],
             memberWages: {},
+            dashboardItems: [], // ✅ [추가]
             keyTasks: [], 
             taskGroups: {},
             quantityTaskTypes: [],
@@ -593,7 +704,12 @@ async function handleSaveAll() {
             newConfig.teamGroups.push(newGroup);
         });
 
-        // 2. 주요 업무 정보 읽기 (순서 반영)
+        // ✅ [추가] 2. 현황판 항목 정보 읽기 (순서 반영)
+        document.querySelectorAll('#dashboard-items-container .dashboard-item-name').forEach(item => {
+            newConfig.dashboardItems.push(item.dataset.id);
+        });
+
+        // 3. 주요 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
              // [수정] .value -> .textContent
              const taskName = item.querySelector('.key-task-name').textContent.trim();
@@ -601,7 +717,7 @@ async function handleSaveAll() {
         });
 
 
-        // 3. 업무 정보 읽기 (순서 반영)
+        // 4. 업무 정보 읽기 (순서 반영)
         const orderedTaskGroups = {};
         document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
             const groupNameInput = groupCard.querySelector('.task-group-name');
@@ -619,20 +735,20 @@ async function handleSaveAll() {
         newConfig.taskGroups = orderedTaskGroups;
 
 
-        // 4. 처리량 업무 정보 읽기 (순서 반영)
+        // 5. 처리량 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
             // [수정] .value -> .textContent
             const taskName = item.querySelector('.quantity-task-name').textContent.trim();
             if (taskName) newConfig.quantityTaskTypes.push(taskName);
         });
 
-        // 5. 전역 설정 (알바 시급) 읽기
+        // 6. 전역 설정 (알바 시급) 읽기
         const wageInput = document.getElementById('default-part-timer-wage');
         if (wageInput) {
             newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
         }
         
-        // [추가] 6. 데이터 유효성 검사
+        // [추가] 7. 데이터 유효성 검사
         const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
         
         const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
@@ -652,12 +768,12 @@ async function handleSaveAll() {
         }
 
 
-        // 7. Firestore에 저장
+        // 8. Firestore에 저장
         await saveAppConfig(db, newConfig);
         appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');
 
-        // 8. UI 다시 렌더링 (리스너 재설정 포함)
+        // 9. UI 다시 렌더링 (리스너 재설정 포함)
         renderAdminUI(appConfig);
         setupEventListeners(); // 렌더링 후 리스너 재설정
 

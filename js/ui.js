@@ -2,6 +2,17 @@
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
 
+// ✅ [추가] 현황판 아이템 정의 (admin.js와 동일)
+const DASHBOARD_ITEM_DEFINITIONS = {
+    'total-staff': { title: '총원<br>(직원/알바)', valueId: 'summary-total-staff' },
+    'leave-staff': { title: '휴무', valueId: 'summary-leave-staff' },
+    'active-staff': { title: '근무<br>(직원/알바)', valueId: 'summary-active-staff' },
+    'working-staff': { title: '업무중', valueId: 'summary-working-staff' },
+    'idle-staff': { title: '대기', valueId: 'summary-idle-staff' },
+    'ongoing-tasks': { title: '진행업무', valueId: 'summary-ongoing-tasks' },
+    'total-work-time': { title: '업무진행시간', valueId: 'summary-total-work-time' }
+};
+
 // ... (taskCardStyles, taskTitleColors 정의는 이전과 동일) ...
 const taskCardStyles = {
     'default': {
@@ -513,13 +524,69 @@ export const renderCompletedWorkLog = (appState) => {
     }
 };
 
-export const updateSummary = (appState, teamGroups = []) => {
+// ✅ [추가] 현황판 레이아웃 렌더링 함수
+export const renderDashboardLayout = (appConfig) => {
+    const container = document.getElementById('summary-content');
+    if (!container) return;
+
+    // config에 정의된 순서 (없으면 기본값)
+    const itemIds = appConfig.dashboardItems || [
+        'total-staff', 'leave-staff', 'active-staff', 
+        'working-staff', 'idle-staff', 'ongoing-tasks', 'total-work-time'
+    ];
+    
+    container.innerHTML = ''; // 초기화
+    let html = '';
+
+    itemIds.forEach(id => {
+        const def = DASHBOARD_ITEM_DEFINITIONS[id];
+        if (def) {
+            html += `
+                <div class="dashboard-card p-4 rounded-lg">
+                    <h4 class="text-sm font-bold uppercase tracking-wider">${def.title}</h4>
+                    <p id="${def.valueId}">0</p>
+                </div>
+            `;
+        }
+    });
+
+    container.innerHTML = html;
+
+    // 동적으로 생성된 그리드 컬럼 수 조절 (Tailwind JIT가 인식 못할 수 있으므로 style로 직접 제어)
+    const count = itemIds.length;
+    let gridCols = `repeat(${count}, minmax(0, 1fr))`;
+    if (count <= 4) {
+        gridCols = `repeat(${count}, minmax(0, 1fr))`;
+    } else if (count === 5) {
+         gridCols = `repeat(5, minmax(0, 1fr))`;
+    } else if (count === 6) {
+         gridCols = `repeat(6, minmax(0, 1fr))`;
+    } else {
+         gridCols = `repeat(7, minmax(0, 1fr))`;
+    }
+    
+    // md 이상일 때만 grid-template-columns 적용
+    if (window.innerWidth >= 768) {
+         container.style.gridTemplateColumns = gridCols;
+    } else {
+        // 모바일에서는 2열 (기본 클래스 `grid-cols-2`가 담당)
+         container.style.gridTemplateColumns = ''; 
+    }
+};
+
+// ✅ [수정] updateSummary 함수 시그니처 및 내용 변경
+export const updateSummary = (appState, appConfig) => {
+    // 항목 ID 가져오기
     const summaryTotalStaffEl = document.getElementById('summary-total-staff');
     const summaryLeaveStaffEl = document.getElementById('summary-leave-staff');
     const summaryActiveStaffEl = document.getElementById('summary-active-staff');
     const summaryWorkingStaffEl = document.getElementById('summary-working-staff');
     const summaryIdleStaffEl = document.getElementById('summary-idle-staff');
     const summaryOngoingTasksEl = document.getElementById('summary-ongoing-tasks');
+    // total-work-time은 타이머가 별도 관리하므로 여기선 제외
+
+    // ✅ [수정] teamGroups를 appConfig에서 가져오기
+    const teamGroups = appConfig.teamGroups || [];
 
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
@@ -552,6 +619,7 @@ export const updateSummary = (appState, teamGroups = []) => {
 
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
+    // ✅ [수정] 렌더링된 요소가 있을 때만 업데이트
     if (summaryTotalStaffEl) summaryTotalStaffEl.textContent = `${totalStaffCount}/${totalPartTimerCount}`;
     if (summaryLeaveStaffEl) summaryLeaveStaffEl.textContent = `${onLeaveTotalCount}`;
     if (summaryActiveStaffEl) summaryActiveStaffEl.textContent = `${availableStaffCount}/${availablePartTimerCount}`;

@@ -10,6 +10,7 @@ import {
   renderCompletedWorkLog,
   updateSummary,
   renderTaskAnalysis,
+  renderPersonalAnalysis, 
   renderTaskSelectionModal,
   renderTeamSelectionModalContent,
   renderQuantityModalInputs,
@@ -18,7 +19,8 @@ import {
   renderAttendanceWeeklyHistory,
   renderAttendanceMonthlyHistory,
   renderWeeklyHistory,
-  renderMonthlyHistory
+  renderMonthlyHistory,
+  renderDashboardLayout // ✅ [추가]
 } from './ui.js';
 
 // ========== DOM Elements ==========
@@ -224,8 +226,8 @@ const render = () => {
   try {
     renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || []);
     renderCompletedWorkLog(appState);
-    updateSummary(appState, appConfig.teamGroups);
-    renderTaskAnalysis(appState);
+    updateSummary(appState, appConfig); // ✅ [수정] appConfig 전체 전달
+    renderTaskAnalysis(appState, appConfig); // ✅ [수정] appConfig 전달
   } catch (e) {
     console.error('Render error:', e);
     showToast('화면 렌더링 오류 발생.', true);
@@ -2044,6 +2046,7 @@ async function main() {
       const loadingSpinner = document.getElementById('loading-spinner');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
 
+      renderDashboardLayout(appConfig); // ✅ [추가] 현황판 레이아웃 렌더링
       renderTaskSelectionModal(appConfig.taskGroups);
   } catch (e) {
       console.error("설정 로드 실패:", e);

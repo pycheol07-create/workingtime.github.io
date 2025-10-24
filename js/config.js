@@ -121,6 +121,8 @@ export const saveLeaveSchedule = async (dbInstance, leaveData) => {
 
 
 // 8. 기본 앱 설정 데이터 (근태 일정 제거)
+// === config.js (일부) ===
+// 8. 기본 앱 설정 데이터 (근태 일정 제거)
 function getDefaultConfig() {
     return {
         teamGroups: [
@@ -137,6 +139,8 @@ function getDefaultConfig() {
         },
         // [추가] keyTasks 기본값 정의
         keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'],
+        // ✅ [추가] 현황판 기본 항목
+        dashboardItems: ['total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff', 'ongoing-tasks', 'total-work-time'],
         taskGroups: {
             '공통': ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업'],
             '담당': ['개인담당업무', '상.하차', '검수', '아이롱', '오류'],
