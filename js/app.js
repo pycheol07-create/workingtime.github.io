@@ -990,8 +990,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
                     '총 인건비(원)': Math.round(cost),
                     '총 처리량(개)': qty,
                     '평균 처리량(개/분)': avgThroughput,
-                    // ✅ [수정] 아래 한 줄로 수정
-                    '평균 처리비용(원/개)': avgCostPerItem
+                    '평균 처리비용(원/개)': avgCostPerItem // ✅ 수정된 부분
                 });
             });
         }
@@ -1048,8 +1047,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
                     '총 인건비(원)': Math.round(cost),
                     '총 처리량(개)': qty,
                     '평균 처리량(개/분)': avgThroughput,
-                    // ✅ [수정] 아래 한 줄로 수정
-                    '평균 처리비용(원/개)': avgCostPerItem
+                    '평균 처리비용(원/개)': avgCostPerItem // ✅ 수정된 부분
                 });
             });
         }
