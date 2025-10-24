@@ -198,47 +198,50 @@ function renderTeamGroups(teamGroups, memberWages) {
     });
 }
 
-// ✅ [수정] 현황판 항목 설정 렌더링 함수 (커스텀 항목 처리 및 클래스 추가)
+// ✅ [수정] 현황판 항목 설정 렌더링 함수 (수량 입력 필드 한 줄로 변경)
 function renderDashboardItemsConfig(itemIds, quantities) {
     const container = document.getElementById('dashboard-items-container');
     container.innerHTML = '';
-    // ✅ [수정] 모든 정의 가져오기
     const allDefinitions = getAllDashboardDefinitions(appConfig);
 
     itemIds.forEach((id, index) => {
-        // ✅ [수정] 모든 정의에서 찾기
         const itemDef = allDefinitions[id];
-        // 정의를 찾을 수 없는 ID는 건너뜀 (삭제된 커스텀 항목 등)
         if (!itemDef) {
             console.warn(`Dashboard item definition not found for ID: ${id}. Skipping render.`);
             return;
         }
 
         const itemEl = document.createElement('div');
-        // ✅ [수정] isQuantity 여부에 따라 클래스 및 flex-wrap 추가
         const isQuantity = itemDef.isQuantity === true;
-        itemEl.className = `flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 dashboard-item-config ${isQuantity ? 'flex-wrap is-quantity-item' : ''}`;
+        // ✅ [수정] flex-wrap 클래스 제거, is-quantity-item 클래스는 유지
+        itemEl.className = `flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 dashboard-item-config ${isQuantity ? 'is-quantity-item' : ''}`;
         itemEl.dataset.index = index;
 
+        // 핸들 + 이름 (flex-grow 제거하여 이름 너비 자동 조절)
         let itemHtml = `
             <span class="drag-handle" draggable="true">☰</span>
-            <span class="dashboard-item-name flex-grow p-2 ${isQuantity ? 'bg-yellow-50' : 'bg-gray-100'} rounded" data-id="${id}">${itemDef.title}</span>
-        `; // 배경색 약간 조정
+            <span class="dashboard-item-name p-2 ${isQuantity ? 'bg-yellow-50' : 'bg-gray-100'} rounded text-sm font-medium" data-id="${id}">${itemDef.title}</span>
+        `;
 
+        // ✅ [수정] 수량 입력 필드 HTML (isQuantity가 true일 때)
         if (isQuantity) {
+            // 이름 옆에 바로 붙도록 수정, ml-auto로 오른쪽 정렬
             itemHtml += `
-                <div class="w-full pl-8 flex items-center gap-2 mt-1">
-                    <label for="qty-${id}" class="text-xs font-medium text-gray-600">수량:</label>
+                <div class="ml-auto flex items-center gap-1"> <label for="qty-${id}" class="text-xs font-medium text-gray-600 whitespace-nowrap">수량:</label>
                     <input type="number" id="qty-${id}"
-                           class="dashboard-item-quantity w-20 p-1 border border-gray-300 rounded text-sm bg-white"
+                           class="dashboard-item-quantity w-16 p-1 border border-gray-300 rounded text-sm bg-white" /* 너비 약간 줄임 */
                            value="${quantities[id] || 0}"
                            min="0"
                            data-id="${id}">
                 </div>
-            `; // bg-white 추가
+            `;
+        } else {
+            // 수량 항목 아닐 때 공간 채우기 용도 (삭제 버튼 위치 고정)
+            itemHtml += `<div class="flex-grow"></div>`;
         }
 
-         itemHtml += `<button class="btn btn-danger btn-small delete-dashboard-item-btn ml-auto" data-id="${id}">삭제</button>`;
+        // 삭제 버튼
+        itemHtml += `<button class="btn btn-danger btn-small delete-dashboard-item-btn ml-2" data-id="${id}">삭제</button>`; // ml-2 추가
 
         itemEl.innerHTML = itemHtml;
         container.appendChild(itemEl);
