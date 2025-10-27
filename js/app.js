@@ -255,17 +255,29 @@ const updateElapsedTimes = () => {
 };
 
 // ========== 렌더 ==========
-const render = () => {
+// ✅ [수정] renderFastUpdate 함수 (가벼운 렌더링)
+const renderFastUpdate = () => {
   try {
     renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || []);
-    renderCompletedWorkLog(appState);
     updateSummary(appState, appConfig); // ✅ appConfig 전체 전달 확인
+  } catch (e) {
+    console.error('Fast Render error:', e);
+  }
+};
+
+// ✅ [수정] render -> renderFullUpdate로 이름 변경 (무거운 렌더링)
+const renderFullUpdate = () => {
+  try {
+    renderFastUpdate(); // ✅ 가벼운 렌더링 우선 실행
+    renderCompletedWorkLog(appState);
     renderTaskAnalysis(appState, appConfig); // ✅ appConfig 전달 확인
   } catch (e) {
     console.error('Render error:', e);
     showToast('화면 렌더링 오류 발생.', true);
   }
 };
+
+// ========== Firestore 저장 ==========
 
 // ========== Firestore 저장 ==========
 // ... (markDataAsDirty, autoSaveProgress, saveStateToFirestore 함수는 이전과 동일) ...
@@ -429,7 +441,7 @@ const pauseWorkGroup = (groupId) => {
   if (changed) { 
       debouncedSaveState(); 
       showToast('그룹 업무가 일시정지 되었습니다.'); 
-      render(); // ✅ [추가] 즉시 UI 렌더링
+      renderFastUpdate(); // ✅ [수정] render() -> renderFastUpdate()
   }
 };
 
@@ -448,7 +460,7 @@ const resumeWorkGroup = (groupId) => {
   if (changed) { 
       debouncedSaveState(); 
       showToast('그룹 업무를 다시 시작합니다.'); 
-      render(); // ✅ [추가] 즉시 UI 렌더링
+      renderFastUpdate(); // ✅ [수정] render() -> renderFastUpdate()
   }
 };
 
@@ -465,7 +477,7 @@ const pauseWorkIndividual = (recordId) => {
     record.pauses.push({ start: currentTime, end: null, type: 'break' });
     debouncedSaveState();
     showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
-    render(); // ✅ [추가] 즉시 UI 렌더링
+    renderFastUpdate(); // ✅ [추가] 즉시 UI 렌더링
   }
 };
 
@@ -481,7 +493,7 @@ const resumeWorkIndividual = (recordId) => {
     }
     debouncedSaveState();
     showToast(`${record.member}님 ${record.task} 업무 재개.`);
-    render(); // ✅ [추가] 즉시 UI 렌더링
+    renderFastUpdate(); // ✅ [추가] 즉시 UI 렌더링
   }
 };
 
@@ -583,11 +595,11 @@ async function saveDayDataToHistory(shouldReset) {
     // ✅ [수정] 초기화 시에는 디바운스를 사용하지 않고 즉시 저장하여 반영합니다.
     await saveStateToFirestore(); 
     showToast('오늘의 업무 기록을 초기화했습니다.');
-    render();
+    renderFullUpdate(); // ✅ [수정] render() -> renderFullUpdate()
   } else {
       // ✅ [수정] 단순 마감 시에도 즉시 저장합니다.
       await saveStateToFirestore();
-      render();
+      renderFullUpdate(); // ✅ [수정] render() -> renderFullUpdate()
   }
 }
 
@@ -2217,7 +2229,7 @@ async function main() {
       persistentLeaveSchedule = await loadLeaveSchedule(db);
 
       const loadingSpinner = document.getElementById('loading-spinner');
-      if (loadingSpinner) loadingSpinner.style.display = 'none';
+      // if (loadingSpinner) loadingSpinner.style.display = 'none'; // ✅ [삭제] 이 줄을 삭제합니다.
 
       // ✅ [수정] appState 전달 제거 (config만 사용)
       renderDashboardLayout(appConfig); 
@@ -2226,7 +2238,7 @@ async function main() {
       console.error("설정 로드 실패:", e);
       showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
       const loadingSpinner = document.getElementById('loading-spinner');
-      if (loadingSpinner) loadingSpinner.style.display = 'none';
+      // if (loadingSpinner) loadingSpinner.style.display = 'none'; // ✅ [삭제] 이 줄을 삭제합니다.
       // 설정 로드 실패 시에도 기본 config로 레이아웃 렌더링 시도
       renderDashboardLayout(getDefaultConfig()); 
       renderTaskSelectionModal(getDefaultConfig().taskGroups); 
@@ -2263,13 +2275,13 @@ async function main() {
           });
           
           markDataAsDirty();
-          render();
+          renderFullUpdate(); // ✅ [수정] render() -> renderFullUpdate()
           
       }, (error) => {
           console.error("근태 일정 실시간 연결 실패:", error);
           showToast("근태 일정 연결에 실패했습니다.", true);
           appState.dateBasedOnLeaveMembers = [];
-          render();
+          renderFullUpdate(); // ✅ [수정] render() -> renderFullUpdate()
       });
 
       const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
@@ -2294,7 +2306,12 @@ async function main() {
 
           // ✅ [수정] Firestore 로드 후에도 config만 사용하여 다시 렌더링 (일관성 유지)
           renderDashboardLayout(appConfig); 
-          render(); // 나머지 UI 업데이트
+          renderFullUpdate(); // ✅ [수정] render() -> renderFullUpdate()
+          
+          // ✅ [추가] 데이터 로드 완료 후 스피너 숨김
+          const loadingSpinner = document.getElementById('loading-spinner');
+          if (loadingSpinner) loadingSpinner.style.display = 'none';
+
           if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
           if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
         } catch (parseError) {
@@ -2302,7 +2319,12 @@ async function main() {
           showToast('데이터 로딩 중 오류 발생 (파싱 실패).', true);
           appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
           renderDashboardLayout(appConfig); // 오류 시에도 config 사용
-          render();
+          renderFullUpdate(); // ✅ [수정] render() -> renderFullUpdate()
+          
+          // ✅ [추가] 오류 발생 시에도 스피너 숨김
+          const loadingSpinner = document.getElementById('loading-spinner');
+          if (loadingSpinner) loadingSpinner.style.display = 'none';
+
           if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
           if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
         }
@@ -2311,7 +2333,12 @@ async function main() {
         showToast('실시간 연결에 실패했습니다.', true);
         appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
         renderDashboardLayout(appConfig); // 오류 시에도 config 사용
-        render();
+        renderFullUpdate(); // ✅ [수정] render() -> renderFullUpdate()
+
+        // ✅ [추가] 오류 발생 시에도 스피너 숨김
+        const loadingSpinner = document.getElementById('loading-spinner');
+        if (loadingSpinner) loadingSpinner.style.display = 'none';
+
         if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
         if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
       });
@@ -2322,13 +2349,22 @@ async function main() {
       if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; }
       appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
       renderDashboardLayout(appConfig); // 로그아웃 시에도 config 사용
-      render();
+      renderFullUpdate(); // ✅ [수정] render() -> renderFullUpdate()
+
+      // ✅ [추가] 로그아웃 시에도 스피너 숨김
+      const loadingSpinner = document.getElementById('loading-spinner');
+      if (loadingSpinner) loadingSpinner.style.display = 'none';
     }
   });
 
    signInAnonymously(auth).catch(error => {
     console.error('Anonymous sign-in failed:', error);
     showToast('자동 인증에 실패했습니다.', true);
+    
+    // ✅ [추가] 인증 실패 시에도 스피너 숨김
+    const loadingSpinner = document.getElementById('loading-spinner');
+    if (loadingSpinner) loadingSpinner.style.display = 'none';
+
     if (connectionStatusEl) connectionStatusEl.textContent = '인증 실패';
     if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
   });
