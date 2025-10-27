@@ -1149,23 +1149,34 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap) => {
     let html = '';
     sortedKeys.forEach(periodKey => {
         const data = aggregationMap[periodKey];
-        // 근태 항목 집계 (member-type 기준)
+        
+        // [수정] 근태 항목 집계 (member-type 기준)
         const summary = data.leaveEntries.reduce((acc, entry) => {
             const key = `${entry.member}-${entry.type}`;
-            if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
+            
+            // [수정] days: 0 제거, count만 초기화
+            if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0 };
 
-            if(entry.startDate) {
-                acc[key].count += 1;
-            } else {
-                acc[key].count += 1;
+            // [수정] '연차', '출장', '결근'은 date-based (날짜 기반)
+            if (['연차', '출장', '결근'].includes(entry.type)) {
+                 // 이 entry는 하루에 하나씩 추가되므로, count가 곧 days임.
+                 acc[key].count += 1;
+            } 
+            // [수정] '외출', '조퇴'는 time-based (시간 기반)
+            else if (['외출', '조퇴'].includes(entry.type)) {
+                 acc[key].count += 1;
             }
+            // (기타 유형도 count)
+            
             return acc;
         }, {});
 
-        // '일' 단위 휴가(연차 등) 계산
+        // [수정] '일' 단위와 '회' 단위 구분
         Object.values(summary).forEach(item => {
              if (['연차', '출장', '결근'].includes(item.type)) {
-                 item.days = item.count;
+                 item.days = item.count; // '일' 단위
+             } else {
+                 item.days = 0; // '회' 단위 (days는 0으로)
              }
         });
 
