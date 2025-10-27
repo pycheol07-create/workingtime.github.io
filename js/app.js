@@ -72,10 +72,6 @@ const stopIndividualConfirmModal = document.getElementById('stop-individual-conf
 const confirmStopIndividualBtn = document.getElementById('confirm-stop-individual-btn');
 const cancelStopIndividualBtn = document.getElementById('cancel-stop-individual-btn');
 const stopIndividualConfirmMessage = document.getElementById('stop-individual-confirm-message');
-const stopGroupConfirmModal = document.getElementById('stop-group-confirm-modal');
-const confirmStopGroupBtn = document.getElementById('confirm-stop-group-btn');
-const cancelStopGroupBtn = document.getElementById('cancel-stop-group-btn');
-const stopGroupConfirmMessage = document.getElementById('stop-group-confirm-message');
 const editPartTimerModal = document.getElementById('edit-part-timer-modal');
 const confirmEditPartTimerBtn = document.getElementById('confirm-edit-part-timer-btn');
 const cancelEditPartTimerBtn = document.getElementById('cancel-edit-part-timer-btn');
@@ -150,7 +146,6 @@ let selectedTaskForStart = null;
 let selectedGroupForAdd = null;
 let recordToDeleteId = null;
 let recordToStopId = null;
-let groupToStopId_Confirm = null; // ✅ [추가] 그룹 종료 확인용
 let historyKeyToDelete = null;
 let allHistoryData = [];
 let recordToEditId = null;
@@ -426,11 +421,7 @@ const pauseWorkGroup = (groupId) => {
       changed = true;
     }
   });
-  if (changed) { 
-      debouncedSaveState(); 
-      showToast('그룹 업무가 일시정지 되었습니다.'); 
-      render(); // ✅ [추가] 즉시 UI 렌더링
-  }
+  if (changed) { debouncedSaveState(); showToast('그룹 업무가 일시정지 되었습니다.'); }
 };
 
 // ✅ [수정] saveStateToFirestore -> debouncedSaveState
@@ -445,11 +436,7 @@ const resumeWorkGroup = (groupId) => {
       changed = true;
     }
   });
-  if (changed) { 
-      debouncedSaveState(); 
-      showToast('그룹 업무를 다시 시작합니다.'); 
-      render(); // ✅ [추가] 즉시 UI 렌더링
-  }
+  if (changed) { debouncedSaveState(); showToast('그룹 업무를 다시 시작합니다.'); }
 };
 
 // === app.js (일부) ===
@@ -465,7 +452,6 @@ const pauseWorkIndividual = (recordId) => {
     record.pauses.push({ start: currentTime, end: null, type: 'break' });
     debouncedSaveState();
     showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
-    render(); // ✅ [추가] 즉시 UI 렌더링
   }
 };
 
@@ -481,7 +467,6 @@ const resumeWorkIndividual = (recordId) => {
     }
     debouncedSaveState();
     showToast(`${record.member}님 ${record.task} 업무 재개.`);
-    render(); // ✅ [추가] 즉시 UI 렌더링
   }
 };
 
@@ -1444,19 +1429,17 @@ document.addEventListener('fullscreenchange', () => {
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
-    // if (stopGroupButton) { stopWorkGroup(Number(stopGroupButton.dataset.groupId)); return; } // [기존]
-    
-    // ===== [수정된 부분] =====
-    if (stopGroupButton) {
+    if (stopGroupButton) { stopWorkGroup(Number(stopGroupButton.dataset.groupId)); return; }
+    const pauseGroupButton = e.target.closest('.pause-work-group-btn');
+    if (pauseGroupButton) { pauseWorkGroup(Number(pauseGroupButton.dataset.groupId)); return; }
+    const resumeGroupButton = e.target.closest('.resume-work-group-btn');
+    if (resumeGroupButton) { resumeWorkGroup(Number(resumeGroupButton.dataset.groupId)); return; }
+
+    const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
+    if (individualPauseBtn) {
         e.stopPropagation();
-        const groupId = Number(stopGroupButton.dataset.groupId);
-        const record = (appState.workRecords || []).find(r => r.groupId === groupId);
-        if (record) {
-            groupToStopId_Confirm = groupId;
-            if (stopGroupConfirmMessage) stopGroupConfirmMessage.textContent = `'${record.task}' 업무(그룹)를 전체 종료하시겠습니까?`;
-            if (stopGroupConfirmModal) stopGroupConfirmModal.classList.remove('hidden');
-        }
-        return; 
+        pauseWorkIndividual(individualPauseBtn.dataset.recordId);
+        return;
     }
 
     const individualResumeBtn = e.target.closest('[data-action="resume-individual"]');
@@ -1863,24 +1846,6 @@ if (confirmStopIndividualBtn) {
   });
 }
 
-// ===== [추가된 리스너] =====
-if (confirmStopGroupBtn) {
-  confirmStopGroupBtn.addEventListener('click', () => {
-    if (groupToStopId_Confirm) {
-      stopWorkGroup(groupToStopId_Confirm); // 기존 그룹 종료 함수 호출
-    }
-    if (stopGroupConfirmModal) stopGroupConfirmModal.classList.add('hidden');
-    groupToStopId_Confirm = null;
-  });
-}
-
-if (cancelStopGroupBtn) {
-  cancelStopGroupBtn.addEventListener('click', () => {
-    if (stopGroupConfirmModal) stopGroupConfirmModal.classList.add('hidden');
-    groupToStopId_Confirm = null;
-  });
-}
-
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
     if (!memberToSetLeave) return;
 
@@ -2015,9 +1980,6 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
           if(input) input.value = '';
       } else if (modalId === 'stop-individual-confirm-modal') {
           recordToStopId = null;
-      } else if (modalId === 'stop-group-confirm-modal') { 
-          groupToStopId_Confirm = null;
-      // =========================    
       } else if (modalId === 'edit-part-timer-modal') {
           // (알바 수정 모달 닫기 로직 - 이미 존재)
       } else if (modalId === 'manual-add-record-modal') { // ✅ [추가]
@@ -2037,7 +1999,6 @@ if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => { if(editRecord
 if (cancelResetAppBtn) cancelResetAppBtn.addEventListener('click', () => { if(resetAppModal) resetAppModal.classList.add('hidden'); });
 if (cancelQuantityOnStopBtn) cancelQuantityOnStopBtn.addEventListener('click', () => { if(quantityOnStopModal) quantityOnStopModal.classList.add('hidden'); groupToStopId = null; });
 if (cancelStopIndividualBtn) cancelStopIndividualBtn.addEventListener('click', () => { if(stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden'); recordToStopId = null; });
-if (cancelStopGroupBtn) cancelStopGroupBtn.addEventListener('click', () => { if(stopGroupConfirmModal) stopGroupConfirmModal.classList.add('hidden'); groupToStopId_Confirm = null; });
 if (cancelEditPartTimerBtn) cancelEditPartTimerBtn.addEventListener('click', () => { if(editPartTimerModal) editPartTimerModal.classList.add('hidden'); });
 if (cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => {
      if(teamSelectModal) teamSelectModal.classList.add('hidden');
