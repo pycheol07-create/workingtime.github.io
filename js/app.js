@@ -917,14 +917,17 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         fitToColumn(worksheet1);
         XLSX.utils.book_append_sheet(workbook, worksheet1, `상세 기록 (${dateKey})`);
 
-        const sheet2Headers = ['업무 종류', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)'];
+        const sheet2Headers = ['업무 종류', '진행 인원수', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)'];
         const summaryByTask = {};
         dailyRecords.forEach(r => {
-            if (!summaryByTask[r.task]) summaryByTask[r.task] = { totalDuration: 0, totalCost: 0 };
+            if (!summaryByTask[r.task]) {
+                summaryByTask[r.task] = { totalDuration: 0, totalCost: 0, members: new Set() };
+            }
             const wage = combinedWageMap[r.member] || 0;
             const cost = ((Number(r.duration) || 0) / 60) * wage;
             summaryByTask[r.task].totalDuration += (Number(r.duration) || 0);
             summaryByTask[r.task].totalCost += cost;
+            summaryByTask[r.task].members.add(r.member); // [추가] 고유 인원 집계
         });
         const sheet2Data = Object.keys(summaryByTask).sort().map(task => {
             const taskQty = Number(dailyQuantities[task]) || 0;
@@ -932,6 +935,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
             const costPerItem = (taskQty > 0) ? (taskCost / taskQty) : 0;
             return {
                 '업무 종류': task,
+                '진행 인원수': summaryByTask[task].members.size, // [추가]
                 '총 소요 시간(분)': Math.round(summaryByTask[task].totalDuration),
                 '총 인건비(원)': Math.round(taskCost),
                 '총 처리량(개)': taskQty,
