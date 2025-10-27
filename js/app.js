@@ -426,7 +426,11 @@ const pauseWorkGroup = (groupId) => {
       changed = true;
     }
   });
-  if (changed) { debouncedSaveState(); showToast('그룹 업무가 일시정지 되었습니다.'); }
+  if (changed) { 
+      debouncedSaveState(); 
+      showToast('그룹 업무가 일시정지 되었습니다.'); 
+      render(); // ✅ [추가] 즉시 UI 렌더링
+  }
 };
 
 // ✅ [수정] saveStateToFirestore -> debouncedSaveState
@@ -441,7 +445,11 @@ const resumeWorkGroup = (groupId) => {
       changed = true;
     }
   });
-  if (changed) { debouncedSaveState(); showToast('그룹 업무를 다시 시작합니다.'); }
+  if (changed) { 
+      debouncedSaveState(); 
+      showToast('그룹 업무를 다시 시작합니다.'); 
+      render(); // ✅ [추가] 즉시 UI 렌더링
+  }
 };
 
 // === app.js (일부) ===
@@ -457,6 +465,7 @@ const pauseWorkIndividual = (recordId) => {
     record.pauses.push({ start: currentTime, end: null, type: 'break' });
     debouncedSaveState();
     showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
+    render(); // ✅ [추가] 즉시 UI 렌더링
   }
 };
 
@@ -472,6 +481,7 @@ const resumeWorkIndividual = (recordId) => {
     }
     debouncedSaveState();
     showToast(`${record.member}님 ${record.task} 업무 재개.`);
+    render(); // ✅ [추가] 즉시 UI 렌더링
   }
 };
 
