@@ -332,6 +332,7 @@ const startWorkGroup = (members, task) => {
   }));
   appState.workRecords = appState.workRecords || [];
   appState.workRecords.push(...newRecords);
+  render(); // [추가]
   debouncedSaveState();
 };
 
@@ -351,6 +352,7 @@ const addMembersToWorkGroup = (members, task, groupId) => {
   }));
   appState.workRecords = appState.workRecords || [];
   appState.workRecords.push(...newRecords);
+  render(); // [추가]
   debouncedSaveState();
 };
 
@@ -384,7 +386,10 @@ const finalizeStopGroup = (groupId, quantity) => {
     appState.taskQuantities[taskName] = (appState.taskQuantities[taskName] || 0) + (Number(quantity) || 0);
   }
 
-  if (changed) debouncedSaveState();
+  if (changed) {
+    render(); // [추가]
+    debouncedSaveState();
+  }
   if (quantityOnStopModal) quantityOnStopModal.classList.add('hidden');
   groupToStopId = null;
 };
@@ -401,6 +406,7 @@ const stopWorkIndividual = (recordId) => {
     record.status = 'completed';
     record.endTime = endTime;
     record.duration = calcElapsedMinutes(record.startTime, endTime, record.pauses);
+    render(); // [추가]
     debouncedSaveState();
     showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
   } else {
@@ -421,6 +427,12 @@ const pauseWorkGroup = (groupId) => {
       changed = true;
     }
   });
+  if (changed) { 
+    render(); // [추가]
+    debouncedSaveState(); 
+    showToast('그룹 업무가 일시정지 되었습니다.'); 
+  }
+};
   if (changed) { debouncedSaveState(); showToast('그룹 업무가 일시정지 되었습니다.'); }
 };
 
@@ -436,7 +448,11 @@ const resumeWorkGroup = (groupId) => {
       changed = true;
     }
   });
-  if (changed) { debouncedSaveState(); showToast('그룹 업무를 다시 시작합니다.'); }
+  if (changed) { 
+    render(); // [추가]
+    debouncedSaveState(); 
+    showToast('그룹 업무를 다시 시작합니다.'); 
+  }
 };
 
 // === app.js (일부) ===
@@ -450,6 +466,7 @@ const pauseWorkIndividual = (recordId) => {
     record.pauses = record.pauses || [];
     // ✅ [수정] 'type: 'break'' 추가
     record.pauses.push({ start: currentTime, end: null, type: 'break' });
+    render(); // [추가]
     debouncedSaveState();
     showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
   }
@@ -465,6 +482,7 @@ const resumeWorkIndividual = (recordId) => {
     if (lastPause && lastPause.end === null) {
       lastPause.end = currentTime;
     }
+    render(); // [추가]
     debouncedSaveState();
     showToast(`${record.member}님 ${record.task} 업무 재개.`);
   }
