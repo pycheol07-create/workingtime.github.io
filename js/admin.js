@@ -527,8 +527,7 @@ function addTaskGroup() {
     // 및 새 input에 blur 리스너 부착
     const newTasksContainer = groupEl.querySelector('.tasks-container');
     if (newTasksContainer) {
-        setupDragDropListeners('.tasks-container', '.task-item');
-        
+        setupDragDropListeners('.tasks-container', '.task-item'); // ✅ 이 줄 추가!
         const newTaskNameInput = newTasksContainer.querySelector('.task-name');
         if (newTaskNameInput) {
             newTaskNameInput.focus();

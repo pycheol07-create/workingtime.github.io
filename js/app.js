@@ -3,29 +3,22 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
-// ✅ [수정] APP_ID 추가
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule, APP_ID } from './config.js';
-import { showToast, getTodayDateString, /* ... */ } from './utils.js';
-import { renderRealtimeStatus, /* ... */ } from './ui.js';
+
+// ✅ config.js 가져오기 (initializeFirebase, APP_ID 등 한 번만) + getDefaultConfig 추가
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule, APP_ID, getDefaultConfig } from './config.js';
+
+// ✅ utils.js 가져오기 (함수 목록 한 번만)
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday } from './utils.js';
+
+// ✅ ui.js 가져오기 (함수 목록 한 번만)
 import {
-  renderRealtimeStatus,
-  renderCompletedWorkLog,
-  updateSummary,
-  renderTaskAnalysis,
-  renderPersonalAnalysis,
-  renderTaskSelectionModal,
-  renderTeamSelectionModalContent,
-  renderQuantityModalInputs,
-  renderLeaveTypeModalOptions,
-  renderAttendanceDailyHistory,
-  renderAttendanceWeeklyHistory,
-  renderAttendanceMonthlyHistory,
-  renderWeeklyHistory,
-  renderMonthlyHistory,
-  renderDashboardLayout,
-  renderManualAddModalDatalists // ✅ [추가]
+  renderRealtimeStatus, renderCompletedWorkLog, updateSummary,
+  renderTaskAnalysis, renderPersonalAnalysis, renderTaskSelectionModal,
+  renderTeamSelectionModalContent, renderQuantityModalInputs,
+  renderLeaveTypeModalOptions, renderAttendanceDailyHistory,
+  renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory,
+  renderWeeklyHistory, renderMonthlyHistory, renderDashboardLayout,
+  renderManualAddModalDatalists
 } from './ui.js';
 
 // ========== DOM Elements ==========
