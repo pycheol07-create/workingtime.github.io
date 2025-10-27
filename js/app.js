@@ -95,12 +95,6 @@ const toggleCompletedLog = document.getElementById('toggle-completed-log');
 const toggleAnalysis = document.getElementById('toggle-analysis');
 const toggleSummary = document.getElementById('toggle-summary');
 
-// ✅ [추가] 그룹 업무 종료 확인 모달 요소
-const stopGroupConfirmModal = document.getElementById('stop-group-confirm-modal');
-const confirmStopGroupBtn = document.getElementById('confirm-stop-group-btn');
-const cancelStopGroupBtn = document.getElementById('cancel-stop-group-btn');
-const stopGroupConfirmMessage = document.getElementById('stop-group-confirm-message');
-
 // ✅ [추가] 수동 기록 추가 모달 요소
 const openManualAddBtn = document.getElementById('open-manual-add-btn');
 const manualAddRecordModal = document.getElementById('manual-add-record-modal');
@@ -157,7 +151,6 @@ let allHistoryData = [];
 let recordToEditId = null;
 let deleteMode = 'single';
 let groupToStopId = null;
-let groupIdToStop = null; // ✅ [추가] 그룹 업무 종료 확인용
 let quantityModalContext = { mode: 'today', dateKey: null, onConfirm: null, onCancel: null };
 let tempSelectedMembers = [];
 let memberToSetLeave = null;
@@ -361,23 +354,10 @@ const addMembersToWorkGroup = (members, task, groupId) => {
   debouncedSaveState();
 };
 
-// ✅ [수정] 그룹 업무 종료 시, 확인 모달 띄우도록 변경
 const stopWorkGroup = (groupId) => {
   const recordsToStop = (appState.workRecords || []).filter(r => r.groupId === groupId && (r.status === 'ongoing' || r.status === 'paused'));
   if (recordsToStop.length === 0) return;
-
-  const taskName = recordsToStop[0]?.task || '알 수 없는';
-  const memberCount = recordsToStop.length;
-
-  groupIdToStop = groupId; // ✅ [추가] 그룹 ID를 전역 변수에 저장
-
-  if (stopGroupConfirmMessage) {
-    stopGroupConfirmMessage.textContent = `'${taskName}' 업무(참여인원: ${memberCount}명)를 종료하시겠습니까?`;
-  }
-  if (stopGroupConfirmModal) {
-    stopGroupConfirmModal.classList.remove('hidden');
-  }
-  // finalizeStopGroup(groupId, null); // ✅ [제거] 직접 종료하는 대신 모달을 띄움
+  finalizeStopGroup(groupId, null);
 };
 
 // ✅ [수정] saveStateToFirestore -> debouncedSaveState
@@ -1866,25 +1846,6 @@ if (confirmStopIndividualBtn) {
   });
 }
 
-// ✅ [추가] 그룹 업무 종료 확인 모달 리스너
-if (confirmStopGroupBtn) {
-  confirmStopGroupBtn.addEventListener('click', () => {
-    if (groupIdToStop) {
-      // (참고: quantityTaskTypes 확인 로직이 app.js의 stopWorkGroup에 없었으므로,
-      //       여기서도 바로 finalizeStopGroup을 호출합니다.)
-      finalizeStopGroup(groupIdToStop, null);
-    }
-    if (stopGroupConfirmModal) stopGroupConfirmModal.classList.add('hidden');
-    groupIdToStop = null;
-  });
-}
-if (cancelStopGroupBtn) {
-  cancelStopGroupBtn.addEventListener('click', () => {
-    if (stopGroupConfirmModal) stopGroupConfirmModal.classList.add('hidden');
-    groupIdToStop = null;
-  });
-}
-
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
     if (!memberToSetLeave) return;
 
@@ -2019,8 +1980,6 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
           if(input) input.value = '';
       } else if (modalId === 'stop-individual-confirm-modal') {
           recordToStopId = null;
-      } else if (modalId === 'stop-group-confirm-modal') { // ✅ [추가]
-          groupIdToStop = null; // ✅ [추가]
       } else if (modalId === 'edit-part-timer-modal') {
           // (알바 수정 모달 닫기 로직 - 이미 존재)
       } else if (modalId === 'manual-add-record-modal') { // ✅ [추가]
@@ -2040,10 +1999,6 @@ if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => { if(editRecord
 if (cancelResetAppBtn) cancelResetAppBtn.addEventListener('click', () => { if(resetAppModal) resetAppModal.classList.add('hidden'); });
 if (cancelQuantityOnStopBtn) cancelQuantityOnStopBtn.addEventListener('click', () => { if(quantityOnStopModal) quantityOnStopModal.classList.add('hidden'); groupToStopId = null; });
 if (cancelStopIndividualBtn) cancelStopIndividualBtn.addEventListener('click', () => { if(stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden'); recordToStopId = null; });
-// ✅ [추가] 그룹 업무 종료 확인 모달의 취소 버튼
-if (cancelStopGroupBtn) cancelStopGroupBtn.addEventListener('click', () => { if(stopGroupConfirmModal) stopGroupConfirmModal.classList.add('hidden'); groupIdToStop = null; });
-if (cancelEditPartTimerBtn) cancelEditPartTimerBtn.addEventListener('click', () => { if(editPartTimerModal) editPartTimerModal.classList.add('hidden'); });
-if (cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => {
 if (cancelEditPartTimerBtn) cancelEditPartTimerBtn.addEventListener('click', () => { if(editPartTimerModal) editPartTimerModal.classList.add('hidden'); });
 if (cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => {
      if(teamSelectModal) teamSelectModal.classList.add('hidden');
