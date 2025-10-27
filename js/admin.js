@@ -155,23 +155,23 @@ function renderAdminUI(config) {
         wageInput.value = config.defaultPartTimerWage || 10000;
     }
 
-    // ✅ renderTeamGroups 호출 시 memberPins 전달
-    renderTeamGroups(config.teamGroups || [], config.memberWages || {}, config.memberPins || {});
-
+    renderTeamGroups(config.teamGroups || [], config.memberWages || {});
+    // ✅ [수정] dashboardQuantities 전달 추가
     renderDashboardItemsConfig(config.dashboardItems || [], config.dashboardQuantities || {});
     renderKeyTasks(config.keyTasks || []);
     renderTaskGroups(config.taskGroups || {});
     renderQuantityTasks(config.quantityTaskTypes || []);
 }
 
-// ✅ [수정] memberPins 파라미터 추가
-function renderTeamGroups(teamGroups, memberWages, memberPins = {}) {
+function renderTeamGroups(teamGroups, memberWages) {
     const container = document.getElementById('team-groups-container');
     container.innerHTML = '';
     teamGroups.forEach((group, index) => {
         const groupEl = document.createElement('div');
+        // [수정] groupEl에서 draggable="true" 제거
         groupEl.className = 'p-4 border rounded-lg bg-gray-50 team-group-card';
         groupEl.dataset.index = index;
+        // groupEl.draggable = true; // [제거]
 
         const membersHtml = group.members.map((member, mIndex) => `
             <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item">
@@ -179,30 +179,21 @@ function renderTeamGroups(teamGroups, memberWages, memberPins = {}) {
                 <input type="text" value="${member}" class="member-name" placeholder="팀원 이름">
                 <label class="text-sm whitespace-nowrap">시급:</label>
                 <input type="number" value="${memberWages[member] || 0}" class="member-wage w-28" placeholder="시급">
-
-                <label class="text-sm whitespace-nowrap ml-2">PIN:</label>
-                <input type="password" value="${memberPins[member] || ''}"
-                       class="member-pin w-20"
-                       placeholder="4자리"
-                       maxlength="4"
-                       inputmode="numeric"
-                       pattern="[0-9]{4}">
-
-                <button class="btn btn-danger btn-small delete-member-btn ml-auto" data-m-index="${mIndex}">삭제</button>
+                <button class="btn btn-danger btn-small delete-member-btn" data-m-index="${mIndex}">삭제</button>
             </div>
-        `).join('');
+        `).join(''); // [수정] member-item에서 draggable="true" 제거, handle에 draggable="true" 추가
 
         groupEl.innerHTML = `
             <div class="flex justify-between items-center mb-4">
                 <div class="flex items-center">
-                    <span class="drag-handle" draggable="true">☰</span>
+                    <span class="drag-handle" draggable="true">☰</span> 
                     <input type="text" value="${group.name}" class="text-lg font-semibold team-group-name w-auto">
                 </div>
                 <button class="btn btn-danger btn-small delete-team-group-btn">그룹 삭제</button>
             </div>
             <div class="pl-4 border-l-2 border-gray-200 space-y-2 members-container">${membersHtml}</div>
             <button class="btn btn-secondary btn-small mt-3 add-member-btn">+ 팀원 추가</button>
-        `;
+        `; // [수정] group-card의 handle에 draggable="true" 추가
         container.appendChild(groupEl);
     });
 }
@@ -432,31 +423,31 @@ function setupEventListeners() {
 function addTeamGroup() {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
+
+    // 새 그룹을 위한 데이터 (로컬 appConfig는 '저장' 시에만 업데이트)
     const newGroupName = '새 그룹';
     const newMemberName = '새 팀원';
     const defaultWage = appConfig.defaultPartTimerWage || 10000;
+
+    // 새 그룹 DOM 생성
     const groupEl = document.createElement('div');
     groupEl.className = 'p-4 border rounded-lg bg-gray-50 team-group-card';
-
-    // ✅ 새 멤버 HTML (PIN 필드 추가)
+    
+    // 새 멤버 HTML
     const membersHtml = `
         <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item">
             <span class="drag-handle" draggable="true">☰</span>
             <input type="text" value="${newMemberName}" class="member-name" placeholder="팀원 이름">
             <label class="text-sm whitespace-nowrap">시급:</label>
             <input type="number" value="${defaultWage}" class="member-wage w-28" placeholder="시급">
-
-            <label class="text-sm whitespace-nowrap ml-2">PIN:</label>
-            <input type="password" value="" class="member-pin w-20" placeholder="4자리" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
-
-            <button class="btn btn-danger btn-small delete-member-btn ml-auto">삭제</button>
+            <button class="btn btn-danger btn-small delete-member-btn">삭제</button>
         </div>
     `;
 
     groupEl.innerHTML = `
         <div class="flex justify-between items-center mb-4">
             <div class="flex items-center">
-                <span class="drag-handle" draggable="true">☰</span>
+                <span class="drag-handle" draggable="true">☰</span> 
                 <input type="text" value="${newGroupName}" class="text-lg font-semibold team-group-name w-auto">
             </div>
             <button class="btn btn-danger btn-small delete-team-group-btn">그룹 삭제</button>
@@ -464,9 +455,19 @@ function addTeamGroup() {
         <div class="pl-4 border-l-2 border-gray-200 space-y-2 members-container">${membersHtml}</div>
         <button class="btn btn-secondary btn-small mt-3 add-member-btn">+ 팀원 추가</button>
     `;
+    
+    // DOM에 추가
     container.appendChild(groupEl);
+
+    // ✅ [추가] 방금 생성된 새 .members-container에 드래그 리스너 수동 부착
     const newMembersContainer = groupEl.querySelector('.members-container');
-    if (newMembersContainer) setupDragDropListeners('.members-container', '.member-item');
+    if (newMembersContainer) {
+        // setupDragDropListeners 함수는 여러 컨테이너를 대상으로 하므로,
+        // 여기서는 단일 엘리먼트에 리스너를 붙이는 로직을 직접 수행하거나,
+        // setupDragDropListeners가 단일 엘리먼트도 처리할 수 있게 해야 합니다.
+        // 가장 간단한 해결책은 setupDragDropListeners를 다시 호출하는 것입니다.
+        setupDragDropListeners('.members-container', '.member-item');
+    }
 }
 
 // [수정] addKeyTask 함수
@@ -527,7 +528,8 @@ function addTaskGroup() {
     // 및 새 input에 blur 리스너 부착
     const newTasksContainer = groupEl.querySelector('.tasks-container');
     if (newTasksContainer) {
-        setupDragDropListeners('.tasks-container', '.task-item'); // ✅ 이 줄 추가!
+        setupDragDropListeners('.tasks-container', '.task-item');
+        
         const newTaskNameInput = newTasksContainer.querySelector('.task-name');
         if (newTaskNameInput) {
             newTaskNameInput.focus();
@@ -695,7 +697,7 @@ function addCustomDashboardItem() {
 
 // [수정] handleDynamicClicks 함수
 function handleDynamicClicks(e) {
-    // 모달 닫기 버튼
+    // [추가] 모달 닫기 버튼
     const closeBtn = e.target.closest('.modal-close-btn');
     if (closeBtn) {
         const modalId = closeBtn.dataset.modalId;
@@ -703,46 +705,43 @@ function handleDynamicClicks(e) {
             const modal = document.getElementById(modalId);
             if (modal) modal.classList.add('hidden');
         }
-        return; // 모달 닫기 시 다른 동작 방지
     }
-
-    // 설정 카드 접기/펴기
+    
+    // ✅ [추가] 설정 카드 접기/펴기
     const toggleBtn = e.target.closest('.config-card-toggle');
     if (toggleBtn) {
         const card = toggleBtn.closest('.config-card');
         const content = card.querySelector('.config-card-content');
         const arrow = toggleBtn.querySelector('svg');
-        if (content) content.classList.toggle('hidden');
-        if (arrow) arrow.classList.toggle('arrow-rotated');
-        return; // 토글 클릭 시 다른 동작 방지
+        if (content) {
+            content.classList.toggle('hidden');
+        }
+        if (arrow) {
+            arrow.classList.toggle('arrow-rotated');
+        }
+        return; // 토글 클릭 시 다른 동작(삭제 등) 방지
     }
-
-    // ✅ 팀원 추가 시 PIN 필드 포함
+    
+    // 팀원 추가/삭제, 팀 그룹 삭제
     if (e.target.classList.contains('add-member-btn')) {
-        const container = e.target.previousElementSibling; // members-container
+        const container = e.target.previousElementSibling;
         const newMemberEl = document.createElement('div');
         newMemberEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item';
+        // newMemberEl.draggable = true; // [제거]
         newMemberEl.innerHTML = `
             <span class="drag-handle" draggable="true">☰</span>
             <input type="text" value="새 팀원" class="member-name" placeholder="팀원 이름">
             <label class="text-sm whitespace-nowrap">시급:</label>
             <input type="number" value="${appConfig.defaultPartTimerWage || 10000}" class="member-wage w-28" placeholder="시급">
-
-            <label class="text-sm whitespace-nowrap ml-2">PIN:</label>
-            <input type="password" value="" class="member-pin w-20" placeholder="4자리" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
-
-            <button class="btn btn-danger btn-small delete-member-btn ml-auto">삭제</button>
-        `;
+            <button class="btn btn-danger btn-small delete-member-btn">삭제</button>
+        `; // [수정] handle에 draggable="true" 추가
         container.appendChild(newMemberEl);
-        // 새 항목에도 드래그 리스너 적용 (컨테이너 단위로 다시 설정)
-        setupDragDropListeners('.members-container', '.member-item');
-
     } else if (e.target.classList.contains('delete-member-btn')) {
         e.target.closest('.member-item').remove();
     } else if (e.target.classList.contains('delete-team-group-btn')) {
         e.target.closest('.team-group-card').remove();
     }
-    // 현황판 항목 삭제
+    // ✅ [추가] 현황판 항목 삭제
     else if (e.target.classList.contains('delete-dashboard-item-btn')) {
         e.target.closest('.dashboard-item-config').remove();
     }
@@ -752,22 +751,24 @@ function handleDynamicClicks(e) {
     }
     // 업무 추가/삭제, 업무 그룹 삭제
     else if (e.target.classList.contains('add-task-btn')) {
-        const container = e.target.previousElementSibling; // tasks-container
+        const container = e.target.previousElementSibling;
         const newTaskEl = document.createElement('div');
         newTaskEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item';
+        // newTaskEl.draggable = true; // [제거]
         newTaskEl.innerHTML = `
             <span class="drag-handle" draggable="true">☰</span>
             <input type="text" value="새 업무" class="task-name flex-grow">
             <button class="btn btn-danger btn-small delete-task-btn">삭제</button>
-        `;
+        `; // [수정] handle에 draggable="true" 추가
         container.appendChild(newTaskEl);
+
+        // [추가] 방금 추가된 '새 업무' input에 blur 이벤트 리스너 추가
         const newTaskNameInput = newTaskEl.querySelector('.task-name');
         if (newTaskNameInput) {
-            newTaskNameInput.focus();
+            newTaskNameInput.focus(); // 바로 이름 수정하도록 포커스
+            // 포커스를 잃었을 때(이름 수정 완료 시) 팝업을 띄우기 위한 리스너
             newTaskNameInput.addEventListener('blur', handleNewTaskNameBlur, { once: true });
         }
-        // 새 항목에도 드래그 리스너 적용 (컨테이너 단위로 다시 설정)
-        setupDragDropListeners('.tasks-container', '.task-item');
 
     } else if (e.target.classList.contains('delete-task-btn')) {
         e.target.closest('.task-item').remove();
@@ -891,88 +892,80 @@ async function handleSaveAll() {
         const newConfig = {
             teamGroups: [],
             memberWages: {},
-            memberPins: {}, // ✅ PIN 저장 객체
             dashboardItems: [],
-            dashboardQuantities: {},
-            dashboardCustomItems: {},
+            dashboardQuantities: {}, // ✅ 현황판 수량 객체
+            dashboardCustomItems: {}, // ✅ [추가] 커스텀 항목 저장 객체
             keyTasks: [],
             taskGroups: {},
             quantityTaskTypes: [],
             defaultPartTimerWage: 10000
         };
 
-        const pinValidationErrors = [];
-        const usedPins = new Set();
-
-        // 1. 팀원, 시급, PIN 정보 읽기
+        // 1. 팀원 및 시급 정보 읽기 (순서 반영)
         document.querySelectorAll('#team-groups-container .team-group-card').forEach(groupCard => {
             const groupName = groupCard.querySelector('.team-group-name').value.trim();
             if (!groupName) return;
+
             const newGroup = { name: groupName, members: [] };
 
             groupCard.querySelectorAll('.member-item').forEach(memberItem => {
                 const memberName = memberItem.querySelector('.member-name').value.trim();
-                if (!memberName) return;
                 const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
-                const memberPinInput = memberItem.querySelector('.member-pin');
-                const memberPin = memberPinInput ? memberPinInput.value : '';
+                if (!memberName) return;
 
                 newGroup.members.push(memberName);
                 newConfig.memberWages[memberName] = memberWage;
-
-                // ✅ PIN 유효성 검사
-                if (memberPin) {
-                    if (!/^\d{4}$/.test(memberPin)) {
-                        pinValidationErrors.push(`- ${memberName}: PIN은 4자리 숫자여야 합니다. ('${memberPin}')`);
-                    } else if (usedPins.has(memberPin)) {
-                        pinValidationErrors.push(`- ${memberName}: 다른 팀원과 중복된 PIN입니다. ('${memberPin}')`);
-                    } else {
-                        newConfig.memberPins[memberName] = memberPin;
-                        usedPins.add(memberPin);
-                    }
-                }
             });
             newConfig.teamGroups.push(newGroup);
         });
 
-        // ✅ PIN 유효성 검사 결과 확인
-        if (pinValidationErrors.length > 0) {
-            alert(`[저장 실패] PIN 설정 오류:\n\n${pinValidationErrors.join('\n')}`);
-            return;
-        }
-
-        // 2. 현황판 항목 읽기
-        const allDefinitions = getAllDashboardDefinitions(appConfig);
+        // ✅ [수정] 2. 현황판 항목 순서, 수량 및 커스텀 정의 읽기
+        const allDefinitions = getAllDashboardDefinitions(appConfig); // 현재 로드된 모든 정의 사용
         document.querySelectorAll('#dashboard-items-container .dashboard-item-config').forEach(item => {
             const nameSpan = item.querySelector('.dashboard-item-name');
             const quantityInput = item.querySelector('.dashboard-item-quantity');
+
             if (nameSpan) {
                 const id = nameSpan.dataset.id;
-                newConfig.dashboardItems.push(id);
+                newConfig.dashboardItems.push(id); // 순서 저장
+
+                // 정의 가져오기
                 const itemDef = allDefinitions[id];
-                if (!itemDef) return;
+                if (!itemDef) return; // 정의 없으면 무시
+
+                // 수량 항목이면 값 읽기
                 if (itemDef.isQuantity && quantityInput) {
-                    newConfig.dashboardQuantities[id] = Math.max(0, parseInt(quantityInput.value, 10) || 0);
+                    const quantity = parseInt(quantityInput.value, 10) || 0;
+                    newConfig.dashboardQuantities[id] = Math.max(0, quantity);
                 }
+
+                // ✅ [추가] 커스텀 항목이면 정의 저장
                 if (id.startsWith('custom-')) {
-                    newConfig.dashboardCustomItems[id] = { title: itemDef.title, isQuantity: true };
+                    newConfig.dashboardCustomItems[id] = {
+                        title: itemDef.title,
+                        isQuantity: true // 커스텀은 항상 수량 항목
+                    };
                 }
             }
         });
 
-        // 3. 주요 업무 읽기
+        // 3. 주요 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
+             // [수정] .value -> .textContent
              const taskName = item.querySelector('.key-task-name').textContent.trim();
              if (taskName) newConfig.keyTasks.push(taskName);
         });
 
-        // 4. 업무 그룹 읽기
+
+        // 4. 업무 정보 읽기 (순서 반영)
         const orderedTaskGroups = {};
         document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
             const groupNameInput = groupCard.querySelector('.task-group-name');
             const groupName = groupNameInput ? groupNameInput.value.trim() : '';
             if (!groupName) return;
+
             const tasks = [];
+
             groupCard.querySelectorAll('.task-item').forEach(taskItem => {
                 const taskName = taskItem.querySelector('.task-name').value.trim();
                 if (taskName) tasks.push(taskName);
@@ -981,37 +974,49 @@ async function handleSaveAll() {
         });
         newConfig.taskGroups = orderedTaskGroups;
 
-        // 5. 처리량 업무 읽기
+
+        // 5. 처리량 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
+            // [수정] .value -> .textContent
             const taskName = item.querySelector('.quantity-task-name').textContent.trim();
             if (taskName) newConfig.quantityTaskTypes.push(taskName);
         });
 
-        // 6. 알바 시급 읽기
+        // 6. 전역 설정 (알바 시급) 읽기
         const wageInput = document.getElementById('default-part-timer-wage');
-        if (wageInput) newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
-
-        // 7. 업무 이름 유효성 검사
-        const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
-        const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
-        const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
-        if (invalidKeyTasks.length > 0 || invalidQuantityTasks.length > 0) {
-            let errorMsg = "[저장 실패] '업무 관리' 목록에 존재하지 않는 업무 이름이 포함되어 있습니다.\n\n";
-            if (invalidKeyTasks.length > 0) errorMsg += `▶ 주요 업무 오류:\n- ${invalidKeyTasks.join('\n- ')}\n\n`;
-            if (invalidQuantityTasks.length > 0) errorMsg += `▶ 처리량 집계 오류:\n- ${invalidQuantityTasks.join('\n- ')}\n\n`;
-            errorMsg += "오타를 수정하거나 '업무 관리' 섹션에 해당 업무를 먼저 추가해주세요.";
-            alert(errorMsg);
-            return;
+        if (wageInput) {
+            newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
         }
 
-        // 8. Firestore 저장
+        // [추가] 7. 데이터 유효성 검사
+        const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
+
+        const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
+        const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
+
+        if (invalidKeyTasks.length > 0 || invalidQuantityTasks.length > 0) {
+            let errorMsg = "[저장 실패] '업무 관리' 목록에 존재하지 않는 업무 이름이 포함되어 있습니다.\n\n";
+            if (invalidKeyTasks.length > 0) {
+                errorMsg += `▶ 주요 업무 오류:\n- ${invalidKeyTasks.join('\n- ')}\n\n`;
+            }
+            if (invalidQuantityTasks.length > 0) {
+                errorMsg += `▶ 처리량 집계 오류:\n- ${invalidQuantityTasks.join('\n- ')}\n\n`;
+            }
+            errorMsg += "오타를 수정하거나 '업무 관리' 섹션에 해당 업무를 먼저 추가해주세요.";
+            alert(errorMsg);
+            return; // 저장 중단
+        }
+
+
+        // 8. Firestore에 저장
         await saveAppConfig(db, newConfig);
-        appConfig = newConfig;
+        appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');
 
-        // 9. UI 다시 렌더링
+        // 9. UI 다시 렌더링 (리스너 재설정 포함)
         renderAdminUI(appConfig);
-        setupEventListeners();
+        setupEventListeners(); // 렌더링 후 리스너 재설정
+
 
     } catch (e) {
         console.error("저장 실패:", e);

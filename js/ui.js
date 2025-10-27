@@ -275,74 +275,81 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     container.innerHTML = html;
 };
 
-export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], selectedMember = 'all') => {
+export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     const teamStatusBoard = document.getElementById('team-status-board');
-    if (!teamStatusBoard) { console.error("Element #team-status-board not found!"); return; }
-    teamStatusBoard.innerHTML = ''; // 현황판 초기화
+    if (!teamStatusBoard) {
+        console.error("Element #team-status-board not found!");
+        return;
+    }
+    teamStatusBoard.innerHTML = '';
 
-    const isMobileFiltered = selectedMember !== 'all'; // 모바일 필터 적용 여부
-
-    // 팀원 -> 그룹 매핑 (기존과 동일)
     const memberGroupMap = new Map();
-    teamGroups.forEach(group => group.members.forEach(member => { if (!memberGroupMap.has(member)) memberGroupMap.set(member, group.name); }));
+    teamGroups.forEach(group => group.members.forEach(member => {
+        if (!memberGroupMap.has(member)) memberGroupMap.set(member, group.name);
+    }));
 
-    // --- Section 1: Preset Task Quick Actions (주요 업무 카드) ---
+    // --- Section 1: Preset Task Quick Actions ---
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
+
     const presetGrid = document.createElement('div');
+    // ✅ [수정] 그리드 컬럼 설정 변경 (xl: 7개 추가)
     presetGrid.className = 'grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4';
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
+    
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
-    const tasksToRender = [...new Set([...baseTasks, ...activeTaskNames])]; // 기본 + 현재 진행중인 주요 업무
+    
+    const tasksToRender = [...new Set([...baseTasks, ...activeTaskNames])];
 
     tasksToRender.forEach(task => {
-        const card = document.createElement('div'); // 카드 요소 생성
-        const groupRecords = ongoingRecords.filter(r => r.task === task); // 이 업무에 해당하는 진행/일시정지 기록들
+        const card = document.createElement('div');
+        const groupRecords = ongoingRecords.filter(r => r.task === task);
 
-        // ✅ 모바일 필터링 (주요 업무 카드)
-        if (isMobileFiltered) {
-            const isMemberInThisGroup = groupRecords.some(r => r.member === selectedMember); // 내가 이 그룹에 있는지?
-            // 진행 중인데 내가 없으면 이 카드 표시 안 함
-            if (groupRecords.length > 0 && !isMemberInThisGroup) {
-                return; // 다음 task로 넘어감
-            }
-            // 아직 시작 안 한 업무 카드(groupRecords.length === 0)는 필터 시 표시 안 함
-            if (groupRecords.length === 0) {
-                 return; // 다음 task로 넘어감
-            }
-        }
-
-        // 카드 스타일 및 내용 결정 (기존 로직과 거의 동일)
         const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
         const isOngoing = groupRecords.some(r => r.status === 'ongoing');
-        let currentStyle = taskCardStyles[isPaused ? 'paused' : (isOngoing || groupRecords.length > 0 ? 'ongoing' : 'default')];
+
+        let currentStyle;
+        if (isPaused) {
+            currentStyle = taskCardStyles['paused'];
+        } else if (isOngoing || groupRecords.length > 0) {
+            currentStyle = taskCardStyles['ongoing'];
+        } else {
+            currentStyle = taskCardStyles['default'];
+        }
+
         const titleClass = isPaused ? currentStyle.title : (taskTitleColors[task] || taskTitleColors['default']);
+
         card.className = `p-3 rounded-lg border flex flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
 
-        if (groupRecords.length > 0) { // 업무 진행 중인 카드
-            const firstRecord = groupRecords[0]; // 대표 기록 (그룹 ID 등 가져오기용)
-            card.dataset.action = 'add-member'; // 클릭 시 멤버 추가 모달 열도록
+
+        if (groupRecords.length > 0) {
+            const firstRecord = groupRecords[0];
+
+            card.dataset.action = 'add-member';
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
 
-            // 참여 멤버 목록 HTML 생성
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
+
                 const isRecPaused = rec.status === 'paused';
+
                 const memberTextColor = isRecPaused ? 'text-yellow-800' : 'text-gray-800';
                 const timeTextColor = isRecPaused ? 'text-yellow-600' : 'text-gray-500';
                 const stopButtonBg = isRecPaused ? 'bg-yellow-200 hover:bg-yellow-300' : 'bg-red-100 hover:bg-red-200';
                 const stopButtonText = isRecPaused ? 'text-yellow-700' : 'text-red-700';
                 const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
-                let pauseResumeButtonHtml = ''; // 개별 정지/재개 버튼
+
+                let pauseResumeButtonHtml = '';
                 if (rec.status === 'ongoing') {
                     pauseResumeButtonHtml = `<button data-action="pause-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-0.5 rounded ml-1 flex-shrink-0">정지</button>`;
                 } else if (rec.status === 'paused') {
                     pauseResumeButtonHtml = `<button data-action="resume-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-0.5 rounded ml-1 flex-shrink-0">재개</button>`;
                 }
+
                 membersHtml += `<div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center">
                     <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block text-left" title="${rec.member}">${rec.member}</span>
                     <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
@@ -354,22 +361,26 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], s
             });
             membersHtml += '</div>';
 
-            // 대표 시작 시간 및 타이머 데이터 설정
             const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && (!earliest || current.startTime < earliest)) ? current.startTime : earliest), null);
-            const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0]; // 타이머 기준 레코드
-            const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id; // 사용 안 함 (데이터 속성용)
-            const pauses = representativeRecord ? representativeRecord.pauses : []; // 대표 휴식 기록
-            const pausesJson = JSON.stringify(pauses || []); // JSON 문자열로 변환
-            const durationStatus = isOngoing ? 'ongoing' : 'paused'; // 타이머 상태
-            const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`; // 전체 종료 버튼 스타일
+            // ✅ [수정] find 대신 || groupRecords[0] 추가 (안정성)
+            const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
+            const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id;
 
-            // 카드 내부 HTML 완성
+            // ✅ [추가] 타이머 최적화를 위해 pauses 정보 추가
+            const pauses = representativeRecord ? representativeRecord.pauses : [];
+            const pausesJson = JSON.stringify(pauses || []);
+
+            const durationStatus = isOngoing ? 'ongoing' : 'paused';
+
+            const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
+
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div>
-                                <div class="text-xs ${currentStyle.subtitle} my-2">시작: ${formatTimeTo24H(earliestStartTime)}
-                                    <span class="ongoing-duration"
-                                          data-start-time="${earliestStartTime || ''}"
-                                          data-status="${durationStatus}"
+                                <div class="text-xs ${currentStyle.subtitle} my-2">시작: ${formatTimeTo24H(earliestStartTime)} 
+                                    <span class="ongoing-duration" 
+                                          data-start-time="${earliestStartTime || ''}" 
+                                          data-status="${durationStatus}" 
+                                          data-record-id="${recordIdForDuration || ''}"
                                           data-pauses-json='${pausesJson}'></span>
                                 </div>
                                 <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
@@ -381,9 +392,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], s
                                     <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} w-full text-white font-bold py-2 rounded-md transition text-sm">전체 종료</button>
                                 </div>
                             </div>`;
-        } else { // 아직 시작 안 한 업무 카드 (모바일 필터 시에는 이 부분 실행 안 됨)
-            card.dataset.action = 'start-task'; // 클릭 시 멤버 선택 모달 열도록
+        } else {
+            card.dataset.action = 'start-task';
             card.dataset.task = task;
+
             card.innerHTML = `
                 <div class="flex-grow">
                     <div class="font-bold text-lg ${titleClass} break-keep">${task}</div>
@@ -397,142 +409,177 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], s
                 </div>
             `;
         }
-        presetGrid.appendChild(card); // 그리드에 카드 추가
+        presetGrid.appendChild(card);
     });
 
-    // '기타 업무' 카드 (모바일 필터 아닐 때만 추가)
-    if (!isMobileFiltered) {
-        const otherTaskCard = document.createElement('div');
-        const otherStyle = taskCardStyles['default'];
-        otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
-        otherTaskCard.dataset.action = 'other'; // 클릭 시 업무 선택 모달 열도록
-        otherTaskCard.innerHTML = `
-            <div class="font-bold text-lg text-gray-700">기타 업무</div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mt-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
-        `;
-        presetGrid.appendChild(otherTaskCard);
-    }
+    const otherTaskCard = document.createElement('div');
+    const otherStyle = taskCardStyles['default'];
+    otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
+    otherTaskCard.dataset.action = 'other';
+    otherTaskCard.innerHTML = `
+        <div class="font-bold text-lg text-gray-700">기타 업무</div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mt-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
+    `;
+    presetGrid.appendChild(otherTaskCard);
+    presetTaskContainer.appendChild(presetGrid);
+    teamStatusBoard.appendChild(presetTaskContainer);
 
-    presetTaskContainer.appendChild(presetGrid); // 컨테이너에 그리드 추가
-    teamStatusBoard.appendChild(presetTaskContainer); // 최종 현황판에 추가
 
-    // --- Section 2: ALL TEAM MEMBER STATUS (전체 팀원 현황 카드) ---
+    // --- Section 2: ALL TEAM MEMBER STATUS ---
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 근태 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // 상태별 멤버 정보 계산 (기존과 동일)
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-    const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task])); // 업무 중인 멤버 Map (이름 -> 업무)
-    const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task])); // 휴식 중인 멤버 Map
-    const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])]; // 오늘 휴무/외출/조퇴 + 날짜 지정 휴가 멤버
-    const onLeaveStatusMap = new Map(combinedOnLeaveMembers.filter(item => !(item.type === '외출' && item.endTime)).map(item => [item.member, item])); // 휴무 중인 멤버 Map (이름 -> 상태 객체)
+    const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
+    const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
 
-    // 팀 그룹 순서 정렬 (기존과 동일)
+    const combinedOnLeaveMembers = [
+        ...(appState.dailyOnLeaveMembers || []),
+        ...(appState.dateBasedOnLeaveMembers || [])
+    ];
+    const onLeaveStatusMap = new Map(
+        combinedOnLeaveMembers
+            .filter(item => !(item.type === '외출' && item.endTime))
+            .map(item => [item.member, item])
+    );
+
     const orderedTeamGroups = [
-        teamGroups.find(g => g.name === '관리'), teamGroups.find(g => g.name === '공통파트'),
-        teamGroups.find(g => g.name === '담당파트'), teamGroups.find(g => g.name === '제작파트'),
+        teamGroups.find(g => g.name === '관리'),
+        teamGroups.find(g => g.name === '공통파트'),
+        teamGroups.find(g => g.name === '담당파트'),
+        teamGroups.find(g => g.name === '제작파트'),
     ].filter(Boolean);
 
-    // 각 팀 그룹별 멤버 카드 생성
+
     orderedTeamGroups.forEach(group => {
-        const groupContainer = document.createElement('div'); groupContainer.className = 'mb-4';
-        const groupHeader = document.createElement('div'); groupHeader.className = 'flex items-center gap-2 mb-2';
+        const groupContainer = document.createElement('div');
+        groupContainer.className = 'mb-4';
+        const groupHeader = document.createElement('div');
+        groupHeader.className = 'flex items-center gap-2 mb-2';
         groupHeader.innerHTML = `<h4 class="text-md font-semibold text-gray-600">${group.name}</h4>`;
         groupContainer.appendChild(groupHeader);
-        const groupGrid = document.createElement('div'); groupGrid.className = 'flex flex-wrap gap-2';
-        const uniqueMembersInGroup = [...new Set(group.members)]; // 그룹 내 중복 제거
+        const groupGrid = document.createElement('div');
+        groupGrid.className = 'flex flex-wrap gap-2';
+        const uniqueMembersInGroup = [...new Set(group.members)];
 
         uniqueMembersInGroup.forEach(member => {
-            // ✅ 모바일 필터링 (팀원 카드) - 선택된 멤버가 아니면 건너뜀
-            if (isMobileFiltered && member !== selectedMember) {
-                return;
-            }
-
-            const card = document.createElement('button'); card.type = 'button';
-            const leaveInfo = onLeaveStatusMap.get(member); const isOnLeave = !!leaveInfo;
+            const card = document.createElement('button');
+            card.type = 'button';
+            const leaveInfo = onLeaveStatusMap.get(member);
+            const isOnLeave = !!leaveInfo;
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
-            // ✅ 필터 적용 시 테두리 추가
-            card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex flex-col justify-center ${isMobileFiltered ? 'ring-2 ring-blue-500 shadow-lg' : ''}`;
-            card.dataset.memberToggleLeave = member; // 근태 토글 기능 연결
 
-            // 상태에 따른 스타일 및 내용 결정 (기존 로직과 동일)
-            if (!isWorking) card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
-            else card.classList.add('opacity-70', 'cursor-not-allowed');
+            // ✅ [수정] 직원 카드 크기 조정: w-24 -> w-28, min-h-[64px] -> min-h-[72px]
+            card.className = 'p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex flex-col justify-center';
+            card.dataset.memberToggleLeave = member;
+            if (!isWorking) {
+                card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
+            } else {
+                card.classList.add('opacity-70', 'cursor-not-allowed');
+            }
 
             if (isOnLeave) {
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 let detailText = '';
-                if (leaveInfo.startTime) { detailText = formatTimeTo24H(leaveInfo.startTime); if (leaveInfo.endTime) detailText += ` - ${formatTimeTo24H(leaveInfo.endTime)}`; else if (leaveInfo.type === '외출') detailText += ' ~'; }
-                else if (leaveInfo.startDate) { detailText = leaveInfo.startDate.substring(5); if (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate) detailText += ` ~ ${leaveInfo.endDate.substring(5)}`; }
-                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">${leaveInfo.type}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
+                if (leaveInfo.startTime) {
+                    detailText = formatTimeTo24H(leaveInfo.startTime);
+                    if (leaveInfo.endTime) {
+                         detailText += ` - ${formatTimeTo24H(leaveInfo.endTime)}`;
+                    } else if (leaveInfo.type === '외출') {
+                         detailText += ' ~';
+                    }
+                }
+                else if (leaveInfo.startDate) {
+                    detailText = leaveInfo.startDate.substring(5);
+                    if (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate) {
+                        detailText += ` ~ ${leaveInfo.endDate.substring(5)}`;
+                    }
+                }
+                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div>
+                                  <div class="text-xs">${leaveInfo.type}</div>
+                                  ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
             } else if (workingMembers.has(member)) {
                 card.classList.add('bg-red-50', 'border-red-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-red-800 break-keep">${member}</div><div class="text-xs text-gray-600 truncate" title="${workingMembers.get(member)}">${workingMembers.get(member)}</div>`;
             } else if (pausedMembers.has(member)) {
                 card.classList.add('bg-yellow-50', 'border-yellow-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-yellow-800 break-keep">${member}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
-            } else { // 대기 중
+            } else {
                 card.classList.add('bg-green-50', 'border-green-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
             }
-            groupGrid.appendChild(card); // 그룹 그리드에 카드 추가
+            groupGrid.appendChild(card);
         });
-        groupContainer.appendChild(groupGrid); // 그룹 컨테이너에 그리드 추가
-        allMembersContainer.appendChild(groupContainer); // 전체 컨테이너에 그룹 추가
+        groupContainer.appendChild(groupGrid);
+        allMembersContainer.appendChild(groupContainer);
     });
 
     // --- 알바 섹션 ---
-    const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member)); // 현재 일하는 알바 Set
-    const activePartTimers = (appState.partTimers || []).filter(pt => workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name)); // 일하거나 휴무인 알바만 필터링
+    const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
+    const activePartTimers = (appState.partTimers || []).filter(pt => {
+        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
+    });
 
     if (activePartTimers.length > 0) {
-        const albaContainer = document.createElement('div'); albaContainer.className = 'mb-4';
+        const albaContainer = document.createElement('div');
+        albaContainer.className = 'mb-4';
         albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2">알바</h4>`;
-        const albaGrid = document.createElement('div'); albaGrid.className = 'flex flex-wrap gap-2';
+
+        const albaGrid = document.createElement('div');
+        albaGrid.className = 'flex flex-wrap gap-2';
 
         activePartTimers.forEach(pt => {
-             // ✅ 모바일 필터링 (알바 카드) - 선택된 알바가 아니면 건너뜀
-             if (isMobileFiltered && pt.name !== selectedMember) {
-                 return;
-             }
-             const card = document.createElement('button'); card.type = 'button';
+             const card = document.createElement('button');
+             card.type = 'button';
              card.dataset.memberToggleLeave = pt.name;
-             // ✅ 필터 적용 시 테두리 추가
-             card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex flex-col justify-center ${isMobileFiltered ? 'ring-2 ring-blue-500 shadow-lg' : ''}`;
-             const currentlyWorkingTask = workingMembers.get(pt.name); const isPaused = pausedMembers.has(pt.name);
-             const albaLeaveInfo = onLeaveStatusMap.get(pt.name); const isAlbaOnLeave = !!albaLeaveInfo;
+             // ✅ [수정] 알바 카드 크기 조정: w-24 -> w-28, min-h-[64px] -> min-h-[72px]
+             card.className = 'relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex flex-col justify-center';
+
+             const currentlyWorkingTask = workingMembers.get(pt.name);
+             const isPaused = pausedMembers.has(pt.name);
+             const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
+             const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = currentlyWorkingTask || isPaused;
 
-             // 상태에 따른 스타일 및 내용 결정 (기존 로직과 동일)
-             if (!isAlbaWorking) card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
-             else card.classList.add('opacity-70', 'cursor-not-allowed');
+             if (!isAlbaWorking) {
+                 card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
+             } else {
+                 card.classList.add('opacity-70', 'cursor-not-allowed');
+             }
 
              if (isAlbaOnLeave) {
                  card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                  let detailText = '';
-                  if (albaLeaveInfo.startTime) { detailText = formatTimeTo24H(albaLeaveInfo.startTime); if (albaLeaveInfo.endTime) detailText += ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}`; else if (albaLeaveInfo.type === '외출') detailText += ' ~'; }
-                  else if (albaLeaveInfo.startDate) { detailText = albaLeaveInfo.startDate.substring(5); if (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate) detailText += ` ~ ${albaLeaveInfo.endDate.substring(5)}`; }
-                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">${albaLeaveInfo.type}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
-             } else if (currentlyWorkingTask) { // 업무 중
+                  if (albaLeaveInfo.startTime) {
+                     detailText = formatTimeTo24H(albaLeaveInfo.startTime);
+                     if (albaLeaveInfo.endTime) { detailText += ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}`; }
+                     else if (albaLeaveInfo.type === '외출') { detailText += ' ~'; }
+                  } else if (albaLeaveInfo.startDate) {
+                    detailText = albaLeaveInfo.startDate.substring(5);
+                    if (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate) { detailText += ` ~ ${albaLeaveInfo.endDate.substring(5)}`; }
+                  }
+                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div>
+                                   <div class="text-xs">${albaLeaveInfo.type}</div>
+                                   ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
+             } else if (currentlyWorkingTask) {
                  card.classList.add('bg-red-50', 'border-red-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-red-800">${pt.name}</div><div class="text-xs text-gray-600 truncate" title="${currentlyWorkingTask}">${currentlyWorkingTask}</div>`;
-             } else if (isPaused) { // 휴식 중
+             } else if (isPaused) {
                  card.classList.add('bg-yellow-50', 'border-yellow-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${pt.name}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
              }
-             // 알바 카드는 기본적으로 '대기 중' 상태가 없음 (시작 시 바로 업무 할당 가정)
-             albaGrid.appendChild(card); // 알바 그리드에 카드 추가
+             albaGrid.appendChild(card);
         });
-        albaContainer.appendChild(albaGrid); // 알바 컨테이너에 그리드 추가
-        allMembersContainer.appendChild(albaContainer); // 전체 컨테이너에 알바 섹션 추가
+        albaContainer.appendChild(albaGrid);
+        allMembersContainer.appendChild(albaContainer);
     }
-    // 최종적으로 팀원 현황 섹션을 현황판에 추가
+    teamStatusBoard.appendChild(presetTaskContainer);
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
@@ -1092,32 +1139,43 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 };
 
 // ✅ [추가] 주별/월별 근태 요약 렌더링을 위한 공통 헬퍼 함수
-// ✅ 주별/월별 근태 요약 렌더링 헬퍼 함수
 const renderAggregatedAttendanceSummary = (viewElement, aggregationMap) => {
     const sortedKeys = Object.keys(aggregationMap).sort((a,b) => b.localeCompare(a));
     if (sortedKeys.length === 0) {
-        viewElement.innerHTML = `<div class="text-center text-gray-500">해당 기간의 근태 데이터가 없습니다.</div>`; return;
+        viewElement.innerHTML = `<div class="text-center text-gray-500">해당 기간의 근태 데이터가 없습니다.</div>`;
+        return;
     }
+
     let html = '';
     sortedKeys.forEach(periodKey => {
         const data = aggregationMap[periodKey];
+        // 근태 항목 집계 (member-type 기준)
         const summary = data.leaveEntries.reduce((acc, entry) => {
             const key = `${entry.member}-${entry.type}`;
             if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
-            if (entry.startDate) acc[key].count += 1; // 날짜 기반은 일단 count 1
-            else acc[key].count += 1; // 시간 기반도 count 1
+
+            if(entry.startDate) {
+                acc[key].count += 1;
+            } else {
+                acc[key].count += 1;
+            }
             return acc;
         }, {});
-        // '일' 단위 휴가 일수 계산 (날짜 기반이고 특정 타입일 때)
+
+        // '일' 단위 휴가(연차 등) 계산
         Object.values(summary).forEach(item => {
              if (['연차', '출장', '결근'].includes(item.type)) {
-                 // 실제 일수를 계산하려면 aggregationMap 생성 시 날짜 정보 필요 (현재는 count만 사용)
-                 item.days = item.count; // 일단 count를 그대로 days로 사용
+                 item.days = item.count;
              }
         });
-        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6"><h3 class="text-xl font-bold mb-3">${periodKey}</h3><div class="space-y-1">`;
-        if (Object.keys(summary).length === 0) { html += `<p class="text-sm text-gray-500">데이터 없음</p>`; }
-        else {
+
+        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                    <h3 class="text-xl font-bold mb-3">${periodKey}</h3>
+                    <div class="space-y-1">`;
+
+        if (Object.keys(summary).length === 0) {
+             html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
+        } else {
             Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
                  html += `<div class="flex justify-between text-sm">
                             <span class="font-semibold text-gray-700">${item.member}</span>
@@ -1125,29 +1183,39 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap) => {
                             <span class="text-right">${item.days > 0 ? `${item.days}일` : `${item.count}회`}</span>
                          </div>`;
             });
-        } html += `</div></div>`;
+        }
+        html += `</div></div>`;
     });
+
     viewElement.innerHTML = html;
 };
 
-// ✅ 주별 근태 이력 렌더링 (헬퍼 사용)
 export const renderAttendanceWeeklyHistory = (allHistoryData) => {
     const view = document.getElementById('history-attendance-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터 집계 중...</div>';
+
+    // 주별 데이터 집계 로직
     const weeklyData = (allHistoryData || []).reduce((acc, day) => {
         if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string') return acc;
         try {
-             const dateObj = new Date(day.id); if (isNaN(dateObj.getTime())) return acc;
-             const weekKey = getWeekOfYear(dateObj); if (!weekKey) return acc;
+             const dateObj = new Date(day.id);
+             if (isNaN(dateObj.getTime())) return acc;
+             const weekKey = getWeekOfYear(dateObj);
+             if (!weekKey) return acc;
+
             if (!acc[weekKey]) acc[weekKey] = { leaveEntries: [], dateKeys: new Set() };
+
             day.onLeaveMembers.forEach(entry => {
                 if (entry && entry.type && entry.member) {
-                    if (entry.startDate) { // 날짜 기반 근태
-                        const currentDate = day.id; const startDate = entry.startDate;
+                    if (entry.startDate) {
+                        const currentDate = day.id;
+                        const startDate = entry.startDate;
                         const endDate = entry.endDate || entry.startDate;
-                        if (currentDate >= startDate && currentDate <= endDate) { acc[weekKey].leaveEntries.push({ ...entry, date: day.id }); }
-                    } else { // 시간 기반 근태 (외출, 조퇴 등)
+                        if (currentDate >= startDate && currentDate <= endDate) {
+                            acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
+                        }
+                    } else {
                         acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
                     }
                 }
@@ -1156,26 +1224,35 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
         } catch (e) { console.error("Error processing day in attendance weekly aggregation:", day.id, e); }
         return acc;
     }, {});
-    renderAggregatedAttendanceSummary(view, weeklyData); // 헬퍼 함수 호출
+
+    // ✅ [수정] 공통 헬퍼 함수로 렌더링 위임 (기존 중복 로직 삭제)
+    renderAggregatedAttendanceSummary(view, weeklyData);
 };
 
-// ✅ 월별 근태 이력 렌더링 (헬퍼 사용)
 export const renderAttendanceMonthlyHistory = (allHistoryData) => {
     const view = document.getElementById('history-attendance-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터 집계 중...</div>';
+
+    // 월별 데이터 집계 로직
     const monthlyData = (allHistoryData || []).reduce((acc, day) => {
         if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string' || day.id.length < 7) return acc;
          try {
-            const monthKey = day.id.substring(0, 7); if (!/^\d{4}-\d{2}$/.test(monthKey)) return acc;
+            const monthKey = day.id.substring(0, 7);
+             if (!/^\d{4}-\d{2}$/.test(monthKey)) return acc;
+
             if (!acc[monthKey]) acc[monthKey] = { leaveEntries: [], dateKeys: new Set() };
+
             day.onLeaveMembers.forEach(entry => {
                  if (entry && entry.type && entry.member) {
-                    if (entry.startDate) { // 날짜 기반
-                        const currentDate = day.id; const startDate = entry.startDate;
+                    if (entry.startDate) {
+                        const currentDate = day.id;
+                        const startDate = entry.startDate;
                         const endDate = entry.endDate || entry.startDate;
-                        if (currentDate >= startDate && currentDate <= endDate) { acc[monthKey].leaveEntries.push({ ...entry, date: day.id }); }
-                    } else { // 시간 기반
+                        if (currentDate >= startDate && currentDate <= endDate) {
+                            acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
+                        }
+                    } else {
                         acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
                     }
                 }
@@ -1184,9 +1261,10 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
         } catch (e) { console.error("Error processing day in attendance monthly aggregation:", day.id, e); }
         return acc;
     }, {});
-    renderAggregatedAttendanceSummary(view, monthlyData); // 헬퍼 함수 호출
-};
 
+    // ✅ [수정] 공통 헬퍼 함수로 렌더링 위임 (기존 중복 로직 삭제)
+    renderAggregatedAttendanceSummary(view, monthlyData);
+};
 
 // === ui.js (파일 맨 끝에 추가) ===
 
@@ -1222,4 +1300,3 @@ export const renderManualAddModalDatalists = (appState, appConfig) => {
         taskDatalist.appendChild(option);
     });
 };
-
