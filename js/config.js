@@ -16,7 +16,7 @@ export const firebaseConfig = {
 };
 
 // 2. 앱 ID
-const APP_ID = 'team-work-logger-v2';
+export const APP_ID = 'team-work-logger-v2'; // ✅ export 추가
 let db, auth;
 
 // 3. Firebase 초기화 함수 (공용)
