@@ -433,8 +433,6 @@ const pauseWorkGroup = (groupId) => {
     showToast('그룹 업무가 일시정지 되었습니다.'); 
   }
 };
-  if (changed) { debouncedSaveState(); showToast('그룹 업무가 일시정지 되었습니다.'); }
-};
 
 // ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const resumeWorkGroup = (groupId) => {
