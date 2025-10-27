@@ -1429,7 +1429,21 @@ document.addEventListener('fullscreenchange', () => {
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
-    if (stopGroupButton) { stopWorkGroup(Number(stopGroupButton.dataset.groupId)); return; }
+    if (stopGroupButton) { 
+        // stopWorkGroup(Number(stopGroupButton.dataset.groupId)); return; // [수정] 바로 실행 대신 확인 모달
+        groupToStopId = Number(stopGroupButton.dataset.groupId);
+        const stopGroupModal = document.getElementById('stop-group-confirm-modal');
+        if (stopGroupModal) {
+            // [추가] 어떤 업무를 종료하는지 모달 메시지에 표시
+            const card = stopGroupButton.closest('div[data-action]');
+            const taskName = card ? card.dataset.task : '이 그룹';
+            const msgEl = document.getElementById('stop-group-confirm-message');
+            if (msgEl) msgEl.textContent = `'${taskName}' 업무를 전체 종료하시겠습니까?`;
+            
+            stopGroupModal.classList.remove('hidden');
+        }
+        return; 
+    }
     const pauseGroupButton = e.target.closest('.pause-work-group-btn');
     if (pauseGroupButton) { pauseWorkGroup(Number(pauseGroupButton.dataset.groupId)); return; }
     const resumeGroupButton = e.target.closest('.resume-work-group-btn');
@@ -1846,6 +1860,28 @@ if (confirmStopIndividualBtn) {
   });
 }
 
+const confirmStopGroupBtn = document.getElementById('confirm-stop-group-btn');
+if (confirmStopGroupBtn) {
+  confirmStopGroupBtn.addEventListener('click', () => {
+    if (groupToStopId) {
+      stopWorkGroup(groupToStopId);
+    }
+    const stopGroupModal = document.getElementById('stop-group-confirm-modal');
+    if (stopGroupModal) stopGroupModal.classList.add('hidden');
+    groupToStopId = null;
+  });
+}
+
+const cancelStopGroupBtn = document.getElementById('cancel-stop-group-btn');
+if (cancelStopGroupBtn) {
+  cancelStopGroupBtn.addEventListener('click', () => {
+    const stopGroupModal = document.getElementById('stop-group-confirm-modal');
+    if (stopGroupModal) stopGroupModal.classList.add('hidden');
+    groupToStopId = null;
+  });
+}
+// [여기까지 추가]
+
 if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
     if (!memberToSetLeave) return;
 
@@ -1978,6 +2014,8 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
           groupToStopId = null;
           const input = document.getElementById('quantity-on-stop-input');
           if(input) input.value = '';
+      } else if (modalId === 'stop-group-confirm-modal') { // [추가]
+          groupToStopId = null; // [추가]
       } else if (modalId === 'stop-individual-confirm-modal') {
           recordToStopId = null;
       } else if (modalId === 'edit-part-timer-modal') {
