@@ -155,7 +155,7 @@ function renderAdminUI(config) {
         wageInput.value = config.defaultPartTimerWage || 10000;
     }
 
-    renderTeamGroups(config.teamGroups || [], config.memberWages || {});
+    renderTeamGroups(config.teamGroups || [], config.memberWages || {}, config.memberEmails || {}); // ✅ memberEmails 추가
     // ✅ [수정] dashboardQuantities 전달 추가
     renderDashboardItemsConfig(config.dashboardItems || [], config.dashboardQuantities || {});
     renderKeyTasks(config.keyTasks || []);
@@ -163,7 +163,7 @@ function renderAdminUI(config) {
     renderQuantityTasks(config.quantityTaskTypes || []);
 }
 
-function renderTeamGroups(teamGroups, memberWages) {
+function renderTeamGroups(teamGroups, memberWages, memberEmails) { // ✅ memberEmails 파라미터 추가
     const container = document.getElementById('team-groups-container');
     container.innerHTML = '';
     teamGroups.forEach((group, index) => {
@@ -173,15 +173,18 @@ function renderTeamGroups(teamGroups, memberWages) {
         groupEl.dataset.index = index;
         // groupEl.draggable = true; // [제거]
 
+        // ✅ [수정] 이메일 필드 추가 및 정렬 클래스(w-*, ml-auto) 적용
         const membersHtml = group.members.map((member, mIndex) => `
             <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item">
                 <span class="drag-handle" draggable="true">☰</span>
-                <input type="text" value="${member}" class="member-name" placeholder="팀원 이름">
-                <label class="text-sm whitespace-nowrap">시급:</label>
-                <input type="number" value="${memberWages[member] || 0}" class="member-wage w-28" placeholder="시급">
-                <button class="btn btn-danger btn-small delete-member-btn" data-m-index="${mIndex}">삭제</button>
+                <input type="text" value="${member}" class="member-name w-32" placeholder="팀원 이름">
+                <label class="text-sm whitespace-nowrap ml-2">로그인 이메일:</label>
+                <input type="email" value="${memberEmails[member] || ''}" class="member-email w-48" placeholder="example@email.com">
+                <label class="text-sm whitespace-nowrap ml-2">시급:</label>
+                <input type="number" value="${memberWages[member] || 0}" class="member-wage w-24" placeholder="시급">
+                <button class="btn btn-danger btn-small delete-member-btn ml-auto" data-m-index="${mIndex}">삭제</button>
             </div>
-        `).join(''); // [수정] member-item에서 draggable="true" 제거, handle에 draggable="true" 추가
+        `).join('');
 
         groupEl.innerHTML = `
             <div class="flex justify-between items-center mb-4">
@@ -728,13 +731,16 @@ function handleDynamicClicks(e) {
         const newMemberEl = document.createElement('div');
         newMemberEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item';
         // newMemberEl.draggable = true; // [제거]
+        // ✅ [수정] 이메일 필드 추가 및 정렬 클래스 적용
         newMemberEl.innerHTML = `
             <span class="drag-handle" draggable="true">☰</span>
-            <input type="text" value="새 팀원" class="member-name" placeholder="팀원 이름">
-            <label class="text-sm whitespace-nowrap">시급:</label>
-            <input type="number" value="${appConfig.defaultPartTimerWage || 10000}" class="member-wage w-28" placeholder="시급">
-            <button class="btn btn-danger btn-small delete-member-btn">삭제</button>
-        `; // [수정] handle에 draggable="true" 추가
+            <input type="text" value="새 팀원" class="member-name w-32" placeholder="팀원 이름">
+            <label class="text-sm whitespace-nowrap ml-2">로그인 이메일:</label>
+            <input type="email" value="" class="member-email w-48" placeholder="example@email.com">
+            <label class="text-sm whitespace-nowrap ml-2">시급:</label>
+            <input type="number" value="${appConfig.defaultPartTimerWage || 10000}" class="member-wage w-24" placeholder="시급">
+            <button class="btn btn-danger btn-small delete-member-btn ml-auto">삭제</button>
+        `;
         container.appendChild(newMemberEl);
     } else if (e.target.classList.contains('delete-member-btn')) {
         e.target.closest('.member-item').remove();
@@ -892,6 +898,7 @@ async function handleSaveAll() {
         const newConfig = {
             teamGroups: [],
             memberWages: {},
+            memberEmails: {}, // ✅ [추가] 이메일 맵 초기화
             dashboardItems: [],
             dashboardQuantities: {}, // ✅ 현황판 수량 객체
             dashboardCustomItems: {}, // ✅ [추가] 커스텀 항목 저장 객체
@@ -910,11 +917,15 @@ async function handleSaveAll() {
 
             groupCard.querySelectorAll('.member-item').forEach(memberItem => {
                 const memberName = memberItem.querySelector('.member-name').value.trim();
+                const memberEmail = memberItem.querySelector('.member-email').value.trim(); // ✅ [추가] 이메일 값 읽기
                 const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
                 if (!memberName) return;
 
                 newGroup.members.push(memberName);
                 newConfig.memberWages[memberName] = memberWage;
+                if (memberEmail) { // ✅ [추가] 이메일이 입력된 경우에만 저장
+                    newConfig.memberEmails[memberName] = memberEmail;
+                }
             });
             newConfig.teamGroups.push(newGroup);
         });
