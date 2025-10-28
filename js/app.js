@@ -2214,7 +2214,7 @@ async function startAppAfterLogin(user) { // ✅ 이름 변경
   const loadingSpinner = document.getElementById('loading-spinner');
   if (loadingSpinner) loadingSpinner.style.display = 'block'; // 로딩 스피너 다시 표시
 
-  try {
+  try { // ✅ [수정] try 블록 시작
       if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
       
       // 설정 로드
@@ -2274,8 +2274,16 @@ async function startAppAfterLogin(user) { // ✅ 이름 변경
       if (loadingSpinner) loadingSpinner.style.display = 'none';
       renderDashboardLayout(appConfig); 
       renderTaskSelectionModal(appConfig.taskGroups);
+      
+  } catch (e) { // ✅ [수정] 누락되었던 catch 블록 추가
+      console.error("설정 로드 실패:", e);
+      showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
+      const loadingSpinner = document.getElementById('loading-spinner');
+      if (loadingSpinner) loadingSpinner.style.display = 'none';
+      renderDashboardLayout(appConfig); 
+      renderTaskSelectionModal(appConfig.taskGroups);
   }
-
+  // ✅ [수정] try...catch 블록 밖으로 이동 (정상)
   displayCurrentDate();
   if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
   elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
@@ -2421,70 +2429,69 @@ async function main() {
   // ✅ [삭제] signInAnonymously(auth).catch(...) 부분 전체 삭제
 
   // ✅ [추가] 로그인 폼 제출 이벤트 리스너
-  // ✅ [추가] 로그인 폼 제출 이벤트 리스너
-      if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault(); // 폼 기본 제출 방지
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault(); // 폼 기본 제출 방지
+        
+        const email = loginEmailInput.value;
+        const password = loginPasswordInput.value;
+
+        if (!email || !password) {
+            if (loginErrorMsg) {
+                loginErrorMsg.textContent = '이메일과 비밀번호를 모두 입력하세요.';
+                loginErrorMsg.classList.remove('hidden');
+            }
+            return;
+        }
+
+        // 로딩 상태 표시
+        if (loginSubmitBtn) loginSubmitBtn.disabled = true;
+        if (loginButtonText) loginButtonText.classList.add('hidden');
+        if (loginButtonSpinner) loginButtonSpinner.classList.remove('hidden');
+        if (loginErrorMsg) loginErrorMsg.classList.add('hidden');
+
+        try {
+            // Firebase로 이메일/비밀번호 로그인 시도
+            await signInWithEmailAndPassword(auth, email, password);
+            // 성공 시 onAuthStateChanged 리스너가 자동으로 감지하고 startAppAfterLogin(user)을 호출함.
+            // 따라서 여기서 추가 작업 필요 없음.
             
-            const email = loginEmailInput.value;
-            const password = loginPasswordInput.value;
-
-            if (!email || !password) {
-                if (loginErrorMsg) {
-                    loginErrorMsg.textContent = '이메일과 비밀번호를 모두 입력하세요.';
-                    loginErrorMsg.classList.remove('hidden');
+        } catch (error) {
+            // 로그인 실패
+            console.error('Login failed:', error.code);
+            if (loginErrorMsg) {
+                if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                    loginErrorMsg.textContent = '이메일 또는 비밀번호가 잘못되었습니다.';
+                } else if (error.code === 'auth/invalid-email') {
+                    loginErrorMsg.textContent = '유효하지 않은 이메일 형식입니다.';
+                } else {
+                    loginErrorMsg.textContent = '로그인에 실패했습니다. 다시 시도하세요.';
                 }
-                return;
+                loginErrorMsg.classList.remove('hidden');
             }
+        } finally {
+            // 로딩 상태 해제
+            if (loginSubmitBtn) loginSubmitBtn.disabled = false;
+            if (loginButtonText) loginButtonText.classList.remove('hidden');
+            if (loginButtonSpinner) loginButtonSpinner.classList.add('hidden');
+        }
+    });
+  }
 
-            // 로딩 상태 표시
-            if (loginSubmitBtn) loginSubmitBtn.disabled = true;
-            if (loginButtonText) loginButtonText.classList.add('hidden');
-            if (loginButtonSpinner) loginButtonSpinner.classList.remove('hidden');
-            if (loginErrorMsg) loginErrorMsg.classList.add('hidden');
-
-            try {
-                // Firebase로 이메일/비밀번호 로그인 시도
-                await signInWithEmailAndPassword(auth, email, password);
-                // 성공 시 onAuthStateChanged 리스너가 자동으로 감지하고 initializeApp(user)을 호출함.
-                // 따라서 여기서 추가 작업 필요 없음.
-                
-            } catch (error) {
-                // 로그인 실패
-                console.error('Login failed:', error.code);
-                if (loginErrorMsg) {
-                    if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                        loginErrorMsg.textContent = '이메일 또는 비밀번호가 잘못되었습니다.';
-                    } else if (error.code === 'auth/invalid-email') {
-                        loginErrorMsg.textContent = '유효하지 않은 이메일 형식입니다.';
-                    } else {
-                        loginErrorMsg.textContent = '로그인에 실패했습니다. 다시 시도하세요.';
-                    }
-                    loginErrorMsg.classList.remove('hidden');
-                }
-            } finally {
-                // 로딩 상태 해제
-                if (loginSubmitBtn) loginSubmitBtn.disabled = false;
-                if (loginButtonText) loginButtonText.classList.remove('hidden');
-                if (loginButtonSpinner) loginButtonSpinner.classList.add('hidden');
-            }
-        });
+  // ✅ [수정] 로그아웃 버튼 리스너를 main() 함수 안으로 이동
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await signOut(auth);
+        showToast('로그아웃되었습니다.');
+        // onAuthStateChanged 리스너가 자동으로 감지하고 UI를 정리함
+      } catch (error) {
+        console.error('Logout failed:', error);
+        showToast('로그아웃에 실패했습니다.', true);
       }
+    });
+  }
+  
+} // <-- ✅ main() 함수가 "여기서" 올바르게 닫힘
 
-      // ✅ [수정] 로그아웃 버튼 리스너를 main() 함수 안으로 이동
-      if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-          try {
-            await signOut(auth);
-            showToast('로그아웃되었습니다.');
-            // onAuthStateChanged 리스너가 자동으로 감지하고 UI를 정리함
-          } catch (error) {
-            console.error('Logout failed:', error);
-            showToast('로그아웃에 실패했습니다.', true);
-          }
-        });
-      }
-      
-    } // <-- ✅ main() 함수가 "여기서" 올바르게 닫힘
-
-    main(); // 앱 시작
+main(); // 앱 시작
