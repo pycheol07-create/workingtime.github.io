@@ -1348,32 +1348,46 @@ const switchHistoryView = (view) => {
 };
 
 
-// ========== 이벤트 리스너 ==========
-// ✅ [수정] #open-history-btn 리스너: 전체 화면 요청 대상 수정
+// ✅ [수정] #open-history-btn 리스너: 인증 확인 및 전체 화면 요청 대상 수정
 if (openHistoryBtn) {
   openHistoryBtn.addEventListener('click', async () => {
+    // ✅ [추가] 현재 로그인 상태 확인
+    if (!auth || !auth.currentUser) {
+        showToast('이력을 보려면 로그인이 필요합니다.', true);
+        if (historyModal && !historyModal.classList.contains('hidden')) {
+             historyModal.classList.add('hidden'); // 혹시 열렸으면 닫기
+        }
+        if (loginModal) loginModal.classList.remove('hidden'); // 로그인 모달 표시
+        return; // 함수 종료
+    }
+      
+    // --- 로그인 상태인 경우 계속 진행 ---
     if (historyModal) {
-      historyModal.classList.remove('hidden');
+      historyModal.classList.remove('hidden'); // 이력 모달 표시
+      
       // 흰색 내용 컨테이너 선택
-      const contentElement = historyModal.querySelector('.bg-white'); // ✅ 수정: 실제 내용 영역 선택
+      const contentElement = historyModal.querySelector('.bg-white');
       if (contentElement) {
         try {
-          if (contentElement.requestFullscreen) {
-            await contentElement.requestFullscreen();
-          } else if (contentElement.webkitRequestFullscreen) { /* Safari */
-            await contentElement.webkitRequestFullscreen();
-          } else if (contentElement.msRequestFullscreen) { /* IE11 */
-            await contentElement.msRequestFullscreen();
-          }
+          // 전체 화면 시도 (선택 사항)
+          if (contentElement.requestFullscreen) await contentElement.requestFullscreen();
+          else if (contentElement.webkitRequestFullscreen) await contentElement.webkitRequestFullscreen();
+          else if (contentElement.msRequestFullscreen) await contentElement.msRequestFullscreen();
         } catch (err) {
-          console.error("전체 화면 요청 실패:", err);
-          showToast("전체 화면 모드를 시작할 수 없습니다.", true);
-          // 전체 화면 실패 시 모달은 그대로 열어둠 (닫지 않음)
-          historyModal.classList.remove('hidden'); // 혹시 모르니 다시 보이게
+          // 전체 화면 실패는 오류로 간주하지 않고 계속 진행
+          console.warn("전체 화면 요청 실패 (무시됨):", err); 
         }
       }
-      // 데이터 로드는 전체 화면 요청 성공 여부와 관계없이 진행
-      await loadAndRenderHistoryList();
+      
+      // 데이터 로드 및 렌더링
+      try {
+          await loadAndRenderHistoryList(); 
+      } catch (loadError) {
+          console.error("이력 데이터 로딩 중 오류:", loadError);
+          showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true);
+          // 오류 발생 시 모달을 닫을 수도 있음 (선택 사항)
+          // historyModal.classList.add('hidden'); 
+      }
     }
   });
 }
@@ -2401,28 +2415,28 @@ async function main() {
       // --- 사용자가 로그아웃한 경우 ---
       if (connectionStatusEl) connectionStatusEl.textContent = '인증 필요';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
+      
+      // ✅ [수정] 실시간 리스너 해제 먼저
       if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
       if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; }
       
-      appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+      // ✅ [수정] 앱 상태 초기화
+      appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null }; // currentUser도 null로 설정
       
-      // ✅ [추가] 사용자 UI 숨기기
+      // ✅ [수정] 사용자 UI 숨기기
       if (userGreeting) userGreeting.classList.add('hidden');
       if (logoutBtn) logoutBtn.classList.add('hidden');
 
-      // ✅ [수정] 기본 config로 렌더링 시도
-      
-      // ✅ [수정] 기본 config로 렌더링 시도
-      try {
-        const defaultConfig = await loadAppConfig(db); // 로그아웃 상태에서도 기본 설정은 로드 시도
-        renderDashboardLayout(defaultConfig);
-      } catch (e) {
-        renderDashboardLayout({ dashboardItems: [] }); // 실패 시 빈 레이아웃
-      }
-      render(); // 나머지 UI 초기화
-
+      // ✅ [수정] 로그인 모달을 "먼저" 표시
+      if (loginModal) loginModal.classList.remove('hidden'); 
       if (loadingSpinner) loadingSpinner.style.display = 'none'; // 메인 로딩 스피너 숨기기
-      if (loginModal) loginModal.classList.remove('hidden'); // ✅ 로그인 모달 표시
+
+      // ✅ [수정] 설정 로드 시도 "삭제"! 권한 없으므로 시도하지 않음.
+      // try { ... loadAppConfig ... } catch ... // 이 블록 전체 삭제
+
+      // ✅ [수정] 빈 레이아웃으로 화면 정리
+      renderDashboardLayout({ dashboardItems: [] }); // 빈 대시보드
+      render(); // 나머지 UI(빈 테이블 등) 렌더링
     }
   });
 
