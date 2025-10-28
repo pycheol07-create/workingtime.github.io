@@ -605,8 +605,6 @@ async function saveDayDataToHistory(shouldReset) {
       render();
   }
 }
-
-
 // ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal, renderHistoryDetail, requestHistoryDeletion, 엑셀 함수, switchHistoryView 함수들은 이전과 동일) ...
 async function fetchAllHistoryData() {
   const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
@@ -1528,11 +1526,23 @@ if (teamStatusBoard) {
     if (memberCard) {
       const memberName = memberCard.dataset.memberToggleLeave;
 
+      // --- ✅ [추가] 권한 확인 로직 ---
+      const role = appState.currentUserRole || 'user';
+      const selfName = appState.currentUser || null;
+
+      if (role !== 'admin' && memberName !== selfName) {
+          showToast('본인의 근태 현황만 설정할 수 있습니다.', true);
+          return; // 여기서 함수 종료
+      }
+      // --- [끝] 권한 확인 로직 ---
+
       const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
       if (isWorking) {
+          // (본인이라도) 업무 중이면 변경 불가
           return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
       }
-
+      
+      // ... (권한 확인을 통과했으므로, 기존 근태 설정/취소 모달 로직 실행) ...
       const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
       const currentLeaveEntry = combinedOnLeaveMembers.find(item => item.member === memberName && !(item.type === '외출' && item.endTime));
 
@@ -2223,6 +2233,7 @@ if (confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
   tempSelectedMembers = []; selectedTaskForStart = null; selectedGroupForAdd = null;
 });
 
+// ✅ [삭제] 여기 있던 첫 번째 startAppAfterLogin 함수 정의를 삭제했습니다.
 
 // ✅ [수정] startAppAfterLogin 함수 (역할 확인 및 UI 제어 로직 추가)
 async function startAppAfterLogin(user) { 
@@ -2337,7 +2348,83 @@ async function startAppAfterLogin(user) {
       renderTaskSelectionModal(appConfig.taskGroups);
   }
   
-  // ... (나머지 함수 동일, onSnapshot 리스너들도 동일) ...
+  // ✅ [수정] try...catch 블록 밖으로 이동 (정상)
+  displayCurrentDate();
+  if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
+  elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
+
+  if (autoSaveTimer) clearInterval(autoSaveTimer);
+  autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
+
+  // --- 기존 onAuthStateChanged 로직을 여기로 이동 ---
+  // (이미 user 객체가 있으므로 onAuthStateChanged 대신 리스너만 설정)
+
+  const leaveScheduleDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
+  if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule();
+  unsubscribeLeaveSchedule = onSnapshot(leaveScheduleDocRef, (docSnap) => {
+      persistentLeaveSchedule = docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] };
+
+      const today = getTodayDateString();
+      appState.dateBasedOnLeaveMembers = (persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
+          if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+              const endDate = entry.endDate || entry.startDate;
+              return entry.startDate && typeof entry.startDate === 'string' &&
+                     today >= entry.startDate && today <= (endDate || entry.startDate);
+          }
+          return false;
+      });
+      
+      markDataAsDirty();
+      render();
+      
+  }, (error) => {
+      console.error("근태 일정 실시간 연결 실패:", error);
+      showToast("근태 일정 연결에 실패했습니다.", true);
+      appState.dateBasedOnLeaveMembers = [];
+      render();
+  });
+
+  const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+  if (unsubscribeToday) unsubscribeToday();
+
+  unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
+    try {
+      const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
+      const defaultQuantities = {};
+      taskTypes.forEach(task => defaultQuantities[task] = 0);
+
+      const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
+
+      appState.workRecords = loadedState.workRecords || [];
+      appState.taskQuantities = { ...defaultQuantities, ...(loadedState.taskQuantities || {}) };
+      appState.partTimers = loadedState.partTimers || [];
+      appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
+      appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
+
+      isDataDirty = false;
+
+      renderDashboardLayout(appConfig); 
+      render(); 
+      if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
+      if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
+    } catch (parseError) {
+      console.error('Error parsing state from Firestore:', parseError);
+      showToast('데이터 로딩 중 오류 발생 (파싱 실패).', true);
+      appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+      renderDashboardLayout(appConfig); 
+      render();
+      if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
+      if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+    }
+  }, (error) => {
+    console.error('Firebase onSnapshot error:', error);
+    showToast('실시간 연결에 실패했습니다.', true);
+    appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+    renderDashboardLayout(appConfig); 
+    render();
+    if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
+    if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+  });
 }
 
 // ... (중간 함수들 동일) ...
@@ -2346,50 +2433,24 @@ async function startAppAfterLogin(user) {
 
 // ... (openHistoryBtn 리스너는 이제 역할에 따라 숨겨지므로 수정 불필요) ...
 
-if (teamStatusBoard) {
-  teamStatusBoard.addEventListener('click', (e) => {
-    // ... (stopGroupButton, pauseGroupButton 등 상단 로직은 동일) ...
-
-    const individualStopBtn = e.target.closest('[data-action="stop-individual"]');
-    if (individualStopBtn) {
-      // ... (기존 개인 정지 로직) ...
-      return;
-    }
-
-    const memberCard = e.target.closest('[data-member-toggle-leave]');
-    if (memberCard) {
-      const memberName = memberCard.dataset.memberToggleLeave;
-
-      // --- ✅ [추가] 권한 확인 로직 ---
-      const role = appState.currentUserRole || 'user';
-      const selfName = appState.currentUser || null;
-
-      if (role !== 'admin' && memberName !== selfName) {
-          showToast('본인의 근태 현황만 설정할 수 있습니다.', true);
-          return; // 여기서 함수 종료
-      }
-      // --- [끝] 권한 확인 로직 ---
-
-      const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
-      if (isWorking) {
-          // (본인이라도) 업무 중이면 변경 불가
-          return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
-      }
-      
-      // ... (권한 확인을 통과했으므로, 기존 근태 설정/취소 모달 로직 실행) ...
-      const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
-      // ... (이하 memberCard 클릭 로직 동일) ...
-    }
-    
-    // ... (나머지 card 클릭 로직 동일) ...
-  });
-}
-
-// ... (workLogBody 리스너 등은 동일) ...
-
-
 // ========== 앱 초기화 ==========
-// ... (main 함수 상단은 동일) ...
+async function main() {
+  const loadingSpinner = document.getElementById('loading-spinner');
+  if (loadingSpinner) loadingSpinner.style.display = 'block';
+
+  try {
+    const firebase = initializeFirebase();
+    db = firebase.db;
+    auth = firebase.auth;
+    if (!db || !auth) {
+      if (loadingSpinner) loadingSpinner.style.display = 'none';
+      return; 
+    }
+  } catch (e) {
+    console.error("Firebase init failed:", e);
+    if (loadingSpinner) loadingSpinner.style.display = 'none';
+    return;
+  }
 
   // ✅ [수정] 인증 상태 변경 감지 리스너 설정
   onAuthStateChanged(auth, async user => {
