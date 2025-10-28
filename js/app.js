@@ -2675,4 +2675,15 @@ function makeDraggable(modalOverlay, header, contentBox) {
     }
 }
 
+// ✅ [추가] 1분(60000ms)마다 페이지 자동 새로고침
+setInterval(() => {
+    // 사용자가 모달 창을 열어놓고 있을 때는 새로고침하지 않도록 예외 처리 (선택 사항)
+    const activeModal = document.querySelector('.fixed.inset-0.z-50:not(.hidden), .fixed.inset-0.z-\[60\]:not(.hidden), .fixed.inset-0.z-\[99\]:not(.hidden)');
+    if (!activeModal) { // 열려있는 모달이 없을 때만 새로고침
+        location.reload();
+    } else {
+        console.log("모달이 열려 있어 자동 새로고침을 건너<0xEB><0x9C><0x95>니다."); // 디버깅용 로그
+    }
+}, 60000); // 60000 밀리초 = 1분
+
 main(); // 앱 시작
