@@ -65,15 +65,6 @@
 </head>
 <body class="bg-gray-100 p-8">
 
-    <div id="password-prompt" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
-            <h2 class="text-xl font-bold mb-4">관리자 인증</h2>
-            <p class="mb-4 text-sm text-gray-600">관리자 비밀번호를 입력하세요.</p>
-            <input type="password" id="admin-password" class="mb-4" placeholder="비밀번호">
-            <button id="password-submit-btn" class="btn btn-primary w-full">로그인</button>
-        </div>
-    </div>
-
     <div id="admin-content" class="hidden max-w-7xl mx-auto space-y-8">
         <header class="flex justify-between items-center mb-6 pb-4 border-b">
             <h1 class="text-3xl font-bold text-gray-900">관리자 페이지</h1>
@@ -131,6 +122,7 @@
             </div>
             <div class="config-card-content hidden">
                 <p class="text-sm text-gray-500 mb-4 -mt-2">(메인 화면 대시보드에 표시될 업무 카드 목록입니다. 순서 변경 시 메인 화면에도 반영됨)</p>
+
                 <div class="p-4 bg-gray-50 rounded-lg border mt-2">
                     <div id="key-tasks-container" class="space-y-1">
                         </div>

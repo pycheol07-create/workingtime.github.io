@@ -1,10 +1,12 @@
-// === admin.js (모달 추가 및 로직 수정) ===
+// === admin.js (Firebase 인증 적용 버전) ===
 
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
+// ✅ [추가] Firebase Auth import
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-let db;
+let db, auth; // ✅ auth 추가
 let appConfig = {};
-const ADMIN_PASSWORD = "anffbxla123";
+// const ADMIN_PASSWORD = "anffbxla123"; // ⛔️ [삭제]
 
 // ✅ [수정] 현황판 아이템 정의 (새 항목 추가)
 const DASHBOARD_ITEM_DEFINITIONS = {
@@ -104,48 +106,12 @@ function populateTaskSelectModal() {
     });
 }
 
-
+// ⛔️ [삭제] 기존 DOMContentLoaded 리스너 (파일 하단으로 이동 및 수정됨)
+/*
 document.addEventListener('DOMContentLoaded', () => {
-    // ... (비밀번호 관련 코드는 동일) ...
-    const passwordPrompt = document.getElementById('password-prompt');
-    const passwordInput = document.getElementById('admin-password');
-    const passwordSubmitBtn = document.getElementById('password-submit-btn');
-    const adminContent = document.getElementById('admin-content');
-
-    const attemptLogin = () => {
-        if (passwordInput.value === ADMIN_PASSWORD) {
-            passwordPrompt.classList.add('hidden');
-            adminContent.classList.remove('hidden');
-            initializeApp();
-        } else {
-            alert('비밀번호가 틀렸습니다.');
-            passwordInput.value = '';
-        }
-    };
-
-    passwordSubmitBtn.addEventListener('click', attemptLogin);
-    passwordInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') attemptLogin();
-    });
-
-    const initializeApp = async () => {
-        try {
-            db = initializeFirebase().db;
-            appConfig = await loadAppConfig(db);
-            // 기본값 보장
-            if (!appConfig.keyTasks) appConfig.keyTasks = ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
-            if (!appConfig.quantityTaskTypes) appConfig.quantityTaskTypes = [];
-            if (!appConfig.teamGroups) appConfig.teamGroups = [];
-            if (!appConfig.taskGroups) appConfig.taskGroups = {};
-
-            renderAdminUI(appConfig);
-            setupEventListeners();
-        } catch (e) {
-            console.error("초기화 실패:", e);
-            alert("앱 초기화에 실패했습니다. 콘솔을 확인하세요.");
-        }
-    };
+    // ... (기존 비밀번호 입력 로직) ...
 });
+*/
 
 // --- UI 렌더링 ---
 // (renderAdminUI, renderTeamGroups 함수는 이전과 동일)
@@ -181,7 +147,7 @@ function renderTeamGroups(teamGroups, memberWages, memberEmails) { // ✅ member
         const membersHtml = group.members.map((member, mIndex) => {
             const memberEmail = memberEmails[member] || '';
             // ✅ [추가] 현재 이메일의 역할 조회
-            const currentRole = (memberEmail && memberRoles[memberEmail]) ? memberRoles[memberEmail] : 'user';
+            const currentRole = (memberEmail && memberRoles[memberEmail.toLowerCase()]) ? memberRoles[memberEmail.toLowerCase()] : 'user';
             
             return `
             <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item">
@@ -219,6 +185,7 @@ function renderTeamGroups(teamGroups, memberWages, memberEmails) { // ✅ member
         container.appendChild(groupEl);
     });
 }
+
 
 // ✅ [수정] 현황판 항목 설정 렌더링 함수 (수량 입력 필드 한 줄로 변경)
 function renderDashboardItemsConfig(itemIds, quantities) {
@@ -455,14 +422,25 @@ function addTeamGroup() {
     const groupEl = document.createElement('div');
     groupEl.className = 'p-4 border rounded-lg bg-gray-50 team-group-card';
     
-    // 새 멤버 HTML
+    // ✅ [수정] 새 멤버 HTML (역할 드롭다운 포함)
     const membersHtml = `
         <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item">
             <span class="drag-handle" draggable="true">☰</span>
-            <input type="text" value="${newMemberName}" class="member-name" placeholder="팀원 이름">
-            <label class="text-sm whitespace-nowrap">시급:</label>
-            <input type="number" value="${defaultWage}" class="member-wage w-28" placeholder="시급">
-            <button class="btn btn-danger btn-small delete-member-btn">삭제</button>
+            <input type="text" value="${newMemberName}" class="member-name w-32" placeholder="팀원 이름">
+            
+            <label class="text-sm whitespace-nowrap ml-2">로그인 이메일:</label>
+            <input type="email" value="" class="member-email w-48" placeholder="example@email.com">
+            
+            <label class="text-sm whitespace-nowrap ml-2">시급:</label>
+            <input type="number" value="${defaultWage}" class="member-wage w-20" placeholder="시급">
+            
+            <label class="text-sm whitespace-nowrap ml-2">역할:</label>
+            <select class="member-role w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="user" selected>일반사용자</option>
+                <option value="admin">관리자</option>
+            </select>
+            
+            <button class="btn btn-danger btn-small delete-member-btn ml-auto">삭제</button>
         </div>
     `;
 
@@ -936,6 +914,11 @@ async function handleSaveAll() {
             quantityTaskTypes: [],
             defaultPartTimerWage: 10000
         };
+        
+        // 0. [추가] 이메일 중복 검사 맵
+        const emailCheck = new Map();
+        let isEmailDuplicate = false;
+        let duplicateEmailValue = '';
 
         // 1. 팀원 및 시급 정보 읽기 (순서 반영)
         document.querySelectorAll('#team-groups-container .team-group-card').forEach(groupCard => {
@@ -957,16 +940,31 @@ async function handleSaveAll() {
                 newConfig.memberWages[memberName] = memberWage;
                 
                 if (memberEmail) { // ✅ [수정] 이메일이 있는 경우에만 역할과 이메일 저장
+                    const emailLower = memberEmail.toLowerCase();
+                    
+                    // ✅ [추가] 이메일 중복 검사
+                    if (emailCheck.has(emailLower) && emailCheck.get(emailLower) !== memberName) {
+                        isEmailDuplicate = true;
+                        duplicateEmailValue = memberEmail;
+                    }
+                    emailCheck.set(emailLower, memberName);
+
                     newConfig.memberEmails[memberName] = memberEmail;
                     // ✅ [추가] 이메일을 Key로 역할을 저장
-                    newConfig.memberRoles[memberEmail.toLowerCase()] = memberRole;
+                    newConfig.memberRoles[emailLower] = memberRole;
                 }
             });
             newConfig.teamGroups.push(newGroup);
         });
+        
+        // ✅ [추가] 1b. 이메일 중복 시 저장 차단
+        if (isEmailDuplicate) {
+            alert(`[저장 실패] 이메일 주소 '${duplicateEmailValue}'가 여러 팀원에게 중복 할당되었습니다. 이메일 주소는 고유해야 합니다.`);
+            return; // 저장 중단
+        }
+
 
         // ✅ [수정] 2. 현황판 항목 순서, 수량 및 커스텀 정의 읽기
-        // ... (이 부분 로직은 기존과 동일) ...
         const allDefinitions = getAllDashboardDefinitions(appConfig); // 현재 로드된 모든 정의 사용
         document.querySelectorAll('#dashboard-items-container .dashboard-item-config').forEach(item => {
             const nameSpan = item.querySelector('.dashboard-item-name');
@@ -996,9 +994,7 @@ async function handleSaveAll() {
             }
         });
 
-
         // 3. 주요 업무 정보 읽기 (순서 반영)
-        // ... (이 부분 로직은 기존과 동일) ...
         document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
              // [수정] .value -> .textContent
              const taskName = item.querySelector('.key-task-name').textContent.trim();
@@ -1007,7 +1003,6 @@ async function handleSaveAll() {
 
 
         // 4. 업무 정보 읽기 (순서 반영)
-        // ... (이 부분 로직은 기존과 동일) ...
         const orderedTaskGroups = {};
         document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
             const groupNameInput = groupCard.querySelector('.task-group-name');
@@ -1026,7 +1021,6 @@ async function handleSaveAll() {
 
 
         // 5. 처리량 업무 정보 읽기 (순서 반영)
-        // ... (이 부분 로직은 기존과 동일) ...
         document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
             // [수정] .value -> .textContent
             const taskName = item.querySelector('.quantity-task-name').textContent.trim();
@@ -1034,14 +1028,12 @@ async function handleSaveAll() {
         });
 
         // 6. 전역 설정 (알바 시급) 읽기
-        // ... (이 부분 로직은 기존과 동일) ...
         const wageInput = document.getElementById('default-part-timer-wage');
         if (wageInput) {
             newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
         }
 
         // [추가] 7. 데이터 유효성 검사
-        // ... (이 부분 로직은 기존과 동일) ...
         const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
 
         const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
@@ -1076,3 +1068,70 @@ async function handleSaveAll() {
         alert(`❌ 저장 실패. 오류: ${e.message}`);
     }
 }
+
+// ⛔️ [삭제] 기존 DOMContentLoaded 리스너 (파일 상단 근처로 이동)
+/*
+document.addEventListener('DOMContentLoaded', () => {
+    // ... (기존 비밀번호 입력 로직) ...
+});
+*/
+
+// ✅ [추가] 새로운 DOMContentLoaded 리스너 (Firebase Auth 기반)
+document.addEventListener('DOMContentLoaded', () => {
+    const adminContent = document.getElementById('admin-content');
+    
+    // 1. Firebase 초기화
+    try {
+        const firebase = initializeFirebase();
+        db = firebase.db;
+        auth = firebase.auth;
+        if (!db || !auth) {
+            throw new Error("Firebase DB 또는 Auth 초기화 실패");
+        }
+    } catch (e) {
+        console.error(e);
+        adminContent.innerHTML = `<h2 class="text-2xl font-bold text-red-600 p-8 text-center">Firebase 초기화 실패. 메인 앱이 정상 동작하는지 확인하세요.</h2>`;
+        adminContent.classList.remove('hidden');
+        return;
+    }
+
+    // 2. 인증 상태 감지
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            // 3. 사용자가 로그인한 경우 -> 역할 확인
+            try {
+                // 설정 로드 (역할 정보 포함)
+                appConfig = await loadAppConfig(db);
+                
+                const userEmail = user.email;
+                if (!userEmail) {
+                    throw new Error("로그인한 사용자의 이메일을 찾을 수 없습니다.");
+                }
+
+                const userEmailLower = user.email.toLowerCase();
+                const memberRoles = appConfig.memberRoles || {};
+                const currentUserRole = memberRoles[userEmailLower] || 'user';
+
+                if (currentUserRole === 'admin') {
+                    // 4a. 관리자 확인!
+                    // (이전 initializeApp의 로직을 여기에 실행)
+                    renderAdminUI(appConfig);
+                    setupEventListeners();
+                    adminContent.classList.remove('hidden'); // 컨텐츠 표시
+                } else {
+                    // 4b. 관리자가 아님
+                    adminContent.innerHTML = `<h2 class="text-2xl font-bold text-yellow-600 p-8 text-center">접근 거부: 관리자 계정이 아닙니다.</h2>`;
+                    adminContent.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error("역할 확인 중 오류:", e);
+                adminContent.innerHTML = `<h2 class="text-2xl font-bold text-red-600 p-8 text-center">오류 발생: ${e.message}</h2>`;
+                adminContent.classList.remove('hidden');
+            }
+        } else {
+            // 4c. 로그인하지 않음
+            adminContent.innerHTML = `<h2 class="text-2xl font-bold text-gray-600 p-8 text-center">접근 거부: 로그인이 필요합니다.<br><br><a href="index.html" class="text-blue-600 hover:underline">메인 앱으로 이동하여 로그인하세요.</a></h2>`;
+            adminContent.classList.remove('hidden');
+        }
+    });
+});
