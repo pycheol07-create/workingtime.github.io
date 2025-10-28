@@ -1,4 +1,4 @@
-// === ui.js (모바일 반응형 레이아웃 수정) ===
+// === ui.js (모바일 반응형 레이아웃 재수정) ===
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
 
@@ -476,10 +476,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     orderedTeamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
         // ✅ [수정] 모바일에서 그룹 전체 숨김 ('hidden md:block') -> ('mb-4')
-        groupContainer.className = 'mb-4';
+        groupContainer.className = 'mb-4'; // 이 컨테이너는 항상 보이도록 수정
         const groupHeader = document.createElement('div');
         // ✅ [수정] 모바일에서 그룹 헤더 숨김 ('hidden md:flex')
-        groupHeader.className = 'flex items-center gap-2 mb-2 hidden md:flex';
+        groupHeader.className = 'flex items-center gap-2 mb-2 hidden md:flex'; // 헤더만 숨김
         groupHeader.innerHTML = `<h4 class="text-md font-semibold text-gray-600">${group.name}</h4>`;
         groupContainer.appendChild(groupHeader);
         const groupGrid = document.createElement('div');
@@ -494,8 +494,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
             const isSelf = (member === currentUserName); // ✅ [추가] 본인 확인
 
-            // ✅ [수정] 모바일 반응형: 본인이면 w-full md:w-28, 아니면 hidden md:flex w-28
-            card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${isSelf ? 'w-full md:w-28 flex' : 'w-28 hidden md:flex'} flex-col justify-center`;
+            // === 📌 [재수정] 팀원 카드 className 설정 ===
+            const visibilityClass = isSelf ? 'flex' : 'hidden md:flex'; // 본인이면 항상 flex, 아니면 모바일 hidden
+            const widthClass = isSelf ? 'w-full md:w-28' : 'w-28'; // 본인이면 모바일 w-full, 아니면 w-28 (어차피 데스크탑에서만 보임)
+            card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClass} ${widthClass} flex-col justify-center`;
+            // ============================================
+
             card.dataset.memberToggleLeave = member;
             
             // ✅ [수정] 권한에 따라 커서/투명도 조절
@@ -558,9 +562,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     if (activePartTimers.length > 0) {
         const albaContainer = document.createElement('div');
         // ✅ [수정] 모바일에서 알바 섹션 숨김 ('hidden md:block') -> ('mb-4')
-        albaContainer.className = 'mb-4';
+        albaContainer.className = 'mb-4'; // 이 컨테이너는 항상 보이도록 수정
         // ✅ [수정] 모바일에서 알바 헤더 숨김 ('hidden md:block')
-        albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2 hidden md:block">알바</h4>`;
+        albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2 hidden md:block">알바</h4>`; // 헤더만 숨김
 
         const albaGrid = document.createElement('div');
         albaGrid.className = 'flex flex-wrap gap-2';
@@ -569,10 +573,14 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              const card = document.createElement('button');
              card.type = 'button';
              card.dataset.memberToggleLeave = pt.name;
-             // ✅ [수정] 알바 카드 크기 조정: w-24 -> w-28, min-h-[64px] -> min-h-[72px]
+
              const isSelfAlba = (pt.name === currentUserName); // ✅ [추가] 본인 확인 (알바)
-             // ✅ [수정] 모바일 반응형: 본인이면 w-full md:w-28, 아니면 hidden md:flex w-28
-             card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${isSelfAlba ? 'w-full md:w-28 flex' : 'w-28 hidden md:flex'} flex-col justify-center`;
+
+             // === 📌 [재수정] 알바 카드 className 설정 ===
+             const visibilityClassAlba = isSelfAlba ? 'flex' : 'hidden md:flex'; // 본인이면 항상 flex, 아니면 모바일 hidden
+             const widthClassAlba = isSelfAlba ? 'w-full md:w-28' : 'w-28'; // 본인이면 모바일 w-full, 아니면 w-28
+             card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClassAlba} ${widthClassAlba} flex-col justify-center`;
+             // ===========================================
 
 
              const currentlyWorkingTask = workingMembers.get(pt.name);
