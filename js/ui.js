@@ -1,4 +1,4 @@
-// === ui.js (업무 카드 그리드 및 직원 카드 크기 조정) ===
+// === ui.js (역할 기반 카드 비활성화 적용) ===
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
 
@@ -275,6 +275,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     container.innerHTML = html;
 };
 
+// ✅ [수정] renderRealtimeStatus (권한 확인 로직 추가)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
@@ -439,6 +440,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
 
+    // --- ✅ [추가] 현재 사용자 정보 가져오기 ---
+    const currentUserRole = appState.currentUserRole || 'user';
+    const currentUserName = appState.currentUser || null;
+    // ------------------------------------
+
     const combinedOnLeaveMembers = [
         ...(appState.dailyOnLeaveMembers || []),
         ...(appState.dateBasedOnLeaveMembers || [])
@@ -474,13 +480,24 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             const leaveInfo = onLeaveStatusMap.get(member);
             const isOnLeave = !!leaveInfo;
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
+            const isSelf = (member === currentUserName); // ✅ [추가] 본인 확인
 
             // ✅ [수정] 직원 카드 크기 조정: w-24 -> w-28, min-h-[64px] -> min-h-[72px]
             card.className = 'p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex flex-col justify-center';
             card.dataset.memberToggleLeave = member;
+            
+            // ✅ [수정] 권한에 따라 커서/투명도 조절
             if (!isWorking) {
-                card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
+                // 업무 중이 아닐 때
+                if (currentUserRole === 'admin' || isSelf) {
+                    // 관리자거나 본인이면 활성화
+                    card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
+                } else {
+                    // 관리자가 아니고 타인이면 비활성화
+                    card.classList.add('cursor-not-allowed', 'opacity-70'); 
+                }
             } else {
+                // 업무 중이면 (원래 로직대로) 비활성화
                 card.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
@@ -541,14 +558,21 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              // ✅ [수정] 알바 카드 크기 조정: w-24 -> w-28, min-h-[64px] -> min-h-[72px]
              card.className = 'relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex flex-col justify-center';
 
+             const isSelfAlba = (pt.name === currentUserName); // ✅ [추가] 본인 확인 (알바)
+
              const currentlyWorkingTask = workingMembers.get(pt.name);
              const isPaused = pausedMembers.has(pt.name);
              const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = currentlyWorkingTask || isPaused;
 
+             // ✅ [수정] 권한에 따라 커서/투명도 조절
              if (!isAlbaWorking) {
-                 card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
+                 if (currentUserRole === 'admin' || isSelfAlba) {
+                    card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
+                 } else {
+                    card.classList.add('cursor-not-allowed', 'opacity-70'); // 본인이 아니면 비활성
+                 }
              } else {
                  card.classList.add('opacity-70', 'cursor-not-allowed');
              }

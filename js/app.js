@@ -2388,75 +2388,224 @@ async function startAppAfterLogin(user) { // ✅ 이름 변경
   });
 }
 
-// ========== 앱 초기화 ==========
-async function main() {
-  if (connectionStatusEl) connectionStatusEl.textContent = '연결 중...';
-  if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse';
+// ✅ [수정] startAppAfterLogin 함수 (역할 확인 및 UI 제어 로직 추가)
+async function startAppAfterLogin(user) { 
+  const loadingSpinner = document.getElementById('loading-spinner');
+  if (loadingSpinner) loadingSpinner.style.display = 'block'; 
 
-  appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
-  
-  // ✅ [삭제] 임시 로그인 사용자 설정 (initializeApp에서 처리)
-  // appState.currentUser = '박영철'; 
+  try { 
+      if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
+      
+      // 설정 로드
+      appConfig = await loadAppConfig(db); 
+      persistentLeaveSchedule = await loadLeaveSchedule(db);
+      
+      const userEmail = user.email;
+      
+      if (!userEmail) {
+          showToast('로그인 사용자의 이메일 정보를 가져올 수 없습니다. 다시 로그인해주세요.', true);
+          console.error(`Logged in user object has null email. User ID: ${user.uid}`);
+          const loadingSpinner = document.getElementById('loading-spinner');
+          if (loadingSpinner) loadingSpinner.style.display = 'none';
+          if (connectionStatusEl) connectionStatusEl.textContent = '인증 오류';
+          auth.signOut(); 
+          if (loginModal) loginModal.classList.remove('hidden'); 
+          return;
+      }
+      
+      // --- ✅ [수정] 역할 확인 로직 ---
+      const userEmailLower = userEmail.toLowerCase();
+      const memberEmails = appConfig.memberEmails || {}; 
+      const memberRoles = appConfig.memberRoles || {}; // { "park@test.com": "admin", ... }
 
-  try {
-      const { app, db: fdb, auth: fath } = initializeFirebase();
-      if (!app || !fdb || !fath) throw new Error("Firebase 초기화 실패");
-      db = fdb;
-      auth = fath;
-  } catch (error) {
-      console.error('Firebase 초기화 실패:', error);
-      showToast('Firebase 초기화에 실패했습니다.', true);
-      if (connectionStatusEl) connectionStatusEl.textContent = '초기화 실패';
-      if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-      return;
+      const emailToMemberMap = Object.entries(memberEmails).reduce((acc, [name, email]) => {
+          if (email) acc[email.toLowerCase()] = name;
+          return acc;
+      }, {});
+
+      const currentUserName = emailToMemberMap[userEmailLower]; 
+      
+      // ✅ [추가] 역할 조회 (없으면 'user' 기본값)
+      const currentUserRole = memberRoles[userEmailLower] || 'user';
+      // ------------------------------------
+
+      if (!currentUserName) {
+          showToast('로그인했으나 앱에 등록된 사용자가 아닙니다. 관리자에게 문의하세요.', true);
+          console.warn(`User ${userEmail} logged in but not found in appConfig.memberEmails.`);
+          if (loadingSpinner) loadingSpinner.style.display = 'none';
+          if (connectionStatusEl) connectionStatusEl.textContent = '사용자 미등록';
+          auth.signOut(); 
+          if (loginModal) loginModal.classList.remove('hidden'); 
+          return;
+      }
+      
+      // ✅ [성공] appState에 현재 사용자 이름 및 "역할" 저장
+      appState.currentUser = currentUserName;
+      appState.currentUserRole = currentUserRole; // ✅ 역할 저장!
+      
+      if (userGreeting) {
+          // ✅ [수정] 역할도 함께 표시 (선택 사항)
+          userGreeting.textContent = `${currentUserName}님 (${currentUserRole}), 안녕하세요.`;
+          userGreeting.classList.remove('hidden');
+      }
+      if (logoutBtn) {
+          logoutBtn.classList.remove('hidden');
+      }
+      
+      // --- ✅ [수정] 역할(Role)에 따른 UI 제어 ---
+      const adminLinkBtn = document.getElementById('admin-link-btn');
+      const resetAppBtn = document.getElementById('reset-app-btn');
+      const openManualAddBtn = document.getElementById('open-manual-add-btn');
+      const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
+      const openHistoryBtn = document.getElementById('open-history-btn'); // ✅ [추가] 이력 보기 버튼
+
+      if (currentUserRole === 'admin') {
+          // 관리자일 경우: 모든 버튼 표시
+          if (adminLinkBtn) adminLinkBtn.style.display = 'flex';
+          if (resetAppBtn) resetAppBtn.style.display = 'flex';
+          if (openManualAddBtn) openManualAddBtn.style.display = 'inline-block';
+          if (deleteAllCompletedBtn) deleteAllCompletedBtn.style.display = 'inline-block';
+          if (openHistoryBtn) openHistoryBtn.style.display = 'inline-block'; // ✅ [추가]
+          
+      } else {
+          // 일반 사용자(user)일 경우: 관리자 기능 숨기기
+          if (adminLinkBtn) adminLinkBtn.style.display = 'none';
+          if (resetAppBtn) resetAppBtn.style.display = 'none';
+          if (openManualAddBtn) openManualAddBtn.style.display = 'none';
+          if (deleteAllCompletedBtn) deleteAllCompletedBtn.style.display = 'none';
+          if (openHistoryBtn) openHistoryBtn.style.display = 'none'; // ✅ [추가]
+      }
+      // ------------------------------------------
+
+      document.getElementById('current-date-display')?.classList.remove('hidden');
+      document.getElementById('top-right-controls')?.classList.remove('hidden');
+      document.querySelector('.bg-gray-800.shadow-lg')?.classList.remove('hidden'); 
+      document.getElementById('main-content-area')?.classList.remove('hidden'); 
+      document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { 
+          if(el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
+              el.classList.remove('hidden');
+          }
+      });
+
+
+      if (loadingSpinner) loadingSpinner.style.display = 'none'; 
+      renderDashboardLayout(appConfig); 
+      renderTaskSelectionModal(appConfig.taskGroups);
+
+  } catch (e) { 
+      console.error("설정 로드 실패:", e);
+      showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
+      const loadingSpinner = document.getElementById('loading-spinner');
+      if (loadingSpinner) loadingSpinner.style.display = 'none';
+      renderDashboardLayout(appConfig); 
+      renderTaskSelectionModal(appConfig.taskGroups);
   }
+  
+  // ... (나머지 함수 동일, onSnapshot 리스너들도 동일) ...
+}
+
+// ... (중간 함수들 동일) ...
+
+// ========== 이벤트 리스너 ==========
+
+// ... (openHistoryBtn 리스너는 이제 역할에 따라 숨겨지므로 수정 불필요) ...
+
+if (teamStatusBoard) {
+  teamStatusBoard.addEventListener('click', (e) => {
+    // ... (stopGroupButton, pauseGroupButton 등 상단 로직은 동일) ...
+
+    const individualStopBtn = e.target.closest('[data-action="stop-individual"]');
+    if (individualStopBtn) {
+      // ... (기존 개인 정지 로직) ...
+      return;
+    }
+
+    const memberCard = e.target.closest('[data-member-toggle-leave]');
+    if (memberCard) {
+      const memberName = memberCard.dataset.memberToggleLeave;
+
+      // --- ✅ [추가] 권한 확인 로직 ---
+      const role = appState.currentUserRole || 'user';
+      const selfName = appState.currentUser || null;
+
+      if (role !== 'admin' && memberName !== selfName) {
+          showToast('본인의 근태 현황만 설정할 수 있습니다.', true);
+          return; // 여기서 함수 종료
+      }
+      // --- [끝] 권한 확인 로직 ---
+
+      const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
+      if (isWorking) {
+          // (본인이라도) 업무 중이면 변경 불가
+          return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
+      }
+      
+      // ... (권한 확인을 통과했으므로, 기존 근태 설정/취소 모달 로직 실행) ...
+      const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
+      // ... (이하 memberCard 클릭 로직 동일) ...
+    }
+    
+    // ... (나머지 card 클릭 로직 동일) ...
+  });
+}
+
+// ... (workLogBody 리스너 등은 동일) ...
+
+
+// ========== 앱 초기화 ==========
+// ... (main 함수 상단은 동일) ...
 
   // ✅ [수정] 인증 상태 변경 감지 리스너 설정
   onAuthStateChanged(auth, async user => {
     const loadingSpinner = document.getElementById('loading-spinner');
 
     if (user) {
-      // --- 사용자가 로그인한 경우 ---
-      if (loginModal) loginModal.classList.add('hidden'); // 로그인 모달 숨기기
-      if (loadingSpinner) loadingSpinner.style.display = 'block'; // 메인 로딩 스피너 표시
+      // ... (로그인 시 로직 동일, startAppAfterLogin 호출) ...
+      if (loginModal) loginModal.classList.add('hidden'); 
+      if (loadingSpinner) loadingSpinner.style.display = 'block'; 
       
-      // ✅ [수정] initializeApp 함수 호출 (핵심 로직 이동)
-      await startAppAfterLogin(user); // ✅ 이름 변경
+      await startAppAfterLogin(user); 
 
     } else {
       // --- 사용자가 로그아웃한 경우 ---
       if (connectionStatusEl) connectionStatusEl.textContent = '인증 필요';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
 
-      // ✅ [수정] 실시간 리스너 해제 먼저
       if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
       if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; }
 
-      // ✅ [수정] 앱 상태 초기화
-      appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null };
+      appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user' };
 
-      // ✅ [수정] 사용자 UI 및 메인 콘텐츠 숨기기
       if (userGreeting) userGreeting.classList.add('hidden');
       if (logoutBtn) logoutBtn.classList.add('hidden');
       document.getElementById('current-date-display')?.classList.add('hidden');
       document.getElementById('top-right-controls')?.classList.add('hidden');
-      document.querySelector('.bg-gray-800.shadow-lg')?.classList.add('hidden'); // 현황판 부모 div
-      document.getElementById('main-content-area')?.classList.add('hidden'); // ✅ ID 선택자로 변경!
-      document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { // 완료/분석 부모 div들
+      document.querySelector('.bg-gray-800.shadow-lg')?.classList.add('hidden'); 
+      document.getElementById('main-content-area')?.classList.add('hidden'); 
+      document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { 
           if(el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
               el.classList.add('hidden');
           }
       });
+      
+      // --- ✅ [수정] 로그아웃 시 관리자 버튼들도 숨김 처리 ---
+      const adminLinkBtn = document.getElementById('admin-link-btn');
+      const resetAppBtn = document.getElementById('reset-app-btn');
+      const openManualAddBtn = document.getElementById('open-manual-add-btn');
+      const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
+      const openHistoryBtn = document.getElementById('open-history-btn'); // ✅ [추가]
+      
+      if (adminLinkBtn) adminLinkBtn.style.display = 'none';
+      if (resetAppBtn) resetAppBtn.style.display = 'none';
+      if (openManualAddBtn) openManualAddBtn.style.display = 'none';
+      if (deleteAllCompletedBtn) deleteAllCompletedBtn.style.display = 'none';
+      if (openHistoryBtn) openHistoryBtn.style.display = 'none'; // ✅ [추가]
+      // ----------------------------------------------------
 
-
-      // ✅ [수정] 로그인 모달을 "먼저" 표시
       if (loginModal) loginModal.classList.remove('hidden');
-      // ✅ [수정] 로딩 스피너 "나중에" 숨기기
       if (loadingSpinner) loadingSpinner.style.display = 'none';
 
-      // ✅ [수정] 빈 레이아웃으로 화면 정리 (최소한의 렌더링)
-      renderDashboardLayout({ dashboardItems: [] }); // 빈 대시보드 (혹시 보일 경우 대비)
-      // render(); // ✅ 삭제됨
+      renderDashboardLayout({ dashboardItems: [] }); 
     }
   });
 
