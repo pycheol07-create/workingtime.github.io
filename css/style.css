@@ -103,3 +103,16 @@ body {
 #reset-app-btn:active {
     transform: scale(0.97);
 }
+
+/* ✅ [추가] 로그인 버튼 스피너 */
+#login-button-spinner.hidden {
+    display: none;
+}
+#login-button-spinner {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

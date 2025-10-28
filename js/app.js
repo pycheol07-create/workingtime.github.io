@@ -2,7 +2,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday } from './utils.js';
 import {
@@ -108,6 +108,16 @@ const endShiftConfirmTitle = document.getElementById('end-shift-confirm-title');
 const endShiftConfirmMessage = document.getElementById('end-shift-confirm-message');
 const confirmEndShiftBtn = document.getElementById('confirm-end-shift-btn');
 const cancelEndShiftBtn = document.getElementById('cancel-end-shift-btn');
+
+// ✅ [추가] 로그인 모달 요소
+const loginModal = document.getElementById('login-modal');
+const loginForm = document.getElementById('login-form');
+const loginEmailInput = document.getElementById('login-email');
+const loginPasswordInput = document.getElementById('login-password');
+const loginSubmitBtn = document.getElementById('login-submit-btn');
+const loginErrorMsg = document.getElementById('login-error-message');
+const loginButtonText = document.getElementById('login-button-text');
+const loginButtonSpinner = document.getElementById('login-button-spinner');
 
 
 // ========== Firebase/App State ==========
@@ -2195,12 +2205,145 @@ if (confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
   tempSelectedMembers = []; selectedTaskForStart = null; selectedGroupForAdd = null;
 });
 
+// ✅ [추가] 인증 성공 후 앱을 초기화하는 함수
+async function initializeApp(user) {
+  const loadingSpinner = document.getElementById('loading-spinner');
+  if (loadingSpinner) loadingSpinner.style.display = 'block'; // 로딩 스피너 다시 표시
+
+  try {
+      if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
+      
+      // 설정 로드
+      appConfig = await loadAppConfig(db); 
+      persistentLeaveSchedule = await loadLeaveSchedule(db);
+      
+      // --- ✅ [핵심] 로그인한 사용자의 이메일을 이름으로 변환 ---
+      const userEmail = user.email;
+      const memberEmails = appConfig.memberEmails || {}; // { "박영철": "park@test.com", ... }
+      
+      // memberEmails 객체를 뒤집어서 { "park@test.com": "박영철" } 맵을 생성
+      const emailToMemberMap = Object.entries(memberEmails).reduce((acc, [name, email]) => {
+          if (email) acc[email.toLowerCase()] = name;
+          return acc;
+      }, {});
+
+      const currentUserName = emailToMemberMap[userEmail.toLowerCase()];
+
+      if (!currentUserName) {
+          // appConfig에 등록되지 않은 사용자
+          showToast('로그인했으나 앱에 등록된 사용자가 아닙니다. 관리자에게 문의하세요.', true);
+          console.warn(`User ${userEmail} logged in but not found in appConfig.memberEmails.`);
+          if (loadingSpinner) loadingSpinner.style.display = 'none';
+          if (connectionStatusEl) connectionStatusEl.textContent = '사용자 미등록';
+          auth.signOut(); // 로그아웃 처리
+          if (loginModal) loginModal.classList.remove('hidden'); // 로그인 모달 다시 표시
+          return;
+      }
+      
+      // ✅ [성공] appState에 현재 사용자 이름 저장
+      appState.currentUser = currentUserName;
+      // ----------------------------------------------------
+
+      if (loadingSpinner) loadingSpinner.style.display = 'none';
+
+      renderDashboardLayout(appConfig); 
+      renderTaskSelectionModal(appConfig.taskGroups);
+  } catch (e) {
+      console.error("설정 로드 실패:", e);
+      showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
+      const loadingSpinner = document.getElementById('loading-spinner');
+      if (loadingSpinner) loadingSpinner.style.display = 'none';
+      renderDashboardLayout(appConfig); 
+      renderTaskSelectionModal(appConfig.taskGroups);
+  }
+
+  displayCurrentDate();
+  if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
+  elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
+
+  if (autoSaveTimer) clearInterval(autoSaveTimer);
+  autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
+
+  // --- 기존 onAuthStateChanged 로직을 여기로 이동 ---
+  // (이미 user 객체가 있으므로 onAuthStateChanged 대신 리스너만 설정)
+
+  const leaveScheduleDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
+  if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule();
+  unsubscribeLeaveSchedule = onSnapshot(leaveScheduleDocRef, (docSnap) => {
+      persistentLeaveSchedule = docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] };
+
+      const today = getTodayDateString();
+      appState.dateBasedOnLeaveMembers = (persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
+          if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+              const endDate = entry.endDate || entry.startDate;
+              return entry.startDate && typeof entry.startDate === 'string' &&
+                     today >= entry.startDate && today <= (endDate || entry.startDate);
+          }
+          return false;
+      });
+      
+      markDataAsDirty();
+      render();
+      
+  }, (error) => {
+      console.error("근태 일정 실시간 연결 실패:", error);
+      showToast("근태 일정 연결에 실패했습니다.", true);
+      appState.dateBasedOnLeaveMembers = [];
+      render();
+  });
+
+  const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+  if (unsubscribeToday) unsubscribeToday();
+
+  unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
+    try {
+      const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
+      const defaultQuantities = {};
+      taskTypes.forEach(task => defaultQuantities[task] = 0);
+
+      const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
+
+      appState.workRecords = loadedState.workRecords || [];
+      appState.taskQuantities = { ...defaultQuantities, ...(loadedState.taskQuantities || {}) };
+      appState.partTimers = loadedState.partTimers || [];
+      appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
+      appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
+
+      isDataDirty = false;
+
+      renderDashboardLayout(appConfig); 
+      render(); 
+      if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
+      if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
+    } catch (parseError) {
+      console.error('Error parsing state from Firestore:', parseError);
+      showToast('데이터 로딩 중 오류 발생 (파싱 실패).', true);
+      appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+      renderDashboardLayout(appConfig); 
+      render();
+      if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
+      if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+    }
+  }, (error) => {
+    console.error('Firebase onSnapshot error:', error);
+    showToast('실시간 연결에 실패했습니다.', true);
+    appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+    renderDashboardLayout(appConfig); 
+    render();
+    if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
+    if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+  });
+}
+
 // ========== 앱 초기화 ==========
 async function main() {
   if (connectionStatusEl) connectionStatusEl.textContent = '연결 중...';
   if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse';
 
   appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
+  
+  // ✅ [삭제] 임시 로그인 사용자 설정 (initializeApp에서 처리)
+  // appState.currentUser = '박영철'; 
 
   try {
       const { app, db: fdb, auth: fath } = initializeFirebase();
@@ -2215,127 +2358,92 @@ async function main() {
       return;
   }
 
-  try {
-      if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
-      appConfig = await loadAppConfig(db); // appConfig 로드
-      persistentLeaveSchedule = await loadLeaveSchedule(db);
-
-      const loadingSpinner = document.getElementById('loading-spinner');
-      if (loadingSpinner) loadingSpinner.style.display = 'none';
-
-      // ✅ [수정] appState 전달 제거 (config만 사용)
-      renderDashboardLayout(appConfig); 
-      renderTaskSelectionModal(appConfig.taskGroups);
-  } catch (e) {
-      console.error("설정 로드 실패:", e);
-      showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
-      const loadingSpinner = document.getElementById('loading-spinner');
-      if (loadingSpinner) loadingSpinner.style.display = 'none';
-      // 설정 로드 실패 시에도 기본 config로 레이아웃 렌더링 시도
-      renderDashboardLayout(getDefaultConfig()); 
-      renderTaskSelectionModal(getDefaultConfig().taskGroups); 
-  }
-
-  displayCurrentDate();
-  if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
-  elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
-
-  if (autoSaveTimer) clearInterval(autoSaveTimer);
-  autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
-
-  // appState.taskQuantities 초기화는 Firestore 로드 시 처리되므로 여기선 제거해도 됨
-  // const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
-  // const defaultQuantities = {};
-  // taskTypes.forEach(task => defaultQuantities[task] = 0);
-  // appState.taskQuantities = { ...defaultQuantities, ...appState.taskQuantities };
-
+  // ✅ [수정] 인증 상태 변경 감지 리스너 설정
   onAuthStateChanged(auth, async user => {
+    const loadingSpinner = document.getElementById('loading-spinner');
+
     if (user) {
-      const leaveScheduleDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
-      if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule();
-      unsubscribeLeaveSchedule = onSnapshot(leaveScheduleDocRef, (docSnap) => {
-          persistentLeaveSchedule = docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] };
+      // --- 사용자가 로그인한 경우 ---
+      if (loginModal) loginModal.classList.add('hidden'); // 로그인 모달 숨기기
+      if (loadingSpinner) loadingSpinner.style.display = 'block'; // 메인 로딩 스피너 표시
+      
+      // ✅ [수정] initializeApp 함수 호출 (핵심 로직 이동)
+      await initializeApp(user); 
 
-          const today = getTodayDateString();
-          appState.dateBasedOnLeaveMembers = (persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
-              if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
-                  const endDate = entry.endDate || entry.startDate;
-                  return entry.startDate && typeof entry.startDate === 'string' &&
-                         today >= entry.startDate && today <= (endDate || entry.startDate);
-              }
-              return false;
-          });
-          
-          markDataAsDirty();
-          render();
-          
-      }, (error) => {
-          console.error("근태 일정 실시간 연결 실패:", error);
-          showToast("근태 일정 연결에 실패했습니다.", true);
-          appState.dateBasedOnLeaveMembers = [];
-          render();
-      });
-
-      const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-      if (unsubscribeToday) unsubscribeToday();
-
-      unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
-        try {
-          const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
-          const defaultQuantities = {};
-          taskTypes.forEach(task => defaultQuantities[task] = 0);
-
-          const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
-
-          appState.workRecords = loadedState.workRecords || [];
-          // taskQuantities는 현황판 항목과는 별개이므로 그대로 둠 (업무 로그용)
-          appState.taskQuantities = { ...defaultQuantities, ...(loadedState.taskQuantities || {}) };
-          appState.partTimers = loadedState.partTimers || [];
-          appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
-          appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
-
-          isDataDirty = false;
-
-          // ✅ [수정] Firestore 로드 후에도 config만 사용하여 다시 렌더링 (일관성 유지)
-          renderDashboardLayout(appConfig); 
-          render(); // 나머지 UI 업데이트
-          if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
-          if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
-        } catch (parseError) {
-          console.error('Error parsing state from Firestore:', parseError);
-          showToast('데이터 로딩 중 오류 발생 (파싱 실패).', true);
-          appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
-          renderDashboardLayout(appConfig); // 오류 시에도 config 사용
-          render();
-          if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
-          if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-        }
-      }, (error) => {
-        console.error('Firebase onSnapshot error:', error);
-        showToast('실시간 연결에 실패했습니다.', true);
-        appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
-        renderDashboardLayout(appConfig); // 오류 시에도 config 사용
-        render();
-        if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
-        if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-      });
     } else {
+      // --- 사용자가 로그아웃한 경우 ---
       if (connectionStatusEl) connectionStatusEl.textContent = '인증 필요';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
       if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
       if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; }
+      
       appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
-      renderDashboardLayout(appConfig); // 로그아웃 시에도 config 사용
-      render();
+      
+      // ✅ [수정] 기본 config로 렌더링 시도
+      try {
+        const defaultConfig = await loadAppConfig(db); // 로그아웃 상태에서도 기본 설정은 로드 시도
+        renderDashboardLayout(defaultConfig);
+      } catch (e) {
+        renderDashboardLayout({ dashboardItems: [] }); // 실패 시 빈 레이아웃
+      }
+      render(); // 나머지 UI 초기화
+
+      if (loadingSpinner) loadingSpinner.style.display = 'none'; // 메인 로딩 스피너 숨기기
+      if (loginModal) loginModal.classList.remove('hidden'); // ✅ 로그인 모달 표시
     }
   });
 
-   signInAnonymously(auth).catch(error => {
-    console.error('Anonymous sign-in failed:', error);
-    showToast('자동 인증에 실패했습니다.', true);
-    if (connectionStatusEl) connectionStatusEl.textContent = '인증 실패';
-    if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-  });
+  // ✅ [삭제] signInAnonymously(auth).catch(...) 부분 전체 삭제
+
+  // ✅ [추가] 로그인 폼 제출 이벤트 리스너
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault(); // 폼 기본 제출 방지
+        
+        const email = loginEmailInput.value;
+        const password = loginPasswordInput.value;
+
+        if (!email || !password) {
+            if (loginErrorMsg) {
+                loginErrorMsg.textContent = '이메일과 비밀번호를 모두 입력하세요.';
+                loginErrorMsg.classList.remove('hidden');
+            }
+            return;
+        }
+
+        // 로딩 상태 표시
+        if (loginSubmitBtn) loginSubmitBtn.disabled = true;
+        if (loginButtonText) loginButtonText.classList.add('hidden');
+        if (loginButtonSpinner) loginButtonSpinner.classList.remove('hidden');
+        if (loginErrorMsg) loginErrorMsg.classList.add('hidden');
+
+        try {
+            // Firebase로 이메일/비밀번호 로그인 시도
+            await signInWithEmailAndPassword(auth, email, password);
+            // 성공 시 onAuthStateChanged 리스너가 자동으로 감지하고 initializeApp(user)을 호출함.
+            // 따라서 여기서 추가 작업 필요 없음.
+            
+        } catch (error) {
+            // 로그인 실패
+            console.error('Login failed:', error.code);
+            if (loginErrorMsg) {
+                if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                    loginErrorMsg.textContent = '이메일 또는 비밀번호가 잘못되었습니다.';
+                } else if (error.code === 'auth/invalid-email') {
+                    loginErrorMsg.textContent = '유효하지 않은 이메일 형식입니다.';
+                } else {
+                    loginErrorMsg.textContent = '로그인에 실패했습니다. 다시 시도하세요.';
+                }
+                loginErrorMsg.classList.remove('hidden');
+            }
+        } finally {
+            // 로딩 상태 해제
+            if (loginSubmitBtn) loginSubmitBtn.disabled = false;
+            if (loginButtonText) loginButtonText.classList.remove('hidden');
+            if (loginButtonSpinner) loginButtonSpinner.classList.add('hidden');
+        }
+    });
+  }
 }
 
 main(); // 앱 시작
