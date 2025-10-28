@@ -507,7 +507,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             // ✅ [수정] 본인 카드 스타일링 및 위치 결정
             if (isSelf) {
                 // 본인 카드 스타일: 크기 키우고 강조 (모바일/PC 공통)
-                card.className = `p-3 rounded-lg border text-center transition-shadow min-h-[80px] w-full md:w-32 flex flex-col justify-center mobile-user-card ring-2 ring-blue-500`; // 모바일에서 width full, md부터 w-32
+                // ⛔️ [수정 전] card.className = `p-3 rounded-lg border text-center transition-shadow min-h-[80px] w-full md:w-32 flex flex-col justify-center mobile-user-card ring-2 ring-blue-500`;
+                // ✅ [수정 후] PC에서도 보이도록 md:flex 추가
+                card.className = `p-3 rounded-lg border text-center transition-shadow min-h-[80px] w-full md:w-32 flex flex-col justify-center mobile-user-card ring-2 ring-blue-500 md:flex`; 
             } else {
                 // 다른 사람 카드 스타일 (md 이상에서만 보임)
                 card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex-col justify-center hidden md:flex`; // md 이상에서만 flex
@@ -589,7 +591,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              // 알바 카드 스타일링 및 위치 결정
              if (isSelfAlba) {
                  // 본인 카드 (알바)
-                 card.className = `p-3 rounded-lg border text-center transition-shadow min-h-[80px] w-full md:w-32 flex flex-col justify-center mobile-user-card ring-2 ring-blue-500`;
+                 // ⛔️ [수정 전] card.className = `p-3 rounded-lg border text-center transition-shadow min-h-[80px] w-full md:w-32 flex flex-col justify-center mobile-user-card ring-2 ring-blue-500`;
+                 // ✅ [수정 후] PC에서도 보이도록 md:flex 추가
+                 card.className = `p-3 rounded-lg border text-center transition-shadow min-h-[80px] w-full md:w-32 flex flex-col justify-center mobile-user-card ring-2 ring-blue-500 md:flex`;
              } else {
                  // 다른 알바 카드 (md 이상)
                  card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex-col justify-center hidden md:flex`;
