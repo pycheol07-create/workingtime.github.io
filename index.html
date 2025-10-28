@@ -318,11 +318,13 @@
     </div>
     
     <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[90vh] flex flex-col relative">
-            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+        <div id="history-modal-content-box" class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[90vh] flex flex-col relative">
+            
+            <div id="history-modal-header" class="p-6 border-b border-gray-200 flex justify-between items-center cursor-move">
                 <h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2>
                 <button id="close-history-btn" class="modal-close-btn">&times;</button>
             </div>
+            
             <div class="px-6 pt-4 border-b border-gray-200 bg-gray-50">
                 <div id="history-main-tabs" class="flex gap-6">
                     <button data-main-tab="work" class="history-main-tab-btn py-3 font-semibold text-blue-600 border-b-2 border-blue-600">업무 이력</button>

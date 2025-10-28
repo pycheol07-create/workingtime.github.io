@@ -1346,10 +1346,10 @@ const switchHistoryView = (view) => {
 };
 
 
-// ✅ [수정] #open-history-btn 리스너: 인증 확인 및 전체 화면 요청 대상 수정
+// ⛔️ [수정 1] '#open-history-btn' 리스너에서 전체화면 코드 제거 및 초기화 로직 추가
 if (openHistoryBtn) {
   openHistoryBtn.addEventListener('click', async () => {
-    // ✅ [추가] 현재 로그인 상태 확인
+    // ✅ [추가] 현재 로그인 상태 확인 (기존 로직 유지)
     if (!auth || !auth.currentUser) {
         showToast('이력을 보려면 로그인이 필요합니다.', true);
         if (historyModal && !historyModal.classList.contains('hidden')) {
@@ -1363,28 +1363,44 @@ if (openHistoryBtn) {
     if (historyModal) {
       historyModal.classList.remove('hidden'); // 이력 모달 표시
       
-      // 흰색 내용 컨테이너 선택
+      // ✅ [추가] 팝업 위치/스타일 초기화 로직
+      // (드래그로 인해 변경된 스타일을 모달을 열 때마다 초기화)
+      const contentBox = document.getElementById('history-modal-content-box');
+      const overlay = document.getElementById('history-modal');
+      
+      if (contentBox && overlay && contentBox.dataset.hasBeenUncentered === 'true') {
+          // 1. 오버레이에 flex/centering 클래스 다시 추가
+          overlay.classList.add('flex', 'items-center', 'justify-center');
+          
+          // 2. 컨텐츠 박스의 position/top/left 스타일 제거 (가운데 정렬 복원)
+          contentBox.style.position = '';
+          contentBox.style.top = '';
+          contentBox.style.left = '';
+          
+          // 3. 플래그 리셋
+          contentBox.dataset.hasBeenUncentered = 'false';
+      }
+      
+      // ⛔️ [삭제] 기존 전체화면 요청 블록 (try...catch) 전체 삭제
+      /*
       const contentElement = historyModal.querySelector('.bg-white');
       if (contentElement) {
         try {
-          // 전체 화면 시도 (선택 사항)
           if (contentElement.requestFullscreen) await contentElement.requestFullscreen();
           else if (contentElement.webkitRequestFullscreen) await contentElement.webkitRequestFullscreen();
           else if (contentElement.msRequestFullscreen) await contentElement.msRequestFullscreen();
         } catch (err) {
-          // 전체 화면 실패는 오류로 간주하지 않고 계속 진행
           console.warn("전체 화면 요청 실패 (무시됨):", err); 
         }
       }
+      */
       
-      // 데이터 로드 및 렌더링
+      // 데이터 로드 및 렌더링 (기존 로직 유지)
       try {
           await loadAndRenderHistoryList(); 
       } catch (loadError) {
           console.error("이력 데이터 로딩 중 오류:", loadError);
           showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true);
-          // 오류 발생 시 모달을 닫을 수도 있음 (선택 사항)
-          // historyModal.classList.add('hidden'); 
       }
     }
   });
@@ -1459,16 +1475,6 @@ if (cancelManualAddBtn) {
 // ✅ [수정] 전체 화면 버튼 관련 리스너 제거
 // if (fullscreenHistoryBtn) { ... } // 이 부분 전체 삭제
 // document.addEventListener('fullscreenchange', ...) // 첫 번째 fullscreenchange 리스너 삭제
-
-// ✅ [수정] ESC 키 등으로 전체 화면 종료 시 모달 닫기
-document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement) {
-        // 전체 화면 모드가 종료되었을 때
-        if (historyModal && !historyModal.classList.contains('hidden')) {
-            historyModal.classList.add('hidden'); // 히스토리 모달 닫기
-        }
-    }
-});
 
 
 // ... (teamStatusBoard 리스너는 이전과 동일) ...
@@ -1715,13 +1721,19 @@ if (saveProgressBtn) {
   saveProgressBtn.addEventListener('click', () => saveProgress(false));
 }
 
-// ... (closeHistoryBtn, historyDateList, historyTabs, confirmHistoryDeleteBtn, historyMainTabs, attendanceHistoryTabs, resetAppBtn, confirmResetAppBtn, confirmQuantityBtn, confirmEditBtn, confirmQuantityOnStopBtn, taskSelectModal, confirmStopIndividualBtn, confirmLeaveBtn, confirmCancelLeaveBtn 리스너는 이전과 동일) ...
+// ⛔️ [수정 3] 'closeHistoryBtn' 리스너 수정 (단순 닫기 기능만 남김)
 if (closeHistoryBtn) {
   closeHistoryBtn.addEventListener('click', () => {
+    /* ⛔️ [삭제]
     if (document.fullscreenElement) { // 전체 화면 상태에서 닫기 버튼 누르면
         document.exitFullscreen(); // 전체 화면 종료 (fullscreenchange 리스너가 모달 닫음)
     } else if (historyModal) {
         historyModal.classList.add('hidden'); // 일반 상태면 그냥 닫음
+    }
+    */
+    // ✅ [수정]
+    if (historyModal) {
+        historyModal.classList.add('hidden'); // 그냥 닫음
     }
   });
 }
@@ -2454,6 +2466,7 @@ async function main() {
 
   // ✅ [수정] 인증 상태 변경 감지 리스너 설정
   onAuthStateChanged(auth, async user => {
+    // ... (기존 onAuthStateChanged 내부 로직은 수정 없음) ...
     const loadingSpinner = document.getElementById('loading-spinner');
 
     if (user) {
@@ -2506,7 +2519,6 @@ async function main() {
     }
   });
 
-  // ✅ [삭제] signInAnonymously(auth).catch(...) 부분 전체 삭제
 
   // ✅ [추가] 로그인 폼 제출 이벤트 리스너
   if (loginForm) {
@@ -2571,7 +2583,96 @@ async function main() {
       }
     });
   }
+
+  // ✅ [수정 4] main() 함수 맨 끝에 드래그 기능 활성화 코드 추가
+  const historyHeader = document.getElementById('history-modal-header');
+  const historyContentBox = document.getElementById('history-modal-content-box');
+  if (historyModal && historyHeader && historyContentBox) {
+      // historyModal은 이미 전역 변수로 가져왔습니다.
+      makeDraggable(historyModal, historyHeader, historyContentBox);
+  }
   
 } // <-- ✅ main() 함수가 "여기서" 올바르게 닫힘
+
+main(); // 앱 시작
+
+// ✅ [추가] 팝업 드래그 기능 함수
+/**
+ * 모달 팝업을 드래그 가능하게 만듭니다.
+ * @param {HTMLElement} modalOverlay - 모달의 배경 오버레이 (e.g., #history-modal)
+ * @param {HTMLElement} header - 드래그 핸들 역할을 할 헤더 (e.g., #history-modal-header)
+ * @param {HTMLElement} contentBox - 실제 움직일 컨텐츠 박스 (e.g., #history-modal-content-box)
+ */
+function makeDraggable(modalOverlay, header, contentBox) {
+    let isDragging = false;
+    let offsetX, offsetY;
+
+    header.addEventListener('mousedown', (e) => {
+        // 닫기 버튼이나 다른 버튼을 클릭한 경우 드래그 시작 안 함
+        if (e.target.closest('button')) {
+            return;
+        }
+        
+        isDragging = true;
+        
+        // --- "un-centering" 로직 ---
+        // 처음 드래그 시 flex 중앙 정렬을 해제하고 absolute 위치로 전환
+        if (contentBox.dataset.hasBeenUncentered !== 'true') {
+            // 1. 현재 위치 계산 (스타일 변경 전)
+            const rect = contentBox.getBoundingClientRect();
+            
+            // 2. 오버레이(부모)의 centering 클래스 제거
+            modalOverlay.classList.remove('flex', 'items-center', 'justify-center');
+            
+            // 3. 컨텐츠 박스를 absolute로 전환하고 현재 위치 고정
+            contentBox.style.position = 'absolute';
+            contentBox.style.top = `${rect.top}px`;
+            contentBox.style.left = `${rect.left}px`;
+            contentBox.style.transform = 'none'; // (혹시 모를 transform 제거)
+            
+            // 4. 플래그 설정 (다시 열릴 때 초기화를 위해)
+            contentBox.dataset.hasBeenUncentered = 'true';
+        }
+        // --- 끝 ---
+
+        // 마우스 포인터와 박스 좌상단 모서리 사이의 간격 계산
+        const rect = contentBox.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        
+        // 전체 문서에 mousemove/mouseup 리스너 추가
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
+    function onMouseMove(e) {
+        if (!isDragging) return;
+
+        // 마우스 위치에 따라 새 top, left 계산
+        let newLeft = e.clientX - offsetX;
+        let newTop = e.clientY - offsetY;
+
+        // 화면 경계 체크 (창 밖으로 나가지 않도록)
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const boxWidth = contentBox.offsetWidth;
+        const boxHeight = contentBox.offsetHeight;
+
+        if (newLeft < 0) newLeft = 0;
+        if (newTop < 0) newTop = 0;
+        if (newLeft + boxWidth > viewportWidth) newLeft = viewportWidth - boxWidth;
+        if (newTop + boxHeight > viewportHeight) newTop = viewportHeight - boxHeight;
+
+        contentBox.style.left = `${newLeft}px`;
+        contentBox.style.top = `${newTop}px`;
+    }
+
+    function onMouseUp() {
+        isDragging = false;
+        // 리스너 제거
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
+}
 
 main(); // 앱 시작
