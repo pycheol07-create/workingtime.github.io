@@ -2456,7 +2456,7 @@ async function main() {
 
       // ✅ [수정] 빈 레이아웃으로 화면 정리 (최소한의 렌더링)
       renderDashboardLayout({ dashboardItems: [] }); // 빈 대시보드 (혹시 보일 경우 대비)
-      render(); // 나머지 UI 초기화 (테이블 비우기 등)
+      // render(); // ✅ 삭제됨
     }
   });
 
