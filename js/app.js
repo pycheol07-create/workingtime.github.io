@@ -2219,6 +2219,19 @@ async function startAppAfterLogin(user) { // ✅ 이름 변경
       
       // --- ✅ [핵심] 로그인한 사용자의 이메일을 이름으로 변환 ---
       const userEmail = user.email;
+      
+      // ✅ [수정] userEmail이 null인 경우에 대한 방어 코드
+      if (!userEmail) {
+          showToast('로그인 사용자의 이메일 정보를 가져올 수 없습니다. 다시 로그인해주세요.', true);
+          console.error(`Logged in user object has null email. User ID: ${user.uid}`);
+          const loadingSpinner = document.getElementById('loading-spinner');
+          if (loadingSpinner) loadingSpinner.style.display = 'none';
+          if (connectionStatusEl) connectionStatusEl.textContent = '인증 오류';
+          auth.signOut(); // 로그아웃 처리
+          if (loginModal) loginModal.classList.remove('hidden'); // 로그인 모달 다시 표시
+          return;
+      }
+      
       const memberEmails = appConfig.memberEmails || {}; // { "박영철": "park@test.com", ... }
       
       // memberEmails 객체를 뒤집어서 { "park@test.com": "박영철" } 맵을 생성
@@ -2227,11 +2240,12 @@ async function startAppAfterLogin(user) { // ✅ 이름 변경
           return acc;
       }, {});
 
-      const currentUserName = emailToMemberMap[userEmail.toLowerCase()];
+      const currentUserName = emailToMemberMap[userEmail.toLowerCase()]; // ✅ 이제 안전!
 
       if (!currentUserName) {
           // appConfig에 등록되지 않은 사용자
           showToast('로그인했으나 앱에 등록된 사용자가 아닙니다. 관리자에게 문의하세요.', true);
+          // ✅ [수정] userEmail이 null이 아님을 보장
           console.warn(`User ${userEmail} logged in but not found in appConfig.memberEmails.`);
           if (loadingSpinner) loadingSpinner.style.display = 'none';
           if (connectionStatusEl) connectionStatusEl.textContent = '사용자 미등록';
