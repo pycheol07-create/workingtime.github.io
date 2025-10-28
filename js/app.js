@@ -2206,7 +2206,7 @@ if (confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
 });
 
 // ✅ [추가] 인증 성공 후 앱을 초기화하는 함수
-async function initializeApp(user) {
+async function startAppAfterLogin(user) { // ✅ 이름 변경
   const loadingSpinner = document.getElementById('loading-spinner');
   if (loadingSpinner) loadingSpinner.style.display = 'block'; // 로딩 스피너 다시 표시
 
@@ -2368,7 +2368,7 @@ async function main() {
       if (loadingSpinner) loadingSpinner.style.display = 'block'; // 메인 로딩 스피너 표시
       
       // ✅ [수정] initializeApp 함수 호출 (핵심 로직 이동)
-      await initializeApp(user); 
+      await startAppAfterLogin(user); // ✅ 이름 변경
 
     } else {
       // --- 사용자가 로그아웃한 경우 ---
