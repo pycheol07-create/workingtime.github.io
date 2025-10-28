@@ -275,7 +275,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     container.innerHTML = html;
 };
 
-// ✅ [수정] renderRealtimeStatus (모바일 레이아웃 재조정)
+// ✅ [수정] renderRealtimeStatus (모바일 레이아웃 재조정 및 오류 수정)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
@@ -303,13 +303,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     const presetGrid = document.createElement('div');
     // 모바일: 1열, sm부터는 이전과 동일한 반응형 그리드
     presetGrid.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4';
-    presetGrid.id = 'preset-task-grid'; 
+    presetGrid.id = 'preset-task-grid';
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
-    
+
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
-    
+
     const tasksToRender = [...new Set([...baseTasks, ...activeTaskNames])];
 
     tasksToRender.forEach(task => {
@@ -337,7 +337,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         // - 사용자가 참여 중인 카드만 항상 보이도록 (`flex`)
         // - 나머지는 모두 md 사이즈 이상에서만 보이도록 (`hidden md:flex`)
         const visibilityClass = isCurrentUserInvolved ? 'flex' : 'hidden md:flex';
-        
+
         card.className = `p-3 rounded-lg border flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${visibilityClass} ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
 
 
@@ -385,10 +385,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             // 카드 내용 (이전과 동일)
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div>
-                                <div class="text-xs ${currentStyle.subtitle} my-2">시작: ${formatTimeTo24H(earliestStartTime)} 
-                                    <span class="ongoing-duration" 
-                                          data-start-time="${earliestStartTime || ''}" 
-                                          data-status="${durationStatus}" 
+                                <div class="text-xs ${currentStyle.subtitle} my-2">시작: ${formatTimeTo24H(earliestStartTime)}
+                                    <span class="ongoing-duration"
+                                          data-start-time="${earliestStartTime || ''}"
+                                          data-status="${durationStatus}"
                                           data-record-id="${recordIdForDuration || ''}"
                                           data-pauses-json='${pausesJson}'></span>
                                 </div>
@@ -404,7 +404,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         } else { // 아무도 참여하지 않은 카드 (새 업무 시작용)
             card.dataset.action = 'start-task';
             card.dataset.task = task;
-            
+
             // 카드 내용 (이전과 동일)
             card.innerHTML = `
                 <div class="flex-grow">
@@ -436,7 +436,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
     `;
     presetGrid.appendChild(otherTaskCard);
-    
+
     presetTaskContainer.appendChild(presetGrid);
     teamStatusBoard.appendChild(presetTaskContainer);
 
@@ -452,9 +452,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                                   </h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // ✅ [추가] 모바일 화면에서 본인 카드만 담을 최상단 컨테이너
-    mobileUserCardContainer.className = 'mb-4 md:hidden'; // 모바일에서만 보이고, 아래 그룹과 간격 띄움
-    allMembersContainer.appendChild(mobileUserCardContainer); // 헤더 바로 다음에 추가
+    // ⛔️ [삭제] mobileUserCardContainer 관련 코드 삭제 완료
 
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
@@ -481,15 +479,16 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
     orderedTeamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
-        // ✅ [수정] 모바일에서는 숨김 (본인 카드 제외하고)
-        groupContainer.className = 'mb-4 hidden md:block'; 
+        // ✅ [수정] 그룹 컨테이너는 항상 block, 헤더만 md 이상에서 보이도록 수정
+        groupContainer.className = 'mb-4';
         const groupHeader = document.createElement('div');
-        groupHeader.className = 'flex items-center gap-2 mb-2'; // md:flex 제거 (어차피 부모가 md:block)
+        groupHeader.className = 'hidden md:flex items-center gap-2 mb-2'; // md 이상에서만 flex
         groupHeader.innerHTML = `<h4 class="text-md font-semibold text-gray-600">${group.name}</h4>`;
         groupContainer.appendChild(groupHeader);
-        
+
         const groupGrid = document.createElement('div');
-        groupGrid.className = 'flex flex-wrap gap-2'; // md 이상에서는 flex 유지
+        // ✅ [수정] 모바일 grid, PC flex 레이아웃 클래스 적용
+        groupGrid.className = 'grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap gap-2';
         const uniqueMembersInGroup = [...new Set(group.members)];
 
         uniqueMembersInGroup.forEach(member => {
@@ -501,34 +500,35 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             const isSelf = (member === currentUserName); // 본인 확인
 
             card.dataset.memberToggleLeave = member;
-            
-            // ✅ [수정] 본인 카드 스타일링 및 위치 결정
+
+            // ✅ [수정] 본인 카드와 다른 카드 클래스 분기
             if (isSelf) {
-                // 본인 카드 스타일: 크기 키우고 강조 (모바일/PC 공통)
-                // ⛔️ [수정 전] card.className = `p-3 rounded-lg border text-center transition-shadow min-h-[80px] w-full md:w-32 flex flex-col justify-center mobile-user-card ring-2 ring-blue-500`;
-                // ✅ [수정 후] PC에서도 보이도록 md:flex 추가
-                card.className = `p-3 rounded-lg border text-center transition-shadow min-h-[80px] w-full md:w-32 flex flex-col justify-center mobile-user-card ring-2 ring-blue-500 md:flex`; 
+                // 본인 카드: 항상 flex, 모바일/PC 스타일 분리, order-first로 맨 위로 (모바일 grid에서)
+                card.className = `p-3 md:p-1 rounded-lg border text-center transition-shadow min-h-[80px] md:min-h-[72px] w-full md:w-28 flex flex-col justify-center ring-2 md:ring-0 ring-blue-500 order-first md:order-none`; // order-first 추가, md 스타일 추가
             } else {
-                // 다른 사람 카드 스타일 (md 이상에서만 보임)
-                card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex-col justify-center hidden md:flex`; // md 이상에서만 flex
+                // 다른 사람 카드: 모바일 hidden, PC flex
+                card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] w-28 flex-col justify-center hidden md:flex`;
             }
 
             // 권한 및 상태에 따른 활성/비활성 스타일 (이전과 동일)
             if (!isWorking) {
                 if (currentUserRole === 'admin' || isSelf) {
                     card.classList.add('cursor-pointer', 'hover:shadow-md');
-                    if (!isSelf) card.classList.add('hover:ring-2', 'hover:ring-blue-400'); // 본인 카드는 이미 ring 있음
+                    // 본인 카드는 모바일에서도 hover 효과 약간 다르게 (선택)
+                    if (isSelf) card.classList.add('hover:ring-blue-300');
+                    else card.classList.add('hover:ring-2', 'hover:ring-blue-400');
                 } else {
-                    card.classList.add('cursor-not-allowed', 'opacity-70'); 
+                    card.classList.add('cursor-not-allowed', 'opacity-70');
                 }
             } else {
                 card.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
-            // 카드 내용 채우기 (이전과 동일)
+            // ✅ [수정] 카드 내용 채우기 (폰트 크기 반응형 적용)
             if (isOnLeave) {
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 let detailText = '';
+                // ... (detailText 생성 로직 동일) ...
                 if (leaveInfo.startTime) {
                     detailText = formatTimeTo24H(leaveInfo.startTime);
                     if (leaveInfo.endTime) detailText += ` - ${formatTimeTo24H(leaveInfo.endTime)}`;
@@ -551,17 +551,22 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                 card.innerHTML = `<div class="font-semibold text-lg md:text-sm text-green-800 break-keep">${member}</div><div class="text-base md:text-xs text-green-600">대기 중</div>`;
             }
 
-            // ✅ [수정] 본인 카드는 모바일 전용 컨테이너로 이동, 나머지는 그룹 그리드에 추가
-            if (isSelf) {
-                mobileUserCardContainer.appendChild(card); // 모바일용 최상단 컨테이너에 추가
-            } else {
-                groupGrid.appendChild(card); // PC용 그룹 그리드에 추가
-            }
-        });
+            // ✅ [수정] 모든 카드를 groupGrid에 추가 (mobileUserCardContainer 참조 제거)
+            groupGrid.appendChild(card);
+
+        }); // uniqueMembersInGroup.forEach 끝
         groupContainer.appendChild(groupGrid);
-        
+
+        // ✅ [수정] 본인이 속한 그룹만 모바일에서 보이도록 함 (컨테이너 자체 visibility)
+        const currentUserIsInGroup = currentUserName && uniqueMembersInGroup.includes(currentUserName);
+        if (!currentUserIsInGroup) {
+            groupContainer.classList.add('hidden', 'md:block'); // 본인 없으면 모바일에서 숨김
+        } else {
+            groupContainer.classList.add('block'); // 본인 있으면 항상 보임
+        }
+
         allMembersContainer.appendChild(groupContainer);
-    });
+    }); // orderedTeamGroups.forEach 끝
 
     // --- 알바 섹션 ---
     const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
@@ -584,9 +589,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              const card = document.createElement('button');
              card.type = 'button';
              card.dataset.memberToggleLeave = pt.name;
-             
+
              const isSelfAlba = (pt.name === currentUserName); // 본인 확인 (알바)
-             
+
              // ✅ [수정] 본인 카드(알바)와 다른 카드 클래스 분기
              if (isSelfAlba) {
                  // 본인 카드 (알바): 항상 flex, 모바일/PC 스타일 분리, order-first
@@ -637,18 +642,20 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                  card.classList.add('bg-yellow-50', 'border-yellow-200');
                  card.innerHTML = `<div class="font-semibold text-lg md:text-sm text-yellow-800">${pt.name}</div><div class="text-base md:text-xs text-yellow-600">휴식 중</div>`;
              }
-             
-             // ✅ [수정] 모든 알바 카드를 albaGrid에 추가
+
+
+             // ✅ [수정] 모든 알바 카드를 albaGrid에 추가 (mobileUserCardContainer 참조 제거)
              albaGrid.appendChild(card);
-        });
+
+        }); // activePartTimers.forEach 끝
         albaContainer.appendChild(albaGrid);
         allMembersContainer.appendChild(albaContainer);
-    }
-    
+    } // if (activePartTimers.length > 0) 끝
+
     // 최종적으로 teamStatusBoard에 추가 (이전과 동일)
     teamStatusBoard.appendChild(presetTaskContainer);
     teamStatusBoard.appendChild(allMembersContainer);
-};
+}; // renderRealtimeStatus 끝
 
 // ... (renderCompletedWorkLog, updateSummary, renderTeamSelectionModalContent, renderLeaveTypeModalOptions, renderSummaryView, renderWeeklyHistory, renderMonthlyHistory, renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory 함수들은 이전과 동일) ...
 export const renderCompletedWorkLog = (appState) => {
