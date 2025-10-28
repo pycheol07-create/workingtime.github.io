@@ -1,10 +1,10 @@
-// === config.js (keyTasks 기본값 추가) ===
+// === config.js (loadAppConfig 함수 수정) ===
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// ... (Firebase 설정 및 다른 함수들은 동일) ...
+// ... (firebaseConfig, APP_ID, initializeFirebase 함수는 동일) ...
 // 1. Firebase 설정 (유지)
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -55,10 +55,15 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.keyTasks = loadedData.keyTasks || defaultData.keyTasks;
             mergedConfig.dashboardItems = loadedData.dashboardItems || defaultData.dashboardItems;
             mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) };
-            // ✅ [추가] 커스텀 항목 병합
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             mergedConfig.taskGroups = loadedData.taskGroups || defaultData.taskGroups;
+            
+            // ✅ [추가] memberWages, memberEmails, memberRoles 병합
+            mergedConfig.memberWages = { ...defaultData.memberWages, ...(loadedData.memberWages || {}) };
+            mergedConfig.memberEmails = { ...defaultData.memberEmails, ...(loadedData.memberEmails || {}) };
+            mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
+
 
             return mergedConfig;
         } else {
@@ -139,6 +144,9 @@ function getDefaultConfig() {
             '김현': 10287, '배은정': 10287, '박상희': 10287, '김동훈': 10287,
             '신민재': 10047, '황호석': 10047
         },
+        // ✅ [추가] 이메일, 역할 기본값
+        memberEmails: {},
+        memberRoles: {},
         keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'],
         dashboardItems: [
             'total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff',

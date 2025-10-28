@@ -166,6 +166,10 @@ function renderAdminUI(config) {
 function renderTeamGroups(teamGroups, memberWages, memberEmails) { // ✅ memberEmails 파라미터 추가
     const container = document.getElementById('team-groups-container');
     container.innerHTML = '';
+    
+    // ✅ [추가] memberRoles 정보 가져오기 (appConfig는 전역 변수여야 함)
+    const memberRoles = appConfig.memberRoles || {};
+
     teamGroups.forEach((group, index) => {
         const groupEl = document.createElement('div');
         // [수정] groupEl에서 draggable="true" 제거
@@ -174,17 +178,32 @@ function renderTeamGroups(teamGroups, memberWages, memberEmails) { // ✅ member
         // groupEl.draggable = true; // [제거]
 
         // ✅ [수정] 이메일 필드 추가 및 정렬 클래스(w-*, ml-auto) 적용
-        const membersHtml = group.members.map((member, mIndex) => `
+        const membersHtml = group.members.map((member, mIndex) => {
+            const memberEmail = memberEmails[member] || '';
+            // ✅ [추가] 현재 이메일의 역할 조회
+            const currentRole = (memberEmail && memberRoles[memberEmail]) ? memberRoles[memberEmail] : 'user';
+            
+            return `
             <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item">
                 <span class="drag-handle" draggable="true">☰</span>
                 <input type="text" value="${member}" class="member-name w-32" placeholder="팀원 이름">
+                
                 <label class="text-sm whitespace-nowrap ml-2">로그인 이메일:</label>
-                <input type="email" value="${memberEmails[member] || ''}" class="member-email w-48" placeholder="example@email.com">
+                <input type="email" value="${memberEmail}" class="member-email w-48" placeholder="example@email.com">
+                
                 <label class="text-sm whitespace-nowrap ml-2">시급:</label>
-                <input type="number" value="${memberWages[member] || 0}" class="member-wage w-24" placeholder="시급">
+                <input type="number" value="${memberWages[member] || 0}" class="member-wage w-20" placeholder="시급">
+                
+                <label class="text-sm whitespace-nowrap ml-2">역할:</label>
+                <select class="member-role w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="user" ${currentRole === 'user' ? 'selected' : ''}>일반사용자</option>
+                    <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>관리자</option>
+                </select>
+                
                 <button class="btn btn-danger btn-small delete-member-btn ml-auto" data-m-index="${mIndex}">삭제</button>
             </div>
-        `).join('');
+            `;
+        }).join('');
 
         groupEl.innerHTML = `
             <div class="flex justify-between items-center mb-4">
@@ -731,14 +750,23 @@ function handleDynamicClicks(e) {
         const newMemberEl = document.createElement('div');
         newMemberEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item';
         // newMemberEl.draggable = true; // [제거]
-        // ✅ [수정] 이메일 필드 추가 및 정렬 클래스 적용
+        // ✅ [수정] 이메일 및 역할 필드 추가
         newMemberEl.innerHTML = `
             <span class="drag-handle" draggable="true">☰</span>
             <input type="text" value="새 팀원" class="member-name w-32" placeholder="팀원 이름">
+            
             <label class="text-sm whitespace-nowrap ml-2">로그인 이메일:</label>
             <input type="email" value="" class="member-email w-48" placeholder="example@email.com">
+            
             <label class="text-sm whitespace-nowrap ml-2">시급:</label>
-            <input type="number" value="${appConfig.defaultPartTimerWage || 10000}" class="member-wage w-24" placeholder="시급">
+            <input type="number" value="${appConfig.defaultPartTimerWage || 10000}" class="member-wage w-20" placeholder="시급">
+            
+            <label class="text-sm whitespace-nowrap ml-2">역할:</label>
+            <select class="member-role w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="user" selected>일반사용자</option>
+                <option value="admin">관리자</option>
+            </select>
+            
             <button class="btn btn-danger btn-small delete-member-btn ml-auto">삭제</button>
         `;
         container.appendChild(newMemberEl);
@@ -899,6 +927,7 @@ async function handleSaveAll() {
             teamGroups: [],
             memberWages: {},
             memberEmails: {}, // ✅ [추가] 이메일 맵 초기화
+            memberRoles: {}, // ✅ [추가] 역할 맵 초기화
             dashboardItems: [],
             dashboardQuantities: {}, // ✅ 현황판 수량 객체
             dashboardCustomItems: {}, // ✅ [추가] 커스텀 항목 저장 객체
@@ -919,18 +948,25 @@ async function handleSaveAll() {
                 const memberName = memberItem.querySelector('.member-name').value.trim();
                 const memberEmail = memberItem.querySelector('.member-email').value.trim(); // ✅ [추가] 이메일 값 읽기
                 const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
+                // ✅ [추가] 역할 값 읽기
+                const memberRole = memberItem.querySelector('.member-role').value || 'user';
+                
                 if (!memberName) return;
 
                 newGroup.members.push(memberName);
                 newConfig.memberWages[memberName] = memberWage;
-                if (memberEmail) { // ✅ [추가] 이메일이 입력된 경우에만 저장
+                
+                if (memberEmail) { // ✅ [수정] 이메일이 있는 경우에만 역할과 이메일 저장
                     newConfig.memberEmails[memberName] = memberEmail;
+                    // ✅ [추가] 이메일을 Key로 역할을 저장
+                    newConfig.memberRoles[memberEmail.toLowerCase()] = memberRole;
                 }
             });
             newConfig.teamGroups.push(newGroup);
         });
 
         // ✅ [수정] 2. 현황판 항목 순서, 수량 및 커스텀 정의 읽기
+        // ... (이 부분 로직은 기존과 동일) ...
         const allDefinitions = getAllDashboardDefinitions(appConfig); // 현재 로드된 모든 정의 사용
         document.querySelectorAll('#dashboard-items-container .dashboard-item-config').forEach(item => {
             const nameSpan = item.querySelector('.dashboard-item-name');
@@ -960,7 +996,9 @@ async function handleSaveAll() {
             }
         });
 
+
         // 3. 주요 업무 정보 읽기 (순서 반영)
+        // ... (이 부분 로직은 기존과 동일) ...
         document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
              // [수정] .value -> .textContent
              const taskName = item.querySelector('.key-task-name').textContent.trim();
@@ -969,6 +1007,7 @@ async function handleSaveAll() {
 
 
         // 4. 업무 정보 읽기 (순서 반영)
+        // ... (이 부분 로직은 기존과 동일) ...
         const orderedTaskGroups = {};
         document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
             const groupNameInput = groupCard.querySelector('.task-group-name');
@@ -987,6 +1026,7 @@ async function handleSaveAll() {
 
 
         // 5. 처리량 업무 정보 읽기 (순서 반영)
+        // ... (이 부분 로직은 기존과 동일) ...
         document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
             // [수정] .value -> .textContent
             const taskName = item.querySelector('.quantity-task-name').textContent.trim();
@@ -994,12 +1034,14 @@ async function handleSaveAll() {
         });
 
         // 6. 전역 설정 (알바 시급) 읽기
+        // ... (이 부분 로직은 기존과 동일) ...
         const wageInput = document.getElementById('default-part-timer-wage');
         if (wageInput) {
             newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
         }
 
         // [추가] 7. 데이터 유효성 검사
+        // ... (이 부분 로직은 기존과 동일) ...
         const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
 
         const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
