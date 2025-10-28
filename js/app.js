@@ -2285,10 +2285,22 @@ async function startAppAfterLogin(user) { // ✅ 이름 변경
       }
       // ----------------------------------------------------
 
-      if (loadingSpinner) loadingSpinner.style.display = 'none';
-      renderDashboardLayout(appConfig); 
+      // ✅ [추가] 로그인 성공 시 숨겨둔 메인 UI 요소들 보이기
+      document.getElementById('current-date-display')?.classList.remove('hidden');
+      document.getElementById('top-right-controls')?.classList.remove('hidden');
+      document.querySelector('.bg-gray-800.shadow-lg')?.classList.remove('hidden'); // 현황판 부모 div
+      document.querySelector('.flex-grow.flex.flex-col')?.classList.remove('hidden'); // 팀 현황 부모 div
+      document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { // 완료/분석 부모 div들
+          if(el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
+              el.classList.remove('hidden');
+          }
+      });
+
+
+      if (loadingSpinner) loadingSpinner.style.display = 'none'; // ✅ 스피너 숨기기
+      renderDashboardLayout(appConfig); // ✅ 레이아웃 렌더링
       renderTaskSelectionModal(appConfig.taskGroups);
-      
+
   } catch (e) { // ✅ [수정] 누락되었던 catch 블록 추가
       console.error("설정 로드 실패:", e);
       showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
@@ -2415,28 +2427,36 @@ async function main() {
       // --- 사용자가 로그아웃한 경우 ---
       if (connectionStatusEl) connectionStatusEl.textContent = '인증 필요';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
-      
+
       // ✅ [수정] 실시간 리스너 해제 먼저
       if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
       if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; }
-      
+
       // ✅ [수정] 앱 상태 초기화
-      appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null }; // currentUser도 null로 설정
-      
-      // ✅ [수정] 사용자 UI 숨기기
+      appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null };
+
+      // ✅ [수정] 사용자 UI 및 메인 콘텐츠 숨기기
       if (userGreeting) userGreeting.classList.add('hidden');
       if (logoutBtn) logoutBtn.classList.add('hidden');
+      document.getElementById('current-date-display')?.classList.add('hidden');
+      document.getElementById('top-right-controls')?.classList.add('hidden');
+      document.querySelector('.bg-gray-800.shadow-lg')?.classList.add('hidden'); // 현황판 부모 div
+      document.querySelector('.flex-grow.flex.flex-col')?.classList.add('hidden'); // 팀 현황 부모 div
+      document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { // 완료/분석 부모 div들
+          if(el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
+              el.classList.add('hidden');
+          }
+      });
+
 
       // ✅ [수정] 로그인 모달을 "먼저" 표시
-      if (loginModal) loginModal.classList.remove('hidden'); 
-      if (loadingSpinner) loadingSpinner.style.display = 'none'; // 메인 로딩 스피너 숨기기
+      if (loginModal) loginModal.classList.remove('hidden');
+      // ✅ [수정] 로딩 스피너 "나중에" 숨기기
+      if (loadingSpinner) loadingSpinner.style.display = 'none';
 
-      // ✅ [수정] 설정 로드 시도 "삭제"! 권한 없으므로 시도하지 않음.
-      // try { ... loadAppConfig ... } catch ... // 이 블록 전체 삭제
-
-      // ✅ [수정] 빈 레이아웃으로 화면 정리
-      renderDashboardLayout({ dashboardItems: [] }); // 빈 대시보드
-      render(); // 나머지 UI(빈 테이블 등) 렌더링
+      // ✅ [수정] 빈 레이아웃으로 화면 정리 (최소한의 렌더링)
+      renderDashboardLayout({ dashboardItems: [] }); // 빈 대시보드 (혹시 보일 경우 대비)
+      render(); // 나머지 UI 초기화 (테이블 비우기 등)
     }
   });
 

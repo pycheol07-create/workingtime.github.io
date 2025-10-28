@@ -14,9 +14,9 @@
 
     <div id="app-content" class="w-full min-h-screen bg-white p-6 md:p-8 relative flex flex-col">
 
-        <div id="current-date-display" class="absolute top-4 left-6 text-lg font-bold text-gray-700"></div>
+        <div id="current-date-display" class="absolute top-4 left-6 text-lg font-bold text-gray-700 hidden"></div>
 
-        <div class="absolute top-4 right-6 flex flex-col items-end gap-2">
+        <div id="top-right-controls" class="absolute top-4 right-6 flex flex-col items-end gap-2 hidden">
             <div id="connection-indicator" class="flex items-center gap-2">
                 <span id="user-greeting" class="text-sm font-semibold text-gray-700 mr-2 hidden"></span>
                 <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
@@ -48,38 +48,31 @@
             <h1 class="text-3xl md:text-4xl font-bold text-gray-900">물류팀 업무현황</h1>
         </header>
 
-        <div class="mb-8 bg-gray-800 text-white rounded-lg border border-gray-700 shadow-lg">
-             <div id="toggle-summary" class="flex justify-between items-center p-4 cursor-pointer md:cursor-auto">
+        <div class="mb-8 bg-gray-800 text-white rounded-lg border border-gray-700 shadow-lg hidden">
+     <div id="toggle-summary" class="flex justify-between items-center p-4 cursor-pointer md:cursor-auto">
+         </div>
                 <svg id="summary-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
             </div>
             <div id="summary-content" class="hidden md:grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 p-6 text-center">
-                </div>
+                </div>  
         </div>
            
-        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 flex-grow flex flex-col">
+        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 flex-grow flex flex-col hidden">
             <h2 class="text-xl font-bold text-gray-900 mb-4">업무 배정 및 팀 현황</h2>
-
             <div id="loading-spinner" class="text-center py-10">
-                <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <p class="mt-2 text-gray-500 font-semibold">설정 및 데이터를 불러오는 중...</p>
-            </div>
-
+                </div>
             <div id="team-status-board" class="space-y-8 flex-grow">
                 </div>
         </div>
 
-        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-             <div id="toggle-completed-log" class="flex justify-between items-center cursor-pointer md:cursor-auto">
-                <h2 class="text-xl font-bold text-gray-900">오늘 완료된 업무</h2>
-                <svg id="completed-log-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-            </div>
+        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 hidden">
+            <div id="toggle-completed-log" class="flex justify-between items-center cursor-pointer md:cursor-auto">
+                </div>
+            <div id="completed-log-content" class="hidden md:block mt-4">
+                </div>
+        </div>
             <div id="completed-log-content" class="hidden md:block mt-4">
                 <div class="flex flex-wrap gap-2 justify-end items-center mb-4">
                     <button id="open-history-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">이력 보기</button>
@@ -108,8 +101,12 @@
             </div>
         </div>
 
-        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
-             <div id="toggle-analysis" class="flex justify-between items-center cursor-pointer md:cursor-auto">
+        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 hidden">
+            <div id="toggle-analysis" class="flex justify-between items-center cursor-pointer md:cursor-auto">
+                </div>
+            <div id="analysis-content" class="hidden md:block mt-4">
+                </div>
+        </div>
                 <h2 class="text-xl font-bold text-gray-900">오늘의 업무 분석</h2>
                  <svg id="analysis-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
