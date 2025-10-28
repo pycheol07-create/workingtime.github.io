@@ -1134,4 +1134,13 @@ document.addEventListener('DOMContentLoaded', () => {
             adminContent.classList.remove('hidden');
         }
     });
+
+    // 창 닫기 버튼 이벤트 리스너 추가
+const closeAdminBtn = document.getElementById('close-admin-btn');
+if (closeAdminBtn) {
+    closeAdminBtn.addEventListener('click', () => {
+        window.close();
+        // 참고: 사용자가 직접 열지 않은 탭은 스크립트로 닫지 못할 수 있습니다.
+    });
+}
 });
