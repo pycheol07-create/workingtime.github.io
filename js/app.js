@@ -2289,7 +2289,7 @@ async function startAppAfterLogin(user) { // ✅ 이름 변경
       document.getElementById('current-date-display')?.classList.remove('hidden');
       document.getElementById('top-right-controls')?.classList.remove('hidden');
       document.querySelector('.bg-gray-800.shadow-lg')?.classList.remove('hidden'); // 현황판 부모 div
-      document.querySelector('.flex-grow.flex.flex-col')?.classList.remove('hidden'); // 팀 현황 부모 div
+      document.getElementById('main-content-area')?.classList.remove('hidden'); // ✅ ID 선택자로 변경!
       document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { // 완료/분석 부모 div들
           if(el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
               el.classList.remove('hidden');
@@ -2441,7 +2441,7 @@ async function main() {
       document.getElementById('current-date-display')?.classList.add('hidden');
       document.getElementById('top-right-controls')?.classList.add('hidden');
       document.querySelector('.bg-gray-800.shadow-lg')?.classList.add('hidden'); // 현황판 부모 div
-      document.querySelector('.flex-grow.flex.flex-col')?.classList.add('hidden'); // 팀 현황 부모 div
+      document.getElementById('main-content-area')?.classList.add('hidden'); // ✅ ID 선택자로 변경!
       document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { // 완료/분석 부모 div들
           if(el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
               el.classList.add('hidden');
