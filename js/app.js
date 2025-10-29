@@ -1484,7 +1484,7 @@ if (cancelManualAddBtn) {
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
 
-    // ✅ [추가] 모바일 전체 업무 펼쳐보기 버튼
+    // ✅ [수정] 모바일 전체 업무 펼쳐보기 버튼 (텍스트 변경)
     const toggleMobileBtn = e.target.closest('#toggle-all-tasks-mobile');
     if (toggleMobileBtn) {
         e.stopPropagation();
@@ -1500,7 +1500,7 @@ if (teamStatusBoard) {
                 card.classList.add('hidden');
                 card.classList.remove('flex'); // 'flex'를 명시적으로 제거
             });
-            toggleMobileBtn.textContent = '전체 업무 펼쳐보기';
+            toggleMobileBtn.textContent = '전체보기'; // ✅ 수정
             toggleMobileBtn.classList.remove('bg-blue-100', 'text-blue-800'); // 스타일 원복
             toggleMobileBtn.classList.add('bg-gray-200', 'text-gray-800');
         } else {
@@ -1510,7 +1510,7 @@ if (teamStatusBoard) {
                 card.classList.remove('hidden');
                 card.classList.add('flex'); // 'flex'를 명시적으로 추가
             });
-            toggleMobileBtn.textContent = '내 업무만 보기 (접기)';
+            toggleMobileBtn.textContent = '내 업무'; // ✅ 수정
             toggleMobileBtn.classList.add('bg-blue-100', 'text-blue-800'); // 활성 스타일
             toggleMobileBtn.classList.remove('bg-gray-200', 'text-gray-800');
         }
