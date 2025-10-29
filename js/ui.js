@@ -298,10 +298,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     
-    // ✅ [수정] "주요 업무" 헤더 (텍스트 수정됨)
+    // ✅ [수정] "주요 업무" 헤더 텍스트(h3) 삭제, 버튼만 남기고 데스크탑에서는 숨김
     presetTaskContainer.innerHTML = `
-        <div class="flex justify-between items-center border-b pb-2 mb-4">
-            <h3 class="text-lg font-bold text-gray-700">주요 업무 (시작할 업무 카드를 클릭)</h3>
+        <div class="flex justify-end items-center border-b pb-2 mb-4 md:hidden">
             <button id="toggle-all-tasks-mobile" 
                     class="md:hidden bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-xs py-1 px-2 rounded-md transition active:scale-[0.98]">
                 전체보기
