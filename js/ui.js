@@ -1407,10 +1407,14 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                         <th scope="col" class="px-6 py-3">이름</th>
                         <th scope="col" class="px-6 py-3">유형</th>
                         <th scope="col" class="px-6 py-3">시간 / 기간</th>
+                        <th scope="col" class="px-6 py-3 text-right">관리</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
+
+    leaveEntries.forEach((entry, index) => {
+        let detailText = '-';
 
     leaveEntries.forEach(entry => {
         let detailText = '-';
@@ -1433,6 +1437,9 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                 <td class="px-6 py-4 font-medium text-gray-900">${entry.member}</td>
                 <td class="px-6 py-4">${entry.type}</td>
                 <td class="px-6 py-4">${detailText}</td>
+                <td class="px-6 py-4 text-right">
+                    <button data-action="edit-attendance" data-date-key="${dateKey}" data-index="${index}" class="font-medium text-blue-500 hover:underline">수정</button>
+                </td>
             </tr>
         `;
     });
@@ -1444,6 +1451,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     `;
 
     view.innerHTML = html;
+});
 };
 
 // ✅ [추가] 주별/월별 근태 요약 렌더링을 위한 공통 헬퍼 함수
@@ -1613,6 +1621,7 @@ export const renderManualAddModalDatalists = (appState, appConfig) => {
     taskDatalist.innerHTML = '';
     const allTasks = [...new Set(Object.values(appConfig.taskGroups || {}).flat())].sort();
 
+    // ... (renderManualAddModalDatalists 함수 내용) ...
     allTasks.forEach(task => {
         const option = document.createElement('option');
         option.value = task;
