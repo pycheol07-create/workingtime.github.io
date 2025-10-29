@@ -128,11 +128,6 @@ const logoutBtn = document.getElementById('logout-btn');
 const hamburgerBtn = document.getElementById('hamburger-btn');
 const navContent = document.getElementById('nav-content');
 
-// ✅ [추가] 데스크톱 메뉴 (햄버거) 버튼
-const desktopMenuBtn = document.getElementById('desktop-menu-btn');
-const desktopMenuDropdown = document.getElementById('desktop-menu-dropdown');
-const openQuantityModalBtn = document.getElementById('open-quantity-modal-btn');
-
 // === app.js (상단 DOM 요소 추가) ===
 
 // ✅ [추가] 시작 시간 수정 모달 요소
