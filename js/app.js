@@ -127,6 +127,18 @@ const logoutBtn = document.getElementById('logout-btn');
 const hamburgerBtn = document.getElementById('hamburger-btn');
 const navContent = document.getElementById('nav-content');
 
+// === app.js (상단 DOM 요소 추가) ===
+
+// ✅ [추가] 시작 시간 수정 모달 요소
+const editStartTimeModal = document.getElementById('edit-start-time-modal');
+const editStartTimeModalTitle = document.getElementById('edit-start-time-modal-title');
+const editStartTimeModalMessage = document.getElementById('edit-start-time-modal-message');
+const editStartTimeInput = document.getElementById('edit-start-time-input');
+const editStartTimeContextIdInput = document.getElementById('edit-start-time-context-id');
+const editStartTimeContextTypeInput = document.getElementById('edit-start-time-context-type');
+const confirmEditStartTimeBtn = document.getElementById('confirm-edit-start-time-btn');
+const cancelEditStartTimeBtn = document.getElementById('cancel-edit-start-time-btn');
+
 
 // ========== Firebase/App State ==========
 // ... (이전과 동일) ...
@@ -135,6 +147,8 @@ let unsubscribeToday;
 let unsubscribeLeaveSchedule;
 let elapsedTimeTimer = null;
 let recordCounter = 0;
+let recordIdOrGroupIdToEdit = null;
+let editType = null; // 'group' or 'individual'
 
 let isDataDirty = false;
 let autoSaveTimer = null;
@@ -1487,90 +1501,143 @@ if (teamStatusBoard) {
     // ✅ [수정] 모바일 전체 업무 펼쳐보기 버튼 (텍스트 변경)
     const toggleMobileBtn = e.target.closest('#toggle-all-tasks-mobile');
     if (toggleMobileBtn) {
+        // ... (이전 코드와 동일) ...
         e.stopPropagation();
         const grid = document.getElementById('preset-task-grid');
         if (!grid) return;
-
         const isExpanded = grid.classList.contains('mobile-expanded');
-        
         if (isExpanded) {
-            // --- 접기 ---
             grid.classList.remove('mobile-expanded');
             grid.querySelectorAll('.mobile-task-hidden').forEach(card => {
                 card.classList.add('hidden');
-                card.classList.remove('flex'); // 'flex'를 명시적으로 제거
+                card.classList.remove('flex'); 
             });
-            toggleMobileBtn.textContent = '전체보기'; // ✅ 수정
-            toggleMobileBtn.classList.remove('bg-blue-100', 'text-blue-800'); // 스타일 원복
+            toggleMobileBtn.textContent = '전체보기'; 
+            toggleMobileBtn.classList.remove('bg-blue-100', 'text-blue-800'); 
             toggleMobileBtn.classList.add('bg-gray-200', 'text-gray-800');
         } else {
-            // --- 펼치기 ---
             grid.classList.add('mobile-expanded');
             grid.querySelectorAll('.mobile-task-hidden.hidden').forEach(card => {
                 card.classList.remove('hidden');
-                card.classList.add('flex'); // 'flex'를 명시적으로 추가
+                card.classList.add('flex'); 
             });
-            toggleMobileBtn.textContent = '내 업무'; // ✅ 수정
-            toggleMobileBtn.classList.add('bg-blue-100', 'text-blue-800'); // 활성 스타일
+            toggleMobileBtn.textContent = '내 업무'; 
+            toggleMobileBtn.classList.add('bg-blue-100', 'text-blue-800'); 
             toggleMobileBtn.classList.remove('bg-gray-200', 'text-gray-800');
         }
-        return; // 다른 클릭 로직 실행 방지
+        return; 
     }
 
-    // ✅ [추가] 모바일 '팀원 현황' 펼쳐보기 버튼
+    // ✅ [수정] 모바일 '팀원 현황' 펼쳐보기 버튼
     const toggleMemberBtn = e.target.closest('#toggle-all-members-mobile');
     if (toggleMemberBtn) {
+        // ... (이전 코드와 동일) ...
         e.stopPropagation();
         const container = document.getElementById('all-members-container'); 
         if (!container) return;
-
         const isExpanded = container.classList.contains('mobile-expanded');
-        
         if (isExpanded) {
-            // --- 접기 (Collapse) ---
             container.classList.remove('mobile-expanded');
             container.querySelectorAll('.mobile-member-hidden').forEach(card => {
                 card.classList.add('hidden');
-                card.classList.remove('flex'); // 'flex'를 명시적으로 제거
+                card.classList.remove('flex'); 
             });
             toggleMemberBtn.textContent = '전체보기';
             toggleMemberBtn.classList.remove('bg-blue-100', 'text-blue-800');
             toggleMemberBtn.classList.add('bg-gray-200', 'text-gray-800');
         } else {
-            // --- 펼치기 (Expand) ---
             container.classList.add('mobile-expanded');
             container.querySelectorAll('.mobile-member-hidden.hidden').forEach(card => {
                 card.classList.remove('hidden');
-                card.classList.add('flex'); // 'flex'를 명시적으로 추가
+                card.classList.add('flex'); 
             });
-            toggleMemberBtn.textContent = '내 현황'; // "My Status"
+            toggleMemberBtn.textContent = '내 현황'; 
             toggleMemberBtn.classList.add('bg-blue-100', 'text-blue-800');
             toggleMemberBtn.classList.remove('bg-gray-200', 'text-gray-800');
         }
-        return; // 다른 클릭 로직 실행 방지
+        return; 
+    }
+
+    // ✅ [추가] 그룹 시작 시간 수정 클릭
+    const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
+    if (groupTimeDisplay) {
+        e.stopPropagation(); // 하위 버튼 클릭 방지
+        const groupId = groupTimeDisplay.dataset.groupId;
+        const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
+        const taskName = groupTimeDisplay.closest('.flex-col.h-full')?.querySelector('.font-bold.text-lg')?.textContent.replace(' (일시정지)', '').trim() || '그룹';
+
+        if (groupId && currentStartTime) {
+            recordIdOrGroupIdToEdit = Number(groupId);
+            editType = 'group';
+            if (editStartTimeModalTitle) editStartTimeModalTitle.textContent = `'${taskName}' 그룹 시간 변경`;
+            if (editStartTimeModalMessage) editStartTimeModalMessage.textContent = `그룹 전체의 시작 시간을 변경합니다. 현재: ${currentStartTime}`;
+            if (editStartTimeInput) editStartTimeInput.value = currentStartTime;
+            if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = recordIdOrGroupIdToEdit;
+            if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = editType;
+            if (editStartTimeModal) editStartTimeModal.classList.remove('hidden');
+        }
+        return;
+    }
+
+    // ✅ [추가] 개별 시작 시간 수정 클릭
+    const memberRow = e.target.closest('.member-row[data-action="edit-individual-start-time"]');
+    if (memberRow && !e.target.closest('.member-actions button')) { // 액션 버튼 클릭 시 제외
+        e.stopPropagation(); // 상위 카드 클릭 방지
+        const recordId = memberRow.dataset.recordId;
+        const currentStartTime = memberRow.dataset.currentStartTime;
+        const memberName = memberRow.querySelector('.font-semibold')?.textContent || '팀원';
+        const taskName = memberRow.closest('.flex-col.h-full')?.querySelector('.font-bold.text-lg')?.textContent.replace(' (일시정지)', '').trim() || '업무';
+
+
+        if (recordId && currentStartTime) {
+            recordIdOrGroupIdToEdit = recordId; // ID는 문자열일 수 있음
+            editType = 'individual';
+            if (editStartTimeModalTitle) editStartTimeModalTitle.textContent = `${memberName}님 시간 변경`;
+            if (editStartTimeModalMessage) editStartTimeModalMessage.textContent = `'${taskName}' 업무의 시작 시간을 변경합니다. 현재: ${currentStartTime}`;
+            if (editStartTimeInput) editStartTimeInput.value = currentStartTime;
+            if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = recordIdOrGroupIdToEdit;
+            if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = editType;
+            if (editStartTimeModal) editStartTimeModal.classList.remove('hidden');
+        }
+        return;
     }
     
-    // (이하 기존 코드 동일)
+    // --- [수정] 인원 추가 버튼 클릭 로직 분리 ---
+    const addMemberButton = e.target.closest('.add-member-btn[data-action="add-member"]');
+    if (addMemberButton) {
+        e.stopPropagation(); // 카드 전체 클릭 방지
+        const groupId = Number(addMemberButton.dataset.groupId);
+        const task = addMemberButton.dataset.task;
+        
+        selectedTaskForStart = task; 
+        selectedGroupForAdd = groupId; // 그룹 ID 저장
+        
+        renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
+        const titleEl = document.getElementById('team-select-modal-title');
+        if (titleEl) titleEl.textContent = `'${task}' 업무에 인원 추가`;
+        if (teamSelectModal) teamSelectModal.classList.remove('hidden');
+        return;
+    }
+    
+    // (이하 기존 stop, pause, resume, 근태 설정 등 버튼 로직 동일)
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
     if (stopGroupButton) { 
-        // stopWorkGroup(Number(stopGroupButton.dataset.groupId)); return; // [수정] 바로 실행 대신 확인 모달
+        e.stopPropagation(); // 중요: 카드 전체 클릭 방지
         groupToStopId = Number(stopGroupButton.dataset.groupId);
         const stopGroupModal = document.getElementById('stop-group-confirm-modal');
         if (stopGroupModal) {
-            // [추가] 어떤 업무를 종료하는지 모달 메시지에 표시
-            const card = stopGroupButton.closest('div[data-action]');
-            const taskName = card ? card.dataset.task : '이 그룹';
+            const card = stopGroupButton.closest('div[data-group-id]'); // 상위에서 groupId 찾기
+            const taskName = card ? card.querySelector('.font-bold.text-lg')?.textContent.replace(' (일시정지)','').trim() : '이 그룹';
             const msgEl = document.getElementById('stop-group-confirm-message');
             if (msgEl) msgEl.textContent = `'${taskName}' 업무를 전체 종료하시겠습니까?`;
-            
             stopGroupModal.classList.remove('hidden');
         }
         return; 
     }
     const pauseGroupButton = e.target.closest('.pause-work-group-btn');
-    if (pauseGroupButton) { pauseWorkGroup(Number(pauseGroupButton.dataset.groupId)); return; }
+    if (pauseGroupButton) { e.stopPropagation(); pauseWorkGroup(Number(pauseGroupButton.dataset.groupId)); return; }
     const resumeGroupButton = e.target.closest('.resume-work-group-btn');
-    if (resumeGroupButton) { resumeWorkGroup(Number(resumeGroupButton.dataset.groupId)); return; }
+    if (resumeGroupButton) { e.stopPropagation(); resumeWorkGroup(Number(resumeGroupButton.dataset.groupId)); return; }
 
     const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
     if (individualPauseBtn) {
@@ -1601,33 +1668,23 @@ if (teamStatusBoard) {
 
     const memberCard = e.target.closest('[data-member-toggle-leave]');
     if (memberCard) {
+      // ... (근태 설정/취소 로직 동일) ...
       const memberName = memberCard.dataset.memberToggleLeave;
-
-      // --- ✅ [추가] 권한 확인 로직 ---
       const role = appState.currentUserRole || 'user';
       const selfName = appState.currentUser || null;
-
       if (role !== 'admin' && memberName !== selfName) {
           showToast('본인의 근태 현황만 설정할 수 있습니다.', true);
-          return; // 여기서 함수 종료
+          return; 
       }
-      // --- [끝] 권한 확인 로직 ---
-
       const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
       if (isWorking) {
-          // (본인이라도) 업무 중이면 변경 불가
           return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
       }
-      
-      // ... (권한 확인을 통과했으므로, 기존 근태 설정/취소 모달 로직 실행) ...
       const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
       const currentLeaveEntry = combinedOnLeaveMembers.find(item => item.member === memberName && !(item.type === '외출' && item.endTime));
-
-
       if (currentLeaveEntry) {
           const leaveType = currentLeaveEntry.type;
           memberToCancelLeave = memberName;
-
           if(cancelLeaveConfirmMessage) {
               if (leaveType === '외출') {
                   cancelLeaveConfirmMessage.textContent = `${memberName}님을 '복귀' 처리하시겠습니까?`;
@@ -1638,12 +1695,10 @@ if (teamStatusBoard) {
               }
           }
           if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.remove('hidden');
-
       } else {
           memberToSetLeave = memberName;
           if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
           renderLeaveTypeModalOptions(LEAVE_TYPES);
-
           if(leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
           if(leaveEndDateInput) leaveEndDateInput.value = '';
           const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
@@ -1658,11 +1713,12 @@ if (teamStatusBoard) {
       return;
     }
 
+    // --- [수정] 카드 전체 클릭 시 로직 (하위 버튼/링크 클릭 아닌 경우) ---
     const card = e.target.closest('div[data-action]');
-    if (card) {
-      if (e.target.closest('button, .members-list')) return;
+    if (card && !e.target.closest('button, a, input, select, .members-list, .group-time-display, .member-row')) { // 클릭 제외 대상 추가
       const action = card.dataset.action;
       const task = card.dataset.task;
+      
       if (action === 'start-task') {
         selectedTaskForStart = task; selectedGroupForAdd = null;
         renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
@@ -1672,14 +1728,8 @@ if (teamStatusBoard) {
       } else if (action === 'other') {
         selectedTaskForStart = null; selectedGroupForAdd = null;
         if (taskSelectModal) taskSelectModal.classList.remove('hidden');
-      } else if (action === 'add-member') {
-        const groupId = Number(card.dataset.groupId);
-        selectedTaskForStart = task; selectedGroupForAdd = groupId;
-        renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
-        const titleEl = document.getElementById('team-select-modal-title');
-        if (titleEl) titleEl.textContent = `'${task}' 업무에 인원 추가`;
-        if (teamSelectModal) teamSelectModal.classList.remove('hidden');
-      }
+      } 
+      // 'add-member' 액션은 이제 버튼에서 직접 처리하므로 여기서 제거
     }
   });
 }
@@ -2163,6 +2213,14 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
           // (알바 수정 모달 닫기 로직 - 이미 존재)
       } else if (modalId === 'manual-add-record-modal') { // ✅ [추가]
           if (manualAddForm) manualAddForm.reset();
+      } 
+      // ✅ [추가] 시작 시간 수정 모달 닫기 시 초기화
+      else if (modalId === 'edit-start-time-modal') { 
+          recordIdOrGroupIdToEdit = null;
+          editType = null;
+          if (editStartTimeInput) editStartTimeInput.value = '';
+          if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = '';
+          if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = '';
       }
       // 다른 모달 ID에 대한 초기화 로직 추가...
   });
@@ -2544,6 +2602,71 @@ document.addEventListener('click', (e) => {
         }
     }
 });
+
+// ✅ [추가] 시작 시간 수정 모달 - 저장 버튼
+if (confirmEditStartTimeBtn) {
+    confirmEditStartTimeBtn.addEventListener('click', () => {
+        const newStartTime = editStartTimeInput?.value;
+        const contextId = editStartTimeContextIdInput?.value;
+        const contextType = editStartTimeContextTypeInput?.value;
+
+        if (!newStartTime || !contextId || !contextType) {
+            showToast('시간 변경 정보를 가져올 수 없습니다.', true);
+            return;
+        }
+
+        let updated = false;
+        if (contextType === 'group') {
+            const groupId = Number(contextId);
+            appState.workRecords.forEach(record => {
+                if (record.groupId === groupId && (record.status === 'ongoing' || record.status === 'paused')) {
+                    record.startTime = newStartTime;
+                    updated = true;
+                    // 진행 중인 기록은 duration 재계산 불필요 (타이머가 처리)
+                }
+            });
+            if (updated) showToast('그룹 시작 시간이 변경되었습니다.');
+
+        } else if (contextType === 'individual') {
+            const recordId = contextId; // ID는 문자열일 수 있음
+            const recordIndex = appState.workRecords.findIndex(r => String(r.id) === String(recordId));
+            if (recordIndex !== -1) {
+                appState.workRecords[recordIndex].startTime = newStartTime;
+                updated = true;
+                // 진행 중인 기록은 duration 재계산 불필요
+                showToast('개별 시작 시간이 변경되었습니다.');
+            } else {
+                showToast('해당 기록을 찾을 수 없습니다.', true);
+            }
+        }
+
+        if (updated) {
+            debouncedSaveState(); // 변경사항 저장
+            render(); // UI 즉시 업데이트
+        }
+
+        // 모달 닫기 및 초기화
+        if (editStartTimeModal) editStartTimeModal.classList.add('hidden');
+        recordIdOrGroupIdToEdit = null;
+        editType = null;
+        if (editStartTimeInput) editStartTimeInput.value = '';
+        if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = '';
+        if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = '';
+    });
+}
+
+// ✅ [추가] 시작 시간 수정 모달 - 취소 버튼
+if (cancelEditStartTimeBtn) {
+    cancelEditStartTimeBtn.addEventListener('click', () => {
+        if (editStartTimeModal) editStartTimeModal.classList.add('hidden');
+        // 변수 초기화
+        recordIdOrGroupIdToEdit = null;
+        editType = null;
+        if (editStartTimeInput) editStartTimeInput.value = '';
+        if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = '';
+        if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = '';
+    });
+}
 
 
 // ... (openHistoryBtn 리스너는 이제 역할에 따라 숨겨지므로 수정 불필요) ...

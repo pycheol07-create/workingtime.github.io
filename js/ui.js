@@ -275,7 +275,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     container.innerHTML = html;
 };
 
-// ✅ [수정] renderRealtimeStatus (권한 확인 로직 추가)
+// ✅ [수정] renderRealtimeStatus (시작 시간 수정 위한 data-* 속성 추가)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     // === ✅ [수정] 현재 사용자 정보 가져오기 (함수 상단으로 이동) ===
     const currentUserRole = appState.currentUserRole || 'user';
@@ -298,7 +298,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     
-    // ✅ [수정] "주요 업무" 헤더 텍스트(h3) 삭제, 버튼만 남기고 데스크탑에서는 숨김
+    // ✅ [수정] "주요 업무" 헤더 텍스트(h3) 삭제, 버튼만 남김
     presetTaskContainer.innerHTML = `
         <div class="flex justify-end items-center border-b pb-2 mb-4 md:hidden">
             <button id="toggle-all-tasks-mobile" 
@@ -342,15 +342,17 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         // ✅ [수정] 모바일 반응형 클래스 (토글을 위한 'mobile-task-hidden' 클래스 추가)
         const mobileVisibilityClass = isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex mobile-task-hidden';
         
-        card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
+        // 🚨 [수정] 카드 자체의 cursor-pointer 제거 (하위 요소에서 클릭 처리)
+        card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
 
 
         if (groupRecords.length > 0) {
-            const firstRecord = groupRecords[0];
+            const firstRecord = groupRecords[0]; // 대표 레코드 (그룹 ID, 태스크 이름 등)
 
-            card.dataset.action = 'add-member';
-            card.dataset.groupId = firstRecord.groupId;
-            card.dataset.task = firstRecord.task;
+            // 🚨 [수정] 카드 데이터셋 이동 방지, 클릭은 하위 요소에서 처리
+            // card.dataset.action = 'add-member';
+            // card.dataset.groupId = firstRecord.groupId;
+            // card.dataset.task = firstRecord.task;
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
@@ -364,16 +366,23 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                 const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
 
                 let pauseResumeButtonHtml = '';
+                // 🚨 [수정] 버튼 클릭 시 버블링 방지 위해 stopPropagation() 추가 고려 (app.js에서 처리)
                 if (rec.status === 'ongoing') {
                     pauseResumeButtonHtml = `<button data-action="pause-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-0.5 rounded ml-1 flex-shrink-0">정지</button>`;
                 } else if (rec.status === 'paused') {
                     pauseResumeButtonHtml = `<button data-action="resume-individual" data-record-id="${rec.id}" class="inline-block text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-0.5 rounded ml-1 flex-shrink-0">재개</button>`;
                 }
-
-                membersHtml += `<div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center">
+                
+                // ✅ [수정] 개별 멤버 행을 div로 감싸고 data-* 속성 추가
+                membersHtml += `
+                <div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center cursor-pointer member-row" 
+                     data-action="edit-individual-start-time" 
+                     data-record-id="${rec.id}" 
+                     data-current-start-time="${rec.startTime || ''}">
+                     
                     <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block text-left" title="${rec.member}">${rec.member}</span>
                     <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
-                    <div class="flex-shrink-0 flex items-center">
+                    <div class="flex-shrink-0 flex items-center member-actions">
                         ${pauseResumeButtonHtml}
                         <button data-action="stop-individual" data-record-id="${rec.id}" class="inline-block text-xs ${stopButtonBg} ${stopButtonText} px-2 py-0.5 rounded ml-1">종료</button>
                     </div>
@@ -382,30 +391,39 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             membersHtml += '</div>';
 
             const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && (!earliest || current.startTime < earliest)) ? current.startTime : earliest), null);
-            // ✅ [수정] find 대신 || groupRecords[0] 추가 (안정성)
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
             const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id;
-
-            // ✅ [추가] 타이머 최적화를 위해 pauses 정보 추가
             const pauses = representativeRecord ? representativeRecord.pauses : [];
             const pausesJson = JSON.stringify(pauses || []);
-
             const durationStatus = isOngoing ? 'ongoing' : 'paused';
-
             const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
+
+            // ✅ [수정] 그룹 시간 표시 부분을 div로 감싸고 data-* 속성 추가
+            const groupTimeDisplayHtml = `
+                <div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" 
+                     data-action="edit-group-start-time" 
+                     data-group-id="${firstRecord.groupId}" 
+                     data-current-start-time="${earliestStartTime || ''}">
+                    시작: ${formatTimeTo24H(earliestStartTime)} 
+                    <span class="ongoing-duration" 
+                          data-start-time="${earliestStartTime || ''}" 
+                          data-status="${durationStatus}" 
+                          data-record-id="${recordIdForDuration || ''}"
+                          data-pauses-json='${pausesJson}'></span>
+                </div>`;
 
             card.innerHTML = `<div class="flex flex-col h-full">
                                 <div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div>
-                                <div class="text-xs ${currentStyle.subtitle} my-2">시작: ${formatTimeTo24H(earliestStartTime)} 
-                                    <span class="ongoing-duration" 
-                                          data-start-time="${earliestStartTime || ''}" 
-                                          data-status="${durationStatus}" 
-                                          data-record-id="${recordIdForDuration || ''}"
-                                          data-pauses-json='${pausesJson}'></span>
-                                </div>
+                                ${groupTimeDisplayHtml} 
                                 <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
-                                <div class="mt-auto space-y-2 pt-2">
+                                <div class="mt-auto space-y-2 pt-2 card-actions" 
+                                     data-group-id="${firstRecord.groupId}" 
+                                     data-task="${firstRecord.task}"> 
+                                    <button class="add-member-btn w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-md transition text-sm" 
+                                            data-action="add-member" 
+                                            data-group-id="${firstRecord.groupId}" 
+                                            data-task="${firstRecord.task}">+ 인원 추가</button>
                                     <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white font-bold py-2 rounded-md transition text-sm">
                                         ${isPaused ? '전체 재개' : '전체 정지'}
                                     </button>
@@ -413,6 +431,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                                 </div>
                             </div>`;
         } else {
+             // 🚨 [수정] 시작 전 카드는 클릭 가능하도록 cursor-pointer 유지, data-* 속성 추가
+            card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
@@ -424,6 +444,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
                 </div>
                 <div class="mt-auto space-y-2 pt-2">
+                    <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full font-bold py-2 rounded-md text-sm opacity-50 cursor-not-allowed">인원 추가</button>
                     <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full font-bold py-2 rounded-md text-sm opacity-50 cursor-not-allowed">일시정지</button>
                     <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full font-bold py-2 rounded-md text-sm opacity-50 cursor-not-allowed">종료</button>
                 </div>
@@ -450,6 +471,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
+    // (이하 코드 동일)
+    // ... (이하 renderRealtimeStatus 함수의 나머지 코드는 그대로 유지) ...
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container'; // ✅ [추가] 토글을 위한 ID
     
