@@ -26,61 +26,45 @@
             </div>
 
             <div id="nav-content"
-                 class="hidden md:flex flex-col md:flex-row md:items-center gap-4 md:gap-2 w-full
+                 class="hidden md:flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-2 w-full
                         absolute md:relative top-20 md:top-auto left-0 md:left-auto right-0 md:right-auto
                         bg-white md:bg-transparent shadow-lg md:shadow-none z-40 p-4 md:p-0 rounded-lg md:rounded-none border md:border-none">
 
-                <div id="current-date-display" class="text-lg font-bold text-gray-700 hidden md:text-lg"></div>
+                <div id="current-date-display" class="text-lg font-bold text-gray-700 hidden md:text-lg md:mr-auto"></div>
 
-                <div id="top-right-controls" class="flex flex-col items-start md:items-end gap-2 hidden md:ml-auto">
+                <div id="top-right-controls" class="flex flex-col items-start md:items-end gap-2 hidden">
                     <div id="connection-indicator" class="flex items-center gap-2">
                         <span id="user-greeting" class="text-sm font-semibold text-gray-700 mr-2 hidden"></span>
                         <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
                         <span id="connection-status" class="text-xs font-medium text-gray-500"></span>
                     </div>
-                    <div id="main-menu-dropdown" class="relative">
-                        <button id="main-menu-toggle-btn" type="button" class="flex items-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    <div class="flex gap-2 flex-wrap">
+                        <a href="admin.html" id="admin-link-btn" target="admin_window"
+                            class="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
-                            <span>메뉴</span>
+                            <span>관리</span>
+                        </a>
+                        <button id="reset-app-btn"
+                            class="flex items-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
+                            <span>초기화</span>
                         </button>
-                        
-                        <div id="main-menu-content" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
-                            <div class="py-1">
-                                <button id="open-quantity-modal-btn" type="button" class="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 0l-3-3m3 3l-3 3M5 20h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2z" />
-                                    </svg>
-                                    <span>처리량 입력</span>
-                                </button>
-                                
-                                <a href="admin.html" id="admin-link-btn" target="admin_window" class="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                    <span>관리</span>
-                                </a>
-                                
-                                <button id="reset-app-btn" type="button" class="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15" />
-                                    </svg>
-                                    <span>초기화</span>
-                                </button>
-                                
-                                <button id="logout-btn" type="button" class="hidden w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                      <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                    </svg>
-                                    <span>로그아웃</span>
-                                </button>
-                            </div>
-                        </div>
+                        <button id="logout-btn" class="hidden flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            <span>로그아웃</span>
+                        </button>
                     </div>
                 </div>
             </div>
+
+            <header class="mb-8 text-center hidden md:block">
+                <h1 class="text-3xl md:text-4xl font-bold text-gray-900">물류팀 업무현황</h1>
+            </header>
+        </div>
 
 
         <div class="mb-8 bg-gray-800 text-white rounded-lg border border-gray-700 shadow-lg hidden">

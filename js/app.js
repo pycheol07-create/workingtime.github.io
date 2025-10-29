@@ -21,8 +21,7 @@ import {
   renderWeeklyHistory,
   renderMonthlyHistory,
   renderDashboardLayout,
-  renderManualAddModalDatalists, // ✅ [추가]
-  getAllDashboardDefinitions // ✅ [추가]
+  renderManualAddModalDatalists // ✅ [추가]
 } from './ui.js';
 
 // ========== DOM Elements ==========
@@ -2905,25 +2904,6 @@ async function startAppAfterLogin(user) {
 
 // ========== 이벤트 리스너 ==========
 
-// ✅ [추가] 메인 메뉴 드롭다운 (데스크탑/모바일 공용)
-const mainMenuToggleBtn = document.getElementById('main-menu-toggle-btn');
-const mainMenuContent = document.getElementById('main-menu-content');
-
-if (mainMenuToggleBtn && mainMenuContent) {
-    mainMenuToggleBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        mainMenuContent.classList.toggle('hidden');
-    });
-    
-    // ✅ [추가] 드롭다운 메뉴 내부에서 버튼 클릭 시 메뉴 닫기
-    mainMenuContent.addEventListener('click', (e) => {
-        if (e.target.closest('a, button')) {
-            mainMenuContent.classList.add('hidden');
-        }
-    });
-}
-
-
 // ✅ [추가] 햄버거 메뉴 (2/3)
 if (hamburgerBtn && navContent) {
     // 1. 햄버거 버튼 클릭 시 메뉴 토글
@@ -2940,62 +2920,10 @@ if (hamburgerBtn && navContent) {
     });
 }
 
-// ✅ [추가] '처리량 입력' 버튼 (새 메인 메뉴 드롭다운 내)
-const openQuantityModalBtn = document.getElementById('open-quantity-modal-btn');
-if (openQuantityModalBtn) {
-    openQuantityModalBtn.addEventListener('click', () => {
-        // 1. 현재 appState의 수량으로 모달 내용을 렌더링
-        renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || []);
-        
-        // 2. 모달 제목 설정
-        const title = document.getElementById('quantity-modal-title');
-        if (title) title.textContent = '오늘의 처리량 입력/수정';
-
-        // 3. 컨텍스트 설정 (onConfirm: appState 업데이트)
-        quantityModalContext = {
-            mode: 'manual_today', // 새 모드
-            dateKey: getTodayDateString(),
-            onConfirm: (newQuantities) => {
-                // appState.taskQuantities를 새 값으로 *교체*
-                appState.taskQuantities = newQuantities;
-                debouncedSaveState(); // 변경사항 저장
-                showToast('오늘의 처리량이 업데이트되었습니다.');
-
-                // ✅ [추가] 현황판 UI 즉시 업데이트
-                // (ui.js 수정이 필요하며, 수정했다는 가정 하에)
-                const allDefinitions = getAllDashboardDefinitions(appConfig);
-                for (const id in allDefinitions) {
-                    const def = allDefinitions[id];
-                    if (def.isQuantity) {
-                        const el = document.getElementById(def.valueId);
-                        if (el) {
-                            el.textContent = newQuantities[id] || 0;
-                        }
-                    }
-                }
-            },
-            onCancel: () => {}
-        };
-        
-        // 4. 버튼 텍스트 설정
-        const cBtn = document.getElementById('confirm-quantity-btn');
-        const xBtn = document.getElementById('cancel-quantity-btn');
-        if (cBtn) cBtn.textContent = '확인 및 저장';
-        if (xBtn) xBtn.textContent = '취소';
-        
-        // 5. 모달 표시
-        if (quantityModal) quantityModal.classList.remove('hidden');
-    });
-}
-
-
 // 3. (app.js 하단의 main 함수 내부로 이동) -> 햄버거 메뉴 바깥 영역 클릭 시 닫기
 //    -> main 함수 내부에 넣으면 auth 상태 변경 시마다 중복 등록될 수 있으므로,
 //    -> main 함수 *바깥*에서 한 번만 등록하도록 수정.
-
-// ✅ [수정] 기존 '바깥 클릭' 리스너에 '메인 메뉴' 닫기 로직 추가
 document.addEventListener('click', (e) => {
-    // 기존 모바일 햄버거 닫기 로직
     if (navContent && hamburgerBtn) { // 요소들이 로드되었는지 확인
         const isClickInsideNav = navContent.contains(e.target);
         const isClickOnHamburger = hamburgerBtn.contains(e.target);
@@ -3003,15 +2931,6 @@ document.addEventListener('click', (e) => {
         // 메뉴가 열려있고(hidden이 없고), 클릭한 곳이 메뉴 내부도 아니고 햄버거 버튼도 아닐 때
         if (!navContent.classList.contains('hidden') && !isClickInsideNav && !isClickOnHamburger) {
             navContent.classList.add('hidden');
-        }
-    }
-
-    // ✅ [추가] 새 메인 메뉴 닫기 로직
-    if (mainMenuToggleBtn && mainMenuContent) {
-        const isClickInsideMenu = mainMenuContent.contains(e.target);
-        const isClickOnMenuToggle = mainMenuToggleBtn.contains(e.target);
-        if (!mainMenuContent.classList.contains('hidden') && !isClickInsideMenu && !isClickOnMenuToggle) {
-            mainMenuContent.classList.add('hidden');
         }
     }
 });
