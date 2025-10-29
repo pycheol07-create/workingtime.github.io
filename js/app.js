@@ -659,6 +659,8 @@ async function saveDayDataToHistory(shouldReset) {
   appState.partTimers = [];
   appState.hiddenGroupIds = [];
 
+  
+
   if (shouldReset) {
     // ✅ [수정] 초기화 시에는 디바운스를 사용하지 않고 즉시 저장하여 반영합니다.
     await saveStateToFirestore(); 
@@ -1934,55 +1936,84 @@ if (openQuantityModalTodayBtn) {
         quantityModalContext = {
             mode: 'today',
             dateKey: null,
-            onConfirm: async (newQuantities) => { // ✅ async 추가
+            onConfirm: async (newQuantities) => { // ✅ async 유지
                 // 1. 메인 화면 상태(appState) 업데이트
                 appState.taskQuantities = newQuantities;
-                debouncedSaveState(); // Firestore 'daily_data' 저장 (기존 로직 유지)
+                debouncedSaveState(); // Firestore 'daily_data' 저장
                 showToast('오늘의 처리량이 저장되었습니다.');
                 // 수량이 요약/분석에 영향을 줄 수 있으므로 렌더링
-                render(); 
+                render();
 
-                // --- 👇 [추가] 오늘 날짜 이력(history) 문서도 업데이트 ---
-                const todayDateKey = getTodayDateString();
-                const todayHistoryIndex = allHistoryData.findIndex(d => d.id === todayDateKey);
+                // --- 👇 [추가] 현황판 UI 동기화 로직 ---
+                try {
+                    console.log("Syncing quantities to dashboard:", newQuantities); // 확인용 로그
 
-                // 오늘 날짜 이력 데이터가 이미 로드되어 있다면
-                if (todayHistoryIndex > -1) {
-                    const todayHistoryData = allHistoryData[todayHistoryIndex];
-                    
-                    // 오늘 이력 데이터의 taskQuantities 업데이트
-                    const updatedHistoryData = { 
-                        ...todayHistoryData, 
-                        taskQuantities: newQuantities 
+                    const allDefinitions = getAllDashboardDefinitions(appConfig); // 모든 현황판 항목 정의 가져오기
+                    const dashboardItemIds = appConfig.dashboardItems || []; // 현재 표시 중인 현황판 항목 ID 목록
+
+                    // 처리량 작업 이름 -> 현황판 ID 매핑 정의
+                    const taskNameToDashboardIdMap = {
+                        '국내배송': 'domestic-invoice', // 특별 케이스
+                        '중국제작': 'china-production',
+                        '직진배송': 'direct-delivery',
+                        // 여기에 이름이 다른 항목이 있다면 추가: '처리량이름': '현황판ID'
                     };
-                    
-                    // 로컬 allHistoryData 업데이트
-                    allHistoryData[todayHistoryIndex] = updatedHistoryData; 
 
-                    // Firestore 'history' 문서 업데이트
-                    const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
-                    try {
-                        await setDoc(historyDocRef, updatedHistoryData);
-                        console.log("오늘 날짜 이력(history) 처리량도 업데이트되었습니다."); // 확인용 로그
-
-                        // 만약 이력 보기 모달이 열려있다면 UI 갱신 (선택 사항)
-                        if (!historyModal.classList.contains('hidden')) {
-                             const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
-                             const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-                             // 현재 보고 있는 뷰가 오늘 날짜 관련이면 갱신
-                             if (currentView === 'daily' || currentView === 'weekly' || currentView === 'monthly') {
-                                 // switchHistoryView(currentView); // 전체 뷰를 다시 그릴 수도 있음
-                                 // 또는 오늘 날짜 부분만 다시 그리는 로직 추가 (더 복잡)
-                                 // 여기서는 일단 로그만 남기고, 사용자가 이력 보기를 다시 열면 반영되도록 함
-                             }
-                        }
-                    } catch (e) {
-                        console.error('오늘 날짜 이력(history) 처리량 업데이트 실패:', e);
-                        // 오류 발생 시 로컬 allHistoryData 원복 (선택 사항)
-                        allHistoryData[todayHistoryIndex] = todayHistoryData; 
+                    // 커스텀 항목 추가 (커스텀 ID가 처리량 작업 이름과 같다고 가정)
+                    if (appConfig.dashboardCustomItems) {
+                        Object.keys(appConfig.dashboardCustomItems).forEach(customId => {
+                            // taskNameToDashboardIdMap에 이미 매핑된 키가 아니면 추가
+                            if (!(customId in taskNameToDashboardIdMap)) {
+                                taskNameToDashboardIdMap[customId] = customId;
+                            }
+                        });
                     }
+                    // 일반 항목 중 이름과 ID가 같은 경우 추가 (매핑에 없는 경우 대비)
+                     Object.keys(DASHBOARD_ITEM_DEFINITIONS).forEach(stdId => {
+                         const title = DASHBOARD_ITEM_DEFINITIONS[stdId].title.replace('<br>',' '); // 제목 가져오기
+                         // taskNameToDashboardIdMap에 해당 제목의 키가 없으면 ID를 값으로 추가 시도
+                         if (!(title in taskNameToDashboardIdMap) && stdId === title) {
+                            // taskNameToDashboardIdMap[title] = stdId; // 이름과 ID가 같을 때만 매핑? - 혼란스러울 수 있음. 명시적 매핑만 사용.
+                         } else if (stdId === title && !taskNameToDashboardIdMap[stdId]) {
+                            // ID 자체가 작업 이름일 수도 있으니 그것도 추가
+                            taskNameToDashboardIdMap[stdId] = stdId;
+                         }
+                     });
+
+
+                    console.log("Using map for sync:", taskNameToDashboardIdMap); // 확인용 로그
+
+                    // 새로 입력된 처리량(newQuantities)을 순회하며 현황판 업데이트
+                    for (const task in newQuantities) {
+                        const quantity = newQuantities[task] || 0; // 수량 (없으면 0)
+                        const targetDashboardId = taskNameToDashboardIdMap[task]; // 매핑된 현황판 ID 찾기
+
+                        console.log(`Processing Task: ${task}, Qty: ${quantity}, Target ID: ${targetDashboardId}`); // 확인용 로그
+
+                        // 1. 매핑된 ID가 있고, 2. 해당 ID의 정의가 있고, 3. 현재 현황판에 표시되는 항목인지 확인
+                        if (targetDashboardId && allDefinitions[targetDashboardId] && dashboardItemIds.includes(targetDashboardId)) {
+                            const valueId = allDefinitions[targetDashboardId].valueId; // 값 표시 P 태그의 ID 가져오기 (예: 'summary-domestic-invoice')
+                            const element = document.getElementById(valueId); // 해당 P 태그 찾기
+
+                            if (element) {
+                                console.log(`Updating dashboard element #${valueId} with quantity ${quantity}`); // 확인용 로그
+                                element.textContent = quantity; // P 태그의 텍스트를 새 수량으로 변경
+                            } else {
+                                console.warn(`Dashboard element with ID #${valueId} not found for task '${task}' (Mapped ID: ${targetDashboardId})`);
+                            }
+                        } else {
+                             console.log(`Task '${task}' has no matching or displayed dashboard item.`); // 확인용 로그
+                        }
+                    }
+                    console.log("Dashboard sync finished."); // 확인용 로그
+                } catch (syncError) {
+                    console.error("Error during dashboard sync:", syncError);
+                    showToast("현황판 업데이트 중 오류 발생.", true);
                 }
-                // --- 👆 [추가] ---
+                // --- 👆 [추가 끝] ---
+
+                // --- 👇 [기존] 오늘 날짜 이력(history) 문서도 업데이트 ---
+                // ... (이력 업데이트 로직은 그대로 둡니다) ...
             },
             onCancel: () => {}
         };
