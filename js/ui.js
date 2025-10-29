@@ -723,7 +723,7 @@ export const updateSummary = (appState, appConfig) => {
         }
     });
 
-    // 계산 로직 (변경 없음)
+    // 계산 로직 (기존)
     const teamGroups = appConfig.teamGroups || [];
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
@@ -742,20 +742,37 @@ export const updateSummary = (appState, appConfig) => {
     );
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
-    const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
-    const workingMembers = new Set(ongoingOrPausedRecords.map(r => r.member));
-    const workingStaffCount = [...workingMembers].filter(member => allStaffMembers.has(member)).length;
-    const workingPartTimerCount = [...workingMembers].filter(member => allPartTimers.has(member)).length;
-    const totalWorkingCount = workingMembers.size;
 
+    // ✅ [수정] 업무중/휴식중/대기 인원 계산 로직 변경
+    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
+    const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
+    
+    const ongoingMembers = new Set(ongoingRecords.map(r => r.member));
+    const pausedMembers = new Set(pausedRecords.map(r => r.member));
+
+    // '업무중'은 'ongoing' 상태인 사람만 카운트
+    const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
+    const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
+    const totalWorkingCount = ongoingMembers.size; // '업무중' 총원
+
+    // 근무 가능 인원 (기존과 동일)
     const availableStaffCount = totalStaffCount - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
     const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
+    
+    // '휴식중' 인원
+    const pausedStaffCount = [...pausedMembers].filter(member => allStaffMembers.has(member)).length;
+    const pausedPartTimerCount = [...pausedMembers].filter(member => allPartTimers.has(member)).length;
+    
+    // '대기'는 (근무 가능) - (업무중) - (휴식중)
+    const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount - pausedStaffCount);
+    const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount - pausedPartTimerCount);
+    
+    const totalIdleCount = idleStaffCount + idlePartTimerCount; // '대기' 총원
 
-    // 대기 인원 계산 시, 근무 가능 인원 중 업무 중이지 않은 인원만 카운트
-    const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
-    // 현재 로직에서는 알바의 대기 상태는 명시적으로 표시하지 않음
-    const totalIdleCount = idleStaffCount;
+    // 진행 업무(Task) 카운트는 'ongoing' + 'paused' 모두 포함 (기존 로직 유지)
+    const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
+
 
     // ✅ [수정] 동적으로 요소 업데이트 (수량 항목 제외)
     if (elements['total-staff']) elements['total-staff'].textContent = `${totalStaffCount}/${totalPartTimerCount}`;
@@ -769,6 +786,8 @@ export const updateSummary = (appState, appConfig) => {
     // isQuantity 항목 (기본 및 커스텀)은 업데이트하지 않음 (config 로드 시 설정된 값 유지)
 };
 
+// === ui.js (수정) ===
+
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -777,9 +796,14 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     titleEl.textContent = `'${task || '기타 업무'}' 팀원 선택`;
     container.innerHTML = '';
 
-    const allWorkingMembers = new Set(
-        (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused').map(r => r.member)
+    // ✅ [수정] '업무 중'과 '휴식 중'을 구분하기 위해 Set 분리
+    const ongoingMembers = new Set(
+        (appState.workRecords || []).filter(r => r.status === 'ongoing').map(r => r.member)
     );
+    const pausedMembers = new Set(
+        (appState.workRecords || []).filter(r => r.status === 'paused').map(r => r.member)
+    );
+
     const combinedOnLeaveMembers = [
         ...(appState.dailyOnLeaveMembers || []),
         ...(appState.dateBasedOnLeaveMembers || [])
@@ -813,18 +837,24 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
         const uniqueMembersInGroup = [...new Set(group.members)];
         uniqueMembersInGroup.forEach(member => {
-            const isWorking = allWorkingMembers.has(member);
+            // ✅ [수정] isWorking 대신 isOngoing, isPaused로 확인
+            const isOngoing = ongoingMembers.has(member);
+            const isPaused = pausedMembers.has(member);
             const leaveEntry = onLeaveMemberMap.get(member);
             const isOnLeave = !!leaveEntry;
             const card = document.createElement('button');
             card.type = 'button';
             card.dataset.memberName = member;
-            card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isWorking || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+            
+            // ✅ [수정] 비활성화 조건
+            card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
-            if (isWorking || isOnLeave) card.disabled = true;
+            if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
             let statusLabel = '';
-            if (isWorking) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
+            // ✅ [수정] 상태 라벨 분기
+            if (isOngoing) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
+            else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; }
             else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
             card.innerHTML = `<div class="font-semibold">${member}</div>${statusLabel}`;
 
@@ -848,7 +878,9 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     albaMemberList.dataset.groupName = '알바';
 
     (appState.partTimers || []).forEach(pt => {
-        const isWorking = allWorkingMembers.has(pt.name);
+        // ✅ [수정] isWorking 대신 isOngoing, isPaused로 확인
+        const isOngoing = ongoingMembers.has(pt.name);
+        const isPaused = pausedMembers.has(pt.name);
         const leaveEntry = onLeaveMemberMap.get(pt.name);
         const isOnLeave = !!leaveEntry;
         const cardWrapper = document.createElement('div');
@@ -857,12 +889,16 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const card = document.createElement('button');
         card.type = 'button';
         card.dataset.memberName = pt.name;
-        card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isWorking || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+        
+        // ✅ [수정] 비활성화 조건
+        card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
-        if (isWorking || isOnLeave) card.disabled = true;
+        if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
         let statusLabel = '';
-        if (isWorking) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
+        // ✅ [수정] 상태 라벨 분기
+        if (isOngoing) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
+        else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; }
         else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
         card.innerHTML = `<div class="font-semibold">${pt.name}</div>${statusLabel}`;
 
