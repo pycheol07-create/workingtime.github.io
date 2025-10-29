@@ -1282,7 +1282,7 @@ window.downloadAttendanceHistoryAsExcel = async (dateKey) => {
 
 
 const switchHistoryView = (view) => {
-  // ... (이전과 동일) ...
+  // ... (allViews, historyTabs, attendanceHistoryTabs 관련 코드는 기존과 동일) ...
   const allViews = [
       document.getElementById('history-daily-view'),
       document.getElementById('history-weekly-view'),
@@ -1306,19 +1306,23 @@ const switchHistoryView = (view) => {
       });
   }
 
+  // ✅ [수정] 왼쪽 날짜 목록 컨테이너가 *항상* 보이도록 수정
   const dateListContainer = document.getElementById('history-date-list-container');
-  const isDailyView = view.includes('daily');
+  // const isDailyView = view.includes('daily'); // (제거)
   if (dateListContainer) {
-      dateListContainer.style.display = isDailyView ? 'block' : 'none';
+      // dateListContainer.style.display = isDailyView ? 'block' : 'none'; // (제거)
+      dateListContainer.style.display = 'block'; // (항상 보이도록 수정)
   }
 
   let selectedDateKey = null;
+  // ... (selectedDateBtn, selectedDateKey 찾는 로직은 기존과 동일) ...
   const selectedDateBtn = historyDateList?.querySelector('button.font-bold');
   if (selectedDateBtn) {
     selectedDateKey = selectedDateBtn.dataset.key;
   }
 
   let viewToShow = null;
+  // ... (tabToActivate, switch(view) 케이스 문 전체는 기존과 동일) ...
   let tabToActivate = null;
 
   switch(view) {
@@ -1851,14 +1855,40 @@ if (historyDateList) {
       historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
       btn.classList.add('bg-blue-100', 'font-bold');
       const dateKey = btn.dataset.key;
+      
       const activeSubTabBtn = (activeMainHistoryTab === 'work')
         ? historyTabs?.querySelector('button.font-semibold')
         : attendanceHistoryTabs?.querySelector('button.font-semibold');
       const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
+      
       if (activeView === 'daily') {
         renderHistoryDetail(dateKey);
       } else if (activeView === 'attendance-daily') {
         renderAttendanceDailyHistory(dateKey, allHistoryData);
+      
+      // ✅ [추가] 주별/월별 보기일 때 스크롤 로직
+      } else if (activeView === 'weekly' || activeView === 'monthly') {
+          let targetKey;
+          if (activeView === 'weekly') {
+              // 클릭된 날짜(dateKey)가 속한 주(weekKey)를 계산
+              targetKey = getWeekOfYear(new Date(dateKey + "T00:00:00")); // 로컬 시간 기준
+          } else { // 'monthly'
+              // 클릭된 날짜(dateKey)가 속한 월(monthKey)을 계산
+              targetKey = dateKey.substring(0, 7); // 'YYYY-MM'
+          }
+
+          // ui.js에서 설정한 ID로 요약 카드 찾기
+          const summaryCard = document.getElementById(`summary-card-${targetKey}`);
+          if (summaryCard) {
+              // 해당 카드로 스크롤
+              summaryCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              
+              // 시각적 피드백 (파란색 링)
+              summaryCard.classList.add('ring-2', 'ring-blue-400', 'transition-all', 'duration-300');
+              setTimeout(() => {
+                  summaryCard.classList.remove('ring-2', 'ring-blue-400');
+              }, 2000); // 2초 뒤 링 제거
+          }
       }
     }
   });
