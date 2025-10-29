@@ -152,9 +152,20 @@ const loginButtonSpinner = document.getElementById('login-button-spinner');
 const userGreeting = document.getElementById('user-greeting');
 const logoutBtn = document.getElementById('logout-btn');
 
+// ✅ [추가] 데스크탑 메뉴 버튼
+const menuToggleBtn = document.getElementById('menu-toggle-btn');
+const menuDropdown = document.getElementById('menu-dropdown');
+const openQuantityModalTodayBtn = document.getElementById('open-quantity-modal-today');
+// ✅ [추가] 모바일용 메뉴 버튼
+const openQuantityModalTodayBtnMobile = document.getElementById('open-quantity-modal-today-mobile');
+const adminLinkBtnMobile = document.getElementById('admin-link-btn-mobile');
+const resetAppBtnMobile = document.getElementById('reset-app-btn-mobile');
+const logoutBtnMobile = document.getElementById('logout-btn-mobile');
+
 // ✅ [추가] 햄버거 메뉴 (1/3)
 const hamburgerBtn = document.getElementById('hamburger-btn');
 const navContent = document.getElementById('nav-content');
+
 
 // === app.js (상단 DOM 요소 추가) ===
 
@@ -1868,6 +1879,94 @@ if (openManualAddBtn) {
     });
 }
 
+// ✅ [추가] 메인 화면 '처리량 입력' 버튼 리스너
+if (openQuantityModalTodayBtn) {
+    openQuantityModalTodayBtn.addEventListener('click', () => {
+        if (!auth || !auth.currentUser) {
+            showToast('로그인이 필요합니다.', true);
+            if (loginModal) loginModal.classList.remove('hidden');
+            return;
+        }
+
+        // 1. 모달 내용 채우기 (오늘의 appState 기준)
+        renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || []);
+        
+        // 2. 모달 제목 설정
+        const title = document.getElementById('quantity-modal-title');
+        if (title) title.textContent = '오늘의 처리량 입력';
+
+        // 3. 컨텍스트 설정 (오늘의 appState를 수정)
+        quantityModalContext = {
+            mode: 'today',
+            dateKey: null,
+            onConfirm: (newQuantities) => {
+                appState.taskQuantities = newQuantities;
+                debouncedSaveState(); // 변경사항 즉시 저장 (디바운스)
+                showToast('오늘의 처리량이 저장되었습니다.');
+                // 수량이 요약/분석에 영향을 줄 수 있으므로 렌더링
+                render(); 
+            },
+            onCancel: () => {}
+        };
+
+        // 4. 모달 버튼 텍스트 설정 (이력 보기와 다르게 설정)
+        const cBtn = document.getElementById('confirm-quantity-btn');
+        const xBtn = document.getElementById('cancel-quantity-btn');
+        if (cBtn) cBtn.textContent = '저장';
+        if (xBtn) xBtn.textContent = '취소';
+        
+        // 5. 모달 열기
+        if (quantityModal) quantityModal.classList.remove('hidden');
+        
+        // 6. 드롭다운 닫기
+        if (menuDropdown) menuDropdown.classList.add('hidden');
+    });
+}
+
+// ✅ [추가] 모바일 '처리량 입력' 버튼 리스너
+if (openQuantityModalTodayBtnMobile) {
+    openQuantityModalTodayBtnMobile.addEventListener('click', () => {
+        if (!auth || !auth.currentUser) {
+            showToast('로그인이 필요합니다.', true);
+            if (loginModal) loginModal.classList.remove('hidden');
+            return;
+        }
+
+        // 1. 모달 내용 채우기 (오늘의 appState 기준)
+        renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || []);
+        
+        // 2. 모달 제목 설정
+        const title = document.getElementById('quantity-modal-title');
+        if (title) title.textContent = '오늘의 처리량 입력';
+
+        // 3. 컨텍스트 설정 (오늘의 appState를 수정)
+        quantityModalContext = {
+            mode: 'today',
+            dateKey: null,
+            onConfirm: (newQuantities) => {
+                appState.taskQuantities = newQuantities;
+                debouncedSaveState(); // 변경사항 즉시 저장 (디바운스)
+                showToast('오늘의 처리량이 저장되었습니다.');
+                // 수량이 요약/분석에 영향을 줄 수 있으므로 렌더링
+                render(); 
+            },
+            onCancel: () => {}
+        };
+
+        // 4. 모달 버튼 텍스트 설정 (이력 보기와 다르게 설정)
+        const cBtn = document.getElementById('confirm-quantity-btn');
+        const xBtn = document.getElementById('cancel-quantity-btn');
+        if (cBtn) cBtn.textContent = '저장';
+        if (xBtn) xBtn.textContent = '취소';
+        
+        // 5. 모달 열기
+        if (quantityModal) quantityModal.classList.remove('hidden');
+        
+        // 6. (모바일) 햄버거 메뉴 닫기
+        if (navContent) navContent.classList.add('hidden');
+    });
+}
+
 // ✅ [추가] 수동 기록 추가 모달 - 저장
 if (confirmManualAddBtn) {
     confirmManualAddBtn.addEventListener('click', () => {
@@ -2496,6 +2595,15 @@ if (confirmResetAppBtn) {
   confirmResetAppBtn.addEventListener('click', async () => {
     await saveDayDataToHistory(true);
     if (resetAppModal) resetAppModal.classList.add('hidden');
+  });
+}
+
+// ✅ [추가] 모바일 '초기화' 버튼 리스너
+if (resetAppBtnMobile) {
+  resetAppBtnMobile.addEventListener('click', () => {
+    if (resetAppModal) resetAppModal.classList.remove('hidden');
+    // (모바일) 햄버거 메뉴 닫기
+    if (navContent) navContent.classList.add('hidden');
   });
 }
 
@@ -3269,6 +3377,9 @@ async function startAppAfterLogin(user) {
       if (logoutBtn) {
           logoutBtn.classList.remove('hidden');
       }
+      if (logoutBtnMobile) { // ✅ 추가
+          logoutBtnMobile.classList.remove('hidden');
+      }
       
       // --- ✅ [수정] 역할(Role)에 따른 UI 제어 ---
       const adminLinkBtn = document.getElementById('admin-link-btn');
@@ -3277,20 +3388,24 @@ async function startAppAfterLogin(user) {
       const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
       const openHistoryBtn = document.getElementById('open-history-btn'); // ✅ [추가] 이력 보기 버튼
 
+      // ✅ [추가] 모바일 버튼 가져오기
+      const adminLinkBtnMobile = document.getElementById('admin-link-btn-mobile');
+      const resetAppBtnMobile = document.getElementById('reset-app-btn-mobile');
+
       if (currentUserRole === 'admin') {
           // 관리자일 경우: 모든 버튼 표시
           if (adminLinkBtn) adminLinkBtn.style.display = 'flex';
+          if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'flex'; // ✅ 추가
           if (resetAppBtn) resetAppBtn.style.display = 'flex';
-          if (openManualAddBtn) openManualAddBtn.style.display = 'inline-block';
-          if (deleteAllCompletedBtn) deleteAllCompletedBtn.style.display = 'inline-block';
+          if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'flex'; // ✅ 추가
           if (openHistoryBtn) openHistoryBtn.style.display = 'inline-block'; // ✅ [추가]
           
       } else {
           // 일반 사용자(user)일 경우: 관리자 기능 숨기기
           if (adminLinkBtn) adminLinkBtn.style.display = 'none';
+          if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'none'; // ✅ 추가
           if (resetAppBtn) resetAppBtn.style.display = 'none';
-          if (openManualAddBtn) openManualAddBtn.style.display = 'none';
-          if (deleteAllCompletedBtn) deleteAllCompletedBtn.style.display = 'none';
+          if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'none'; // ✅ 추가
           if (openHistoryBtn) openHistoryBtn.style.display = 'none'; // ✅ [추가]
       }
       // ------------------------------------------
@@ -3418,10 +3533,19 @@ if (hamburgerBtn && navContent) {
     });
 }
 
+// ✅ [추가] 데스크탑 메뉴 토글 (2/3)
+if (menuToggleBtn) {
+    menuToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // document 클릭 이벤트로 바로 닫히는 것 방지
+        if (menuDropdown) menuDropdown.classList.toggle('hidden');
+    });
+}
+
 // 3. (app.js 하단의 main 함수 내부로 이동) -> 햄버거 메뉴 바깥 영역 클릭 시 닫기
 //    -> main 함수 내부에 넣으면 auth 상태 변경 시마다 중복 등록될 수 있으므로,
 //    -> main 함수 *바깥*에서 한 번만 등록하도록 수정.
 document.addEventListener('click', (e) => {
+    // 햄버거 메뉴 닫기
     if (navContent && hamburgerBtn) { // 요소들이 로드되었는지 확인
         const isClickInsideNav = navContent.contains(e.target);
         const isClickOnHamburger = hamburgerBtn.contains(e.target);
@@ -3429,6 +3553,15 @@ document.addEventListener('click', (e) => {
         // 메뉴가 열려있고(hidden이 없고), 클릭한 곳이 메뉴 내부도 아니고 햄버거 버튼도 아닐 때
         if (!navContent.classList.contains('hidden') && !isClickInsideNav && !isClickOnHamburger) {
             navContent.classList.add('hidden');
+        }
+    }
+
+    // ✅ [추가] 데스크탑 메뉴 닫기
+    if (menuDropdown && menuToggleBtn) {
+        const isClickInsideMenu = menuDropdown.contains(e.target);
+        const isClickOnMenuBtn = menuToggleBtn.contains(e.target);
+        if (!menuDropdown.classList.contains('hidden') && !isClickInsideMenu && !isClickOnMenuBtn) {
+            menuDropdown.classList.add('hidden');
         }
     }
 });
@@ -3547,6 +3680,7 @@ async function main() {
         
       if (userGreeting) userGreeting.classList.add('hidden');
       if (logoutBtn) logoutBtn.classList.add('hidden');
+      if (logoutBtnMobile) logoutBtnMobile.classList.add('hidden'); // ✅ 추가
       document.getElementById('current-date-display')?.classList.add('hidden');
       document.getElementById('top-right-controls')?.classList.add('hidden');
       document.querySelector('.bg-gray-800.shadow-lg')?.classList.add('hidden'); 
@@ -3565,9 +3699,9 @@ async function main() {
       const openHistoryBtn = document.getElementById('open-history-btn'); // ✅ [추가]
       
       if (adminLinkBtn) adminLinkBtn.style.display = 'none';
+      if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'none'; // ✅ 추가
       if (resetAppBtn) resetAppBtn.style.display = 'none';
-      if (openManualAddBtn) openManualAddBtn.style.display = 'none';
-      if (deleteAllCompletedBtn) deleteAllCompletedBtn.style.display = 'none';
+      if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'none'; // ✅ 추가
       if (openHistoryBtn) openHistoryBtn.style.display = 'none'; // ✅ [추가]
       // ----------------------------------------------------
 
@@ -3638,6 +3772,20 @@ async function main() {
         // onAuthStateChanged 리스너가 자동으로 감지하고 UI를 정리함
       } catch (error) {
         console.error('Logout failed:', error);
+        showToast('로그아웃에 실패했습니다.', true);
+      }
+    });
+  }
+
+  // ✅ [추가] 모바일 로그아웃 버튼 리스너
+  if (logoutBtnMobile) {
+    logoutBtnMobile.addEventListener('click', async () => {
+      try {
+        await signOut(auth);
+        showToast('로그아웃되었습니다.');
+        // onAuthStateChanged 리스너가 자동으로 감지하고 UI를 정리함
+      } catch (error) {
+        console.error('Logout failed (mobile):', error);
         showToast('로그아웃에 실패했습니다.', true);
       }
     });
