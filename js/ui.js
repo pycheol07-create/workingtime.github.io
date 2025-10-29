@@ -17,7 +17,7 @@ const DASHBOARD_ITEM_DEFINITIONS = {
 };
 
 // ✅ [추가] 모든 현황판 항목 정의 가져오기 (기본 + 커스텀)
-function getAllDashboardDefinitions(config) {
+export function getAllDashboardDefinitions(config) {
     // 커스텀 항목 정의를 기본 정의 형식에 맞게 변환
     const customDefinitions = {};
     if (config.dashboardCustomItems) {
@@ -737,9 +737,11 @@ export const renderDashboardLayout = (appConfig) => {
         let valueContent;
         const isQuantity = def.isQuantity === true; // isQuantity 확인
 
+        // ✅ [수정] 수량 항목도 우선 0으로 초기화 (updateSummary에서 채움)
         if (isQuantity) {
-             const currentQuantity = quantities[id] ?? 0;
-             valueContent = `<p id="${def.valueId}">${currentQuantity}</p>`;
+             // const currentQuantity = quantities[id] ?? 0;
+             // valueContent = `<p id="${def.valueId}">${currentQuantity}</p>`;
+             valueContent = `<p id="${def.valueId}">0</p>`;
         } else {
              valueContent = `<p id="${def.valueId}">0</p>`;
         }
@@ -830,7 +832,16 @@ export const updateSummary = (appState, appConfig) => {
     if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`;
 
     // total-work-time은 타이머(updateElapsedTimes)가 관리
-    // isQuantity 항목 (기본 및 커스텀)은 업데이트하지 않음 (config 로드 시 설정된 값 유지)
+    
+    // ✅ [수정] isQuantity 항목 (기본 및 커스텀)을 appState.taskQuantities로 업데이트
+    const currentQuantities = appState.taskQuantities || {};
+    Object.keys(allDefinitions).forEach(id => {
+        const def = allDefinitions[id];
+        // def.isQuantity가 true이고, 해당 ID의 DOM 요소(elements[id])가 존재할 때
+        if (def && def.isQuantity === true && elements[id]) {
+            elements[id].textContent = currentQuantities[id] || 0;
+        }
+    });
 };
 
 // === ui.js (수정) ===
