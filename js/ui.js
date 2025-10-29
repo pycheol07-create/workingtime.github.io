@@ -275,8 +275,6 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     container.innerHTML = html;
 };
 
-// === ui.js (수정 - 그룹 시간 변경 버튼 추가, 하단 버튼 가로 배치) ===
-
 // ✅ [수정] renderRealtimeStatus (시작 시간 수정 위한 data-* 속성 추가)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     // === ✅ [수정] 현재 사용자 정보 가져오기 (함수 상단으로 이동) ===
@@ -410,9 +408,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     </button>
                 </div>`;
 
-            // ✅ [수정] 하단 버튼들 가로 배치 및 크기 조정
+            // ✅ [수정] 하단 버튼 div에 mt-3 추가 (상단 여백)
             const cardActionsHtml = `
-                <div class="mt-auto pt-2 card-actions flex gap-2 justify-between" 
+                <div class="mt-auto pt-2 card-actions flex gap-2 justify-between mt-3" 
                      data-group-id="${firstRecord.groupId}" 
                      data-task="${firstRecord.task}"> 
                     <button class="add-member-btn flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 rounded-md transition text-xs" 
@@ -445,7 +443,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
                 </div>
-                <div class="mt-auto pt-2 flex gap-2 justify-between">
+                <div class="mt-auto pt-2 flex gap-2 justify-between mt-3">
                     <button class="flex-1 ${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} font-bold py-1 px-2 rounded-md text-xs opacity-50 cursor-not-allowed">+ 인원</button>
                     <button class="flex-1 ${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} font-bold py-1 px-2 rounded-md text-xs opacity-50 cursor-not-allowed">정지</button>
                     <button class="flex-1 ${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} font-bold py-1 px-2 rounded-md text-xs opacity-50 cursor-not-allowed">종료</button>
