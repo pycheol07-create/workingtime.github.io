@@ -375,11 +375,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                 
                 // ✅ [수정] 개별 멤버 행을 div로 감싸고 data-* 속성 추가
                 membersHtml += `
-                <div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center cursor-pointer member-row" 
-                     data-action="edit-individual-start-time" 
-                     data-record-id="${rec.id}" 
-                     data-current-start-time="${rec.startTime || ''}">
-                     
+                <div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center cursor-pointer member-row"
+                    data-action="edit-individual-start-time"
+                    data-record-id="${rec.id}"
+                    data-current-start-time="${rec.startTime || ''}"
+                    data-group-id="${rec.groupId || ''}"> // <-- ✅ [추가] data-group-id 추가
+
                     <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block text-left" title="${rec.member}">${rec.member}</span>
                     <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
                     <div class="flex-shrink-0 flex items-center member-actions">
