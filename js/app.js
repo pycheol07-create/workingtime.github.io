@@ -26,20 +26,6 @@ import {
 
 // ========== DOM Elements ==========
 // ... (fullscreenHistoryBtn 제거) ...
-// ✅ [추가] 근태 기록 수정 모달 요소
-const editAttendanceRecordModal = document.getElementById('edit-attendance-record-modal');
-const confirmEditAttendanceBtn = document.getElementById('confirm-edit-attendance-btn');
-const cancelEditAttendanceBtn = document.getElementById('cancel-edit-attendance-btn');
-const editAttendanceMemberName = document.getElementById('edit-attendance-member-name');
-const editAttendanceTypeSelect = document.getElementById('edit-attendance-type');
-const editAttendanceStartTimeInput = document.getElementById('edit-attendance-start-time');
-const editAttendanceEndTimeInput = document.getElementById('edit-attendance-end-time');
-const editAttendanceStartDateInput = document.getElementById('edit-attendance-start-date');
-const editAttendanceEndDateInput = document.getElementById('edit-attendance-end-date');
-const editAttendanceDateKeyInput = document.getElementById('edit-attendance-date-key');
-const editAttendanceRecordIndexInput = document.getElementById('edit-attendance-record-index');
-const editAttendanceTimeFields = document.getElementById('edit-attendance-time-fields');
-const editAttendanceDateFields = document.getElementById('edit-attendance-date-fields');
 const connectionStatusEl = document.getElementById('connection-status');
 const statusDotEl = document.getElementById('status-dot');
 const teamStatusBoard = document.getElementById('team-status-board');
@@ -1566,155 +1552,6 @@ const switchHistoryView = (view) => {
       });
   }
 
-  // ✅ [추가] 근태 이력 '일별 상세' 보기에서 '수정' 버튼 클릭 리스너
-if (attendanceHistoryViewContainer) {
-    attendanceHistoryViewContainer.addEventListener('click', (e) => {
-        const editBtn = e.target.closest('button[data-action="edit-attendance"]');
-        if (editBtn) {
-            const dateKey = editBtn.dataset.dateKey;
-            const index = parseInt(editBtn.dataset.index, 10);
-
-            if (!dateKey || isNaN(index)) {
-                showToast('수정할 기록 정보를 찾는 데 실패했습니다.', true);
-                return;
-            }
-
-            const dayData = allHistoryData.find(d => d.id === dateKey);
-            if (!dayData || !dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
-                showToast('원본 근태 기록을 찾을 수 없습니다.', true);
-                return;
-            }
-
-            const record = dayData.onLeaveMembers[index];
-
-            // 1. 모달 필드 채우기
-            if (editAttendanceMemberName) editAttendanceMemberName.value = record.member;
-
-            // 2. 유형 선택 (Select) 채우기
-            if (editAttendanceTypeSelect) {
-                editAttendanceTypeSelect.innerHTML = ''; // 초기화
-                LEAVE_TYPES.forEach(type => {
-                    const option = document.createElement('option');
-                    option.value = type;
-                    option.textContent = type;
-                    if (type === record.type) {
-                        option.selected = true;
-                    }
-                    editAttendanceTypeSelect.appendChild(option);
-                });
-            }
-            
-            // 3. 시간/날짜 필드 채우기
-            const isTimeBased = (record.type === '외출' || record.type === '조퇴');
-            const isDateBased = (record.type === '연차' || record.type === '출장' || record.type === '결근');
-
-            if (editAttendanceTimeFields) {
-                editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
-                if (editAttendanceStartTimeInput) editAttendanceStartTimeInput.value = record.startTime || '';
-                if (editAttendanceEndTimeInput) editAttendanceEndTimeInput.value = record.endTime || '';
-            }
-            if (editAttendanceDateFields) {
-                editAttendanceDateFields.classList.toggle('hidden', !isDateBased);
-                if (editAttendanceStartDateInput) editAttendanceStartDateInput.value = record.startDate || '';
-                if (editAttendanceEndDateInput) editAttendanceEndDateInput.value = record.endDate || '';
-            }
-
-            // 4. 숨겨진 필드에 컨텍스트 저장
-            if (editAttendanceDateKeyInput) editAttendanceDateKeyInput.value = dateKey;
-            if (editAttendanceRecordIndexInput) editAttendanceRecordIndexInput.value = index;
-
-            // 5. 모달 표시
-            if (editAttendanceRecordModal) editAttendanceRecordModal.classList.remove('hidden');
-        }
-    });
-}
-
-// ✅ [추가] 근태 수정 모달 - '저장' 버튼 클릭 리스너
-if (confirmEditAttendanceBtn) {
-    confirmEditAttendanceBtn.addEventListener('click', async () => {
-        const dateKey = editAttendanceDateKeyInput.value;
-        const index = parseInt(editAttendanceRecordIndexInput.value, 10);
-        const newType = editAttendanceTypeSelect.value;
-
-        if (!dateKey || isNaN(index)) {
-            showToast('저장할 기록 정보를 찾는 데 실패했습니다.', true);
-            return;
-        }
-
-        const dayDataIndex = allHistoryData.findIndex(d => d.id === dateKey);
-        if (dayDataIndex === -1) {
-             showToast('원본 이력 데이터를 찾을 수 없습니다.', true);
-             return;
-        }
-        
-        const dayData = allHistoryData[dayDataIndex];
-        const recordToUpdate = dayData.onLeaveMembers[index];
-        if (!recordToUpdate) {
-             showToast('원본 근태 기록을 찾을 수 없습니다.', true);
-             return;
-        }
-
-        // 새 데이터 객체 생성
-        const updatedRecord = {
-            member: recordToUpdate.member, // 이름은 변경 불가
-            type: newType
-        };
-
-        const isTimeBased = (newType === '외출' || newType === '조퇴');
-        const isDateBased = (newType === '연차' || newType === '출장' || newType === '결근');
-
-        if (isTimeBased) {
-            const startTime = editAttendanceStartTimeInput.value;
-            const endTime = editAttendanceEndTimeInput.value; // 비어있으면 ''
-            if (!startTime) {
-                showToast('시간 기반 근태는 시작 시간이 필수입니다.', true);
-                return;
-            }
-            if (endTime && endTime < startTime) {
-                 showToast('종료 시간은 시작 시간보다 이후여야 합니다.', true);
-                return;
-            }
-            updatedRecord.startTime = startTime;
-            updatedRecord.endTime = endTime || null; // 비어있으면 null로 저장
-        } else if (isDateBased) {
-            const startDate = editAttendanceStartDateInput.value;
-            const endDate = editAttendanceEndDateInput.value; // 비어있으면 ''
-             if (!startDate) {
-                showToast('날짜 기반 근태는 시작일이 필수입니다.', true);
-                return;
-            }
-            if (endDate && endDate < startDate) {
-                 showToast('종료일은 시작일보다 이후여야 합니다.', true);
-                return;
-            }
-            updatedRecord.startDate = startDate;
-            updatedRecord.endDate = endDate || null; // 비어있으면 null로 저장
-        }
-
-        // 1. 로컬 데이터 (allHistoryData) 업데이트
-        dayData.onLeaveMembers[index] = updatedRecord;
-
-        // 2. Firestore에 전체 일일 데이터 (dayData) 저장
-        const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-        try {
-            await setDoc(historyDocRef, dayData); // dayData 객체 통째로 덮어쓰기
-            showToast('근태 기록이 성공적으로 수정되었습니다.');
-
-            // 3. UI 갱신
-            renderAttendanceDailyHistory(dateKey, allHistoryData);
-
-            // 4. 모달 닫기
-            if (editAttendanceRecordModal) editAttendanceRecordModal.classList.add('hidden');
-
-        } catch (e) {
-            console.error('Error updating attendance history:', e);
-            showToast('근태 기록 저장 중 오류가 발생했습니다.', true);
-            // 오류 발생 시 로컬 데이터 원복 (선택적)
-            allHistoryData[dayDataIndex].onLeaveMembers[index] = recordToUpdate;
-        }
-    });
-}
-
   // ✅ [수정] 왼쪽 날짜 목록 컨테이너 항상 표시 (기존 수정 사항 유지)
   const dateListContainer = document.getElementById('history-date-list-container');
   if (dateListContainer) {
@@ -2710,17 +2547,12 @@ document.querySelectorAll('.modal-close-btn').forEach(btn => {
           if (manualAddForm) manualAddForm.reset();
       } 
       // ✅ [추가] 시작 시간 수정 모달 닫기 시 초기화
-      else if (modalId === 'edit-start-time-modal') {
+      else if (modalId === 'edit-start-time-modal') { 
           recordIdOrGroupIdToEdit = null;
           editType = null;
           if (editStartTimeInput) editStartTimeInput.value = '';
           if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = '';
           if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = '';
-      }
-      // ✅ [추가] 근태 수정 모달 닫기 시 초기화
-      else if (modalId === 'edit-attendance-record-modal') {
-          if (editAttendanceDateKeyInput) editAttendanceDateKeyInput.value = '';
-          if (editAttendanceRecordIndexInput) editAttendanceRecordIndexInput.value = '';
       }
       // 다른 모달 ID에 대한 초기화 로직 추가...
   });
@@ -2744,14 +2576,9 @@ if (cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => {
         card.classList.remove('ring-2','ring-blue-500','bg-blue-100');
      });
 });
-// ✅ [추가] 근태 수정 모달 - 취소 버튼
-if (cancelEditAttendanceBtn) {
-    cancelEditAttendanceBtn.addEventListener('click', () => {
-        if (editAttendanceRecordModal) editAttendanceRecordModal.classList.add('hidden');
-        if (editAttendanceDateKeyInput) editAttendanceDateKeyInput.value = '';
-        if (editAttendanceRecordIndexInput) editAttendanceRecordIndexInput.value = '';
-    });
-}
+// ✅ [추가] '업무 마감 확인' 모달의 취소 버튼
+if (cancelEndShiftBtn) cancelEndShiftBtn.addEventListener('click', () => { if(endShiftConfirmModal) endShiftConfirmModal.classList.add('hidden'); });
+
 
 [toggleCompletedLog, toggleAnalysis, toggleSummary].forEach(toggle => {
   if (!toggle) return;
@@ -2764,18 +2591,6 @@ if (cancelEditAttendanceBtn) {
     if (arrow) arrow.classList.toggle('rotate-180');
   });
 });
-
-// ✅ [추가] 근태 수정 모달 - 유형 변경 시 날짜/시간 필드 토글
-if (editAttendanceTypeSelect) {
-    editAttendanceTypeSelect.addEventListener('change', (e) => {
-        const selectedType = e.target.value;
-        const isTimeBased = (selectedType === '외출' || selectedType === '조퇴');
-        const isDateBased = (selectedType === '연차' || selectedType === '출장' || selectedType === '결근');
-
-        if (editAttendanceTimeFields) editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
-        if (editAttendanceDateFields) editAttendanceDateFields.classList.toggle('hidden', !isDateBased);
-    });
-}
 
 if (teamSelectModal) teamSelectModal.addEventListener('click', e => {
     const card = e.target.closest('button[data-member-name]');
