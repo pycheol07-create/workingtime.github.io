@@ -389,7 +389,8 @@ const addMembersToWorkGroup = (members, task, groupId) => {
 };
 
 const stopWorkGroup = (groupId) => {
-  const recordsToStop = (appState.workRecords || []).filter(r => r.groupId === groupId && (r.status === 'ongoing' || r.status === 'paused'));
+  // ✅ [수정] === 를 == 로 변경
+  const recordsToStop = (appState.workRecords || []).filter(r => r.groupId == groupId && (r.status === 'ongoing' || r.status === 'paused'));
   if (recordsToStop.length === 0) return;
   finalizeStopGroup(groupId, null);
 };
@@ -400,7 +401,8 @@ const finalizeStopGroup = (groupId, quantity) => {
   let taskName = '';
   let changed = false;
   (appState.workRecords || []).forEach(record => {
-    if (record.groupId === groupId && (record.status === 'ongoing' || record.status === 'paused')) {
+    // ✅ [수정] === 를 == 로 변경
+    if (record.groupId == groupId && (record.status === 'ongoing' || record.status === 'paused')) {
       taskName = record.task;
       if (record.status === 'paused') {
         const lastPause = record.pauses?.[record.pauses.length - 1];
@@ -446,12 +448,15 @@ const stopWorkIndividual = (recordId) => {
   }
 };
 
+// === app.js (pauseWorkGroup 수정) ===
+
 // ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const pauseWorkGroup = (groupId) => {
   const currentTime = getCurrentTime();
   let changed = false;
   (appState.workRecords || []).forEach(record => {
-    if (record.groupId === groupId && record.status === 'ongoing') {
+    // ✅ [수정] === 를 == 로 변경 (타입 강제 변환 비교)
+    if (record.groupId == groupId && record.status === 'ongoing') {
       record.status = 'paused';
       record.pauses = record.pauses || [];
       // ✅ [수정] 'type: 'break'' 추가
@@ -471,7 +476,8 @@ const resumeWorkGroup = (groupId) => {
   const currentTime = getCurrentTime();
   let changed = false;
   (appState.workRecords || []).forEach(record => {
-    if (record.groupId === groupId && record.status === 'paused') {
+    // ✅ [수정] === 를 == 로 변경
+    if (record.groupId == groupId && record.status === 'paused') {
       record.status = 'ongoing';
       const lastPause = record.pauses?.[record.pauses.length - 1];
       if (lastPause && lastPause.end === null) lastPause.end = currentTime;
