@@ -785,17 +785,28 @@ window.openHistoryQuantityModal = (dateKey) => {
     onConfirm: async (newQuantities) => {
       const idx = allHistoryData.findIndex(d => d.id === dateKey);
       if (idx === -1) return;
+      // ✅ [수정] Firestore 저장 전에 로컬 데이터 업데이트
       allHistoryData[idx] = { ...allHistoryData[idx], taskQuantities: newQuantities };
       const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
       try {
+        // ✅ [수정] 업데이트된 로컬 데이터를 Firestore에 저장
         await setDoc(historyDocRef, allHistoryData[idx]);
         showToast(`${dateKey}의 처리량이 수정되었습니다.`);
+
+        // --- 👇 [추가] 오늘 날짜인 경우 appState도 업데이트 ---
+        if (dateKey === getTodayDateString()) {
+            appState.taskQuantities = newQuantities;
+            render(); // 메인 화면 UI 즉시 갱신 (요약, 분석 등)
+        }
+        // --- 👆 [추가] ---
+
          const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
          const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-         switchHistoryView(currentView);
+         switchHistoryView(currentView); // 이력 보기 UI 갱신
       } catch (e) {
         console.error('Error updating history quantities:', e);
         showToast('처리량 업데이트 중 오류 발생.', true);
+        // 오류 시 로컬 데이터 원복 (선택 사항 - 이미 UI.js 수정에서 반영됨)
       }
     },
     onCancel: () => {}
