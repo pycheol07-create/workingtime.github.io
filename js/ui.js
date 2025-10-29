@@ -1378,7 +1378,11 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         <div class="mb-4 pb-2 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
             <div>
-                <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm"
+                <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
+                        data-action="open-add-attendance-modal" data-date-key="${dateKey}">
+                    수동 추가
+                </button>
+                <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
                         onclick="downloadAttendanceHistoryAsExcel('${dateKey}')">
                     근태 엑셀 (전체)
                 </button>
@@ -1413,8 +1417,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                 <tbody>
     `;
 
-    // --- ⚠️ 여기가 중요합니다 ---
-    // 반복문은 <tbody> 태그가 열린 직후에 와야 합니다.
     leaveEntries.forEach((entry, index) => {
         let detailText = '-';
         if (entry.startTime) {
@@ -1436,14 +1438,14 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                 <td class="px-6 py-4 font-medium text-gray-900">${entry.member}</td>
                 <td class="px-6 py-4">${entry.type}</td>
                 <td class="px-6 py-4">${detailText}</td>
-                <td class="px-6 py-4 text-right">
+                <td class="px-6 py-4 text-right space-x-2">
                     <button data-action="edit-attendance" data-date-key="${dateKey}" data-index="${index}" class="font-medium text-blue-500 hover:underline">수정</button>
+                    <button data-action="delete-attendance" data-date-key="${dateKey}" data-index="${index}" class="font-medium text-red-500 hover:underline">삭제</button>
                 </td>
             </tr>
         `;
-    }); // <--- 반복문은 여기서 끝나야 합니다.
+    });
 
-    // 닫는 태그들은 반복문 뒤에 와야 합니다.
     html += `
                 </tbody>
             </table>
