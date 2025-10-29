@@ -2169,29 +2169,25 @@ if (teamStatusBoard) {
 
     // 2. 카드 내부의 액션 버튼들 (정지, 재개, 종료, 인원추가)
 
-    // --- 👇 [교체 시작] 그룹 전체 종료 버튼 핸들러 ---
+    // --- (그룹 전체 종료 버튼 핸들러) ---
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
     if (stopGroupButton) {
         e.stopPropagation(); // ✅ 중요
         const cardActionsDiv = stopGroupButton.closest('.card-actions');
         if (!cardActionsDiv) return;
-
-        // 카드 내 멤버들의 모든 groupId를 Set으로 수집
         const groupIdsToStop = new Set();
-        const card = cardActionsDiv.closest('.flex-col.h-full'); // 카드 전체 div 찾기
+        const card = cardActionsDiv.closest('.flex-col.h-full'); 
         card.querySelectorAll('.member-row[data-group-id]').forEach(row => {
             const gid = row.dataset.groupId;
-            if (gid) groupIdsToStop.add(Number(gid)); // 숫자로 변환하여 Set에 추가
+            if (gid) groupIdsToStop.add(Number(gid)); 
         });
 
         if (groupIdsToStop.size > 0) {
-            // 종료 확인 모달 띄우기 (메시지는 동일하게 유지)
-            groupToStopId = Array.from(groupIdsToStop); // ✅ 여러 ID를 배열로 저장 (임시)
+            groupToStopId = Array.from(groupIdsToStop); 
             const stopGroupModal = document.getElementById('stop-group-confirm-modal');
             if (stopGroupModal) {
                 const taskName = card.querySelector('.font-bold.text-lg')?.textContent.replace(' (일시정지)','').trim() || '이 그룹';
                 const msgEl = document.getElementById('stop-group-confirm-message');
-                // 메시지에 대상 ID 표시 (선택 사항, 디버깅에 유용)
                 if (msgEl) msgEl.textContent = `'${taskName}' 업무를 전체 종료하시겠습니까? (대상 그룹 ID: ${groupToStopId.join(', ')})`;
                 stopGroupModal.classList.remove('hidden');
             }
@@ -2201,60 +2197,56 @@ if (teamStatusBoard) {
         return;
     }
 
-    // --- 👇 [교체 시작] 그룹 전체 정지 버튼 핸들러 ---
+    // --- (그룹 전체 정지 버튼 핸들러) ---
     const pauseGroupButton = e.target.closest('.pause-work-group-btn');
     if (pauseGroupButton) {
         e.stopPropagation();
         const cardActionsDiv = pauseGroupButton.closest('.card-actions');
         if (!cardActionsDiv) return;
-
         const groupIdsToPause = new Set();
         const card = cardActionsDiv.closest('.flex-col.h-full');
         card.querySelectorAll('.member-row[data-group-id]').forEach(row => {
             const gid = row.dataset.groupId;
             if (gid) groupIdsToPause.add(Number(gid));
         });
-
         if (groupIdsToPause.size > 0) {
-            // 각 groupId에 대해 pauseWorkGroup 호출
             groupIdsToPause.forEach(gid => pauseWorkGroup(gid));
-            showToast('그룹 업무가 일시정지 되었습니다.'); // 메시지는 한 번만
+            showToast('그룹 업무가 일시정지 되었습니다.'); 
         } else {
              console.warn("정지 버튼 클릭됨, 하지만 카드에서 유효한 그룹 ID를 찾을 수 없음.");
         }
         return;
     }
 
-    // --- 👇 [교체 시작] 그룹 전체 재개 버튼 핸들러 ---
+    // --- (그룹 전체 재개 버튼 핸들러) ---
     const resumeGroupButton = e.target.closest('.resume-work-group-btn');
     if (resumeGroupButton) {
         e.stopPropagation();
         const cardActionsDiv = resumeGroupButton.closest('.card-actions');
         if (!cardActionsDiv) return;
-
         const groupIdsToResume = new Set();
         const card = cardActionsDiv.closest('.flex-col.h-full');
         card.querySelectorAll('.member-row[data-group-id]').forEach(row => {
             const gid = row.dataset.groupId;
             if (gid) groupIdsToResume.add(Number(gid));
         });
-
         if (groupIdsToResume.size > 0) {
-            // 각 groupId에 대해 resumeWorkGroup 호출
             groupIdsToResume.forEach(gid => resumeWorkGroup(gid));
-            showToast('그룹 업무를 다시 시작합니다.'); // 메시지는 한 번만
+            showToast('그룹 업무를 다시 시작합니다.'); 
         } else {
              console.warn("재개 버튼 클릭됨, 하지만 카드에서 유효한 그룹 ID를 찾을 수 없음.");
         }
         return;
     }
 
-    // --- (개별 정지/재개/종료 및 인원 추가 버튼 로직은 기존과 동일) ---
+    // --- (개별 정지/재개/종료 및 인원 추가 버튼 로직) ---
     const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
     if (individualPauseBtn) { e.stopPropagation(); pauseWorkIndividual(individualPauseBtn.dataset.recordId); return; }
+    
     const individualResumeBtn = e.target.closest('[data-action="resume-individual"]');
     if (individualResumeBtn) { e.stopPropagation(); resumeWorkIndividual(individualResumeBtn.dataset.recordId); return; }
-    const individualStopBtn = e.target.closest('[data-action="stop-individual"]');
+    
+    const individualStopBtn = e.target.closest('button[data-action="stop-individual"]'); // ✅ button 태그 명시
     if (individualStopBtn) {
         e.stopPropagation();
         const recordId = individualStopBtn.dataset.recordId;
@@ -2266,6 +2258,7 @@ if (teamStatusBoard) {
         }
         return;
     }
+    
     const addMemberButton = e.target.closest('.add-member-btn[data-action="add-member"]');
     if (addMemberButton) {
         e.stopPropagation();
@@ -2285,7 +2278,6 @@ if (teamStatusBoard) {
     // 3. 그룹 시작 시간 수정 영역
     const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
     if (groupTimeDisplay) {
-        // stopPropagation 불필요 (하위에 더 이상 액션 없음)
         const groupId = groupTimeDisplay.dataset.groupId;
         const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
         const taskName = groupTimeDisplay.closest('.flex-col.h-full')?.querySelector('.font-bold.text-lg')?.textContent.replace(' (일시정지)', '').trim() || '그룹';
@@ -2302,14 +2294,18 @@ if (teamStatusBoard) {
         return;
     }
 
-    // 4. 개별 시작 시간 수정 영역 (단, 내부 액션 버튼 클릭은 제외)
-    const memberRow = e.target.closest('.member-row[data-action="edit-individual-start-time"]');
-    if (memberRow && !e.target.closest('.member-actions button')) { // 액션 버튼 클릭 시 이 로직 실행 안 함
-        // stopPropagation 불필요
-        const recordId = memberRow.dataset.recordId;
-        const currentStartTime = memberRow.dataset.currentStartTime;
-        const memberName = memberRow.querySelector('.font-semibold')?.textContent || '팀원';
-        const taskName = memberRow.closest('.flex-col.h-full')?.querySelector('.font-bold.text-lg')?.textContent.replace(' (일시정지)', '').trim() || '업무';
+    // ✅ 4. [수정] 개별 시작 시간 수정 (시계 아이콘 버튼)
+    const individualEditTimeBtn = e.target.closest('button[data-action="edit-individual-start-time"]');
+    if (individualEditTimeBtn) {
+        e.stopPropagation(); // 버튼이므로 버블링 중지
+        const recordId = individualEditTimeBtn.dataset.recordId;
+        const currentStartTime = individualEditTimeBtn.dataset.currentStartTime;
+        
+        // 멤버와 태스크 이름을 찾기 위해 상위 요소 탐색
+        const memberRow = individualEditTimeBtn.closest('.member-row');
+        const memberName = memberRow?.querySelector('.font-semibold')?.textContent || '팀원';
+        const taskName = memberRow?.closest('.flex-col.h-full')?.querySelector('.font-bold.text-lg')?.textContent.replace(' (일시정지)', '').trim() || '업무';
+
         if (recordId && currentStartTime) {
             recordIdOrGroupIdToEdit = recordId;
             editType = 'individual';
@@ -2326,7 +2322,7 @@ if (teamStatusBoard) {
     // 5. 근태 설정 카드
     const memberCard = e.target.closest('[data-member-toggle-leave]');
     if (memberCard) {
-        // ... (근태 설정/취소 로직 동일) ...
+        // ... (기존 근태 설정 로직은 그대로 둡니다) ...
         const memberName = memberCard.dataset.memberToggleLeave;
         const role = appState.currentUserRole || 'user';
         const selfName = appState.currentUser || null;
@@ -2371,7 +2367,7 @@ if (teamStatusBoard) {
 
     // 6. 업무 카드 전체 클릭 (시작 또는 기타 업무)
     const card = e.target.closest('div[data-action]');
-     // 🚨 수정: 클릭 제외 대상에서 .group-time-display, .member-row 제거 (이미 위에서 처리)
+     // 🚨 수정: 클릭 제외 대상에서 .member-row 제거 (이제 member-row는 클릭 대상이 아님)
     if (card && !e.target.closest('button, a, input, select, .members-list')) {
       const action = card.dataset.action;
       const task = card.dataset.task;
@@ -2382,13 +2378,12 @@ if (teamStatusBoard) {
         const titleEl = document.getElementById('team-select-modal-title');
         if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
         if (teamSelectModal) teamSelectModal.classList.remove('hidden');
-        return; // ✅ 추가
+        return; 
       } else if (action === 'other') {
         selectedTaskForStart = null; selectedGroupForAdd = null;
         if (taskSelectModal) taskSelectModal.classList.remove('hidden');
-        return; // ✅ 추가
+        return; 
       }
-      // 'add-member' 액션은 버튼에서 직접 처리됨
     }
   }); // teamStatusBoard 리스너 끝
 } // if (teamStatusBoard) 끝
