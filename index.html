@@ -25,11 +25,12 @@
                 </button>
             </div>
 
-            <div id="nav-content" 
+            <div id="nav-content"
                  class="hidden md:flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-2
-                        md:relative absolute top-20 left-0 right-0 bg-white shadow-lg md:shadow-none z-40 p-4 md:p-0 rounded-lg md:rounded-none border md:border-none">
-                
-                <div id="current-date-display" class="text-lg font-bold text-gray-700 hidden"></div>
+                        absolute md:relative top-20 md:top-auto left-0 md:left-auto right-0 md:right-auto /* 포지션 리셋 */
+                        bg-white md:bg-transparent shadow-lg md:shadow-none z-40 p-4 md:p-0 rounded-lg md:rounded-none border md:border-none"> /* 스타일 리셋 */
+
+                <div id="current-date-display" class="text-lg font-bold text-gray-700 hidden md:text-lg"></div>
 
                 <div id="top-right-controls" class="flex flex-col items-start md:items-end gap-2 hidden">
                     <div id="connection-indicator" class="flex items-center gap-2">
@@ -38,7 +39,7 @@
                         <span id="connection-status" class="text-xs font-medium text-gray-500"></span>
                     </div>
                     <div class="flex gap-2 flex-wrap">
-                        <a href="admin.html" id="admin-link-btn" target="admin_window" 
+                        <a href="admin.html" id="admin-link-btn" target="admin_window"
                             class="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -60,7 +61,7 @@
                 </div>
             </div>
 
-            <header class="mb-8 pt-0 text-center hidden md:block">
+            <header class="mb-8 text-center hidden md:block">
                 <h1 class="text-3xl md:text-4xl font-bold text-gray-900">물류팀 업무현황</h1>
             </header>
         </div>
@@ -111,7 +112,7 @@
                                 <th scope="col" class="px-6 py-3">소요 시간</th>
                                 <th scope="col" class="px-6 py-3 text-right">
                                     <button id="open-manual-add-btn" class="text-xs font-bold text-blue-500 uppercase hover:text-blue-700 mr-3">수동 추가</button>
-                                    
+
                                     <button id="delete-all-completed-btn" class="text-xs font-bold text-red-500 uppercase hover:text-red-700">일괄삭제</button>
                                 </th>
                             </tr>
@@ -180,7 +181,7 @@
             </div>
         </div>
      </div>
-     
+
      <div id="stop-individual-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
            <button class="modal-close-btn">&times;</button>
@@ -204,7 +205,7 @@
            </div>
        </div>
     </div>
-    
+
     <div id="reset-app-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
             <div class="p-6 text-center">
@@ -230,7 +231,7 @@
             </div>
         </div>
     </div>
-    
+
     <div id="quantity-on-stop-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
@@ -247,7 +248,7 @@
            </div>
        </div>
     </div>
-    
+
     <div id="edit-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
             <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">업무 기록 수정</h2><button class="modal-close-btn">&times;</button></div>
@@ -275,7 +276,7 @@
             </div>
         </div>
     </div>
-    
+
     <div id="task-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
@@ -286,7 +287,7 @@
                 </div>
         </div>
     </div>
-    
+
     <div id="edit-part-timer-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">알바 이름 수정</h2><button class="modal-close-btn">&times;</button></div>
@@ -303,7 +304,7 @@
             </div>
         </div>
     </div>
-    
+
     <div id="leave-type-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <div class="p-6 border-b border-gray-200">
@@ -331,7 +332,7 @@
             </div>
         </div>
     </div>
-    
+
     <div id="cancel-leave-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
             <div class="p-6 text-center">
@@ -342,15 +343,15 @@
             </div>
         </div>
     </div>
-    
+
     <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
         <div id="history-modal-content-box" class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[90vh] flex flex-col relative">
-            
+
             <div id="history-modal-header" class="p-6 border-b border-gray-200 flex justify-between items-center cursor-move">
                 <h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2>
                 <button id="close-history-btn" class="modal-close-btn">&times;</button>
             </div>
-            
+
             <div class="px-6 pt-4 border-b border-gray-200 bg-gray-50">
                 <div id="history-main-tabs" class="flex gap-6">
                     <button data-main-tab="work" class="history-main-tab-btn py-3 font-semibold text-blue-600 border-b-2 border-blue-600">업무 이력</button>
@@ -456,13 +457,13 @@
                 <button type="button" id="confirm-manual-add-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
             </div>
         </div>
-    </div> 
+    </div>
 
     <div id="login-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-[99] p-4 hidden">
         <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
             <h2 class="text-xl font-bold mb-4">로그인</h2>
             <p class="mb-4 text-sm text-gray-600">관리자 페이지에서 등록한 이메일과<br>Firebase 콘솔에서 생성한 비밀번호를 입력하세요.</p>
-            
+
             <form id="login-form">
                 <div class="mb-3">
                     <label for="login-email" class="block text-sm font-medium text-gray-700">이메일</label>
@@ -472,9 +473,9 @@
                     <label for="login-password" class="block text-sm font-medium text-gray-700">비밀번호</label>
                     <input type="password" id="login-password" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
                 </div>
-                
+
                 <p id="login-error-message" class="text-sm text-red-500 mb-3 hidden"></p>
-                
+
                 <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">
                     <span id="login-button-text">로그인</span>
                     <span id="login-button-spinner" class="hidden animate-spin">⌛</span>
