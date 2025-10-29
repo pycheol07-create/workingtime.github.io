@@ -3001,13 +3001,6 @@ if (attendanceHistoryViewContainer) {
     });
 }
 
-// ✅ [수정] 근태 '수정' 저장 버튼 리스너 (기존 코드)
-if (confirmEditAttendanceBtn) {
-// ... (이 리스너의 내용은 이전 단계에서 제공한 것과 동일하므로 변경 없습니다.) ...
-// ... (생략) ...
-// ... (생략) ...
-    });
-}
 
 // ✅ [추가] 근태 '수동 추가' 저장 버튼 리스너
 if (confirmAddAttendanceBtn) {
