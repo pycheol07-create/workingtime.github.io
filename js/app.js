@@ -1934,12 +1934,55 @@ if (openQuantityModalTodayBtn) {
         quantityModalContext = {
             mode: 'today',
             dateKey: null,
-            onConfirm: (newQuantities) => {
+            onConfirm: async (newQuantities) => { // ✅ async 추가
+                // 1. 메인 화면 상태(appState) 업데이트
                 appState.taskQuantities = newQuantities;
-                debouncedSaveState(); // 변경사항 즉시 저장 (디바운스)
+                debouncedSaveState(); // Firestore 'daily_data' 저장 (기존 로직 유지)
                 showToast('오늘의 처리량이 저장되었습니다.');
                 // 수량이 요약/분석에 영향을 줄 수 있으므로 렌더링
                 render(); 
+
+                // --- 👇 [추가] 오늘 날짜 이력(history) 문서도 업데이트 ---
+                const todayDateKey = getTodayDateString();
+                const todayHistoryIndex = allHistoryData.findIndex(d => d.id === todayDateKey);
+
+                // 오늘 날짜 이력 데이터가 이미 로드되어 있다면
+                if (todayHistoryIndex > -1) {
+                    const todayHistoryData = allHistoryData[todayHistoryIndex];
+                    
+                    // 오늘 이력 데이터의 taskQuantities 업데이트
+                    const updatedHistoryData = { 
+                        ...todayHistoryData, 
+                        taskQuantities: newQuantities 
+                    };
+                    
+                    // 로컬 allHistoryData 업데이트
+                    allHistoryData[todayHistoryIndex] = updatedHistoryData; 
+
+                    // Firestore 'history' 문서 업데이트
+                    const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
+                    try {
+                        await setDoc(historyDocRef, updatedHistoryData);
+                        console.log("오늘 날짜 이력(history) 처리량도 업데이트되었습니다."); // 확인용 로그
+
+                        // 만약 이력 보기 모달이 열려있다면 UI 갱신 (선택 사항)
+                        if (!historyModal.classList.contains('hidden')) {
+                             const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
+                             const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
+                             // 현재 보고 있는 뷰가 오늘 날짜 관련이면 갱신
+                             if (currentView === 'daily' || currentView === 'weekly' || currentView === 'monthly') {
+                                 // switchHistoryView(currentView); // 전체 뷰를 다시 그릴 수도 있음
+                                 // 또는 오늘 날짜 부분만 다시 그리는 로직 추가 (더 복잡)
+                                 // 여기서는 일단 로그만 남기고, 사용자가 이력 보기를 다시 열면 반영되도록 함
+                             }
+                        }
+                    } catch (e) {
+                        console.error('오늘 날짜 이력(history) 처리량 업데이트 실패:', e);
+                        // 오류 발생 시 로컬 allHistoryData 원복 (선택 사항)
+                        allHistoryData[todayHistoryIndex] = todayHistoryData; 
+                    }
+                }
+                // --- 👆 [추가] ---
             },
             onCancel: () => {}
         };
