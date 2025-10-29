@@ -428,29 +428,25 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                                 ${groupTimeDisplayHtml} 
                                 <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
-                                <div class="mt-auto flex gap-2 pt-2 card-actions" 
-                                     data-group-id="${firstRecord.groupId}" 
-                                     data-task="${firstRecord.task}"> 
-                        
-                                    <button class="add-member-btn flex-1 aspect-square flex flex-col items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm" 
-                                            data-action="add-member" 
-                                            data-group-id="${firstRecord.groupId}" 
+                                <div class="mt-auto flex gap-2 pt-2 card-actions"
+                                     data-group-id="${firstRecord.groupId}"
+                                     data-task="${firstRecord.task}">
+
+                                    <button class="add-member-btn flex-1 aspect-square flex flex-col items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm"
+                                            data-action="add-member"
+                                            data-group-id="${firstRecord.groupId}"
                                             data-task="${firstRecord.task}">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mb-0.5">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.5h-1.5a2.25 2.25 0 00-2.25 2.25v2.25a2.25 2.25 0 002.25 2.25h1.5m-4.5-8.25h-1.5a2.25 2.25 0 00-2.25 2.25v2.25a2.25 2.25 0 002.25 2.25h1.5m7.5-6h-1.5a2.25 2.25 0 00-2.25 2.25v2.25a2.25 2.25 0 002.25 2.25h1.5m-3-9h2.25c.621 0 1.125.504 1.125 1.125v1.5a2.25 2.25 0 01-2.25 2.25H12a2.25 2.25 0 01-2.25-2.25V9.75c0-.621.504-1.125 1.125-1.125zm-3 0h2.25c.621 0 1.125.504 1.125 1.125v1.5a2.25 2.25 0 01-2.25 2.25H9a2.25 2.25 0 01-2.25-2.25V9.75c0-.621.504-1.125 1.125-1.125z" />
-                                        </svg>
                                         <span class="text-center leading-tight">인원<br>추가</span>
                                     </button>
-                        
+
                                     <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 aspect-square flex flex-col items-center justify-center text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm">
-                                        ${isPaused 
-                                            ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mb-0.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg><span class="text-center leading-tight">전체<br>재개</span>`
-                                            : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mb-0.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg><span class="text-center leading-tight">전체<br>정지</span>`
+                                        ${isPaused
+                                            ? `<span class="text-center leading-tight">전체<br>재개</span>`
+                                            : `<span class="text-center leading-tight">전체<br>정지</span>`
                                         }
                                     </button>
-                        
+
                                     <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} flex-1 aspect-square flex flex-col items-center justify-center text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mb-0.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                         <span class="text-center leading-tight">전체<br>종료</span>
                                     </button>
                                 </div>
@@ -468,19 +464,14 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
                 </div>
-                <div class="mt-auto flex gap-2 pt-2"> 
+                <div class="mt-auto flex gap-2 pt-2">
                     <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mb-0.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.5h-1.5a2.25 2.25 0 00-2.25 2.25v2.25a2.25 2.25 0 002.25 2.25h1.5m-4.5-8.25h-1.5a2.25 2.25 0 00-2.25 2.25v2.25a2.25 2.25 0 002.25 2.25h1.5m7.5-6h-1.5a2.25 2.25 0 00-2.25 2.25v2.25a2.25 2.25 0 002.25 2.25h1.5m-3-9h2.25c.621 0 1.125.504 1.125 1.125v1.5a2.25 2.25 0 01-2.25 2.25H12a2.25 2.25 0 01-2.25-2.25V9.75c0-.621.504-1.125 1.125-1.125zm-3 0h2.25c.621 0 1.125.504 1.125 1.125v1.5a2.25 2.25 0 01-2.25 2.25H9a2.25 2.25 0 01-2.25-2.25V9.75c0-.621.504-1.125 1.125-1.125z" />
-                        </svg>
                         <span class="text-center leading-tight">인원<br>추가</span>
                     </button>
                     <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mb-0.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg>
                         <span class="text-center leading-tight">전체<br>정지</span>
                     </button>
                     <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mb-0.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                         <span class="text-center leading-tight">전체<br>종료</span>
                     </button>
                 </div>
