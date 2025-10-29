@@ -1481,9 +1481,43 @@ if (cancelManualAddBtn) {
 // document.addEventListener('fullscreenchange', ...) // 첫 번째 fullscreenchange 리스너 삭제
 
 
-// ... (teamStatusBoard 리스너는 이전과 동일) ...
 if (teamStatusBoard) {
   teamStatusBoard.addEventListener('click', (e) => {
+
+    // ✅ [추가] 모바일 전체 업무 펼쳐보기 버튼
+    const toggleMobileBtn = e.target.closest('#toggle-all-tasks-mobile');
+    if (toggleMobileBtn) {
+        e.stopPropagation();
+        const grid = document.getElementById('preset-task-grid');
+        if (!grid) return;
+
+        const isExpanded = grid.classList.contains('mobile-expanded');
+        
+        if (isExpanded) {
+            // --- 접기 ---
+            grid.classList.remove('mobile-expanded');
+            grid.querySelectorAll('.mobile-task-hidden').forEach(card => {
+                card.classList.add('hidden');
+                card.classList.remove('flex'); // 'flex'를 명시적으로 제거
+            });
+            toggleMobileBtn.textContent = '전체 업무 펼쳐보기';
+            toggleMobileBtn.classList.remove('bg-blue-100', 'text-blue-800'); // 스타일 원복
+            toggleMobileBtn.classList.add('bg-gray-200', 'text-gray-800');
+        } else {
+            // --- 펼치기 ---
+            grid.classList.add('mobile-expanded');
+            grid.querySelectorAll('.mobile-task-hidden.hidden').forEach(card => {
+                card.classList.remove('hidden');
+                card.classList.add('flex'); // 'flex'를 명시적으로 추가
+            });
+            toggleMobileBtn.textContent = '내 업무만 보기 (접기)';
+            toggleMobileBtn.classList.add('bg-blue-100', 'text-blue-800'); // 활성 스타일
+            toggleMobileBtn.classList.remove('bg-gray-200', 'text-gray-800');
+        }
+        return; // 다른 클릭 로직 실행 방지
+    }
+    
+    // (이하 기존 코드 동일)
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
     if (stopGroupButton) { 
         // stopWorkGroup(Number(stopGroupButton.dataset.groupId)); return; // [수정] 바로 실행 대신 확인 모달

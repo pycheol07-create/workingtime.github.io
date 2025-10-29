@@ -297,11 +297,21 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     // --- Section 1: Preset Task Quick Actions ---
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
-    presetTaskContainer.innerHTML = `<h3 class="text-lg font-bold text-gray-700 border-b pb-2 mb-4">주요 업무 (시작할 업무 카드를 클릭)</h3>`;
+    
+    // ✅ [수정] "주요 업무" 헤더에 모바일용 '펼쳐보기' 버튼 추가
+    presetTaskContainer.innerHTML = `
+        <div class="flex justify-between items-center border-b pb-2 mb-4">
+            <h3 class="text-lg font-bold text-gray-700">주요 업무 (시작할 업무 카드를 클릭)</h3>
+            <button id="toggle-all-tasks-mobile" 
+                    class="md:hidden bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-xs py-1 px-2 rounded-md transition active:scale-[0.98]">
+                전체 업무 펼쳐보기
+            </button>
+        </div>`;
 
     const presetGrid = document.createElement('div');
-    // ✅ [수정] 그리드 컬럼 설정 변경 (sm 제거, 모바일은 grid-cols-1)
+    // ✅ [수정] 그리드 컬럼 설정 변경 및 ID 추가
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4';
+    presetGrid.id = 'preset-task-grid'; // 👈 [추가] ID 추가
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
     
@@ -330,8 +340,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
         const titleClass = isPaused ? currentStyle.title : (taskTitleColors[task] || taskTitleColors['default']);
 
-        // ✅ [수정] 모바일 반응형 클래스 추가: 현재 유저가 하면 'flex', 아니면 'hidden md:flex'
-        card.className = `p-3 rounded-lg border ${isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex'} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
+        // ✅ [수정] 모바일 반응형 클래스 (토글을 위한 'mobile-task-hidden' 클래스 추가)
+        const mobileVisibilityClass = isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex mobile-task-hidden';
+        
+        card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
 
 
         if (groupRecords.length > 0) {
@@ -439,6 +451,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
+    // (이하 코드 동일)
+    // ... (이하 renderRealtimeStatus 함수의 나머지 코드는 그대로 유지) ...
     const allMembersContainer = document.createElement('div');
     const allMembersHeader = document.createElement('div');
     // ✅ [수정] 모바일에서 헤더 숨김 ('hidden md:flex')
