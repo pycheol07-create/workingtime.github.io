@@ -1667,28 +1667,39 @@ if (attendanceHistoryViewContainer) {
     });
 }
 
-// ✅ [추가] 근태 수정 모달 - '저장' 버튼 클릭 리스너
+// ✅ [수정] 근태 수정 모달 - '저장' 버튼 클릭 리스너 (중복 토스트 및 저장 오류 수정)
 if (confirmEditAttendanceBtn) {
     confirmEditAttendanceBtn.addEventListener('click', async () => {
         const dateKey = editAttendanceDateKeyInput.value;
         const index = parseInt(editAttendanceRecordIndexInput.value, 10);
         const newType = editAttendanceTypeSelect.value;
 
+        // --- [추가] 중복 클릭 방지 ---
+        confirmEditAttendanceBtn.disabled = true; 
+        // -------------------------
+
         if (!dateKey || isNaN(index)) {
             showToast('저장할 기록 정보를 찾는 데 실패했습니다.', true);
+            confirmEditAttendanceBtn.disabled = false; // [추가] 버튼 활성화
             return;
         }
 
         const dayDataIndex = allHistoryData.findIndex(d => d.id === dateKey);
         if (dayDataIndex === -1) {
              showToast('원본 이력 데이터를 찾을 수 없습니다.', true);
+             confirmEditAttendanceBtn.disabled = false; // [추가] 버튼 활성화
              return;
         }
         
-        const dayData = allHistoryData[dayDataIndex];
+        // 원본 데이터 복사 (원본 불변성 유지 시도)
+        const dayData = { ...allHistoryData[dayDataIndex] }; 
+        // 배열도 깊은 복사
+        dayData.onLeaveMembers = dayData.onLeaveMembers ? [...dayData.onLeaveMembers] : []; 
+        
         const recordToUpdate = dayData.onLeaveMembers[index];
         if (!recordToUpdate) {
              showToast('원본 근태 기록을 찾을 수 없습니다.', true);
+             confirmEditAttendanceBtn.disabled = false; // [추가] 버튼 활성화
              return;
         }
 
@@ -1701,42 +1712,51 @@ if (confirmEditAttendanceBtn) {
         const isTimeBased = (newType === '외출' || newType === '조퇴');
         const isDateBased = (newType === '연차' || newType === '출장' || newType === '결근');
 
-        if (isTimeBased) {
-            const startTime = editAttendanceStartTimeInput.value;
-            const endTime = editAttendanceEndTimeInput.value; // 비어있으면 ''
-            if (!startTime) {
-                showToast('시간 기반 근태는 시작 시간이 필수입니다.', true);
-                return;
+        try { // --- [추가] 입력 값 검증을 위한 try 블록 ---
+            if (isTimeBased) {
+                const startTime = editAttendanceStartTimeInput.value;
+                const endTime = editAttendanceEndTimeInput.value; // 비어있으면 ''
+                if (!startTime) {
+                    throw new Error('시간 기반 근태는 시작 시간이 필수입니다.');
+                }
+                if (endTime && endTime < startTime) {
+                     throw new Error('종료 시간은 시작 시간보다 이후여야 합니다.');
+                }
+                updatedRecord.startTime = startTime;
+                updatedRecord.endTime = endTime || null; // 비어있으면 null로 저장
+            } else if (isDateBased) {
+                const startDate = editAttendanceStartDateInput.value;
+                const endDate = editAttendanceEndDateInput.value; // 비어있으면 ''
+                 if (!startDate) {
+                    throw new Error('날짜 기반 근태는 시작일이 필수입니다.');
+                }
+                if (endDate && endDate < startDate) {
+                     throw new Error('종료일은 시작일보다 이후여야 합니다.');
+                }
+                updatedRecord.startDate = startDate;
+                updatedRecord.endDate = endDate || null; // 비어있으면 null로 저장
             }
-            if (endTime && endTime < startTime) {
-                 showToast('종료 시간은 시작 시간보다 이후여야 합니다.', true);
-                return;
-            }
-            updatedRecord.startTime = startTime;
-            updatedRecord.endTime = endTime || null; // 비어있으면 null로 저장
-        } else if (isDateBased) {
-            const startDate = editAttendanceStartDateInput.value;
-            const endDate = editAttendanceEndDateInput.value; // 비어있으면 ''
-             if (!startDate) {
-                showToast('날짜 기반 근태는 시작일이 필수입니다.', true);
-                return;
-            }
-            if (endDate && endDate < startDate) {
-                 showToast('종료일은 시작일보다 이후여야 합니다.', true);
-                return;
-            }
-            updatedRecord.startDate = startDate;
-            updatedRecord.endDate = endDate || null; // 비어있으면 null로 저장
+        } catch (validationError) { // --- [추가] 입력 값 검증 실패 처리 ---
+            showToast(validationError.message, true);
+            confirmEditAttendanceBtn.disabled = false; // 버튼 활성화
+            return; // 저장 중단
         }
 
-        // 1. 로컬 데이터 (allHistoryData) 업데이트
-        dayData.onLeaveMembers[index] = updatedRecord;
 
-        // 2. Firestore에 전체 일일 데이터 (dayData) 저장
+        // 1. 로컬 데이터 (allHistoryData) 업데이트 ★★★
+        //    (dayData 객체를 복사했으므로, allHistoryData의 해당 인덱스도 교체 필요)
+        const originalRecord = allHistoryData[dayDataIndex].onLeaveMembers[index]; // 원복용
+        allHistoryData[dayDataIndex].onLeaveMembers[index] = updatedRecord; // 로컬 배열 직접 수정
+
+        // 2. Firestore에 **업데이트된 전체** 일일 데이터 (allHistoryData[dayDataIndex]) 저장
         const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
         try {
-            await setDoc(historyDocRef, dayData); // dayData 객체 통째로 덮어쓰기
-            showToast('근태 기록이 성공적으로 수정되었습니다.');
+            // ★★★ dayData가 아닌 allHistoryData의 업데이트된 객체를 저장
+            await setDoc(historyDocRef, allHistoryData[dayDataIndex]); 
+            
+            // --- 👇 [수정] 성공 시 토스트는 여기서 한 번만 ---
+            showToast('근태 기록이 성공적으로 수정되었습니다.'); 
+            // ------------------------------------------
 
             // 3. UI 갱신
             renderAttendanceDailyHistory(dateKey, allHistoryData);
@@ -1748,7 +1768,11 @@ if (confirmEditAttendanceBtn) {
             console.error('Error updating attendance history:', e);
             showToast('근태 기록 저장 중 오류가 발생했습니다.', true);
             // 오류 발생 시 로컬 데이터 원복 (선택적)
-            allHistoryData[dayDataIndex].onLeaveMembers[index] = recordToUpdate;
+            allHistoryData[dayDataIndex].onLeaveMembers[index] = originalRecord; // 원본 레코드로 되돌림
+        } finally {
+            // --- [추가] 성공/실패 여부와 관계없이 버튼 활성화 ---
+            confirmEditAttendanceBtn.disabled = false;
+            // ------------------------------------------
         }
     });
 }
