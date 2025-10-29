@@ -275,7 +275,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     container.innerHTML = html;
 };
 
-// ✅ [수정] renderRealtimeStatus (권한 확인 로직 추가 및 paused 상태 명확화)
+// ✅ [수정] renderRealtimeStatus (권한 확인 로직 추가)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     // === ✅ [수정] 현재 사용자 정보 가져오기 (함수 상단으로 이동) ===
     const currentUserRole = appState.currentUserRole || 'user';
@@ -305,15 +305,14 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
     
-    // 진행 중이거나 일시 정지된 모든 레코드
-    const allActiveRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
-    const activeTaskNames = new Set(allActiveRecords.map(r => r.task));
+    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+    const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
     
     const tasksToRender = [...new Set([...baseTasks, ...activeTaskNames])];
 
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
-        const groupRecords = allActiveRecords.filter(r => r.task === task);
+        const groupRecords = ongoingRecords.filter(r => r.task === task);
         // ✅ [수정] 현재 유저가 이 업무를 하는지 확인
         const isCurrentUserWorkingOnThisTask = groupRecords.some(r => r.member === currentUserName);
 
@@ -447,14 +446,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 근태 설정/취소)</h3>`;
     allMembersContainer.appendChild(allMembersHeader);
 
-    // ✅ [수정] workingMembers는 'ongoing'만, pausedMembers는 'paused'만 분리
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-    const pausedRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'paused');
-    
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
-    const pausedMembers = new Set(pausedRecordsForStatus.map(r => r.member)); // Set으로 변경
+    const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
 
-    // --- ✅ [수정] 현재 사용자 정보 가져오기 (이미 상단으로 이동함) ---
+    // --- ✅ [추가] 현재 사용자 정보 가져오기 (이미 상단으로 이동함) ---
     // const currentUserRole = appState.currentUserRole || 'user';
     // const currentUserName = appState.currentUser || null;
     // ------------------------------------
@@ -495,9 +491,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             card.type = 'button';
             const leaveInfo = onLeaveStatusMap.get(member);
             const isOnLeave = !!leaveInfo;
-            // ✅ [수정] isWorking은 ongoing만, isPaused는 paused만 확인
-            const isWorking = workingMembers.has(member); 
-            const isPaused = pausedMembers.has(member);
+            const isWorking = workingMembers.has(member) || pausedMembers.has(member);
             const isSelf = (member === currentUserName); // ✅ [추가] 본인 확인
 
             // === 📌 [재수정] 팀원 카드 className 설정 ===
@@ -509,7 +503,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             card.dataset.memberToggleLeave = member;
             
             // ✅ [수정] 권한에 따라 커서/투명도 조절
-            if (!isWorking && !isPaused) { // 업무 중/일시정지 상태가 아닐 때
+            if (!isWorking) {
+                // 업무 중이 아닐 때
                 if (currentUserRole === 'admin' || isSelf) {
                     // 관리자거나 본인이면 활성화
                     card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
@@ -518,7 +513,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     card.classList.add('cursor-not-allowed', 'opacity-70'); 
                 }
             } else {
-                // 업무 중이거나 일시정지 중이면 비활성화
+                // 업무 중이면 (원래 로직대로) 비활성화
                 card.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
@@ -542,14 +537,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div>
                                   <div class="text-xs">${leaveInfo.type}</div>
                                   ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
-            } else if (isWorking) { // ongoing
+            } else if (workingMembers.has(member)) {
                 card.classList.add('bg-red-50', 'border-red-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-red-800 break-keep">${member}</div><div class="text-xs text-gray-600 truncate" title="${workingMembers.get(member)}">${workingMembers.get(member)}</div>`;
-            } else if (isPaused) { // paused
-                // ✅ [수정] 일시 정지 상태는 노란색으로 명확하게 표시
+            } else if (pausedMembers.has(member)) {
                 card.classList.add('bg-yellow-50', 'border-yellow-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-yellow-800 break-keep">${member}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
-            } else { // idle
+            } else {
                 card.classList.add('bg-green-50', 'border-green-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
             }
@@ -560,12 +554,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     });
 
     // --- 알바 섹션 ---
-    // ✅ [수정] workingAlbaMembers는 ongoing만, pausedAlbaMembers는 paused만 포함하도록 재정의
-    const workingAlbaMembers = new Set(ongoingRecordsForStatus.filter(r => (appState.partTimers || []).some(pt => pt.name === r.member)).map(r => r.member));
-    const pausedAlbaMembers = new Set(pausedRecordsForStatus.filter(r => (appState.partTimers || []).some(pt => pt.name === r.member)).map(r => r.member));
-
+    const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
     const activePartTimers = (appState.partTimers || []).filter(pt => {
-        return workingAlbaMembers.has(pt.name) || pausedAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
+        return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
     });
 
     if (activePartTimers.length > 0) {
@@ -593,7 +584,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
 
              const currentlyWorkingTask = workingMembers.get(pt.name);
-             const isPaused = pausedAlbaMembers.has(pt.name); // paused 상태 확인
+             const isPaused = pausedMembers.has(pt.name);
              const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = currentlyWorkingTask || isPaused;
@@ -623,11 +614,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                  card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div>
                                    <div class="text-xs">${albaLeaveInfo.type}</div>
                                    ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
-             } else if (currentlyWorkingTask) { // ongoing
+             } else if (currentlyWorkingTask) {
                  card.classList.add('bg-red-50', 'border-red-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-red-800">${pt.name}</div><div class="text-xs text-gray-600 truncate" title="${currentlyWorkingTask}">${currentlyWorkingTask}</div>`;
-             } else if (isPaused) { // paused
-                 // ✅ [수정] 일시 정지 상태는 노란색으로 명확하게 표시
+             } else if (isPaused) {
                  card.classList.add('bg-yellow-50', 'border-yellow-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${pt.name}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
              }
@@ -642,7 +632,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
-// ... (renderCompletedWorkLog, renderDashboardLayout 등) ...
+// ... (renderCompletedWorkLog, updateSummary, renderTeamSelectionModalContent, renderLeaveTypeModalOptions, renderSummaryView, renderWeeklyHistory, renderMonthlyHistory, renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory 함수들은 이전과 동일) ...
 export const renderCompletedWorkLog = (appState) => {
     const workLogBody = document.getElementById('work-log-body');
     if (!workLogBody) return;
@@ -719,7 +709,7 @@ export const renderDashboardLayout = (appConfig) => {
     container.innerHTML = html;
 };
 
-// ✅ [수정] updateSummary 함수 (paused 인원 계산 수정)
+// ✅ [수정] updateSummary 함수 (커스텀 항목 ID 처리, 수량 업데이트 제외 유지)
 export const updateSummary = (appState, appConfig) => {
     // ✅ [수정] 모든 정의 가져오기
     const allDefinitions = getAllDashboardDefinitions(appConfig);
@@ -733,7 +723,7 @@ export const updateSummary = (appState, appConfig) => {
         }
     });
 
-    // 계산 로직 
+    // 계산 로직 (변경 없음)
     const teamGroups = appConfig.teamGroups || [];
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
@@ -752,39 +742,28 @@ export const updateSummary = (appState, appConfig) => {
     );
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
-    // ✅ [수정] ongoingRecords는 status === 'ongoing'만 포함
-    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-    const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
-
-    // ✅ [수정] workingMembers는 'ongoing' 인원만
-    const workingMembers = new Set(ongoingRecords.map(r => r.member));
+    const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+    const workingMembers = new Set(ongoingOrPausedRecords.map(r => r.member));
+    const workingStaffCount = [...workingMembers].filter(member => allStaffMembers.has(member)).length;
+    const workingPartTimerCount = [...workingMembers].filter(member => allPartTimers.has(member)).length;
     const totalWorkingCount = workingMembers.size;
-    
-    // ✅ [추가] pausedMembers는 'paused' 인원만
-    const pausedMembers = new Set(pausedRecords.map(r => r.member));
 
-    const availableStaffCount = totalStaffMembers.size - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
+    const availableStaffCount = totalStaffCount - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
     const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
 
-    // ✅ [수정] 대기 인원: 근무 가능 인원 (직원) 중 업무 중(ongoing)이거나 휴식 중(paused)이 아닌 인원
-    const allActiveMemberNames = new Set([...workingMembers, ...pausedMembers]);
-    const idleStaffMembers = [...allStaffMembers].filter(member => 
-        !onLeaveMemberNames.has(member) && !allActiveMemberNames.has(member)
-    );
-    const totalIdleCount = idleStaffMembers.length;
-    
-    // ✅ [수정] 진행업무 수: ongoing이거나 paused인 레코드의 task 종류 수
-    const ongoingOrPausedRecords = [...ongoingRecords, ...pausedRecords];
+    // 대기 인원 계산 시, 근무 가능 인원 중 업무 중이지 않은 인원만 카운트
+    const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount);
+    // 현재 로직에서는 알바의 대기 상태는 명시적으로 표시하지 않음
+    const totalIdleCount = idleStaffCount;
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
-
 
     // ✅ [수정] 동적으로 요소 업데이트 (수량 항목 제외)
     if (elements['total-staff']) elements['total-staff'].textContent = `${totalStaffCount}/${totalPartTimerCount}`;
     if (elements['leave-staff']) elements['leave-staff'].textContent = `${onLeaveTotalCount}`;
     if (elements['active-staff']) elements['active-staff'].textContent = `${availableStaffCount}/${availablePartTimerCount}`;
-    if (elements['working-staff']) elements['working-staff'].textContent = `${totalWorkingCount}`; // ongoing만 포함됨
+    if (elements['working-staff']) elements['working-staff'].textContent = `${totalWorkingCount}`;
     if (elements['idle-staff']) elements['idle-staff'].textContent = `${totalIdleCount}`;
-    if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`; // ongoing + paused 포함됨
+    if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`;
 
     // total-work-time은 타이머(updateElapsedTimes)가 관리
     // isQuantity 항목 (기본 및 커스텀)은 업데이트하지 않음 (config 로드 시 설정된 값 유지)
@@ -798,15 +777,9 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     titleEl.textContent = `'${task || '기타 업무'}' 팀원 선택`;
     container.innerHTML = '';
 
-    // ✅ [수정] ongoingMembers는 ongoing만
-    const ongoingMembers = new Set(
-        (appState.workRecords || []).filter(r => r.status === 'ongoing').map(r => r.member)
+    const allWorkingMembers = new Set(
+        (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused').map(r => r.member)
     );
-    // ✅ [추가] pausedMembers는 paused만
-    const pausedMembers = new Set(
-        (appState.workRecords || []).filter(r => r.status === 'paused').map(r => r.member)
-    );
-    
     const combinedOnLeaveMembers = [
         ...(appState.dailyOnLeaveMembers || []),
         ...(appState.dateBasedOnLeaveMembers || [])
@@ -840,33 +813,19 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
         const uniqueMembersInGroup = [...new Set(group.members)];
         uniqueMembersInGroup.forEach(member => {
-            // ✅ [수정] isWorking은 ongoing만, isPaused는 paused만
-            const isWorking = ongoingMembers.has(member);
-            const isPaused = pausedMembers.has(member);
+            const isWorking = allWorkingMembers.has(member);
             const leaveEntry = onLeaveMemberMap.get(member);
             const isOnLeave = !!leaveEntry;
-            
-            // ✅ [수정] isOccupied는 ongoing, paused, onLeave 모두 포함
-            const isOccupied = isWorking || isPaused || isOnLeave;
-
             const card = document.createElement('button');
             card.type = 'button';
             card.dataset.memberName = member;
-            // ✅ [수정] isOccupied 상태일 때 비활성화
-            card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOccupied ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+            card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isWorking || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
-            if (isOccupied) card.disabled = true;
+            if (isWorking || isOnLeave) card.disabled = true;
 
             let statusLabel = '';
-            if (isWorking) { 
-                statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; 
-            } else if (isPaused) { 
-                // ✅ [추가] paused 상태는 '휴식 중'으로 표시
-                statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; 
-            }
-            else if (isOnLeave) { 
-                statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; 
-            }
+            if (isWorking) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
+            else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
             card.innerHTML = `<div class="font-semibold">${member}</div>${statusLabel}`;
 
             memberList.appendChild(card);
@@ -889,331 +848,22 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     albaMemberList.dataset.groupName = '알바';
 
     (appState.partTimers || []).forEach(pt => {
-        // ✅ [수정] isWorking은 ongoing만, isPaused는 paused만
-        const isWorking = ongoingMembers.has(pt.name);
-        const isPaused = pausedMembers.has(pt.name);
+        const isWorking = allWorkingMembers.has(pt.name);
         const leaveEntry = onLeaveMemberMap.get(pt.name);
         const isOnLeave = !!leaveEntry;
-        const isOccupied = isWorking || isPaused || isOnLeave; // ✅ isOccupied 상태 추가
-        
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'relative';
 
         const card = document.createElement('button');
         card.type = 'button';
         card.dataset.memberName = pt.name;
-        // ✅ [수정] isOccupied 상태일 때 비활성화
-        card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOccupied ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+        card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isWorking || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
-        if (isOccupied) card.disabled = true;
-
-        let statusLabel = '';
-        if (isWorking) { 
-            statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; 
-        } else if (isPaused) { 
-            // ✅ [추가] paused 상태는 '휴식 중'으로 표시
-            statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; 
-        }
-        else if (isOnLeave) { 
-            statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; 
-        }
-        card.innerHTML = `<div class="font-semibold">${pt.name}</div>${statusLabel}`;
-
-        cardWrapper.appendChild(card);
-
-        const editBtn = document.createElement('button');
-        editBtn.dataset.partTimerId = pt.id;
-        editBtn.className = 'edit-part-timer-btn absolute top-1 right-5 p-1 text-gray-400 hover:text-blue-600';
-        editBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L13.196 5.2z" /></svg>`;
-        cardWrapper.appendChild(editBtn);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.dataset.partTimerId = pt.id;
-        deleteBtn.className = 'delete-part-timer-btn absolute top-1 right-1 p-1 text-gray-400 hover:text-red-600';
-        deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
-        cardWrapper.appendChild(deleteBtn);
-
-        albaMemberList.appendChild(cardWrapper);
-    });
-
-    albaGroupContainer.appendChild(albaMemberList);
-    container.appendChild(albaGroupContainer);
-};
-
-export const renderCompletedWorkLog = (appState) => {
-    const workLogBody = document.getElementById('work-log-body');
-    if (!workLogBody) return;
-    workLogBody.innerHTML = '';
-    const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
-    if (!completedRecords || completedRecords.length === 0) {
-        workLogBody.innerHTML = `<tr><td colspan="6" class="text-center py-12 text-gray-400">완료된 업무가 없습니다.</td></tr>`;
-        return;
-    }
-
-    const groupedRecords = completedRecords.reduce((acc, record) => {
-        if (!acc[record.task]) acc[record.task] = [];
-        acc[record.task].push(record);
-        return acc;
-    }, {});
-    const sortedTasks = Object.keys(groupedRecords).sort();
-
-    if (sortedTasks.length === 0) {
-        workLogBody.innerHTML = `<tr><td colspan="6" class="text-center py-12 text-gray-400">완료된 업무가 없습니다.</td></tr>`;
-    } else {
-        sortedTasks.forEach(task => {
-            const groupHeaderRow = document.createElement('tr');
-            groupHeaderRow.className = 'bg-gray-100';
-            groupHeaderRow.innerHTML = `<th colspan="6" class="px-6 py-3 text-left text-base text-blue-700 font-bold">${task}</th>`;
-            workLogBody.appendChild(groupHeaderRow);
-            groupedRecords[task].sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(record => {
-                const row = document.createElement('tr');
-                row.className = 'bg-white border-b border-gray-200 hover:bg-gray-50';
-                row.innerHTML = `<td class="px-6 py-4 font-medium text-gray-900">${record.member || 'N/A'}</td><td class="px-6 py-4">${record.task || 'N/A'}</td><td class="px-6 py-4">${formatTimeTo24H(record.startTime)}</td><td class="px-6 py-4">${formatTimeTo24H(record.endTime)}</td><td class="px-6 py-4">${formatDuration(record.duration)}</td><td class="px-6 py-4 text-right space-x-2"><button data-action="edit" data-record-id="${record.id}" class="font-medium text-blue-500 hover:underline">수정</button><button data-action="delete" data-record-id="${record.id}" class="font-medium text-red-500 hover:underline">삭제</button></td>`;
-                workLogBody.appendChild(row);
-            });
-        });
-    }
-};
-
-// ✅ [수정] 현황판 레이아웃 렌더링 함수 (초기 수량 로드 및 클릭 div 제거)
-export const renderDashboardLayout = (appConfig) => {
-    const container = document.getElementById('summary-content');
-    if (!container) return;
-
-    const itemIds = appConfig.dashboardItems || [];
-    const quantities = appConfig.dashboardQuantities || {};
-    const allDefinitions = getAllDashboardDefinitions(appConfig);
-
-    container.innerHTML = '';
-    let html = '';
-
-    itemIds.forEach(id => {
-        const def = allDefinitions[id];
-        if (!def) {
-            console.warn(`Main App: Dashboard definition not found for ID: ${id}. Skipping render.`);
-            return;
-        }
-
-        let valueContent;
-        const isQuantity = def.isQuantity === true; // isQuantity 확인
-
-        if (isQuantity) {
-             const currentQuantity = quantities[id] ?? 0;
-             valueContent = `<p id="${def.valueId}">${currentQuantity}</p>`;
-        } else {
-             valueContent = `<p id="${def.valueId}">0</p>`;
-        }
-
-        // isQuantity일 경우 dashboard-card-quantity 클래스 추가 (유지)
-        html += `
-            <div class="dashboard-card p-4 rounded-lg ${isQuantity ? 'dashboard-card-quantity' : ''}">
-                <h4 class="text-sm font-bold uppercase tracking-wider">${def.title}</h4>
-                ${valueContent}
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-};
-
-// ✅ [수정] updateSummary 함수 (paused 인원 계산 수정)
-export const updateSummary = (appState, appConfig) => {
-    // ✅ [수정] 모든 정의 가져오기
-    const allDefinitions = getAllDashboardDefinitions(appConfig);
-
-    // ✅ [수정] 정의된 모든 ID에 대해 요소 가져오기 시도 (수량 항목 포함)
-    const elements = {};
-    Object.keys(allDefinitions).forEach(id => {
-        const def = allDefinitions[id];
-        if (def && def.valueId) {
-            elements[id] = document.getElementById(def.valueId);
-        }
-    });
-
-    // 계산 로직 
-    const teamGroups = appConfig.teamGroups || [];
-    const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
-    const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
-    const totalStaffCount = allStaffMembers.size;
-    const totalPartTimerCount = allPartTimers.size;
-
-    const combinedOnLeaveMembers = [
-        ...(appState.dailyOnLeaveMembers || []),
-        ...(appState.dateBasedOnLeaveMembers || [])
-    ];
-
-    const onLeaveMemberNames = new Set(
-        combinedOnLeaveMembers
-            .filter(item => !(item.type === '외출' && item.endTime))
-            .map(item => item.member)
-    );
-    const onLeaveTotalCount = onLeaveMemberNames.size;
-
-    // ✅ [수정] ongoingRecords는 status === 'ongoing'만 포함
-    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-    const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
-
-    // ✅ [수정] workingMembers는 'ongoing' 인원만
-    const workingMembers = new Set(ongoingRecords.map(r => r.member));
-    const totalWorkingCount = workingMembers.size;
-    
-    // ✅ [추가] pausedMembers는 'paused' 인원만
-    const pausedMembers = new Set(pausedRecords.map(r => r.member));
-
-    const availableStaffCount = totalStaffMembers.size - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
-    const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
-
-    // ✅ [수정] 대기 인원: 근무 가능 인원 (직원) 중 업무 중(ongoing)이거나 휴식 중(paused)이 아닌 인원
-    const allActiveMemberNames = new Set([...workingMembers, ...pausedMembers]);
-    const idleStaffMembers = [...allStaffMembers].filter(member => 
-        !onLeaveMemberNames.has(member) && !allActiveMemberNames.has(member)
-    );
-    const totalIdleCount = idleStaffMembers.length;
-    
-    // ✅ [수정] 진행업무 수: ongoing이거나 paused인 레코드의 task 종류 수
-    const ongoingOrPausedRecords = [...ongoingRecords, ...pausedRecords];
-    const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
-
-
-    // ✅ [수정] 동적으로 요소 업데이트 (수량 항목 제외)
-    if (elements['total-staff']) elements['total-staff'].textContent = `${totalStaffCount}/${totalPartTimerCount}`;
-    if (elements['leave-staff']) elements['leave-staff'].textContent = `${onLeaveTotalCount}`;
-    if (elements['active-staff']) elements['active-staff'].textContent = `${availableStaffCount}/${availablePartTimerCount}`;
-    if (elements['working-staff']) elements['working-staff'].textContent = `${totalWorkingCount}`; // ongoing만 포함됨
-    if (elements['idle-staff']) elements['idle-staff'].textContent = `${totalIdleCount}`;
-    if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`; // ongoing + paused 포함됨
-
-    // total-work-time은 타이머(updateElapsedTimes)가 관리
-    // isQuantity 항목 (기본 및 커스텀)은 업데이트하지 않음 (config 로드 시 설정된 값 유지)
-};
-
-export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
-    const titleEl = document.getElementById('team-select-modal-title');
-    const container = document.getElementById('team-select-modal-content');
-    if (!titleEl || !container) return;
-
-    titleEl.textContent = `'${task || '기타 업무'}' 팀원 선택`;
-    container.innerHTML = '';
-
-    // ✅ [수정] ongoingMembers는 ongoing만
-    const ongoingMembers = new Set(
-        (appState.workRecords || []).filter(r => r.status === 'ongoing').map(r => r.member)
-    );
-    // ✅ [추가] pausedMembers는 paused만
-    const pausedMembers = new Set(
-        (appState.workRecords || []).filter(r => r.status === 'paused').map(r => r.member)
-    );
-    
-    const combinedOnLeaveMembers = [
-        ...(appState.dailyOnLeaveMembers || []),
-        ...(appState.dateBasedOnLeaveMembers || [])
-    ];
-    
-    const onLeaveMemberMap = new Map(
-        combinedOnLeaveMembers
-            .filter(item => !(item.type === '외출' && item.endTime)) 
-            .map(item => [item.member, item])
-    );
-
-    const orderedTeamGroups = [
-        teamGroups.find(g => g.name === '관리'),
-        teamGroups.find(g => g.name === '공통파트'),
-        teamGroups.find(g => g.name === '담당파트'),
-        teamGroups.find(g => g.name === '제작파트'),
-    ].filter(Boolean);
-
-    orderedTeamGroups.forEach(group => {
-        const groupContainer = document.createElement('div');
-        groupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
-        groupContainer.innerHTML = `
-            <div class="flex justify-between items-center p-2 border-b border-gray-200">
-                <h4 class="text-md font-bold text-gray-800">${group.name}</h4>
-                <button type="button" class="group-select-all-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded" data-group-name="${group.name}">전체</button>
-            </div>`;
-
-        const memberList = document.createElement('div');
-        memberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
-        memberList.dataset.groupName = group.name;
-
-        const uniqueMembersInGroup = [...new Set(group.members)];
-        uniqueMembersInGroup.forEach(member => {
-            // ✅ [수정] isWorking은 ongoing만, isPaused는 paused만
-            const isWorking = ongoingMembers.has(member);
-            const isPaused = pausedMembers.has(member);
-            const leaveEntry = onLeaveMemberMap.get(member);
-            const isOnLeave = !!leaveEntry;
-            
-            // ✅ [수정] isOccupied는 ongoing, paused, onLeave 모두 포함
-            const isOccupied = isWorking || isPaused || isOnLeave;
-
-            const card = document.createElement('button');
-            card.type = 'button';
-            card.dataset.memberName = member;
-            // ✅ [수정] isOccupied 상태일 때 비활성화
-            card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOccupied ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
-
-            if (isOccupied) card.disabled = true;
-
-            let statusLabel = '';
-            if (isWorking) { 
-                statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; 
-            } else if (isPaused) { 
-                // ✅ [추가] paused 상태는 '휴식 중'으로 표시
-                statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; 
-            }
-            else if (isOnLeave) { 
-                statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; 
-            }
-            card.innerHTML = `<div class="font-semibold">${member}</div>${statusLabel}`;
-
-            memberList.appendChild(card);
-        });
-        groupContainer.appendChild(memberList);
-        container.appendChild(groupContainer);
-    });
-
-    const albaGroupContainer = document.createElement('div');
-    albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
-    albaGroupContainer.innerHTML = `<div class="flex justify-between items-center p-2 border-b border-gray-200">
-                                         <h4 class="text-md font-bold text-gray-800">알바</h4>
-                                         <div>
-                                             <button type="button" class="group-select-all-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded" data-group-name="알바">전체</button>
-                                             <button id="add-part-timer-modal-btn" class="text-xs bg-blue-200 hover:bg-blue-300 text-blue-800 px-2 py-0.5 rounded ml-1">+ 추가</button>
-                                         </div>
-                                    </div>`;
-    const albaMemberList = document.createElement('div');
-    albaMemberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
-    albaMemberList.dataset.groupName = '알바';
-
-    (appState.partTimers || []).forEach(pt => {
-        // ✅ [수정] isWorking은 ongoing만, isPaused는 paused만
-        const isWorking = ongoingMembers.has(pt.name);
-        const isPaused = pausedMembers.has(pt.name);
-        const leaveEntry = onLeaveMemberMap.get(pt.name);
-        const isOnLeave = !!leaveEntry;
-        const isOccupied = isWorking || isPaused || isOnLeave; // ✅ isOccupied 상태 추가
-        
-        const cardWrapper = document.createElement('div');
-        cardWrapper.className = 'relative';
-
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.dataset.memberName = pt.name;
-        // ✅ [수정] isOccupied 상태일 때 비활성화
-        card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOccupied ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
-
-        if (isOccupied) card.disabled = true;
+        if (isWorking || isOnLeave) card.disabled = true;
 
         let statusLabel = '';
-        if (isWorking) { 
-            statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; 
-        } else if (isPaused) { 
-            // ✅ [추가] paused 상태는 '휴식 중'으로 표시
-            statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; 
-        }
-        else if (isOnLeave) { 
-            statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; 
-        }
+        if (isWorking) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
+        else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
         card.innerHTML = `<div class="font-semibold">${pt.name}</div>${statusLabel}`;
 
         cardWrapper.appendChild(card);
