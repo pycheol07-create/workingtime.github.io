@@ -12,60 +12,84 @@
 <body class="bg-gray-100 text-gray-800">
     <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2 w-full max-w-xs"></div>
 
-    <div id="app-content" class="w-full min-h-screen bg-white p-6 md:p-8 relative flex flex-col">
+    <div id="app-content" class="w-full min-h-screen bg-white p-6 md:p-8 flex flex-col">
 
-        <div id="current-date-display" class="absolute top-4 left-6 text-lg font-bold text-gray-700 hidden"></div>
+        <div class="relative">
 
-        <div id="top-right-controls" class="absolute top-4 right-6 flex flex-col items-end gap-2 hidden">
-            <div id="connection-indicator" class="flex items-center gap-2">
-                <span id="user-greeting" class="text-sm font-semibold text-gray-700 mr-2 hidden"></span>
-                <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
-                <span id="connection-status" class="text-xs font-medium text-gray-500"></span>
-            </div>
-            <div class="flex gap-2">
-                <a href="admin.html" id="admin-link-btn" target="admin_window" /* target 속성 값 변경 */
-                    class="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <div class="flex justify-between items-center md:hidden mb-4 pt-4">
+                <h1 class="text-3xl font-bold text-gray-900">물류팀 업무현황</h1>
+                <button id="hamburger-btn" class="p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
-                    <span>관리</span>
-                </a>
-                <button id="reset-app-btn"
-                    class="flex items-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
-                    <span>초기화</span>
-                </button>
-                <button id="logout-btn" class="hidden flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    <span>로그아웃</span>
                 </button>
             </div>
+
+            <div id="nav-content" 
+                 class="hidden md:flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-2
+                        md:relative absolute top-20 left-0 right-0 bg-white shadow-lg md:shadow-none z-40 p-4 md:p-0 rounded-lg md:rounded-none border md:border-none">
+                
+                <div id="current-date-display" class="text-lg font-bold text-gray-700 hidden"></div>
+
+                <div id="top-right-controls" class="flex flex-col items-start md:items-end gap-2 hidden">
+                    <div id="connection-indicator" class="flex items-center gap-2">
+                        <span id="user-greeting" class="text-sm font-semibold text-gray-700 mr-2 hidden"></span>
+                        <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
+                        <span id="connection-status" class="text-xs font-medium text-gray-500"></span>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <a href="admin.html" id="admin-link-btn" target="admin_window" 
+                            class="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span>관리</span>
+                        </a>
+                        <button id="reset-app-btn"
+                            class="flex items-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
+                            <span>초기화</span>
+                        </button>
+                        <button id="logout-btn" class="hidden flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            <span>로그아웃</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <header class="mb-8 pt-0 text-center hidden md:block">
+                <h1 class="text-3xl md:text-4xl font-bold text-gray-900">물류팀 업무현황</h1>
+            </header>
         </div>
 
-        <header class="mb-8 pt-4 text-center">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">물류팀 업무현황</h1>
-        </header>
 
         <div class="mb-8 bg-gray-800 text-white rounded-lg border border-gray-700 shadow-lg hidden">
             <div id="toggle-summary" class="flex justify-between items-center p-4 cursor-pointer md:cursor-auto">
+                <h2 class="text-xl font-bold">실시간 현황</h2>
                 <svg id="summary-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
             </div>
             <div id="summary-content" class="hidden md:grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 p-6 text-center">
-                </div>  
-        </div> <div id="main-content-area" class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 flex-grow flex flex-col hidden">
+                </div>
+        </div>
+
+        <div id="main-content-area" class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 flex-grow flex flex-col hidden">
             <h2 class="text-xl font-bold text-gray-900 mb-4">업무 배정 및 팀 현황</h2>
             <div id="loading-spinner" class="text-center py-10">
-                </div>
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+                <p class="mt-4 text-gray-600">데이터를 불러오는 중입니다...</p>
+            </div>
             <div id="team-status-board" class="space-y-8 flex-grow">
                 </div>
         </div>
 
         <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 hidden">
             <div id="toggle-completed-log" class="flex justify-between items-center cursor-pointer md:cursor-auto">
+                <h2 class="text-xl font-bold text-gray-900">오늘 완료된 업무</h2>
                 <svg id="completed-log-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -140,7 +164,9 @@
                 </div>
 
             </div>
-        </div> <div id="team-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        </div>
+
+        <div id="team-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col relative">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
                 <h2 id="team-select-modal-title" class="text-xl font-bold text-gray-900">팀원 선택</h2>
@@ -364,7 +390,12 @@
                             <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
                         </div>
                     </div>
-                </div> </div> <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
+                </div>
+            </div>
+        </div>
+    </div>
+
+            <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
                     <div class="p-6 text-center">
                         <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
@@ -392,7 +423,7 @@
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 id="delete-confirm-message" class="mb-5 text-lg font-normal text-gray-700"></h3><p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p><button type="button" id="confirm-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button><button type="button" id="cancel-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
            </div>
 
-        </div> </div> <div id="manual-add-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div id="manual-add-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
             <div class="p-6 border-b border-gray-200">
                 <h2 class="text-xl font-bold text-gray-900">수동 업무 기록 추가</h2>

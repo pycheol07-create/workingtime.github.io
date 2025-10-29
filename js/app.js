@@ -123,6 +123,10 @@ const loginButtonSpinner = document.getElementById('login-button-spinner');
 const userGreeting = document.getElementById('user-greeting');
 const logoutBtn = document.getElementById('logout-btn');
 
+// ✅ [추가] 햄버거 메뉴 (1/3)
+const hamburgerBtn = document.getElementById('hamburger-btn');
+const navContent = document.getElementById('nav-content');
+
 
 // ========== Firebase/App State ==========
 // ... (이전과 동일) ...
@@ -174,7 +178,7 @@ let activeMainHistoryTab = 'work';
 const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // ========== Helpers ==========
-// ... (generateId, normalizeName, calcElapsedMinutes, calculateDateDifference 함수는 이전과 동일) ...
+// ... (이전과 동일) ...
 const generateId = () => `${Date.now()}-${++recordCounter}`;
 const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
 const calcElapsedMinutes = (start, end, pauses = []) => {
@@ -277,7 +281,7 @@ const render = () => {
 };
 
 // ========== Firestore 저장 ==========
-// ... (markDataAsDirty, autoSaveProgress, saveStateToFirestore 함수는 이전과 동일) ...
+// ... (이전과 동일) ...
 const markDataAsDirty = () => {
     if (!isDataDirty) {
         // console.log("Auto-save: Data marked as dirty.");
@@ -328,7 +332,7 @@ async function saveStateToFirestore() {
 const debouncedSaveState = debounce(saveStateToFirestore, 1000);
 
 // ========== 업무 그룹/개인 제어 ==========
-// ... (startWorkGroup, addMembersToWorkGroup, stopWorkGroup, finalizeStopGroup, stopWorkIndividual, pause/resume 함수들은 이전과 동일) ...
+// ... (이전과 동일) ...
 // ✅ [수정] saveStateToFirestore -> debouncedSaveState
 const startWorkGroup = (members, task) => {
   const groupId = Date.now();
@@ -2443,6 +2447,38 @@ async function startAppAfterLogin(user) {
 
 // ========== 이벤트 리스너 ==========
 
+// ✅ [추가] 햄버거 메뉴 (2/3)
+if (hamburgerBtn && navContent) {
+    // 1. 햄버거 버튼 클릭 시 메뉴 토글
+    hamburgerBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // document 클릭 이벤트로 바로 닫히는 것 방지
+        navContent.classList.toggle('hidden');
+    });
+
+    // 2. 메뉴 안의 버튼/링크 클릭 시 메뉴 닫기 (모바일에서만)
+    navContent.addEventListener('click', (e) => {
+        if (window.innerWidth < 768 && e.target.closest('a, button')) {
+            navContent.classList.add('hidden');
+        }
+    });
+}
+
+// 3. (app.js 하단의 main 함수 내부로 이동) -> 햄버거 메뉴 바깥 영역 클릭 시 닫기
+//    -> main 함수 내부에 넣으면 auth 상태 변경 시마다 중복 등록될 수 있으므로,
+//    -> main 함수 *바깥*에서 한 번만 등록하도록 수정.
+document.addEventListener('click', (e) => {
+    if (navContent && hamburgerBtn) { // 요소들이 로드되었는지 확인
+        const isClickInsideNav = navContent.contains(e.target);
+        const isClickOnHamburger = hamburgerBtn.contains(e.target);
+        
+        // 메뉴가 열려있고(hidden이 없고), 클릭한 곳이 메뉴 내부도 아니고 햄버거 버튼도 아닐 때
+        if (!navContent.classList.contains('hidden') && !isClickInsideNav && !isClickOnHamburger) {
+            navContent.classList.add('hidden');
+        }
+    }
+});
+
+
 // ... (openHistoryBtn 리스너는 이제 역할에 따라 숨겨지므로 수정 불필요) ...
 
 // ========== 앱 초기화 ==========
@@ -2486,6 +2522,9 @@ async function main() {
 
       appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user' };
 
+      // ✅ [추가] 햄버거 메뉴 (3/3) - 로그아웃 시 메뉴 닫기
+      if (navContent) navContent.classList.add('hidden');
+        
       if (userGreeting) userGreeting.classList.add('hidden');
       if (logoutBtn) logoutBtn.classList.add('hidden');
       document.getElementById('current-date-display')?.classList.add('hidden');
@@ -2594,9 +2633,8 @@ async function main() {
   
 } // <-- ✅ main() 함수가 "여기서" 올바르게 닫힘
 
-main(); // 앱 시작
+// ... (makeDraggable 함수는 이전과 동일) ...
 
-// ✅ [추가] 팝업 드래그 기능 함수
 /**
  * 모달 팝업을 드래그 가능하게 만듭니다.
  * @param {HTMLElement} modalOverlay - 모달의 배경 오버레이 (e.g., #history-modal)
@@ -2682,7 +2720,7 @@ setInterval(() => {
     if (!activeModal) { // 열려있는 모달이 없을 때만 새로고침
         location.reload();
     } else {
-        console.log("모달이 열려 있어 자동 새로고침을 건너<0xEB><0x9C><0x95>니다."); // 디버깅용 로그
+        console.log("모달이 열려 있어 자동 새로고침을 건너뜁니다."); // 디버깅용 로그
     }
 }, 60000); // 60000 밀리초 = 1분
 
