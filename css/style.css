@@ -116,3 +116,24 @@ body {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* === style.css (파일 맨 끝에 추가) === */
+
+/* 데스크탑 드롭다운 메뉴 아이템 (기존 버튼 스타일 덮어쓰기) */
+#desktop-menu-dropdown a,
+#desktop-menu-dropdown button {
+    background-color: transparent !important; /* 강제로 배경색 제거 */
+    box-shadow: none !important; /* 강제로 그림자 제거 */
+    font-weight: 400 !important; /* 폰트 굵기 일반으로 */
+}
+
+/* 드롭다운 아이템 호버 */
+#desktop-menu-dropdown a:hover,
+#desktop-menu-dropdown button:hover {
+    background-color: #f3f4f6 !important; /* bg-gray-100 */
+}
+
+/* 로그아웃 버튼 호버 */
+#desktop-menu-dropdown #logout-btn:hover {
+    color: #b91c1c !important; /* text-red-700 */
+}

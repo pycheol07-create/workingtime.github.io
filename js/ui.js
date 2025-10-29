@@ -756,7 +756,6 @@ export const renderDashboardLayout = (appConfig) => {
     container.innerHTML = html;
 };
 
-// ✅ [수정] updateSummary 함수 (커스텀 항목 ID 처리, 수량 업데이트 제외 유지)
 export const updateSummary = (appState, appConfig) => {
     // ✅ [수정] 모든 정의 가져오기
     const allDefinitions = getAllDashboardDefinitions(appConfig);
@@ -821,16 +820,38 @@ export const updateSummary = (appState, appConfig) => {
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
 
-    // ✅ [수정] 동적으로 요소 업데이트 (수량 항목 제외)
+    // === ✅ [수정] 동적으로 요소 업데이트 (수량 항목 포함) ===
+    
+    // 1. 비-수량 항목 업데이트 (기존 로직)
     if (elements['total-staff']) elements['total-staff'].textContent = `${totalStaffCount}/${totalPartTimerCount}`;
     if (elements['leave-staff']) elements['leave-staff'].textContent = `${onLeaveTotalCount}`;
     if (elements['active-staff']) elements['active-staff'].textContent = `${availableStaffCount}/${availablePartTimerCount}`;
     if (elements['working-staff']) elements['working-staff'].textContent = `${totalWorkingCount}`;
     if (elements['idle-staff']) elements['idle-staff'].textContent = `${totalIdleCount}`;
     if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`;
-
     // total-work-time은 타이머(updateElapsedTimes)가 관리
-    // isQuantity 항목 (기본 및 커스텀)은 업데이트하지 않음 (config 로드 시 설정된 값 유지)
+
+    // 2. 수량 항목 업데이트 (새 로직)
+    const taskQuantities = appState.taskQuantities || {};
+
+    Object.keys(allDefinitions).forEach(id => {
+        const def = allDefinitions[id];
+        // isQuantity 항목이고, 해당 DOM 요소가 존재할 때
+        if (def && def.isQuantity === true && elements[id]) {
+            // def.title이 "중국제작", "직진배송", "국내송장" 등 업무 이름임
+            const taskName = def.title; 
+            
+            // appState.taskQuantities (오늘의 처리량)에 해당 업무의 키가 있는지 확인
+            if (taskQuantities.hasOwnProperty(taskName)) {
+                // 키가 있으면 (값이 0이더라도) appState의 값으로 업데이트
+                elements[id].textContent = taskQuantities[taskName] || 0;
+            }
+            // 키가 없으면?
+            // renderDashboardLayout에서 appConfig.dashboardQuantities (관리자 설정값) 기준으로
+            // 이미 렌더링했으므로, 여기서는 건드리지 않습니다.
+            // (예: '국내송장'은 taskQuantities에 없지만 admin 값은 표시됨)
+        }
+    });
 };
 
 // === ui.js (수정) ===

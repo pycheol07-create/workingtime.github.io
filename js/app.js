@@ -139,6 +139,11 @@ const editStartTimeContextTypeInput = document.getElementById('edit-start-time-c
 const confirmEditStartTimeBtn = document.getElementById('confirm-edit-start-time-btn');
 const cancelEditStartTimeBtn = document.getElementById('cancel-edit-start-time-btn');
 
+// ✅ [추가] 데스크탑 햄버거 메뉴 요소
+const desktopMenuBtn = document.getElementById('desktop-menu-btn');
+const desktopMenuDropdown = document.getElementById('desktop-menu-dropdown');
+const openQuantityModalBtn = document.getElementById('open-quantity-modal-btn');
+
 
 // ========== Firebase/App State ==========
 // ... (이전과 동일) ...
@@ -2920,17 +2925,38 @@ if (hamburgerBtn && navContent) {
     });
 }
 
-// 3. (app.js 하단의 main 함수 내부로 이동) -> 햄버거 메뉴 바깥 영역 클릭 시 닫기
-//    -> main 함수 내부에 넣으면 auth 상태 변경 시마다 중복 등록될 수 있으므로,
-//    -> main 함수 *바깥*에서 한 번만 등록하도록 수정.
+// ✅ [추가] --- 햄버거 메뉴 (데스크탑) ---
+  if (desktopMenuBtn && desktopMenuDropdown) {
+      desktopMenuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          desktopMenuDropdown.classList.toggle('hidden');
+      });
+  }
+
+// === app.js (1548줄 근처 교체) ===
+
+// ✅ [수정] --- 메뉴 바깥 영역 클릭 시 닫기 (모바일 + 데스크탑 통합) ---
 document.addEventListener('click', (e) => {
+    // 모바일 햄버거 메뉴 (navContent)
     if (navContent && hamburgerBtn) { // 요소들이 로드되었는지 확인
         const isClickInsideNav = navContent.contains(e.target);
         const isClickOnHamburger = hamburgerBtn.contains(e.target);
         
-        // 메뉴가 열려있고(hidden이 없고), 클릭한 곳이 메뉴 내부도 아니고 햄버거 버튼도 아닐 때
+        // 메뉴가 열려있고, 클릭한 곳이 메뉴 내부도 아니고 햄버거 버튼도 아닐 때
         if (!navContent.classList.contains('hidden') && !isClickInsideNav && !isClickOnHamburger) {
             navContent.classList.add('hidden');
+        }
+    }
+    
+    // 데스크탑 햄버거 메뉴 (desktopMenuDropdown)
+    if (desktopMenuDropdown && desktopMenuBtn) { // 요소들이 로드되었는지 확인
+        const isClickInsideDropdown = desktopMenuDropdown.contains(e.target);
+        // ✅ [수정] 버튼 자체를 클릭한 경우도 감지 (e.target.closest() 사용)
+        const isClickOnDesktopMenuBtn = e.target.closest('#desktop-menu-btn'); 
+        
+        // 드롭다운이 열려있고, 클릭한 곳이 드롭다운 내부도 아니고 버튼 자체도 아닐 때
+        if (!desktopMenuDropdown.classList.contains('hidden') && !isClickInsideDropdown && !isClickOnDesktopMenuBtn) {
+            desktopMenuDropdown.classList.add('hidden');
         }
     }
 });
@@ -2986,6 +3012,84 @@ if (confirmEditStartTimeBtn) {
         if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = '';
     });
 }
+
+// ✅ [추가] --- '오늘의 처리량 입력' 버튼 리스너 ---
+  if (openQuantityModalBtn) {
+      openQuantityModalBtn.addEventListener('click', () => {
+          // 0. 닫기
+          if (desktopMenuDropdown) desktopMenuDropdown.classList.add('hidden');
+
+          // 1. 로그인 확인
+          if (!auth || !auth.currentUser) {
+              showToast('로그인이 필요합니다.', true);
+              if (loginModal) loginModal.classList.remove('hidden');
+              return;
+          }
+          
+          // 2. 모달 내용 채우기 (오늘의 taskQuantities 기준)
+          renderQuantityModalInputs(appState.taskQuantities, appConfig.quantityTaskTypes);
+          
+          // 3. 모달 제목 설정
+          const titleEl = document.getElementById('quantity-modal-title');
+          if (titleEl) titleEl.textContent = '오늘의 처리량 입력/수정';
+          
+          // 4. 확인/취소 버튼 텍스트 설정
+          const cBtn = document.getElementById('confirm-quantity-btn');
+          const xBtn = document.getElementById('cancel-quantity-btn');
+          if (cBtn) cBtn.textContent = '확인 및 저장';
+          if (xBtn) xBtn.textContent = '취소';
+
+          // 5. 모달 컨텍스트 설정 (onConfirm 콜백 정의)
+          quantityModalContext = {
+              mode: 'today',
+              dateKey: getTodayDateString(),
+              onConfirm: (newQuantities) => {
+                  // 1. appState.taskQuantities를 새 값으로 교체
+                  // (참고: newQuantities는 0보다 큰 값만 포함합니다)
+                  
+                  // 모든 quantityTaskTypes에 대해 0으로 초기화한 맵 생성
+                  const finalQuantities = (appConfig.quantityTaskTypes || []).reduce((acc, task) => {
+                      acc[task] = 0;
+                      return acc;
+                  }, {});
+                  
+                  // appState의 기존 값과 새 값을 병합
+                  appState.taskQuantities = { ...finalQuantities, ...newQuantities };
+
+                  // 2. Firestore에 저장 (디바운스)
+                  debouncedSaveState(); 
+                  // 3. UI 업데이트 (대시보드 포함)
+                  updateSummary(appState, appConfig); 
+                  showToast('오늘의 처리량을 저장했습니다.');
+              },
+              onCancel: () => {}
+          };
+          
+          // 6. 모달 표시
+          if (quantityModal) quantityModal.classList.remove('hidden');
+      });
+  }
+
+  // ✅ [수정] --- 메뉴 바깥 영역 클릭 시 닫기 (모바일 + 데스크탑 통합) ---
+  // (기존 document.addEventListener('click', ...) 리스너를 이걸로 교체하세요.)
+  document.addEventListener('click', (e) => {
+      // 모바일 햄버거 메뉴
+      if (navContent && hamburgerBtn) {
+          const isClickInsideNav = navContent.contains(e.target);
+          const isClickOnHamburger = hamburgerBtn.contains(e.target);
+          if (!navContent.classList.contains('hidden') && !isClickInsideNav && !isClickOnHamburger) {
+              navContent.classList.add('hidden');
+          }
+      }
+      // 데스크탑 햄버거 메뉴
+      if (desktopMenuDropdown && desktopMenuBtn) {
+          const isClickInsideDropdown = desktopMenuDropdown.contains(e.target);
+          const isClickOnDesktopMenuBtn = desktopMenuBtn.closest('#desktop-menu-btn'); // 버튼 클릭 감지
+          if (!desktopMenuDropdown.classList.contains('hidden') && !isClickInsideDropdown && !isClickOnDesktopMenuBtn) {
+              desktopMenuDropdown.classList.add('hidden');
+          }
+      }
+  });
 
 // ✅ [추가] 시작 시간 수정 모달 - 취소 버튼
 if (cancelEditStartTimeBtn) {
