@@ -298,7 +298,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     
-    // ✅ [수정] "주요 업무" 헤더에 모바일용 '펼쳐보기' 버튼 텍스트 변경
+    // ✅ [수정] "주요 업무" 헤더 (텍스트 수정됨)
     presetTaskContainer.innerHTML = `
         <div class="flex justify-between items-center border-b pb-2 mb-4">
             <h3 class="text-lg font-bold text-gray-700">주요 업무 (시작할 업무 카드를 클릭)</h3>
@@ -451,13 +451,20 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
-    // (이하 코드 동일)
-    // ... (이하 renderRealtimeStatus 함수의 나머지 코드는 그대로 유지) ...
     const allMembersContainer = document.createElement('div');
+    allMembersContainer.id = 'all-members-container'; // ✅ [추가] 토글을 위한 ID
+    
     const allMembersHeader = document.createElement('div');
-    // ✅ [수정] 모바일에서 헤더 숨김 ('hidden md:flex')
-    allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8 hidden md:flex';
-    allMembersHeader.innerHTML = `<h3 class="text-lg font-bold text-gray-700">전체 팀원 현황 (클릭하여 근태 설정/취소)</h3>`;
+    // ✅ [수정] 모바일에서도 헤더가 보이도록 'hidden' 클래스 제거, 토글 버튼 추가
+    allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
+    allMembersHeader.innerHTML = `
+        <h3 class="text-lg font-bold text-gray-700 hidden md:block">전체 팀원 현황 (클릭하여 근태 설정/취소)</h3>
+        <h3 class="text-lg font-bold text-gray-700 md:hidden">팀원 현황</h3>
+        <button id="toggle-all-members-mobile"
+                class="md:hidden bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-xs py-1 px-2 rounded-md transition active:scale-[0.98]">
+            전체보기
+        </button>
+    `;
     allMembersContainer.appendChild(allMembersHeader);
 
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
@@ -509,8 +516,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             const isSelf = (member === currentUserName); // ✅ [추가] 본인 확인
 
             // === 📌 [재수정] 팀원 카드 className 설정 ===
-            const visibilityClass = isSelf ? 'flex' : 'hidden md:flex'; // 본인이면 항상 flex, 아니면 모바일 hidden
-            const widthClass = isSelf ? 'w-full md:w-28' : 'w-28'; // 본인이면 모바일 w-full, 아니면 w-28 (어차피 데스크탑에서만 보임)
+            // ✅ [수정] 토글을 위해 'mobile-member-hidden' 클래스 추가
+            const visibilityClass = isSelf ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
+            const widthClass = isSelf ? 'w-full md:w-28' : 'w-28'; 
             card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClass} ${widthClass} flex-col justify-center`;
             // ============================================
 
@@ -591,8 +599,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              const isSelfAlba = (pt.name === currentUserName); // ✅ [추가] 본인 확인 (알바)
 
              // === 📌 [재수정] 알바 카드 className 설정 ===
-             const visibilityClassAlba = isSelfAlba ? 'flex' : 'hidden md:flex'; // 본인이면 항상 flex, 아니면 모바일 hidden
-             const widthClassAlba = isSelfAlba ? 'w-full md:w-28' : 'w-28'; // 본인이면 모바일 w-full, 아니면 w-28
+             // ✅ [수정] 토글을 위해 'mobile-member-hidden' 클래스 추가
+             const visibilityClassAlba = isSelfAlba ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
+             const widthClassAlba = isSelfAlba ? 'w-full md:w-28' : 'w-28'; 
              card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClassAlba} ${widthClassAlba} flex-col justify-center`;
              // ===========================================
 

@@ -1516,6 +1516,39 @@ if (teamStatusBoard) {
         }
         return; // 다른 클릭 로직 실행 방지
     }
+
+    // ✅ [추가] 모바일 '팀원 현황' 펼쳐보기 버튼
+    const toggleMemberBtn = e.target.closest('#toggle-all-members-mobile');
+    if (toggleMemberBtn) {
+        e.stopPropagation();
+        const container = document.getElementById('all-members-container'); 
+        if (!container) return;
+
+        const isExpanded = container.classList.contains('mobile-expanded');
+        
+        if (isExpanded) {
+            // --- 접기 (Collapse) ---
+            container.classList.remove('mobile-expanded');
+            container.querySelectorAll('.mobile-member-hidden').forEach(card => {
+                card.classList.add('hidden');
+                card.classList.remove('flex'); // 'flex'를 명시적으로 제거
+            });
+            toggleMemberBtn.textContent = '전체보기';
+            toggleMemberBtn.classList.remove('bg-blue-100', 'text-blue-800');
+            toggleMemberBtn.classList.add('bg-gray-200', 'text-gray-800');
+        } else {
+            // --- 펼치기 (Expand) ---
+            container.classList.add('mobile-expanded');
+            container.querySelectorAll('.mobile-member-hidden.hidden').forEach(card => {
+                card.classList.remove('hidden');
+                card.classList.add('flex'); // 'flex'를 명시적으로 추가
+            });
+            toggleMemberBtn.textContent = '내 현황'; // "My Status"
+            toggleMemberBtn.classList.add('bg-blue-100', 'text-blue-800');
+            toggleMemberBtn.classList.remove('bg-gray-200', 'text-gray-800');
+        }
+        return; // 다른 클릭 로직 실행 방지
+    }
     
     // (이하 기존 코드 동일)
     const stopGroupButton = e.target.closest('.stop-work-group-btn');
