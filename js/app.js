@@ -644,10 +644,11 @@ async function fetchAllHistoryData() {
   }
 }
 
+
 const loadAndRenderHistoryList = async () => {
     if (!historyDateList) return;
     historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
-    allHistoryData = [];
+    allHistoryData = []; // 데이터 초기화
 
     const historyData = await fetchAllHistoryData();
 
@@ -661,28 +662,64 @@ const loadAndRenderHistoryList = async () => {
         return;
     }
 
-    const dates = historyData.map(d => d.id);
+    // ✅ [수정] 목록 렌더링을 switchHistoryView에 위임
+    // 기본 활성화된 탭(메인 탭, 서브 탭)을 기준으로 뷰를 전환
+    const activeSubTabBtn = (activeMainHistoryTab === 'work')
+        ? historyTabs?.querySelector('button.font-semibold')
+        : attendanceHistoryTabs?.querySelector('button.font-semibold');
+    const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
+    
+    switchHistoryView(activeView); 
+};
+
+/**
+ * [신규] 이력 목록(왼쪽)을 모드(일/주/월)에 맞게 렌더링합니다.
+ * @param {string} mode - 'day', 'week', 'month'
+ */
+const renderHistoryDateListByMode = (mode = 'day') => {
+    if (!historyDateList) return;
     historyDateList.innerHTML = '';
-    dates.forEach(dateKey => {
+
+    let keys = [];
+    
+    if (mode === 'day') {
+        keys = allHistoryData.map(d => d.id);
+        // (allHistoryData는 이미 내림차순 정렬됨)
+    } else if (mode === 'week') {
+        const weekSet = new Set(allHistoryData.map(d => getWeekOfYear(new Date(d.id + "T00:00:00"))));
+        keys = Array.from(weekSet).sort((a, b) => b.localeCompare(a));
+    } else if (mode === 'month') {
+        const monthSet = new Set(allHistoryData.map(d => d.id.substring(0, 7)));
+        keys = Array.from(monthSet).sort((a, b) => b.localeCompare(a));
+    }
+
+    if (keys.length === 0) {
+        historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
+        return;
+    }
+
+    keys.forEach(key => {
         const li = document.createElement('li');
-        li.innerHTML = `<button data-key="${dateKey}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300">${dateKey}</button>`;
+        li.innerHTML = `<button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300">${key}</button>`;
         historyDateList.appendChild(li);
     });
 
-    if (historyDateList.firstChild) {
-        const firstButton = historyDateList.firstChild.querySelector('button');
-        if (firstButton) {
-            firstButton.classList.add('bg-blue-100', 'font-bold');
-            const activeSubTabBtn = (activeMainHistoryTab === 'work')
-                ? historyTabs?.querySelector('button.font-semibold')
-                : attendanceHistoryTabs?.querySelector('button.font-semibold');
-            const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
-            switchHistoryView(activeView);
+    // 첫 번째 항목 자동 선택
+    const firstButton = historyDateList.firstChild?.querySelector('button');
+    if (firstButton) {
+        firstButton.classList.add('bg-blue-100', 'font-bold');
+        // 첫 번째 항목의 컨텐츠를 로드
+        // (단, 일별 보기일 때만 자동 로드, 주/월은 이미 switchHistoryView에서 전체 로드됨)
+        if (mode === 'day') {
+             // ✅ 전일 데이터 찾기 (첫 번째 항목은 전일 데이터가 없음)
+             const previousDayData = (allHistoryData.length > 1) ? allHistoryData[1] : null;
+
+             if (activeMainHistoryTab === 'work') {
+                renderHistoryDetail(firstButton.dataset.key, previousDayData);
+             } else {
+                renderAttendanceDailyHistory(firstButton.dataset.key, allHistoryData);
+             }
         }
-    } else {
-        switchHistoryView('daily');
-        const dailyView = document.getElementById('history-daily-view');
-        if (dailyView) dailyView.innerHTML = '<div class="text-center text-gray-500 p-8">표시할 이력이 없습니다.</div>';
     }
 };
 
@@ -724,12 +761,17 @@ window.openHistoryQuantityModal = (dateKey) => {
   if (quantityModal) quantityModal.classList.remove('hidden');
 };
 
-const renderHistoryDetail = (dateKey) => {
+const renderHistoryDetail = (dateKey, previousDayData = null) => {
   const view = document.getElementById('history-daily-view');
   if (!view) return;
   view.innerHTML = '<div class="text-center text-gray-500">데이터 로딩 중...</div>';
+  
+  // ✅ [수정] allHistoryData, appConfig를 app.js의 전역 스코프에서 참조
   const data = allHistoryData.find(d => d.id === dateKey);
-  if (!data) { view.innerHTML = '<div class="text-center text-red-500">해당 날짜의 데이터를 찾을 수 없습니다.</div>'; return; }
+  if (!data) { 
+      view.innerHTML = '<div class="text-center text-red-500">해당 날짜의 데이터를 찾을 수 없습니다.</div>'; 
+      return; 
+  }
 
   const records = data.workRecords || [];
   const quantities = data.taskQuantities || {};
@@ -748,20 +790,123 @@ const renderHistoryDetail = (dateKey) => {
   const activeMembersCount = allRegularMembers.size - onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length
                            + partTimersFromHistory.length - onLeaveMemberNames.filter(name => partTimersFromHistory.some(pt => pt.name === name)).length;
 
+  // --- 1. 현재일(Current) 데이터 계산 ---
   const totalSumDuration = records.reduce((sum, r) => sum + (r.duration || 0), 0);
+  const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
 
   const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (rec.duration || 0); return acc; }, {});
-
+  
   const taskCosts = records.reduce((acc, rec) => {
       const wage = wageMap[rec.member] || 0;
       const cost = ((Number(rec.duration) || 0) / 60) * wage;
       acc[rec.task] = (acc[rec.task] || 0) + cost;
       return acc;
   }, {});
+  
+  // (throughput, costPerItem 계산)
+  const taskMetrics = {};
+  // ✅ [수정] Object.keys(...).concat(...) -> new Set([...Object.keys(...), ...Object.keys(...)])
+  const allTaskKeys = new Set([...Object.keys(taskDurations), ...Object.keys(quantities)]);
+  allTaskKeys.forEach(task => {
+      // if (!taskMetrics[task]) { // (Set으로 처리하므로 중복 체크 불필요)
+          const duration = taskDurations[task] || 0;
+          const cost = taskCosts[task] || 0;
+          const qty = Number(quantities[task]) || 0;
+          
+          taskMetrics[task] = {
+              duration: duration,
+              cost: cost,
+              quantity: qty,
+              avgThroughput: duration > 0 ? (qty / duration) : 0,
+              avgCostPerItem: qty > 0 ? (cost / qty) : 0
+          };
+      // }
+  });
 
-  const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
+
+  // --- 2. 전일(Previous) 데이터 계산 ---
+  let prevTaskMetrics = {};
+  if (previousDayData) {
+      const prevRecords = previousDayData.workRecords || [];
+      const prevQuantities = previousDayData.taskQuantities || {};
+
+      const prevTaskDurations = prevRecords.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (rec.duration || 0); return acc; }, {});
+      
+      const prevTaskCosts = prevRecords.reduce((acc, rec) => {
+          const wage = wageMap[rec.member] || 0;
+          const cost = ((Number(rec.duration) || 0) / 60) * wage;
+          acc[rec.task] = (acc[rec.task] || 0) + cost;
+          return acc;
+      }, {});
+
+      // ✅ [수정] new Set([...Object.keys(...), ...Object.keys(...)])
+      const allPrevTaskKeys = new Set([...Object.keys(prevTaskDurations), ...Object.keys(prevQuantities)]);
+      allPrevTaskKeys.forEach(task => {
+          // if (!prevTaskMetrics[task]) { // (Set으로 처리하므로 중복 체크 불필요)
+              const duration = prevTaskDurations[task] || 0;
+              const cost = prevTaskCosts[task] || 0;
+              const qty = Number(prevQuantities[task]) || 0;
+              
+              prevTaskMetrics[task] = {
+                  duration: duration,
+                  cost: cost,
+                  quantity: qty,
+                  avgThroughput: duration > 0 ? (qty / duration) : 0,
+                  avgCostPerItem: qty > 0 ? (cost / qty) : 0
+              };
+          // }
+      });
+  }
+  
+  // ✅ [추가] getDiffHtmlForMetric 헬퍼 함수 (app.js 스코프 내에 임시 정의)
+  // (원래 ui.js에 넣으려 했으나, app.js에서도 필요하므로 여기에 임시 정의)
+  // (utils.js에서 formatDuration을 가져와야 함)
+  const getDiffHtmlForMetric = (metric, current, previous) => {
+      const currValue = current || 0;
+      const prevValue = previous || 0;
+  
+      if (prevValue === 0) {
+          if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
+          return ''; // 둘 다 0
+      }
+      
+      const diff = currValue - prevValue;
+      if (Math.abs(diff) < 0.001) return `<span class="text-xs text-gray-400 ml-1">(-)</span>`;
+      
+      const percent = (diff / prevValue) * 100;
+      const sign = diff > 0 ? '↑' : '↓';
+      
+      let colorClass = 'text-gray-500';
+      if (metric === 'avgThroughput' || metric === 'avgStaff' || metric === 'quantity') { // quantity 추가
+          colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
+      } else if (metric === 'avgCostPerItem' || metric === 'avgTime' || metric === 'duration') { // duration 추가
+          colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
+      }
+      
+      let diffStr = '';
+      let prevStr = '';
+      if (metric === 'avgTime' || metric === 'duration') {
+          diffStr = formatDuration(Math.abs(diff));
+          prevStr = formatDuration(prevValue);
+      } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity') {
+          diffStr = Math.abs(diff).toFixed(0);
+          prevStr = prevValue.toFixed(0);
+      } else { // avgThroughput
+          diffStr = Math.abs(diff).toFixed(2);
+          prevStr = prevValue.toFixed(2);
+      }
+  
+      return `<span class="text-xs ${colorClass} ml-1 font-mono" title="이전: ${prevStr}">
+                  ${sign} ${diffStr} (${percent.toFixed(0)}%)
+              </span>`;
+  };
+
+
+  // --- 3. HTML 렌더링 ---
+  
   const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
 
+  // (비업무 시간 계산 - 기존과 동일)
   let nonWorkHtml = '';
   if (isWeekday(dateKey)) {
     const totalPotentialMinutes = activeMembersCount * 8 * 60; // 8시간 기준
@@ -774,7 +919,7 @@ const renderHistoryDetail = (dateKey) => {
 
   let html = `
     <div class="mb-6 pb-4 border-b flex justify-between items-center">
-      <h3 class="text-2xl font-bold text-gray-800">${dateKey}</h3>
+      <h3 class="text-2xl font-bold text-gray-800">${dateKey} (전일 대비)</h3>
       <div>
         <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm" onclick="openHistoryQuantityModal('${dateKey}')">처리량 수정</button>
         <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="downloadHistoryAsExcel('${dateKey}')">엑셀 (전체)</button>
@@ -789,66 +934,87 @@ const renderHistoryDetail = (dateKey) => {
       <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
     </div>
   `;
+  
+  // === [수정] 3개 카드(처리량, 분당처리량, 개당처리비용) 렌더링 로직 수정 ===
   html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">`;
+  
+  // 1. 업무별 처리량 (Quantity)
   html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 처리량</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
   let hasQuantities = false;
-  Object.entries(quantities)
-    .filter(([, qty]) => Number(qty) > 0)
+  Object.entries(taskMetrics)
+    .filter(([, metrics]) => metrics.quantity > 0)
     .sort(([a],[b]) => a.localeCompare(b))
-    .forEach(([task, qty]) => {
+    .forEach(([task, metrics]) => {
       hasQuantities = true;
-      html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${qty} 개</span></div>`;
+      const prevQty = prevTaskMetrics[task]?.quantity || 0;
+      const diffHtml = previousDayData ? getDiffHtmlForMetric('quantity', metrics.quantity, prevQty) : '';
+      html += `<div class="flex justify-between items-center text-sm border-b pb-1">
+                 <span class="font-semibold text-gray-600">${task}</span>
+                 <span>${metrics.quantity} 개 ${diffHtml}</span>
+               </div>`;
     });
   if (!hasQuantities) html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
   html += `</div></div>`;
 
+  // 2. 업무별 분당 처리량 (Throughput)
   html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 분당 처리량</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
   let hasThroughput = false;
-  Object.entries(quantities)
-    .filter(([, qty]) => Number(qty) > 0)
+  Object.entries(taskMetrics)
+    .filter(([, metrics]) => metrics.quantity > 0) // 처리량이 있는 것만 표시
     .sort(([a],[b]) => a.localeCompare(b))
-    .forEach(([task, qty]) => {
+    .forEach(([task, metrics]) => {
       hasThroughput = true;
-      const durationForTask = taskDurations[task] || 0;
-      const throughputForTask = durationForTask > 0 ? ((Number(qty) || 0) / durationForTask).toFixed(2) : '0.00';
-      html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${throughputForTask} 개/분</span></div>`;
+      const prevThroughput = prevTaskMetrics[task]?.avgThroughput || 0;
+      const diffHtml = previousDayData ? getDiffHtmlForMetric('avgThroughput', metrics.avgThroughput, prevThroughput) : '';
+      html += `<div class="flex justify-between items-center text-sm border-b pb-1">
+                 <span class="font-semibold text-gray-600">${task}</span>
+                 <span>${metrics.avgThroughput.toFixed(2)} 개/분 ${diffHtml}</span>
+               </div>`;
     });
   if (!hasThroughput) html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
   html += `</div></div>`;
 
+  // 3. 업무별 개당 처리비용 (CostPerItem)
   html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 개당 처리비용</h4><div class="space-y-2 max-h-48 overflow-y-auto">`;
   let hasCostPerItem = false;
-  Object.entries(quantities)
-    .filter(([, qty]) => Number(qty) > 0)
+  Object.entries(taskMetrics)
+    .filter(([, metrics]) => metrics.quantity > 0) // 처리량이 있는 것만 표시
     .sort(([a],[b]) => a.localeCompare(b))
-    .forEach(([task, qty]) => {
+    .forEach(([task, metrics]) => {
       hasCostPerItem = true;
-      const costForTask = taskCosts[task] || 0;
-      const qtyNum = Number(qty) || 1;
-      const costPerItem = costForTask / qtyNum;
-      html += `<div class="flex justify-between items-center text-sm border-b pb-1"><span class="font-semibold text-gray-600">${task}</span><span>${costPerItem.toFixed(0)} 원/개</span></div>`;
+      const prevCostPerItem = prevTaskMetrics[task]?.avgCostPerItem || 0;
+      const diffHtml = previousDayData ? getDiffHtmlForMetric('avgCostPerItem', metrics.avgCostPerItem, prevCostPerItem) : '';
+      html += `<div class="flex justify-between items-center text-sm border-b pb-1">
+                 <span class="font-semibold text-gray-600">${task}</span>
+                 <span>${metrics.avgCostPerItem.toFixed(0)} 원/개 ${diffHtml}</span>
+               </div>`;
     });
   if (!hasCostPerItem) html += `<p class="text-gray-500 text-sm">처리량이 없어 계산 불가.</p>`;
   html += `</div></div>`;
+  html += `</div>`; // grid 닫기
 
-  html += `</div>`;
-
+  // 4. 업무별 시간 비중 (Duration)
   html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 시간 비중</h4><div class="space-y-3">`;
-  Object.entries(taskDurations)
-    .filter(([, duration]) => duration > 0)
-    .sort(([,a],[,b]) => b - a)
-    .forEach(([task, duration]) => {
-      const percentage = totalSumDuration > 0 ? (duration / totalSumDuration * 100).toFixed(1) : 0;
+  Object.entries(taskMetrics)
+    .filter(([, metrics]) => metrics.duration > 0)
+    .sort(([,a],[,b]) => b.duration - a.duration)
+    .forEach(([task, metrics]) => {
+      const percentage = totalSumDuration > 0 ? (metrics.duration / totalSumDuration * 100).toFixed(1) : 0;
+      const prevDuration = prevTaskMetrics[task]?.duration || 0;
+      // ✅ [수정] duration은 '높을수록 좋음'이 아니므로, 'duration' 메트릭(낮을수록 좋음-빨간색)으로 수정
+      const diffHtml = previousDayData ? getDiffHtmlForMetric('duration', metrics.duration, prevDuration) : ''; 
+      
       html += `
         <div>
           <div class="flex justify-between items-center mb-1 text-sm">
             <span class="font-semibold text-gray-600">${task}</span>
-            <span>${formatDuration(duration)} (${percentage}%)</span>
+            <span>${formatDuration(metrics.duration)} (${percentage}%) ${diffHtml}</span>
           </div>
           <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${percentage}%"></div></div>
         </div>`;
     });
-  if (Object.keys(taskDurations).every(k => (taskDurations[k] || 0) <= 0)) {
+  // ✅ [수정] Object.keys(taskMetrics).every(...) -> Object.values(taskMetrics).every(...)
+  if (Object.values(taskMetrics).every(m => (m.duration || 0) <= 0)) {
     html += `<p class="text-gray-500 text-sm">기록된 업무 시간이 없습니다.</p>`;
   }
   html += `</div></div>`;
@@ -914,10 +1080,17 @@ const appendTotalRow = (ws, data, headers) => {
 
 window.downloadHistoryAsExcel = async (dateKey) => {
     try {
+        // --- 1. 데이터 준비 (현재일, 전일, 전체, WageMap) ---
         const data = allHistoryData.find(d => d.id === dateKey);
         if (!data) {
             return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
         }
+        
+        // [신규] 전일 데이터 찾기
+        const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
+        const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
+                                ? allHistoryData[currentIndex + 1] 
+                                : null;
 
         const workbook = XLSX.utils.book_new();
 
@@ -931,6 +1104,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         });
         const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
+        // --- 2. Sheet 1: 상세 기록 (기존과 동일) ---
         const dailyRecords = data.workRecords || [];
         const dailyQuantities = data.taskQuantities || {};
         
@@ -947,7 +1121,25 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         fitToColumn(worksheet1);
         XLSX.utils.book_append_sheet(workbook, worksheet1, `상세 기록 (${dateKey})`);
 
-        const sheet2Headers = ['업무 종류', '진행 인원수', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)'];
+        // --- 3. Sheet 2: 업무 요약 (✅ 전일비 추가) ---
+        
+        // 3a. 전일 데이터 계산
+        let prevTaskSummary = {};
+        if (previousDayData) {
+            const prevRecords = previousDayData.workRecords || [];
+            (prevRecords).forEach(r => {
+                if (!prevTaskSummary[r.task]) {
+                    prevTaskSummary[r.task] = { totalDuration: 0, totalCost: 0, members: new Set() };
+                }
+                const wage = combinedWageMap[r.member] || 0;
+                const cost = ((Number(r.duration) || 0) / 60) * wage;
+                prevTaskSummary[r.task].totalDuration += (Number(r.duration) || 0);
+                prevTaskSummary[r.task].totalCost += cost;
+                prevTaskSummary[r.task].members.add(r.member);
+            });
+        }
+        
+        // 3b. 현재일 데이터 계산
         const summaryByTask = {};
         dailyRecords.forEach(r => {
             if (!summaryByTask[r.task]) {
@@ -957,26 +1149,54 @@ window.downloadHistoryAsExcel = async (dateKey) => {
             const cost = ((Number(r.duration) || 0) / 60) * wage;
             summaryByTask[r.task].totalDuration += (Number(r.duration) || 0);
             summaryByTask[r.task].totalCost += cost;
-            summaryByTask[r.task].members.add(r.member); // [추가] 고유 인원 집계
+            summaryByTask[r.task].members.add(r.member); 
         });
+        
+        // ✅ [수정] Sheet 2 헤더 (전일비 항목 추가)
+        const sheet2Headers = [
+            '업무 종류', 
+            '진행 인원수', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)',
+            '진행 인원수(전일비)', '총 시간(전일비)', '총 인건비(전일비)', '총 처리량(전일비)', '개당 처리비용(전일비)'
+        ];
+        
+        // 3c. Sheet 2 데이터 조합
         const sheet2Data = Object.keys(summaryByTask).sort().map(task => {
             const taskQty = Number(dailyQuantities[task]) || 0;
             const taskCost = summaryByTask[task].totalCost;
             const costPerItem = (taskQty > 0) ? (taskCost / taskQty) : 0;
+            const staffCount = summaryByTask[task].members.size;
+            const duration = summaryByTask[task].totalDuration;
+            
+            // 전일 데이터 조회
+            const prevSummary = prevTaskSummary[task] || { totalDuration: 0, totalCost: 0, members: new Set() };
+            const prevQty = Number(previousDayData?.taskQuantities?.[task]) || 0;
+            const prevCost = prevSummary.totalCost;
+            const prevCostPerItem = (prevQty > 0) ? (prevCost / prevQty) : 0;
+            const prevStaffCount = prevSummary.members.size;
+            const prevDuration = prevSummary.totalDuration;
+
             return {
                 '업무 종류': task,
-                '진행 인원수': summaryByTask[task].members.size, // [추가]
-                '총 소요 시간(분)': Math.round(summaryByTask[task].totalDuration),
+                '진행 인원수': staffCount,
+                '총 소요 시간(분)': Math.round(duration),
                 '총 인건비(원)': Math.round(taskCost),
                 '총 처리량(개)': taskQty,
-                '개당 처리비용(원)': Math.round(costPerItem)
+                '개당 처리비용(원)': Math.round(costPerItem),
+                // ✅ [추가] 전일비 계산 (단순 차이)
+                '진행 인원수(전일비)': staffCount - prevStaffCount,
+                '총 시간(전일비)': Math.round(duration - prevDuration),
+                '총 인건비(전일비)': Math.round(taskCost - prevCost),
+                '총 처리량(전일비)': taskQty - prevQty,
+                '개당 처리비용(전일비)': Math.round(costPerItem - prevCostPerItem)
             };
         });
+        
         const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
-        if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers);
+        if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers); // (총합계 로직은 차이값은 무시하고 합계만 계산함)
         fitToColumn(worksheet2);
         XLSX.utils.book_append_sheet(workbook, worksheet2, `업무 요약 (${dateKey})`);
 
+        // --- 4. Sheet 3: 파트별 인건비 (기존과 동일) ---
         const sheet3Headers = ['파트', '총 인건비(원)'];
         const memberToPartMap = new Map();
         (appConfig.teamGroups || []).forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
@@ -997,6 +1217,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         fitToColumn(worksheet3);
         XLSX.utils.book_append_sheet(workbook, worksheet3, `파트 인건비 (${dateKey})`);
 
+        // --- 5. Sheet 4: 주별 요약 (✅ 신규 항목 추가) ---
         const weeklyData = (allHistoryData || []).reduce((acc, day) => {
             if (!day || !day.id || !day.workRecords || typeof day.id !== 'string') return acc;
             try {
@@ -1014,7 +1235,8 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         }, {});
 
         const sheet4Data = [];
-        const sheet4Headers = ['주(Week)', '업무', '총 시간(분)', '총 인건비(원)', '총 처리량(개)', '평균 처리량(개/분)', '평균 처리비용(원/개)'];
+        // ✅ [수정] Sheet 4 헤더 (신규 항목 추가)
+        const sheet4Headers = ['주(Week)', '업무', '총 시간(분)', '총 인건비(원)', '총 처리량(개)', '평균 처리량(개/분)', '평균 처리비용(원/개)', '총 참여인원(명)', '평균 처리시간(건)'];
         const sortedWeeks = Object.keys(weeklyData).sort((a,b) => a.localeCompare(b));
 
         for (const weekKey of sortedWeeks) {
@@ -1023,15 +1245,17 @@ window.downloadHistoryAsExcel = async (dateKey) => {
             const quantities = dataset.taskQuantities || {};
             const taskSummary = records.reduce((acc, r) => {
                 if (!r || !r.task) return acc;
-                if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0 };
+                if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 }; // ✅
                 acc[r.task].duration += (r.duration || 0);
                 const wage = combinedWageMap[r.member] || 0;
                 acc[r.task].cost += ((r.duration || 0) / 60) * wage;
+                acc[r.task].members.add(r.member); // ✅
+                acc[r.task].recordCount += 1; // ✅
                 return acc;
             }, {});
             Object.entries(quantities || {}).forEach(([task, qtyValue]) => {
                 const qty = Number(qtyValue) || 0;
-                if (!taskSummary[task]) taskSummary[task] = { duration: 0, cost: 0 };
+                if (!taskSummary[task]) taskSummary[task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 }; // ✅
                 taskSummary[task].quantity = (taskSummary[task].quantity || 0) + qty;
             });
             Object.keys(taskSummary).sort().forEach(task => {
@@ -1041,6 +1265,10 @@ window.downloadHistoryAsExcel = async (dateKey) => {
                 const cost = summary.cost || 0;
                 const avgThroughput = duration > 0 ? (qty / duration).toFixed(2) : '0.00';
                 const avgCostPerItem = qty > 0 ? (cost / qty).toFixed(0) : '0';
+                // ✅ [추가] 신규 항목 계산
+                const avgStaff = summary.members.size;
+                const avgTime = (summary.recordCount > 0) ? (duration / summary.recordCount) : 0;
+                
                 sheet4Data.push({
                     '주(Week)': weekKey,
                     '업무': task,
@@ -1048,7 +1276,9 @@ window.downloadHistoryAsExcel = async (dateKey) => {
                     '총 인건비(원)': Math.round(cost),
                     '총 처리량(개)': qty,
                     '평균 처리량(개/분)': avgThroughput,
-                    '평균 처리비용(원/개)': avgCostPerItem // ✅ 수정된 부분
+                    '평균 처리비용(원/개)': avgCostPerItem,
+                    '총 참여인원(명)': avgStaff, // ✅
+                    '평균 처리시간(건)': formatDuration(avgTime) // ✅ (엑셀에서는 분 단위 숫자가 나을 수 있지만, 일단 UI와 통일)
                 });
             });
         }
@@ -1056,6 +1286,7 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         fitToColumn(worksheet4);
         XLSX.utils.book_append_sheet(workbook, worksheet4, '주별 업무 요약 (전체)');
 
+        // --- 6. Sheet 5: 월별 요약 (✅ 신규 항목 추가) ---
         const monthlyData = (allHistoryData || []).reduce((acc, day) => {
             if (!day || !day.id || !day.workRecords || typeof day.id !== 'string' || day.id.length < 7) return acc;
             try {
@@ -1071,7 +1302,8 @@ window.downloadHistoryAsExcel = async (dateKey) => {
         }, {});
 
         const sheet5Data = [];
-        const sheet5Headers = ['월(Month)', '업무', '총 시간(분)', '총 인건비(원)', '총 처리량(개)', '평균 처리량(개/분)', '평균 처리비용(원/개)'];
+        // ✅ [수정] Sheet 5 헤더 (신규 항목 추가)
+        const sheet5Headers = ['월(Month)', '업무', '총 시간(분)', '총 인건비(원)', '총 처리량(개)', '평균 처리량(개/분)', '평균 처리비용(원/개)', '총 참여인원(명)', '평균 처리시간(건)'];
         const sortedMonths = Object.keys(monthlyData).sort((a,b) => a.localeCompare(b));
 
         for (const monthKey of sortedMonths) {
@@ -1080,15 +1312,17 @@ window.downloadHistoryAsExcel = async (dateKey) => {
             const quantities = dataset.taskQuantities || {};
             const taskSummary = records.reduce((acc, r) => {
                 if (!r || !r.task) return acc;
-                if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0 };
+                if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 }; // ✅
                 acc[r.task].duration += (r.duration || 0);
                 const wage = combinedWageMap[r.member] || 0;
                 acc[r.task].cost += ((r.duration || 0) / 60) * wage;
+                acc[r.task].members.add(r.member); // ✅
+                acc[r.task].recordCount += 1; // ✅
                 return acc;
             }, {});
             Object.entries(quantities || {}).forEach(([task, qtyValue]) => {
                 const qty = Number(qtyValue) || 0;
-                if (!taskSummary[task]) taskSummary[task] = { duration: 0, cost: 0 };
+                if (!taskSummary[task]) taskSummary[task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 }; // ✅
                 taskSummary[task].quantity = (taskSummary[task].quantity || 0) + qty;
             });
             Object.keys(taskSummary).sort().forEach(task => {
@@ -1098,6 +1332,10 @@ window.downloadHistoryAsExcel = async (dateKey) => {
                 const cost = summary.cost || 0;
                 const avgThroughput = duration > 0 ? (qty / duration).toFixed(2) : '0.00';
                 const avgCostPerItem = qty > 0 ? (cost / qty).toFixed(0) : '0';
+                 // ✅ [추가] 신규 항목 계산
+                const avgStaff = summary.members.size;
+                const avgTime = (summary.recordCount > 0) ? (duration / summary.recordCount) : 0;
+                
                 sheet5Data.push({
                     '월(Month)': monthKey,
                     '업무': task,
@@ -1105,7 +1343,9 @@ window.downloadHistoryAsExcel = async (dateKey) => {
                     '총 인건비(원)': Math.round(cost),
                     '총 처리량(개)': qty,
                     '평균 처리량(개/분)': avgThroughput,
-                    '평균 처리비용(원/개)': avgCostPerItem // ✅ 수정된 부분
+                    '평균 처리비용(원/개)': avgCostPerItem,
+                    '총 참여인원(명)': avgStaff, // ✅
+                    '평균 처리시간(건)': formatDuration(avgTime) // ✅
                 });
             });
         }
@@ -1306,59 +1546,64 @@ const switchHistoryView = (view) => {
       });
   }
 
-  // ✅ [수정] 왼쪽 날짜 목록 컨테이너가 *항상* 보이도록 수정
+  // ✅ [수정] 왼쪽 날짜 목록 컨테이너 항상 표시 (기존 수정 사항 유지)
   const dateListContainer = document.getElementById('history-date-list-container');
-  // const isDailyView = view.includes('daily'); // (제거)
   if (dateListContainer) {
-      // dateListContainer.style.display = isDailyView ? 'block' : 'none'; // (제거)
-      dateListContainer.style.display = 'block'; // (항상 보이도록 수정)
+      dateListContainer.style.display = 'block'; 
   }
 
-  let selectedDateKey = null;
-  // ... (selectedDateBtn, selectedDateKey 찾는 로직은 기존과 동일) ...
-  const selectedDateBtn = historyDateList?.querySelector('button.font-bold');
-  if (selectedDateBtn) {
-    selectedDateKey = selectedDateBtn.dataset.key;
-  }
+  // ⛔️ [삭제] selectedDateKey 찾는 로직 (목록 렌더링 시 처리)
+  // let selectedDateKey = null; ... (이하 3줄 삭제)
 
   let viewToShow = null;
-  // ... (tabToActivate, switch(view) 케이스 문 전체는 기존과 동일) ...
   let tabToActivate = null;
+  
+  // ✅ [추가] 모드에 따른 왼쪽 목록 렌더링
+  let listMode = 'day'; // 기본값
 
   switch(view) {
       case 'daily':
+          listMode = 'day'; // ✅
           viewToShow = document.getElementById('history-daily-view');
           tabToActivate = historyTabs?.querySelector('button[data-view="daily"]');
-          if (selectedDateKey) renderHistoryDetail(selectedDateKey);
-          else if (viewToShow) viewToShow.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
+          // ✅ [수정] 렌더링 호출을 renderHistoryDateListByMode로 위임
+          // if (selectedDateKey) renderHistoryDetail(selectedDateKey); ... (else if ... 삭제)
           break;
       case 'weekly':
+          listMode = 'week'; // ✅
           viewToShow = document.getElementById('history-weekly-view');
           tabToActivate = historyTabs?.querySelector('button[data-view="weekly"]');
-          renderWeeklyHistory(allHistoryData, appConfig);
+          renderWeeklyHistory(allHistoryData, appConfig); // (컨텐츠는 미리 렌더링)
           break;
       case 'monthly':
+          listMode = 'month'; // ✅
           viewToShow = document.getElementById('history-monthly-view');
           tabToActivate = historyTabs?.querySelector('button[data-view="monthly"]');
-          renderMonthlyHistory(allHistoryData, appConfig);
+          renderMonthlyHistory(allHistoryData, appConfig); // (컨텐츠는 미리 렌더링)
           break;
       case 'attendance-daily':
+          listMode = 'day'; // ✅
           viewToShow = document.getElementById('history-attendance-daily-view');
           tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-daily"]');
-          if (selectedDateKey) renderAttendanceDailyHistory(selectedDateKey, allHistoryData);
-          else if (viewToShow) viewToShow.innerHTML = '<div class="text-center text-gray-500 p-8">왼쪽 목록에서 날짜를 선택하세요.</div>';
+          // ✅ [수정] 렌더링 호출을 renderHistoryDateListByMode로 위임
+          // if (selectedDateKey) renderAttendanceDailyHistory(selectedDateKey, allHistoryData); ... (else if ... 삭제)
           break;
       case 'attendance-weekly':
+          listMode = 'week'; // ✅
           viewToShow = document.getElementById('history-attendance-weekly-view');
           tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
-          renderAttendanceWeeklyHistory(allHistoryData);
+          renderAttendanceWeeklyHistory(allHistoryData); // (컨텐츠는 미리 렌더링)
           break;
       case 'attendance-monthly':
+          listMode = 'month'; // ✅
           viewToShow = document.getElementById('history-attendance-monthly-view');
           tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
-          renderAttendanceMonthlyHistory(allHistoryData);
+          renderAttendanceMonthlyHistory(allHistoryData); // (컨텐츠는 미리 렌더링)
           break;
   }
+  
+  // ✅ [추가] 목록 렌더링 호출 (컨텐츠 렌더링 이후)
+  renderHistoryDateListByMode(listMode);
 
   if (viewToShow) viewToShow.classList.remove('hidden');
   if (tabToActivate) {
@@ -1854,7 +2099,7 @@ if (historyDateList) {
     if (btn) {
       historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
       btn.classList.add('bg-blue-100', 'font-bold');
-      const dateKey = btn.dataset.key;
+      const dateKey = btn.dataset.key; // (day, week, month 키가 됨)
       
       const activeSubTabBtn = (activeMainHistoryTab === 'work')
         ? historyTabs?.querySelector('button.font-semibold')
@@ -1862,32 +2107,30 @@ if (historyDateList) {
       const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
       
       if (activeView === 'daily') {
-        renderHistoryDetail(dateKey);
-      } else if (activeView === 'attendance-daily') {
-        renderAttendanceDailyHistory(dateKey, allHistoryData);
-      
-      // ✅ [추가] 주별/월별 보기일 때 스크롤 로직
-      } else if (activeView === 'weekly' || activeView === 'monthly') {
-          let targetKey;
-          if (activeView === 'weekly') {
-              // 클릭된 날짜(dateKey)가 속한 주(weekKey)를 계산
-              targetKey = getWeekOfYear(new Date(dateKey + "T00:00:00")); // 로컬 시간 기준
-          } else { // 'monthly'
-              // 클릭된 날짜(dateKey)가 속한 월(monthKey)을 계산
-              targetKey = dateKey.substring(0, 7); // 'YYYY-MM'
-          }
+          // ✅ [수정] 클릭된 dateKey(일) 기준 전일 데이터 찾기
+          const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
+          const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
+                                ? allHistoryData[currentIndex + 1] 
+                                : null;
+          renderHistoryDetail(dateKey, previousDayData);
 
-          // ui.js에서 설정한 ID로 요약 카드 찾기
-          const summaryCard = document.getElementById(`summary-card-${targetKey}`);
-          if (summaryCard) {
-              // 해당 카드로 스크롤
-              summaryCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              
-              // 시각적 피드백 (파란색 링)
-              summaryCard.classList.add('ring-2', 'ring-blue-400', 'transition-all', 'duration-300');
-              setTimeout(() => {
-                  summaryCard.classList.remove('ring-2', 'ring-blue-400');
-              }, 2000); // 2초 뒤 링 제거
+      } else if (activeView === 'attendance-daily') {
+          renderAttendanceDailyHistory(dateKey, allHistoryData);
+      
+      } else if (activeView === 'weekly' || activeView === 'monthly' || activeView === 'attendance-weekly' || activeView === 'attendance-monthly') {
+          // ✅ [수정] 스크롤 로직 (dateKey가 이미 week/month 키임)
+          const targetKey = dateKey; 
+
+          // (근태 탭은 스크롤 대상이 없음)
+          if (activeView === 'weekly' || activeView === 'monthly') {
+              const summaryCard = document.getElementById(`summary-card-${targetKey}`);
+              if (summaryCard) {
+                  summaryCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  summaryCard.classList.add('ring-2', 'ring-blue-400', 'transition-all', 'duration-300');
+                  setTimeout(() => {
+                      summaryCard.classList.remove('ring-2', 'ring-blue-400');
+                  }, 2000); 
+              }
           }
       }
     }
