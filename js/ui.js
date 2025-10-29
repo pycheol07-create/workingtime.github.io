@@ -1413,17 +1413,16 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                 <tbody>
     `;
 
+    // --- ⚠️ 여기가 중요합니다 ---
+    // 반복문은 <tbody> 태그가 열린 직후에 와야 합니다.
     leaveEntries.forEach((entry, index) => {
-        let detailText = '-';
-
-    leaveEntries.forEach(entry => {
         let detailText = '-';
         if (entry.startTime) {
             detailText = formatTimeTo24H(entry.startTime);
             if (entry.endTime) {
-                detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+                 detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
             } else if (entry.type === '외출') {
-                detailText += ' ~';
+                 detailText += ' ~';
             }
         } else if (entry.startDate) {
             detailText = entry.startDate;
@@ -1442,8 +1441,9 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                 </td>
             </tr>
         `;
-    });
+    }); // <--- 반복문은 여기서 끝나야 합니다.
 
+    // 닫는 태그들은 반복문 뒤에 와야 합니다.
     html += `
                 </tbody>
             </table>
@@ -1451,7 +1451,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     `;
 
     view.innerHTML = html;
-});
 };
 
 // ✅ [추가] 주별/월별 근태 요약 렌더링을 위한 공통 헬퍼 함수
