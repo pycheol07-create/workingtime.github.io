@@ -11,6 +11,31 @@ export const showToast = (message, isError = false) => {
     }, 3000);
 };
 
+// ✅ [추가] app.js에서 이동해 온 함수
+/**
+ * 시작 시간, 종료 시간, 그리고 정지 기록 배열을 바탕으로 순수 작업 시간을 분 단위로 계산합니다.
+ * @param {string} start - 시작 시간 (HH:MM)
+ * @param {string} end - 종료 시간 (HH:MM)
+ * @param {Array<Object>} pauses - 정지 기록 배열 (e.g., [{start: 'HH:MM', end: 'HH:MM'}])
+ * @returns {number} - 계산된 총 분
+ */
+export const calcElapsedMinutes = (start, end, pauses = []) => {
+  if (!start || !end) return 0;
+  const s = new Date(`1970-01-01T${start}:00Z`).getTime();
+  const e = new Date(`1970-01-01T${end}:00Z`).getTime();
+  let total = Math.max(0, e - s);
+  (pauses || []).forEach(p => {
+    if (p.start && p.end) {
+      const ps = new Date(`1970-01-01T${p.start}:00Z`).getTime();
+      const pe = new Date(`1970-01-01T${p.end}:00Z`).getTime();
+      if (pe > ps) total -= (pe - ps);
+    }
+  });
+  return Math.max(0, total / 60000);
+};
+
+export const formatTimeTo24H = (timeStr) => {
+
 export const formatTimeTo24H = (timeStr) => {
     if (!timeStr) return '';
     const [hours, minutes] = timeStr.split(':');

@@ -1,6 +1,6 @@
 // === ui.js (모바일 반응형 레이아웃 재수정) ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
+import { formatTimeTo24H, formatDuration, getWeekOfYear, calcElapsedMinutes, getCurrentTime } from './utils.js'; // getWeekOfYear import
 
 // ✅ [수정] 현황판 아이템 정의 (isQuantity 플래그 추가)
 export const DASHBOARD_ITEM_DEFINITIONS = { // ✅ 'export'를 추가했습니다.
@@ -214,7 +214,9 @@ export const renderTaskAnalysis = (appState, appConfig) => {
     }
 };
 
-// ✅ [추가] 개인별 통계 렌더링 함수
+/**
+ * ✅ [수정] 개인별 통계 렌더링 함수 (실시간 상태, 휴식 시간, 전체 업무 목록)
+ */
 export const renderPersonalAnalysis = (selectedMember, appState) => {
     const container = document.getElementById('analysis-personal-stats-container');
     if (!container) return;
@@ -224,44 +226,101 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         return;
     }
 
+    // 1. 선택된 직원의 모든 기록 (완료, 진행, 휴식)
     const memberRecords = (appState.workRecords || []).filter(
-        r => r.status === 'completed' && r.member === selectedMember
+        r => r.member === selectedMember
     );
 
     if (memberRecords.length === 0) {
-        container.innerHTML = `<p class="text-center text-gray-500">${selectedMember} 님은 오늘 완료된 업무 기록이 없습니다.</p>`;
+        container.innerHTML = `<p class="text-center text-gray-500">${selectedMember} 님은 오늘 업무 기록이 없습니다.</p>`;
         return;
     }
 
-    const totalMinutes = memberRecords.reduce((sum, r) => sum + (r.duration || 0), 0);
+    const now = getCurrentTime(); // 실시간 계산을 위한 현재 시간
 
+    // 2. 현재 상태 파악
+    const ongoingRecord = memberRecords.find(r => r.status === 'ongoing');
+    const pausedRecord = memberRecords.find(r => r.status === 'paused');
+
+    let currentStatusHtml = '';
+    if (ongoingRecord) {
+        currentStatusHtml = `<span class="ml-2 text-sm font-semibold text-red-600">업무 중: ${ongoingRecord.task}</span>`;
+    } else if (pausedRecord) {
+        currentStatusHtml = `<span class="ml-2 text-sm font-semibold text-yellow-600">휴식 중</span>`;
+    } else {
+        // "onLeave" 상태도 확인 (선택 사항)
+        const combinedOnLeaveMembers = [
+            ...(appState.dailyOnLeaveMembers || []),
+            ...(appState.dateBasedOnLeaveMembers || [])
+        ];
+        const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember);
+        if (leaveInfo) {
+             currentStatusHtml = `<span class="ml-2 text-sm font-semibold text-gray-500">${leaveInfo.type} 중</span>`;
+        } else {
+             currentStatusHtml = `<span class="ml-2 text-sm font-semibold text-green-600">대기 중</span>`;
+        }
+    }
+
+    // 3. 총 휴식 시간 계산
+    let totalBreakMinutes = 0;
+    memberRecords.forEach(record => {
+        (record.pauses || []).forEach(pause => {
+            // 'break' 타입이거나, 타입이 없는 구(old) 데이터
+            if (pause.end && (pause.type === 'break' || !pause.type)) {
+                totalBreakMinutes += calcElapsedMinutes(pause.start, pause.end, []);
+            }
+        });
+    });
+
+    // 4. 업무별 누적 시간 (실시간 반영)
     const taskTimes = memberRecords.reduce((acc, r) => {
-        acc[r.task] = (acc[r.task] || 0) + (r.duration || 0);
+        let duration = 0;
+        if (r.status === 'completed') {
+            duration = r.duration || 0;
+        } else if (r.status === 'ongoing' || r.status === 'paused') {
+            // 진행 중이거나 휴식 중인 업무는 현재 시간까지로 계산
+            duration = calcElapsedMinutes(r.startTime, now, r.pauses);
+        }
+        acc[r.task] = (acc[r.task] || 0) + duration;
         return acc;
     }, {});
 
     const sortedTasks = Object.entries(taskTimes).sort(([, a], [, b]) => b - a);
-    const top3Tasks = sortedTasks.slice(0, 3);
+    const totalLiveMinutes = sortedTasks.reduce((sum, [, minutes]) => sum + minutes, 0);
 
+    // 5. HTML 렌더링
     let html = `
         <h4 class="text-lg font-bold text-gray-800 mb-3">${selectedMember} 님 요약</h4>
-        <div class="mb-4">
-            <span class="text-sm font-semibold text-gray-500">총 완료 업무 시간:</span>
-            <span class="text-xl font-bold text-blue-600 ml-2">${formatDuration(totalMinutes)}</span>
+        <div class="grid grid-cols-3 gap-4 mb-4 text-center">
+            <div class="bg-gray-50 p-2 rounded-lg">
+                <div class="text-xs text-gray-500">현재 상태</div>
+                <div class="text-sm font-bold">${currentStatusHtml}</div>
+            </div>
+            <div class="bg-gray-50 p-2 rounded-lg">
+                <div class="text-xs text-gray-500">총 업무 시간 (실시간)</div>
+                <div class="text-lg font-bold text-blue-600">${formatDuration(totalLiveMinutes)}</div>
+            </div>
+             <div class="bg-gray-50 p-2 rounded-lg">
+                <div class="text-xs text-gray-500">총 휴식 시간</div>
+                <div class="text-lg font-bold text-gray-700">${formatDuration(Math.round(totalBreakMinutes))}</div>
+            </div>
         </div>
+
         <div>
-            <h5 class="text-md font-semibold text-gray-700 mb-2">주요 업무 (Top 3)</h5>
-            <ul class="list-decimal list-inside space-y-1">
+            <h5 class="text-md font-semibold text-gray-700 mb-2">오늘 수행한 업무 (전체)</h5>
+            <ul class="space-y-1 max-h-40 overflow-y-auto">
     `;
 
-    if (top3Tasks.length > 0) {
-        top3Tasks.forEach(([task, minutes]) => {
-            html += `
-                <li class="text-sm">
-                    <span class="font-semibold">${task}:</span>
-                    <span class="text-gray-600">${formatDuration(minutes)}</span>
-                </li>
-            `;
+    if (sortedTasks.length > 0) {
+        sortedTasks.forEach(([task, minutes]) => {
+            if (minutes > 0) { // 0분 이상인 것만 표시
+                html += `
+                    <li class="text-sm flex justify-between p-1 rounded hover:bg-gray-50">
+                        <span class="font-semibold">${task}</span>
+                        <span class="text-gray-600">${formatDuration(minutes)}</span>
+                    </li>
+                `;
+            }
         });
     } else {
         html += `<li class="text-sm text-gray-500">데이터 없음</li>`;
@@ -271,7 +330,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
             </ul>
         </div>
     `;
-    
+
     container.innerHTML = html;
 };
 

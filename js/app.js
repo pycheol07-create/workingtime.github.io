@@ -4,7 +4,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
-import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday } from './utils.js';
+// ✅ [수정] calcElapsedMinutes 추가
+import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes } from './utils.js';
 import {
   getAllDashboardDefinitions, // ✅ [추가]
   DASHBOARD_ITEM_DEFINITIONS, // ✅ [추가]
@@ -236,23 +237,11 @@ let attendanceRecordToDelete = null; // 근태 이력 삭제 컨텍스트
 const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // ========== Helpers ==========
-// ... (이전과 동일) ...
+// ✅ [수정] generateId와 normalizeName은 남겨두고 calcElapsedMinutes만 삭제합니다.
 const generateId = () => `${Date.now()}-${++recordCounter}`;
 const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
-const calcElapsedMinutes = (start, end, pauses = []) => {
-  if (!start || !end) return 0;
-  const s = new Date(`1970-01-01T${start}:00Z`).getTime();
-  const e = new Date(`1970-01-01T${end}:00Z`).getTime();
-  let total = Math.max(0, e - s);
-  (pauses || []).forEach(p => {
-    if (p.start && p.end) {
-      const ps = new Date(`1970-01-01T${p.start}:00Z`).getTime();
-      const pe = new Date(`1970-01-01T${p.end}:00Z`).getTime();
-      if (pe > ps) total -= (pe - ps);
-    }
-  });
-  return Math.max(0, total / 60000);
-};
+
+// ⛔️ [삭제] calcElapsedMinutes 함수 (약 13줄) 삭제
 const calculateDateDifference = (start, end) => {
     if (!start) return 0;
     const startDate = new Date(start);
@@ -3644,7 +3633,8 @@ async function startAppAfterLogin(user) {
 
       isDataDirty = false;
 
-      renderDashboardLayout(appConfig); 
+      // ⛔️ [삭제] 이 줄을 삭제해야 새로고침 시 0이 되는 버그가 고쳐집니다.
+    // renderDashboardLayout(appConfig);
       render(); 
       if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
@@ -3954,6 +3944,49 @@ async function main() {
       // historyModal은 이미 전역 변수로 가져왔습니다.
       makeDraggable(historyModal, historyHeader, historyContentBox);
   }
+
+  // ✅ [추가] '오늘의 업무 분석' 탭 클릭 리스너
+const analysisTabs = document.getElementById('analysis-tabs');
+if (analysisTabs) {
+    analysisTabs.addEventListener('click', (e) => {
+        const button = e.target.closest('.analysis-tab-btn');
+        if (!button) return;
+
+        const panelId = button.dataset.tabPanel;
+        if (!panelId) return;
+
+        // 1. 모든 탭 비활성화
+        analysisTabs.querySelectorAll('.analysis-tab-btn').forEach(btn => {
+            btn.classList.remove('text-blue-600', 'border-blue-600');
+            btn.classList.add('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:border-gray-300');
+        });
+
+        // 2. 클릭한 탭 활성화
+        button.classList.add('text-blue-600', 'border-blue-600');
+        button.classList.remove('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:border-gray-300');
+
+        // 3. 모든 패널 숨기기
+        document.querySelectorAll('.analysis-tab-panel').forEach(panel => {
+            panel.classList.add('hidden');
+        });
+
+        // 4. 대상 패널 보이기
+        const panelToShow = document.getElementById(panelId);
+        if (panelToShow) {
+            panelToShow.classList.remove('hidden');
+        }
+    });
+}
+
+// ✅ [추가] '개인별 통계' 직원 선택 드롭다운 리스너
+const analysisMemberSelect = document.getElementById('analysis-member-select');
+if (analysisMemberSelect) {
+    analysisMemberSelect.addEventListener('change', (e) => {
+        const selectedMember = e.target.value;
+        // ui.js의 renderPersonalAnalysis 함수 호출 (이 함수는 ui.js에서 수정될 예정)
+        renderPersonalAnalysis(selectedMember, appState);
+    });
+}
   
 } // <-- ✅ main() 함수가 "여기서" 올바르게 닫힘
 
