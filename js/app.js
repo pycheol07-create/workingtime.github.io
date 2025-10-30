@@ -2011,6 +2011,10 @@ if (openQuantityModalTodayBtn) {
                 // 2. 수량이 요약/분석에 영향을 줄 수 있으므로 기본 렌더링 호출
                 render();
 
+                // ✅ --- [호출 추가] ---
+                updateDashboardQuantitiesUI(); // 저장된 새 수량으로 현황판 UI 직접 업데이트
+                // ✅ --- [호출 추가 끝] ---
+
                 // 3. 현황판 UI 동기화 로직
                 try {
                     console.log("Syncing quantities to dashboard:", newQuantities); // 확인용 로그
@@ -3694,6 +3698,11 @@ async function startAppAfterLogin(user) {
 
       renderDashboardLayout(appConfig); 
       render(); 
+
+      // ✅ --- [호출 추가] ---
+      updateDashboardQuantitiesUI(); // 로드된 appState 기준으로 현황판 수량 업데이트
+      // ✅ --- [호출 추가 끝] ---
+
       if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
     } catch (parseError) {
@@ -3702,6 +3711,9 @@ async function startAppAfterLogin(user) {
       appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
       renderDashboardLayout(appConfig); 
       render();
+      // ✅ --- [호출 추가 - 오류 시에도 UI 초기화] ---
+      updateDashboardQuantitiesUI(); // 오류 발생 시에도 0으로 초기화된 현황판 표시
+      // ✅ --- [호출 추가 끝] ---
       if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
     }
@@ -3711,6 +3723,9 @@ async function startAppAfterLogin(user) {
     appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
     renderDashboardLayout(appConfig); 
     render();
+    // ✅ --- [호출 추가 - 오류 시에도 UI 초기화] ---
+    updateDashboardQuantitiesUI(); // 오류 발생 시에도 0으로 초기화된 현황판 표시
+    // ✅ --- [호출 추가 끝] ---
     if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
     if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
   });
