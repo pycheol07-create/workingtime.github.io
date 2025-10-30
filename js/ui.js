@@ -215,7 +215,7 @@ export const renderTaskAnalysis = (appState, appConfig) => {
 };
 
 /**
- * ✅ [수정] 개인별 통계 렌더링 함수 (실시간 상태, 휴식 시간, 전체 업무 목록)
+ * ✅ [수정] 개인별 통계 렌더링 함수 (총 비업무시간 08:30 기준으로 변경)
  */
 export const renderPersonalAnalysis = (selectedMember, appState) => {
     const container = document.getElementById('analysis-personal-stats-container');
@@ -231,14 +231,18 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         r => r.member === selectedMember
     );
 
+    // 🚨 [수정] 기록이 없어도 08:30이 지났다면 비업무시간을 표시해야 하므로,
+    // 이 검사를 '현재 상태'와 '업무 목록' 렌더링 시점으로 이동합니다.
+    /*
     if (memberRecords.length === 0) {
         container.innerHTML = `<p class="text-center text-gray-500">${selectedMember} 님은 오늘 업무 기록이 없습니다.</p>`;
         return;
     }
+    */
 
     const now = getCurrentTime(); // 실시간 계산을 위한 현재 시간
 
-    // 2. 현재 상태 파악
+    // 2. 현재 상태 파악 (기존과 동일)
     const ongoingRecord = memberRecords.find(r => r.status === 'ongoing');
     const pausedRecord = memberRecords.find(r => r.status === 'paused');
 
@@ -257,22 +261,13 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         if (leaveInfo) {
              currentStatusHtml = `<span class="ml-2 text-sm font-semibold text-gray-500">${leaveInfo.type} 중</span>`;
         } else {
+             // 🚨 [수정] 기록이 없는 경우 '대기 중'
              currentStatusHtml = `<span class="ml-2 text-sm font-semibold text-green-600">대기 중</span>`;
         }
     }
 
-    // 3. 총 휴식 시간 계산
-    let totalBreakMinutes = 0;
-    memberRecords.forEach(record => {
-        (record.pauses || []).forEach(pause => {
-            // 'break' 타입이거나, 타입이 없는 구(old) 데이터
-            if (pause.end && (pause.type === 'break' || !pause.type)) {
-                totalBreakMinutes += calcElapsedMinutes(pause.start, pause.end, []);
-            }
-        });
-    });
-
-    // 4. 업무별 누적 시간 (실시간 반영)
+    // 4. 업무별 누적 시간 (실시간 반영) - (기존과 동일)
+    // (totalLiveMinutes는 '순수 업무 시간'의 총합입니다)
     const taskTimes = memberRecords.reduce((acc, r) => {
         let duration = 0;
         if (r.status === 'completed') {
@@ -288,7 +283,23 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     const sortedTasks = Object.entries(taskTimes).sort(([, a], [, b]) => b - a);
     const totalLiveMinutes = sortedTasks.reduce((sum, [, minutes]) => sum + minutes, 0);
 
-    // 5. HTML 렌더링
+    // ✅ [수정] 5. 총 비업무시간 계산 (08:30 기준)
+    let totalNonWorkMinutes = 0;
+    const fixedStartTime = "08:30"; // 고정 출근 시간
+    
+    // 5a. 현재 시간이 08:30 이전이면 비업무시간은 0
+    if (now > fixedStartTime) {
+        // 5b. (08:30 ~ 현재 시간)의 *전체* 경과 시간
+        // (pauses를 빈 배열[]로 전달하여 휴식 시간을 빼지 않도록 함)
+        const totalSpanMinutes = calcElapsedMinutes(fixedStartTime, now, []);
+        
+        // 5c. 비업무시간 = (전체 경과 시간) - (순수 업무 시간)
+        // (순수 업무 시간이 더 많은 경우(08:30 이전 근무) 0으로 보정)
+        totalNonWorkMinutes = Math.max(0, totalSpanMinutes - totalLiveMinutes);
+    }
+    // (08:30 이전이면 0으로 유지됨)
+
+    // ✅ [수정] 6. HTML 렌더링 (라벨 및 값 변경)
     let html = `
         <h4 class="text-lg font-bold text-gray-800 mb-3">${selectedMember} 님 요약</h4>
         <div class="grid grid-cols-3 gap-4 mb-4 text-center">
@@ -301,8 +312,8 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
                 <div class="text-lg font-bold text-blue-600">${formatDuration(totalLiveMinutes)}</div>
             </div>
              <div class="bg-gray-50 p-2 rounded-lg">
-                <div class="text-xs text-gray-500">총 휴식 시간</div>
-                <div class="text-lg font-bold text-gray-700">${formatDuration(Math.round(totalBreakMinutes))}</div>
+                <div class="text-xs text-gray-500">총 비업무시간</div>
+                <div class="text-lg font-bold text-gray-700">${formatDuration(Math.round(totalNonWorkMinutes))}</div>
             </div>
         </div>
 
@@ -311,6 +322,8 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
             <ul class="space-y-1 max-h-40 overflow-y-auto">
     `;
 
+    // 🚨 [수정] 기록이 있는지 여부(memberRecords.length)가 아닌,
+    // 계산된 업무 시간(sortedTasks.length)이 있는지 확인
     if (sortedTasks.length > 0) {
         sortedTasks.forEach(([task, minutes]) => {
             if (minutes > 0) { // 0분 이상인 것만 표시
@@ -323,7 +336,8 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
             }
         });
     } else {
-        html += `<li class="text-sm text-gray-500">데이터 없음</li>`;
+        // 🚨 [수정] 기록이 없는 경우 메시지 표시
+        html += `<li class="text-sm text-gray-500 text-center">수행한 업무 없음</li>`;
     }
 
     html += `
