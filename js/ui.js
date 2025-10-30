@@ -334,7 +334,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     container.innerHTML = html;
 };
 
-// ✅ [수정] renderRealtimeStatus (시작 시간 수정 위한 data-* 속성 추가)
+// ✅ [수정] renderRealtimeStatus (모든 근태 카드에 data-action="edit-leave-record" 추가)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     // === ✅ [수정] 현재 사용자 정보 가져오기 (함수 상단으로 이동) ===
     const currentUserRole = appState.currentUserRole || 'user';
@@ -567,7 +567,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     // ✅ [수정] 모바일에서도 헤더가 보이도록 'hidden' 클래스 제거, 토글 버튼 추가
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `
-        <h3 class="text-lg font-bold text-gray-700 hidden md:block">전체 팀원 현황 (클릭하여 근태 설정/취소)</h3>
+        <h3 class="text-lg font-bold text-gray-700 hidden md:block">전체 팀원 현황 (클릭하여 근태 설정/취소/수정)</h3>
         <h3 class="text-lg font-bold text-gray-700 md:hidden">팀원 현황</h3>
         <button id="toggle-all-members-mobile"
                 class="md:hidden bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-xs py-1 px-2 rounded-md transition active:scale-[0.98]">
@@ -631,9 +631,23 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClass} ${widthClass} flex-col justify-center`;
             // ============================================
 
-            card.dataset.memberToggleLeave = member;
+            // ✅ [수정] data-action을 설정 (근태 중이면 edit-leave-record, 아니면 member-toggle-leave)
+            card.dataset.memberName = member; // 공통: 이름
+            if (isOnLeave) {
+                // [수정] 근태 중이면 무조건 수정 모달 열기
+                card.dataset.action = 'edit-leave-record'; 
+                card.dataset.leaveType = leaveInfo.type;
+                card.dataset.startTime = leaveInfo.startTime || ''; // 식별자
+                card.dataset.startDate = leaveInfo.startDate || ''; // 식별자
+                card.dataset.endTime = leaveInfo.endTime || '';
+                card.dataset.endDate = leaveInfo.endDate || '';
+                
+            } else {
+                // [수정] 근태 중이 아니면 근태 설정 모달 열기 (기존)
+                card.dataset.action = 'member-toggle-leave'; 
+            }
             
-            // ✅ [수정] 권한에 따라 커서/투명도 조절
+            // ✅ [수정] 권한에 따라 커서/투명도 조절 (근태 중일 때도 수정 가능하도록)
             if (!isWorking) {
                 // 업무 중이 아닐 때
                 if (currentUserRole === 'admin' || isSelf) {
@@ -644,7 +658,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     card.classList.add('cursor-not-allowed', 'opacity-70'); 
                 }
             } else {
-                // 업무 중이면 (원래 로직대로) 비활성화
+                // 업무 중이면 비활성화
                 card.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
@@ -703,8 +717,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         activePartTimers.forEach(pt => {
              const card = document.createElement('button');
              card.type = 'button';
-             card.dataset.memberToggleLeave = pt.name;
-
+             
              const isSelfAlba = (pt.name === currentUserName); // ✅ [추가] 본인 확인 (알바)
 
              // === 📌 [재수정] 알바 카드 className 설정 ===
@@ -714,14 +727,28 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClassAlba} ${widthClassAlba} flex-col justify-center`;
              // ===========================================
 
-
              const currentlyWorkingTask = workingMembers.get(pt.name);
              const isPaused = pausedMembers.has(pt.name);
              const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = currentlyWorkingTask || isPaused;
 
-             // ✅ [수정] 권한에 따라 커서/투명도 조절
+            // ✅ [수정] data-action을 설정 (근태 중이면 edit-leave-record, 아니면 member-toggle-leave)
+            card.dataset.memberName = pt.name; // 공통: 이름
+            if (isAlbaOnLeave) {
+                // [수정] 근태 중이면 무조건 수정 모달 열기
+                card.dataset.action = 'edit-leave-record';
+                card.dataset.leaveType = albaLeaveInfo.type;
+                card.dataset.startTime = albaLeaveInfo.startTime || ''; // 식별자
+                card.dataset.startDate = albaLeaveInfo.startDate || ''; // 식별자
+                card.dataset.endTime = albaLeaveInfo.endTime || '';
+                card.dataset.endDate = albaLeaveInfo.endDate || '';
+            } else {
+                // [수정] 근태 중이 아니면 근태 설정 모달 열기 (기존)
+                card.dataset.action = 'member-toggle-leave';
+            }
+
+             // ✅ [수정] 권한에 따라 커서/투명도 조절 (근태 중일 때도 수정 가능하도록)
              if (!isAlbaWorking) {
                  if (currentUserRole === 'admin' || isSelfAlba) {
                     card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
