@@ -533,6 +533,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
+            // === ⬇️ [수정] 여기 <button> 3개를 <div>로 변경 ⬇️ ===
             card.innerHTML = `
                 <div class="flex-grow">
                     <div class="font-bold text-lg ${titleClass} break-keep">${task}</div>
@@ -541,17 +542,18 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
                 </div>
                 <div class="mt-auto flex gap-2 pt-2">
-                    <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
+                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
                         <span class="text-center leading-tight">인원<br>추가</span>
-                    </button>
-                    <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
+                    </div>
+                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
                         <span class="text-center leading-tight">전체<br>정지</span>
-                    </button>
-                    <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
+                    </div>
+                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
                         <span class="text-center leading-tight">전체<br>종료</span>
-                    </button>
+                    </div>
                 </div>
             `;
+            // === ⬆️ [수정] 여기 <button> 3개를 <div>로 변경 ⬆️ ===
         }
         presetGrid.appendChild(card);
     });
