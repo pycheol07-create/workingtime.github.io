@@ -129,8 +129,6 @@ function renderAdminUI(config) {
     renderQuantityTasks(config.quantityTaskTypes || []);
     // ✅ [추가] 연동 맵 렌더링 호출
     renderQuantityToDashboardMapping(config);
-    // ✅ [추가] 공지사항 렌더링 호출
-    renderAnnouncementConfig(config);
 }
 
 function renderTeamGroups(teamGroups, memberWages, memberEmails) { // ✅ memberEmails 파라미터 추가
@@ -367,15 +365,6 @@ function renderQuantityToDashboardMapping(config) {
     });
 }
 
-/**
- * ✅ [신규] 업무 공지사항 설정 UI를 렌더링합니다.
- */
-function renderAnnouncementConfig(config) {
-    const textarea = document.getElementById('work-announcement-input');
-    if (textarea) {
-        textarea.value = config.workAnnouncement || '';
-    }
-}
 
 // --- 이벤트 리스너 설정 ---
 
@@ -990,7 +979,6 @@ async function handleSaveAll() {
             // ⛔️ [삭제] dashboardQuantities: {},
             dashboardCustomItems: {}, // ✅ [유지] 커스텀 항목 저장 객체
             quantityToDashboardMap: {}, // ✅ [추가] 연동 맵 초기화
-            workAnnouncement: '', // ✅ [추가] 공지사항 초기화
             keyTasks: [],
             taskGroups: {},
             quantityTaskTypes: [],
@@ -1114,13 +1102,7 @@ async function handleSaveAll() {
             }
         });
 
-        // ✅ [추가] 8. 공지사항 정보 읽기
-        const announcementInput = document.getElementById('work-announcement-input');
-        if (announcementInput) {
-            newConfig.workAnnouncement = announcementInput.value.trim();
-        }
-
-        // [수정] 9. 데이터 유효성 검사 (기존 7번)
+        // [수정] 8. 데이터 유효성 검사 (기존 7번)
         const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
         const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
         const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
@@ -1137,14 +1119,13 @@ async function handleSaveAll() {
             alert(errorMsg);
             return; // 저장 중단
         }
-        
 
-        // ✅ [수정] 10. Firestore에 저장 (기존 9번 -> 10번으로)
+        // [수정] 9. Firestore에 저장 (기존 8번)
         await saveAppConfig(db, newConfig);
         appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');
 
-        // [수정] 11. UI 다시 렌더링 (기존 9번)
+        // [수정] 10. UI 다시 렌더링 (기존 9번)
         renderAdminUI(appConfig);
         setupEventListeners(); 
 
