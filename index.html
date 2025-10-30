@@ -8,6 +8,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 </head>
 <body class="bg-gray-100 text-gray-800">
     <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2 w-full max-w-xs"></div>
@@ -405,6 +408,7 @@
                 <div id="history-main-tabs" class="flex gap-6">
                     <button data-main-tab="work" class="history-main-tab-btn py-3 font-semibold text-blue-600 border-b-2 border-blue-600">업무 이력</button>
                     <button data-main-tab="attendance" class="history-main-tab-btn py-3 font-medium text-gray-500">근태 이력</button>
+                    <button data-main-tab="trends" class="history-main-tab-btn py-3 font-medium text-gray-500">📈 트렌드 분석</button>
                 </div>
             </div>
             <div class="flex-grow flex overflow-hidden">
@@ -440,10 +444,29 @@
                             <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
                         </div>
                     </div>
-                </div>
+
+                    <div id="trend-analysis-panel" class="hidden flex flex-col h-full p-6 overflow-y-auto bg-gray-50 space-y-8">
+                        <div>
+                            <h3 class="text-xl font-bold mb-4 text-gray-800">주요 지표 트렌드 (최근 30일)</h3>
+                            
+                            <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                                <h4 class="text-lg font-semibold text-gray-700 mb-2">📊 분당 평균 처리량 (개/분)</h4>
+                                <div class="h-64"><canvas id="kpi-chart-throughput"></canvas></div>
+                            </div>
+
+                            <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                                <h4 class="text-lg font-semibold text-gray-700 mb-2">💰 개당 평균 처리비용 (원/개)</h4>
+                                <div class="h-64"><canvas id="kpi-chart-cost"></canvas></div>
+                            </div>
+
+                            <div class="bg-white p-4 rounded-lg shadow-sm">
+                                <h4 class="text-lg font-semibold text-gray-700 mb-2">⏳ 총 비업무시간 (분)</h4>
+                                <div class="h-64"><canvas id="kpi-chart-nonwork"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
             </div>
-        </div>
-    </div>
 
             <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>

@@ -24,7 +24,8 @@ import {
   renderWeeklyHistory,
   renderMonthlyHistory,
   renderDashboardLayout,
-  renderManualAddModalDatalists // ✅ [추가]
+  renderManualAddModalDatalists, // ✅ [추가]
+  renderTrendAnalysisCharts // ✅ [추가]
 } from './ui.js';
 
 // ========== DOM Elements ==========
@@ -77,6 +78,7 @@ const workHistoryPanel = document.getElementById('work-history-panel');
 const attendanceHistoryPanel = document.getElementById('attendance-history-panel');
 const attendanceHistoryTabs = document.getElementById('attendance-history-tabs');
 const attendanceHistoryViewContainer = document.getElementById('attendance-history-view-container');
+const trendAnalysisPanel = document.getElementById('trend-analysis-panel');
 const historyAttendanceDailyView = document.getElementById('history-attendance-daily-view');
 const historyAttendanceWeeklyView = document.getElementById('history-attendance-weekly-view');
 const historyAttendanceMonthlyView = document.getElementById('history-attendance-monthly-view');
@@ -2688,6 +2690,8 @@ if (confirmHistoryDeleteBtn) {
   });
 }
 
+// === app.js (historyMainTabs 리스너 교체) ===
+
 if (historyMainTabs) {
   historyMainTabs.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-main-tab]');
@@ -2695,25 +2699,49 @@ if (historyMainTabs) {
       const tabName = btn.dataset.mainTab;
       activeMainHistoryTab = tabName;
 
+      // 모든 탭 비활성화
       document.querySelectorAll('.history-main-tab-btn').forEach(b => {
           b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
           b.classList.add('font-medium', 'text-gray-500');
       });
+      // 클릭한 탭 활성화
       btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
       btn.classList.remove('font-medium', 'text-gray-500');
 
+      // ✅ [추가] 날짜 목록 컨테이너 (왼쪽)
+      const dateListContainer = document.getElementById('history-date-list-container');
+
+      // 패널 및 날짜 목록 표시/숨김 처리
       if (tabName === 'work') {
         if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
         if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
+        if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden'); // ✅ [추가]
+        if (dateListContainer) dateListContainer.style.display = 'block'; // ✅ [추가]
+
+        // 현재 활성화된 서브 탭 기준으로 뷰 전환
         const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
         const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
         switchHistoryView(view);
-      } else {
+      
+      } else if (tabName === 'attendance') { // ✅ [수정] else if
         if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
         if (attendanceHistoryPanel) attendanceHistoryPanel.classList.remove('hidden');
+        if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden'); // ✅ [추가]
+        if (dateListContainer) dateListContainer.style.display = 'block'; // ✅ [추가]
+
+        // 현재 활성화된 서브 탭 기준으로 뷰 전환
         const activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
         const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
         switchHistoryView(view);
+      
+      } else if (tabName === 'trends') { // ✅ [추가]
+        if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
+        if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
+        if (trendAnalysisPanel) trendAnalysisPanel.classList.remove('hidden');
+        if (dateListContainer) dateListContainer.style.display = 'none'; // ✅ [추가] 날짜 목록 숨기기
+        
+        // 차트 렌더링 (이력 데이터와 설정값을 넘겨줌)
+        renderTrendAnalysisCharts(allHistoryData, appConfig);
       }
     }
   });
