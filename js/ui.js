@@ -313,9 +313,9 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
                 <div class="text-lg font-bold text-blue-600">${formatDuration(totalLiveMinutes)}</div>
             </div>
              <div class="bg-gray-50 p-2 rounded-lg">
-                {/* ✅ [수정] 텍스트 변경 */}
+                
                 <div class="text-xs text-gray-500">총 비업무 시간 (추정)</div>
-                {/* ✅ [수정] 변수명 변경 */}
+                
                 <div class="text-lg font-bold text-gray-700">${formatDuration(Math.round(totalNonWorkMinutes))}</div>
             </div>
         </div>
