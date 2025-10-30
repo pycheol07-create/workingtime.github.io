@@ -764,10 +764,10 @@ export const renderDashboardLayout = (appConfig) => {
         const isQuantity = def.isQuantity === true; // isQuantity 확인
 
         if (isQuantity) {
-             const currentQuantity = quantities[id] ?? 0;
-             valueContent = `<p id="${def.valueId}">${currentQuantity}</p>`;
-        } else {
+             // ✅ [수정] 초기값은 항상 0으로 설정
              valueContent = `<p id="${def.valueId}">0</p>`;
+        } else {
+             valueContent = `<p id="${def.valueId}">0</p>`; // 비수량 항목도 초기값 0
         }
 
         // isQuantity일 경우 dashboard-card-quantity 클래스 추가 (유지)
@@ -857,6 +857,46 @@ export const updateSummary = (appState, appConfig) => {
 
     // total-work-time은 타이머(updateElapsedTimes)가 관리
     // isQuantity 항목 (기본 및 커스텀)은 업데이트하지 않음 (config 로드 시 설정된 값 유지)
+
+    // --- 👇 [추가] 수량 항목 업데이트 로직 ---
+    const quantitiesFromState = appState.taskQuantities || {}; // Firestore에서 로드된 최신 수량
+    const taskNameToDashboardIdMap = {}; // 처리량 이름 -> 현황판 ID 매핑 (onConfirm과 유사하게 생성)
+
+    // 1. 명시적 매핑
+    taskNameToDashboardIdMap['국내배송'] = 'domestic-invoice';
+    // *여기에 이름 다른 항목 추가*
+
+    // 2. 이름 같은 표준 항목 매핑 (현황판 ID 기준)
+    Object.keys(DASHBOARD_ITEM_DEFINITIONS).forEach(stdId => {
+        const def = DASHBOARD_ITEM_DEFINITIONS[stdId];
+        const titleKey = def.title.replace(/<br\s*\/?>/gi, ' ').trim();
+        // ID 자체가 Task 이름이거나 Title이 Task 이름이면 매핑
+        if (!taskNameToDashboardIdMap[stdId]) taskNameToDashboardIdMap[stdId] = stdId;
+        if (!taskNameToDashboardIdMap[titleKey]) taskNameToDashboardIdMap[titleKey] = stdId;
+    });
+
+    // 3. 이름 같은 커스텀 항목 매핑 (현황판 ID 기준)
+    if (appConfig.dashboardCustomItems) {
+        Object.keys(appConfig.dashboardCustomItems).forEach(customId => {
+            const customDef = appConfig.dashboardCustomItems[customId];
+            const customTitleKey = customDef.title.trim();
+            // ID 자체가 Task 이름이거나 Title이 Task 이름이면 매핑
+            if (!taskNameToDashboardIdMap[customId]) taskNameToDashboardIdMap[customId] = customId;
+            if (!taskNameToDashboardIdMap[customTitleKey]) taskNameToDashboardIdMap[customTitleKey] = customId;
+        });
+    }
+
+    // 4. appState의 수량을 현황판 요소에 반영
+    for (const task in quantitiesFromState) {
+        const quantity = quantitiesFromState[task] || 0;
+        const targetDashboardId = taskNameToDashboardIdMap[task]; // 매핑된 현황판 ID 찾기
+
+        if (targetDashboardId && elements[targetDashboardId]) { // 해당 현황판 요소가 존재하는지 확인
+            elements[targetDashboardId].textContent = quantity; // 요소의 텍스트 업데이트
+            // console.log(`updateSummary: Updated ${targetDashboardId} with ${quantity}`); // 확인용 로그
+        }
+    }
+    // --- 👆 [추가 끝] ---
 };
 
 // === ui.js (수정) ===
