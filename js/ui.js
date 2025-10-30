@@ -858,35 +858,37 @@ export const updateSummary = (appState, appConfig) => {
     // total-work-time은 타이머(updateElapsedTimes)가 관리
     // isQuantity 항목 (기본 및 커스텀)은 업데이트하지 않음 (config 로드 시 설정된 값 유지)
 
-    // --- 👇 [추가] 수량 항목 업데이트 로직 ---
+    // --- 👇 [교체 시작] 수량 항목 업데이트 로직 ---
     const quantitiesFromState = appState.taskQuantities || {}; // Firestore에서 로드된 최신 수량
-    const taskNameToDashboardIdMap = {}; // 처리량 이름 -> 현황판 ID 매핑 (onConfirm과 유사하게 생성)
+    const taskNameToDashboardIdMap = {}; // 처리량 이름 -> 현황판 ID 매핑
 
-    // 1. 명시적 매핑
+    // 1. 명시적 매핑 (가장 우선순위 높음)
     taskNameToDashboardIdMap['국내배송'] = 'domestic-invoice';
-    // *여기에 이름 다른 항목 추가*
+    // *여기에 이름이 다른 항목이 더 있다면 추가하세요.*
+    // 예: taskNameToDashboardIdMap['다른처리량이름'] = 'other-dashboard-id';
 
-    // 2. 이름 같은 표준 항목 매핑 (현황판 ID 기준)
-    Object.keys(DASHBOARD_ITEM_DEFINITIONS).forEach(stdId => {
-        const def = DASHBOARD_ITEM_DEFINITIONS[stdId];
-        const titleKey = def.title.replace(/<br\s*\/?>/gi, ' ').trim();
-        // ID 자체가 Task 이름이거나 Title이 Task 이름이면 매핑
-        if (!taskNameToDashboardIdMap[stdId]) taskNameToDashboardIdMap[stdId] = stdId;
-        if (!taskNameToDashboardIdMap[titleKey]) taskNameToDashboardIdMap[titleKey] = stdId;
-    });
-
-    // 3. 이름 같은 커스텀 항목 매핑 (현황판 ID 기준)
-    if (appConfig.dashboardCustomItems) {
-        Object.keys(appConfig.dashboardCustomItems).forEach(customId => {
-            const customDef = appConfig.dashboardCustomItems[customId];
-            const customTitleKey = customDef.title.trim();
-            // ID 자체가 Task 이름이거나 Title이 Task 이름이면 매핑
-            if (!taskNameToDashboardIdMap[customId]) taskNameToDashboardIdMap[customId] = customId;
-            if (!taskNameToDashboardIdMap[customTitleKey]) taskNameToDashboardIdMap[customTitleKey] = customId;
-        });
+    // 2. 이름/ID가 같은 표준 및 커스텀 항목 매핑 (명시적 매핑에 없는 경우)
+    //   (allDefinitions에서 수량 항목만 대상으로)
+    for (const dashboardId in allDefinitions) {
+        const def = allDefinitions[dashboardId];
+        // 수량 항목이고, 현황판 ID 자체가 처리량 이름과 같을 수 있는 경우 (아직 매핑 안 됐으면)
+        if (def.isQuantity && !Object.values(taskNameToDashboardIdMap).includes(dashboardId)) {
+            if (!taskNameToDashboardIdMap[dashboardId]) {
+                 taskNameToDashboardIdMap[dashboardId] = dashboardId;
+            }
+        }
+        // 수량 항목이고, 현황판 제목이 처리량 이름과 같을 수 있는 경우 (아직 매핑 안 됐으면)
+        if (def.isQuantity) {
+            const titleKey = def.title.replace(/<br\s*\/?>/gi, ' ').trim();
+             if (!taskNameToDashboardIdMap[titleKey]) {
+                 taskNameToDashboardIdMap[titleKey] = dashboardId;
+             }
+        }
     }
 
-    // 4. appState의 수량을 현황판 요소에 반영
+    console.log("Final map for updateSummary:", taskNameToDashboardIdMap); // 최종 매핑 확인
+
+    // 3. appState의 수량을 현황판 요소에 반영
     for (const task in quantitiesFromState) {
         const quantity = quantitiesFromState[task] || 0;
         const targetDashboardId = taskNameToDashboardIdMap[task]; // 매핑된 현황판 ID 찾기
@@ -894,9 +896,11 @@ export const updateSummary = (appState, appConfig) => {
         if (targetDashboardId && elements[targetDashboardId]) { // 해당 현황판 요소가 존재하는지 확인
             elements[targetDashboardId].textContent = quantity; // 요소의 텍스트 업데이트
             // console.log(`updateSummary: Updated ${targetDashboardId} with ${quantity}`); // 확인용 로그
+        } else {
+             // console.warn(`updateSummary: No target element found for task '${task}' (Mapped ID: ${targetDashboardId})`);
         }
     }
-    // --- 👆 [추가 끝] ---
+    // --- 👆 [교체 끝] ---
 };
 
 // === ui.js (수정) ===
