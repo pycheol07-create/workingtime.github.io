@@ -34,8 +34,9 @@ export const calcElapsedMinutes = (start, end, pauses = []) => {
   return Math.max(0, total / 60000);
 };
 
-export const formatTimeTo24H = (timeStr) => {
+// === utils.js (36번째 줄부터 파일 끝까지 교체) ===
 
+// ✅ [수정] 중복 선언 및 불필요한 괄호 제거
 export const formatTimeTo24H = (timeStr) => {
     if (!timeStr) return '';
     const [hours, minutes] = timeStr.split(':');
@@ -90,4 +91,6 @@ export const displayCurrentDate = () => {
     const dayOfWeek = weekdays[now.getDay()];
     const dateString = `${year}년 ${month}월 ${day}일 (${dayOfWeek})`;
     document.getElementById('current-date-display').textContent = dateString;
-}
+};
+
+// ⛔️ [삭제] 파일 끝에 있던 불필요한 '}' 괄호를 제거했습니다.
