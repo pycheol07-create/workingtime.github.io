@@ -1954,50 +1954,20 @@ if (openQuantityModalTodayBtn) {
                     const allDefinitions = getAllDashboardDefinitions(appConfig); // 모든 현황판 항목 정의
                     const dashboardItemIds = appConfig.dashboardItems || [];     // 현재 표시 중인 항목 ID 목록
                     const quantityTaskTypes = appConfig.quantityTaskTypes || []; // 처리량 입력 대상 작업 목록
+                    const quantitiesFromState = appState.taskQuantities || {}; // Firestore에서 로드된 최신 수량
 
-                    // --- 처리량 작업 이름 -> 현황판 ID 매핑 ---
-                    const taskNameToDashboardIdMap = {};
-
-                    // 1. 명시적 매핑 (이름 다른 경우)
-                    taskNameToDashboardIdMap['국내배송'] = 'domestic-invoice';
-                    // *여기에 이름이 다른 항목이 더 있다면 추가하세요.*
-                    // 예: taskNameToDashboardIdMap['다른처리량이름'] = 'other-dashboard-id';
-
-                    // 2. 이름이 같은 표준 항목 매핑 (처리량 작업 목록에 있는 것만)
-                    Object.keys(DASHBOARD_ITEM_DEFINITIONS).forEach(stdId => {
-                        const def = DASHBOARD_ITEM_DEFINITIONS[stdId];
-                        const titleKey = def.title.replace(/<br\s*\/?>/gi, ' ').trim(); // <br> 제거한 제목
-
-                        // stdId 자체가 처리량 작업 이름이거나, titleKey가 처리량 작업 이름인 경우 매핑
-                        if (quantityTaskTypes.includes(stdId) && !taskNameToDashboardIdMap[stdId]) {
-                            taskNameToDashboardIdMap[stdId] = stdId;
-                        }
-                        if (quantityTaskTypes.includes(titleKey) && !taskNameToDashboardIdMap[titleKey]) {
-                            taskNameToDashboardIdMap[titleKey] = stdId;
-                        }
-                    });
-
-                    // 3. 이름이 같은 커스텀 항목 매핑 (처리량 작업 목록에 있는 것만)
-                    if (appConfig.dashboardCustomItems) {
-                        Object.keys(appConfig.dashboardCustomItems).forEach(customId => {
-                            const customDef = appConfig.dashboardCustomItems[customId];
-                            const customTitleKey = customDef.title.trim();
-
-                            // customId 자체가 처리량 작업 이름이거나, customTitleKey가 처리량 작업 이름인 경우 매핑
-                            if (quantityTaskTypes.includes(customId) && !taskNameToDashboardIdMap[customId]) {
-                                taskNameToDashboardIdMap[customId] = customId;
-                            }
-                             if (quantityTaskTypes.includes(customTitleKey) && !taskNameToDashboardIdMap[customTitleKey]) {
-                                taskNameToDashboardIdMap[customTitleKey] = customId;
-                            }
-                        });
-                    }
+                    // ✅ [수정] 처리량 이름 -> 현황판 ID 매핑 (설정값 사용)
+                    const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
+                    // ⛔️ [삭제] 하드코딩된 매핑 로직 (Object.keys(DASHBOARD_ITEM_DEFINITIONS)...) 전체 삭제
+                    
                     // --- 매핑 로직 끝 ---
 
                     console.log("Using map for sync:", taskNameToDashboardIdMap); // 최종 매핑 확인용 로그
 
-                    // 4. 새로 입력된 처리량(newQuantities)을 순회하며 현황판 업데이트
-                    for (const task in newQuantities) {
+                    console.log("Using map for sync:", taskNameToDashboardIdMap); // 최종 매핑 확인용 로그
+
+                    // 4. appState의 수량을 현황판 요소에 반영
+                    for (const task in quantitiesFromState) {
                         // 입력된 task 이름이 quantityTaskTypes 목록에 있는지 먼저 확인 (안전장치)
                         if (!quantityTaskTypes.includes(task)) {
                             console.log(`Skipping sync for task '${task}' as it's not in quantityTaskTypes.`);

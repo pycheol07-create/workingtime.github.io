@@ -63,6 +63,8 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberWages = { ...defaultData.memberWages, ...(loadedData.memberWages || {}) };
             mergedConfig.memberEmails = { ...defaultData.memberEmails, ...(loadedData.memberEmails || {}) };
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
+            // ✅ [추가] 처리량-현황판 연동 맵 병합
+            mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
 
 
             return mergedConfig;
@@ -160,6 +162,10 @@ function getDefaultConfig() {
         },
         // ✅ [추가] 커스텀 현황판 항목 정의
         dashboardCustomItems: {},
+        // ✅ [추가] 커스텀 현황판 항목 정의
+        dashboardCustomItems: {},
+        // ✅ [추가] 처리량-현황판 연동 맵
+        quantityToDashboardMap: {},
         taskGroups: {
             '공통': ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업'],
             '담당': ['개인담당업무', '상.하차', '검수', '아이롱', '오류'],

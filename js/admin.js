@@ -127,6 +127,8 @@ function renderAdminUI(config) {
     renderKeyTasks(config.keyTasks || []);
     renderTaskGroups(config.taskGroups || {});
     renderQuantityTasks(config.quantityTaskTypes || []);
+    // ✅ [추가] 연동 맵 렌더링 호출
+    renderQuantityToDashboardMapping(config);
 }
 
 function renderTeamGroups(teamGroups, memberWages, memberEmails) { // ✅ memberEmails 파라미터 추가
@@ -187,7 +189,7 @@ function renderTeamGroups(teamGroups, memberWages, memberEmails) { // ✅ member
 }
 
 
-// ✅ [수정] 현황판 항목 설정 렌더링 함수 (수량 입력 필드 한 줄로 변경)
+// ✅ [수정] 현황판 항목 설정 렌더링 함수 (수량 입력 필드 완전 삭제)
 function renderDashboardItemsConfig(itemIds, quantities) {
     const container = document.getElementById('dashboard-items-container');
     container.innerHTML = '';
@@ -202,35 +204,20 @@ function renderDashboardItemsConfig(itemIds, quantities) {
 
         const itemEl = document.createElement('div');
         const isQuantity = itemDef.isQuantity === true;
-        // ✅ [수정] flex-wrap 클래스 제거, is-quantity-item 클래스는 유지
+        // ✅ [수정] is-quantity-item 클래스는 유지 (구분용)
         itemEl.className = `flex items-center gap-2 mb-1 p-1 rounded hover:bg-gray-100 dashboard-item-config ${isQuantity ? 'is-quantity-item' : ''}`;
         itemEl.dataset.index = index;
 
-        // 핸들 + 이름 (flex-grow 제거하여 이름 너비 자동 조절)
+        // 핸들 + 이름
         let itemHtml = `
             <span class="drag-handle" draggable="true">☰</span>
-            <span class="dashboard-item-name p-2 ${isQuantity ? 'bg-yellow-50' : 'bg-gray-100'} rounded text-sm font-medium" data-id="${id}">${itemDef.title}</span>
+            <span class="dashboard-item-name flex-grow p-2 ${isQuantity ? 'bg-yellow-50' : 'bg-gray-100'} rounded text-sm font-medium" data-id="${id}">${itemDef.title}</span>
         `;
-
-        // ✅ [수정] 수량 입력 필드 HTML (isQuantity가 true일 때)
-        if (isQuantity) {
-            // 이름 옆에 바로 붙도록 수정, ml-auto로 오른쪽 정렬
-            itemHtml += `
-                <div class="ml-auto flex items-center gap-1"> <label for="qty-${id}" class="text-xs font-medium text-gray-600 whitespace-nowrap">수량:</label>
-                    <input type="number" id="qty-${id}"
-                           class="dashboard-item-quantity w-16 p-1 border border-gray-300 rounded text-sm bg-white" /* 너비 약간 줄임 */
-                           value="${quantities[id] || 0}"
-                           min="0"
-                           data-id="${id}">
-                </div>
-            `;
-        } else {
-            // 수량 항목 아닐 때 공간 채우기 용도 (삭제 버튼 위치 고정)
-            itemHtml += `<div class="flex-grow"></div>`;
-        }
+        
+        // ⛔️ [삭제] isQuantity가 true일 때 수량 입력 필드를 추가하던 <div class="ml-auto...">...</div> 블록 전체 삭제
 
         // 삭제 버튼
-        itemHtml += `<button class="btn btn-danger btn-small delete-dashboard-item-btn ml-2" data-id="${id}">삭제</button>`; // ml-2 추가
+        itemHtml += `<button class="btn btn-danger btn-small delete-dashboard-item-btn ml-2" data-id="${id}">삭제</button>`;
 
         itemEl.innerHTML = itemHtml;
         container.appendChild(itemEl);
@@ -309,6 +296,59 @@ function renderQuantityTasks(quantityTasks) {
             <button class="btn btn-danger btn-small delete-quantity-task-btn" data-index="${index}">삭제</button>
         `; // [수정] handle에 draggable="true" 추가 및 input을 span으로 변경
         container.appendChild(taskEl);
+    });
+}
+
+/**
+ * ✅ [신규] 현황판-처리량 연동 설정 UI를 렌더링합니다.
+ */
+function renderQuantityToDashboardMapping(config) {
+    const container = document.getElementById('quantity-mapping-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const mapping = config.quantityToDashboardMap || {};
+    const quantityTasks = config.quantityTaskTypes || [];
+    const allDefinitions = getAllDashboardDefinitions(config);
+
+    // 1. 선택 가능한 '수량 현황판' 항목 목록 생성
+    const dashboardOptions = [];
+    dashboardOptions.push(`<option value="">-- 연동 안 함 --</option>`);
+    Object.keys(allDefinitions).forEach(id => {
+        const def = allDefinitions[id];
+        if (def.isQuantity) {
+            dashboardOptions.push(`<option value="${id}">${def.title.replace(/<br\s*\/?>/gi, ' ')}</option>`);
+        }
+    });
+
+    if (quantityTasks.length === 0) {
+        container.innerHTML = `<p class="text-sm text-gray-500 text-center">'처리량 집계 업무'에 항목을 먼저 추가해주세요.</p>`;
+        return;
+    }
+    
+    // 2. '처리량 업무' 목록을 순회하며 행 생성
+    quantityTasks.forEach(taskName => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-4 mapping-row p-2 rounded hover:bg-gray-100';
+        row.dataset.taskName = taskName;
+
+        const currentSelection = mapping[taskName] || '';
+
+        row.innerHTML = `
+            <label class="w-1/3 font-semibold text-gray-700">${taskName}</label>
+            <span class="text-gray-400">&rarr;</span>
+            <select class="dashboard-mapping-select w-2/3 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                ${dashboardOptions.join('')}
+            </select>
+        `;
+        
+        // 3. 현재 저장된 값으로 <select> 값 설정
+        const select = row.querySelector('.dashboard-mapping-select');
+        if (select) {
+            select.value = currentSelection;
+        }
+
+        container.appendChild(row);
     });
 }
 
@@ -904,23 +944,24 @@ async function handleSaveAll() {
         const newConfig = {
             teamGroups: [],
             memberWages: {},
-            memberEmails: {}, // ✅ [추가] 이메일 맵 초기화
-            memberRoles: {}, // ✅ [추가] 역할 맵 초기화
+            memberEmails: {}, // ✅ [유지] 이메일 맵 초기화
+            memberRoles: {}, // ✅ [유지] 역할 맵 초기화
             dashboardItems: [],
-            dashboardQuantities: {}, // ✅ 현황판 수량 객체
-            dashboardCustomItems: {}, // ✅ [추가] 커스텀 항목 저장 객체
+            // ⛔️ [삭제] dashboardQuantities: {},
+            dashboardCustomItems: {}, // ✅ [유지] 커스텀 항목 저장 객체
+            quantityToDashboardMap: {}, // ✅ [추가] 연동 맵 초기화
             keyTasks: [],
             taskGroups: {},
             quantityTaskTypes: [],
             defaultPartTimerWage: 10000
         };
         
-        // 0. [추가] 이메일 중복 검사 맵
+        // 0. [유지] 이메일 중복 검사 맵
         const emailCheck = new Map();
         let isEmailDuplicate = false;
         let duplicateEmailValue = '';
 
-        // 1. 팀원 및 시급 정보 읽기 (순서 반영)
+        // 1. [유지] 팀원 및 시급 정보 읽기 (순서 반영)
         document.querySelectorAll('#team-groups-container .team-group-card').forEach(groupCard => {
             const groupName = groupCard.querySelector('.team-group-name').value.trim();
             if (!groupName) return;
@@ -929,9 +970,8 @@ async function handleSaveAll() {
 
             groupCard.querySelectorAll('.member-item').forEach(memberItem => {
                 const memberName = memberItem.querySelector('.member-name').value.trim();
-                const memberEmail = memberItem.querySelector('.member-email').value.trim(); // ✅ [추가] 이메일 값 읽기
+                const memberEmail = memberItem.querySelector('.member-email').value.trim(); 
                 const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
-                // ✅ [추가] 역할 값 읽기
                 const memberRole = memberItem.querySelector('.member-role').value || 'user';
                 
                 if (!memberName) return;
@@ -939,10 +979,9 @@ async function handleSaveAll() {
                 newGroup.members.push(memberName);
                 newConfig.memberWages[memberName] = memberWage;
                 
-                if (memberEmail) { // ✅ [수정] 이메일이 있는 경우에만 역할과 이메일 저장
+                if (memberEmail) { 
                     const emailLower = memberEmail.toLowerCase();
                     
-                    // ✅ [추가] 이메일 중복 검사
                     if (emailCheck.has(emailLower) && emailCheck.get(emailLower) !== memberName) {
                         isEmailDuplicate = true;
                         duplicateEmailValue = memberEmail;
@@ -950,67 +989,58 @@ async function handleSaveAll() {
                     emailCheck.set(emailLower, memberName);
 
                     newConfig.memberEmails[memberName] = memberEmail;
-                    // ✅ [추가] 이메일을 Key로 역할을 저장
                     newConfig.memberRoles[emailLower] = memberRole;
                 }
             });
             newConfig.teamGroups.push(newGroup);
         });
         
-        // ✅ [추가] 1b. 이메일 중복 시 저장 차단
+        // 1b. [유지] 이메일 중복 시 저장 차단
         if (isEmailDuplicate) {
             alert(`[저장 실패] 이메일 주소 '${duplicateEmailValue}'가 여러 팀원에게 중복 할당되었습니다. 이메일 주소는 고유해야 합니다.`);
             return; // 저장 중단
         }
 
 
-        // ✅ [수정] 2. 현황판 항목 순서, 수량 및 커스텀 정의 읽기
-        const allDefinitions = getAllDashboardDefinitions(appConfig); // 현재 로드된 모든 정의 사용
+        // 2. [수정] 현황판 항목 순서 및 커스텀 정의 읽기 (수량 읽기 삭제)
+        const allDefinitions = getAllDashboardDefinitions(appConfig); 
         document.querySelectorAll('#dashboard-items-container .dashboard-item-config').forEach(item => {
             const nameSpan = item.querySelector('.dashboard-item-name');
-            const quantityInput = item.querySelector('.dashboard-item-quantity');
+            // ⛔️ [삭제] quantityInput 변수 삭제
 
             if (nameSpan) {
                 const id = nameSpan.dataset.id;
                 newConfig.dashboardItems.push(id); // 순서 저장
 
-                // 정의 가져오기
                 const itemDef = allDefinitions[id];
-                if (!itemDef) return; // 정의 없으면 무시
+                if (!itemDef) return; 
 
-                // 수량 항목이면 값 읽기
-                if (itemDef.isQuantity && quantityInput) {
-                    const quantity = parseInt(quantityInput.value, 10) || 0;
-                    newConfig.dashboardQuantities[id] = Math.max(0, quantity);
-                }
-
-                // ✅ [추가] 커스텀 항목이면 정의 저장
+                // ⛔️ [삭제] 수량 항목 값 읽기 로직 (if (itemDef.isQuantity...)) 전체 삭제
+                
+                // [유지] 커스텀 항목이면 정의 저장
                 if (id.startsWith('custom-')) {
                     newConfig.dashboardCustomItems[id] = {
                         title: itemDef.title,
-                        isQuantity: true // 커스텀은 항상 수량 항목
+                        isQuantity: true 
                     };
                 }
             }
         });
 
-        // 3. 주요 업무 정보 읽기 (순서 반영)
+        // 3. [유지] 주요 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
-             // [수정] .value -> .textContent
              const taskName = item.querySelector('.key-task-name').textContent.trim();
              if (taskName) newConfig.keyTasks.push(taskName);
         });
 
 
-        // 4. 업무 정보 읽기 (순서 반영)
+        // 4. [유지] 업무 정보 읽기 (순서 반영)
         const orderedTaskGroups = {};
         document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
             const groupNameInput = groupCard.querySelector('.task-group-name');
             const groupName = groupNameInput ? groupNameInput.value.trim() : '';
             if (!groupName) return;
-
             const tasks = [];
-
             groupCard.querySelectorAll('.task-item').forEach(taskItem => {
                 const taskName = taskItem.querySelector('.task-name').value.trim();
                 if (taskName) tasks.push(taskName);
@@ -1020,22 +1050,31 @@ async function handleSaveAll() {
         newConfig.taskGroups = orderedTaskGroups;
 
 
-        // 5. 처리량 업무 정보 읽기 (순서 반영)
+        // 5. [유지] 처리량 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
-            // [수정] .value -> .textContent
             const taskName = item.querySelector('.quantity-task-name').textContent.trim();
             if (taskName) newConfig.quantityTaskTypes.push(taskName);
         });
 
-        // 6. 전역 설정 (알바 시급) 읽기
+        // 6. [유지] 전역 설정 (알바 시급) 읽기
         const wageInput = document.getElementById('default-part-timer-wage');
         if (wageInput) {
             newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
         }
 
-        // [추가] 7. 데이터 유효성 검사
-        const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
+        // ✅ [추가] 7. 처리량-현황판 연동 맵 정보 읽기
+        document.querySelectorAll('#quantity-mapping-container .mapping-row').forEach(row => {
+            const taskName = row.dataset.taskName;
+            const select = row.querySelector('.dashboard-mapping-select');
+            const selectedId = select.value;
+            // 연동 안 함(--)이 아닌 경우에만 저장
+            if (taskName && selectedId) {
+                newConfig.quantityToDashboardMap[taskName] = selectedId;
+            }
+        });
 
+        // [수정] 8. 데이터 유효성 검사 (기존 7번)
+        const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
         const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
         const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
 
@@ -1052,16 +1091,14 @@ async function handleSaveAll() {
             return; // 저장 중단
         }
 
-
-        // 8. Firestore에 저장
+        // [수정] 9. Firestore에 저장 (기존 8번)
         await saveAppConfig(db, newConfig);
         appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');
 
-        // 9. UI 다시 렌더링 (리스너 재설정 포함)
+        // [수정] 10. UI 다시 렌더링 (기존 9번)
         renderAdminUI(appConfig);
-        setupEventListeners(); // 렌더링 후 리스너 재설정
-
+        setupEventListeners(); 
 
     } catch (e) {
         console.error("저장 실패:", e);
