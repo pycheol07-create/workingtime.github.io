@@ -1938,64 +1938,81 @@ if (openQuantityModalTodayBtn) {
         quantityModalContext = {
             mode: 'today',
             dateKey: null,
-            onConfirm: async (newQuantities) => { // ✅ async 유지
+            // ✅ --- [교체 시작] onConfirm 콜백 함수 전체 ---
+            onConfirm: async (newQuantities) => {
                 // 1. 메인 화면 상태(appState) 업데이트
                 appState.taskQuantities = newQuantities;
                 debouncedSaveState(); // Firestore 'daily_data' 저장
                 showToast('오늘의 처리량이 저장되었습니다.');
-                // 수량이 요약/분석에 영향을 줄 수 있으므로 렌더링
+                // 2. 수량이 요약/분석에 영향을 줄 수 있으므로 기본 렌더링 호출
                 render();
 
-                // --- 👇 [추가] 현황판 UI 동기화 로직 ---
+                // 3. 현황판 UI 동기화 로직
                 try {
                     console.log("Syncing quantities to dashboard:", newQuantities); // 확인용 로그
 
-                    const allDefinitions = getAllDashboardDefinitions(appConfig); // 모든 현황판 항목 정의 가져오기
-                    const dashboardItemIds = appConfig.dashboardItems || []; // 현재 표시 중인 현황판 항목 ID 목록
+                    const allDefinitions = getAllDashboardDefinitions(appConfig); // 모든 현황판 항목 정의
+                    const dashboardItemIds = appConfig.dashboardItems || [];     // 현재 표시 중인 항목 ID 목록
+                    const quantityTaskTypes = appConfig.quantityTaskTypes || []; // 처리량 입력 대상 작업 목록
 
-                    // 처리량 작업 이름 -> 현황판 ID 매핑 정의
-                    const taskNameToDashboardIdMap = {
-                        '국내배송': 'domestic-invoice', // 특별 케이스
-                        '중국제작': 'china-production',
-                        '직진배송': 'direct-delivery',
-                        // 여기에 이름이 다른 항목이 있다면 추가: '처리량이름': '현황판ID'
-                    };
+                    // --- 처리량 작업 이름 -> 현황판 ID 매핑 ---
+                    const taskNameToDashboardIdMap = {};
 
-                    // 커스텀 항목 추가 (커스텀 ID가 처리량 작업 이름과 같다고 가정)
+                    // 1. 명시적 매핑 (이름 다른 경우)
+                    taskNameToDashboardIdMap['국내배송'] = 'domestic-invoice';
+                    // *여기에 이름이 다른 항목이 더 있다면 추가하세요.*
+                    // 예: taskNameToDashboardIdMap['다른처리량이름'] = 'other-dashboard-id';
+
+                    // 2. 이름이 같은 표준 항목 매핑 (처리량 작업 목록에 있는 것만)
+                    Object.keys(DASHBOARD_ITEM_DEFINITIONS).forEach(stdId => {
+                        const def = DASHBOARD_ITEM_DEFINITIONS[stdId];
+                        const titleKey = def.title.replace(/<br\s*\/?>/gi, ' ').trim(); // <br> 제거한 제목
+
+                        // stdId 자체가 처리량 작업 이름이거나, titleKey가 처리량 작업 이름인 경우 매핑
+                        if (quantityTaskTypes.includes(stdId) && !taskNameToDashboardIdMap[stdId]) {
+                            taskNameToDashboardIdMap[stdId] = stdId;
+                        }
+                        if (quantityTaskTypes.includes(titleKey) && !taskNameToDashboardIdMap[titleKey]) {
+                            taskNameToDashboardIdMap[titleKey] = stdId;
+                        }
+                    });
+
+                    // 3. 이름이 같은 커스텀 항목 매핑 (처리량 작업 목록에 있는 것만)
                     if (appConfig.dashboardCustomItems) {
                         Object.keys(appConfig.dashboardCustomItems).forEach(customId => {
-                            // taskNameToDashboardIdMap에 이미 매핑된 키가 아니면 추가
-                            if (!(customId in taskNameToDashboardIdMap)) {
+                            const customDef = appConfig.dashboardCustomItems[customId];
+                            const customTitleKey = customDef.title.trim();
+
+                            // customId 자체가 처리량 작업 이름이거나, customTitleKey가 처리량 작업 이름인 경우 매핑
+                            if (quantityTaskTypes.includes(customId) && !taskNameToDashboardIdMap[customId]) {
                                 taskNameToDashboardIdMap[customId] = customId;
+                            }
+                             if (quantityTaskTypes.includes(customTitleKey) && !taskNameToDashboardIdMap[customTitleKey]) {
+                                taskNameToDashboardIdMap[customTitleKey] = customId;
                             }
                         });
                     }
-                    // 일반 항목 중 이름과 ID가 같은 경우 추가 (매핑에 없는 경우 대비)
-                     Object.keys(DASHBOARD_ITEM_DEFINITIONS).forEach(stdId => {
-                         const title = DASHBOARD_ITEM_DEFINITIONS[stdId].title.replace('<br>',' '); // 제목 가져오기
-                         // taskNameToDashboardIdMap에 해당 제목의 키가 없으면 ID를 값으로 추가 시도
-                         if (!(title in taskNameToDashboardIdMap) && stdId === title) {
-                            // taskNameToDashboardIdMap[title] = stdId; // 이름과 ID가 같을 때만 매핑? - 혼란스러울 수 있음. 명시적 매핑만 사용.
-                         } else if (stdId === title && !taskNameToDashboardIdMap[stdId]) {
-                            // ID 자체가 작업 이름일 수도 있으니 그것도 추가
-                            taskNameToDashboardIdMap[stdId] = stdId;
-                         }
-                     });
+                    // --- 매핑 로직 끝 ---
 
+                    console.log("Using map for sync:", taskNameToDashboardIdMap); // 최종 매핑 확인용 로그
 
-                    console.log("Using map for sync:", taskNameToDashboardIdMap); // 확인용 로그
-
-                    // 새로 입력된 처리량(newQuantities)을 순회하며 현황판 업데이트
+                    // 4. 새로 입력된 처리량(newQuantities)을 순회하며 현황판 업데이트
                     for (const task in newQuantities) {
-                        const quantity = newQuantities[task] || 0; // 수량 (없으면 0)
+                        // 입력된 task 이름이 quantityTaskTypes 목록에 있는지 먼저 확인 (안전장치)
+                        if (!quantityTaskTypes.includes(task)) {
+                            console.log(`Skipping sync for task '${task}' as it's not in quantityTaskTypes.`);
+                            continue;
+                        }
+
+                        const quantity = newQuantities[task] || 0;
                         const targetDashboardId = taskNameToDashboardIdMap[task]; // 매핑된 현황판 ID 찾기
 
                         console.log(`Processing Task: ${task}, Qty: ${quantity}, Target ID: ${targetDashboardId}`); // 확인용 로그
 
-                        // 1. 매핑된 ID가 있고, 2. 해당 ID의 정의가 있고, 3. 현재 현황판에 표시되는 항목인지 확인
+                        // 매핑된 ID가 있고, 해당 ID의 정의가 있고, 현재 현황판에 표시되는 항목인지 확인
                         if (targetDashboardId && allDefinitions[targetDashboardId] && dashboardItemIds.includes(targetDashboardId)) {
-                            const valueId = allDefinitions[targetDashboardId].valueId; // 값 표시 P 태그의 ID 가져오기 (예: 'summary-domestic-invoice')
-                            const element = document.getElementById(valueId); // 해당 P 태그 찾기
+                            const valueId = allDefinitions[targetDashboardId].valueId; // 값 표시 P 태그의 ID (예: 'summary-domestic-invoice')
+                            const element = document.getElementById(valueId);        // 해당 P 태그 찾기
 
                             if (element) {
                                 console.log(`Updating dashboard element #${valueId} with quantity ${quantity}`); // 확인용 로그
@@ -2004,7 +2021,7 @@ if (openQuantityModalTodayBtn) {
                                 console.warn(`Dashboard element with ID #${valueId} not found for task '${task}' (Mapped ID: ${targetDashboardId})`);
                             }
                         } else {
-                             console.log(`Task '${task}' has no matching or displayed dashboard item.`); // 확인용 로그
+                            console.log(`Task '${task}' has no matching or displayed dashboard item.`); // 확인용 로그
                         }
                     }
                     console.log("Dashboard sync finished."); // 확인용 로그
@@ -2012,13 +2029,29 @@ if (openQuantityModalTodayBtn) {
                     console.error("Error during dashboard sync:", syncError);
                     showToast("현황판 업데이트 중 오류 발생.", true);
                 }
-                // --- 👆 [추가 끝] ---
 
                 // --- 👇 [기존] 오늘 날짜 이력(history) 문서도 업데이트 ---
-                // ... (이력 업데이트 로직은 그대로 둡니다) ...
+                const todayDateKey = getTodayDateString();
+                const todayHistoryIndex = allHistoryData.findIndex(d => d.id === todayDateKey);
+                if (todayHistoryIndex > -1) {
+                    const todayHistoryData = allHistoryData[todayHistoryIndex];
+                    const updatedHistoryData = { ...todayHistoryData, taskQuantities: newQuantities };
+                    allHistoryData[todayHistoryIndex] = updatedHistoryData;
+                    const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
+                    try {
+                        await setDoc(historyDocRef, updatedHistoryData);
+                        console.log("오늘 날짜 이력(history) 처리량도 업데이트되었습니다.");
+                    } catch (e) {
+                        console.error('오늘 날짜 이력(history) 처리량 업데이트 실패:', e);
+                        allHistoryData[todayHistoryIndex] = todayHistoryData;
+                    }
+                }
+                // --- 👆 [기존 끝] ---
             },
+            // ✅ --- [교체 끝] onConfirm 콜백 함수 전체 ---
             onCancel: () => {}
         };
+// ... (나머지 리스너 코드) ...
 
         // 4. 모달 버튼 텍스트 설정 (이력 보기와 다르게 설정)
         const cBtn = document.getElementById('confirm-quantity-btn');
