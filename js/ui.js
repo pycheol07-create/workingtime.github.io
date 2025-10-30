@@ -979,7 +979,59 @@ export const updateSummary = (appState, appConfig) => {
         }
     }
     // --- 👆 [수정 끝] ---
-};
+
+    // ===== ✅ [추가] 대시보드 공지사항 업데이트 =====
+    const noticeContainer = document.getElementById('dashboard-notice-content');
+    if (noticeContainer) {
+        const noticeHtml = appConfig.dashboardNotice || '<p class="text-sm text-gray-400 text-center">공지사항이 없습니다.</p>';
+        // HTML 태그를 허용하기 위해 innerHTML 사용
+        noticeContainer.innerHTML = noticeHtml; 
+    }
+    // ===========================================
+
+    // ===== ✅ [기존] 대시보드 근태 현황판 업데이트 =====
+    const attendanceContainer = document.getElementById('dashboard-attendance-list');
+    if (attendanceContainer) {
+        if (combinedOnLeaveMembers.length === 0) {
+            attendanceContainer.innerHTML = `<p class="text-sm text-gray-400 text-center">현재 휴무/외출 인원이 없습니다.</p>`;
+        } else {
+            let html = '';
+            // 이름순으로 정렬
+            combinedOnLeaveMembers.sort((a, b) => a.member.localeCompare(b.member));
+            
+            combinedOnLeaveMembers.forEach(entry => {
+                let detailText = '';
+                // 1. 시간 기반 (외출, 조퇴)
+                if (entry.startTime) {
+                    detailText = formatTimeTo24H(entry.startTime);
+                    if (entry.endTime) {
+                        detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+                    } else if (entry.type === '외출') {
+                        detailText += ' ~'; // 진행 중
+                    }
+                } 
+                // 2. 날짜 기반 (연차, 출장, 결근)
+                else if (entry.startDate) {
+                    detailText = entry.startDate.substring(5); // 'MM-DD'
+                    if (entry.endDate && entry.endDate !== entry.startDate) {
+                        detailText += ` ~ ${entry.endDate.substring(5)}`;
+                    }
+                }
+
+                html += `
+                    <div class="p-2 bg-gray-800 rounded-md text-xs">
+                        <div class="flex justify-between items-center">
+                            <span class="font-semibold text-gray-100">${entry.member}</span>
+                            <span class="text-yellow-300 font-semibold">${entry.type}</span>
+                        </div>
+                        <div class="text-right text-gray-300 mt-0.5">${detailText}</div>
+                    </div>
+                `;
+            });
+            attendanceContainer.innerHTML = html;
+        }
+    }
+    // ===== [기존] 끝 =====
 
 // === ui.js (수정) ===
 
