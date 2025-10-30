@@ -25,8 +25,6 @@ import {
   renderMonthlyHistory,
   renderDashboardLayout,
   renderManualAddModalDatalists // ✅ [추가]
-  renderManualAddModalDatalists, // ✅ [추가]
-  renderTodaysAttendance // ✅ [추가]
 } from './ui.js';
 
 // ========== DOM Elements ==========
@@ -323,7 +321,6 @@ const render = () => {
     renderCompletedWorkLog(appState);
     updateSummary(appState, appConfig); // ✅ appConfig 전체 전달 확인
     renderTaskAnalysis(appState, appConfig); // ✅ appConfig 전달 확인
-    renderTodaysAttendance(appState); // ✅ [추가]
   } catch (e) {
     console.error('Render error:', e);
     showToast('화면 렌더링 오류 발생.', true);
@@ -3619,14 +3616,12 @@ async function startAppAfterLogin(user) {
       
       markDataAsDirty();
       render();
-      renderTodaysAttendance(appState); // ✅ [추가]
       
   }, (error) => {
       console.error("근태 일정 실시간 연결 실패:", error);
       showToast("근태 일정 연결에 실패했습니다.", true);
       appState.dateBasedOnLeaveMembers = [];
       render();
-      renderTodaysAttendance(appState); // ✅ [추가]
   });
 
   // ✅ [추가] 앱 설정(config) 실시간 감지 리스너
@@ -3696,7 +3691,6 @@ async function startAppAfterLogin(user) {
       // ⛔️ [삭제] 이 줄을 삭제해야 새로고침 시 0이 되는 버그가 고쳐집니다.
     // renderDashboardLayout(appConfig);
       render(); 
-      renderTodaysAttendance(appState); // ✅ [추가]
       if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
     } catch (parseError) {
@@ -3705,7 +3699,6 @@ async function startAppAfterLogin(user) {
       appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
       renderDashboardLayout(appConfig); 
       render();
-      renderTodaysAttendance(appState); // ✅ [추가]
       if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
     }
@@ -3715,7 +3708,6 @@ async function startAppAfterLogin(user) {
     appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
     renderDashboardLayout(appConfig); 
     render();
-    renderTodaysAttendance(appState); // ✅ [추가]
     if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
     if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
   });
