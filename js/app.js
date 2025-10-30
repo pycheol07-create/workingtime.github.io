@@ -265,9 +265,70 @@ const debounce = (func, delay) => {
 };
 
 // ========== 타이머 ==========
-// ✅ [수정] updateElapsedTimes 함수 (DOM에서 직접 데이터 읽도록 최적화)
+// ✅ [수정] updateElapsedTimes 함수 (자동 일시정지/재개 로직으로 교체)
 const updateElapsedTimes = () => {
-  const now = getCurrentTime();
+  const now = getCurrentTime(); // "HH:MM"
+
+  // ✅ [수정] 12:30 자동 일시정지 로직
+  if (now === '12:30' && !appState.lunchPauseExecuted) {
+    // 1. 플래그를 즉시 true로 설정 (중복 실행 방지)
+    appState.lunchPauseExecuted = true; 
+    let tasksPaused = 0;
+    const currentTime = getCurrentTime(); // (정확히 12:30)
+
+    // 2. 'ongoing' 상태인 모든 업무 찾기
+    (appState.workRecords || []).forEach(record => {
+      if (record.status === 'ongoing') {
+        record.status = 'paused';
+        record.pauses = record.pauses || [];
+        // 3. 'lunch' 타입으로 정지 기록 추가
+        record.pauses.push({ start: currentTime, end: null, type: 'lunch' }); 
+        tasksPaused++;
+      }
+    });
+
+    if (tasksPaused > 0) {
+      console.log(`Auto-pausing ${tasksPaused} tasks for lunch break at 12:30.`);
+      showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
+      debouncedSaveState(); // 변경된 상태 (workRecords + flag) 저장
+    } else {
+      // 4. 정지할 작업이 없어도, 12:30 로직이 실행되었음을 저장
+      debouncedSaveState(); 
+    }
+  }
+
+  // ✅ [추가] 13:30 자동 재개 로직
+  if (now === '13:30' && !appState.lunchResumeExecuted) {
+    // 1. 플래그를 즉시 true로 설정 (중복 실행 방지)
+    appState.lunchResumeExecuted = true;
+    let tasksResumed = 0;
+    const currentTime = getCurrentTime(); // (정확히 13:30)
+
+    // 2. 'paused' 상태인 모든 업무 찾기
+    (appState.workRecords || []).forEach(record => {
+      if (record.status === 'paused') {
+        // 3. 마지막 정지 기록이 'lunch' 타입이고 아직 재개되지 않았는지 확인
+        const lastPause = record.pauses?.[record.pauses.length - 1];
+        if (lastPause && lastPause.type === 'lunch' && lastPause.end === null) {
+          // 4. 재개
+          record.status = 'ongoing';
+          lastPause.end = currentTime; // 정지 종료 시간 기록
+          tasksResumed++;
+        }
+      }
+    });
+
+    if (tasksResumed > 0) {
+      console.log(`Auto-resuming ${tasksResumed} tasks after lunch break at 13:30.`);
+      showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
+      debouncedSaveState(); // 변경된 상태 (workRecords + flag) 저장
+    } else {
+      // 5. 재개할 작업이 없어도, 13:30 로직이 실행되었음을 저장
+      debouncedSaveState();
+    }
+  }
+  
+  // --- [이하 기존 타이머 로직 (동일)] ---
   document.querySelectorAll('.ongoing-duration').forEach(el => {
     try {
       const startTime = el.dataset.startTime;
@@ -358,7 +419,13 @@ async function saveStateToFirestore() {
       taskQuantities: appState.taskQuantities || {},
       onLeaveMembers: appState.dailyOnLeaveMembers || [],
       partTimers: appState.partTimers || [],
-      hiddenGroupIds: appState.hiddenGroupIds || []
+      hiddenGroupIds: appState.hiddenGroupIds || [],
+      
+      // ✅ [추가된 부분]
+      // 점심시간 자동 일시정지/재개 플래그도 함께 저장합니다.
+      lunchPauseExecuted: appState.lunchPauseExecuted || false,
+      lunchResumeExecuted: appState.lunchResumeExecuted || false
+
     }, (k, v) => (typeof v === 'function' ? undefined : v));
 
     if (stateToSave.length > 900000) {
@@ -3685,6 +3752,11 @@ async function startAppAfterLogin(user) {
       appState.partTimers = loadedState.partTimers || [];
       appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
       appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
+      
+      // ✅ [수정된 부분]
+      // 점심시간 자동 일시정지/재개 플래그를 불러옵니다.
+      appState.lunchPauseExecuted = loadedState.lunchPauseExecuted || false; 
+      appState.lunchResumeExecuted = loadedState.lunchResumeExecuted || false;
 
       isDataDirty = false;
 
