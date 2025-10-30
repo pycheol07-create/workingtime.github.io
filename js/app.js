@@ -627,11 +627,12 @@ async function saveProgress(isAutoSave = false) {
 
 // ✅ [수정] saveDayDataToHistory (업무 마감 로직)
 // (진행 중인 업무를 자동으로 종료하는 로직이 이미 포함되어 있음)
-// ✅ [수정] shouldReset 시 debouncedSaveState가 아닌 즉시 saveStateToFirestore 호출
+// ✅ [수정] saveDayDataToHistory (조퇴 17:30 룰 적용)
 async function saveDayDataToHistory(shouldReset) {
+  // 1. 진행 중인 업무가 있으면 모두 '완료' 처리
   const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
   if (ongoingRecords.length > 0) {
-    const endTime = getCurrentTime();
+    const endTime = getCurrentTime(); // ✅ utils.js에서 가져온 현재 시간
     ongoingRecords.forEach(rec => {
       if (rec.status === 'paused') {
         const lastPause = rec.pauses?.[rec.pauses.length - 1];
@@ -643,37 +644,38 @@ async function saveDayDataToHistory(shouldReset) {
     });
   }
 
+  // 2. '완료'된 기록과 현재 수량/근태를 '이력(history)' 문서에 저장
   await saveProgress(false); // 수동 저장(false)으로 호출
 
-  // ✅ [수정] '업무 마감'이든 '초기화'든 공통적으로 workRecords는 비웁니다.
+  // 3. 실시간 상태(appState) 초기화 - '업무 기록'은 항상 비움
   appState.workRecords = [];
   
-  // ⛔️ [삭제] 이 줄을 삭제합니다. (업무 마감 시 수량을 0으로 만들던 원인)
-  // Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
-  
-  // ✅ [수정] '초기화'(Reset) 버튼을 눌렀을 때만 수량과 근태, 알바를 초기화합니다.
+  // 4. '초기화'(Reset) 버튼을 눌렀을 때만(shouldReset === true) 추가 초기화
   if (shouldReset) {
+      // 4a. 수량, 알바, 숨김 그룹 초기화
       Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
-      appState.dailyOnLeaveMembers = [];
       appState.partTimers = [];
       appState.hiddenGroupIds = [];
+
+      // ✅ [수정] 4b. 근태 기록 초기화 (17:30 룰)
+      const now = getCurrentTime(); // "HH:MM" 형식
+      
+      if (now < "17:30") {
+          // 17:30 이전이면, '조퇴' 기록만 남기고 나머지는 초기화
+          appState.dailyOnLeaveMembers = (appState.dailyOnLeaveMembers || []).filter(entry => entry.type === '조퇴');
+      } else {
+          // 17:30 이후이면, '조퇴' 포함 모든 일일 근태 초기화
+          appState.dailyOnLeaveMembers = [];
+      }
+      // ✅ [수정 끝]
+
       showToast('오늘의 업무 기록을 초기화했습니다.');
-  } else {
-      // '업무 마감'일 때는 workRecords만 비우고, 수량/근태/알바는 유지합니다.
-  }
+  } 
+  // (else: '업무 마감'일 때는 workRecords만 비우고, 수량/근태/알바는 유지)
   
-  // ✅ [수정] if/else 대신 공통으로 즉시 저장
-  // (초기화가 되었든, 마감만 했든 현재의 appState를 즉시 저장)
+  // 5. 변경된 실시간 상태(appState)를 Firestore('daily_data')에 즉시 저장
   await saveStateToFirestore(); 
   render();
-
-  /* ⛔️ [삭제] 기존 if/else 블록 전체 삭제
-  if (shouldReset) {
-    // ...
-  } else {
-    // ...
-  }
-  */
 }
 // ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal, renderHistoryDetail, requestHistoryDeletion, 엑셀 함수, switchHistoryView 함수들은 이전과 동일) ...
 async function fetchAllHistoryData() {
@@ -2886,18 +2888,22 @@ if (confirmCancelLeaveBtn) {
         const dailyIndex = appState.dailyOnLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
         if (dailyIndex > -1) {
             const entry = appState.dailyOnLeaveMembers[dailyIndex];
+
+            // ✅ [수정] '외출'만 복귀 처리하고, '조퇴'는 else로 빠져 삭제(취소)되도록 복원합니다.
             if (entry.type === '외출') {
-                entry.endTime = getCurrentTime();
+                entry.endTime = getCurrentTime(); // '외출'만 복귀 시간 기록
                 showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다.`);
                 actionTaken = true;
             } else {
+                // '조퇴'는 이 로직을 따라 삭제(splice)됩니다.
                 appState.dailyOnLeaveMembers.splice(dailyIndex, 1);
                 showToast(`${memberToCancelLeave}님의 '${entry.type}' 상태가 취소되었습니다.`);
                 actionTaken = true;
             }
-            debouncedSaveState(); // ✅ [수정]
+            debouncedSaveState(); // 변경사항 저장
         }
 
+        // --- (이하 '연차' 등 영구 근태 취소 로직은 동일) ---
         const persistentIndex = persistentLeaveSchedule.onLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
         if (persistentIndex > -1) {
             const entry = persistentLeaveSchedule.onLeaveMembers[persistentIndex];
