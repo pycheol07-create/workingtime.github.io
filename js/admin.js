@@ -121,6 +121,13 @@ function renderAdminUI(config) {
         wageInput.value = config.defaultPartTimerWage || 10000;
     }
 
+    // ===== ✅ [추가] 공지사항 텍스트 채우기 =====
+    const noticeEditor = document.getElementById('dashboard-notice-editor');
+    if (noticeEditor) {
+        noticeEditor.value = config.dashboardNotice || '';
+    }
+    // ======================================
+
     renderTeamGroups(config.teamGroups || [], config.memberWages || {}, config.memberEmails || {}); // ✅ memberEmails 추가
     // ✅ [수정] dashboardQuantities 전달 추가
     renderDashboardItemsConfig(config.dashboardItems || [], config.dashboardQuantities || {});
@@ -967,7 +974,6 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
 
 // --- 데이터 저장 ---
-// ✅ [수정] handleSaveAll (읽는 방식 수정)
 async function handleSaveAll() {
     try {
         const newConfig = {
@@ -982,7 +988,11 @@ async function handleSaveAll() {
             keyTasks: [],
             taskGroups: {},
             quantityTaskTypes: [],
-            defaultPartTimerWage: 10000
+            defaultPartTimerWage: 10000,
+            
+            // ===== ✅ [추가] 공지사항 필드 =====
+            dashboardNotice: ''
+            // ================================
         };
         
         // 0. [유지] 이메일 중복 검사 맵
@@ -1102,7 +1112,14 @@ async function handleSaveAll() {
             }
         });
 
-        // [수정] 8. 데이터 유효성 검사 (기존 7번)
+        // ===== ✅ [추가] (새로운 8번) 공지사항 읽기 =====
+        const noticeEditor = document.getElementById('dashboard-notice-editor');
+        if (noticeEditor) {
+            newConfig.dashboardNotice = noticeEditor.value;
+        }
+        // ===========================================
+
+        // [수정] 8. 데이터 유효성 검사 (기존 7번 -> 9번)
         const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
         const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
         const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
@@ -1120,7 +1137,7 @@ async function handleSaveAll() {
             return; // 저장 중단
         }
 
-        // [수정] 9. Firestore에 저장 (기존 8번)
+        // [수정] 9. Firestore에 저장 (기존 8번 -> 10번)
         await saveAppConfig(db, newConfig);
         appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');

@@ -74,6 +74,9 @@ export const getTodayDateString = () => {
     return localDate.toISOString().slice(0, 10);
 };
 
+// [utils.js]
+// ... (파일의 앞부분은 동일) ...
+
 export const getWeekOfYear = (date) => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -92,5 +95,3 @@ export const displayCurrentDate = () => {
     const dateString = `${year}년 ${month}월 ${day}일 (${dayOfWeek})`;
     document.getElementById('current-date-display').textContent = dateString;
 };
-
-// ⛔️ [삭제] 파일 끝에 있던 불필요한 '}' 괄호를 제거했습니다.
