@@ -1,6 +1,6 @@
 // === ui.js (모바일 반응형 레이아웃 재수정) ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear, calcElapsedMinutes, getCurrentTime } from './utils.js'; // getWeekOfYear import
+import { formatTimeTo24H, formatDuration, getWeekOfYear, calcElapsedMinutes, getCurrentTime, getTodayDateString } from './utils.js'; // getTodayDateString 추가
 
 // ✅ [수정] 현황판 아이템 정의 (isQuantity 플래그 추가)
 export const DASHBOARD_ITEM_DEFINITIONS = { // ✅ 'export'를 추가했습니다.
@@ -14,6 +14,28 @@ export const DASHBOARD_ITEM_DEFINITIONS = { // ✅ 'export'를 추가했습니�
     'domestic-invoice': { title: '국내송장<br>(예상)', valueId: 'summary-domestic-invoice', isQuantity: true },
     'china-production': { title: '중국제작', valueId: 'summary-china-production', isQuantity: true },
     'direct-delivery': { title: '직진배송', valueId: 'summary-direct-delivery', isQuantity: true }
+};
+
+export {
+  getAllDashboardDefinitions,
+  DASHBOARD_ITEM_DEFINITIONS,
+  renderRealtimeStatus,
+  renderCompletedWorkLog,
+  updateSummary,
+  renderTaskAnalysis,
+  renderPersonalAnalysis,
+  renderTaskSelectionModal,
+  renderTeamSelectionModalContent,
+  renderQuantityModalInputs,
+  renderLeaveTypeModalOptions,
+  renderAttendanceDailyHistory,
+  renderAttendanceWeeklyHistory,
+  renderAttendanceMonthlyHistory,
+  renderWeeklyHistory,
+  renderMonthlyHistory,
+  renderDashboardLayout,
+  renderManualAddModalDatalists,
+  renderTodaysAttendance // ✅ 이 줄을 추가합니다.
 };
 
 // ✅ [추가] 모든 현황판 항목 정의 가져오기 (기본 + 커스텀)
@@ -1747,4 +1769,76 @@ export const renderManualAddModalDatalists = (appState, appConfig) => {
         option.value = task;
         taskDatalist.appendChild(option);
     });
+};
+
+/**
+ * ✅ [신규] '오늘의 근태 현황' 패널을 렌더링합니다.
+ */
+export const renderTodaysAttendance = (appState) => {
+    const listContainer = document.getElementById('attendance-list');
+    if (!listContainer) return;
+
+    const combinedOnLeaveMembers = [
+        ...(appState.dailyOnLeaveMembers || []), // 외출, 조퇴 등
+        ...(appState.dateBasedOnLeaveMembers || []) // 연차, 출장, 결근 등
+    ];
+
+    // 복귀한 '외출'은 제외하고, 오늘 날짜에 유효한 근태만 필터링
+    const currentAttendance = combinedOnLeaveMembers.filter(item => {
+        // 외출인데 복귀 시간(endTime)이 있으면 제외
+        if (item.type === '외출' && item.endTime) {
+            return false;
+        }
+        // 날짜 기반 근태(연차 등)는 오늘 날짜가 유효 기간 내인지 확인
+        if (item.startDate) {
+            const today = getTodayDateString();
+            const endDate = item.endDate || item.startDate; // 종료일 없으면 시작일=종료일
+            return today >= item.startDate && today <= endDate;
+        }
+        // 시간 기반 근태(외출, 조퇴 등)는 항상 포함 (복귀한 외출은 위에서 걸러짐)
+        return true;
+    });
+
+    // 이름순으로 정렬
+    currentAttendance.sort((a, b) => (a.member || '').localeCompare(b.member || ''));
+
+    if (currentAttendance.length === 0) {
+        listContainer.innerHTML = `<p class="text-gray-500">현재 근태 특이사항 없음</p>`;
+        return;
+    }
+
+    let html = '';
+    currentAttendance.forEach(entry => {
+        let detailText = '';
+        let detailColor = 'text-gray-500'; // 기본 회색
+
+        if (entry.startTime) { // 시간 기반 (외출, 조퇴)
+            detailText = formatTimeTo24H(entry.startTime);
+            if (entry.endTime) { // 조퇴 (고정 시간)
+                detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+                detailColor = 'text-orange-600'; // 조퇴는 주황색
+            } else if (entry.type === '외출') { // 외출 (진행 중)
+                detailText += ' ~';
+                detailColor = 'text-blue-600'; // 외출은 파란색
+            }
+        } else if (entry.startDate) { // 날짜 기반 (연차, 출장, 결근)
+            detailText = entry.startDate.substring(5).replace('-', '/'); // MM/DD 형식
+            if (entry.endDate && entry.endDate !== entry.startDate) {
+                detailText += ` ~ ${entry.endDate.substring(5).replace('-', '/')}`;
+            }
+            // 유형별 색상
+            if (entry.type === '연차') detailColor = 'text-green-600';
+            else if (entry.type === '출장') detailColor = 'text-purple-600';
+            else if (entry.type === '결근') detailColor = 'text-red-600';
+        }
+
+        html += `
+            <li class="flex justify-between items-center py-0.5">
+                <span class="font-semibold text-gray-800">${entry.member}</span>
+                <span class="text-xs ${detailColor} font-medium">${entry.type} ${detailText ? `(${detailText})` : ''}</span>
+            </li>
+        `;
+    });
+
+    listContainer.innerHTML = html;
 };
