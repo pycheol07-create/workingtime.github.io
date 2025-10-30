@@ -1847,7 +1847,7 @@ export const renderTodaysAttendance = (appState) => {
 /**
  * ✅ [신규] '업무 공지사항' 패널을 렌더링합니다.
  */
-export const renderAnnouncement = (appConfig) => {
+const renderAnnouncement = (appConfig) => {
     const contentDiv = document.getElementById('announcement-content');
     if (!contentDiv) return;
 
