@@ -779,51 +779,89 @@ const renderHistoryDateListByMode = (mode = 'day') => {
 
 
 window.openHistoryQuantityModal = (dateKey) => {
-  const data = allHistoryData.find(d => d.id === dateKey);
-  if (!data) return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
+    // ✅ [추가] 오늘 날짜인지 확인
+    const todayDateString = getTodayDateString();
+    let quantitiesToShow = {};
 
-  renderQuantityModalInputs(data.taskQuantities || {}, appConfig.quantityTaskTypes);
-  const title = document.getElementById('quantity-modal-title');
-  if (title) title.textContent = `${dateKey} 처리량 수정`;
-
-  quantityModalContext = {
-    mode: 'history',
-    dateKey,
-    onConfirm: async (newQuantities) => {
-      const idx = allHistoryData.findIndex(d => d.id === dateKey);
-      if (idx === -1) return;
-      // ✅ [수정] Firestore 저장 전에 로컬 데이터 업데이트
-      allHistoryData[idx] = { ...allHistoryData[idx], taskQuantities: newQuantities };
-      const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-      try {
-        // ✅ [수정] 업데이트된 로컬 데이터를 Firestore에 저장
-        await setDoc(historyDocRef, allHistoryData[idx]);
-        showToast(`${dateKey}의 처리량이 수정되었습니다.`);
-
-        // --- 👇 [추가] 오늘 날짜인 경우 appState도 업데이트 ---
-        if (dateKey === getTodayDateString()) {
-            appState.taskQuantities = newQuantities;
-            render(); // 메인 화면 UI 즉시 갱신 (요약, 분석 등)
+    // ✅ [수정] 오늘 날짜인지 아닌지에 따라 데이터 소스를 다르게 설정
+    if (dateKey === todayDateString) {
+        // 1. 오늘 날짜인 경우: 실시간 appState에서 데이터를 가져옴
+        quantitiesToShow = appState.taskQuantities || {};
+    } else {
+        // 2. 과거 날짜인 경우: 기존 로직대로 allHistoryData에서 데이터를 가져옴
+        const data = allHistoryData.find(d => d.id === dateKey);
+        if (!data) {
+            return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
         }
-        // --- 👆 [추가] ---
+        quantitiesToShow = data.taskQuantities || {};
+    }
 
-         const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
-         const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-         switchHistoryView(currentView); // 이력 보기 UI 갱신
-      } catch (e) {
-        console.error('Error updating history quantities:', e);
-        showToast('처리량 업데이트 중 오류 발생.', true);
-        // 오류 시 로컬 데이터 원복 (선택 사항 - 이미 UI.js 수정에서 반영됨)
-      }
-    },
-    onCancel: () => {}
-  };
+    // ✅ [수정] data.taskQuantities 대신 위에서 정한 quantitiesToShow를 사용
+    renderQuantityModalInputs(quantitiesToShow, appConfig.quantityTaskTypes);
+    
+    const title = document.getElementById('quantity-modal-title');
+    if (title) title.textContent = `${dateKey} 처리량 수정`;
 
-  const cBtn = document.getElementById('confirm-quantity-btn');
-  const xBtn = document.getElementById('cancel-quantity-btn');
-  if (cBtn) cBtn.textContent = '수정 저장';
-  if (xBtn) xBtn.textContent = '취소';
-  if (quantityModal) quantityModal.classList.remove('hidden');
+    // --- (이하 context 설정 및 onConfirm 로직은 기존과 동일) ---
+    // (onConfirm 로직은 이미 오늘 날짜를 올바르게 처리하고 있습니다)
+    quantityModalContext = {
+        mode: 'history',
+        dateKey,
+        onConfirm: async (newQuantities) => {
+            const idx = allHistoryData.findIndex(d => d.id === dateKey);
+            if (idx === -1 && dateKey !== todayDateString) { // 오늘 날짜가 아닌데 이력이 없으면 오류
+                 showToast('이력 데이터를 찾을 수 없어 수정할 수 없습니다.', true);
+                 return;
+            }
+            
+            // ✅ [수정] Firestore 저장 전에 로컬 데이터 업데이트
+            // (오늘 날짜 이력이 아직 allHistoryData에 없더라도,
+            // idx가 -1이 되고 이 부분은 건너뛰므로 안전함)
+            if (idx > -1) {
+                allHistoryData[idx] = { ...allHistoryData[idx], taskQuantities: newQuantities };
+            }
+
+            const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+            try {
+                // ✅ [수정] 업데이트된 로컬 데이터를 Firestore에 저장
+                // (오늘 날짜 이력이 없었다면 새로 생성, 있었다면 덮어쓰기)
+                const dataToSave = (idx > -1) 
+                    ? allHistoryData[idx] 
+                    : { id: dateKey, taskQuantities: newQuantities, workRecords: [], onLeaveMembers: [], partTimers: [] }; // 새 이력 생성
+                
+                await setDoc(historyDocRef, dataToSave);
+                
+                showToast(`${dateKey}의 처리량이 수정되었습니다.`);
+
+                // --- 👇 [수정] 오늘 날짜인 경우 appState도 업데이트 (기존 로직 유지) ---
+                if (dateKey === getTodayDateString()) {
+                    appState.taskQuantities = newQuantities;
+                    render(); // 메인 화면 UI 즉시 갱신 (요약, 분석 등)
+                }
+                
+                // --- 👆 [수정] ---
+
+                // ✅ [수정] 이력 보기 UI 갱신 (오늘 날짜가 아니었다면 allHistoryData 갱신 필요)
+                if (dateKey !== todayDateString) {
+                     const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
+                     const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
+                     switchHistoryView(currentView);
+                }
+
+            } catch (e) {
+                console.error('Error updating history quantities:', e);
+                showToast('처리량 업데이트 중 오류 발생.', true);
+                // 오류 시 로컬 데이터 원복 (선택 사항)
+            }
+        },
+        onCancel: () => {}
+    };
+
+    const cBtn = document.getElementById('confirm-quantity-btn');
+    const xBtn = document.getElementById('cancel-quantity-btn');
+    if (cBtn) cBtn.textContent = '수정 저장';
+    if (xBtn) xBtn.textContent = '취소';
+    if (quantityModal) quantityModal.classList.remove('hidden');
 };
 
 const renderHistoryDetail = (dateKey, previousDayData = null) => {
