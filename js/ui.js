@@ -855,7 +855,8 @@ export const updateSummary = (appState, appConfig) => {
         }
     });
 
-    // 계산 로직 (기존)
+    // --- (기존 계산 로직: totalStaffCount, onLeaveTotalCount 등...은 모두 동일) ---
+    // ...
     const teamGroups = appConfig.teamGroups || [];
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
@@ -904,6 +905,7 @@ export const updateSummary = (appState, appConfig) => {
     // 진행 업무(Task) 카운트는 'ongoing' + 'paused' 모두 포함 (기존 로직 유지)
     const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
+    // --- (계산 로직 끝) ---
 
 
     // ✅ [수정] 동적으로 요소 업데이트 (수량 항목 제외)
@@ -915,35 +917,13 @@ export const updateSummary = (appState, appConfig) => {
     if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`;
 
     // total-work-time은 타이머(updateElapsedTimes)가 관리
-    // isQuantity 항목 (기본 및 커스텀)은 업데이트하지 않음 (config 로드 시 설정된 값 유지)
 
-    // --- 👇 [추가] 수량 항목 업데이트 로직 ---
+    // --- 👇 [수정] 수량 항목 업데이트 로직 (appConfig.quantityToDashboardMap 사용) ---
     const quantitiesFromState = appState.taskQuantities || {}; // Firestore에서 로드된 최신 수량
-    const taskNameToDashboardIdMap = {}; // 처리량 이름 -> 현황판 ID 매핑 (onConfirm과 유사하게 생성)
-
-    // 1. 명시적 매핑
-    taskNameToDashboardIdMap['국내배송'] = 'domestic-invoice';
-    // *여기에 이름 다른 항목 추가*
-
-    // 2. 이름 같은 표준 항목 매핑 (현황판 ID 기준)
-    Object.keys(DASHBOARD_ITEM_DEFINITIONS).forEach(stdId => {
-        const def = DASHBOARD_ITEM_DEFINITIONS[stdId];
-        const titleKey = def.title.replace(/<br\s*\/?>/gi, ' ').trim();
-        // ID 자체가 Task 이름이거나 Title이 Task 이름이면 매핑
-        if (!taskNameToDashboardIdMap[stdId]) taskNameToDashboardIdMap[stdId] = stdId;
-        if (!taskNameToDashboardIdMap[titleKey]) taskNameToDashboardIdMap[titleKey] = stdId;
-    });
-
-    // 3. 이름 같은 커스텀 항목 매핑 (현황판 ID 기준)
-    if (appConfig.dashboardCustomItems) {
-        Object.keys(appConfig.dashboardCustomItems).forEach(customId => {
-            const customDef = appConfig.dashboardCustomItems[customId];
-            const customTitleKey = customDef.title.trim();
-            // ID 자체가 Task 이름이거나 Title이 Task 이름이면 매핑
-            if (!taskNameToDashboardIdMap[customId]) taskNameToDashboardIdMap[customId] = customId;
-            if (!taskNameToDashboardIdMap[customTitleKey]) taskNameToDashboardIdMap[customTitleKey] = customId;
-        });
-    }
+    
+    // ✅ [수정] 관리자 페이지에서 설정한 맵을 직접 사용
+    const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
+    // ⛔️ [삭제] 기존 하드코딩 매핑 로직 (const taskNameToDashboardIdMap = {}; ... 등 10줄 이상) 삭제
 
     // 4. appState의 수량을 현황판 요소에 반영
     for (const task in quantitiesFromState) {
@@ -955,7 +935,7 @@ export const updateSummary = (appState, appConfig) => {
             // console.log(`updateSummary: Updated ${targetDashboardId} with ${quantity}`); // 확인용 로그
         }
     }
-    // --- 👆 [추가 끝] ---
+    // --- 👆 [수정 끝] ---
 };
 
 // === ui.js (수정) ===
