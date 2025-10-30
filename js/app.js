@@ -645,24 +645,35 @@ async function saveDayDataToHistory(shouldReset) {
 
   await saveProgress(false); // 수동 저장(false)으로 호출
 
+  // ✅ [수정] '업무 마감'이든 '초기화'든 공통적으로 workRecords는 비웁니다.
   appState.workRecords = [];
-  Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
-  appState.dailyOnLeaveMembers = [];
-  appState.partTimers = [];
-  appState.hiddenGroupIds = [];
-
   
-
+  // ⛔️ [삭제] 이 줄을 삭제합니다. (업무 마감 시 수량을 0으로 만들던 원인)
+  // Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
+  
+  // ✅ [수정] '초기화'(Reset) 버튼을 눌렀을 때만 수량과 근태, 알바를 초기화합니다.
   if (shouldReset) {
-    // ✅ [수정] 초기화 시에는 디바운스를 사용하지 않고 즉시 저장하여 반영합니다.
-    await saveStateToFirestore(); 
-    showToast('오늘의 업무 기록을 초기화했습니다.');
-    render();
+      Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
+      appState.dailyOnLeaveMembers = [];
+      appState.partTimers = [];
+      appState.hiddenGroupIds = [];
+      showToast('오늘의 업무 기록을 초기화했습니다.');
   } else {
-      // ✅ [수정] 단순 마감 시에도 즉시 저장합니다.
-      await saveStateToFirestore();
-      render();
+      // '업무 마감'일 때는 workRecords만 비우고, 수량/근태/알바는 유지합니다.
   }
+  
+  // ✅ [수정] if/else 대신 공통으로 즉시 저장
+  // (초기화가 되었든, 마감만 했든 현재의 appState를 즉시 저장)
+  await saveStateToFirestore(); 
+  render();
+
+  /* ⛔️ [삭제] 기존 if/else 블록 전체 삭제
+  if (shouldReset) {
+    // ...
+  } else {
+    // ...
+  }
+  */
 }
 // ... (fetchAllHistoryData, loadAndRenderHistoryList, openHistoryQuantityModal, renderHistoryDetail, requestHistoryDeletion, 엑셀 함수, switchHistoryView 함수들은 이전과 동일) ...
 async function fetchAllHistoryData() {
