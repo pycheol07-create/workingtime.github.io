@@ -26,70 +26,6 @@ import {
   renderManualAddModalDatalists // ✅ [추가]
 } from './ui.js';
 
-// ✅ --- [함수 추가 시작] ---
-/**
- * appState.taskQuantities의 최신 값으로 현황판 UI를 직접 업데이트합니다.
- */
-function updateDashboardQuantitiesUI() {
-    // console.log("updateDashboardQuantitiesUI called with state:", appState.taskQuantities); // 확인용 로그
-    const quantitiesFromState = appState.taskQuantities || {};
-    const allDefinitions = getAllDashboardDefinitions(appConfig); // 모든 정의
-    const dashboardItemIds = appConfig.dashboardItems || [];     // 현재 표시 항목
-
-    // --- 처리량 이름 -> 현황판 ID 매핑 ---
-    const taskNameToDashboardIdMap = {};
-    // 1. 명시적 매핑 (가장 중요!)
-    taskNameToDashboardIdMap['국내배송'] = 'domestic-invoice';
-    // *이름 다른 항목 추가 시 여기에:*
-    // 예: taskNameToDashboardIdMap['다른처리량이름'] = 'other-dashboard-id';
-
-    // 2. 이름/ID가 같은 표준 및 커스텀 항목 매핑 (allDefinitions 순회)
-    for (const dashboardId in allDefinitions) {
-        const def = allDefinitions[dashboardId];
-        if (def.isQuantity) { // 수량 항목만
-            // ID 자체가 Task 이름과 같을 수 있는 경우 (아직 키로 등록 안 됐으면)
-            if (!taskNameToDashboardIdMap[dashboardId]) {
-                 taskNameToDashboardIdMap[dashboardId] = dashboardId;
-            }
-            // Title이 Task 이름과 같을 수 있는 경우 (아직 키로 등록 안 됐으면)
-            const titleKey = def.title.replace(/<br\s*\/?>/gi, ' ').trim();
-             if (!taskNameToDashboardIdMap[titleKey]) {
-                 taskNameToDashboardIdMap[titleKey] = dashboardId;
-             }
-        }
-    }
-    // console.log("Final map for UI update:", taskNameToDashboardIdMap); // 최종 매핑 확인
-    // --- 매핑 끝 ---
-
-    // 3. 현재 표시되는 모든 현황판 항목(dashboardItemIds) 순회하며 UI 업데이트
-    dashboardItemIds.forEach(dashboardId => {
-        const def = allDefinitions[dashboardId];
-        // 수량 항목 정의가 있고, 해당 DOM 요소 ID가 있으면
-        if (def && def.isQuantity && def.valueId) {
-            const element = document.getElementById(def.valueId);
-            if (element) {
-                // 이 현황판 항목(dashboardId)에 해당하는 처리량 작업 이름 찾기
-                let correspondingTaskName = null;
-                for (const taskName in taskNameToDashboardIdMap) {
-                    if (taskNameToDashboardIdMap[taskName] === dashboardId) {
-                        correspondingTaskName = taskName;
-                        break; // 찾았으면 루프 중단
-                    }
-                }
-
-                // 해당 처리량 작업 이름(correspondingTaskName)이 appState에 존재하면 그 값 사용, 없으면 0
-                const quantity = (correspondingTaskName && quantitiesFromState[correspondingTaskName] !== undefined)
-                                    ? quantitiesFromState[correspondingTaskName]
-                                    : 0; // undefined 체크 추가
-                element.textContent = quantity; // UI 업데이트
-                // console.log(`UI Update: Set ${dashboardId} (${correspondingTaskName || 'N/A'}) to ${quantity}`); // 확인용 로그
-            }
-        }
-    });
-    console.log("Dashboard Quantities UI Updated."); // 완료 로그
-}
-// ✅ --- [함수 추가 끝] ---
-
 // ========== DOM Elements ==========
 // ... (fullscreenHistoryBtn 제거) ...
 // ✅ [추가] 근태 기록 수정 모달 요소
@@ -2011,10 +1947,6 @@ if (openQuantityModalTodayBtn) {
                 // 2. 수량이 요약/분석에 영향을 줄 수 있으므로 기본 렌더링 호출
                 render();
 
-                // ✅ --- [호출 추가] ---
-                updateDashboardQuantitiesUI(); // 저장된 새 수량으로 현황판 UI 직접 업데이트
-                // ✅ --- [호출 추가 끝] ---
-
                 // 3. 현황판 UI 동기화 로직
                 try {
                     console.log("Syncing quantities to dashboard:", newQuantities); // 확인용 로그
@@ -3698,11 +3630,6 @@ async function startAppAfterLogin(user) {
 
       renderDashboardLayout(appConfig); 
       render(); 
-
-      // ✅ --- [호출 추가] ---
-      updateDashboardQuantitiesUI(); // 로드된 appState 기준으로 현황판 수량 업데이트
-      // ✅ --- [호출 추가 끝] ---
-
       if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
     } catch (parseError) {
@@ -3711,9 +3638,6 @@ async function startAppAfterLogin(user) {
       appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
       renderDashboardLayout(appConfig); 
       render();
-      // ✅ --- [호출 추가 - 오류 시에도 UI 초기화] ---
-      updateDashboardQuantitiesUI(); // 오류 발생 시에도 0으로 초기화된 현황판 표시
-      // ✅ --- [호출 추가 끝] ---
       if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
     }
@@ -3723,9 +3647,6 @@ async function startAppAfterLogin(user) {
     appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [] };
     renderDashboardLayout(appConfig); 
     render();
-    // ✅ --- [호출 추가 - 오류 시에도 UI 초기화] ---
-    updateDashboardQuantitiesUI(); // 오류 발생 시에도 0으로 초기화된 현황판 표시
-    // ✅ --- [호출 추가 끝] ---
     if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
     if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
   });
