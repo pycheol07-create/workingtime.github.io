@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
 */
 
 // --- UI 렌더링 ---
-// === admin.js (renderAdminUI 함수 전체 교체) ===
+// (renderAdminUI, renderTeamGroups 함수는 이전과 동일)
 function renderAdminUI(config) {
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) {
@@ -129,8 +129,6 @@ function renderAdminUI(config) {
     renderQuantityTasks(config.quantityTaskTypes || []);
     // ✅ [추가] 연동 맵 렌더링 호출
     renderQuantityToDashboardMapping(config);
-    // ✅ [추가] 공지사항 렌더링 호출
-    renderNoticeConfig(config.notice || '');
 }
 
 function renderTeamGroups(teamGroups, memberWages, memberEmails) { // ✅ memberEmails 파라미터 추가
@@ -301,7 +299,6 @@ function renderQuantityTasks(quantityTasks) {
     });
 }
 
-
 /**
  * ✅ [수정] 현황판-처리량 연동 설정 UI를 렌더링합니다.
  * (DOM을 기준으로 현황판 목록을 읽어옵니다)
@@ -366,16 +363,6 @@ function renderQuantityToDashboardMapping(config) {
 
         container.appendChild(row);
     });
-}
-
-/**
- * ✅ [추가] 공지사항 설정 UI를 렌더링합니다.
- */
-function renderNoticeConfig(noticeText) {
-    const textarea = document.getElementById('notice-content-input');
-    if (textarea) {
-        textarea.value = noticeText;
-    }
 }
 
 
@@ -980,7 +967,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
 
 // --- 데이터 저장 ---
-// === admin.js (handleSaveAll 함수 전체 교체) ===
+// ✅ [수정] handleSaveAll (읽는 방식 수정)
 async function handleSaveAll() {
     try {
         const newConfig = {
@@ -995,8 +982,7 @@ async function handleSaveAll() {
             keyTasks: [],
             taskGroups: {},
             quantityTaskTypes: [],
-            defaultPartTimerWage: 10000,
-            notice: '' // ✅ [추가] 공지사항 초기화
+            defaultPartTimerWage: 10000
         };
         
         // 0. [유지] 이메일 중복 검사 맵
@@ -1116,13 +1102,7 @@ async function handleSaveAll() {
             }
         });
 
-        // ✅ [추가] 8. 공지사항 정보 읽기
-        const noticeInput = document.getElementById('notice-content-input');
-        if (noticeInput) {
-            newConfig.notice = noticeInput.value; // trim() 제거 (의도적인 공백 유지)
-        }
-
-        // [수정] 9. 데이터 유효성 검사 (기존 7번 -> 9번)
+        // [수정] 8. 데이터 유효성 검사 (기존 7번)
         const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
         const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
         const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
@@ -1140,12 +1120,12 @@ async function handleSaveAll() {
             return; // 저장 중단
         }
 
-        // [수정] 10. Firestore에 저장 (기존 8번 -> 10번)
+        // [수정] 9. Firestore에 저장 (기존 8번)
         await saveAppConfig(db, newConfig);
         appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');
 
-        // [수정] 11. UI 다시 렌더링 (기존 9번 -> 11번)
+        // [수정] 10. UI 다시 렌더링 (기존 9번)
         renderAdminUI(appConfig);
         setupEventListeners(); 
 
