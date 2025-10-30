@@ -35,6 +35,8 @@ export const initializeFirebase = () => {
     }
 };
 
+// === config.js (loadAppConfig 함수 전체 교체) ===
+
 // 4. [수정] Firestore에서 *앱 설정* 불러오기
 export const loadAppConfig = async (dbInstance) => {
     const dbToUse = dbInstance || db;
@@ -65,6 +67,8 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
             // ✅ [추가] 처리량-현황판 연동 맵 병합
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
+            // ✅ [추가] 공지사항 병합
+            mergedConfig.notice = loadedData.notice || defaultData.notice; 
 
 
             return mergedConfig;
@@ -129,9 +133,6 @@ export const saveLeaveSchedule = async (dbInstance, leaveData) => {
     await setDoc(leaveDocRef, cleanedLeaveData);
 };
 
-
-// === config.js (일부) ===
-// 8. 기본 앱 설정 데이터 (근태 일정 제거)
 function getDefaultConfig() {
     return {
         teamGroups: [
@@ -162,8 +163,6 @@ function getDefaultConfig() {
         },
         // ✅ [추가] 커스텀 현황판 항목 정의
         dashboardCustomItems: {},
-        // ✅ [추가] 커스텀 현황판 항목 정의
-        dashboardCustomItems: {},
         // ✅ [추가] 처리량-현황판 연동 맵
         quantityToDashboardMap: {},
         taskGroups: {
@@ -172,6 +171,7 @@ function getDefaultConfig() {
             '기타': ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무']
         },
         quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '검수'],
-        defaultPartTimerWage: 10000
+        defaultPartTimerWage: 10000,
+        notice: '' // ✅ [추가] 공지사항 기본값
     };
 }

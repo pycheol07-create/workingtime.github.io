@@ -25,7 +25,9 @@ import {
   renderMonthlyHistory,
   renderDashboardLayout,
   renderManualAddModalDatalists, // ✅ [추가]
-  renderTrendAnalysisCharts // ✅ [추가]
+  renderTrendAnalysisCharts, // ✅ [추가]
+  renderAttendanceSummaryList, // ✅ [추가]
+  renderNoticeBoard           // ✅ [추가]
 } from './ui.js';
 
 // ========== DOM Elements ==========
@@ -377,13 +379,14 @@ const updateElapsedTimes = () => {
   if (el) el.textContent = formatDuration(totalCompletedMinutes + totalOngoingMinutes);
 };
 
-// ========== 렌더 ==========
+// === app.js (render 함수 전체 교체) ===
 const render = () => {
   try {
     renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || []);
     renderCompletedWorkLog(appState);
     updateSummary(appState, appConfig); // ✅ appConfig 전체 전달 확인
     renderTaskAnalysis(appState, appConfig); // ✅ appConfig 전달 확인
+    renderAttendanceSummaryList(appState); // ✅ [추가] 실시간 근태 현황판 렌더링
   } catch (e) {
     console.error('Render error:', e);
     showToast('화면 렌더링 오류 발생.', true);
@@ -3509,7 +3512,7 @@ if (confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
 
 // ✅ [삭제] 여기 있던 첫 번째 startAppAfterLogin 함수 정의를 삭제했습니다.
 
-// ✅ [수정] startAppAfterLogin 함수 (역할 확인 및 UI 제어 로직 추가)
+// === app.js (startAppAfterLogin 함수 전체 교체) ===
 async function startAppAfterLogin(user) { 
   const loadingSpinner = document.getElementById('loading-spinner');
   if (loadingSpinner) loadingSpinner.style.display = 'block'; 
@@ -3609,6 +3612,7 @@ async function startAppAfterLogin(user) {
       document.getElementById('top-right-controls')?.classList.remove('hidden');
       document.querySelector('.bg-gray-800.shadow-lg')?.classList.remove('hidden'); 
       document.getElementById('main-content-area')?.classList.remove('hidden'); 
+      document.getElementById('info-boards')?.classList.remove('hidden'); // ✅ [추가]
       document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { 
           if(el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
               el.classList.remove('hidden');
@@ -3619,6 +3623,7 @@ async function startAppAfterLogin(user) {
       if (loadingSpinner) loadingSpinner.style.display = 'none'; 
       renderDashboardLayout(appConfig); 
       renderTaskSelectionModal(appConfig.taskGroups);
+      renderNoticeBoard(appConfig.notice || ''); // ✅ [추가] 공지사항 최초 렌더링
 
   } catch (e) { 
       console.error("설정 로드 실패:", e);
@@ -3627,6 +3632,7 @@ async function startAppAfterLogin(user) {
       if (loadingSpinner) loadingSpinner.style.display = 'none';
       renderDashboardLayout(appConfig); 
       renderTaskSelectionModal(appConfig.taskGroups);
+      renderNoticeBoard(appConfig.notice || ''); // ✅ [추가] (실패 시에도 기본값 렌더링)
   }
   
   // ✅ [수정] try...catch 블록 밖으로 이동 (정상)
@@ -3688,12 +3694,14 @@ async function startAppAfterLogin(user) {
           mergedConfig.memberEmails = { ...appConfig.memberEmails, ...(loadedConfig.memberEmails || {}) };
           mergedConfig.memberRoles = { ...appConfig.memberRoles, ...(loadedConfig.memberRoles || {}) };
           mergedConfig.quantityToDashboardMap = { ...appConfig.quantityToDashboardMap, ...(loadedConfig.quantityToDashboardMap || {}) };
+          mergedConfig.notice = loadedConfig.notice || appConfig.notice; // ✅ [추가] 공지사항 업데이트
 
           appConfig = mergedConfig; // 전역 appConfig 업데이트
 
           // 설정이 변경되었으므로 UI 레이아웃과 렌더링을 다시 수행
           renderDashboardLayout(appConfig);
           renderTaskSelectionModal(appConfig.taskGroups);
+          renderNoticeBoard(appConfig.notice || ''); // ✅ [추가] 공지사항 실시간 업데이트
           render(); // render()는 updateSummary()를 호출하여 현황판 값(수량 포함)을 갱신
           
           // ✅ [추가] 만약 이력 보기 모달이 열려있다면, 근태 추가 목록 등도 갱신
@@ -3932,6 +3940,7 @@ async function main() {
       document.getElementById('top-right-controls')?.classList.add('hidden');
       document.querySelector('.bg-gray-800.shadow-lg')?.classList.add('hidden'); 
       document.getElementById('main-content-area')?.classList.add('hidden'); 
+      document.getElementById('info-boards')?.classList.add('hidden'); // ✅ [추가]
       document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { 
           if(el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
               el.classList.add('hidden');
