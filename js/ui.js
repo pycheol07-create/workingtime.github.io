@@ -1209,8 +1209,10 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     }
 };
 
-// ✅ [수정] csvButtonHtml 파라미터 추가
-const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPeriodDataset = null, csvButtonHtml = '') => {
+// === ui.js (수정 2/3) ===
+// (기존 renderSummaryView 함수를 아래 코드로 통째로 교체)
+
+const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPeriodDataset = null) => {
     const records = dataset.workRecords || [];
     const quantities = dataset.taskQuantities || {};
 
@@ -1313,13 +1315,8 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
 
     // --- 3. HTML 렌더링 ---
     
-    // ✅ [수정] 스크롤 타겟 ID 추가 및 버튼 영역 추가
+    // ✅ [수정] 스크롤 타겟을 위한 ID 추가
     let html = `<div id="summary-card-${periodKey}" class="bg-white p-4 rounded-lg shadow-sm mb-6 scroll-mt-4">`;
-    // ✅ [수정] flex 레이아웃 및 버튼 영역 추가
-    html += `<div class="flex justify-between items-center mb-4">
-               <h3 class="text-xl font-bold">${periodKey} 요약</h3>
-               ${csvButtonHtml} {/* CSV 버튼 표시 */}
-             </div>`;
     html += `<h3 class="text-xl font-bold mb-4">${periodKey} 요약</h3>`;
 
     html += `<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 text-center">
@@ -1446,17 +1443,11 @@ export const renderWeeklyHistory = (allHistoryData, appConfig) => {
         // ✅ [수정] map 콜백에서 index를 사용해 prevData 전달
         view.innerHTML = sortedWeeks.map((weekKey, index) => {
             const currentData = weeklyData[weekKey];
+            // 이전 주 데이터 찾기 (sortedWeeks가 내림차순 정렬이므로 index + 1이 이전 주)
             const prevWeekKey = sortedWeeks[index + 1] || null;
             const prevData = prevWeekKey ? weeklyData[prevWeekKey] : null;
             
-            // ✅ [수정] CSV 버튼 HTML을 renderSummaryView 호출 전에 생성하여 전달
-            const csvButtonHtml = `
-                <button class="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-3 rounded-md text-sm" 
-                        data-action="download-csv" data-view="weekly" data-key="${weekKey}">
-                    CSV (요약)
-                </button>
-            `;
-            return renderSummaryView('weekly', currentData, weekKey, combinedWageMap, prevData, csvButtonHtml); // 마지막 인자로 버튼 HTML 전달
+            return renderSummaryView('weekly', currentData, weekKey, combinedWageMap, prevData);
         }).join('');
 
     } catch (error) {
@@ -1506,19 +1497,14 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
             return;
         }
 
+        // ✅ [수정] map 콜백에서 index를 사용해 prevData 전달
         view.innerHTML = sortedMonths.map((monthKey, index) => {
             const currentData = monthlyData[monthKey];
+            // 이전 월 데이터 찾기 (sortedMonths가 내림차순 정렬이므로 index + 1이 이전 월)
             const prevMonthKey = sortedMonths[index + 1] || null;
             const prevData = prevMonthKey ? monthlyData[prevMonthKey] : null;
             
-            // ✅ [수정] CSV 버튼 HTML을 renderSummaryView 호출 전에 생성하여 전달
-            const csvButtonHtml = `
-                <button class="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-3 rounded-md text-sm" 
-                        data-action="download-csv" data-view="monthly" data-key="${monthKey}">
-                    CSV (요약)
-                </button>
-            `;
-            return renderSummaryView('monthly', currentData, monthKey, combinedWageMap, prevData, csvButtonHtml); // 마지막 인자로 버튼 HTML 전달
+            return renderSummaryView('monthly', currentData, monthKey, combinedWageMap, prevData);
         }).join('');
         
     } catch (error) {
@@ -1537,13 +1523,8 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     let html = `
         <div class="mb-4 pb-2 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
-            {/* ✅ [수정] CSV 버튼 추가 */}
             <div>
-                 <button class="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-3 rounded-md text-sm" 
-                        data-action="download-csv" data-view="attendance-daily" data-key="${dateKey}">
-                    CSV (상세)
-                </button>
-                <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
+                <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
                         data-action="open-add-attendance-modal" data-date-key="${dateKey}">
                     수동 추가
                 </button>
@@ -1633,42 +1614,54 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap) => {
         const data = aggregationMap[periodKey];
         
         // [수정] 근태 항목 집계 (member-type 기준)
-    const summary = data.leaveEntries.reduce((acc, entry) => {
-        const key = `${entry.member}-${entry.type}`;
-        // [수정] days: 0 제거, count만 초기화
-        if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0 };
-        // [수정] 유형별 count 로직
-        if (['연차', '출장', '결근'].includes(entry.type)) { acc[key].count += 1; } 
-        else if (['외출', '조퇴'].includes(entry.type)) { acc[key].count += 1; }
-        return acc;
-    }, {});
-    // [수정] '일' 단위와 '회' 단위 구분
-    Object.values(summary).forEach(item => {
-         if (['연차', '출장', '결근'].includes(item.type)) { item.days = item.count; } 
-         else { item.days = 0; }
+        const summary = data.leaveEntries.reduce((acc, entry) => {
+            const key = `${entry.member}-${entry.type}`;
+            
+            // [수정] days: 0 제거, count만 초기화
+            if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0 };
+
+            // [수정] '연차', '출장', '결근'은 date-based (날짜 기반)
+            if (['연차', '출장', '결근'].includes(entry.type)) {
+                 // 이 entry는 하루에 하나씩 추가되므로, count가 곧 days임.
+                 acc[key].count += 1;
+            } 
+            // [수정] '외출', '조퇴'는 time-based (시간 기반)
+            else if (['외출', '조퇴'].includes(entry.type)) {
+                 acc[key].count += 1;
+            }
+            // (기타 유형도 count)
+            
+            return acc;
+        }, {});
+
+        // [수정] '일' 단위와 '회' 단위 구분
+        Object.values(summary).forEach(item => {
+             if (['연차', '출장', '결근'].includes(item.type)) {
+                 item.days = item.count; // '일' 단위
+             } else {
+                 item.days = 0; // '회' 단위 (days는 0으로)
+             }
+        });
+
+        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                    <h3 class="text-xl font-bold mb-3">${periodKey}</h3>
+                    <div class="space-y-1">`;
+
+        if (Object.keys(summary).length === 0) {
+             html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
+        } else {
+            Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
+                 html += `<div class="flex justify-between text-sm">
+                            <span class="font-semibold text-gray-700">${item.member}</span>
+                            <span>${item.type}</span>
+                            <span class="text-right">${item.days > 0 ? `${item.days}일` : `${item.count}회`}</span>
+                         </div>`;
+            });
+        }
+        html += `</div></div>`;
     });
 
-    // ✅ [수정] HTML 문자열 생성 및 반환
-    let html = `<div class="bg-white p-4 rounded-lg shadow-sm mb-6 scroll-mt-4">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-xl font-bold">${periodKey}</h3>
-                    ${csvButtonHtml} {/* CSV 버튼 표시 */}
-                </div>
-                <div class="space-y-1 max-h-60 overflow-y-auto">`;
-
-    if (Object.keys(summary).length === 0) {
-         html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
-    } else {
-        Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
-             html += `<div class="flex justify-between text-sm p-1 rounded hover:bg-gray-50">
-                        <span class="font-semibold text-gray-700 w-1/3">${item.member}</span>
-                        <span class="w-1/3 text-center">${item.type}</span>
-                        <span class="text-right w-1/3">${item.days > 0 ? `${item.days}일` : `${item.count}회`}</span>
-                     </div>`;
-        });
-    }
-    html += `</div></div>`;
-    return html; // HTML 문자열 반환
+    viewElement.innerHTML = html;
 };
 
 export const renderAttendanceWeeklyHistory = (allHistoryData) => {
@@ -1676,9 +1669,8 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터 집계 중...</div>';
 
-    // 주별 데이터 집계 로직 (기존과 동일)
+    // 주별 데이터 집계 로직
     const weeklyData = (allHistoryData || []).reduce((acc, day) => {
-        // ... (집계 로직) ...
         if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string') return acc;
         try {
              const dateObj = new Date(day.id);
@@ -1688,32 +1680,27 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
 
             if (!acc[weekKey]) acc[weekKey] = { leaveEntries: [], dateKeys: new Set() };
 
-            day.onLeaveMembers.forEach(entry => { /* ... */ });
+            day.onLeaveMembers.forEach(entry => {
+                if (entry && entry.type && entry.member) {
+                    if (entry.startDate) {
+                        const currentDate = day.id;
+                        const startDate = entry.startDate;
+                        const endDate = entry.endDate || entry.startDate;
+                        if (currentDate >= startDate && currentDate <= endDate) {
+                            acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
+                        }
+                    } else {
+                        acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
+                    }
+                }
+            });
             acc[weekKey].dateKeys.add(day.id);
         } catch (e) { console.error("Error processing day in attendance weekly aggregation:", day.id, e); }
         return acc;
     }, {});
 
-    // ✅ [수정] 공통 헬퍼 함수 호출 전에 CSV 버튼 HTML 생성 로직 추가
-    const sortedKeys = Object.keys(weeklyData).sort((a,b) => b.localeCompare(a));
-    if (sortedKeys.length === 0) {
-        view.innerHTML = `<div class="text-center text-gray-500">해당 기간의 근태 데이터가 없습니다.</div>`;
-        return;
-    }
-    
-    // 각 주별 카드에 CSV 버튼 추가
-    let html = '';
-    sortedKeys.forEach(periodKey => {
-         const csvButtonHtml = `
-            <button class="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-3 rounded-md text-sm" 
-                    data-action="download-csv" data-view="attendance-weekly" data-key="${periodKey}">
-                CSV (요약)
-            </button>
-        `;
-        // renderAggregatedAttendanceSummary 함수 호출 시 버튼 HTML 전달
-        html += renderAggregatedAttendanceSummary(weeklyData[periodKey], periodKey, csvButtonHtml);
-    });
-    view.innerHTML = html;
+    // ✅ [수정] 공통 헬퍼 함수로 렌더링 위임 (기존 중복 로직 삭제)
+    renderAggregatedAttendanceSummary(view, weeklyData);
 };
 
 export const renderAttendanceMonthlyHistory = (allHistoryData) => {
@@ -1721,9 +1708,8 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터 집계 중...</div>';
 
-    // 월별 데이터 집계 로직 (기존과 동일)
+    // 월별 데이터 집계 로직
     const monthlyData = (allHistoryData || []).reduce((acc, day) => {
-        // ... (집계 로직) ...
         if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string' || day.id.length < 7) return acc;
          try {
             const monthKey = day.id.substring(0, 7);
@@ -1731,32 +1717,27 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
 
             if (!acc[monthKey]) acc[monthKey] = { leaveEntries: [], dateKeys: new Set() };
 
-            day.onLeaveMembers.forEach(entry => { /* ... */ });
+            day.onLeaveMembers.forEach(entry => {
+                 if (entry && entry.type && entry.member) {
+                    if (entry.startDate) {
+                        const currentDate = day.id;
+                        const startDate = entry.startDate;
+                        const endDate = entry.endDate || entry.startDate;
+                        if (currentDate >= startDate && currentDate <= endDate) {
+                            acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
+                        }
+                    } else {
+                        acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
+                    }
+                }
+            });
             acc[monthKey].dateKeys.add(day.id);
         } catch (e) { console.error("Error processing day in attendance monthly aggregation:", day.id, e); }
         return acc;
     }, {});
 
-    // ✅ [수정] 공통 헬퍼 함수 호출 전에 CSV 버튼 HTML 생성 로직 추가
-    const sortedKeys = Object.keys(monthlyData).sort((a,b) => b.localeCompare(a));
-    if (sortedKeys.length === 0) {
-        view.innerHTML = `<div class="text-center text-gray-500">해당 기간의 근태 데이터가 없습니다.</div>`;
-        return;
-    }
-
-    // 각 월별 카드에 CSV 버튼 추가
-    let html = '';
-    sortedKeys.forEach(periodKey => {
-        const csvButtonHtml = `
-            <button class="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-3 rounded-md text-sm" 
-                    data-action="download-csv" data-view="attendance-monthly" data-key="${periodKey}">
-                CSV (요약)
-            </button>
-        `;
-        // renderAggregatedAttendanceSummary 함수 호출 시 버튼 HTML 전달
-        html += renderAggregatedAttendanceSummary(monthlyData[periodKey], periodKey, csvButtonHtml);
-    });
-    view.innerHTML = html;
+    // ✅ [수정] 공통 헬퍼 함수로 렌더링 위임 (기존 중복 로직 삭제)
+    renderAggregatedAttendanceSummary(view, monthlyData);
 };
 
 // === ui.js (파일 맨 끝에 추가) ===
