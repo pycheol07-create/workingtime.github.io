@@ -6,6 +6,8 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday } from './utils.js';
 import {
+  getAllDashboardDefinitions, // ✅ [추가]
+  DASHBOARD_ITEM_DEFINITIONS, // ✅ [추가]
   renderRealtimeStatus,
   renderCompletedWorkLog,
   updateSummary,

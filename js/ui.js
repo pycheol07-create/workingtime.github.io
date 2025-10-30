@@ -3,7 +3,7 @@
 import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js'; // getWeekOfYear import
 
 // ✅ [수정] 현황판 아이템 정의 (isQuantity 플래그 추가)
-const DASHBOARD_ITEM_DEFINITIONS = {
+export const DASHBOARD_ITEM_DEFINITIONS = { // ✅ 'export'를 추가했습니다.
     'total-staff': { title: '총원<br>(직원/알바)', valueId: 'summary-total-staff' },
     'leave-staff': { title: '휴무', valueId: 'summary-leave-staff' },
     'active-staff': { title: '근무<br>(직원/알바)', valueId: 'summary-active-staff' },
@@ -17,7 +17,7 @@ const DASHBOARD_ITEM_DEFINITIONS = {
 };
 
 // ✅ [추가] 모든 현황판 항목 정의 가져오기 (기본 + 커스텀)
-function getAllDashboardDefinitions(config) {
+export function getAllDashboardDefinitions(config) { // ✅ 'export'를 추가했습니다.
     // 커스텀 항목 정의를 기본 정의 형식에 맞게 변환
     const customDefinitions = {};
     if (config.dashboardCustomItems) {
