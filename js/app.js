@@ -5,7 +5,7 @@ import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, 
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
 // ✅ [수정] calcElapsedMinutes 추가
-import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes } from './utils.js';
+import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes, convertToCSV, downloadCSV } from './utils.js'; // ✅ convertToCSV, downloadCSV 추가
 import {
   getAllDashboardDefinitions, // ✅ [추가]
   DASHBOARD_ITEM_DEFINITIONS, // ✅ [추가]
