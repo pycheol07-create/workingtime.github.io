@@ -94,3 +94,56 @@ export const displayCurrentDate = () => {
 };
 
 // ⛔️ [삭제] 파일 끝에 있던 불필요한 '}' 괄호를 제거했습니다.
+
+// ✅ [추가] CSV 관련 헬퍼 함수
+
+/**
+ * 객체 배열을 CSV 문자열로 변환합니다.
+ * @param {Array<Object>} dataArray - 변환할 데이터 배열
+ * @param {Array<string>} headers - CSV 헤더 배열
+ * @returns {string} - 생성된 CSV 문자열
+ */
+export const convertToCSV = (dataArray, headers) => {
+    if (!dataArray || dataArray.length === 0) return '';
+
+    // 헤더 행 생성
+    const headerRow = headers.map(header => `"${String(header).replace(/"/g, '""')}"`).join(',');
+
+    // 데이터 행 생성
+    const dataRows = dataArray.map(row => {
+        return headers.map(header => {
+            const value = row[header];
+            let cellValue = (value === null || value === undefined) ? '' : String(value);
+            // 셀 값에 따옴표, 쉼표, 줄바꿈이 포함된 경우 따옴표로 감싸고 내부 따옴표 이스케이프
+            if (/[",\n\r]/.test(cellValue)) {
+                cellValue = `"${cellValue.replace(/"/g, '""')}"`;
+            }
+            return cellValue;
+        }).join(',');
+    });
+
+    // BOM 추가 (Excel에서 UTF-8 인식) + 헤더 + 데이터 반환
+    return '\uFEFF' + headerRow + '\n' + dataRows.join('\n');
+};
+
+/**
+ * CSV 문자열을 파일로 다운로드합니다.
+ * @param {string} csvString - 다운로드할 CSV 데이터
+ * @param {string} filename - 저장할 파일 이름 (확장자 포함)
+ */
+export const downloadCSV = (csvString, filename) => {
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    if (link.download !== undefined) { // feature detection
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url); // 메모리 해제
+    } else {
+        alert("CSV 다운로드를 지원하지 않는 브라우저입니다.");
+    }
+};

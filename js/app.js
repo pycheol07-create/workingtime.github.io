@@ -1090,19 +1090,19 @@ const renderHistoryDetail = (dateKey, previousDayData = null) => {
   let html = `
     <div class="mb-6 pb-4 border-b flex justify-between items-center">
       <h3 class="text-2xl font-bold text-gray-800">${dateKey} (전일 대비)</h3>
+      {/* ✅ [수정] 기존 div 내부에 CSV 버튼 추가 */}
       <div>
-        <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm" onclick="openHistoryQuantityModal('${dateKey}')">처리량 수정</button>
+        <button class="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-3 rounded-md text-sm" 
+                data-action="download-csv" data-view="daily" data-key="${dateKey}">
+            CSV (상세)
+        </button>
+        {/* 기존 버튼들 */}
+        <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="openHistoryQuantityModal('${dateKey}')">처리량 수정</button>
         <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="downloadHistoryAsExcel('${dateKey}')">엑셀 (전체)</button>
         <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="requestHistoryDeletion('${dateKey}')">삭제</button>
       </div>
     </div>
-    <div class="flex flex-wrap gap-4 mb-6">
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">근무 인원</h4><p class="text-2xl font-bold text-gray-800">${activeMembersCount} 명</p></div>
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${formatDuration(totalSumDuration)}</p></div>
-      ${nonWorkHtml}
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${totalQuantity} 개</p></div>
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
-    </div>
+    {/* ... (이하 나머지 HTML 생성 로직) ... */}
   `;
   
   // === [수정] 3개 카드(처리량, 분당처리량, 개당처리비용) 렌더링 로직 수정 ===
@@ -4304,6 +4304,193 @@ if (editLeaveModal) {
         dateFields.classList.add('hidden');
     });
 }
+
+// ✅ [추가] 이력 보기 CSV 다운로드 리스너
+const historyContainers = [
+    document.getElementById('history-view-container'),
+    document.getElementById('attendance-history-view-container')
+].filter(Boolean); // null인 경우 제외
+
+historyContainers.forEach(container => {
+    container.addEventListener('click', (e) => {
+        const downloadBtn = e.target.closest('button[data-action="download-csv"]');
+        if (!downloadBtn) return;
+
+        const viewType = downloadBtn.dataset.view; // e.g., 'daily', 'weekly', 'attendance-monthly'
+        const dataKey = downloadBtn.dataset.key;   // e.g., '2025-10-30', '2025-W44', '2025-10'
+
+        if (!viewType || !dataKey) {
+            showToast('CSV 다운로드 정보를 가져올 수 없습니다.', true);
+            return;
+        }
+
+        try {
+            let csvData = [];
+            let csvHeaders = [];
+            let filename = `이력_${viewType}_${dataKey}.csv`; // 기본 파일 이름
+
+            // --- 데이터 준비 ---
+            const historyWageMap = {}; // (wageMap 계산은 필요시 추가)
+            (allHistoryData || []).forEach(dayData => (dayData.partTimers || []).forEach(pt => { if(pt && pt.name && !historyWageMap[pt.name]) historyWageMap[pt.name] = pt.wage || 0; }));
+            const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
+
+            // --- 뷰 타입별 데이터 추출 및 헤더 설정 ---
+            switch (viewType) {
+                case 'daily': {
+                    const dayData = allHistoryData.find(d => d.id === dataKey);
+                    if (!dayData || !dayData.workRecords) throw new Error('상세 기록 데이터 없음');
+                    csvHeaders = ['날짜', '팀원', '업무', '시작', '종료', '소요(분)', '인건비(원)'];
+                    csvData = dayData.workRecords.map(r => {
+                        const wage = combinedWageMap[r.member] || 0;
+                        const cost = ((r.duration || 0) / 60) * wage;
+                        return {
+                            '날짜': dataKey,
+                            '팀원': r.member,
+                            '업무': r.task,
+                            '시작': formatTimeTo24H(r.startTime),
+                            '종료': formatTimeTo24H(r.endTime),
+                            '소요(분)': Math.round(r.duration || 0),
+                            '인건비(원)': Math.round(cost)
+                        };
+                    });
+                    filename = `업무상세기록_${dataKey}.csv`;
+                    break;
+                }
+                case 'weekly':
+                case 'monthly': {
+                    const isWeekly = viewType === 'weekly';
+                    const periodDataMap = (allHistoryData || []).reduce((acc, day) => { /* 주/월 집계 로직 */
+                        if (!day || !day.id || !day.workRecords) return acc;
+                        try {
+                            const dateObj = new Date(day.id);
+                            if (isNaN(dateObj.getTime())) return acc;
+                            const key = isWeekly ? getWeekOfYear(dateObj) : day.id.substring(0, 7);
+                            if (!key || (isWeekly && !key.includes('-W')) || (!isWeekly && !/^\d{4}-\d{2}$/.test(key))) return acc;
+                            if (!acc[key]) acc[key] = { workRecords: [], taskQuantities: {} };
+                            acc[key].workRecords.push(...(day.workRecords || []));
+                            Object.entries(day.taskQuantities || {}).forEach(([t, q]) => acc[key].taskQuantities[t] = (acc[key].taskQuantities[t] || 0) + (Number(q) || 0));
+                        } catch (e) { console.error("Error aggregating for CSV:", day.id, e); }
+                        return acc;
+                    }, {});
+                    const periodData = periodDataMap[dataKey];
+                    if (!periodData) throw new Error(`${isWeekly ? '주별' : '월별'} 요약 데이터 없음`);
+                    
+                    const taskSummary = (periodData.workRecords || []).reduce((acc, r) => { /* 업무별 집계 */
+                         if (!r || !r.task) return acc;
+                         if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+                         acc[r.task].duration += (r.duration || 0);
+                         const wage = combinedWageMap[r.member] || 0;
+                         acc[r.task].cost += ((r.duration || 0) / 60) * wage;
+                         acc[r.task].members.add(r.member);
+                         acc[r.task].recordCount += 1;
+                         return acc;
+                    }, {});
+                    Object.entries(periodData.taskQuantities || {}).forEach(([task, qty]) => { /* 수량 추가 */
+                        if (!taskSummary[task]) taskSummary[task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+                        taskSummary[task].quantity = (taskSummary[task].quantity || 0) + (Number(qty) || 0);
+                    });
+
+                    csvHeaders = ['기간', '업무', '총 시간(분)', '총 인건비(원)', '총 처리량(개)', '평균 처리량(개/분)', '평균 처리비용(원/개)', '총 참여인원(명)', '평균 처리시간(분)'];
+                    csvData = Object.keys(taskSummary).sort().map(task => {
+                        const s = taskSummary[task];
+                        const qty = s.quantity || 0;
+                        const avgThroughput = s.duration > 0 ? (qty / s.duration) : 0;
+                        const avgCostPerItem = qty > 0 ? (s.cost / qty) : 0;
+                        const avgTime = s.recordCount > 0 ? (s.duration / s.recordCount) : 0;
+                        return {
+                            '기간': dataKey,
+                            '업무': task,
+                            '총 시간(분)': Math.round(s.duration),
+                            '총 인건비(원)': Math.round(s.cost),
+                            '총 처리량(개)': qty,
+                            '평균 처리량(개/분)': avgThroughput.toFixed(2),
+                            '평균 처리비용(원/개)': Math.round(avgCostPerItem),
+                            '총 참여인원(명)': s.members.size,
+                            '평균 처리시간(분)': Math.round(avgTime) // 분 단위 숫자로 변경
+                        };
+                    });
+                    filename = `업무요약_${dataKey}.csv`;
+                    break;
+                }
+                 case 'attendance-daily': {
+                    const dayData = allHistoryData.find(d => d.id === dataKey);
+                    if (!dayData || !dayData.onLeaveMembers) throw new Error('근태 상세 기록 데이터 없음');
+                    csvHeaders = ['날짜', '이름', '유형', '시작시간', '종료시간', '시작일', '종료일'];
+                    csvData = dayData.onLeaveMembers.map(r => ({
+                        '날짜': dataKey,
+                        '이름': r.member,
+                        '유형': r.type,
+                        '시작시간': formatTimeTo24H(r.startTime),
+                        '종료시간': formatTimeTo24H(r.endTime),
+                        '시작일': r.startDate || '',
+                        '종료일': r.endDate || ''
+                    }));
+                    filename = `근태상세_${dataKey}.csv`;
+                    break;
+                }
+                case 'attendance-weekly':
+                case 'attendance-monthly': {
+                    const isWeekly = viewType === 'attendance-weekly';
+                    const periodDataMap = (allHistoryData || []).reduce((acc, day) => { /* 주/월 근태 집계 */
+                         if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0) return acc;
+                         try {
+                            const dateObj = new Date(day.id);
+                            if (isNaN(dateObj.getTime())) return acc;
+                            const key = isWeekly ? getWeekOfYear(dateObj) : day.id.substring(0, 7);
+                            if (!key || (isWeekly && !key.includes('-W')) || (!isWeekly && !/^\d{4}-\d{2}$/.test(key))) return acc;
+                            if (!acc[key]) acc[key] = { leaveEntries: [] };
+                            day.onLeaveMembers.forEach(entry => { /* 날짜 범위 체크하며 추가 */
+                                if (entry && entry.type && entry.member) {
+                                    if (entry.startDate) {
+                                        const currentDate = day.id; const startDate = entry.startDate; const endDate = entry.endDate || entry.startDate;
+                                        if (currentDate >= startDate && currentDate <= endDate) acc[key].leaveEntries.push({ ...entry, date: day.id });
+                                    } else { acc[key].leaveEntries.push({ ...entry, date: day.id }); }
+                                }
+                            });
+                         } catch (e) { console.error("Error aggregating attendance for CSV:", day.id, e); }
+                         return acc;
+                    }, {});
+                    const periodData = periodDataMap[dataKey];
+                    if (!periodData) throw new Error(`${isWeekly ? '주별' : '월별'} 근태 요약 데이터 없음`);
+                    
+                    const summary = periodData.leaveEntries.reduce((acc, entry) => { /* 이름-유형별 집계 */
+                        const key = `${entry.member}-${entry.type}`;
+                        if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0 };
+                        acc[key].count += 1; // 각 entry는 하루치 또는 한 번의 발생을 의미
+                        return acc;
+                    }, {});
+                    
+                    csvHeaders = ['기간', '이름', '유형', '횟수/일수'];
+                    csvData = Object.values(summary).sort((a,b)=> a.member.localeCompare(b.member)).map(item => {
+                        const isDateBased = ['연차', '출장', '결근'].includes(item.type);
+                        return {
+                            '기간': dataKey,
+                            '이름': item.member,
+                            '유형': item.type,
+                            '횟수/일수': isDateBased ? `${item.count}일` : `${item.count}회`
+                        };
+                    });
+                    filename = `근태요약_${dataKey}.csv`;
+                    break;
+                }
+                default:
+                    throw new Error(`지원하지 않는 뷰 타입: ${viewType}`);
+            }
+
+            // --- CSV 생성 및 다운로드 ---
+            if (csvData.length > 0) {
+                const csvString = convertToCSV(csvData, csvHeaders);
+                downloadCSV(csvString, filename);
+            } else {
+                showToast('다운로드할 데이터가 없습니다.');
+            }
+
+        } catch (error) {
+            console.error('CSV 다운로드 오류:', error);
+            showToast(`CSV 생성 또는 다운로드 중 오류 발생: ${error.message}`, true);
+        }
+    });
+});
 
 // ✅ [추가] 1분(60000ms)마다 페이지 자동 새로고침
 setInterval(() => {
