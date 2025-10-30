@@ -300,33 +300,44 @@ function renderQuantityTasks(quantityTasks) {
 }
 
 /**
- * ✅ [신규] 현황판-처리량 연동 설정 UI를 렌더링합니다.
+ * ✅ [수정] 현황판-처리량 연동 설정 UI를 렌더링합니다.
+ * (DOM을 기준으로 현황판 목록을 읽어옵니다)
  */
 function renderQuantityToDashboardMapping(config) {
     const container = document.getElementById('quantity-mapping-container');
     if (!container) return;
     container.innerHTML = '';
 
+    // 1. config에서 현재 저장된 매핑 값과 처리량 업무 목록은 가져옵니다.
     const mapping = config.quantityToDashboardMap || {};
     const quantityTasks = config.quantityTaskTypes || [];
+
+    // 2. ✅ [수정] 현황판 항목 정의는 '제목' 조회를 위해서만 사용합니다.
     const allDefinitions = getAllDashboardDefinitions(config);
 
-    // 1. 선택 가능한 '수량 현황판' 항목 목록 생성
+    // 3. ✅ [수정] 선택 가능한 '수량 현황판' 목록을 DOM에서 직접 읽어옵니다.
     const dashboardOptions = [];
     dashboardOptions.push(`<option value="">-- 연동 안 함 --</option>`);
-    Object.keys(allDefinitions).forEach(id => {
+    
+    document.querySelectorAll('#dashboard-items-container .dashboard-item-name').forEach(itemSpan => {
+        const id = itemSpan.dataset.id;
         const def = allDefinitions[id];
-        if (def.isQuantity) {
-            dashboardOptions.push(`<option value="${id}">${def.title.replace(/<br\s*\/?>/gi, ' ')}</option>`);
+        
+        // DOM에 있는 항목 중, 정의가 존재하고(def) 수량 항목(isQuantity)인 것만
+        if (def && def.isQuantity) {
+            // DOM에 표시된 텍스트(예: '국내송장(예상)')를 가져옵니다.
+            const title = itemSpan.textContent.trim(); 
+            dashboardOptions.push(`<option value="${id}">${title}</option>`);
         }
     });
 
+    // 4. 처리량 업무 목록이 없으면 메시지 표시
     if (quantityTasks.length === 0) {
         container.innerHTML = `<p class="text-sm text-gray-500 text-center">'처리량 집계 업무'에 항목을 먼저 추가해주세요.</p>`;
         return;
     }
     
-    // 2. '처리량 업무' 목록을 순회하며 행 생성
+    // 5. '처리량 업무' 목록을 순회하며 행 생성
     quantityTasks.forEach(taskName => {
         const row = document.createElement('div');
         row.className = 'flex items-center gap-4 mapping-row p-2 rounded hover:bg-gray-100';
@@ -342,9 +353,11 @@ function renderQuantityToDashboardMapping(config) {
             </select>
         `;
         
-        // 3. 현재 저장된 값으로 <select> 값 설정
+        // 6. 현재 저장된 값으로 <select> 값 설정
         const select = row.querySelector('.dashboard-mapping-select');
         if (select) {
+            // 만약 저장된 값이 DOM에서 삭제되어 목록에 없더라도,
+            // select.value는 자동으로 첫 번째(-- 연동 안 함 --) 항목을 선택하게 됩니다.
             select.value = currentSelection;
         }
 
@@ -407,12 +420,14 @@ function setupEventListeners() {
             // addDashboardItem(itemId); // 직접 DOM 추가 대신, appConfig 업데이트 후 다시 그림
             if (appConfig.dashboardItems && !appConfig.dashboardItems.includes(itemId)) {
                 appConfig.dashboardItems.push(itemId);
-                // 새 항목 추가 시 기본 수량 0 설정 (커스텀 항목은 addCustomDashboardItem에서 처리)
-                if (!itemId.startsWith('custom-')) {
-                   if (!appConfig.dashboardQuantities) appConfig.dashboardQuantities = {};
-                   appConfig.dashboardQuantities[itemId] = 0;
-                }
-                renderDashboardItemsConfig(appConfig.dashboardItems, appConfig.dashboardQuantities);
+                // ⛔️ [삭제] 아래 4줄 삭제 (dashboardQuantities는 더 이상 사용 안 함)
+                // if (!itemId.startsWith('custom-')) {
+                //    if (!appConfig.dashboardQuantities) appConfig.dashboardQuantities = {};
+                //    appConfig.dashboardQuantities[itemId] = 0;
+                // }
+                renderDashboardItemsConfig(appConfig.dashboardItems, {}); // ✅ 빈 객체 전달
+                // ✅ [FIX] 연동 설정 UI도 다시 렌더링
+                renderQuantityToDashboardMapping(appConfig);
             } else {
                 alert("이미 추가된 항목입니다.");
             }
@@ -720,16 +735,18 @@ function addCustomDashboardItem() {
     if (!appConfig.dashboardCustomItems) appConfig.dashboardCustomItems = {};
     appConfig.dashboardCustomItems[newId] = { title: trimmedTitle, isQuantity: true };
 
-    // appConfig 수량 정보 초기화 (임시)
-    if (!appConfig.dashboardQuantities) appConfig.dashboardQuantities = {};
-    appConfig.dashboardQuantities[newId] = 0;
+    // ⛔️ [삭제] appConfig 수량 정보 초기화 (임시)
+    // if (!appConfig.dashboardQuantities) appConfig.dashboardQuantities = {};
+    // appConfig.dashboardQuantities[newId] = 0;
 
     // appConfig 아이템 목록에 추가 (임시) - UI 렌더링용
     if (!appConfig.dashboardItems) appConfig.dashboardItems = [];
     appConfig.dashboardItems.push(newId);
 
     // UI 즉시 업데이트 (전체 다시 그리기)
-    renderDashboardItemsConfig(appConfig.dashboardItems, appConfig.dashboardQuantities);
+    renderDashboardItemsConfig(appConfig.dashboardItems, {}); // ✅ 빈 객체 전달
+    // ✅ [FIX] 연동 설정 UI도 다시 렌더링
+    renderQuantityToDashboardMapping(appConfig);
 
     alert(`'${trimmedTitle}' 항목이 추가되었습니다. '모든 변경사항 저장'을 눌러야 최종 반영됩니다.`);
 }
@@ -745,6 +762,13 @@ function handleDynamicClicks(e) {
             const modal = document.getElementById(modalId);
             if (modal) modal.classList.add('hidden');
         }
+    }
+
+    // ✅ [추가] 현황판 항목 삭제
+    else if (e.target.classList.contains('delete-dashboard-item-btn')) {
+        e.target.closest('.dashboard-item-config').remove();
+        // ✅ [FIX] 연동 설정 UI를 다시 렌더링하여 드롭다운을 업데이트합니다.
+        renderQuantityToDashboardMapping(appConfig);
     }
     
     // ✅ [추가] 설정 카드 접기/펴기
@@ -929,6 +953,11 @@ function setupDragDropListeners(containerSelector, itemSelector) {
                 container.insertBefore(draggedItem, afterElement);
             } else {
                 container.appendChild(draggedItem);
+            }
+
+            // ✅ [FIX] 현황판 항목이 드롭되었을 때만 연동 UI 갱신
+            if (containerSelector === '#dashboard-items-container') {
+                renderQuantityToDashboardMapping(appConfig);
             }
             
             // cleanup은 dragend에서 처리

@@ -187,6 +187,7 @@ const cancelEditStartTimeBtn = document.getElementById('cancel-edit-start-time-b
 let db, auth;
 let unsubscribeToday;
 let unsubscribeLeaveSchedule;
+let unsubscribeConfig; // ✅ [추가]
 let elapsedTimeTimer = null;
 let recordCounter = 0;
 let recordIdOrGroupIdToEdit = null;
@@ -3579,6 +3580,51 @@ async function startAppAfterLogin(user) {
       render();
   });
 
+  // ✅ [추가] 앱 설정(config) 실시간 감지 리스너
+  const configDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
+  if (unsubscribeConfig) unsubscribeConfig();
+  unsubscribeConfig = onSnapshot(configDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+          console.log("실시간 앱 설정 감지: 변경 사항을 적용합니다.");
+          const loadedConfig = docSnap.data();
+          
+          // config.js의 loadAppConfig와 유사한 병합 로직 수행
+          // Firestore에 없는 키가 로컬 appConfig에 남아있도록 loadedConfig를 기본으로 병합
+          const mergedConfig = { ...appConfig, ...loadedConfig }; 
+          
+          // 객체/배열은 덮어쓰기 (loadedConfig 우선)
+          mergedConfig.teamGroups = loadedConfig.teamGroups || appConfig.teamGroups;
+          mergedConfig.keyTasks = loadedConfig.keyTasks || appConfig.keyTasks;
+          mergedConfig.dashboardItems = loadedConfig.dashboardItems || appConfig.dashboardItems;
+          mergedConfig.dashboardCustomItems = { ...(loadedConfig.dashboardCustomItems || {}) };
+          mergedConfig.quantityTaskTypes = loadedConfig.quantityTaskTypes || appConfig.quantityTaskTypes;
+          mergedConfig.taskGroups = loadedConfig.taskGroups || appConfig.taskGroups;
+          mergedConfig.memberWages = { ...appConfig.memberWages, ...(loadedConfig.memberWages || {}) };
+          mergedConfig.memberEmails = { ...appConfig.memberEmails, ...(loadedConfig.memberEmails || {}) };
+          mergedConfig.memberRoles = { ...appConfig.memberRoles, ...(loadedConfig.memberRoles || {}) };
+          mergedConfig.quantityToDashboardMap = { ...appConfig.quantityToDashboardMap, ...(loadedConfig.quantityToDashboardMap || {}) };
+
+          appConfig = mergedConfig; // 전역 appConfig 업데이트
+
+          // 설정이 변경되었으므로 UI 레이아웃과 렌더링을 다시 수행
+          renderDashboardLayout(appConfig);
+          renderTaskSelectionModal(appConfig.taskGroups);
+          render(); // render()는 updateSummary()를 호출하여 현황판 값(수량 포함)을 갱신
+          
+          // ✅ [추가] 만약 이력 보기 모달이 열려있다면, 근태 추가 목록 등도 갱신
+          if (addAttendanceMemberDatalist) {
+              renderAttendanceAddModalDatalists(appConfig);
+          }
+
+      } else {
+          console.warn("실시간 앱 설정 감지: config 문서가 삭제되었습니다. 로컬 설정을 유지합니다.");
+      }
+  }, (error) => {
+      console.error("앱 설정 실시간 연결 실패:", error);
+      showToast("앱 설정 연결에 실패했습니다.", true);
+  });
+  // ✅ [추가 끝]
+
   const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
   if (unsubscribeToday) unsubscribeToday();
 
@@ -3781,6 +3827,7 @@ async function main() {
 
       if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
       if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; }
+      if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = undefined; } // ✅ [추가]
 
       appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user' };
 
