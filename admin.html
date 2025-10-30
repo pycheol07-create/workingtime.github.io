@@ -189,6 +189,23 @@
              <div class="flex justify-between items-center mb-4 cursor-pointer config-card-toggle">
 
         <div class="config-card">
+            <div class="flex justify-between items-center mb-4 cursor-pointer config-card-toggle">
+               <h2 class="text-2xl font-bold text-gray-800">📢 공지사항 관리 (순서 변경 가능)</h2>
+               <svg class="h-6 w-6 transform transition-transform arrow-rotated" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                   <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+               </svg>
+           </div>
+            <div class="config-card-content hidden">
+               <p class="text-sm text-gray-500 mb-4 -mt-2">(메인 앱 현황판에 표시될 공지 목록입니다. 간단한 Markdown(**굵게**, *기울임*) 사용 가능)</p>
+               <div class="p-4 bg-gray-50 rounded-lg border mt-2">
+                   <div id="notices-container" class="space-y-2">
+                       </div>
+               </div>
+               <button id="add-notice-btn" class="btn btn-secondary mt-4">+ 공지사항 추가</button>
+           </div>
+       </div>        
+
+        <div class="config-card">
              <div class="flex justify-between items-center mb-4 cursor-pointer config-card-toggle">
                 <h2 class="text-2xl font-bold text-gray-800">알바 시급 설정</h2>
                 <svg class="h-6 w-6 transform transition-transform arrow-rotated" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
