@@ -11,7 +11,7 @@ export const DASHBOARD_ITEM_DEFINITIONS = { // ✅ 'export'를 추가했습니�
     'idle-staff': { title: '대기', valueId: 'summary-idle-staff' },
     'ongoing-tasks': { title: '진행업무', valueId: 'summary-ongoing-tasks' },
     'total-work-time': { title: '업무진행시간', valueId: 'summary-total-work-time' },
-    'domestic-invoice': { title: '국내송장', valueId: 'summary-domestic-invoice', isQuantity: true },
+    'domestic-invoice': { title: '국내송장<br>(예상)', valueId: 'summary-domestic-invoice', isQuantity: true },
     'china-production': { title: '중국제작', valueId: 'summary-china-production', isQuantity: true },
     'direct-delivery': { title: '직진배송', valueId: 'summary-direct-delivery', isQuantity: true }
 };

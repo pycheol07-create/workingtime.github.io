@@ -17,7 +17,7 @@ const DASHBOARD_ITEM_DEFINITIONS = {
     'idle-staff': { title: '대기' },
     'ongoing-tasks': { title: '진행업무' },
     'total-work-time': { title: '업무진행시간' },
-    'domestic-invoice': { title: '국내송장', isQuantity: true }, // isQuantity 플래그 추가
+    'domestic-invoice': { title: '국내송장(예상)', isQuantity: true }, // isQuantity 플래그 추가
     'china-production': { title: '중국제작', isQuantity: true },
     'direct-delivery': { title: '직진배송', isQuantity: true }
 };
