@@ -172,10 +172,6 @@ function getDefaultConfig() {
             '기타': ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무']
         },
         quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '검수'],
-        defaultPartTimerWage: 10000,
-        
-        // ===== ✅ [추가] 공지사항 =====
-        dashboardNotice: '기본 공지사항입니다. 관리자 페이지에서 수정하세요.'
-        // ===========================
+        defaultPartTimerWage: 10000
     };
 }
