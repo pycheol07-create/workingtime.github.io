@@ -626,7 +626,8 @@ const resumeWorkIndividual = (recordId) => {
   }
 };
 
-// ... (saveProgress 함수는 이전과 동일) ...
+// === app.js (saveProgress 함수 전체 교체) ===
+
 async function saveProgress(isAutoSave = false) {
   const dateStr = getTodayDateString();
   
@@ -641,10 +642,13 @@ async function saveProgress(isAutoSave = false) {
     const existingData = docSnap.exists() ? (docSnap.data() || { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] }) : { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
     const completedRecordsFromState = (appState.workRecords || []).filter(r => r.status === 'completed');
 
+    // 현재 appState의 처리량 (0 이상인 값만 유효 처리)
     const currentQuantities = {};
     for (const task in (appState.taskQuantities || {})) {
       const q = Number(appState.taskQuantities[task]);
-      if (!Number.isNaN(q) && q > 0) currentQuantities[task] = q;
+      if (!Number.isNaN(q) && q >= 0) { // 0도 저장 가능하도록 >= 0
+         currentQuantities[task] = q;
+      }
     }
 
     const currentLeaveMembersCombined = [
@@ -653,7 +657,8 @@ async function saveProgress(isAutoSave = false) {
     ];
     const currentPartTimers = appState.partTimers || [];
 
-    if (completedRecordsFromState.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0 && !(existingData.onLeaveMembers?.length > 0) && !(existingData.partTimers?.length > 0)) {
+    // 저장할 데이터가 전혀 없는 경우 (최적화)
+    if (completedRecordsFromState.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0 && !(existingData.workRecords?.length > 0) && !(existingData.taskQuantities && Object.keys(existingData.taskQuantities).length > 0) && !(existingData.onLeaveMembers?.length > 0) && !(existingData.partTimers?.length > 0)) {
         if (!isAutoSave) {
             showToast('저장할 새로운 완료 기록, 처리량, 근태 정보 또는 알바 정보가 없습니다.', true);
         }
@@ -661,32 +666,37 @@ async function saveProgress(isAutoSave = false) {
         return;
     }
 
+    // 완료된 업무 기록 병합 (중복 제거)
     const combinedRecords = [...(existingData.workRecords || []), ...completedRecordsFromState];
     const uniqueRecords = Array.from(new Map(combinedRecords.map(item => [item.id, item])).values());
 
-    const finalQuantities = { ...(existingData.taskQuantities || {}) };
-    for (const task in currentQuantities) {
-      finalQuantities[task] = (Number(finalQuantities[task]) || 0) + Number(currentQuantities[task]);
-    }
+    // ✅ [수정] 처리량: 기존 이력 값을 덮어쓰도록 변경
+    //    (이력 문서에는 항상 현재 appState의 최신 값이 반영됨)
+    const finalQuantities = currentQuantities;
 
+    // 알바 정보 병합 (중복 제거)
     const combinedPartTimers = [...(existingData.partTimers || []), ...currentPartTimers];
     const uniquePartTimers = Array.from(new Map(combinedPartTimers.map(item => [item.id, item])).values());
 
+    // 최종 저장할 데이터 구성
     const dataToSave = {
       workRecords: uniqueRecords,
-      taskQuantities: finalQuantities,
-      onLeaveMembers: currentLeaveMembersCombined,
+      taskQuantities: finalQuantities, // 수정된 finalQuantities 사용
+      onLeaveMembers: currentLeaveMembersCombined, // 근태는 항상 최신 상태로 덮어쓰기
       partTimers: uniquePartTimers
     };
 
+    // Firestore에 저장
     await setDoc(historyDocRef, dataToSave);
 
     if (isAutoSave) {
-        showToast('진행 상황이 자동 저장되었습니다.', false);
+        // 자동 저장 시에는 별도 토스트 메시지 생략 (선택 사항)
+        // showToast('진행 상황이 자동 저장되었습니다.', false);
+        console.log("Auto-save completed."); // 콘솔 로그로 대체
     } else {
         showToast('현재까지의 기록이 성공적으로 저장되었습니다.');
     }
-    isDataDirty = false;
+    isDataDirty = false; // 저장 완료 후 dirty 플래그 초기화
 
   } catch (e) {
     console.error('Error in saveProgress: ', e);
