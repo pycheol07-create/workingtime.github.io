@@ -114,21 +114,21 @@ document.addEventListener('DOMContentLoaded', () => {
 */
 
 // --- UI 렌더링 ---
-// === admin.js (renderAdminUI 함수 교체) ===
+// (renderAdminUI, renderTeamGroups 함수는 이전과 동일)
 function renderAdminUI(config) {
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) {
         wageInput.value = config.defaultPartTimerWage || 10000;
     }
 
-    renderTeamGroups(config.teamGroups || [], config.memberWages || {}, config.memberEmails || {}, config.memberRoles || {}); // ✅ memberRoles 추가
+    renderTeamGroups(config.teamGroups || [], config.memberWages || {}, config.memberEmails || {}); // ✅ memberEmails 추가
+    // ✅ [수정] dashboardQuantities 전달 추가
     renderDashboardItemsConfig(config.dashboardItems || [], config.dashboardQuantities || {});
     renderKeyTasks(config.keyTasks || []);
     renderTaskGroups(config.taskGroups || {});
     renderQuantityTasks(config.quantityTaskTypes || []);
+    // ✅ [추가] 연동 맵 렌더링 호출
     renderQuantityToDashboardMapping(config);
-    // ✅ [추가] 공지사항 렌더링 호출
-    renderNoticesConfig(config.notices || []);
 }
 
 function renderTeamGroups(teamGroups, memberWages, memberEmails) { // ✅ memberEmails 파라미터 추가
@@ -365,63 +365,39 @@ function renderQuantityToDashboardMapping(config) {
     });
 }
 
-// === admin.js (renderQuantityToDashboardMapping 함수 다음에 추가) ===
-
-/**
- * ✅ [추가] 공지사항 관리 UI를 렌더링합니다.
- */
-function renderNoticesConfig(notices) {
-    const container = document.getElementById('notices-container');
-    if (!container) return;
-    container.innerHTML = ''; // 초기화
-
-    if (notices.length === 0) {
-        container.innerHTML = '<p class="text-sm text-gray-500 text-center">등록된 공지사항이 없습니다.</p>';
-    } else {
-        notices.forEach((notice, index) => {
-            const noticeEl = document.createElement('div');
-            noticeEl.className = 'flex items-center gap-2 notice-item p-1 rounded hover:bg-gray-100';
-            noticeEl.dataset.index = index;
-            noticeEl.innerHTML = `
-                <span class="drag-handle" draggable="true">☰</span> 
-                <input type="text" value="${notice}" class="notice-text flex-grow" placeholder="공지 내용 입력...">
-                <button class="btn btn-danger btn-small delete-notice-btn" data-index="${index}">삭제</button>
-            `;
-            container.appendChild(noticeEl);
-        });
-    }
-    // ✅ [추가] 공지사항 항목에 대한 드래그앤드롭 리스너 설정
-    setupDragDropListeners('#notices-container', '.notice-item');
-}
-
 
 // --- 이벤트 리스너 설정 ---
 
 // [수정] 이벤트 리스너 설정 함수
-// === admin.js (setupEventListeners 함수 교체) ===
 function setupEventListeners() {
     document.getElementById('save-all-btn').addEventListener('click', handleSaveAll);
     document.getElementById('add-team-group-btn').addEventListener('click', addTeamGroup);
+
+    // ✅ [수정] 현황판 항목 추가 버튼 리스너 (기존 + 커스텀)
     document.getElementById('add-dashboard-item-btn').addEventListener('click', openDashboardItemModal);
-    document.getElementById('add-custom-dashboard-item-btn').addEventListener('click', addCustomDashboardItem);
+    document.getElementById('add-custom-dashboard-item-btn').addEventListener('click', addCustomDashboardItem); // 새 리스너
+
+    // ✅ [수정] '주요 업무 추가' 버튼 리스너 (중복 제거 및 올바른 위치)
     document.getElementById('add-key-task-btn').addEventListener('click', () => {
         currentModalTarget = 'key';
         populateTaskSelectModal();
         document.getElementById('select-task-modal').classList.remove('hidden');
     });
+
     document.getElementById('add-task-group-btn').addEventListener('click', addTaskGroup);
+
+    // [수정] '처리량 업무 추가' 버튼 리스너
     document.getElementById('add-quantity-task-btn').addEventListener('click', () => {
         currentModalTarget = 'quantity';
         populateTaskSelectModal();
         document.getElementById('select-task-modal').classList.remove('hidden');
     });
-    // ✅ [추가] 공지사항 추가 버튼 리스너
-    document.getElementById('add-notice-btn').addEventListener('click', addNoticeItem);
 
+    // [수정] 동적 클릭 핸들러 (모달 닫기 포함)
     document.body.addEventListener('click', handleDynamicClicks);
 
+    // [추가] '업무 선택' 모달에서 업무 클릭 시
     document.getElementById('select-task-list').addEventListener('click', (e) => {
-        // ... (기존 업무 선택 모달 로직) ...
         const button = e.target.closest('.task-select-list-btn');
         if (button) {
             const taskName = button.dataset.taskName;
@@ -434,23 +410,33 @@ function setupEventListeners() {
             currentModalTarget = null;
         }
     });
+
+    // ✅ [추가] '현황판 항목 선택' 모달에서 항목 클릭 시
     document.getElementById('select-dashboard-item-list').addEventListener('click', (e) => {
-        // ... (기존 현황판 항목 선택 모달 로직) ...
-         const button = e.target.closest('.dashboard-item-select-btn');
-         if (button) {
-             const itemId = button.dataset.id;
-             if (appConfig.dashboardItems && !appConfig.dashboardItems.includes(itemId)) {
-                 appConfig.dashboardItems.push(itemId);
-                 renderDashboardItemsConfig(appConfig.dashboardItems, {}); 
-                 renderQuantityToDashboardMapping(appConfig);
-             } else {
-                 alert("이미 추가된 항목입니다.");
-             }
-             document.getElementById('select-dashboard-item-modal').classList.add('hidden');
-         }
+        const button = e.target.closest('.dashboard-item-select-btn');
+        if (button) {
+            const itemId = button.dataset.id;
+            // ✅ [수정] addDashboardItem 호출 부분을 render 후 재호출하도록 변경 (임시 추가 대응)
+            // addDashboardItem(itemId); // 직접 DOM 추가 대신, appConfig 업데이트 후 다시 그림
+            if (appConfig.dashboardItems && !appConfig.dashboardItems.includes(itemId)) {
+                appConfig.dashboardItems.push(itemId);
+                // ⛔️ [삭제] 아래 4줄 삭제 (dashboardQuantities는 더 이상 사용 안 함)
+                // if (!itemId.startsWith('custom-')) {
+                //    if (!appConfig.dashboardQuantities) appConfig.dashboardQuantities = {};
+                //    appConfig.dashboardQuantities[itemId] = 0;
+                // }
+                renderDashboardItemsConfig(appConfig.dashboardItems, {}); // ✅ 빈 객체 전달
+                // ✅ [FIX] 연동 설정 UI도 다시 렌더링
+                renderQuantityToDashboardMapping(appConfig);
+            } else {
+                alert("이미 추가된 항목입니다.");
+            }
+            document.getElementById('select-dashboard-item-modal').classList.add('hidden');
+        }
     });
+
+    // [추가] '처리량 집계 추가' 확인 모달 버튼
     document.getElementById('confirm-add-to-quantity-btn').addEventListener('click', () => {
-        // ... (기존 처리량 확인 모달 로직) ...
         if (taskJustAdded) {
             addQuantityTask(taskJustAdded);
         }
@@ -458,21 +444,23 @@ function setupEventListeners() {
         taskJustAdded = null;
     });
     document.getElementById('cancel-add-to-quantity-btn').addEventListener('click', () => {
-        // ... (기존 처리량 확인 모달 로직) ...
         document.getElementById('confirm-add-to-quantity-modal').classList.add('hidden');
         taskJustAdded = null;
     });
 
-    // 드래그앤드롭 리스너 설정
-    setupDragDropListeners('#team-groups-container', '.team-group-card'); 
-    setupDragDropListeners('.members-container', '.member-item'); 
-    setupDragDropListeners('#dashboard-items-container', '.dashboard-item-config'); 
-    setupDragDropListeners('#key-tasks-container', '.key-task-item'); 
-    setupDragDropListeners('#task-groups-container', '.task-group-card'); 
-    setupDragDropListeners('.tasks-container', '.task-item'); 
-    setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item'); 
-    // ✅ [추가] 공지사항 드래그앤드롭 리스너 설정
-    setupDragDropListeners('#notices-container', '.notice-item');
+
+    // [수정] 모든 레벨의 드래그앤드롭 리스너 설정
+    setupDragDropListeners('#team-groups-container', '.team-group-card'); // 1. 팀 그룹 (카드)
+    setupDragDropListeners('.members-container', '.member-item'); // 2. 팀원 (항목)
+
+    setupDragDropListeners('#dashboard-items-container', '.dashboard-item-config'); // ✅ [추가] 현황판 항목 (항목)
+
+    setupDragDropListeners('#key-tasks-container', '.key-task-item'); // 3. 주요 업무 (항목)
+
+    setupDragDropListeners('#task-groups-container', '.task-group-card'); // 4. 업무 그룹 (카드)
+    setupDragDropListeners('.tasks-container', '.task-item'); // 5. 업무 (항목)
+
+    setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item'); // 6. 처리량 업무 (항목)
 }
 
 // ✅ [수정] addTeamGroup 함수 (DOM 직접 추가 방식으로 변경)
@@ -624,37 +612,6 @@ function addQuantityTask(taskName) {
     renderQuantityTasks(appConfig.quantityTaskTypes);
 }
 
-// === admin.js (addQuantityTask 함수 다음에 추가) ===
-
-/**
- * ✅ [추가] 새 공지사항 입력 항목을 DOM에 추가합니다.
- */
-function addNoticeItem() {
-    const container = document.getElementById('notices-container');
-    if (!container) return;
-
-    // 만약 "등록된 공지사항 없음" 메시지가 있다면 제거
-    const noNoticeMsg = container.querySelector('p');
-    if (noNoticeMsg) noNoticeMsg.remove();
-
-    const noticeEl = document.createElement('div');
-    noticeEl.className = 'flex items-center gap-2 notice-item p-1 rounded hover:bg-gray-100';
-    noticeEl.innerHTML = `
-        <span class="drag-handle" draggable="true">☰</span> 
-        <input type="text" value="" class="notice-text flex-grow" placeholder="새 공지 내용 입력...">
-        <button class="btn btn-danger btn-small delete-notice-btn">삭제</button>
-    `;
-    container.appendChild(noticeEl);
-
-    // 새로 추가된 input에 포커스
-    const newInput = noticeEl.querySelector('.notice-text');
-    if (newInput) newInput.focus();
-
-    // ✅ [추가] 새로 추가된 항목에도 드래그 리스너가 적용되도록 다시 호출 (안전 조치)
-    // setupDragDropListeners는 중복 부착 방지 로직이 있으므로 괜찮음
-    setupDragDropListeners('#notices-container', '.notice-item');
-}
-
 // [추가] '업무 관리'에서 '새 업무' 추가 후 이름 변경 시(blur) 호출될 함수 (요청한 팝업 기능)
 function handleNewTaskNameBlur(e) {
     const newTaskName = e.target.value.trim();
@@ -795,9 +752,9 @@ function addCustomDashboardItem() {
 }
 
 
-// === admin.js (handleDynamicClicks 함수 교체) ===
+// [수정] handleDynamicClicks 함수
 function handleDynamicClicks(e) {
-    // 모달 닫기 버튼 (기존 로직 유지)
+    // [추가] 모달 닫기 버튼
     const closeBtn = e.target.closest('.modal-close-btn');
     if (closeBtn) {
         const modalId = closeBtn.dataset.modalId;
@@ -805,37 +762,53 @@ function handleDynamicClicks(e) {
             const modal = document.getElementById(modalId);
             if (modal) modal.classList.add('hidden');
         }
-        return; // 모달 닫기 시 다른 동작 방지
     }
 
-    // 설정 카드 접기/펴기 (기존 로직 유지)
+    // ✅ [추가] 현황판 항목 삭제
+    else if (e.target.classList.contains('delete-dashboard-item-btn')) {
+        e.target.closest('.dashboard-item-config').remove();
+        // ✅ [FIX] 연동 설정 UI를 다시 렌더링하여 드롭다운을 업데이트합니다.
+        renderQuantityToDashboardMapping(appConfig);
+    }
+    
+    // ✅ [추가] 설정 카드 접기/펴기
     const toggleBtn = e.target.closest('.config-card-toggle');
     if (toggleBtn) {
         const card = toggleBtn.closest('.config-card');
         const content = card.querySelector('.config-card-content');
         const arrow = toggleBtn.querySelector('svg');
-        if (content) content.classList.toggle('hidden');
-        if (arrow) arrow.classList.toggle('arrow-rotated');
-        return; 
+        if (content) {
+            content.classList.toggle('hidden');
+        }
+        if (arrow) {
+            arrow.classList.toggle('arrow-rotated');
+        }
+        return; // 토글 클릭 시 다른 동작(삭제 등) 방지
     }
     
-    // 팀원 추가/삭제, 팀 그룹 삭제 (기존 로직 유지)
+    // 팀원 추가/삭제, 팀 그룹 삭제
     if (e.target.classList.contains('add-member-btn')) {
         const container = e.target.previousElementSibling;
         const newMemberEl = document.createElement('div');
         newMemberEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item';
+        // newMemberEl.draggable = true; // [제거]
+        // ✅ [수정] 이메일 및 역할 필드 추가
         newMemberEl.innerHTML = `
             <span class="drag-handle" draggable="true">☰</span>
             <input type="text" value="새 팀원" class="member-name w-32" placeholder="팀원 이름">
+            
             <label class="text-sm whitespace-nowrap ml-2">로그인 이메일:</label>
             <input type="email" value="" class="member-email w-48" placeholder="example@email.com">
+            
             <label class="text-sm whitespace-nowrap ml-2">시급:</label>
             <input type="number" value="${appConfig.defaultPartTimerWage || 10000}" class="member-wage w-20" placeholder="시급">
+            
             <label class="text-sm whitespace-nowrap ml-2">역할:</label>
             <select class="member-role w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
                 <option value="user" selected>일반사용자</option>
                 <option value="admin">관리자</option>
             </select>
+            
             <button class="btn btn-danger btn-small delete-member-btn ml-auto">삭제</button>
         `;
         container.appendChild(newMemberEl);
@@ -844,49 +817,43 @@ function handleDynamicClicks(e) {
     } else if (e.target.classList.contains('delete-team-group-btn')) {
         e.target.closest('.team-group-card').remove();
     }
-    // 현황판 항목 삭제 (기존 로직 유지)
+    // ✅ [추가] 현황판 항목 삭제
     else if (e.target.classList.contains('delete-dashboard-item-btn')) {
         e.target.closest('.dashboard-item-config').remove();
-        renderQuantityToDashboardMapping(appConfig); // 연동 UI 갱신
     }
-    // 주요 업무 삭제 (기존 로직 유지)
+    // 주요 업무 삭제
     else if (e.target.classList.contains('delete-key-task-btn')) {
         e.target.closest('.key-task-item').remove();
     }
-    // 업무 추가/삭제, 업무 그룹 삭제 (기존 로직 유지)
+    // 업무 추가/삭제, 업무 그룹 삭제
     else if (e.target.classList.contains('add-task-btn')) {
         const container = e.target.previousElementSibling;
         const newTaskEl = document.createElement('div');
         newTaskEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item';
+        // newTaskEl.draggable = true; // [제거]
         newTaskEl.innerHTML = `
             <span class="drag-handle" draggable="true">☰</span>
             <input type="text" value="새 업무" class="task-name flex-grow">
             <button class="btn btn-danger btn-small delete-task-btn">삭제</button>
-        `; 
+        `; // [수정] handle에 draggable="true" 추가
         container.appendChild(newTaskEl);
+
+        // [추가] 방금 추가된 '새 업무' input에 blur 이벤트 리스너 추가
         const newTaskNameInput = newTaskEl.querySelector('.task-name');
         if (newTaskNameInput) {
-            newTaskNameInput.focus(); 
+            newTaskNameInput.focus(); // 바로 이름 수정하도록 포커스
+            // 포커스를 잃었을 때(이름 수정 완료 시) 팝업을 띄우기 위한 리스너
             newTaskNameInput.addEventListener('blur', handleNewTaskNameBlur, { once: true });
         }
+
     } else if (e.target.classList.contains('delete-task-btn')) {
         e.target.closest('.task-item').remove();
     } else if (e.target.classList.contains('delete-task-group-btn')) {
         e.target.closest('.task-group-card').remove();
     }
-    // 처리량 업무 삭제 (기존 로직 유지)
+    // 처리량 업무 삭제
     else if (e.target.classList.contains('delete-quantity-task-btn')) {
         e.target.closest('.quantity-task-item').remove();
-    }
-    // ✅ [추가] 공지사항 삭제
-    else if (e.target.classList.contains('delete-notice-btn')) {
-        const noticeItem = e.target.closest('.notice-item');
-        const container = noticeItem.parentElement;
-        noticeItem.remove();
-        // 삭제 후 남은 항목이 없으면 메시지 표시
-        if (container && container.children.length === 0) {
-             container.innerHTML = '<p class="text-sm text-gray-500 text-center">등록된 공지사항이 없습니다.</p>';
-        }
     }
 }
 
@@ -1000,83 +967,103 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
 
 // --- 데이터 저장 ---
-// === admin.js (handleSaveAll 함수 교체) ===
+// ✅ [수정] handleSaveAll (읽는 방식 수정)
 async function handleSaveAll() {
     try {
-        // 설정 객체 초기화
         const newConfig = {
             teamGroups: [],
             memberWages: {},
-            memberEmails: {}, 
-            memberRoles: {}, 
+            memberEmails: {}, // ✅ [유지] 이메일 맵 초기화
+            memberRoles: {}, // ✅ [유지] 역할 맵 초기화
             dashboardItems: [],
-            dashboardCustomItems: {}, 
-            quantityToDashboardMap: {}, 
+            // ⛔️ [삭제] dashboardQuantities: {},
+            dashboardCustomItems: {}, // ✅ [유지] 커스텀 항목 저장 객체
+            quantityToDashboardMap: {}, // ✅ [추가] 연동 맵 초기화
             keyTasks: [],
             taskGroups: {},
             quantityTaskTypes: [],
-            // ✅ [추가] 공지사항 배열 초기화
-            notices: [],
             defaultPartTimerWage: 10000
         };
         
-        // 이메일 중복 검사 맵 (기존 로직 유지)
+        // 0. [유지] 이메일 중복 검사 맵
         const emailCheck = new Map();
         let isEmailDuplicate = false;
         let duplicateEmailValue = '';
 
-        // 1. 팀원 및 시급 정보 읽기 (기존 로직 유지)
+        // 1. [유지] 팀원 및 시급 정보 읽기 (순서 반영)
         document.querySelectorAll('#team-groups-container .team-group-card').forEach(groupCard => {
             const groupName = groupCard.querySelector('.team-group-name').value.trim();
             if (!groupName) return;
+
             const newGroup = { name: groupName, members: [] };
+
             groupCard.querySelectorAll('.member-item').forEach(memberItem => {
                 const memberName = memberItem.querySelector('.member-name').value.trim();
                 const memberEmail = memberItem.querySelector('.member-email').value.trim(); 
                 const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
                 const memberRole = memberItem.querySelector('.member-role').value || 'user';
+                
                 if (!memberName) return;
+
                 newGroup.members.push(memberName);
                 newConfig.memberWages[memberName] = memberWage;
+                
                 if (memberEmail) { 
                     const emailLower = memberEmail.toLowerCase();
+                    
                     if (emailCheck.has(emailLower) && emailCheck.get(emailLower) !== memberName) {
                         isEmailDuplicate = true;
                         duplicateEmailValue = memberEmail;
                     }
                     emailCheck.set(emailLower, memberName);
+
                     newConfig.memberEmails[memberName] = memberEmail;
                     newConfig.memberRoles[emailLower] = memberRole;
                 }
             });
             newConfig.teamGroups.push(newGroup);
         });
+        
+        // 1b. [유지] 이메일 중복 시 저장 차단
         if (isEmailDuplicate) {
-            alert(`[저장 실패] 이메일 주소 '${duplicateEmailValue}'가 중복 사용되었습니다.`);
-            return; 
+            alert(`[저장 실패] 이메일 주소 '${duplicateEmailValue}'가 여러 팀원에게 중복 할당되었습니다. 이메일 주소는 고유해야 합니다.`);
+            return; // 저장 중단
         }
 
-        // 2. 현황판 항목 순서 및 커스텀 정의 읽기 (기존 로직 유지)
+
+        // 2. [수정] 현황판 항목 순서 및 커스텀 정의 읽기 (수량 읽기 삭제)
         const allDefinitions = getAllDashboardDefinitions(appConfig); 
         document.querySelectorAll('#dashboard-items-container .dashboard-item-config').forEach(item => {
             const nameSpan = item.querySelector('.dashboard-item-name');
+            // ⛔️ [삭제] quantityInput 변수 삭제
+
             if (nameSpan) {
                 const id = nameSpan.dataset.id;
-                newConfig.dashboardItems.push(id); 
+                newConfig.dashboardItems.push(id); // 순서 저장
+
                 const itemDef = allDefinitions[id];
-                if (itemDef && id.startsWith('custom-')) {
-                    newConfig.dashboardCustomItems[id] = { title: itemDef.title, isQuantity: true };
+                if (!itemDef) return; 
+
+                // ⛔️ [삭제] 수량 항목 값 읽기 로직 (if (itemDef.isQuantity...)) 전체 삭제
+                
+                // [유지] 커스텀 항목이면 정의 저장
+                if (id.startsWith('custom-')) {
+                    newConfig.dashboardCustomItems[id] = {
+                        title: itemDef.title,
+                        isQuantity: true 
+                    };
                 }
             }
         });
 
-        // 3. 주요 업무 정보 읽기 (기존 로직 유지)
+        // 3. [유지] 주요 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
              const taskName = item.querySelector('.key-task-name').textContent.trim();
              if (taskName) newConfig.keyTasks.push(taskName);
         });
 
-        // 4. 업무 정보 읽기 (기존 로직 유지)
+
+        // 4. [유지] 업무 정보 읽기 (순서 반영)
         const orderedTaskGroups = {};
         document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
             const groupNameInput = groupCard.querySelector('.task-group-name');
@@ -1091,57 +1078,56 @@ async function handleSaveAll() {
         });
         newConfig.taskGroups = orderedTaskGroups;
 
-        // 5. 처리량 업무 정보 읽기 (기존 로직 유지)
+
+        // 5. [유지] 처리량 업무 정보 읽기 (순서 반영)
         document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
             const taskName = item.querySelector('.quantity-task-name').textContent.trim();
             if (taskName) newConfig.quantityTaskTypes.push(taskName);
         });
 
-        // 6. 알바 시급 읽기 (기존 로직 유지)
+        // 6. [유지] 전역 설정 (알바 시급) 읽기
         const wageInput = document.getElementById('default-part-timer-wage');
         if (wageInput) {
             newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
         }
 
-        // 7. 처리량-현황판 연동 맵 정보 읽기 (기존 로직 유지)
+        // ✅ [추가] 7. 처리량-현황판 연동 맵 정보 읽기
         document.querySelectorAll('#quantity-mapping-container .mapping-row').forEach(row => {
             const taskName = row.dataset.taskName;
             const select = row.querySelector('.dashboard-mapping-select');
-            const selectedId = select ? select.value : '';
+            const selectedId = select.value;
+            // 연동 안 함(--)이 아닌 경우에만 저장
             if (taskName && selectedId) {
                 newConfig.quantityToDashboardMap[taskName] = selectedId;
             }
         });
-        
-        // ✅ [추가] 8. 공지사항 정보 읽기 (순서 반영)
-        document.querySelectorAll('#notices-container .notice-item').forEach(item => {
-             const noticeText = item.querySelector('.notice-text').value.trim();
-             // 비어있지 않은 공지만 저장
-             if (noticeText) {
-                 newConfig.notices.push(noticeText);
-             }
-        });
 
-        // 9. 데이터 유효성 검사 (기존 로직 유지)
+        // [수정] 8. 데이터 유효성 검사 (기존 7번)
         const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
         const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
         const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
+
         if (invalidKeyTasks.length > 0 || invalidQuantityTasks.length > 0) {
-            let errorMsg = "[저장 실패] '업무 관리' 목록에 없는 업무가 포함됨:\n";
-            if (invalidKeyTasks.length > 0) errorMsg += `▶ 주요 업무 오류: ${invalidKeyTasks.join(', ')}\n`;
-            if (invalidQuantityTasks.length > 0) errorMsg += `▶ 처리량 집계 오류: ${invalidQuantityTasks.join(', ')}\n`;
+            let errorMsg = "[저장 실패] '업무 관리' 목록에 존재하지 않는 업무 이름이 포함되어 있습니다.\n\n";
+            if (invalidKeyTasks.length > 0) {
+                errorMsg += `▶ 주요 업무 오류:\n- ${invalidKeyTasks.join('\n- ')}\n\n`;
+            }
+            if (invalidQuantityTasks.length > 0) {
+                errorMsg += `▶ 처리량 집계 오류:\n- ${invalidQuantityTasks.join('\n- ')}\n\n`;
+            }
+            errorMsg += "오타를 수정하거나 '업무 관리' 섹션에 해당 업무를 먼저 추가해주세요.";
             alert(errorMsg);
-            return; 
+            return; // 저장 중단
         }
 
-        // 10. Firestore에 저장 (기존 로직 유지)
+        // [수정] 9. Firestore에 저장 (기존 8번)
         await saveAppConfig(db, newConfig);
         appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');
 
-        // 11. UI 다시 렌더링 (기존 로직 유지)
+        // [수정] 10. UI 다시 렌더링 (기존 9번)
         renderAdminUI(appConfig);
-        // setupEventListeners(); // 저장이 완료되면 리스너는 다시 설정할 필요 없음 (DOM 구조 변경 시 필요)
+        setupEventListeners(); 
 
     } catch (e) {
         console.error("저장 실패:", e);

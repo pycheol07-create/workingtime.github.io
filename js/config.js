@@ -59,14 +59,12 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             mergedConfig.taskGroups = loadedData.taskGroups || defaultData.taskGroups;
             
-            // ✅ [수정] memberWages, memberEmails, memberRoles 병합 (기존 수정 유지)
+            // ✅ [추가] memberWages, memberEmails, memberRoles 병합
             mergedConfig.memberWages = { ...defaultData.memberWages, ...(loadedData.memberWages || {}) };
             mergedConfig.memberEmails = { ...defaultData.memberEmails, ...(loadedData.memberEmails || {}) };
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
-            // ✅ [수정] 처리량-현황판 연동 맵 병합 (기존 수정 유지)
+            // ✅ [추가] 처리량-현황판 연동 맵 병합
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
-            // ✅ [추가] 공지사항 병합
-            mergedConfig.notices = loadedData.notices || defaultData.notices;
 
 
             return mergedConfig;
@@ -132,6 +130,7 @@ export const saveLeaveSchedule = async (dbInstance, leaveData) => {
 };
 
 
+// === config.js (일부) ===
 // 8. 기본 앱 설정 데이터 (근태 일정 제거)
 function getDefaultConfig() {
     return {
@@ -147,6 +146,7 @@ function getDefaultConfig() {
             '김현': 10287, '배은정': 10287, '박상희': 10287, '김동훈': 10287,
             '신민재': 10047, '황호석': 10047
         },
+        // ✅ [추가] 이메일, 역할 기본값
         memberEmails: {},
         memberRoles: {},
         keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'],
@@ -160,7 +160,11 @@ function getDefaultConfig() {
             'china-production': 0,
             'direct-delivery': 0
         },
+        // ✅ [추가] 커스텀 현황판 항목 정의
         dashboardCustomItems: {},
+        // ✅ [추가] 커스텀 현황판 항목 정의
+        dashboardCustomItems: {},
+        // ✅ [추가] 처리량-현황판 연동 맵
         quantityToDashboardMap: {},
         taskGroups: {
             '공통': ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업'],
@@ -168,11 +172,6 @@ function getDefaultConfig() {
             '기타': ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무']
         },
         quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '검수'],
-        defaultPartTimerWage: 10000,
-        // ✅ [추가] 공지사항 기본값 (배열 형태)
-        notices: [
-            "📢 **첫 번째 공지:** 오늘 오후 3시 택배 마감입니다.",
-            "✅ **두 번째 공지:** 재고 조사 예정입니다. 협조 부탁드립니다."
-        ]
+        defaultPartTimerWage: 10000
     };
 }

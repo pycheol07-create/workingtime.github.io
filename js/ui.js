@@ -350,57 +350,54 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     container.innerHTML = html;
 };
 
-// === ui.js (renderRealtimeStatus 함수 전체 교체) ===
-
-export const renderRealtimeStatus = (appState, appConfig) => {
-    // === 현재 사용자 정보 가져오기 ===
+// ✅ [수정] renderRealtimeStatus (모든 근태 카드에 data-action="edit-leave-record" 추가)
+export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
+    // === ✅ [수정] 현재 사용자 정보 가져오기 (함수 상단으로 이동) ===
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
-    // --------------------------------
+    // ----------------------------------------------------
 
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
         console.error("Element #team-status-board not found!");
         return;
     }
-    // ✅ teamStatusBoard 초기화는 업무 카드와 팀원 목록이 모두 그려진 후가 아닌,
-    //    각 섹션을 그리기 직전에 해당 섹션 컨테이너만 초기화하는 것이 더 안전합니다.
-    // teamStatusBoard.innerHTML = ''; // 여기서는 초기화하지 않음
+    teamStatusBoard.innerHTML = '';
 
-    // 팀 그룹/멤버 맵 생성
     const memberGroupMap = new Map();
-    (appConfig.teamGroups || []).forEach(group => group.members.forEach(member => {
+    teamGroups.forEach(group => group.members.forEach(member => {
         if (!memberGroupMap.has(member)) memberGroupMap.set(member, group.name);
     }));
 
     // --- Section 1: Preset Task Quick Actions ---
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
-    // ✅ presetTaskContainer.innerHTML = ''; // 내부 초기화 (안전 조치)
-
+    
+    // ✅ [수정] "주요 업무" 헤더 텍스트(h3) 삭제, 버튼만 남김
     presetTaskContainer.innerHTML = `
         <div class="flex justify-end items-center border-b pb-2 mb-4 md:hidden">
-            <button id="toggle-all-tasks-mobile"
+            <button id="toggle-all-tasks-mobile" 
                     class="md:hidden bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-xs py-1 px-2 rounded-md transition active:scale-[0.98]">
                 전체보기
             </button>
         </div>`;
 
     const presetGrid = document.createElement('div');
+    // ✅ [수정] 그리드 컬럼 설정 변경 및 ID 추가
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4';
-    presetGrid.id = 'preset-task-grid';
+    presetGrid.id = 'preset-task-grid'; // 👈 [추가] ID 추가
 
-    const keyTasks = appConfig.keyTasks || [];
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
-
+    
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const activeTaskNames = new Set(ongoingRecords.map(r => r.task));
-
+    
     const tasksToRender = [...new Set([...baseTasks, ...activeTaskNames])];
 
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
+        // ✅ [수정] 현재 유저가 이 업무를 하는지 확인
         const isCurrentUserWorkingOnThisTask = groupRecords.some(r => r.member === currentUserName);
 
         const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
@@ -416,44 +413,70 @@ export const renderRealtimeStatus = (appState, appConfig) => {
         }
 
         const titleClass = isPaused ? currentStyle.title : (taskTitleColors[task] || taskTitleColors['default']);
-        // ✅ 모바일 가시성 로직 확인: 본인 업무만 보이게 하려면 이대로, 아니면 수정 필요
-        const mobileVisibilityClass = isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex mobile-task-hidden';
 
+        // ✅ [수정] 모바일 반응형 클래스 (토글을 위한 'mobile-task-hidden' 클래스 추가)
+        const mobileVisibilityClass = isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex mobile-task-hidden';
+        
+        // 🚨 [수정] 카드 자체의 cursor-pointer 제거 (하위 요소에서 클릭 처리)
         card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
 
+
         if (groupRecords.length > 0) {
-            // --- 진행 중 카드 HTML (이전과 동일) ---
-            const firstRecord = groupRecords[0];
+            const firstRecord = groupRecords[0]; // 대표 레코드 (그룹 ID, 태스크 이름 등)
+
+            // 🚨 [수정] 카드 데이터셋 이동 방지, 클릭은 하위 요소에서 처리
+            // card.dataset.action = 'add-member';
+            // card.dataset.groupId = firstRecord.groupId;
+            // card.dataset.task = firstRecord.task;
+
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
-                 const isRecPaused = rec.status === 'paused';
-                 const memberTextColor = isRecPaused ? 'text-yellow-800' : 'text-gray-800';
-                 const timeTextColor = isRecPaused ? 'text-yellow-600' : 'text-gray-500';
-                 const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
-                 const pauseIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg>`;
-                 const playIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg>`;
-                 let pauseResumeButtonHtml = '';
-                 if (rec.status === 'ongoing') {
-                     pauseResumeButtonHtml = `<button data-action="pause-individual" title="정지" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-yellow-100 hover:bg-yellow-200 text-yellow-700 transition">${pauseIcon}</button>`;
-                 } else if (rec.status === 'paused') {
-                     pauseResumeButtonHtml = `<button data-action="resume-individual" title="재개" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-green-100 hover:bg-green-200 text-green-700 transition">${playIcon}</button>`;
-                 }
-                 membersHtml += `
-                 <div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center member-row" data-record-id="${rec.id}" data-group-id="${rec.groupId || ''}">
-                     <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block text-left" title="${rec.member}">${rec.member}</span>
-                     <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
-                     <div class="flex-shrink-0 flex items-center space-x-1 member-actions">
-                         ${pauseResumeButtonHtml}
-                         <button data-action="stop-individual" title="종료" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-red-100 hover:bg-red-200 text-red-700 transition">
-                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                         </button>
-                         <button data-action="edit-individual-start-time" title="시작 시간 변경" data-record-id="${rec.id}" data-current-start-time="${rec.startTime || ''}" class="w-7 h-7 flex items-center justify-center rounded-full bg-blue-100 hover:bg-blue-200 text-blue-700 transition">
-                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                         </button>
-                     </div>
-                 </div>`;
+
+                const isRecPaused = rec.status === 'paused';
+
+                const memberTextColor = isRecPaused ? 'text-yellow-800' : 'text-gray-800';
+                const timeTextColor = isRecPaused ? 'text-yellow-600' : 'text-gray-500';
+                const stopButtonBg = isRecPaused ? 'bg-yellow-200 hover:bg-yellow-300' : 'bg-red-100 hover:bg-red-200';
+                const stopButtonText = isRecPaused ? 'text-yellow-700' : 'text-red-700';
+                const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
+
+                const pauseIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg>`;
+                const playIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg>`;
+                
+                let pauseResumeButtonHtml = '';
+                if (rec.status === 'ongoing') {
+                    // 정지 버튼 (Pause 아이콘)
+                    pauseResumeButtonHtml = `<button data-action="pause-individual" title="정지" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-yellow-100 hover:bg-yellow-200 text-yellow-700 transition">${pauseIcon}</button>`;
+                } else if (rec.status === 'paused') {
+                    // 재개 버튼 (Play 아이콘)
+                    pauseResumeButtonHtml = `<button data-action="resume-individual" title="재개" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-green-100 hover:bg-green-200 text-green-700 transition">${playIcon}</button>`;
+                }
+                
+                membersHtml += `
+                <div class="text-sm ${memberRowBg} rounded p-1 group flex justify-between items-center member-row"
+                    data-record-id="${rec.id}"
+                    data-group-id="${rec.groupId || ''}">
+
+                    <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block text-left" title="${rec.member}">${rec.member}</span>
+                    <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
+                    
+                    <div class="flex-shrink-0 flex items-center space-x-1 member-actions">
+                        ${pauseResumeButtonHtml}
+
+                        <button data-action="stop-individual" title="종료" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-red-100 hover:bg-red-200 text-red-700 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        
+                        <button data-action="edit-individual-start-time" title="시작 시간 변경" data-record-id="${rec.id}" data-current-start-time="${rec.startTime || ''}" class="w-7 h-7 flex items-center justify-center rounded-full bg-blue-100 hover:bg-blue-200 text-blue-700 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </button>
+                        
+                    </div>
+                </div>`;
+                // === 여기까지 수정 ===
             });
             membersHtml += '</div>';
+
             const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && (!earliest || current.startTime < earliest)) ? current.startTime : earliest), null);
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
             const recordIdForDuration = representativeRecord ? representativeRecord.id : groupRecords[0].id;
@@ -461,45 +484,103 @@ export const renderRealtimeStatus = (appState, appConfig) => {
             const pausesJson = JSON.stringify(pauses || []);
             const durationStatus = isOngoing ? 'ongoing' : 'paused';
             const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
-            const groupTimeDisplayHtml = `<div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${durationStatus}" data-record-id="${recordIdForDuration || ''}" data-pauses-json='${pausesJson}'></span></div>`;
-            card.innerHTML = `<div class="flex flex-col h-full"><div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div>${groupTimeDisplayHtml} <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div><div class="flex-grow">${membersHtml}</div><div class="mt-auto flex gap-2 pt-2 card-actions" data-group-id="${firstRecord.groupId}" data-task="${firstRecord.task}"><button class="add-member-btn flex-1 aspect-square flex flex-col items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm" data-action="add-member" data-group-id="${firstRecord.groupId}" data-task="${firstRecord.task}"><span class="text-center leading-tight">인원<br>추가</span></button><button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 aspect-square flex flex-col items-center justify-center text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm">${isPaused ? `<span class="text-center leading-tight">전체<br>재개</span>` : `<span class="text-center leading-tight">전체<br>정지</span>`}</button><button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} flex-1 aspect-square flex flex-col items-center justify-center text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm"><span class="text-center leading-tight">전체<br>종료</span></button></div></div>`;
-            // --- 진행 중 카드 HTML 끝 ---
+
+            // ✅ [수정] 그룹 시간 표시 부분을 div로 감싸고 data-* 속성 추가
+            const groupTimeDisplayHtml = `
+                <div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" 
+                     data-action="edit-group-start-time" 
+                     data-group-id="${firstRecord.groupId}" 
+                     data-current-start-time="${earliestStartTime || ''}">
+                    시작: ${formatTimeTo24H(earliestStartTime)} 
+                    <span class="ongoing-duration" 
+                          data-start-time="${earliestStartTime || ''}" 
+                          data-status="${durationStatus}" 
+                          data-record-id="${recordIdForDuration || ''}"
+                          data-pauses-json='${pausesJson}'></span>
+                </div>`;
+
+            card.innerHTML = `<div class="flex flex-col h-full">
+                                <div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div>
+                                ${groupTimeDisplayHtml} 
+                                <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
+                                <div class="flex-grow">${membersHtml}</div>
+                                <div class="mt-auto flex gap-2 pt-2 card-actions"
+                                     data-group-id="${firstRecord.groupId}"
+                                     data-task="${firstRecord.task}">
+
+                                    <button class="add-member-btn flex-1 aspect-square flex flex-col items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm"
+                                            data-action="add-member"
+                                            data-group-id="${firstRecord.groupId}"
+                                            data-task="${firstRecord.task}">
+                                        <span class="text-center leading-tight">인원<br>추가</span>
+                                    </button>
+
+                                    <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 aspect-square flex flex-col items-center justify-center text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm">
+                                        ${isPaused
+                                            ? `<span class="text-center leading-tight">전체<br>재개</span>`
+                                            : `<span class="text-center leading-tight">전체<br>정지</span>`
+                                        }
+                                    </button>
+
+                                    <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} flex-1 aspect-square flex flex-col items-center justify-center text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm">
+                                        <span class="text-center leading-tight">전체<br>종료</span>
+                                    </button>
+                                </div>
+                            </div>`;
         } else {
-             // --- 시작 전 카드 HTML (이전과 동일) ---
-             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
-             card.dataset.action = 'start-task';
-             card.dataset.task = task;
-             card.innerHTML = `<div class="flex-grow"><div class="font-bold text-lg ${titleClass} break-keep">${task}</div><div class="text-xs ${currentStyle.subtitle} my-2">시작: 시작 전</div><div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">참여 인원 (0명):</div><div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div></div><div class="mt-auto flex gap-2 pt-2"><button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed"><span class="text-center leading-tight">인원<br>추가</span></button><button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed"><span class="text-center leading-tight">전체<br>정지</span></button><button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed"><span class="text-center leading-tight">전체<br>종료</span></button></div>`;
-             // --- 시작 전 카드 HTML 끝 ---
+             // 🚨 [수정] 시작 전 카드는 클릭 가능하도록 cursor-pointer 유지, data-* 속성 추가
+            card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
+            card.dataset.action = 'start-task';
+            card.dataset.task = task;
+
+            card.innerHTML = `
+                <div class="flex-grow">
+                    <div class="font-bold text-lg ${titleClass} break-keep">${task}</div>
+                    <div class="text-xs ${currentStyle.subtitle} my-2">시작: 시작 전</div>
+                    <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">참여 인원 (0명):</div>
+                    <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
+                </div>
+                <div class="mt-auto flex gap-2 pt-2">
+                    <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
+                        <span class="text-center leading-tight">인원<br>추가</span>
+                    </button>
+                    <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
+                        <span class="text-center leading-tight">전체<br>정지</span>
+                    </button>
+                    <button class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
+                        <span class="text-center leading-tight">전체<br>종료</span>
+                    </button>
+                </div>
+            `;
         }
         presetGrid.appendChild(card);
     });
 
     const otherTaskCard = document.createElement('div');
     const otherStyle = taskCardStyles['default'];
+    // ✅ [수정] '기타 업무' 카드는 모바일에서도 항상 보이도록 'flex' 유지
     otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';
-    otherTaskCard.innerHTML = `<div class="font-bold text-lg text-gray-700">기타 업무</div><svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mt-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>`;
+    otherTaskCard.innerHTML = `
+        <div class="font-bold text-lg text-gray-700">기타 업무</div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mt-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
+    `;
     presetGrid.appendChild(otherTaskCard);
     presetTaskContainer.appendChild(presetGrid);
-
-    // ✅ 기존 업무 카드 컨테이너가 있다면 제거 후 새로 추가
-    const existingPresetContainer = teamStatusBoard.querySelector('.mb-6');
-    if (existingPresetContainer) existingPresetContainer.remove();
     teamStatusBoard.appendChild(presetTaskContainer);
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
-    // ✅ 팀원 목록 컨테이너 가져오기 또는 생성
-    let allMembersContainer = document.getElementById('all-members-container');
-    if (!allMembersContainer) {
-        allMembersContainer = document.createElement('div');
-        allMembersContainer.id = 'all-members-container';
-        teamStatusBoard.appendChild(allMembersContainer); // 생성 후 추가
-    }
-    allMembersContainer.innerHTML = ''; // ✅ 팀원 목록 컨테이너 내부만 초기화
-
+    // (이하 코드 동일)
+    // ... (이하 renderRealtimeStatus 함수의 나머지 코드는 그대로 유지) ...
+    const allMembersContainer = document.createElement('div');
+    allMembersContainer.id = 'all-members-container'; // ✅ [추가] 토글을 위한 ID
+    
     const allMembersHeader = document.createElement('div');
+    // ✅ [수정] 모바일에서도 헤더가 보이도록 'hidden' 클래스 제거, 토글 버튼 추가
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `
         <h3 class="text-lg font-bold text-gray-700 hidden md:block">전체 팀원 현황 (클릭하여 근태 설정/취소/수정)</h3>
@@ -515,49 +596,41 @@ export const renderRealtimeStatus = (appState, appConfig) => {
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
 
-    const combinedOnLeaveMembersForStatus = [
+    // --- ✅ [추가] 현재 사용자 정보 가져오기 (이미 상단으로 이동함) ---
+    // const currentUserRole = appState.currentUserRole || 'user';
+    // const currentUserName = appState.currentUser || null;
+    // ------------------------------------
+
+    const combinedOnLeaveMembers = [
         ...(appState.dailyOnLeaveMembers || []),
         ...(appState.dateBasedOnLeaveMembers || [])
     ];
     const onLeaveStatusMap = new Map(
-        combinedOnLeaveMembersForStatus
+        combinedOnLeaveMembers
             .filter(item => !(item.type === '외출' && item.endTime))
             .map(item => [item.member, item])
     );
 
-    const teamGroups = appConfig.teamGroups || [];
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
         teamGroups.find(g => g.name === '공통파트'),
         teamGroups.find(g => g.name === '담당파트'),
         teamGroups.find(g => g.name === '제작파트'),
-    ].filter(Boolean); // null/undefined 제거
+    ].filter(Boolean);
 
-    // ✅ 팀 그룹 데이터가 있는지 확인
-    if (orderedTeamGroups.length === 0) {
-        console.warn("팀 그룹 정보가 없습니다. 관리자 페이지에서 설정을 확인하세요.");
-        // 사용자에게 메시지 표시 (선택 사항)
-        // allMembersContainer.innerHTML += '<p class="text-center text-red-500 my-4">팀 그룹 정보가 설정되지 않았습니다.</p>';
-    }
 
     orderedTeamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
-        groupContainer.className = 'mb-4';
+        // ✅ [수정] 모바일에서 그룹 전체 숨김 ('hidden md:block') -> ('mb-4')
+        groupContainer.className = 'mb-4'; // 이 컨테이너는 항상 보이도록 수정
         const groupHeader = document.createElement('div');
-        groupHeader.className = 'flex items-center gap-2 mb-2 hidden md:flex';
+        // ✅ [수정] 모바일에서 그룹 헤더 숨김 ('hidden md:flex')
+        groupHeader.className = 'flex items-center gap-2 mb-2 hidden md:flex'; // 헤더만 숨김
         groupHeader.innerHTML = `<h4 class="text-md font-semibold text-gray-600">${group.name}</h4>`;
         groupContainer.appendChild(groupHeader);
-
         const groupGrid = document.createElement('div');
         groupGrid.className = 'flex flex-wrap gap-2';
         const uniqueMembersInGroup = [...new Set(group.members)];
-
-        // ✅ 팀 멤버 데이터가 있는지 확인
-        if (uniqueMembersInGroup.length === 0) {
-             console.warn(`그룹 '${group.name}'에 팀원이 없습니다.`);
-             // 그룹에 멤버가 없을 때의 처리 (선택 사항)
-             // groupGrid.innerHTML = '<p class="text-xs text-gray-400">팀원 없음</p>';
-        }
 
         uniqueMembersInGroup.forEach(member => {
             const card = document.createElement('button');
@@ -565,78 +638,94 @@ export const renderRealtimeStatus = (appState, appConfig) => {
             const leaveInfo = onLeaveStatusMap.get(member);
             const isOnLeave = !!leaveInfo;
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
-            const isSelf = (member === currentUserName);
+            const isSelf = (member === currentUserName); // ✅ [추가] 본인 확인
 
-            // ✅ 모바일 가시성 로직 확인
-            // 현재: 본인이면 항상 보임(flex), 아니면 모바일에서 숨김(hidden md:flex)
-            const visibilityClass = isSelf ? 'flex' : 'hidden md:flex mobile-member-hidden';
-            // 너비는 본인이면 모바일에서 꽉 참(w-full), 데스크탑에선 고정(md:w-28)
-            const widthClass = isSelf ? 'w-full md:w-28' : 'w-28';
+            // === 📌 [재수정] 팀원 카드 className 설정 ===
+            // ✅ [수정] 토글을 위해 'mobile-member-hidden' 클래스 추가
+            const visibilityClass = isSelf ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
+            const widthClass = isSelf ? 'w-full md:w-28' : 'w-28'; 
             card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClass} ${widthClass} flex-col justify-center`;
+            // ============================================
 
-            card.dataset.memberName = member;
+            // ✅ [수정] data-action을 설정 (근태 중이면 edit-leave-record, 아니면 member-toggle-leave)
+            card.dataset.memberName = member; // 공통: 이름
             if (isOnLeave) {
-                card.dataset.action = 'edit-leave-record';
+                // [수정] 근태 중이면 무조건 수정 모달 열기
+                card.dataset.action = 'edit-leave-record'; 
                 card.dataset.leaveType = leaveInfo.type;
-                card.dataset.startTime = leaveInfo.startTime || '';
-                card.dataset.startDate = leaveInfo.startDate || '';
+                card.dataset.startTime = leaveInfo.startTime || ''; // 식별자
+                card.dataset.startDate = leaveInfo.startDate || ''; // 식별자
                 card.dataset.endTime = leaveInfo.endTime || '';
                 card.dataset.endDate = leaveInfo.endDate || '';
+                
             } else {
-                card.dataset.action = 'member-toggle-leave';
+                // [수정] 근태 중이 아니면 근태 설정 모달 열기 (기존)
+                card.dataset.action = 'member-toggle-leave'; 
             }
-
-            // 클릭 가능/불가능 및 스타일 설정
-            if (!isWorking) { // 업무 중이 아닐 때만 근태 설정/수정 가능
-                if (currentUserRole === 'admin' || isSelf) { // 관리자 또는 본인
+            
+            // ✅ [수정] 권한에 따라 커서/투명도 조절 (근태 중일 때도 수정 가능하도록)
+            if (!isWorking) {
+                // 업무 중이 아닐 때
+                if (currentUserRole === 'admin' || isSelf) {
+                    // 관리자거나 본인이면 활성화
                     card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
-                } else { // 다른 사람 (관리자X)
-                    card.classList.add('cursor-not-allowed', 'opacity-70');
+                } else {
+                    // 관리자가 아니고 타인이면 비활성화
+                    card.classList.add('cursor-not-allowed', 'opacity-70'); 
                 }
-            } else { // 업무 중일 때는 클릭 불가
+            } else {
+                // 업무 중이면 비활성화
                 card.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
-            // 상태별 카드 스타일링
             if (isOnLeave) {
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 let detailText = '';
                 if (leaveInfo.startTime) {
                     detailText = formatTimeTo24H(leaveInfo.startTime);
-                    if (leaveInfo.endTime) detailText += ` - ${formatTimeTo24H(leaveInfo.endTime)}`;
-                    else if (leaveInfo.type === '외출') detailText += ' ~';
-                } else if (leaveInfo.startDate) {
-                    detailText = leaveInfo.startDate.substring(5);
-                    if (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate) detailText += ` ~ ${leaveInfo.endDate.substring(5)}`;
+                    if (leaveInfo.endTime) {
+                         detailText += ` - ${formatTimeTo24H(leaveInfo.endTime)}`;
+                    } else if (leaveInfo.type === '외출') {
+                         detailText += ' ~';
+                    }
                 }
-                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">${leaveInfo.type}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
-            } else if (workingMembers.has(member)) { // '업무 중' 상태 먼저 확인
+                else if (leaveInfo.startDate) {
+                    detailText = leaveInfo.startDate.substring(5);
+                    if (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate) {
+                        detailText += ` ~ ${leaveInfo.endDate.substring(5)}`;
+                    }
+                }
+                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div>
+                                  <div class="text-xs">${leaveInfo.type}</div>
+                                  ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
+            } else if (workingMembers.has(member)) {
                 card.classList.add('bg-red-50', 'border-red-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-red-800 break-keep">${member}</div><div class="text-xs text-gray-600 truncate" title="${workingMembers.get(member)}">${workingMembers.get(member)}</div>`;
-            } else if (pausedMembers.has(member)) { // '휴식 중' 상태 확인
+            } else if (pausedMembers.has(member)) {
                 card.classList.add('bg-yellow-50', 'border-yellow-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-yellow-800 break-keep">${member}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
-            } else { // 위 상태가 아니면 '대기 중'
+            } else {
                 card.classList.add('bg-green-50', 'border-green-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
             }
             groupGrid.appendChild(card);
-        }); // 멤버 루프 끝
+        });
         groupContainer.appendChild(groupGrid);
         allMembersContainer.appendChild(groupContainer);
-    }); // 그룹 루프 끝
+    });
 
     // --- 알바 섹션 ---
     const workingAlbaMembers = new Set((appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused')).map(r => r.member));
-    // ✅ activePartTimers 정의: 업무 중이거나, 근태 상태인 알바만 표시
     const activePartTimers = (appState.partTimers || []).filter(pt => {
         return workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name);
     });
 
     if (activePartTimers.length > 0) {
         const albaContainer = document.createElement('div');
-        albaContainer.className = 'mb-4';
-        albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2 hidden md:block">알바</h4>`;
+        // ✅ [수정] 모바일에서 알바 섹션 숨김 ('hidden md:block') -> ('mb-4')
+        albaContainer.className = 'mb-4'; // 이 컨테이너는 항상 보이도록 수정
+        // ✅ [수정] 모바일에서 알바 헤더 숨김 ('hidden md:block')
+        albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2 hidden md:block">알바</h4>`; // 헤더만 숨김
 
         const albaGrid = document.createElement('div');
         albaGrid.className = 'flex flex-wrap gap-2';
@@ -644,115 +733,79 @@ export const renderRealtimeStatus = (appState, appConfig) => {
         activePartTimers.forEach(pt => {
              const card = document.createElement('button');
              card.type = 'button';
-             const isSelfAlba = (pt.name === currentUserName);
+             
+             const isSelfAlba = (pt.name === currentUserName); // ✅ [추가] 본인 확인 (알바)
 
-             const visibilityClassAlba = isSelfAlba ? 'flex' : 'hidden md:flex mobile-member-hidden';
-             const widthClassAlba = isSelfAlba ? 'w-full md:w-28' : 'w-28';
+             // === 📌 [재수정] 알바 카드 className 설정 ===
+             // ✅ [수정] 토글을 위해 'mobile-member-hidden' 클래스 추가
+             const visibilityClassAlba = isSelfAlba ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
+             const widthClassAlba = isSelfAlba ? 'w-full md:w-28' : 'w-28'; 
              card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClassAlba} ${widthClassAlba} flex-col justify-center`;
+             // ===========================================
 
-             const currentlyWorkingTask = workingMembers.get(pt.name); // 'ongoing'만
-             const isPaused = pausedMembers.has(pt.name); // 'paused'만
+             const currentlyWorkingTask = workingMembers.get(pt.name);
+             const isPaused = pausedMembers.has(pt.name);
              const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
              const isAlbaOnLeave = !!albaLeaveInfo;
-             const isAlbaWorking = currentlyWorkingTask || isPaused; // 업무 또는 휴식 중
+             const isAlbaWorking = currentlyWorkingTask || isPaused;
 
-            card.dataset.memberName = pt.name;
+            // ✅ [수정] data-action을 설정 (근태 중이면 edit-leave-record, 아니면 member-toggle-leave)
+            card.dataset.memberName = pt.name; // 공통: 이름
             if (isAlbaOnLeave) {
+                // [수정] 근태 중이면 무조건 수정 모달 열기
                 card.dataset.action = 'edit-leave-record';
                 card.dataset.leaveType = albaLeaveInfo.type;
-                card.dataset.startTime = albaLeaveInfo.startTime || '';
-                card.dataset.startDate = albaLeaveInfo.startDate || '';
+                card.dataset.startTime = albaLeaveInfo.startTime || ''; // 식별자
+                card.dataset.startDate = albaLeaveInfo.startDate || ''; // 식별자
                 card.dataset.endTime = albaLeaveInfo.endTime || '';
                 card.dataset.endDate = albaLeaveInfo.endDate || '';
             } else {
+                // [수정] 근태 중이 아니면 근태 설정 모달 열기 (기존)
                 card.dataset.action = 'member-toggle-leave';
             }
 
-             if (!isAlbaWorking) { // 업무/휴식 중이 아닐 때만 근태 설정/수정 가능
+             // ✅ [수정] 권한에 따라 커서/투명도 조절 (근태 중일 때도 수정 가능하도록)
+             if (!isAlbaWorking) {
                  if (currentUserRole === 'admin' || isSelfAlba) {
                     card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
                  } else {
-                    card.classList.add('cursor-not-allowed', 'opacity-70');
+                    card.classList.add('cursor-not-allowed', 'opacity-70'); // 본인이 아니면 비활성
                  }
-             } else { // 업무/휴식 중일 땐 클릭 불가
+             } else {
                  card.classList.add('opacity-70', 'cursor-not-allowed');
              }
 
-             // 상태별 스타일링
              if (isAlbaOnLeave) {
                  card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                  let detailText = '';
                   if (albaLeaveInfo.startTime) {
                      detailText = formatTimeTo24H(albaLeaveInfo.startTime);
-                     if (albaLeaveInfo.endTime) detailText += ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}`;
-                     else if (albaLeaveInfo.type === '외출') detailText += ' ~';
+                     if (albaLeaveInfo.endTime) { detailText += ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}`; }
+                     else if (albaLeaveInfo.type === '외출') { detailText += ' ~'; }
                   } else if (albaLeaveInfo.startDate) {
                     detailText = albaLeaveInfo.startDate.substring(5);
-                    if (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate) detailText += ` ~ ${albaLeaveInfo.endDate.substring(5)}`;
+                    if (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate) { detailText += ` ~ ${albaLeaveInfo.endDate.substring(5)}`; }
                   }
-                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">${albaLeaveInfo.type}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
-             } else if (currentlyWorkingTask) { // '업무 중'
+                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div>
+                                   <div class="text-xs">${albaLeaveInfo.type}</div>
+                                   ${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
+             } else if (currentlyWorkingTask) {
                  card.classList.add('bg-red-50', 'border-red-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-red-800">${pt.name}</div><div class="text-xs text-gray-600 truncate" title="${currentlyWorkingTask}">${currentlyWorkingTask}</div>`;
-             } else if (isPaused) { // '휴식 중'
+             } else if (isPaused) {
                  card.classList.add('bg-yellow-50', 'border-yellow-200');
                  card.innerHTML = `<div class="font-semibold text-sm text-yellow-800">${pt.name}</div><div class="text-xs text-yellow-600">휴식 중</div>`;
              }
-             // 알바가 '대기 중'인 경우는 activePartTimers 조건에 의해 여기에 그려지지 않음
-
              albaGrid.appendChild(card);
         });
         albaContainer.appendChild(albaGrid);
         allMembersContainer.appendChild(albaContainer);
-    } // if (activePartTimers.length > 0) 끝
-
-    // ✅ 기존 팀원 목록 컨테이너가 있다면 제거 후 새로 추가 (중복 방지)
-    const existingMembersContainer = teamStatusBoard.querySelector('#all-members-container');
-    if (existingMembersContainer) existingMembersContainer.remove();
-    teamStatusBoard.appendChild(allMembersContainer); // 최종적으로 추가
-
-
-    // --- 공지사항 및 근태 목록 렌더링 ---
-    const noticeContainer = document.getElementById('notice-board-container');
-    const attendanceContainer = document.getElementById('attendance-list-container');
-
-    // 공지사항 렌더링
-    if (noticeContainer) {
-        const notices = appConfig.notices || [];
-        if (notices.length > 0) {
-            noticeContainer.innerHTML = notices.map(notice =>
-                `<p class="py-1">${notice.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>')}</p>`
-            ).join('');
-        } else {
-            noticeContainer.innerHTML = '<p class="text-gray-500">등록된 공지사항이 없습니다.</p>';
-        }
     }
-
-    // 근태 목록 렌더링
-    if (attendanceContainer) {
-        const currentLeaveList = combinedOnLeaveMembersForStatus
-            .filter(item => !(item.type === '외출' && item.endTime))
-            .sort((a, b) => a.member.localeCompare(b.member));
-
-        if (currentLeaveList.length > 0) {
-            attendanceContainer.innerHTML = currentLeaveList.map(item => {
-                let detailText = '';
-                if (item.startTime) {
-                    detailText = `(${formatTimeTo24H(item.startTime)}~)`;
-                } else if (item.startDate) {
-                    detailText = `(${item.startDate.substring(5)}`;
-                    if (item.endDate && item.endDate !== item.startDate) {
-                        detailText += `~${item.endDate.substring(5)}`;
-                    }
-                    detailText += ')';
-                }
-                return `<div class="py-0.5 flex justify-between items-center text-xs group hover:bg-yellow-100 px-1 rounded"><span class="font-semibold text-gray-800 truncate mr-1">${item.member}</span> <span class="text-gray-600 truncate">${item.type} ${detailText}</span></div>`;
-            }).join('');
-        } else {
-            attendanceContainer.innerHTML = '<p class="text-gray-500 text-center">현재 휴무/외출 인원 없음</p>';
-        }
-    }
-}; // renderRealtimeStatus 함수 끝
+    
+    // ✅ [수정] 직원 현황판(allMembersContainer)은 항상 추가되도록 수정 (내부에서 모바일 숨김 처리)
+    // teamStatusBoard.appendChild(presetTaskContainer); // presetTaskContainer는 이미 추가됨
+    teamStatusBoard.appendChild(allMembersContainer);
+};
 
 // ... (renderCompletedWorkLog, updateSummary, renderTeamSelectionModalContent, renderLeaveTypeModalOptions, renderSummaryView, renderWeeklyHistory, renderMonthlyHistory, renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory 함수들은 이전과 동일) ...
 export const renderCompletedWorkLog = (appState) => {
