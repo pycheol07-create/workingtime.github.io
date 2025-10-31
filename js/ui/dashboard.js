@@ -1,7 +1,5 @@
 // === js/ui/dashboard.js ===
 
-import { getAllDashboardDefinitions as adminGetAllDefinitions } from '../admin.js'; // ✅ [수정] admin.js에서 가져오도록 변경
-
 // ✅ [수정] 현황판 아이템 정의 (isQuantity 플래그 추가)
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원<br>(직원/알바)', valueId: 'summary-total-staff' },
