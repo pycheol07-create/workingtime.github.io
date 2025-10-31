@@ -1,6 +1,9 @@
 // === admin.js (Firebase 인증 적용 버전) ===
 
-import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
+// ✅ [수정] import 경로 변경
+import { initializeFirebase } from './firebase.js'; // initializeFirebase 가져오기
+import { loadAppConfig, saveAppConfig } from './api.js'; // load/save 함수 가져오기
+
 // ✅ [추가] Firebase Auth import
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
