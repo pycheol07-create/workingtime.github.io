@@ -1,7 +1,3 @@
-// === js/utils.js ===
-
-// ... (기존 showToast, calcElapsedMinutes, formatTimeTo24H, ... getWeekOfYear, displayCurrentDate 함수들은 그대로 둠) ...
-
 export const showToast = (message, isError = false) => {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -15,6 +11,14 @@ export const showToast = (message, isError = false) => {
     }, 3000);
 };
 
+// ✅ [추가] app.js에서 이동해 온 함수
+/**
+ * 시작 시간, 종료 시간, 그리고 정지 기록 배열을 바탕으로 순수 작업 시간을 분 단위로 계산합니다.
+ * @param {string} start - 시작 시간 (HH:MM)
+ * @param {string} end - 종료 시간 (HH:MM)
+ * @param {Array<Object>} pauses - 정지 기록 배열 (e.g., [{start: 'HH:MM', end: 'HH:MM'}])
+ * @returns {number} - 계산된 총 분
+ */
 export const calcElapsedMinutes = (start, end, pauses = []) => {
   if (!start || !end) return 0;
   const s = new Date(`1970-01-01T${start}:00Z`).getTime();
@@ -30,6 +34,9 @@ export const calcElapsedMinutes = (start, end, pauses = []) => {
   return Math.max(0, total / 60000);
 };
 
+// === utils.js (36번째 줄부터 파일 끝까지 교체) ===
+
+// ✅ [수정] 중복 선언 및 불필요한 괄호 제거
 export const formatTimeTo24H = (timeStr) => {
     if (!timeStr) return '';
     const [hours, minutes] = timeStr.split(':');
@@ -86,10 +93,16 @@ export const displayCurrentDate = () => {
     document.getElementById('current-date-display').textContent = dateString;
 };
 
-// === ⬇️ app.js에서 이동해 온 헬퍼 함수들 ⬇️ ===
+// === utils.js (파일 맨 아래에 추가) ===
 
-let recordCounter = 0; // generateId를 위한 카운터
 export const generateId = () => `${Date.now()}-${++recordCounter}`;
+// (참고: recordCounter는 app.js에 있으므로, 이 함수를 app.js에서 호출 시
+// recordCounter를 인자로 받거나 app.js에 그대로 두는 것이 낫습니다.)
+
+// 앗, generateId는 app.js의 전역 변수 recordCounter를 사용하네요.
+// 이 함수는 app.js에 그대로 두는 것이 좋겠습니다!
+
+// generateId를 제외한 나머지 3개 함수를 utils.js로 옮기겠습니다.
 
 export const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
 
@@ -114,59 +127,4 @@ export const debounce = (func, delay) => {
     };
 };
 
-/**
- * 모달 팝업을 드래그 가능하게 만듭니다. (app.js에서 이동)
- */
-export function makeDraggable(modalOverlay, header, contentBox) {
-    let isDragging = false;
-    let offsetX, offsetY;
-
-    header.addEventListener('mousedown', (e) => {
-        if (e.target.closest('button')) {
-            return;
-        }
-        
-        isDragging = true;
-        
-        if (contentBox.dataset.hasBeenUncentered !== 'true') {
-            const rect = contentBox.getBoundingClientRect();
-            modalOverlay.classList.remove('flex', 'items-center', 'justify-center');
-            contentBox.style.position = 'absolute';
-            contentBox.style.top = `${rect.top}px`;
-            contentBox.style.left = `${rect.left}px`;
-            contentBox.style.transform = 'none';
-            contentBox.dataset.hasBeenUncentered = 'true';
-        }
-
-        const rect = contentBox.getBoundingClientRect();
-        offsetX = e.clientX - rect.left;
-        offsetY = e.clientY - rect.top;
-        
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    });
-
-    function onMouseMove(e) {
-        if (!isDragging) return;
-        let newLeft = e.clientX - offsetX;
-        let newTop = e.clientY - offsetY;
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        const boxWidth = contentBox.offsetWidth;
-        const boxHeight = contentBox.offsetHeight;
-
-        if (newLeft < 0) newLeft = 0;
-        if (newTop < 0) newTop = 0;
-        if (newLeft + boxWidth > viewportWidth) newLeft = viewportWidth - boxWidth;
-        if (newTop + boxHeight > viewportHeight) newTop = viewportHeight - boxHeight;
-
-        contentBox.style.left = `${newLeft}px`;
-        contentBox.style.top = `${newTop}px`;
-    }
-
-    function onMouseUp() {
-        isDragging = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-    }
-}
+// ⛔️ [삭제] 파일 끝에 있던 불필요한 '}' 괄호를 제거했습니다.
