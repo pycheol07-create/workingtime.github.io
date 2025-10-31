@@ -2,26 +2,10 @@
 
 import { appState, appConfig, persistentLeaveSchedule, setAppState } from '../store.js';
 import { debouncedSaveState, saveProgress, saveLeaveSchedule, updateHistoryDoc, deleteHistoryDoc } from '../api.js';
-import { showToast, getTodayDateString, generateId, calcElapsedMinutes } from '../utils.js';
+import { showToast, getTodayDateString, generateId, calcElapsedMinutes, normalizeName } from '../utils.js';
 import * as actions from '../actions.js';
-import * as ui from '../ui/index.js'; // render
-
-// ✅ [수정] main.js/history.js와 공유해야 하는 컨텍스트 변수
-// (임시로 window 전역 사용)
-// window.recordToDeleteId
-// window.deleteMode
-// window.recordToEditId
-// window.quantityModalContext
-// window.attendanceRecordToDelete
-// window.historyKeyToDelete
-
-// (actions.js에서 import할 로컬 변수)
-// import { groupToStopId, recordToStopId, ... } from './main.js';
-// -> [수정] actions.js가 아닌 main.js에 정의된 로컬 변수이므로,
-//    이 파일에서 직접 참조할 수 없습니다.
-//    따라서 window 전역을 사용하거나, state store를 통해 전달해야 합니다.
-//    가장 간단한 수정은 app.js의 기존 방식(전역 변수)을 유지하는 것입니다.
-//    -> [재수정] main.js와 history.js가 window 전역에 설정한 값을 사용합니다.
+// ✅ [수정] ui/index.js에서 필요한 모든 ui 함수를 가져옵니다.
+import * as ui from '../ui/index.js';
 
 const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장']; // (임시)
 
@@ -36,15 +20,13 @@ export function attachModalListeners() {
     const openQuantityModalTodayBtn = document.getElementById('open-quantity-modal-today');
     if (openQuantityModalTodayBtn) {
         openQuantityModalTodayBtn.addEventListener('click', () => {
-            // (인증 확인은 init.js에서 처리)
             ui.renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || []);
             document.getElementById('quantity-modal-title').textContent = '오늘의 처리량 입력';
             
-            // ✅ [수정] window.quantityModalContext에 저장
             window.quantityModalContext = {
                 mode: 'today',
                 dateKey: null,
-                onConfirm: handleQuantityUpdate, // ✅ 확인 로직 함수로 분리
+                onConfirm: handleQuantityUpdate,
                 onCancel: () => {}
             };
             
@@ -65,7 +47,7 @@ export function attachModalListeners() {
             window.quantityModalContext = {
                 mode: 'today',
                 dateKey: null,
-                onConfirm: handleQuantityUpdate, // ✅ 확인 로직 함수로 분리
+                onConfirm: handleQuantityUpdate,
                 onCancel: () => {}
             };
             
@@ -151,7 +133,6 @@ export function attachModalListeners() {
           if (quantity > 0) newQuantities[task] = quantity;
         });
         
-        // ✅ [수정] window.quantityModalContext 사용
         const context = window.quantityModalContext || {};
         if (context.onConfirm) {
           context.onConfirm(newQuantities);
@@ -194,7 +175,7 @@ export function attachModalListeners() {
     const confirmEditBtn = document.getElementById('confirm-edit-btn');
     if (confirmEditBtn) {
       confirmEditBtn.addEventListener('click', () => {
-        const recordId = window.recordToEditId; // ✅ window 전역 참조
+        const recordId = window.recordToEditId;
         if (!recordId) return;
         
         const idx = appState.workRecords.findIndex(r => String(r.id) === String(recordId));
@@ -234,7 +215,7 @@ export function attachModalListeners() {
     if (confirmDeleteBtn) {
       confirmDeleteBtn.addEventListener('click', async () => {
         let stateChanged = false;
-        const deleteMode = window.deleteMode || 'single'; // ✅ window 전역 참조
+        const deleteMode = window.deleteMode || 'single';
         
         if (deleteMode === 'all') {
           const originalLength = appState.workRecords.length;
@@ -255,8 +236,6 @@ export function attachModalListeners() {
           }
           
         } else if (deleteMode === 'leave' && window.attendanceRecordToDelete) {
-            // (이 로직은 main.js의 edit-leave-record-modal 리스너로 이동)
-            // -> [수정] 삭제 로직은 여기에 있어야 함
             const { memberName, startIdentifier, recordType } = window.attendanceRecordToDelete;
             let recordDeleted = false;
             let deletedRecordInfo = '';
@@ -287,17 +266,16 @@ export function attachModalListeners() {
             else showToast('삭제할 근태 기록을 찾지 못했습니다.', true);
             
         } else if (deleteMode === 'attendance-history' && window.attendanceRecordToDelete) {
-            // (이력 모달의 근태 삭제)
             const { dateKey, index } = window.attendanceRecordToDelete;
-            const dayDataIndex = allHistoryData.findIndex(d => d.id === dateKey);
+            const dayDataIndex = window.allHistoryData.findIndex(d => d.id === dateKey);
             if (dayDataIndex > -1) {
-                const dayData = allHistoryData[dayDataIndex];
+                const dayData = window.allHistoryData[dayDataIndex];
                 const record = dayData.onLeaveMembers[index];
                 dayData.onLeaveMembers.splice(index, 1);
                 try {
                     await updateHistoryDoc(dateKey, dayData); // api.js
                     showToast(`${record.member}님의 '${record.type}' 기록이 삭제되었습니다.`);
-                    ui.renderAttendanceDailyHistory(dateKey, allHistoryData); // ui/history.js
+                    ui.renderAttendanceDailyHistory(dateKey, window.allHistoryData);
                 } catch (e) {
                     showToast('이력 근태 기록 삭제 중 오류 발생.', true);
                     dayData.onLeaveMembers.splice(index, 0, record); // 원복
@@ -341,14 +319,13 @@ export function attachModalListeners() {
     const confirmQuantityOnStopBtn = document.getElementById('confirm-quantity-on-stop');
     if (confirmQuantityOnStopBtn) {
       confirmQuantityOnStopBtn.addEventListener('click', () => {
-        // ✅ [수정] main.js의 로컬 변수 groupToStopId를 window 전역으로 참조
         if (window.groupToStopId) {
           const input = document.getElementById('quantity-on-stop-input');
           const quantity = input ? (Number(input.value) || 0) : null;
           actions.finalizeStopGroup(window.groupToStopId, quantity);
           if(input) input.value = '';
-          window.groupToStopId = null; // 컨텍스트 초기화
-          document.getElementById('quantity-on-stop-modal').classList.add('hidden'); // 모달 닫기
+          window.groupToStopId = null;
+          document.getElementById('quantity-on-stop-modal').classList.add('hidden');
         }
       });
     }
@@ -357,12 +334,11 @@ export function attachModalListeners() {
     const confirmStopIndividualBtn = document.getElementById('confirm-stop-individual-btn');
     if (confirmStopIndividualBtn) {
       confirmStopIndividualBtn.addEventListener('click', () => {
-        // ✅ [수정] main.js의 로컬 변수 recordToStopId를 window 전역으로 참조
         if (window.recordToStopId) {
           actions.stopWorkIndividual(window.recordToStopId);
         }
         document.getElementById('stop-individual-confirm-modal').classList.add('hidden');
-        window.recordToStopId = null; // 컨텍스트 초기화
+        window.recordToStopId = null;
       });
     }
 
@@ -370,19 +346,17 @@ export function attachModalListeners() {
     const confirmStopGroupBtn = document.getElementById('confirm-stop-group-btn');
     if (confirmStopGroupBtn) {
       confirmStopGroupBtn.addEventListener('click', () => {
-        // ✅ [수정] main.js의 로컬 변수 groupToStopId를 window 전역으로 참조
         if (window.groupToStopId) {
           actions.stopWorkGroup(window.groupToStopId);
         }
         document.getElementById('stop-group-confirm-modal').classList.add('hidden');
-        window.groupToStopId = null; // 컨텍스트 초기화
+        window.groupToStopId = null;
       });
     }
     
     // '근태 설정' - 설정 완료
     const confirmLeaveBtn = document.getElementById('confirm-leave-btn');
     if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
-        // ✅ [수정] main.js의 로컬 변수 memberToSetLeave를 window 전역으로 참조
         const memberName = window.memberToSetLeave;
         if (!memberName) return;
 
@@ -405,21 +379,20 @@ export function attachModalListeners() {
         await actions.handleLeaveRequest(memberName, leaveType, startDate, endDate);
 
         document.getElementById('leave-type-modal').classList.add('hidden');
-        window.memberToSetLeave = null; // 컨텍스트 초기화
+        window.memberToSetLeave = null;
     });
     
     // '근태 복귀 확인' - 예
     const confirmCancelLeaveBtn = document.getElementById('confirm-cancel-leave-btn');
     if (confirmCancelLeaveBtn) {
         confirmCancelLeaveBtn.addEventListener('click', async () => {
-            // ✅ [수정] memberToCancelLeave를 window 전역으로 참조
             const memberName = window.memberToCancelLeave; 
             if (!memberName) return;
             
             await actions.handleCancelLeave(memberName);
 
             document.getElementById('cancel-leave-confirm-modal').classList.add('hidden');
-            window.memberToCancelLeave = null; // 컨텍스트 초기화
+            window.memberToCancelLeave = null;
         });
     }
 
@@ -455,7 +428,6 @@ export function attachModalListeners() {
         
         debouncedSaveState();
         
-        // (selectedTaskForStart, selectedGroupForAdd는 window 전역 참조)
         ui.renderTeamSelectionModalContent(window.selectedTaskForStart, appState, appConfig.teamGroups);
         document.getElementById('edit-part-timer-modal').classList.add('hidden');
         showToast('알바 이름이 수정되었습니다.');
@@ -464,10 +436,9 @@ export function attachModalListeners() {
     // '팀원 선택' (업무 시작) - 선택 완료
     const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
     if (confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
-      // ✅ [수정] tempSelectedMembers는 window 전역 참조
       if (window.tempSelectedMembers.length === 0) { return showToast('추가할 팀원을 선택해주세요.', true); }
       
-      const { selectedTaskForStart, selectedGroupForAdd, tempSelectedMembers } = window; // 전역 컨텍스트
+      const { selectedTaskForStart, selectedGroupForAdd, tempSelectedMembers } = window;
       
       if (selectedGroupForAdd !== null) {
         actions.addMembersToWorkGroup(tempSelectedMembers, selectedTaskForStart, selectedGroupForAdd);
@@ -488,7 +459,6 @@ export function attachModalListeners() {
     if (confirmEditStartTimeBtn) {
         confirmEditStartTimeBtn.addEventListener('click', () => {
             const newStartTime = document.getElementById('edit-start-time-input')?.value;
-            // ✅ [수정] recordIdOrGroupIdToEdit, editType을 window 전역으로 참조
             const contextId = window.recordIdOrGroupIdToEdit;
             const contextType = window.editType;
 
@@ -546,8 +516,7 @@ export function attachModalListeners() {
                 return;
             }
 
-            const dayDataIndex = allHistoryData.findIndex(d => d.id === dateKey); // (history.js의 allHistoryData 참조 필요)
-            // -> [수정] history.js의 allHistoryData는 window 전역으로 참조해야 함
+            const dayDataIndex = window.allHistoryData.findIndex(d => d.id === dateKey);
             if (!window.allHistoryData || dayDataIndex === -1) {
                  showToast('원본 이력 데이터를 찾을 수 없습니다.', true);
                  confirmEditAttendanceBtn.disabled = false;
@@ -618,7 +587,6 @@ export function attachModalListeners() {
             if (!dateKey) return showToast('저장할 날짜 정보를 찾지 못했습니다.', true);
             if (!member) return showToast('이름을 입력하거나 선택해주세요.', true);
 
-            // ✅ [수정] window.allHistoryData 참조
             const dayDataIndex = window.allHistoryData.findIndex(d => d.id === dateKey);
             if (dayDataIndex === -1) return showToast('원본 이력 데이터를 찾을 수 없습니다.', true);
             
@@ -674,7 +642,6 @@ export function attachModalListeners() {
             if (!memberName || !originalStart || !originalRecordType) return showToast('원본 기록 정보를 찾을 수 없습니다.', true);
 
             const isNewTimeBased = (newType === '외출' || newType === '조퇴');
-            const isNewDateBased = !isNewTimeBased;
             const isOriginalTimeBased = (originalRecordType === 'daily');
             
             let updatedRecord = { member: memberName, type: newType };
@@ -760,7 +727,7 @@ export function attachModalListeners() {
 
             if (!memberName || !originalStart || !originalRecordType) return showToast('삭제할 기록 정보를 찾을 수 없습니다.', true);
 
-            window.deleteMode = 'leave'; // (confirmDeleteBtn에서 사용)
+            window.deleteMode = 'leave';
             window.attendanceRecordToDelete = { 
                 memberName: memberName, 
                 startIdentifier: originalStart, 
@@ -779,10 +746,9 @@ export function attachModalListeners() {
     document.querySelectorAll('.modal-close-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
           const modal = e.target.closest('.fixed.inset-0');
-          if (!modal || modal.id === 'history-modal') return; // 이력 모달은 별도 처리
+          if (!modal || modal.id === 'history-modal') return;
           modal.classList.add('hidden');
           
-          // 모달 닫기 시 컨텍스트 초기화
           const modalId = modal.id;
           if (modalId === 'leave-type-modal') window.memberToSetLeave = null;
           else if (modalId === 'cancel-leave-confirm-modal') window.memberToCancelLeave = null;
@@ -801,7 +767,6 @@ export function attachModalListeners() {
           else if (modalId === 'edit-start-time-modal') {
               window.recordIdOrGroupIdToEdit = null; window.editType = null;
           }
-          // (기타 모달 초기화...)
       });
     });
 
@@ -826,7 +791,7 @@ export function attachModalListeners() {
     });
     document.getElementById('cancel-quantity-on-stop')?.addEventListener('click', () => {
         document.getElementById('quantity-on-stop-modal')?.classList.add('hidden');
-        window.groupToStopId = null; // 종료 취소
+        window.groupToStopId = null;
     });
     document.getElementById('cancel-edit-btn')?.addEventListener('click', () => {
         document.getElementById('edit-record-modal')?.classList.add('hidden');
@@ -888,9 +853,8 @@ async function handleQuantityUpdate(newQuantities) {
         showToast('오늘의 처리량이 저장되었습니다.');
         ui.render(); // 메인 UI 갱신
 
-        // 2. 이력 문서(오늘 날짜)도 업데이트 (선택적)
+        // 2. 이력 문서(오늘 날짜)도 업데이트
         const todayDateKey = getTodayDateString();
-        // ✅ [수정] window.allHistoryData 참조
         const todayHistoryIndex = window.allHistoryData.findIndex(d => d.id === todayDateKey);
         if (todayHistoryIndex > -1) {
             const todayHistoryData = window.allHistoryData[todayHistoryIndex];
@@ -903,5 +867,4 @@ async function handleQuantityUpdate(newQuantities) {
             }
         }
     }
-    // 3. (history.js의 onConfirm 로직은 해당 파일에서 직접 처리)
 }

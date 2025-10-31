@@ -3,6 +3,7 @@
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, APP_ID } from './firebase.js';
 import { getTodayDateString, showToast } from './utils.js';
+// ✅ [수정] render 함수를 ui/index.js에서 가져옵니다.
 import { renderDashboardLayout, renderTaskSelectionModal, render } from './ui/index.js';
 
 // --- 1. 전역 상태 변수 정의 ---
@@ -39,7 +40,6 @@ export let appConfig = {
 };
 
 // --- 2. 상태 변수 업데이트 함수 (Setter) ---
-// (필요시 사용, 현재는 onSnapshot이 직접 수정)
 export function setAppState(newState) {
     appState = { ...appState, ...newState };
 }
@@ -49,13 +49,6 @@ export function setAppConfig(newConfig) {
 export function setPersistentLeaveSchedule(newSchedule) {
     persistentLeaveSchedule = newSchedule;
 }
-export function updateTaskQuantities(newQuantities) {
-    appState.taskQuantities = newQuantities;
-}
-export function updateWorkRecords(newRecords) {
-    appState.workRecords = newRecords;
-}
-// ... (기타 상태 업데이트 함수들) ...
 
 // --- 3. 실시간 리스너 (app.js에서 이동) ---
 
@@ -85,7 +78,6 @@ export function startRealtimeListeners() {
             return false;
         });
         
-        // (markDataAsDirty()는 API 호출 시로 이동)
         render(); // UI 갱신
         
     }, (error) => {
@@ -103,10 +95,8 @@ export function startRealtimeListeners() {
             console.log("실시간 앱 설정 감지: 변경 사항을 적용합니다.");
             const loadedConfig = docSnap.data();
             
-            // Firestore에 없는 키가 로컬 appConfig에 남아있도록 loadedConfig를 기본으로 병합
             const mergedConfig = { ...appConfig, ...loadedConfig }; 
             
-            // 객체/배열은 덮어쓰기 (loadedConfig 우선)
             mergedConfig.teamGroups = loadedConfig.teamGroups || appConfig.teamGroups;
             mergedConfig.keyTasks = loadedConfig.keyTasks || appConfig.keyTasks;
             mergedConfig.dashboardItems = loadedConfig.dashboardItems || appConfig.dashboardItems;
@@ -120,13 +110,10 @@ export function startRealtimeListeners() {
 
             appConfig = mergedConfig; // 전역 appConfig 업데이트
 
-            // 설정이 변경되었으므로 UI 레이아웃과 렌더링을 다시 수행
             renderDashboardLayout(appConfig);
             renderTaskSelectionModal(appConfig.taskGroups);
             render(); 
             
-            // (근태 추가 모달 목록 갱신은 listeners.js에서 처리)
-
         } else {
             console.warn("실시간 앱 설정 감지: config 문서가 삭제되었습니다. 로컬 설정을 유지합니다.");
         }
@@ -157,8 +144,6 @@ export function startRealtimeListeners() {
         appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
         appState.lunchPauseExecuted = loadedState.lunchPauseExecuted || false; 
         appState.lunchResumeExecuted = loadedState.lunchResumeExecuted || false;
-
-        // (isDataDirty = false; -> API 호출 시로 이동)
 
         render(); 
         
@@ -215,8 +200,6 @@ export function setOfflineState() {
       lunchResumeExecuted: false
     };
     
-    // (appConfig는 비우지 않고, 로그인 시 새로 로드)
-
     // UI 숨기기
     document.getElementById('user-greeting')?.classList.add('hidden');
     document.getElementById('logout-btn')?.classList.add('hidden');

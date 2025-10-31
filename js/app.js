@@ -23,7 +23,6 @@ import { attachAllListeners } from './listeners/index.js';
 
 // --- 전역 컨텍스트 변수 ---
 // (이 변수들은 분리된 리스너 파일에서 window 전역으로 참조됩니다)
-// [!] 참고: 이 방식은 임시적이며, 추후에는 store.js를 통해 관리하는 것이 더 좋습니다.
 window.recordToDeleteId = null;
 window.deleteMode = 'single';
 window.recordToEditId = null;
@@ -169,7 +168,7 @@ async function main() {
   setInterval(() => {
     const activeModal = document.querySelector('.fixed.inset-0.z-50:not(.hidden), .fixed.inset-0.z-\[60\]:not(.hidden), .fixed.inset-0.z-\[99\]:not(.hidden)');
     if (!activeModal) {
-        location.reload();
+        // location.reload(); // (주석 처리 - 개발 중에는 불편할 수 있음)
     } else {
         console.log("모달이 열려 있어 자동 새로고침을 건너뜁니다.");
     }
