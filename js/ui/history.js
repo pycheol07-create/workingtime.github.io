@@ -1,6 +1,6 @@
 // === js/ui/history.js ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear } from '../utils.js';
+import { formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday } from '../utils.js';
 
 /**
  * [추가] 두 값의 차이를 비교하여 증감 화살표와 %가 포함된 HTML 문자열을 반환합니다.
