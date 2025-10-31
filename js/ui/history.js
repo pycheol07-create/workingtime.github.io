@@ -703,13 +703,15 @@ export const renderHistoryDetail = (dateKey, previousDayData = null, allHistoryD
   // (위 코드에서 isWeekday 추가됨)
   
   // (비업무 시간 계산 - utils.js의 isWeekday 사용)
-  const isWeekday = (dateString) => { // 임시
-       const date = new Date(dateString + 'T00:00:00');
-       const day = date.getDay();
-       return day >= 1 && day <= 5;
-  };
+  
+  // ✅✅✅ 이 부분이 삭제됩니다. ✅✅✅
+  // const isWeekday = (dateString) => { // 임시
+  //      const date = new Date(dateString + 'T00:00:00');
+  //      const day = date.getDay();
+  //      return day >= 1 && day <= 5;
+  // };
 
-  if (isWeekday(dateKey)) {
+  if (isWeekday(dateKey)) { // (파일 상단에서 import된 isWeekday 사용)
     const totalPotentialMinutes = activeMembersCount * 8 * 60; // 8시간 기준
     const nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalSumDuration);
     const percentage = totalPotentialMinutes > 0 ? (nonWorkMinutes / totalPotentialMinutes * 100).toFixed(1) : 0;
