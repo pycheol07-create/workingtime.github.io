@@ -15,18 +15,35 @@ import { startElapsedTimer, stopElapsedTimer } from './timer.js';
 
 // 5. UI (Rendering & Utils)
 import { displayCurrentDate } from './utils.js';
+// ✅ [수정] ui/index.js에서 render 함수도 가져옵니다.
 import { renderDashboardLayout, renderTaskSelectionModal, render } from './ui/index.js';
 
 // 6. Event Listeners
 import { attachAllListeners } from './listeners/index.js';
 
-// --- 전역 변수 (DOM 요소, 컨텍스트) ---
-// (모든 컨텍스트 변수는 각 listeners/..js 파일 또는 window 전역으로 이동)
-// (DOM 요소 변수들은 각 listeners/..js 파일 내부에서 필요시마다 getElementById로 참조)
+// --- 전역 컨텍스트 변수 ---
+// (이 변수들은 분리된 리스너 파일에서 window 전역으로 참조됩니다)
+// [!] 참고: 이 방식은 임시적이며, 추후에는 store.js를 통해 관리하는 것이 더 좋습니다.
+window.recordToDeleteId = null;
+window.deleteMode = 'single';
+window.recordToEditId = null;
+window.quantityModalContext = { mode: 'today', dateKey: null, onConfirm: null, onCancel: null };
+window.attendanceRecordToDelete = null;
+window.historyKeyToDelete = null;
+window.recordIdOrGroupIdToEdit = null;
+window.editType = null;
+window.memberToSetLeave = null;
+window.memberToCancelLeave = null;
+window.selectedTaskForStart = null;
+window.selectedGroupForAdd = null;
+window.tempSelectedMembers = [];
+window.groupToStopId = null;
+window.recordToStopId = null;
+window.allHistoryData = []; // 이력 데이터 캐시 (history.js에서 사용)
+
 
 /**
  * 사용자가 로그인한 후 앱의 핵심 기능을 시작합니다.
- * (app.js에서 이동)
  */
 async function startAppAfterLogin(user) { 
   const loadingSpinner = document.getElementById('loading-spinner');
@@ -90,7 +107,6 @@ async function startAppAfterLogin(user) {
           if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'flex';
           if (openHistoryBtn) openHistoryBtn.style.display = 'inline-block';
       } else {
-          // (기본값은 'none'이므로 user일 때 숨김 처리)
           if (adminLinkBtn) adminLinkBtn.style.display = 'none';
           if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'none';
           if (resetAppBtn) resetAppBtn.style.display = 'none';
@@ -147,10 +163,9 @@ async function main() {
   }
 
   // 모든 DOM 이벤트 리스너 부착 (listeners/index.js)
-  // (이 작업은 DOM 로드 후 한 번만 수행하면 됨)
   attachAllListeners(); 
   
-  // 1분마다 새로고침 (기존 로직 유지)
+  // 1분마다 새로고침
   setInterval(() => {
     const activeModal = document.querySelector('.fixed.inset-0.z-50:not(.hidden), .fixed.inset-0.z-\[60\]:not(.hidden), .fixed.inset-0.z-\[99\]:not(.hidden)');
     if (!activeModal) {
