@@ -88,6 +88,7 @@ export const deleteConfirmModal = document.getElementById('delete-confirm-modal'
 export const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 export const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
 export const historyModal = document.getElementById('history-modal');
+export const historyModalContentBox = document.getElementById('history-modal-content-box');
 export const openHistoryBtn = document.getElementById('open-history-btn');
 export const closeHistoryBtn = document.getElementById('close-history-btn');
 export const historyDateList = document.getElementById('history-date-list');

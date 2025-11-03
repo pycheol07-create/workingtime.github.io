@@ -18,6 +18,7 @@ import {
     editAttendanceEndDateInput, editAttendanceDateKeyInput, editAttendanceRecordIndexInput,
     editAttendanceTimeFields, editAttendanceDateFields, teamStatusBoard, workLogBody,
     teamSelectModal, deleteConfirmModal, confirmDeleteBtn, cancelDeleteBtn, historyModal,
+    historyModalContentBox,
     openHistoryBtn, closeHistoryBtn, historyDateList, historyViewContainer, historyTabs,
     historyMainTabs, workHistoryPanel, attendanceHistoryPanel, attendanceHistoryTabs,
     attendanceHistoryViewContainer, trendAnalysisPanel, quantityModal, confirmQuantityBtn,
@@ -1827,10 +1828,53 @@ export function initializeAppListeners() {
 
     // --- 14. 이력 모달 드래그 기능 ---
     const historyHeader = document.getElementById('history-modal-header');
-    const historyContentBox = document.getElementById('history-modal-content-box');
-    if (historyModal && historyHeader && historyContentBox) {
-        makeDraggable(historyModal, historyHeader, historyContentBox);
+    // const historyModalContentBox = document.getElementById('history-modal-content-box'); // (이미 import됨)
+    if (historyModal && historyHeader && historyModalContentBox) {
+        makeDraggable(historyModal, historyHeader, historyModalContentBox);
     }
+
+    // ================== [ ✨ 이 코드를 추가하세요 ✨ ] ==================
+    // --- 15. 이력 모달 전체화면 버튼 리스너 ---
+    const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
+    if (toggleFullscreenBtn && historyModal && historyModalContentBox) {
+        toggleFullscreenBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            // 드래그로 인해 적용된 인라인 스타일 초기화
+            historyModalContentBox.style.position = '';
+            historyModalContentBox.style.top = '';
+            historyModalContentBox.style.left = '';
+            historyModalContentBox.style.transform = '';
+            historyModalContentBox.dataset.hasBeenUncentered = 'false';
+
+            // 오버레이(배경)의 정렬 클래스 토글
+            historyModal.classList.toggle('flex');
+            historyModal.classList.toggle('items-center');
+            historyModal.classList.toggle('justify-center');
+            
+            // 콘텐츠 박스의 크기 클래스 토글
+            historyModalContentBox.classList.toggle('max-w-7xl'); // (기본) 최대 너비
+            historyModalContentBox.classList.toggle('h-[90vh]');  // (기본) 높이
+            historyModalContentBox.classList.toggle('w-screen');  // (전체) 너비 100vw
+            historyModalContentBox.classList.toggle('h-screen');  // (전체) 높이 100vh
+            historyModalContentBox.classList.toggle('max-w-none');// (전체) 최대 너비 없음
+
+            // 아이콘 변경
+            const icon = toggleFullscreenBtn.querySelector('svg');
+            const isFullscreen = historyModalContentBox.classList.contains('w-screen');
+            if (isFullscreen) {
+                // 축소 아이콘
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M10 4H4v6m0 0l6 6m-6-6l6-6m10 10h6v-6m0 0l-6-6m6 6l-6 6" />`;
+                toggleFullscreenBtn.title = "기본 크기로";
+            } else {
+                // 확대 아이콘
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
+                toggleFullscreenBtn.title = "전체화면";
+            }
+        });
+    }
+    // ==============================================================
+
 }
 
 /**
@@ -1868,6 +1912,10 @@ function makeDraggable(modalOverlay, header, contentBox) {
         if (!isDragging) return;
         let newLeft = e.clientX - offsetX;
         let newTop = e.clientY - offsetY;
+        
+        // ================== [ ✨ 수정된 부분 ✨ ] ==================
+        // 화면 밖으로 드래그할 수 있도록 아래 4줄의 경계 제한 로직을 주석 처리(삭제)합니다.
+        /*
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
         const boxWidth = contentBox.offsetWidth;
@@ -1877,6 +1925,8 @@ function makeDraggable(modalOverlay, header, contentBox) {
         if (newTop < 0) newTop = 0;
         if (newLeft + boxWidth > viewportWidth) newLeft = viewportWidth - boxWidth;
         if (newTop + boxHeight > viewportHeight) newTop = viewportHeight - boxHeight;
+        */
+        // =========================================================
 
         contentBox.style.left = `${newLeft}px`;
         contentBox.style.top = `${newTop}px`;
