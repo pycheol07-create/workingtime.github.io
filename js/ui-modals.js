@@ -16,22 +16,27 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
     });
 };
 
-// ✅ [수정] renderTaskSelectionModal (ui.js -> ui-modals.js)
-export const renderTaskSelectionModal = (taskGroups = {}) => {
-    // ... (이전과 동일) ...
+// ✅ [수정] renderTaskSelectionModal (객체 -> 배열 순회로 변경)
+export const renderTaskSelectionModal = (taskGroups = []) => { // ✅ 기본값을 {}에서 []로 변경
     const container = document.getElementById('task-modal-content');
     if (!container) return;
     container.innerHTML = '';
-    Object.entries(taskGroups).forEach(([groupName, tasks]) => {
+    
+    // ✅ [수정] Object.entries(taskGroups).forEach... -> taskGroups.forEach...
+    taskGroups.forEach((group) => {
+        const groupName = group.name;
+        const tasks = group.tasks || [];
+        
         const groupDiv = document.createElement('div');
         groupDiv.className = 'flex-1';
         
-        // ✅ [수정 1] 업무 버튼을 세로 한 줄로 나열합니다. (sm:grid-cols-2 제거)
         let tasksHtml = tasks.map(task => `<button type="button" data-task="${task}" class="task-select-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:ring-2 focus:ring-blue-300">${task}</button>`).join('');
         
         groupDiv.innerHTML = `
-            <div class="bg-gray-50 rounded-lg border"> <h3 class="text-lg font-bold text-gray-800 mb-0 p-3 border-b bg-gray-100 rounded-t-lg">${groupName}</h3>
-                <div class="p-3 grid grid-cols-1 gap-2">${tasksHtml}</div> </div>
+            <div class="bg-gray-50 rounded-lg border"> 
+                <h3 class="text-lg font-bold text-gray-800 mb-0 p-3 border-b bg-gray-100 rounded-t-lg">${groupName}</h3>
+                <div class="p-3 grid grid-cols-1 gap-2">${tasksHtml}</div>
+            </div>
         `;
         container.appendChild(groupDiv);
     });
@@ -212,14 +217,14 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     }
 };
 
-// ✅ [수정] renderManualAddModalDatalists (ui.js -> ui-modals.js)
+// ✅ [수정] renderManualAddModalDatalists (배열 구조 반영)
 export const renderManualAddModalDatalists = (appState, appConfig) => {
     const memberDatalist = document.getElementById('manual-add-member-list');
     const taskDatalist = document.getElementById('manual-add-task-list');
 
     if (!memberDatalist || !taskDatalist) return;
 
-    // 1. 직원 목록 채우기
+    // 1. 직원 목록 채우기 (변경 없음)
     memberDatalist.innerHTML = '';
     const staffMembers = (appConfig.teamGroups || []).flatMap(g => g.members);
     const partTimerMembers = (appState.partTimers || []).map(p => p.name);
@@ -232,15 +237,14 @@ export const renderManualAddModalDatalists = (appState, appConfig) => {
         memberDatalist.appendChild(option);
     });
 
-    // 2. 업무 목록 채우기
+    // 2. ✅ [수정] 업무 목록 채우기 (배열 구조 반영)
     taskDatalist.innerHTML = '';
-    const allTasks = [...new Set(Object.values(appConfig.taskGroups || {}).flat())].sort();
+    // Object.values(appConfig.taskGroups || {}).flat() -> appConfig.taskGroups.flatMap(group => group.tasks)
+    const allTasks = [...new Set((appConfig.taskGroups || []).flatMap(group => group.tasks))].sort();
 
-    // ... (renderManualAddModalDatalists 함수 내용) ...
     allTasks.forEach(task => {
         const option = document.createElement('option');
         option.value = task;
         taskDatalist.appendChild(option);
     });
-    
 };

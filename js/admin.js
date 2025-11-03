@@ -973,14 +973,13 @@ async function handleSaveAll() {
         const newConfig = {
             teamGroups: [],
             memberWages: {},
-            memberEmails: {}, // ✅ [유지] 이메일 맵 초기화
-            memberRoles: {}, // ✅ [유지] 역할 맵 초기화
+            memberEmails: {}, 
+            memberRoles: {}, 
             dashboardItems: [],
-            // ⛔️ [삭제] dashboardQuantities: {},
-            dashboardCustomItems: {}, // ✅ [유지] 커스텀 항목 저장 객체
-            quantityToDashboardMap: {}, // ✅ [추가] 연동 맵 초기화
+            dashboardCustomItems: {}, 
+            quantityToDashboardMap: {}, 
             keyTasks: [],
-            taskGroups: {},
+            taskGroups: [], // ✅ [수정] 객체 {} 에서 배열 [] 로 변경
             quantityTaskTypes: [],
             defaultPartTimerWage: 10000
         };
@@ -1031,22 +1030,16 @@ async function handleSaveAll() {
         }
 
 
-        // 2. [수정] 현황판 항목 순서 및 커스텀 정의 읽기 (수량 읽기 삭제)
+        // 2. [유지] 현황판 항목 순서 및 커스텀 정의 읽기
         const allDefinitions = getAllDashboardDefinitions(appConfig); 
         document.querySelectorAll('#dashboard-items-container .dashboard-item-config').forEach(item => {
             const nameSpan = item.querySelector('.dashboard-item-name');
-            // ⛔️ [삭제] quantityInput 변수 삭제
-
             if (nameSpan) {
                 const id = nameSpan.dataset.id;
                 newConfig.dashboardItems.push(id); // 순서 저장
-
                 const itemDef = allDefinitions[id];
                 if (!itemDef) return; 
-
-                // ⛔️ [삭제] 수량 항목 값 읽기 로직 (if (itemDef.isQuantity...)) 전체 삭제
                 
-                // [유지] 커스텀 항목이면 정의 저장
                 if (id.startsWith('custom-')) {
                     newConfig.dashboardCustomItems[id] = {
                         title: itemDef.title,
@@ -1063,8 +1056,8 @@ async function handleSaveAll() {
         });
 
 
-        // 4. [유지] 업무 정보 읽기 (순서 반영)
-        const orderedTaskGroups = {};
+        // 4. ✅ [수정] 업무 정보 읽기 (순서 반영) - 배열 방식으로 저장
+        // const orderedTaskGroups = {}; // (삭제)
         document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
             const groupNameInput = groupCard.querySelector('.task-group-name');
             const groupName = groupNameInput ? groupNameInput.value.trim() : '';
@@ -1074,9 +1067,10 @@ async function handleSaveAll() {
                 const taskName = taskItem.querySelector('.task-name').value.trim();
                 if (taskName) tasks.push(taskName);
             });
-             orderedTaskGroups[groupName] = tasks;
+             // newConfig.taskGroups[groupName] = tasks; // (삭제)
+             newConfig.taskGroups.push({ name: groupName, tasks: tasks }); // ✅ [수정] 배열에 객체로 추가
         });
-        newConfig.taskGroups = orderedTaskGroups;
+        // newConfig.taskGroups = orderedTaskGroups; // (삭제)
 
 
         // 5. [유지] 처리량 업무 정보 읽기 (순서 반영)
@@ -1091,19 +1085,18 @@ async function handleSaveAll() {
             newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
         }
 
-        // ✅ [추가] 7. 처리량-현황판 연동 맵 정보 읽기
+        // 7. [유지] 처리량-현황판 연동 맵 정보 읽기
         document.querySelectorAll('#quantity-mapping-container .mapping-row').forEach(row => {
             const taskName = row.dataset.taskName;
             const select = row.querySelector('.dashboard-mapping-select');
             const selectedId = select.value;
-            // 연동 안 함(--)이 아닌 경우에만 저장
             if (taskName && selectedId) {
                 newConfig.quantityToDashboardMap[taskName] = selectedId;
             }
         });
 
-        // [수정] 8. 데이터 유효성 검사 (기존 7번)
-        const allTaskNames = new Set(Object.values(newConfig.taskGroups).flat().map(t => t.trim().toLowerCase()));
+        // 8. ✅ [수정] 데이터 유효성 검사 (배열 구조 반영)
+        const allTaskNames = new Set(newConfig.taskGroups.flatMap(group => group.tasks).map(t => t.trim().toLowerCase()));
         const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
         const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
 
@@ -1120,12 +1113,12 @@ async function handleSaveAll() {
             return; // 저장 중단
         }
 
-        // [수정] 9. Firestore에 저장 (기존 8번)
+        // 9. [유지] Firestore에 저장
         await saveAppConfig(db, newConfig);
         appConfig = newConfig; // 로컬 캐시 업데이트
         alert('✅ 성공! 모든 변경사항이 Firestore에 저장되었습니다.');
 
-        // [수정] 10. UI 다시 렌더링 (기존 9번)
+        // 10. [유지] UI 다시 렌더링
         renderAdminUI(appConfig);
         setupEventListeners(); 
 

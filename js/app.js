@@ -619,9 +619,12 @@ async function startAppAfterLogin(user) {
   // (실시간 리스너: 오늘의 데이터)
   const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
   if (unsubscribeToday) unsubscribeToday();
+
   unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
     try {
-      const taskTypes = [].concat(...Object.values(appConfig.taskGroups || {}));
+      // ✅ [수정] 업무 목록을 새 배열 구조에서 가져옵니다.
+      // [].concat(...Object.values(appConfig.taskGroups || {})) -> (appConfig.taskGroups || []).flatMap(group => group.tasks)
+      const taskTypes = (appConfig.taskGroups || []).flatMap(group => group.tasks);
       const defaultQuantities = {};
       taskTypes.forEach(task => defaultQuantities[task] = 0);
 
@@ -632,10 +635,12 @@ async function startAppAfterLogin(user) {
       appState.partTimers = loadedState.partTimers || [];
       appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
       appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
+      
       appState.lunchPauseExecuted = loadedState.lunchPauseExecuted || false; 
       appState.lunchResumeExecuted = loadedState.lunchResumeExecuted || false;
 
       isDataDirty = false;
+
       render(); 
       if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';

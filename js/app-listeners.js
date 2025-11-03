@@ -361,8 +361,8 @@ export function initializeAppListeners() {
       workLogBody.addEventListener('click', (e) => {
         const deleteBtn = e.target.closest('button[data-action="delete"]');
         if (deleteBtn) {
-          context.recordToDeleteId = deleteBtn.dataset.recordId; // ✅ context.
-          context.deleteMode = 'single'; // ✅ context.
+          context.recordToDeleteId = deleteBtn.dataset.recordId; 
+          context.deleteMode = 'single'; 
           const msgEl = document.getElementById('delete-confirm-message');
           if (msgEl) msgEl.textContent = '이 업무 기록을 삭제하시겠습니까?';
           if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
@@ -370,7 +370,7 @@ export function initializeAppListeners() {
         }
         const editBtn = e.target.closest('button[data-action="edit"]');
         if (editBtn) {
-          context.recordToEditId = editBtn.dataset.recordId; // ✅ context.
+          context.recordToEditId = editBtn.dataset.recordId; 
           const record = (appState.workRecords || []).find(r => String(r.id) === String(context.recordToEditId));
           if (record) {
             document.getElementById('edit-member-name').value = record.member;
@@ -379,7 +379,11 @@ export function initializeAppListeners() {
 
             const taskSelect = document.getElementById('edit-task-type');
             taskSelect.innerHTML = ''; 
-            const allTasks = [].concat(...Object.values(appConfig.taskGroups || {}));
+            
+            // ✅ [수정] 업무 목록을 새 배열 구조에서 가져옵니다.
+            // [].concat(...Object.values(appConfig.taskGroups || {})) -> (appConfig.taskGroups || []).flatMap(group => group.tasks)
+            const allTasks = (appConfig.taskGroups || []).flatMap(group => group.tasks);
+            
             allTasks.forEach(task => {
                 const option = document.createElement('option');
                 option.value = task;
