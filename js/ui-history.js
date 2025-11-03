@@ -1,8 +1,8 @@
 // === ui-history.js (이력 보기 렌더링 담당) ===
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday } from './utils.js';
-// ✅ [수정] ui.js가 아닌 ui-shared.js에서 공유 헬퍼 가져오기
-import { getDiffHtmlForMetric } from './ui-shared.js';
+// ✅ [추가] ui.js에서 공유 헬퍼 가져오기
+import { getDiffHtmlForMetric } from './ui.js';
 
 // ✅ [수정] renderSummaryView (ui.js -> ui-history.js)
 const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPeriodDataset = null) => {

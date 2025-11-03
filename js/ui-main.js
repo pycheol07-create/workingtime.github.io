@@ -1,49 +1,38 @@
-// === ui-main.js (메인 화면 렌더링 담당, 오류 수정 버전) ===
+// === ui-main.js (메인 화면 렌더링 담당) ===
 
 import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday } from './utils.js';
-// ❗️ [수정] import 경로 변경 (ui.js -> ui-shared.js)
-import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui-shared.js';
+// ✅ [추가] ui.js에서 공유 상수/헬퍼 가져오기
+import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 
 /**
  * ✅ [수정] renderTaskAnalysis (ui.js -> ui-main.js)
+ * (appState, appConfig 파라미터 추가 및 로직 변경)
  */
 export const renderTaskAnalysis = (appState, appConfig) => {
+    // ✅ [수정] 렌더링 대상을 #analysis-task-summary-panel로 변경
     const analysisContainer = document.getElementById('analysis-task-summary-panel'); 
     if (!analysisContainer) return;
-    analysisContainer.innerHTML = ''; 
+    analysisContainer.innerHTML = ''; // 이 패널만 초기화
     
     const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
-    // ❗️ [추가] 실시간 분석을 위해 진행중/휴식중인 기록도 포함
-    const now = getCurrentTime();
-    const liveRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
-    
-    let totalLoggedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
-    
-    const taskAnalysis = completedRecords.reduce((acc, record) => {
-        if (record && record.task) {
-            acc[record.task] = (acc[record.task] || 0) + (record.duration || 0);
-        }
-        return acc;
-    }, {});
-
-    // ❗️ [추가] 진행중/휴식중인 기록의 시간을 실시간으로 합산
-    liveRecords.forEach(record => {
-        if (record && record.task) {
-            const liveDuration = calcElapsedMinutes(record.startTime, now, record.pauses);
-            taskAnalysis[record.task] = (taskAnalysis[record.task] || 0) + liveDuration;
-            totalLoggedMinutes += liveDuration;
-        }
-    });
-    // ❗️ [추가 끝]
+    const totalLoggedMinutes = completedRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
 
     if (totalLoggedMinutes === 0) {
-        analysisContainer.innerHTML = `<div class="text-center text-gray-500 py-4">업무 기록이 없어 분석을 시작할 수 없습니다.</div>`;
+        analysisContainer.innerHTML = `<div class="text-center text-gray-500 py-4">완료된 업무가 없어 분석을 시작할 수 없습니다.</div>`;
+        // ✅ [추가] 개인별 통계 드롭다운도 비워둠
         const memberSelect = document.getElementById('analysis-member-select');
         if (memberSelect) memberSelect.innerHTML = '<option value="">--- 직원/알바 선택 ---</option>';
         return;
     }
 
     const taskColorsHex = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','검수':'#14b8a6', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399', '출장': '#6b7280'};
+
+    const taskAnalysis = completedRecords.reduce((acc, record) => {
+        if (record && record.task) { // record 유효성 검사 추가
+            acc[record.task] = (acc[record.task] || 0) + (record.duration || 0);
+        }
+        return acc;
+    }, {});
 
     const sortedTasks = Object.entries(taskAnalysis).sort(([, a], [, b]) => b - a);
 
@@ -58,35 +47,28 @@ export const renderTaskAnalysis = (appState, appConfig) => {
             gradientParts.push(`${color} ${cumulativePercentage}% ${cumulativePercentage + percentage}%`);
             cumulativePercentage += percentage;
         }
-        // ❗️ [수정] 0분 이상인 항목만 범례에 표시
-        if (minutes > 0.1) {
-            legendHTML += `<div class="flex items-center justify-between mb-2"><div class="flex items-center"><span class="w-3 h-3 rounded-full mr-2" style="background-color: ${color};"></span><span class="font-semibold text-gray-700">${task}</span></div><div class="text-right"><div class="text-sm font-semibold text-gray-800">${formatDuration(minutes)}</div><div class="text-xs text-gray-500">${percentage.toFixed(1)}%</div></div></div>`;
-        }
+        legendHTML += `<div class="flex items-center justify-between mb-2"><div class="flex items-center"><span class="w-3 h-3 rounded-full mr-2" style="background-color: ${color};"></span><span class="font-semibold text-gray-700">${task}</span></div><div class="text-right"><div class="text-sm font-semibold text-gray-800">${formatDuration(minutes)}</div><div class="text-xs text-gray-500">${percentage.toFixed(1)}%</div></div></div>`;
     });
     legendHTML += '</div>';
 
     const finalGradient = `conic-gradient(${gradientParts.join(', ')})`;
     
-    // ❗️ [수정] 실시간 휴식 시간 계산 (진행중/휴식중인 기록 모두 포함)
+    // ✅ [추가] 총 휴식 시간 계산
     let totalBreakMinutes = 0;
-    (appState.workRecords || []).forEach(record => {
-        // 1. 완료된 기록의 휴식시간
+    completedRecords.forEach(record => {
         (record.pauses || []).forEach(pause => {
+            // 'break' 타입이거나, 타입이 없는 구(old) 데이터도 휴식으로 간주
             if (pause.start && pause.end && (pause.type === 'break' || !pause.type)) { 
-                totalBreakMinutes += calcElapsedMinutes(pause.start, pause.end, []);
+                const s = new Date(`1970-01-01T${pause.start}:00Z`).getTime();
+                const e = new Date(`1970-01-01T${pause.end}:00Z`).getTime();
+                if (e > s) {
+                    totalBreakMinutes += (e - s) / 60000;
+                }
             }
         });
-        
-        // 2. 현재 휴식중인 기록의 휴식시간 (실시간)
-        if (record.status === 'paused') {
-            const lastPause = record.pauses?.[record.pauses.length - 1];
-            if (lastPause && lastPause.start && !lastPause.end) {
-                totalBreakMinutes += calcElapsedMinutes(lastPause.start, now, []);
-            }
-        }
     });
-    // ❗️ [수정 끝]
     
+    // ✅ [수정] 렌더링 위치 변경 및 '총 휴식' 시간 추가
     analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8">
         <div class="flex-shrink-0">
             <div class="chart" style="background: ${finalGradient};">
@@ -100,6 +82,8 @@ export const renderTaskAnalysis = (appState, appConfig) => {
         ${legendHTML}
     </div>`;
 
+
+    // ✅ [추가] 개인별 통계 드롭다운 채우기
     const memberSelect = document.getElementById('analysis-member-select');
     if (memberSelect) {
         const staff = (appConfig.teamGroups || []).flatMap(g => g.members);
@@ -117,6 +101,7 @@ export const renderTaskAnalysis = (appState, appConfig) => {
 
 /**
  * ✅ [수정] renderPersonalAnalysis (ui.js -> ui-main.js)
+ * (총 비업무 시간 계산 로직 변경)
  */
 export const renderPersonalAnalysis = (selectedMember, appState) => {
     const container = document.getElementById('analysis-personal-stats-container');
@@ -127,6 +112,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         return;
     }
 
+    // 1. 선택된 직원의 모든 기록 (완료, 진행, 휴식)
     const memberRecords = (appState.workRecords || []).filter(
         r => r.member === selectedMember
     );
@@ -136,17 +122,19 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         return;
     }
 
-    const now = getCurrentTime();
+    const now = getCurrentTime(); // 실시간 계산을 위한 현재 시간
 
+    // 2. 현재 상태 파악 (변경 없음)
     const ongoingRecord = memberRecords.find(r => r.status === 'ongoing');
     const pausedRecord = memberRecords.find(r => r.status === 'paused');
     let currentStatusHtml = '';
-
+    // ... (현재 상태 HTML 생성 로직은 기존과 동일) ...
     if (ongoingRecord) {
         currentStatusHtml = `<span class="ml-2 text-sm font-semibold text-red-600">업무 중: ${ongoingRecord.task}</span>`;
     } else if (pausedRecord) {
         currentStatusHtml = `<span class="ml-2 text-sm font-semibold text-yellow-600">휴식 중</span>`;
     } else {
+        // ✅ [수정] appState에서 직접 근태 정보 가져오기 (기존 코드 단순화)
         const combinedOnLeaveMembers = [
             ...(appState.dailyOnLeaveMembers || []),
             ...(appState.dateBasedOnLeaveMembers || [])
@@ -159,13 +147,14 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
              currentStatusHtml = `<span class="ml-2 text-sm font-semibold text-green-600">대기 중</span>`;
         }
     }
+    // (기존 현재 상태 로직 끝)
 
+    // 3. 총 업무 시간 계산 (실시간 반영 - 변경 없음)
     const taskTimes = memberRecords.reduce((acc, r) => {
         let duration = 0;
         if (r.status === 'completed') {
             duration = r.duration || 0;
         } else if (r.status === 'ongoing' || r.status === 'paused') {
-            // ❗️ [수정] 휴식중인 기록도 calcElapsedMinutes를 사용해야 함 (기존 로직이 맞음)
             duration = calcElapsedMinutes(r.startTime, now, r.pauses);
         }
         acc[r.task] = (acc[r.task] || 0) + duration;
@@ -175,6 +164,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     const totalLiveMinutes = sortedTasks.reduce((sum, [, minutes]) => sum + minutes, 0);
 
 
+    // ✅ [수정] 총 비업무 시간 계산 로직
     let firstStartTime = null;
     let lastEffectiveEndTime = null;
 
@@ -189,26 +179,23 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         }
     });
 
+    // 진행 중이거나 휴식 중인 기록이 있으면, 마지막 시간은 'now'
     if (ongoingRecord || pausedRecord) {
         lastEffectiveEndTime = now;
     }
 
     let totalTimeSpanMinutes = 0;
     if (firstStartTime && lastEffectiveEndTime) {
+        // 첫 업무 시작부터 마지막 활동 시간까지의 총 시간(분) 계산
         totalTimeSpanMinutes = calcElapsedMinutes(firstStartTime, lastEffectiveEndTime, []); 
     }
 
-    // ❗️ [수정] 비업무 시간 계산 시, 현재 '휴식 중'인 시간은 제외
-    let currentPauseMinutes = 0;
-    if (pausedRecord) {
-        const lastPause = pausedRecord.pauses?.[pausedRecord.pauses.length - 1];
-        if (lastPause && lastPause.start && !lastPause.end) {
-            currentPauseMinutes = calcElapsedMinutes(lastPause.start, now, []);
-        }
-    }
-    const totalNonWorkMinutes = Math.max(0, totalTimeSpanMinutes - totalLiveMinutes - currentPauseMinutes);
-    // ❗️ [수정 끝]
+    // 총 비업무 시간 = (총 시간) - (총 업무 시간)
+    const totalNonWorkMinutes = Math.max(0, totalTimeSpanMinutes - totalLiveMinutes);
+    // ✅ [수정 끝]
 
+
+    // 5. HTML 렌더링 (텍스트 및 변수명 변경)
     let html = `
         <h4 class="text-lg font-bold text-gray-800 mb-3">${selectedMember} 님 요약</h4>
         <div class="grid grid-cols-3 gap-4 mb-4 text-center">
@@ -235,7 +222,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 
     if (sortedTasks.length > 0) {
         sortedTasks.forEach(([task, minutes]) => {
-            if (minutes > 0) {
+            if (minutes > 0) { // 0분 이상인 것만 표시
                 html += `
                     <li class="text-sm flex justify-between p-1 rounded hover:bg-gray-50">
                         <span class="font-semibold">${task}</span>
@@ -258,10 +245,13 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 
 /**
  * ✅ [수정] renderRealtimeStatus (ui.js -> ui-main.js)
+ * (모든 근태 카드에 data-action="edit-leave-record" 추가)
  */
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
+    // === ✅ [수정] 현재 사용자 정보 가져오기 (함수 상단으로 이동) ===
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
+    // ----------------------------------------------------
 
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
@@ -279,6 +269,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     
+    // ✅ [수정] "주요 업무" 헤더 텍스트(h3) 삭제, 버튼만 남김
     presetTaskContainer.innerHTML = `
         <div class="flex justify-end items-center border-b pb-2 mb-4 md:hidden">
             <button id="toggle-all-tasks-mobile" 
@@ -288,8 +279,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         </div>`;
 
     const presetGrid = document.createElement('div');
+    // ✅ [수정] 그리드 컬럼 설정 변경 및 ID 추가
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4';
-    presetGrid.id = 'preset-task-grid';
+    presetGrid.id = 'preset-task-grid'; // 👈 [추가] ID 추가
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
     
@@ -301,6 +293,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
+        // ✅ [수정] 현재 유저가 이 업무를 하는지 확인
         const isCurrentUserWorkingOnThisTask = groupRecords.some(r => r.member === currentUserName);
 
         const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
@@ -317,16 +310,20 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
         const titleClass = isPaused ? currentStyle.title : (taskTitleColors[task] || taskTitleColors['default']);
 
+        // ✅ [수정] 모바일 반응형 클래스 (토글을 위한 'mobile-task-hidden' 클래스 추가)
         const mobileVisibilityClass = isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex mobile-task-hidden';
         
-        card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')}`;
-        // ❗️ [수정] hover 효과는 CSS(style.css)로 이동하거나, JavaScript에서 동적으로 관리해야 함.
-        // 여기서는 JS 기반 hover를 제거하여 CSS가 동작하도록 함.
-        // ${currentStyle.hover} 제거
+        // 🚨 [수정] 카드 자체의 cursor-pointer 제거 (하위 요소에서 클릭 처리)
+        card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
 
 
         if (groupRecords.length > 0) {
-            const firstRecord = groupRecords[0];
+            const firstRecord = groupRecords[0]; // 대표 레코드 (그룹 ID, 태스크 이름 등)
+
+            // 🚨 [수정] 카드 데이터셋 이동 방지, 클릭은 하위 요소에서 처리
+            // card.dataset.action = 'add-member';
+            // card.dataset.groupId = firstRecord.groupId;
+            // card.dataset.task = firstRecord.task;
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
@@ -335,6 +332,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
                 const memberTextColor = isRecPaused ? 'text-yellow-800' : 'text-gray-800';
                 const timeTextColor = isRecPaused ? 'text-yellow-600' : 'text-gray-500';
+                const stopButtonBg = isRecPaused ? 'bg-yellow-200 hover:bg-yellow-300' : 'bg-red-100 hover:bg-red-200';
+                const stopButtonText = isRecPaused ? 'text-yellow-700' : 'text-red-700';
                 const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
 
                 const pauseIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg>`;
@@ -342,21 +341,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                 
                 let pauseResumeButtonHtml = '';
                 if (rec.status === 'ongoing') {
+                    // 정지 버튼 (Pause 아이콘)
                     pauseResumeButtonHtml = `<button data-action="pause-individual" title="정지" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-yellow-100 hover:bg-yellow-200 text-yellow-700 transition">${pauseIcon}</button>`;
                 } else if (rec.status === 'paused') {
+                    // 재개 버튼 (Play 아이콘)
                     pauseResumeButtonHtml = `<button data-action="resume-individual" title="재개" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-green-100 hover:bg-green-200 text-green-700 transition">${playIcon}</button>`;
-                }
-
-                // ❗️ [추가] 휴식 중인 경우, 휴식 시간 표시
-                let pauseDurationHtml = '';
-                if (isRecPaused) {
-                    const lastPause = rec.pauses?.[rec.pauses.length - 1];
-                    if (lastPause && lastPause.start && !lastPause.end) {
-                        const pauseMinutes = calcElapsedMinutes(lastPause.start, getCurrentTime(), []);
-                        if (pauseMinutes > 0) {
-                            pauseDurationHtml = `<span class="text-xs text-yellow-600 ml-1">(${formatDuration(pauseMinutes)})</span>`;
-                        }
-                    }
                 }
                 
                 membersHtml += `
@@ -365,7 +354,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     data-group-id="${rec.groupId || ''}">
 
                     <span class="font-semibold ${memberTextColor} break-keep mr-1 inline-block text-left" title="${rec.member}">${rec.member}</span>
-                    <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? `(휴식중)${pauseDurationHtml}` : ''}</span>
+                    <span class="text-xs ${timeTextColor} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
                     
                     <div class="flex-shrink-0 flex items-center space-x-1 member-actions">
                         ${pauseResumeButtonHtml}
@@ -380,6 +369,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                         
                     </div>
                 </div>`;
+                // === 여기까지 수정 ===
             });
             membersHtml += '</div>';
 
@@ -391,6 +381,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             const durationStatus = isOngoing ? 'ongoing' : 'paused';
             const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
 
+            // ✅ [수정] 그룹 시간 표시 부분을 div로 감싸고 data-* 속성 추가
             const groupTimeDisplayHtml = `
                 <div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" 
                      data-action="edit-group-start-time" 
@@ -433,11 +424,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                                 </div>
                             </div>`;
         } else {
-            card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')}`;
-            // ❗️ [수정] hover 효과 제거
+             // 🚨 [수정] 시작 전 카드는 클릭 가능하도록 cursor-pointer 유지, data-* 속성 추가
+            card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
+            // === ⬇️ [수정] 여기 <button> 3개를 <div>로 변경 ⬇️ ===
             card.innerHTML = `
                 <div class="flex-grow">
                     <div class="font-bold text-lg ${titleClass} break-keep">${task}</div>
@@ -457,14 +449,15 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     </div>
                 </div>
             `;
+            // === ⬆️ [수정] 여기 <button> 3개를 <div>로 변경 ⬆️ ===
         }
         presetGrid.appendChild(card);
     });
 
     const otherTaskCard = document.createElement('div');
     const otherStyle = taskCardStyles['default'];
-    otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')}`;
-    // ❗️ [수정] hover 효과 제거
+    // ✅ [수정] '기타 업무' 카드는 모바일에서도 항상 보이도록 'flex' 유지
+    otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
         <div class="font-bold text-lg text-gray-700">기타 업무</div>
@@ -479,10 +472,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
+    // (이하 코드 동일)
+    // ... (이하 renderRealtimeStatus 함수의 나머지 코드는 그대로 유지) ...
     const allMembersContainer = document.createElement('div');
-    allMembersContainer.id = 'all-members-container';
+    allMembersContainer.id = 'all-members-container'; // ✅ [추가] 토글을 위한 ID
     
     const allMembersHeader = document.createElement('div');
+    // ✅ [수정] 모바일에서도 헤더가 보이도록 'hidden' 클래스 제거, 토글 버튼 추가
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `
         <h3 class="text-lg font-bold text-gray-700 hidden md:block">전체 팀원 현황 (클릭하여 근태 설정/취소/수정)</h3>
@@ -497,6 +493,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
+
+    // --- ✅ [추가] 현재 사용자 정보 가져오기 (이미 상단으로 이동함) ---
+    // const currentUserRole = appState.currentUserRole || 'user';
+    // const currentUserName = appState.currentUser || null;
+    // ------------------------------------
 
     const combinedOnLeaveMembers = [
         ...(appState.dailyOnLeaveMembers || []),
@@ -518,9 +519,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
     orderedTeamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
-        groupContainer.className = 'mb-4';
+        // ✅ [수정] 모바일에서 그룹 전체 숨김 ('hidden md:block') -> ('mb-4')
+        groupContainer.className = 'mb-4'; // 이 컨테이너는 항상 보이도록 수정
         const groupHeader = document.createElement('div');
-        groupHeader.className = 'flex items-center gap-2 mb-2 hidden md:flex';
+        // ✅ [수정] 모바일에서 그룹 헤더 숨김 ('hidden md:flex')
+        groupHeader.className = 'flex items-center gap-2 mb-2 hidden md:flex'; // 헤더만 숨김
         groupHeader.innerHTML = `<h4 class="text-md font-semibold text-gray-600">${group.name}</h4>`;
         groupContainer.appendChild(groupHeader);
         const groupGrid = document.createElement('div');
@@ -533,35 +536,44 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             const leaveInfo = onLeaveStatusMap.get(member);
             const isOnLeave = !!leaveInfo;
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
-            const isSelf = (member === currentUserName);
+            const isSelf = (member === currentUserName); // ✅ [추가] 본인 확인
 
+            // === 📌 [재수정] 팀원 카드 className 설정 ===
+            // ✅ [수정] 토글을 위해 'mobile-member-hidden' 클래스 추가
             const visibilityClass = isSelf ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
             const widthClass = isSelf ? 'w-full md:w-28' : 'w-28'; 
             card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClass} ${widthClass} flex-col justify-center`;
-            
-            card.dataset.memberName = member;
+            // ============================================
+
+            // ✅ [수정] data-action을 설정 (근태 중이면 edit-leave-record, 아니면 member-toggle-leave)
+            card.dataset.memberName = member; // 공통: 이름
             if (isOnLeave) {
+                // [수정] 근태 중이면 무조건 수정 모달 열기
                 card.dataset.action = 'edit-leave-record'; 
                 card.dataset.leaveType = leaveInfo.type;
-                card.dataset.startTime = leaveInfo.startTime || '';
-                card.dataset.startDate = leaveInfo.startDate || '';
+                card.dataset.startTime = leaveInfo.startTime || ''; // 식별자
+                card.dataset.startDate = leaveInfo.startDate || ''; // 식별자
                 card.dataset.endTime = leaveInfo.endTime || '';
                 card.dataset.endDate = leaveInfo.endDate || '';
                 
             } else {
+                // [수정] 근태 중이 아니면 근태 설정 모달 열기 (기존)
                 card.dataset.action = 'member-toggle-leave'; 
             }
             
+            // ✅ [수정] 권한에 따라 커서/투명도 조절 (근태 중일 때도 수정 가능하도록)
             if (!isWorking) {
+                // 업무 중이 아닐 때
                 if (currentUserRole === 'admin' || isSelf) {
+                    // 관리자거나 본인이면 활성화
                     card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
                 } else {
+                    // 관리자가 아니고 타인이면 비활성화
                     card.classList.add('cursor-not-allowed', 'opacity-70'); 
-                    card.disabled = true; // ❗️ [추가] 비활성화 시 버튼 disabled
                 }
             } else {
+                // 업무 중이면 비활성화
                 card.classList.add('opacity-70', 'cursor-not-allowed');
-                card.disabled = true; // ❗️ [추가] 비활성화 시 버튼 disabled
             }
 
             if (isOnLeave) {
@@ -608,8 +620,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
     if (activePartTimers.length > 0) {
         const albaContainer = document.createElement('div');
-        albaContainer.className = 'mb-4';
-        albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2 hidden md:block">알바</h4>`;
+        // ✅ [수정] 모바일에서 알바 섹션 숨김 ('hidden md:block') -> ('mb-4')
+        albaContainer.className = 'mb-4'; // 이 컨테이너는 항상 보이도록 수정
+        // ✅ [수정] 모바일에서 알바 헤더 숨김 ('hidden md:block')
+        albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2 hidden md:block">알바</h4>`; // 헤더만 숨김
 
         const albaGrid = document.createElement('div');
         albaGrid.className = 'flex flex-wrap gap-2';
@@ -618,11 +632,14 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              const card = document.createElement('button');
              card.type = 'button';
              
-             const isSelfAlba = (pt.name === currentUserName);
+             const isSelfAlba = (pt.name === currentUserName); // ✅ [추가] 본인 확인 (알바)
 
+             // === 📌 [재수정] 알바 카드 className 설정 ===
+             // ✅ [수정] 토글을 위해 'mobile-member-hidden' 클래스 추가
              const visibilityClassAlba = isSelfAlba ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
              const widthClassAlba = isSelfAlba ? 'w-full md:w-28' : 'w-28'; 
              card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClassAlba} ${widthClassAlba} flex-col justify-center`;
+             // ===========================================
 
              const currentlyWorkingTask = workingMembers.get(pt.name);
              const isPaused = pausedMembers.has(pt.name);
@@ -630,28 +647,30 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = currentlyWorkingTask || isPaused;
 
-            card.dataset.memberName = pt.name;
+            // ✅ [수정] data-action을 설정 (근태 중이면 edit-leave-record, 아니면 member-toggle-leave)
+            card.dataset.memberName = pt.name; // 공통: 이름
             if (isAlbaOnLeave) {
+                // [수정] 근태 중이면 무조건 수정 모달 열기
                 card.dataset.action = 'edit-leave-record';
                 card.dataset.leaveType = albaLeaveInfo.type;
-                card.dataset.startTime = albaLeaveInfo.startTime || '';
-                card.dataset.startDate = albaLeaveInfo.startDate || '';
+                card.dataset.startTime = albaLeaveInfo.startTime || ''; // 식별자
+                card.dataset.startDate = albaLeaveInfo.startDate || ''; // 식별자
                 card.dataset.endTime = albaLeaveInfo.endTime || '';
                 card.dataset.endDate = albaLeaveInfo.endDate || '';
             } else {
+                // [수정] 근태 중이 아니면 근태 설정 모달 열기 (기존)
                 card.dataset.action = 'member-toggle-leave';
             }
 
+             // ✅ [수정] 권한에 따라 커서/투명도 조절 (근태 중일 때도 수정 가능하도록)
              if (!isAlbaWorking) {
                  if (currentUserRole === 'admin' || isSelfAlba) {
                     card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
                  } else {
-                    card.classList.add('cursor-not-allowed', 'opacity-70');
-                    card.disabled = true; // ❗️ [추가] 비활성화 시 버튼 disabled
+                    card.classList.add('cursor-not-allowed', 'opacity-70'); // 본인이 아니면 비활성
                  }
              } else {
                  card.classList.add('opacity-70', 'cursor-not-allowed');
-                 card.disabled = true; // ❗️ [추가] 비활성화 시 버튼 disabled
              }
 
              if (isAlbaOnLeave) {
@@ -681,6 +700,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         allMembersContainer.appendChild(albaContainer);
     }
     
+    // ✅ [수정] 직원 현황판(allMembersContainer)은 항상 추가되도록 수정 (내부에서 모바일 숨김 처리)
+    // teamStatusBoard.appendChild(presetTaskContainer); // presetTaskContainer는 이미 추가됨
     teamStatusBoard.appendChild(allMembersContainer);
 };
 
@@ -724,14 +745,15 @@ export const renderCompletedWorkLog = (appState) => {
 
 /**
  * ✅ [수정] renderDashboardLayout (ui.js -> ui-main.js)
+ * (초기 수량 로드 및 클릭 div 제거)
  */
 export const renderDashboardLayout = (appConfig) => {
     const container = document.getElementById('summary-content');
     if (!container) return;
 
     const itemIds = appConfig.dashboardItems || [];
-    // ❗️ [삭제] quantities 변수 (appConfig.dashboardQuantities)
-    const allDefinitions = getAllDashboardDefinitions(appConfig); // ❗️ [수정] ui-shared.js에서 가져옴
+    const quantities = appConfig.dashboardQuantities || {};
+    const allDefinitions = getAllDashboardDefinitions(appConfig);
 
     container.innerHTML = '';
     let html = '';
@@ -744,11 +766,16 @@ export const renderDashboardLayout = (appConfig) => {
         }
 
         let valueContent;
-        const isQuantity = def.isQuantity === true;
+        const isQuantity = def.isQuantity === true; // isQuantity 확인
 
-        // ❗️ [수정] 모든 항목의 초기값을 0으로 설정
-        valueContent = `<p id="${def.valueId}">0</p>`;
+        if (isQuantity) {
+             // ✅ [수정] 초기값은 항상 0으로 설정
+             valueContent = `<p id="${def.valueId}">0</p>`;
+        } else {
+             valueContent = `<p id="${def.valueId}">0</p>`; // 비수량 항목도 초기값 0
+        }
 
+        // isQuantity일 경우 dashboard-card-quantity 클래스 추가 (유지)
         html += `
             <div class="dashboard-card p-4 rounded-lg ${isQuantity ? 'dashboard-card-quantity' : ''}">
                 <h4 class="text-sm font-bold uppercase tracking-wider">${def.title}</h4>
@@ -762,10 +789,13 @@ export const renderDashboardLayout = (appConfig) => {
 
 /**
  * ✅ [수정] updateSummary (ui.js -> ui-main.js)
+ * (커스텀 항목 ID 처리, 수량 업데이트 제외 유지)
  */
 export const updateSummary = (appState, appConfig) => {
-    const allDefinitions = getAllDashboardDefinitions(appConfig); // ❗️ [수정] ui-shared.js에서 가져옴
+    // ✅ [수정] 모든 정의 가져오기
+    const allDefinitions = getAllDashboardDefinitions(appConfig);
 
+    // ✅ [수정] 정의된 모든 ID에 대해 요소 가져오기 시도 (수량 항목 포함)
     const elements = {};
     Object.keys(allDefinitions).forEach(id => {
         const def = allDefinitions[id];
@@ -774,7 +804,8 @@ export const updateSummary = (appState, appConfig) => {
         }
     });
 
-    // --- (계산 로직: totalStaffCount, onLeaveTotalCount 등...은 모두 동일) ---
+    // --- (기존 계산 로직: totalStaffCount, onLeaveTotalCount 등...은 모두 동일) ---
+    // ...
     const teamGroups = appConfig.teamGroups || [];
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
@@ -794,31 +825,39 @@ export const updateSummary = (appState, appConfig) => {
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
 
+    // ✅ [수정] 업무중/휴식중/대기 인원 계산 로직 변경
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
     
     const ongoingMembers = new Set(ongoingRecords.map(r => r.member));
     const pausedMembers = new Set(pausedRecords.map(r => r.member));
 
+    // '업무중'은 'ongoing' 상태인 사람만 카운트
     const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
     const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
-    const totalWorkingCount = ongoingMembers.size;
+    const totalWorkingCount = ongoingMembers.size; // '업무중' 총원
 
+    // 근무 가능 인원 (기존과 동일)
     const availableStaffCount = totalStaffCount - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
     const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
     
+    // '휴식중' 인원
     const pausedStaffCount = [...pausedMembers].filter(member => allStaffMembers.has(member)).length;
     const pausedPartTimerCount = [...pausedMembers].filter(member => allPartTimers.has(member)).length;
     
+    // '대기'는 (근무 가능) - (업무중) - (휴식중)
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount - pausedStaffCount);
     const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount - pausedPartTimerCount);
     
-    const totalIdleCount = idleStaffCount + idlePartTimerCount;
+    const totalIdleCount = idleStaffCount + idlePartTimerCount; // '대기' 총원
 
+    // 진행 업무(Task) 카운트는 'ongoing' + 'paused' 모두 포함 (기존 로직 유지)
     const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
     // --- (계산 로직 끝) ---
 
+
+    // ✅ [수정] 동적으로 요소 업데이트 (수량 항목 제외)
     if (elements['total-staff']) elements['total-staff'].textContent = `${totalStaffCount}/${totalPartTimerCount}`;
     if (elements['leave-staff']) elements['leave-staff'].textContent = `${onLeaveTotalCount}`;
     if (elements['active-staff']) elements['active-staff'].textContent = `${availableStaffCount}/${availablePartTimerCount}`;
@@ -829,27 +868,20 @@ export const updateSummary = (appState, appConfig) => {
     // total-work-time은 타이머(updateElapsedTimes)가 관리
 
     // --- 👇 [수정] 수량 항목 업데이트 로직 (appConfig.quantityToDashboardMap 사용) ---
-    const quantitiesFromState = appState.taskQuantities || {};
+    const quantitiesFromState = appState.taskQuantities || {}; // Firestore에서 로드된 최신 수량
     
+    // ✅ [수정] 관리자 페이지에서 설정한 맵을 직접 사용
     const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
-
-    // ❗️ [추가] 수량 항목을 0으로 초기화 (이전 값이 남아있는 것 방지)
-    Object.keys(allDefinitions).forEach(id => {
-        if (allDefinitions[id].isQuantity && elements[id]) {
-            elements[id].textContent = '0';
-        }
-    });
+    // ⛔️ [삭제] 기존 하드코딩 매핑 로직 (const taskNameToDashboardIdMap = {}; ... 등 10줄 이상) 삭제
 
     // 4. appState의 수량을 현황판 요소에 반영
     for (const task in quantitiesFromState) {
         const quantity = quantitiesFromState[task] || 0;
-        const targetDashboardId = taskNameToDashboardIdMap[task]; 
+        const targetDashboardId = taskNameToDashboardIdMap[task]; // 매핑된 현황판 ID 찾기
 
-        if (targetDashboardId && elements[targetDashboardId]) {
-            // ❗️ [수정] 0 이상의 값만 표시 (음수 값 제외)
-            if (quantity >= 0) {
-                 elements[targetDashboardId].textContent = quantity;
-            }
+        if (targetDashboardId && elements[targetDashboardId]) { // 해당 현황판 요소가 존재하는지 확인
+            elements[targetDashboardId].textContent = quantity; // 요소의 텍스트 업데이트
+            // console.log(`updateSummary: Updated ${targetDashboardId} with ${quantity}`); // 확인용 로그
         }
     }
     // --- 👆 [수정 끝] ---
