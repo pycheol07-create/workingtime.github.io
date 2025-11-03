@@ -66,7 +66,6 @@ export const loadAppConfig = async (dbInstance) => {
                 mergedConfig.taskGroups = Object.entries(loadedData.taskGroups).map(([groupName, tasks]) => {
                     return { name: groupName, tasks: tasks || [] };
                 });
-                // (참고: 이 변환된 데이터는 'admin.js'에서 저장하기 전까지는 Firestore에 반영되지 않습니다)
             } else {
                 // 3. Firestore에 데이터가 없으면 기본값(배열) 사용
                 mergedConfig.taskGroups = defaultData.taskGroups;

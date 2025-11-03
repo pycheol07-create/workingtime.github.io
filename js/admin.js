@@ -248,8 +248,6 @@ function renderTaskGroups(taskGroups) { // taskGroups is now an Array: [{name: '
     const container = document.getElementById('task-groups-container');
     container.innerHTML = '';
     
-    // ⛔️ [삭제] const groupNames = Object.keys(taskGroups);
-    
     // ✅ [수정] taskGroups 배열(Array)을 직접 순회(forEach)합니다.
     (taskGroups || []).forEach((group, index) => { // .forEach 앞에 (taskGroups || [])로 안전장치 추가
         
@@ -261,7 +259,7 @@ function renderTaskGroups(taskGroups) { // taskGroups is now an Array: [{name: '
         groupEl.className = 'p-4 border rounded-lg bg-gray-50 task-group-card';
         groupEl.dataset.index = index;
 
-        // ✅ [정상] tasks는 이제 배열이므로 .map()이 정상 작동합니다.
+        // ✅ [수정] tasks.map()이 이제 정상 작동해야 합니다.
         const tasksHtml = tasks.map((task, tIndex) => `
             <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item">
                 <span class="drag-handle" draggable="true">☰</span>
