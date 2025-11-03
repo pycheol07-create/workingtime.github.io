@@ -128,7 +128,6 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
     // ================== [ ✨ 수정된 부분 ✨ ] ==================
     // (max-h-60 -> max-h-[60vh]로 변경하여 더 많은 데이터를 볼 수 있도록 함)
     html += `<div class="overflow-x-auto max-h-[60vh]">
-    // =======================================================
                <table class="w-full text-sm text-left text-gray-600">
                  <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
                    <tr>
