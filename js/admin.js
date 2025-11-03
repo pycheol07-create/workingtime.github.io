@@ -244,26 +244,31 @@ function renderKeyTasks(keyTasks) {
 }
 
 
-function renderTaskGroups(taskGroups) {
+function renderTaskGroups(taskGroups) { // taskGroups is now an Array: [{name: 'G1', tasks: [...]}, ...]
     const container = document.getElementById('task-groups-container');
     container.innerHTML = '';
-    const groupNames = Object.keys(taskGroups);
-
-    groupNames.forEach((groupName, index) => {
-        const tasks = taskGroups[groupName] || [];
+    
+    // ⛔️ [삭제] const groupNames = Object.keys(taskGroups);
+    
+    // ✅ [수정] taskGroups 배열(Array)을 직접 순회(forEach)합니다.
+    (taskGroups || []).forEach((group, index) => { // .forEach 앞에 (taskGroups || [])로 안전장치 추가
+        
+        // ✅ [수정] groupName과 tasks를 배열 요소(group)에서 가져옵니다.
+        const groupName = group.name;
+        const tasks = group.tasks || []; // tasks도 배열이어야 합니다.
+        
         const groupEl = document.createElement('div');
-        // [수정] task-group-card에서 draggable="true" 제거
         groupEl.className = 'p-4 border rounded-lg bg-gray-50 task-group-card';
         groupEl.dataset.index = index;
-        // groupEl.draggable = true; // [제거]
 
+        // ✅ [정상] tasks는 이제 배열이므로 .map()이 정상 작동합니다.
         const tasksHtml = tasks.map((task, tIndex) => `
             <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item">
                 <span class="drag-handle" draggable="true">☰</span>
                 <input type="text" value="${task}" class="task-name flex-grow">
                 <button class="btn btn-danger btn-small delete-task-btn" data-t-index="${tIndex}">삭제</button>
             </div>
-        `).join(''); // [수정] task-item에서 draggable="true" 제거, handle에 draggable="true" 추가
+        `).join(''); 
 
         groupEl.innerHTML = `
              <div class="flex justify-between items-center mb-4">
@@ -275,7 +280,7 @@ function renderTaskGroups(taskGroups) {
             </div>
             <div class="pl-4 border-l-2 border-gray-200 space-y-2 tasks-container">${tasksHtml}</div>
             <button class="btn btn-secondary btn-small mt-3 add-task-btn">+ 업무 추가</button>
-        `; // [수정] group-card의 handle에 draggable="true" 추가
+        `; 
         container.appendChild(groupEl);
     });
 }
