@@ -1,15 +1,16 @@
-// === app-logic.js (업무 및 상태 저장 로직) ===
+// === app-logic.js (수정된 import) ===
 
-// app.js에서 핵심 상태, DB, 헬퍼 함수들을 가져옵니다. (나중에 app.js에서 export 할 예정)
+// app.js에서 핵심 상태, DB, 헬퍼 함수들을 가져옵니다.
 import { 
     appState, db, auth, 
     render, generateId, 
-    showToast, getCurrentTime, calcElapsedMinutes,
-    AUTO_SAVE_INTERVAL // (이 상수는 app.js에 있어야 합니다)
+    showToast, getCurrentTime, 
+    AUTO_SAVE_INTERVAL 
 } from './app.js'; 
 
-// utils.js에서 debounce 함수를 가져옵니다.
-import { debounce } from './utils.js';
+// utils.js에서 헬퍼 함수들을 가져옵니다.
+// ✅ [수정] calcElapsedMinutes를 app.js가 아닌 utils.js에서 가져옵니다.
+import { debounce, calcElapsedMinutes } from './utils.js';
 
 // ========== Firestore 저장 ==========
 

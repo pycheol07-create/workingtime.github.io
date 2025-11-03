@@ -19,8 +19,9 @@ import {
     render, debouncedSaveState, saveStateToFirestore,
     markDataAsDirty,
     
-    // Core Helpers (app.js에서 가져옴)
-    showToast, getTodayDateString, getCurrentTime, calcElapsedMinutes,
+    /// Core Helpers (app.js에서 가져옴)
+    // ✅ [수정] calcElapsedMinutes 제거
+    showToast, getTodayDateString, getCurrentTime,
     
     // 엑셀 라이브러리 (app.js의 <script> 태그를 통해 전역으로 로드됨)
     // (모듈 방식이라면 import * as XLSX from '...'; 가 필요)
@@ -38,8 +39,9 @@ import {
 } from './ui.js';
 
 // 유틸리티 함수들
+// ✅ [수정] calcElapsedMinutes 추가
 import { 
-    formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday 
+    formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday, calcElapsedMinutes 
 } from './utils.js';
 
 // Firebase (Firestore)

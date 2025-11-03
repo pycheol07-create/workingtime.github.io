@@ -50,7 +50,8 @@ import {
 
     // app.js (메인)의 헬퍼/로직 함수
     render, debouncedSaveState, saveStateToFirestore, 
-    showToast, getTodayDateString, getCurrentTime, calcElapsedMinutes,
+    // ✅ [수정] calcElapsedMinutes 제거
+    showToast, getTodayDateString, getCurrentTime, 
     generateId, normalizeName, 
     markDataAsDirty,
     
@@ -60,6 +61,9 @@ import {
 
 // config.js에서 가져올 함수
 import { saveLeaveSchedule } from './config.js';
+
+// ✅ [추가] utils.js import (calcElapsedMinutes 포함)
+import { calcElapsedMinutes } from './utils.js';
 
 // ui.js (통합)에서 가져올 렌더링 함수
 import {
