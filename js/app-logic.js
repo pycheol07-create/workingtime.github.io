@@ -4,12 +4,12 @@
 import { 
     appState, db, auth, 
     render, generateId, 
-    showToast, // ✅ [수정] showToast도 app.js가 아닌 utils.js에서 가져와야 합니다.
+    // ✅ [수정] showToast를 이 목록에서 제거했습니다.
     AUTO_SAVE_INTERVAL 
 } from './app.js'; 
 
 // utils.js에서 헬퍼 함수들을 가져옵니다.
-// ✅ [수정] getCurrentTime, showToast, calcElapsedMinutes를 utils.js에서 가져옵니다.
+// (getCurrentTime, showToast, calcElapsedMinutes는 utils.js에 있습니다)
 import { debounce, calcElapsedMinutes, getCurrentTime, showToast } from './utils.js';
 
 // ========== Firestore 저장 ==========
