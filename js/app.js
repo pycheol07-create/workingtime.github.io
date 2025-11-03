@@ -578,26 +578,45 @@ async function startAppAfterLogin(user) {
       if (docSnap.exists()) {
           console.log("실시간 앱 설정 감지: 변경 사항을 적용합니다.");
           const loadedConfig = docSnap.data();
+          
+          // ✅ [수정] config.js의 loadAppConfig와 동일한 마이그레이션 로직을 적용합니다.
+          
           const mergedConfig = { ...appConfig, ...loadedConfig }; 
+          
           mergedConfig.teamGroups = loadedConfig.teamGroups || appConfig.teamGroups;
           mergedConfig.keyTasks = loadedConfig.keyTasks || appConfig.keyTasks;
           mergedConfig.dashboardItems = loadedConfig.dashboardItems || appConfig.dashboardItems;
           mergedConfig.dashboardCustomItems = { ...(loadedConfig.dashboardCustomItems || {}) };
           mergedConfig.quantityTaskTypes = loadedConfig.quantityTaskTypes || appConfig.quantityTaskTypes;
-          mergedConfig.taskGroups = loadedConfig.taskGroups || appConfig.taskGroups;
+
+          // ✅ [수정] taskGroups 마이그레이션 로직 (config.js에서 복사)
+          if (Array.isArray(loadedConfig.taskGroups)) {
+              // 1. Firestore에 이미 새 배열 [] 형식이면 그대로 사용
+              mergedConfig.taskGroups = loadedConfig.taskGroups;
+          } else if (typeof loadedConfig.taskGroups === 'object' && loadedConfig.taskGroups !== null && !Array.isArray(loadedConfig.taskGroups)) {
+              // 2. Firestore에 이전 객체 {} 형식이면 새 배열 [] 형식으로 변환
+              console.warn("실시간 감지: 'taskGroups' (객체)를 (배열) 형식으로 마이그레이션합니다.");
+              mergedConfig.taskGroups = Object.entries(loadedConfig.taskGroups).map(([groupName, tasks]) => {
+                  return { name: groupName, tasks: tasks || [] };
+              });
+          } else {
+              // 3. Firestore에 데이터가 없으면 현재 앱의 설정(appConfig) 유지
+              mergedConfig.taskGroups = appConfig.taskGroups;
+          }
+          
           mergedConfig.memberWages = { ...appConfig.memberWages, ...(loadedConfig.memberWages || {}) };
           mergedConfig.memberEmails = { ...appConfig.memberEmails, ...(loadedConfig.memberEmails || {}) };
           mergedConfig.memberRoles = { ...appConfig.memberRoles, ...(loadedConfig.memberRoles || {}) };
           mergedConfig.quantityToDashboardMap = { ...appConfig.quantityToDashboardMap, ...(loadedConfig.quantityToDashboardMap || {}) };
 
-          appConfig = mergedConfig; 
+          appConfig = mergedConfig; // 전역 appConfig 업데이트
 
+          // (이하 렌더링 호출은 동일)
           renderDashboardLayout(appConfig);
           renderTaskSelectionModal(appConfig.taskGroups);
           render(); 
           
           if (addAttendanceMemberDatalist) {
-              // (app.js의 1569줄 함수를 여기서 직접 실행)
               addAttendanceMemberDatalist.innerHTML = '';
               const staffMembers = (appConfig.teamGroups || []).flatMap(g => g.members);
               const partTimerMembers = (appState.partTimers || []).map(p => p.name);
@@ -608,6 +627,7 @@ async function startAppAfterLogin(user) {
                   addAttendanceMemberDatalist.appendChild(option);
               });
           }
+
       } else {
           console.warn("실시간 앱 설정 감지: config 문서가 삭제되었습니다. 로컬 설정을 유지합니다.");
       }
