@@ -5,7 +5,6 @@ import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/fireb
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // ... (firebaseConfig, APP_ID, initializeFirebase 함수는 동일) ...
-// 1. Firebase 설정 (유지)
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
     authDomain: "work-tool-e2943.firebaseapp.com",
@@ -16,17 +15,15 @@ export const firebaseConfig = {
     measurementId: "G-ZZQLKB0057"
 };
 
-// 2. 앱 ID
 const APP_ID = 'team-work-logger-v2';
 let db, auth;
 
-// 3. Firebase 초기화 함수 (공용)
 export const initializeFirebase = () => {
     try {
         const app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
-        console.log("Firebase initialized successfully."); // 초기화 성공 로그
+        console.log("Firebase initialized successfully."); 
         return { app, db, auth };
     } catch (error) {
         console.error("Firebase 초기화 실패:", error);
@@ -48,8 +45,9 @@ export const loadAppConfig = async (dbInstance) => {
             console.log("Firestore에서 앱 설정을 불러왔습니다.");
             const loadedData = docSnap.data();
             const defaultData = getDefaultConfig();
-            // Firestore 데이터와 기본값 병합 (Firestore 우선)
+            
             const mergedConfig = { ...defaultData, ...loadedData };
+            
             // 배열 및 객체 필드 기본값 확인
             mergedConfig.teamGroups = loadedData.teamGroups || defaultData.teamGroups;
             mergedConfig.keyTasks = loadedData.keyTasks || defaultData.keyTasks;
@@ -57,15 +55,27 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) };
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
-            mergedConfig.taskGroups = loadedData.taskGroups || defaultData.taskGroups;
             
-            // ✅ [추가] memberWages, memberEmails, memberRoles 병합
+            // ✅ [수정] taskGroups 마이그레이션 로직
+            if (Array.isArray(loadedData.taskGroups)) {
+                // 1. Firestore에 이미 새 배열 [] 형식이면 그대로 사용
+                mergedConfig.taskGroups = loadedData.taskGroups;
+            } else if (typeof loadedData.taskGroups === 'object' && loadedData.taskGroups !== null && !Array.isArray(loadedData.taskGroups)) {
+                // 2. Firestore에 이전 객체 {} 형식이면 새 배열 [] 형식으로 변환
+                console.warn("Firestore 'taskGroups' (객체)를 (배열) 형식으로 마이그레이션합니다.");
+                mergedConfig.taskGroups = Object.entries(loadedData.taskGroups).map(([groupName, tasks]) => {
+                    return { name: groupName, tasks: tasks || [] };
+                });
+                // (참고: 이 변환된 데이터는 'admin.js'에서 저장하기 전까지는 Firestore에 반영되지 않습니다)
+            } else {
+                // 3. Firestore에 데이터가 없으면 기본값(배열) 사용
+                mergedConfig.taskGroups = defaultData.taskGroups;
+            }
+            
             mergedConfig.memberWages = { ...defaultData.memberWages, ...(loadedData.memberWages || {}) };
             mergedConfig.memberEmails = { ...defaultData.memberEmails, ...(loadedData.memberEmails || {}) };
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
-            // ✅ [추가] 처리량-현황판 연동 맵 병합
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
-
 
             return mergedConfig;
         } else {
@@ -83,10 +93,9 @@ export const loadAppConfig = async (dbInstance) => {
 
 // 5. Firestore에 *앱 설정* 저장하기 (admin.js용)
 export const saveAppConfig = async (dbInstance, configData) => {
+    // ... (이전과 동일) ...
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
-
-    // 순환 참조나 함수 등 Firestore에 저장할 수 없는 타입 제거
     const cleanedConfig = JSON.parse(JSON.stringify(configData));
     const configDocRef = doc(dbToUse, 'artifacts', APP_ID, 'config', 'mainConfig');
     await setDoc(configDocRef, cleanedConfig);
@@ -97,16 +106,13 @@ export const loadLeaveSchedule = async (dbInstance) => {
     // ... (이전과 동일) ...
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
-
     const leaveDocRef = doc(dbToUse, 'artifacts', APP_ID, 'persistent_data', 'leaveSchedule');
-
     try {
         const docSnap = await getDoc(leaveDocRef);
         if (docSnap.exists()) {
             console.log("Firestore에서 근태 일정을 불러왔습니다.");
             return docSnap.data() || { onLeaveMembers: [] };
         } else {
-            // 문서가 없으면 빈 일정으로 새로 생성
             console.warn("Firestore에 근태 일정 문서가 없습니다. 새로 생성합니다.");
             const defaultLeaveData = { onLeaveMembers: [] };
             await setDoc(leaveDocRef, defaultLeaveData);
@@ -114,7 +120,7 @@ export const loadLeaveSchedule = async (dbInstance) => {
         }
     } catch (e) {
         console.error("근태 일정 불러오기 실패:", e);
-        return { onLeaveMembers: [] }; // 실패 시 빈 일정 반환
+        return { onLeaveMembers: [] }; 
     }
 };
 
@@ -123,16 +129,15 @@ export const saveLeaveSchedule = async (dbInstance, leaveData) => {
     // ... (이전과 동일) ...
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
-
     const cleanedLeaveData = JSON.parse(JSON.stringify(leaveData));
     const leaveDocRef = doc(dbToUse, 'artifacts', APP_ID, 'persistent_data', 'leaveSchedule');
     await setDoc(leaveDocRef, cleanedLeaveData);
 };
 
 
-// === config.js (일부) ===
 // 8. 기본 앱 설정 데이터 (근태 일정 제거)
 function getDefaultConfig() {
+    // ... (이전과 동일 - taskGroups가 배열[] 형식이어야 함) ...
     return {
         teamGroups: [
             { name: '관리', members: ['박영철', '박호진', '유아라', '이승운'] },
@@ -162,7 +167,6 @@ function getDefaultConfig() {
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
         
-        // ✅ [수정] taskGroups를 객체 {} 에서 배열 [] 로 변경
         taskGroups: [
             { name: '공통', tasks: ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업'] },
             { name: '담당', tasks: ['개인담당업무', '상.하차', '검수', '아이롱', '오류'] },
