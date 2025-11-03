@@ -25,12 +25,13 @@ export const renderTaskSelectionModal = (taskGroups = {}) => {
     Object.entries(taskGroups).forEach(([groupName, tasks]) => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'flex-1';
+        
+        // ✅ [수정 1] 업무 버튼을 세로 한 줄로 나열합니다. (sm:grid-cols-2 제거)
         let tasksHtml = tasks.map(task => `<button type="button" data-task="${task}" class="task-select-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:ring-2 focus:ring-blue-300">${task}</button>`).join('');
+        
         groupDiv.innerHTML = `
-            <div class="bg-gray-50 rounded-lg border h-full">
-                <h3 class="text-lg font-bold text-gray-800 mb-0 p-3 border-b bg-gray-100 rounded-t-lg">${groupName}</h3>
-                <div class="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">${tasksHtml}</div>
-            </div>
+            <div class="bg-gray-50 rounded-lg border"> <h3 class="text-lg font-bold text-gray-800 mb-0 p-3 border-b bg-gray-100 rounded-t-lg">${groupName}</h3>
+                <div class="p-3 grid grid-cols-1 gap-2">${tasksHtml}</div> </div>
         `;
         container.appendChild(groupDiv);
     });

@@ -1,11 +1,9 @@
-// === app-history-logic.js (수정된 import) ===
+// === app-history-logic.js (이력, 마감, 저장, 엑셀 관련 로직) ===
 
 import {
     appState, appConfig, db, auth, 
-    allHistoryData, 
-    
-    // ✅ [수정] context 객체만 import 합니다.
-    context,
+    allHistoryData, // ✅ app.js에서 export
+    context, // ✅ context 객체 import
     
     // DOM Elements (app.js에서 가져옴)
     historyDateList, historyTabs, attendanceHistoryTabs, 
@@ -19,9 +17,7 @@ import {
     render, debouncedSaveState, saveStateToFirestore,
     markDataAsDirty,
     
-    // ✅ [수정] 헬퍼 함수들(showToast, getTodayDateString 등)은 여기서 import하지 않습니다.
-    
-    // 엑셀 라이브러리 (app.js의 <script> 태그를 통해 전역으로 로드됨)
+    // 엑셀 라이브러리 (XLSX는 index.html에서 전역 로드)
 } from './app.js';
 
 // UI 렌더링 함수들 (ui.js를 통해 import)
@@ -35,7 +31,7 @@ import {
   renderTrendAnalysisCharts
 } from './ui.js';
 
-// ✅ [수정] 필요한 모든 유틸리티 함수를 utils.js에서 가져옵니다.
+// 유틸리티 함수들
 import { 
     formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday,
     getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast
@@ -216,11 +212,10 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
-    // ✅ [수정] context.activeMainHistoryTab을 사용합니다.
+    // ✅ [수정] context.activeMainHistoryTab을 사용
     const activeSubTabBtn = (context.activeMainHistoryTab === 'work')
         ? historyTabs?.querySelector('button.font-semibold')
         : attendanceHistoryTabs?.querySelector('button.font-semibold');
-    // ✅ [수정] context.activeMainHistoryTab을 사용합니다.
     const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
     
     switchHistoryView(activeView); 
@@ -264,7 +259,7 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
         if (mode === 'day') {
              const previousDayData = (allHistoryData.length > 1) ? allHistoryData[1] : null;
              
-             // ✅ [수정] context.activeMainHistoryTab을 사용합니다.
+             // ✅ [수정] context.activeMainHistoryTab을 사용
              if (context.activeMainHistoryTab === 'work') {
                 renderHistoryDetail(firstButton.dataset.key, previousDayData);
              } else {
@@ -297,12 +292,11 @@ export const openHistoryQuantityModal = (dateKey) => {
     const title = document.getElementById('quantity-modal-title');
     if (title) title.textContent = `${dateKey} 처리량 수정`;
 
-    // ✅ [수정] context.quantityModalContext에 onConfirm 로직을 *내부에* 올바르게 할당합니다.
+    // ✅ [수정] onConfirm 로직을 함수 내부로 올바르게 이동
     context.quantityModalContext.mode = 'history';
     context.quantityModalContext.dateKey = dateKey;
     context.quantityModalContext.onConfirm = async (newQuantities) => {
         
-        // --- ⬇️ 이 로직이 onConfirm 함수 *내부*에 있어야 합니다 ⬇️ ---
         const idx = allHistoryData.findIndex(d => d.id === dateKey);
         if (idx === -1 && dateKey !== todayDateString) { 
              showToast('이력 데이터를 찾을 수 없어 수정할 수 없습니다.', true);
@@ -338,8 +332,7 @@ export const openHistoryQuantityModal = (dateKey) => {
             console.error('Error updating history quantities:', e);
             showToast('처리량 업데이트 중 오류 발생.', true);
         }
-        // --- ⬆️ 여기까지 onConfirm 함수 내부 ⬆️ ---
-    }; // ✅ 여기가 onConfirm이 끝나는 지점입니다.
+    }; // ✅ onConfirm 함수가 여기서 끝남
     
     context.quantityModalContext.onCancel = () => {};
 
@@ -439,7 +432,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
       });
   }
   
-  // (app.js의 헬퍼 함수를 여기에 다시 정의 - import 대신)
   const getDiffHtmlForMetric = (metric, current, previous) => {
       const currValue = current || 0;
       const prevValue = previous || 0;
@@ -486,7 +478,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 
   let nonWorkHtml = '';
   if (isWeekday(dateKey)) {
-    const totalPotentialMinutes = activeMembersCount * 8 * 60; // 8시간 기준
+    const totalPotentialMinutes = activeMembersCount * 8 * 60; 
     const nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalSumDuration);
     const percentage = totalPotentialMinutes > 0 ? (nonWorkMinutes / totalPotentialMinutes * 100).toFixed(1) : 0;
     nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-xl font-bold text-gray-700">${formatDuration(nonWorkMinutes)}</p><p class="text-xs text-gray-500 mt-1">(추정치, ${percentage}%)</p></div>`;
@@ -494,7 +486,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px] flex flex-col justify-center items-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-lg font-bold text-gray-400">주말</p></div>`;
   }
 
-  // (HTML 렌더링 부분은 app.js의 것과 동일)
+  // ✅ [수정] onclick 핸들러가 전역(window) 대신 'app' 객체를 참조하도록 변경 (app.js에서 window.app = ... 로 노출 필요)
   let html = `
     <div class="mb-6 pb-4 border-b flex justify-between items-center">
       <h3 class="text-2xl font-bold text-gray-800">${dateKey} (전일 대비)</h3>
@@ -595,15 +587,14 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 
 /**
  * 이력 삭제 확인 모달을 엽니다.
- * (app.js의 window.requestHistoryDeletion)
  */
 export const requestHistoryDeletion = (dateKey) => {
-  context.historyKeyToDelete = dateKey; // ✅ [수정] 'context.' 추가
+  context.historyKeyToDelete = dateKey; // ✅ context.
   if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
 };
 
 // =================================================================
-// 엑셀 다운로드 함수 (app.js의 window.downloadHistoryAsExcel)
+// 엑셀 다운로드 함수
 // =================================================================
 const fitToColumn = (ws) => {
     const objectMaxLength = [];
@@ -868,7 +859,6 @@ export const downloadHistoryAsExcel = async (dateKey) => {
 
         for (const monthKey of sortedMonths) {
             const dataset = monthlyData[monthKey];
-            // (로직은 Sheet 4와 동일)
             const records = dataset.workRecords || [];
             const quantities = dataset.taskQuantities || {};
             const taskSummary = records.reduce((acc, r) => {
@@ -923,7 +913,6 @@ export const downloadHistoryAsExcel = async (dateKey) => {
 
 /**
  * 근태 이력 엑셀 다운로드
- * (app.js의 window.downloadAttendanceHistoryAsExcel)
  */
 export const downloadAttendanceHistoryAsExcel = async (dateKey) => {
     try {
@@ -934,7 +923,6 @@ export const downloadAttendanceHistoryAsExcel = async (dateKey) => {
 
         const workbook = XLSX.utils.book_new();
 
-        // Sheet 1: 일별 상세 (기존과 동일)
         const dailyRecords = data.onLeaveMembers || [];
         const sheet1Data = dailyRecords
             .sort((a, b) => (a.member || '').localeCompare(b.member || ''))
@@ -959,7 +947,6 @@ export const downloadAttendanceHistoryAsExcel = async (dateKey) => {
         fitToColumn(worksheet1);
         XLSX.utils.book_append_sheet(workbook, worksheet1, `근태 기록 (${dateKey})`);
 
-        // Sheet 2: 주별 요약 (기존과 동일)
         const weeklyData = (allHistoryData || []).reduce((acc, day) => {
             if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string') return acc;
             try {
@@ -1020,7 +1007,6 @@ export const downloadAttendanceHistoryAsExcel = async (dateKey) => {
         fitToColumn(worksheet2);
         XLSX.utils.book_append_sheet(workbook, worksheet2, '주별 근태 요약 (전체)');
 
-        // Sheet 3: 월별 요약 (기존과 동일)
         const monthlyData = (allHistoryData || []).reduce((acc, day) => {
             if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string' || day.id.length < 7) return acc;
              try {
@@ -1089,7 +1075,6 @@ export const downloadAttendanceHistoryAsExcel = async (dateKey) => {
 
 /**
  * 이력 보기 탭(일/주/월)을 전환합니다.
- * (app.js의 switchHistoryView)
  */
 export const switchHistoryView = (view) => {
   const allViews = [
