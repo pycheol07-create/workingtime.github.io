@@ -494,11 +494,20 @@ export function initializeAppListeners() {
             }
         }
         
-        if (stateChanged && context.deleteMode !== 'leave') { 
-             debouncedSaveState();
-        }
-        if (context.deleteMode === 'leave' && context.attendanceRecordToDelete?.recordType === 'daily' && stateChanged) {
-            debouncedSaveState();
+        // ================== [ ✨ 수정된 부분 ✨ ] ==================
+        // stateChanged가 true일 때, 삭제 모드에 따라 올바르게 저장/반영되도록 수정
+        if (stateChanged) {
+            if (context.deleteMode === 'leave') {
+                // '일일 근태' (조퇴, 외출) 삭제 시
+                if (context.attendanceRecordToDelete?.recordType === 'daily') {
+                    debouncedSaveState();
+                }
+                // '영구 근태' (연차 등)는 이미 saveLeaveSchedule()로 저장되었으므로
+                // 여기서는 별도 처리가 필요 없습니다.
+            } else {
+                // 'all' 또는 'single' (업무 기록) 삭제 시
+                debouncedSaveState();
+            }
         }
 
         if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
