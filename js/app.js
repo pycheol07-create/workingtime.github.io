@@ -182,6 +182,9 @@ export const confirmEditStartTimeBtn = document.getElementById('confirm-edit-sta
 export const cancelEditStartTimeBtn = document.getElementById('cancel-edit-start-time-btn');
 export const analysisMemberSelect = document.getElementById('analysis-member-select');
 
+// ✅ [추가] 이 DOM 요소를 export 목록에 추가합니다.
+export const editLeaveModal = document.getElementById('edit-leave-record-modal');
+
 
 // ========== 6. Firebase/App State (모두 EXPORT) ==========
 export let db, auth;
@@ -252,10 +255,9 @@ export let allHistoryData = [];
 export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // ========== 7. Core Helpers (EXPORT) ==========
-// (utils.js로 이동한 함수는 삭제)
-export const generateId = () => `${Date.now()}-${++recordCounter}`;
+// ✅ [수정] generateId 함수가 context.recordCounter를 사용하도록 수정
+export const generateId = () => `${Date.now()}-${++context.recordCounter}`;
 export const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
-
 
 // ========== 8. Core Functions (Timers, Render, Save) (EXPORT) ==========
 
