@@ -114,7 +114,8 @@ import {
     renderDashboardLayout,
     renderManualAddModalDatalists,
     renderTrendAnalysisCharts,
-    trendCharts
+    trendCharts,
+    renderAttendanceDailyHistory // ❗️ [추가] 근태 이력 삭제 후 재(Re-render)호출 시 필요
 } from './ui.js';
 
 // 5. 이력 관리 함수 임포트
