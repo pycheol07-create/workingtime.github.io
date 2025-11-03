@@ -4,9 +4,8 @@ import { formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday } from './uti
 // ⛔️ [삭제] ui.js에서 헬퍼 함수 가져오기 (아래에 직접 정의)
 // import { getDiffHtmlForMetric } from './ui.js';
 
-// ================== [ ✨ 추가된 부분 1 ✨ ] ==================
+// ================== [ ✨ 수정된 부분 1 ✨ ] ==================
 // (getDiffHtmlForMetric 헬퍼 함수를 ui.js에서 가져와 여기에 로컬로 정의)
-// (totalDuration, totalQuantity, totalCost 등 총계 항목 비교 로직 추가)
 const getDiffHtmlForMetric = (metric, current, previous) => {
     const currValue = current || 0;
     const prevValue = previous || 0;
@@ -22,14 +21,15 @@ const getDiffHtmlForMetric = (metric, current, previous) => {
     const percent = (diff / prevValue) * 100;
     const sign = diff > 0 ? '↑' : '↓';
     
+    // [ ✨✨✨ 핵심 수정 ✨✨✨ ]
+    // (모든 +는 green, 모든 -는 red로 통일)
     let colorClass = 'text-gray-500';
-    // [ ✨ 수정 ✨ ] (Higher is better)
-    if (metric === 'avgThroughput' || metric === 'avgStaff' || metric === 'totalQuantity' || metric === 'overallAvgThroughput') {
-        colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
-    // [ ✨ 수정 ✨ ] (Lower is better)
-    } else if (metric === 'avgCostPerItem' || metric === 'avgTime' || metric === 'totalDuration' || metric === 'totalCost' || metric === 'overallAvgCostPerItem') {
-        colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
+    if (diff > 0) {
+        colorClass = 'text-green-600'; // 플러스(+)는 초록색
+    } else {
+        colorClass = 'text-red-600'; // 마이너스(-)는 빨간색
     }
+    // [ ✨✨✨ (기존 if/else if 복잡한 로직 삭제) ✨✨✨ ]
     
     let diffStr = '';
     let prevStr = '';
