@@ -47,23 +47,23 @@ import {
     editStartTimeModalTitle, editStartTimeModalMessage, editStartTimeInput,
     editStartTimeContextIdInput, editStartTimeContextTypeInput, confirmEditStartTimeBtn,
     cancelEditStartTimeBtn,
+    analysisMemberSelect, // ✅ [수정] analysisMemberSelect 추가
 
     // app.js (메인)의 헬퍼/로직 함수
     render, debouncedSaveState, saveStateToFirestore, 
-    // ✅ [수정] calcElapsedMinutes 제거
-    showToast, getTodayDateString, getCurrentTime, 
+    // ✅ [수정] 헬퍼 함수(showToast, getTodayDateString 등) 제거
     generateId, normalizeName, 
     markDataAsDirty,
     
     // DOM 요소 ID (문자열)
-    loginModal, // (ID 'login-modal' 자체는 main()에서 직접 사용)
+    loginModal, 
 } from './app.js';
 
 // config.js에서 가져올 함수
 import { saveLeaveSchedule } from './config.js';
 
-// ✅ [추가] utils.js import (calcElapsedMinutes 포함)
-import { calcElapsedMinutes } from './utils.js';
+// ✅ [수정] utils.js에서 필요한 모든 헬퍼 함수 가져오기
+import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime } from './utils.js';
 
 // ui.js (통합)에서 가져올 렌더링 함수
 import {

@@ -2,10 +2,10 @@
 
 import {
     appState, appConfig, db, auth, 
-    allHistoryData, // 이력 데이터 배열 (app.js에서 관리)
-    quantityModalContext, // 수량 모달 컨텍스트 (app.js에서 관리)
-    historyKeyToDelete, // 삭제할 이력 키 (app.js에서 관리)
-    activeMainHistoryTab, // 활성 탭 (app.js에서 관리)
+    allHistoryData, 
+    quantityModalContext, 
+    historyKeyToDelete, 
+    activeMainHistoryTab, 
     
     // DOM Elements (app.js에서 가져옴)
     historyDateList, historyTabs, attendanceHistoryTabs, 
@@ -19,12 +19,9 @@ import {
     render, debouncedSaveState, saveStateToFirestore,
     markDataAsDirty,
     
-    /// Core Helpers (app.js에서 가져옴)
-    // ✅ [수정] calcElapsedMinutes 제거
-    showToast, getTodayDateString, getCurrentTime,
+    // ✅ [수정] 헬퍼 함수들(showToast, getTodayDateString 등)은 여기서 import하지 않습니다.
     
     // 엑셀 라이브러리 (app.js의 <script> 태그를 통해 전역으로 로드됨)
-    // (모듈 방식이라면 import * as XLSX from '...'; 가 필요)
 } from './app.js';
 
 // UI 렌더링 함수들 (ui.js를 통해 import)
@@ -38,10 +35,10 @@ import {
   renderTrendAnalysisCharts
 } from './ui.js';
 
-// 유틸리티 함수들
-// ✅ [수정] calcElapsedMinutes 추가
+// ✅ [수정] 필요한 모든 유틸리티 함수를 utils.js에서 가져옵니다.
 import { 
-    formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday, calcElapsedMinutes 
+    formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday,
+    getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast
 } from './utils.js';
 
 // Firebase (Firestore)
