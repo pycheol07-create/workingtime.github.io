@@ -436,7 +436,7 @@ export function initializeAppListeners() {
 
         } else if (context.deleteMode === 'leave' && context.attendanceRecordToDelete) { // ✅ context.
             const { memberName, startIdentifier, recordType } = context.attendanceRecordToDelete;
-            let recordDeleted = false;
+            let recordDeleted = false; 
             let deletedRecordInfo = ''; 
 
             if (recordType === 'daily') {
@@ -455,6 +455,14 @@ export function initializeAppListeners() {
                     try {
                         await saveLeaveSchedule(db, persistentLeaveSchedule); 
                         recordDeleted = true;
+                        
+                        // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
+                        // 'persistent' (연차 등) 삭제 시에도 상태 변경을 알리고
+                        // markDataAsDirty()를 호출해야 합니다.
+                        stateChanged = true;
+                        markDataAsDirty();
+                        // =========================================================
+
                     } catch (e) {
                          console.error('Error deleting persistent leave record:', e);
                          showToast('근태 기록 삭제 중 Firestore 저장 오류 발생.', true);
@@ -494,20 +502,11 @@ export function initializeAppListeners() {
             }
         }
         
-        // ================== [ ✨ 수정된 부분 ✨ ] ==================
-        // stateChanged가 true일 때, 삭제 모드에 따라 올바르게 저장/반영되도록 수정
-        if (stateChanged) {
-            if (context.deleteMode === 'leave') {
-                // '일일 근태' (조퇴, 외출) 삭제 시
-                if (context.attendanceRecordToDelete?.recordType === 'daily') {
-                    debouncedSaveState();
-                }
-                // '영구 근태' (연차 등)는 이미 saveLeaveSchedule()로 저장되었으므로
-                // 여기서는 별도 처리가 필요 없습니다.
-            } else {
-                // 'all' 또는 'single' (업무 기록) 삭제 시
-                debouncedSaveState();
-            }
+        if (stateChanged && context.deleteMode !== 'leave') { 
+             debouncedSaveState();
+        }
+        if (context.deleteMode === 'leave' && context.attendanceRecordToDelete?.recordType === 'daily' && stateChanged) {
+            debouncedSaveState();
         }
 
         if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
@@ -515,7 +514,13 @@ export function initializeAppListeners() {
         context.attendanceRecordToDelete = null; // ✅ context.
         context.deleteMode = 'single'; // ✅ context.
         
-        render();
+        // ================== [ ✨ 수정된 부분 2 ✨ ] ==================
+        // 상태 변경(stateChanged)이 있었다면,
+        // (업무 기록이든, 근태 기록이든) 화면을 새로고침합니다.
+        if (stateChanged) {
+            render();
+        }
+        // =========================================================
       });
     }
 
