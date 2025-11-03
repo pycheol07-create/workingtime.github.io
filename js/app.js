@@ -190,19 +190,39 @@ export let unsubscribeLeaveSchedule;
 export let unsubscribeConfig; 
 export let elapsedTimeTimer = null;
 
-// ✅ [수정] 이 아래 변수들을 모두 const에서 let으로 변경합니다.
-// (다른 모듈에서 값을 재할당해야 하기 때문입니다)
-export let recordCounter = 0;
-export let recordIdOrGroupIdToEdit = null;
-export let editType = null; 
+// ⛔️ [삭제] export let recordCounter = 0;
+// ⛔️ [삭제] export let recordIdOrGroupIdToEdit = null;
+// ... (isDataDirty를 제외한 모든 export let 변수 선언 삭제) ...
 
-export let isDataDirty = false;
+export let isDataDirty = false; // (이 변수는 autoSaveProgress만 사용하므로 그대로 둡니다)
 export let autoSaveTimer = null;
-export const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // (이것만 const 유지)
+export const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; 
+
+// ✅ [추가] 다른 모듈에서 변경해야 하는 모든 변수를 이 context 객체에 넣습니다.
+export let context = {
+    recordCounter: 0,
+    recordIdOrGroupIdToEdit: null,
+    editType: null, 
+    selectedTaskForStart: null,
+    selectedGroupForAdd: null,
+    recordToDeleteId: null,
+    recordToStopId: null,
+    historyKeyToDelete: null, 
+    recordToEditId: null,
+    deleteMode: 'single',
+    groupToStopId: null,
+    quantityModalContext: { mode: 'today', dateKey: null, onConfirm: null, onCancel: null },
+    tempSelectedMembers: [],
+    memberToSetLeave: null,
+    memberToCancelLeave: null,
+    activeMainHistoryTab: 'work',
+    attendanceRecordToDelete: null,
+};
 
 export let appState = {
   workRecords: [],
   taskQuantities: {},
+// ... (appState, persistentLeaveSchedule, appConfig, LEAVE_TYPES는 기존과 동일) ...
   dailyOnLeaveMembers: [],
   dateBasedOnLeaveMembers: [],
   partTimers: [],
@@ -222,24 +242,11 @@ export let appConfig = {
     keyTasks: []
 };
 
-// (컨텍스트 변수)
-export let selectedTaskForStart = null;
-export let selectedGroupForAdd = null;
-export let recordToDeleteId = null;
-export let recordToStopId = null;
-export let historyKeyToDelete = null;
-export let allHistoryData = []; 
-export let recordToEditId = null;
-export let deleteMode = 'single';
-export let groupToStopId = null;
-export let quantityModalContext = { mode: 'today', dateKey: null, onConfirm: null, onCancel: null };
-export let tempSelectedMembers = [];
-export let memberToSetLeave = null;
-export let memberToCancelLeave = null;
-export let activeMainHistoryTab = 'work';
-export let attendanceRecordToDelete = null; 
+// ⛔️ [삭제] 
+// ⛔️ (컨텍스트 변수) ... (export let selectedTaskForStart = null; ... 등 13줄 모두 삭제)
+// ⛔️ ...
 
-export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장']; // (이것도 const 유지)
+export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // ========== 7. Core Helpers (EXPORT) ==========
 // (utils.js로 이동한 함수는 삭제)

@@ -3,17 +3,22 @@
 // app.js (메인)에서 가져올 핵심 상태 및 DOM 요소들
 import {
     appState, appConfig, db, auth, 
-    persistentLeaveSchedule, allHistoryData, 
-    // ✅ [수정] trendCharts를 이 목록에서 제거했습니다.
+    persistentLeaveSchedule, allHistoryData,
     
-    // 상태 변수
-    recordCounter, recordIdOrGroupIdToEdit, editType,
-    selectedTaskForStart, selectedGroupForAdd,
-    recordToDeleteId, recordToStopId, historyKeyToDelete,
-    recordToEditId, deleteMode, groupToStopId,
-    quantityModalContext, tempSelectedMembers,
-    memberToSetLeave, memberToCancelLeave, activeMainHistoryTab,
-    attendanceRecordToDelete, LEAVE_TYPES,
+    // ✅ [수정] context 객체를 import
+    context, 
+    
+    // ⛔️ [삭제] context로 이동한 모든 상태 변수들
+    // recordCounter, recordIdOrGroupIdToEdit, editType,
+    // selectedTaskForStart, selectedGroupForAdd,
+    // recordToDeleteId, recordToStopId, historyKeyToDelete,
+    // recordToEditId, deleteMode, groupToStopId,
+    // quantityModalContext, tempSelectedMembers,
+    // memberToSetLeave, memberToCancelLeave, activeMainHistoryTab,
+    // attendanceRecordToDelete,
+
+    // ✅ [유지] LEAVE_TYPES는 const이므로 context에 없음
+    LEAVE_TYPES,
 
     // DOM 요소 (전부)
     addAttendanceRecordModal, addAttendanceForm, confirmAddAttendanceBtn, cancelAddAttendanceBtn,
@@ -48,11 +53,10 @@ import {
     editStartTimeModalTitle, editStartTimeModalMessage, editStartTimeInput,
     editStartTimeContextIdInput, editStartTimeContextTypeInput, confirmEditStartTimeBtn,
     cancelEditStartTimeBtn,
-    analysisMemberSelect, // ✅ [수정] analysisMemberSelect 추가
+    analysisMemberSelect,
 
     // app.js (메인)의 헬퍼/로직 함수
     render, debouncedSaveState, saveStateToFirestore, 
-    // ✅ [수정] 헬퍼 함수(showToast, getTodayDateString 등) 제거
     generateId, normalizeName, 
     markDataAsDirty,
     
@@ -63,7 +67,7 @@ import {
 // config.js에서 가져올 함수
 import { saveLeaveSchedule } from './config.js';
 
-// ✅ [수정] utils.js에서 필요한 모든 헬퍼 함수 가져오기
+// utils.js에서 필요한 모든 헬퍼 함수 가져오기
 import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime } from './utils.js';
 
 // ui.js (통합)에서 가져올 렌더링 함수
@@ -75,7 +79,7 @@ import {
     renderLeaveTypeModalOptions,
     renderPersonalAnalysis,
     renderTrendAnalysisCharts,
-    trendCharts // ✅ [수정] trendCharts를 app.js가 아닌 ui.js에서 가져옵니다.
+    trendCharts // ✅ [수정] trendCharts는 ui.js에서 가져옴
 } from './ui.js';
 
 // app-logic.js (업무 로직)
@@ -99,7 +103,6 @@ import {
 
 // Firebase (Firestore & Auth)
 import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// (signOut은 app.js의 main()에서 직접 처리)
 
 
 /**
@@ -150,7 +153,7 @@ export function initializeAppListeners() {
         // 2. 카드 내부의 액션 버튼들
         const stopGroupButton = e.target.closest('.stop-work-group-btn');
         if (stopGroupButton) {
-            groupToStopId = Number(stopGroupButton.dataset.groupId);
+            context.groupToStopId = Number(stopGroupButton.dataset.groupId); // ✅ context.
             if (document.getElementById('stop-group-confirm-modal')) {
                  document.getElementById('stop-group-confirm-modal').classList.remove('hidden');
             }
@@ -178,8 +181,8 @@ export function initializeAppListeners() {
         }
         const individualStopBtn = e.target.closest('button[data-action="stop-individual"]');
         if (individualStopBtn) {
-            recordToStopId = individualStopBtn.dataset.recordId;
-            const record = (appState.workRecords || []).find(r => r.id === recordToStopId);
+            context.recordToStopId = individualStopBtn.dataset.recordId; // ✅ context.
+            const record = (appState.workRecords || []).find(r => r.id === context.recordToStopId);
             if (stopIndividualConfirmMessage && record) {
                  stopIndividualConfirmMessage.textContent = `${record.member}님의 '${record.task}' 업무를 종료하시겠습니까?`;
             }
@@ -188,11 +191,11 @@ export function initializeAppListeners() {
         }
         const addMemberButton = e.target.closest('.add-member-btn[data-action="add-member"]');
         if (addMemberButton) {
-            selectedTaskForStart = addMemberButton.dataset.task;
-            selectedGroupForAdd = Number(addMemberButton.dataset.groupId);
-            renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups);
+            context.selectedTaskForStart = addMemberButton.dataset.task; // ✅ context.
+            context.selectedGroupForAdd = Number(addMemberButton.dataset.groupId); // ✅ context.
+            renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
             const titleEl = document.getElementById('team-select-modal-title');
-            if (titleEl) titleEl.textContent = `'${selectedTaskForStart}' 인원 추가`;
+            if (titleEl) titleEl.textContent = `'${context.selectedTaskForStart}' 인원 추가`;
             if (teamSelectModal) teamSelectModal.classList.remove('hidden');
             return;
         }
@@ -204,8 +207,8 @@ export function initializeAppListeners() {
             const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
             if (!groupId || !currentStartTime) return;
 
-            recordIdOrGroupIdToEdit = groupId;
-            editType = 'group';
+            context.recordIdOrGroupIdToEdit = groupId; // ✅ context.
+            context.editType = 'group'; // ✅ context.
 
             if(editStartTimeModalTitle) editStartTimeModalTitle.textContent = '그룹 시작 시간 변경';
             if(editStartTimeModalMessage) editStartTimeModalMessage.textContent = '이 그룹의 모든 팀원의 시작 시간이 변경됩니다.';
@@ -225,8 +228,8 @@ export function initializeAppListeners() {
             const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
             if (!record) return;
 
-            recordIdOrGroupIdToEdit = recordId;
-            editType = 'individual';
+            context.recordIdOrGroupIdToEdit = recordId; // ✅ context.
+            context.editType = 'individual'; // ✅ context.
 
             if(editStartTimeModalTitle) editStartTimeModalTitle.textContent = '개별 시작 시간 변경';
             if(editStartTimeModalMessage) editStartTimeModalMessage.textContent = `${record.member}님의 시작 시간을 변경합니다.`;
@@ -322,7 +325,7 @@ export function initializeAppListeners() {
                 return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
             }
             
-            memberToSetLeave = memberName;
+            context.memberToSetLeave = memberName; // ✅ context.
             if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
             renderLeaveTypeModalOptions(LEAVE_TYPES);
             if(leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
@@ -347,8 +350,8 @@ export function initializeAppListeners() {
                 }
                 const task = card.dataset.task;
                 if (action === 'start-task') {
-                    selectedTaskForStart = task;
-                    selectedGroupForAdd = null; 
+                    context.selectedTaskForStart = task; // ✅ context.
+                    context.selectedGroupForAdd = null; // ✅ context.
                     renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
                     const titleEl = document.getElementById('team-select-modal-title');
                     if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
@@ -368,8 +371,8 @@ export function initializeAppListeners() {
       workLogBody.addEventListener('click', (e) => {
         const deleteBtn = e.target.closest('button[data-action="delete"]');
         if (deleteBtn) {
-          recordToDeleteId = deleteBtn.dataset.recordId;
-          deleteMode = 'single';
+          context.recordToDeleteId = deleteBtn.dataset.recordId; // ✅ context.
+          context.deleteMode = 'single'; // ✅ context.
           const msgEl = document.getElementById('delete-confirm-message');
           if (msgEl) msgEl.textContent = '이 업무 기록을 삭제하시겠습니까?';
           if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
@@ -377,8 +380,8 @@ export function initializeAppListeners() {
         }
         const editBtn = e.target.closest('button[data-action="edit"]');
         if (editBtn) {
-          recordToEditId = editBtn.dataset.recordId;
-          const record = (appState.workRecords || []).find(r => String(r.id) === String(recordToEditId));
+          context.recordToEditId = editBtn.dataset.recordId; // ✅ context.
+          const record = (appState.workRecords || []).find(r => String(r.id) === String(context.recordToEditId));
           if (record) {
             document.getElementById('edit-member-name').value = record.member;
             document.getElementById('edit-start-time').value = record.startTime || '';
@@ -405,7 +408,7 @@ export function initializeAppListeners() {
     // --- 3. 버튼 리스너 (일괄 삭제, 저장, 마감 등) ---
     if (deleteAllCompletedBtn) {
       deleteAllCompletedBtn.addEventListener('click', () => {
-        deleteMode = 'all';
+        context.deleteMode = 'all'; // ✅ context.
         const msgEl = document.getElementById('delete-confirm-message');
         if (msgEl) msgEl.textContent = '오늘 완료된 모든 업무 기록을 삭제하시겠습니까?';
         if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
@@ -416,7 +419,7 @@ export function initializeAppListeners() {
       confirmDeleteBtn.addEventListener('click', async () => {
         let stateChanged = false; 
 
-        if (deleteMode === 'all') {
+        if (context.deleteMode === 'all') { // ✅ context.
           const originalLength = appState.workRecords.length;
           appState.workRecords = (appState.workRecords || []).filter(r => r.status !== 'completed');
           if (appState.workRecords.length < originalLength) {
@@ -426,9 +429,9 @@ export function initializeAppListeners() {
               showToast('삭제할 완료 기록이 없습니다.');
           }
           
-        } else if (deleteMode === 'single' && recordToDeleteId) {
+        } else if (context.deleteMode === 'single' && context.recordToDeleteId) { // ✅ context.
           const originalLength = appState.workRecords.length;
-          appState.workRecords = (appState.workRecords || []).filter(r => String(r.id) !== String(recordToDeleteId));
+          appState.workRecords = (appState.workRecords || []).filter(r => String(r.id) !== String(context.recordToDeleteId));
           if (appState.workRecords.length < originalLength) {
               stateChanged = true;
               showToast('선택한 기록이 삭제되었습니다.');
@@ -436,8 +439,8 @@ export function initializeAppListeners() {
                showToast('삭제할 기록을 찾지 못했습니다.', true);
           }
 
-        } else if (deleteMode === 'leave' && attendanceRecordToDelete) {
-            const { memberName, startIdentifier, recordType } = attendanceRecordToDelete;
+        } else if (context.deleteMode === 'leave' && context.attendanceRecordToDelete) { // ✅ context.
+            const { memberName, startIdentifier, recordType } = context.attendanceRecordToDelete;
             let recordDeleted = false;
             let deletedRecordInfo = ''; 
 
@@ -470,9 +473,9 @@ export function initializeAppListeners() {
                 showToast('삭제할 근태 기록을 찾지 못했습니다.', true);
             }
         
-        } else if (deleteMode === 'attendance' && attendanceRecordToDelete) {
-            // (이력) 근태 기록 삭제 (app.js의 1450줄)
-            const { dateKey, index } = attendanceRecordToDelete;
+        } else if (context.deleteMode === 'attendance' && context.attendanceRecordToDelete) { // ✅ context.
+            // (이력) 근태 기록 삭제
+            const { dateKey, index } = context.attendanceRecordToDelete;
             const dayDataIndex = allHistoryData.findIndex(d => d.id === dateKey);
             if (dayDataIndex === -1) {
                  showToast('원본 이력 데이터를 찾을 수 없습니다.', true);
@@ -482,34 +485,31 @@ export function initializeAppListeners() {
                      showToast('삭제할 근태 기록을 찾지 못했습니다.', true);
                 } else {
                     allHistoryData[dayDataIndex].onLeaveMembers.splice(index, 1);
-                    // Firestore에 저장
                     const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                     try {
                         await setDoc(historyDocRef, allHistoryData[dayDataIndex]);
                         showToast(`${record.member}님의 '${record.type}' 기록이 삭제되었습니다.`);
-                        // UI 갱신
                         renderAttendanceDailyHistory(dateKey, allHistoryData);
                     } catch (e) {
                         console.error('Error deleting attendance history:', e);
                         showToast('근태 기록 삭제 중 오류 발생.', true);
-                        // 원복 (선택적)
                         allHistoryData[dayDataIndex].onLeaveMembers.splice(index, 0, record);
                     }
                 }
             }
         }
         
-        if (stateChanged && deleteMode !== 'leave') { 
+        if (stateChanged && context.deleteMode !== 'leave') { 
              debouncedSaveState();
         }
-        if (deleteMode === 'leave' && attendanceRecordToDelete?.recordType === 'daily' && stateChanged) {
+        if (context.deleteMode === 'leave' && context.attendanceRecordToDelete?.recordType === 'daily' && stateChanged) {
             debouncedSaveState();
         }
 
         if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
-        recordToDeleteId = null;
-        attendanceRecordToDelete = null; 
-        deleteMode = 'single'; 
+        context.recordToDeleteId = null; // ✅ context.
+        context.attendanceRecordToDelete = null; // ✅ context.
+        context.deleteMode = 'single'; // ✅ context.
         
         render();
       });
@@ -601,10 +601,10 @@ export function initializeAppListeners() {
           btn.classList.add('bg-blue-100', 'font-bold');
           const dateKey = btn.dataset.key; 
           
-          const activeSubTabBtn = (activeMainHistoryTab === 'work')
+          const activeSubTabBtn = (context.activeMainHistoryTab === 'work') // ✅ context.
             ? historyTabs?.querySelector('button.font-semibold')
             : attendanceHistoryTabs?.querySelector('button.font-semibold');
-          const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
+          const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily'); // ✅ context.
           
           if (activeView === 'daily') {
               const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
@@ -644,11 +644,11 @@ export function initializeAppListeners() {
 
     if (confirmHistoryDeleteBtn) {
       confirmHistoryDeleteBtn.addEventListener('click', async () => {
-        if (historyKeyToDelete) {
-          const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', historyKeyToDelete);
+        if (context.historyKeyToDelete) { // ✅ context.
+          const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', context.historyKeyToDelete); // ✅ context.
           try {
             await deleteDoc(historyDocRef);
-            showToast(`${historyKeyToDelete} 이력이 삭제되었습니다.`);
+            showToast(`${context.historyKeyToDelete} 이력이 삭제되었습니다.`); // ✅ context.
             await loadAndRenderHistoryList();
           } catch (e) {
             console.error('Error deleting history:', e);
@@ -656,7 +656,7 @@ export function initializeAppListeners() {
           }
         }
         if (deleteHistoryModal) deleteHistoryModal.classList.add('hidden');
-        historyKeyToDelete = null;
+        context.historyKeyToDelete = null; // ✅ context.
       });
     }
 
@@ -665,7 +665,7 @@ export function initializeAppListeners() {
         const btn = e.target.closest('button[data-main-tab]');
         if (btn) {
           const tabName = btn.dataset.mainTab;
-          activeMainHistoryTab = tabName;
+          context.activeMainHistoryTab = tabName; // ✅ context.
 
           document.querySelectorAll('.history-main-tab-btn').forEach(b => {
               b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
@@ -746,8 +746,8 @@ export function initializeAppListeners() {
           const quantity = Number(input.value) || 0;
           if (quantity > 0) newQuantities[task] = quantity;
         });
-        if (quantityModalContext.onConfirm) {
-          quantityModalContext.onConfirm(newQuantities);
+        if (context.quantityModalContext.onConfirm) { // ✅ context.
+          context.quantityModalContext.onConfirm(newQuantities); // ✅ context.
         }
         if (quantityModal) quantityModal.classList.add('hidden');
       });
@@ -755,12 +755,12 @@ export function initializeAppListeners() {
 
     if (confirmEditBtn) {
       confirmEditBtn.addEventListener('click', () => {
-        if (!recordToEditId) return;
-        const idx = appState.workRecords.findIndex(r => String(r.id) === String(recordToEditId));
+        if (!context.recordToEditId) return; // ✅ context.
+        const idx = appState.workRecords.findIndex(r => String(r.id) === String(context.recordToEditId)); // ✅ context.
         if (idx === -1) {
           showToast('수정할 기록을 찾을 수 없습니다.', true);
           if (editRecordModal) editRecordModal.classList.add('hidden');
-          recordToEditId = null;
+          context.recordToEditId = null; // ✅ context.
           return;
         }
 
@@ -786,21 +786,20 @@ export function initializeAppListeners() {
         debouncedSaveState(); 
         showToast('기록이 수정되었습니다.');
         if (editRecordModal) editRecordModal.classList.add('hidden');
-        recordToEditId = null;
+        context.recordToEditId = null; // ✅ context.
       });
     }
 
     if (confirmQuantityOnStopBtn) {
       confirmQuantityOnStopBtn.addEventListener('click', () => {
-        if (groupToStopId) {
+        if (context.groupToStopId) { // ✅ context.
           const input = document.getElementById('quantity-on-stop-input');
           const quantity = input ? (Number(input.value) || 0) : null;
-          finalizeStopGroup(groupToStopId, quantity);
+          finalizeStopGroup(context.groupToStopId, quantity); // ✅ context.
           if(input) input.value = '';
           
-          // finalizeStopGroup에서 모달을 닫지 않으므로, 여기서 닫습니다.
           if (quantityOnStopModal) quantityOnStopModal.classList.add('hidden');
-          groupToStopId = null;
+          context.groupToStopId = null; // ✅ context.
         }
       });
     }
@@ -812,8 +811,8 @@ export function initializeAppListeners() {
           const task = btn.dataset.task;
           if (taskSelectModal) taskSelectModal.classList.add('hidden');
 
-          selectedTaskForStart = task;
-          selectedGroupForAdd = null;
+          context.selectedTaskForStart = task; // ✅ context.
+          context.selectedGroupForAdd = null; // ✅ context.
           renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
           const titleEl = document.getElementById('team-select-modal-title');
           if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
@@ -824,25 +823,25 @@ export function initializeAppListeners() {
 
     if (confirmStopIndividualBtn) {
       confirmStopIndividualBtn.addEventListener('click', () => {
-        if (recordToStopId) {
-          stopWorkIndividual(recordToStopId);
+        if (context.recordToStopId) { // ✅ context.
+          stopWorkIndividual(context.recordToStopId); // ✅ context.
         }
         if (stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden');
-        recordToStopId = null;
+        context.recordToStopId = null; // ✅ context.
       });
     }
 
     const confirmStopGroupBtn = document.getElementById('confirm-stop-group-btn');
     if (confirmStopGroupBtn) {
       confirmStopGroupBtn.addEventListener('click', () => {
-        if (Array.isArray(groupToStopId) && groupToStopId.length > 0) {
-          groupToStopId.forEach(gid => finalizeStopGroup(gid, null)); // stopWorkGroup -> finalize
-        } else if (groupToStopId) { 
-          finalizeStopGroup(groupToStopId, null); // stopWorkGroup -> finalize
+        if (Array.isArray(context.groupToStopId) && context.groupToStopId.length > 0) { // ✅ context.
+          context.groupToStopId.forEach(gid => finalizeStopGroup(gid, null)); // ✅ context.
+        } else if (context.groupToStopId) { // ✅ context.
+          finalizeStopGroup(context.groupToStopId, null); // ✅ context.
         }
         const stopGroupModal = document.getElementById('stop-group-confirm-modal');
         if (stopGroupModal) stopGroupModal.classList.add('hidden');
-        groupToStopId = null; 
+        context.groupToStopId = null; // ✅ context.
       });
     }
 
@@ -851,13 +850,13 @@ export function initializeAppListeners() {
       cancelStopGroupBtn.addEventListener('click', () => {
         const stopGroupModal = document.getElementById('stop-group-confirm-modal');
         if (stopGroupModal) stopGroupModal.classList.add('hidden');
-        groupToStopId = null;
+        context.groupToStopId = null; // ✅ context.
       });
     }
 
     // --- 6. 근태 (Leave) 관련 리스너 ---
     if (confirmLeaveBtn) confirmLeaveBtn.addEventListener('click', async () => {
-        if (!memberToSetLeave) return;
+        if (!context.memberToSetLeave) return; // ✅ context.
 
         const selectedTypeInput = document.querySelector('input[name="leave-type"]:checked');
         if (!selectedTypeInput) {
@@ -865,13 +864,13 @@ export function initializeAppListeners() {
             return;
         }
         const leaveType = selectedTypeInput.value;
-        const leaveData = { member: memberToSetLeave, type: leaveType };
+        const leaveData = { member: context.memberToSetLeave, type: leaveType }; // ✅ context.
 
         if (leaveType === '외출' || leaveType === '조퇴') {
             leaveData.startTime = getCurrentTime();
             if (leaveType === '조퇴') leaveData.endTime = "17:30";
 
-            appState.dailyOnLeaveMembers = appState.dailyOnLeaveMembers.filter(item => item.member !== memberToSetLeave);
+            appState.dailyOnLeaveMembers = appState.dailyOnLeaveMembers.filter(item => item.member !== context.memberToSetLeave); // ✅ context.
             appState.dailyOnLeaveMembers.push(leaveData);
             debouncedSaveState(); 
 
@@ -885,40 +884,40 @@ export function initializeAppListeners() {
                 leaveData.endDate = endDate;
             }
 
-            persistentLeaveSchedule.onLeaveMembers = persistentLeaveSchedule.onLeaveMembers.filter(item => item.member !== memberToSetLeave);
+            persistentLeaveSchedule.onLeaveMembers = persistentLeaveSchedule.onLeaveMembers.filter(item => item.member !== context.memberToSetLeave); // ✅ context.
             persistentLeaveSchedule.onLeaveMembers.push(leaveData);
             await saveLeaveSchedule(db, persistentLeaveSchedule); 
             markDataAsDirty();
         }
 
-        showToast(`${memberToSetLeave}님을 '${leaveType}'(으)로 설정했습니다.`);
+        showToast(`${context.memberToSetLeave}님을 '${leaveType}'(으)로 설정했습니다.`); // ✅ context.
         if(leaveTypeModal) leaveTypeModal.classList.add('hidden');
-        memberToSetLeave = null;
+        context.memberToSetLeave = null; // ✅ context.
     });
 
     if (confirmCancelLeaveBtn) {
         confirmCancelLeaveBtn.addEventListener('click', async () => {
-            if (!memberToCancelLeave) return;
+            if (!context.memberToCancelLeave) return; // ✅ context.
 
             const todayDateString = getTodayDateString();
             let actionTaken = false;
 
-            const dailyIndex = appState.dailyOnLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
+            const dailyIndex = appState.dailyOnLeaveMembers.findIndex(item => item.member === context.memberToCancelLeave); // ✅ context.
             if (dailyIndex > -1) {
                 const entry = appState.dailyOnLeaveMembers[dailyIndex];
                 if (entry.type === '외출') {
                     entry.endTime = getCurrentTime(); 
-                    showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다.`);
+                    showToast(`${context.memberToCancelLeave}님이 복귀 처리되었습니다.`); // ✅ context.
                     actionTaken = true;
                 } else {
                     appState.dailyOnLeaveMembers.splice(dailyIndex, 1);
-                    showToast(`${memberToCancelLeave}님의 '${entry.type}' 상태가 취소되었습니다.`);
+                    showToast(`${context.memberToCancelLeave}님의 '${entry.type}' 상태가 취소되었습니다.`); // ✅ context.
                     actionTaken = true;
                 }
                 debouncedSaveState(); 
             }
 
-            const persistentIndex = persistentLeaveSchedule.onLeaveMembers.findIndex(item => item.member === memberToCancelLeave);
+            const persistentIndex = persistentLeaveSchedule.onLeaveMembers.findIndex(item => item.member === context.memberToCancelLeave); // ✅ context.
             if (persistentIndex > -1) {
                 const entry = persistentLeaveSchedule.onLeaveMembers[persistentIndex];
                 const isLeaveActiveToday = entry.startDate <= todayDateString && (!entry.endDate || todayDateString <= entry.endDate);
@@ -929,14 +928,14 @@ export function initializeAppListeners() {
                     const yesterday = today.toISOString().split('T')[0];
                     if (yesterday < entry.startDate) {
                         persistentLeaveSchedule.onLeaveMembers.splice(persistentIndex, 1);
-                        showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
+                        showToast(`${context.memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`); // ✅ context.
                     } else {
                         entry.endDate = yesterday;
-                        showToast(`${memberToCancelLeave}님이 복귀 처리되었습니다. (${entry.type}이 ${yesterday}까지로 수정됨)`);
+                        showToast(`${context.memberToCancelLeave}님이 복귀 처리되었습니다. (${entry.type}이 ${yesterday}까지로 수정됨)`); // ✅ context.
                     }
                 } else {
                     persistentLeaveSchedule.onLeaveMembers.splice(persistentIndex, 1);
-                    showToast(`${memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`);
+                    showToast(`${context.memberToCancelLeave}님의 '${entry.type}' 일정이 취소되었습니다.`); // ✅ context.
                 }
                 await saveLeaveSchedule(db, persistentLeaveSchedule); 
                 markDataAsDirty();
@@ -944,11 +943,11 @@ export function initializeAppListeners() {
             }
 
             if (!actionTaken) {
-                 showToast(`${memberToCancelLeave}님의 근태 정보를 찾을 수 없습니다.`, true);
+                 showToast(`${context.memberToCancelLeave}님의 근태 정보를 찾을 수 없습니다.`, true); // ✅ context.
             }
 
             if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.add('hidden');
-            memberToCancelLeave = null;
+            context.memberToCancelLeave = null; // ✅ context.
         });
     }
 
@@ -960,41 +959,40 @@ export function initializeAppListeners() {
           modal.classList.add('hidden');
           const modalId = modal.id;
           
-          // (각 모달 닫기 시 초기화 로직)
           if (modalId === 'leave-type-modal') {
-              memberToSetLeave = null;
+              context.memberToSetLeave = null; // ✅ context.
               if(leaveDateInputsDiv) leaveDateInputsDiv.classList.add('hidden');
               const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
               if (firstRadio) firstRadio.checked = true;
           } else if (modalId === 'cancel-leave-confirm-modal') {
-              memberToCancelLeave = null;
+              context.memberToCancelLeave = null; // ✅ context.
           } else if (modalId === 'team-select-modal') {
-              tempSelectedMembers = [];
-              selectedTaskForStart = null;
-              selectedGroupForAdd = null;
+              context.tempSelectedMembers = []; // ✅ context.
+              context.selectedTaskForStart = null; // ✅ context.
+              context.selectedGroupForAdd = null; // ✅ context.
               modal.querySelectorAll('button[data-member-name].ring-2').forEach(card => {
                   card.classList.remove('ring-2','ring-blue-500','bg-blue-100');
               });
           } else if (modalId === 'delete-confirm-modal') {
-              recordToDeleteId = null;
-              deleteMode = 'single';
+              context.recordToDeleteId = null; // ✅ context.
+              context.deleteMode = 'single'; // ✅ context.
           } else if (modalId === 'delete-history-modal') {
-              historyKeyToDelete = null;
+              context.historyKeyToDelete = null; // ✅ context.
           } else if (modalId === 'edit-record-modal') {
-              recordToEditId = null;
+              context.recordToEditId = null; // ✅ context.
           } else if (modalId === 'quantity-on-stop-modal') {
-              groupToStopId = null;
+              context.groupToStopId = null; // ✅ context.
               const input = document.getElementById('quantity-on-stop-input');
               if(input) input.value = '';
           } else if (modalId === 'stop-group-confirm-modal') { 
-              groupToStopId = null; 
+              context.groupToStopId = null; // ✅ context.
           } else if (modalId === 'stop-individual-confirm-modal') {
-              recordToStopId = null;
+              context.recordToStopId = null; // ✅ context.
           } else if (modalId === 'manual-add-record-modal') { 
               if (manualAddForm) manualAddForm.reset();
           } else if (modalId === 'edit-start-time-modal') {
-              recordIdOrGroupIdToEdit = null;
-              editType = null;
+              context.recordIdOrGroupIdToEdit = null; // ✅ context.
+              context.editType = null; // ✅ context.
               if (editStartTimeInput) editStartTimeInput.value = '';
               if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = '';
               if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = '';
@@ -1016,19 +1014,19 @@ export function initializeAppListeners() {
       });
     });
 
-    if (cancelCancelLeaveBtn) cancelCancelLeaveBtn.addEventListener('click', () => { if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.add('hidden'); memberToCancelLeave = null; });
-    if (cancelLeaveBtn) cancelLeaveBtn.addEventListener('click', () => { if(leaveTypeModal) leaveTypeModal.classList.add('hidden'); memberToSetLeave = null; });
-    if (cancelDeleteBtn) cancelDeleteBtn.addEventListener('click', () => { if(deleteConfirmModal) deleteConfirmModal.classList.add('hidden'); recordToDeleteId = null; attendanceRecordToDelete = null; });
-    if (cancelQuantityBtn) cancelQuantityBtn.addEventListener('click', () => { if (quantityModalContext.onCancel) quantityModalContext.onCancel(); if(quantityModal) quantityModal.classList.add('hidden'); });
-    if (cancelHistoryDeleteBtn) cancelHistoryDeleteBtn.addEventListener('click', () => { if(deleteHistoryModal) deleteHistoryModal.classList.add('hidden'); historyKeyToDelete = null; });
-    if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => { if(editRecordModal) editRecordModal.classList.add('hidden'); recordToEditId = null; });
+    if (cancelCancelLeaveBtn) cancelCancelLeaveBtn.addEventListener('click', () => { if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.add('hidden'); context.memberToCancelLeave = null; }); // ✅ context.
+    if (cancelLeaveBtn) cancelLeaveBtn.addEventListener('click', () => { if(leaveTypeModal) leaveTypeModal.classList.add('hidden'); context.memberToSetLeave = null; }); // ✅ context.
+    if (cancelDeleteBtn) cancelDeleteBtn.addEventListener('click', () => { if(deleteConfirmModal) deleteConfirmModal.classList.add('hidden'); context.recordToDeleteId = null; context.attendanceRecordToDelete = null; }); // ✅ context.
+    if (cancelQuantityBtn) cancelQuantityBtn.addEventListener('click', () => { if (context.quantityModalContext.onCancel) context.quantityModalContext.onCancel(); if(quantityModal) quantityModal.classList.add('hidden'); }); // ✅ context.
+    if (cancelHistoryDeleteBtn) cancelHistoryDeleteBtn.addEventListener('click', () => { if(deleteHistoryModal) deleteHistoryModal.classList.add('hidden'); context.historyKeyToDelete = null; }); // ✅ context.
+    if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => { if(editRecordModal) editRecordModal.classList.add('hidden'); context.recordToEditId = null; }); // ✅ context.
     if (cancelResetAppBtn) cancelResetAppBtn.addEventListener('click', () => { if(resetAppModal) resetAppModal.classList.add('hidden'); });
-    if (cancelQuantityOnStopBtn) cancelQuantityOnStopBtn.addEventListener('click', () => { if(quantityOnStopModal) quantityOnStopModal.classList.add('hidden'); groupToStopId = null; });
-    if (cancelStopIndividualBtn) cancelStopIndividualBtn.addEventListener('click', () => { if(stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden'); recordToStopId = null; });
+    if (cancelQuantityOnStopBtn) cancelQuantityOnStopBtn.addEventListener('click', () => { if(quantityOnStopModal) quantityOnStopModal.classList.add('hidden'); context.groupToStopId = null; }); // ✅ context.
+    if (cancelStopIndividualBtn) cancelStopIndividualBtn.addEventListener('click', () => { if(stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden'); context.recordToStopId = null; }); // ✅ context.
     if (cancelEditPartTimerBtn) cancelEditPartTimerBtn.addEventListener('click', () => { if(editPartTimerModal) editPartTimerModal.classList.add('hidden'); });
     if (cancelTeamSelectBtn) cancelTeamSelectBtn.addEventListener('click', () => {
          if(teamSelectModal) teamSelectModal.classList.add('hidden');
-         tempSelectedMembers = []; selectedTaskForStart = null; selectedGroupForAdd = null;
+         context.tempSelectedMembers = []; context.selectedTaskForStart = null; context.selectedGroupForAdd = null; // ✅ context.
          teamSelectModal.querySelectorAll('button[data-member-name].ring-2').forEach(card => {
             card.classList.remove('ring-2','ring-blue-500','bg-blue-100');
          });
@@ -1123,8 +1121,8 @@ export function initializeAppListeners() {
                 const record = dayData?.onLeaveMembers?.[index];
                 if (!record) { showToast('삭제할 근태 기록을 찾을 수 없습니다.', true); return; }
 
-                deleteMode = 'attendance'; // (이력) 근태 삭제 모드
-                attendanceRecordToDelete = { dateKey, index };
+                context.deleteMode = 'attendance'; // ✅ context.
+                context.attendanceRecordToDelete = { dateKey, index }; // ✅ context.
                 
                 const msgEl = document.getElementById('delete-confirm-message');
                 if (msgEl) msgEl.textContent = `${record.member}님의 '${record.type}' 기록을 삭제하시겠습니까?`;
@@ -1139,10 +1137,9 @@ export function initializeAppListeners() {
                 if (!dateKey) { showToast('날짜 정보를 찾을 수 없습니다.', true); return; }
                 if (addAttendanceForm) addAttendanceForm.reset();
                 if (addAttendanceDateKeyInput) addAttendanceDateKeyInput.value = dateKey;
-                if (addAttendanceStartDateInput) addAttendanceStartDateInput.value = dateKey; // (edit 오타 수정)
-                if (addAttendanceEndDateInput) addAttendanceEndDateInput.value = ''; // (edit 오타 수정)
+                if (addAttendanceStartDateInput) addAttendanceStartDateInput.value = dateKey;
+                if (addAttendanceEndDateInput) addAttendanceEndDateInput.value = '';
 
-                // (app.js의 1569줄) renderAttendanceAddModalDatalists
                 if (addAttendanceMemberDatalist) {
                     addAttendanceMemberDatalist.innerHTML = '';
                     const staffMembers = (appConfig.teamGroups || []).flatMap(g => g.members);
@@ -1309,9 +1306,9 @@ export function initializeAppListeners() {
         const card = e.target.closest('button[data-member-name]');
         if (card && !card.disabled) {
             const memberName = card.dataset.memberName;
-            const i = tempSelectedMembers.indexOf(memberName);
-            if (i > -1) { tempSelectedMembers.splice(i,1); card.classList.remove('ring-2','ring-blue-500','bg-blue-100'); }
-            else { tempSelectedMembers.push(memberName); card.classList.add('ring-2','ring-blue-500','bg-blue-100'); }
+            const i = context.tempSelectedMembers.indexOf(memberName); // ✅ context.
+            if (i > -1) { context.tempSelectedMembers.splice(i,1); card.classList.remove('ring-2','ring-blue-500','bg-blue-100'); } // ✅ context.
+            else { context.tempSelectedMembers.push(memberName); card.classList.add('ring-2','ring-blue-500','bg-blue-100'); } // ✅ context.
             return;
         }
 
@@ -1323,12 +1320,12 @@ export function initializeAppListeners() {
             const memberCards = Array.from(memberListContainer.querySelectorAll('button[data-member-name]'));
             const availableMembers = memberCards.filter(c => !c.disabled).map(c => c.dataset.memberName);
             if (availableMembers.length === 0) return;
-            const areAllSelected = availableMembers.every(m => tempSelectedMembers.includes(m));
+            const areAllSelected = availableMembers.every(m => context.tempSelectedMembers.includes(m)); // ✅ context.
             if (areAllSelected) {
-                tempSelectedMembers = tempSelectedMembers.filter(m => !availableMembers.includes(m));
+                context.tempSelectedMembers = context.tempSelectedMembers.filter(m => !availableMembers.includes(m)); // ✅ context.
                 memberCards.forEach(c => { if (!c.disabled) c.classList.remove('ring-2','ring-blue-500','bg-blue-100'); });
             } else {
-                availableMembers.forEach(m => { if (!tempSelectedMembers.includes(m)) tempSelectedMembers.push(m); });
+                availableMembers.forEach(m => { if (!context.tempSelectedMembers.includes(m)) context.tempSelectedMembers.push(m); }); // ✅ context.
                 memberCards.forEach(c => { if (!c.disabled) c.classList.add('ring-2','ring-blue-500','bg-blue-100'); });
             }
             return;
@@ -1348,7 +1345,7 @@ export function initializeAppListeners() {
             appState.partTimers.push({ id: newId, name: newName, wage: newWage });
 
             debouncedSaveState(); 
-            renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups);
+            renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups); // ✅ context.
             return;
         }
 
@@ -1369,7 +1366,7 @@ export function initializeAppListeners() {
             const id = Number(deletePartTimerBtn.dataset.partTimerId);
             appState.partTimers = (appState.partTimers || []).filter(p => p.id !== id);
             debouncedSaveState(); 
-            renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups);
+            renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups); // ✅ context.
             return;
         }
     });
@@ -1397,23 +1394,23 @@ export function initializeAppListeners() {
         
         debouncedSaveState(); 
         
-        renderTeamSelectionModalContent(selectedTaskForStart, appState, appConfig.teamGroups);
+        renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups); // ✅ context.
         if (editPartTimerModal) editPartTimerModal.classList.add('hidden');
         showToast('알바 이름이 수정되었습니다.');
     });
 
     const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
     if (confirmTeamSelectBtn) confirmTeamSelectBtn.addEventListener('click', () => {
-      if (tempSelectedMembers.length === 0) { showToast('추가할 팀원을 선택해주세요.', true); return; }
-      if (selectedGroupForAdd !== null) {
-        addMembersToWorkGroup(tempSelectedMembers, selectedTaskForStart, selectedGroupForAdd);
-        showToast(`${selectedTaskForStart} 업무에 인원이 추가되었습니다.`);
-      } else if (selectedTaskForStart) {
-        startWorkGroup(tempSelectedMembers, selectedTaskForStart);
-        showToast(`${selectedTaskForStart} 업무를 시작합니다.`);
+      if (context.tempSelectedMembers.length === 0) { showToast('추가할 팀원을 선택해주세요.', true); return; } // ✅ context.
+      if (context.selectedGroupForAdd !== null) { // ✅ context.
+        addMembersToWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart, context.selectedGroupForAdd); // ✅ context.
+        showToast(`${context.selectedTaskForStart} 업무에 인원이 추가되었습니다.`); // ✅ context.
+      } else if (context.selectedTaskForStart) { // ✅ context.
+        startWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart); // ✅ context.
+        showToast(`${context.selectedTaskForStart} 업무를 시작합니다.`); // ✅ context.
       }
       if (teamSelectModal) teamSelectModal.classList.add('hidden');
-      tempSelectedMembers = []; selectedTaskForStart = null; selectedGroupForAdd = null;
+      context.tempSelectedMembers = []; context.selectedTaskForStart = null; context.selectedGroupForAdd = null; // ✅ context.
     });
     
     // --- 10. 메뉴 및 햄버거 리스너 ---
@@ -1491,7 +1488,7 @@ export function initializeAppListeners() {
                 render(); 
             }
             if (editStartTimeModal) editStartTimeModal.classList.add('hidden');
-            recordIdOrGroupIdToEdit = null; editType = null;
+            context.recordIdOrGroupIdToEdit = null; context.editType = null; // ✅ context.
             if (editStartTimeInput) editStartTimeInput.value = '';
             if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = '';
             if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = '';
@@ -1501,7 +1498,7 @@ export function initializeAppListeners() {
     if (cancelEditStartTimeBtn) {
         cancelEditStartTimeBtn.addEventListener('click', () => {
             if (editStartTimeModal) editStartTimeModal.classList.add('hidden');
-            recordIdOrGroupIdToEdit = null; editType = null;
+            context.recordIdOrGroupIdToEdit = null; context.editType = null; // ✅ context.
             if (editStartTimeInput) editStartTimeInput.value = '';
             if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = '';
             if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = '';
@@ -1527,10 +1524,9 @@ export function initializeAppListeners() {
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
 
-            // (onConfirm 로직 정의)
-            quantityModalContext.mode = 'today';
-            quantityModalContext.dateKey = null;
-            quantityModalContext.onConfirm = async (newQuantities) => {
+            context.quantityModalContext.mode = 'today'; // ✅ context.
+            context.quantityModalContext.dateKey = null; // ✅ context.
+            context.quantityModalContext.onConfirm = async (newQuantities) => { // ✅ context.
                 appState.taskQuantities = newQuantities;
                 debouncedSaveState(); 
                 showToast('오늘의 처리량이 저장되었습니다.');
@@ -1575,7 +1571,7 @@ export function initializeAppListeners() {
                     }
                 }
             };
-            quantityModalContext.onCancel = () => {};
+            context.quantityModalContext.onCancel = () => {}; // ✅ context.
 
             const cBtn = document.getElementById('confirm-quantity-btn');
             const xBtn = document.getElementById('cancel-quantity-btn');
@@ -1597,15 +1593,15 @@ export function initializeAppListeners() {
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
             
-            quantityModalContext.mode = 'today';
-            quantityModalContext.dateKey = null;
-            quantityModalContext.onConfirm = (newQuantities) => {
+            context.quantityModalContext.mode = 'today'; // ✅ context.
+            context.quantityModalContext.dateKey = null; // ✅ context.
+            context.quantityModalContext.onConfirm = (newQuantities) => { // ✅ context.
                 appState.taskQuantities = newQuantities;
                 debouncedSaveState(); 
                 showToast('오늘의 처리량이 저장되었습니다.');
                 render(); 
             };
-            quantityModalContext.onCancel = () => {};
+            context.quantityModalContext.onCancel = () => {}; // ✅ context.
 
             const cBtn = document.getElementById('confirm-quantity-btn');
             const xBtn = document.getElementById('cancel-quantity-btn');
@@ -1630,7 +1626,7 @@ export function initializeAppListeners() {
                 showToast('종료 시간은 시작 시간보다 이후여야 합니다.', true); return;
             }
 
-            const newId = generateId();
+            const newId = generateId(); // ✅ context.recordCounter 사용
             const duration = calcElapsedMinutes(startTime, endTime, []);
             const newRecord = {
                 id: newId, member: member, task: task,
@@ -1678,7 +1674,7 @@ export function initializeAppListeners() {
         });
     }
 
-    const analysisMemberSelect = document.getElementById('analysis-member-select');
+    // const analysisMemberSelect = document.getElementById('analysis-member-select'); // (이미 위에서 가져옴)
     if (analysisMemberSelect) {
         analysisMemberSelect.addEventListener('change', (e) => {
             const selectedMember = e.target.value;
@@ -1687,7 +1683,7 @@ export function initializeAppListeners() {
     }
 
     // --- 13. (메인) 통합 근태 수정 모달 리스너 ---
-    const editLeaveModal = document.getElementById('edit-leave-record-modal');
+    // const editLeaveModal = document.getElementById('edit-leave-record-modal'); // (이미 위에서 가져옴)
     if (editLeaveModal) {
         const typeSelect = document.getElementById('edit-leave-type');
         const timeFields = document.getElementById('edit-leave-time-fields');
@@ -1780,7 +1776,7 @@ export function initializeAppListeners() {
                 try {
                     let savePersistentPromise = Promise.resolve();
                     if (isNewTimeBased || isOriginalTimeBased) { 
-                        debouncedSaveState(); // Daily 변경
+                        debouncedSaveState(); 
                     }
                     if (isNewDateBased || isOriginalDateBased) { 
                          savePersistentPromise = saveLeaveSchedule(db, persistentLeaveSchedule); 
@@ -1810,8 +1806,8 @@ export function initializeAppListeners() {
             if (!memberName || !originalStart || !originalRecordType) {
                 showToast('삭제할 기록 정보를 찾을 수 없습니다.', true); return;
             }
-            deleteMode = 'leave'; // (메인) 근태 삭제 모드
-            attendanceRecordToDelete = { 
+            context.deleteMode = 'leave'; // ✅ context.
+            context.attendanceRecordToDelete = { // ✅ context.
                 memberName: memberName, 
                 startIdentifier: originalStart, 
                 recordType: originalRecordType 
@@ -1845,7 +1841,6 @@ export function initializeAppListeners() {
 
 /**
  * 모달 팝업을 드래그 가능하게 만듭니다.
- * (app.js의 2373줄)
  */
 function makeDraggable(modalOverlay, header, contentBox) {
     let isDragging = false;

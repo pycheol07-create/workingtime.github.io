@@ -1,11 +1,14 @@
-// === app-history-logic.js (이력, 마감, 저장, 엑셀 관련 로직) ===
+// === app-history-logic.js (수정된 import) ===
 
 import {
     appState, appConfig, db, auth, 
     allHistoryData, 
-    quantityModalContext, 
-    historyKeyToDelete, 
+    
+    // ⛔️ [삭제] quantityModalContext, historyKeyToDelete, 
     activeMainHistoryTab, 
+    
+    // ✅ [추가] context 객체를 import
+    context,
     
     // DOM Elements (app.js에서 가져옴)
     historyDateList, historyTabs, attendanceHistoryTabs, 
@@ -295,17 +298,12 @@ export const openHistoryQuantityModal = (dateKey) => {
     const title = document.getElementById('quantity-modal-title');
     if (title) title.textContent = `${dateKey} 처리량 수정`;
 
-    // app.js의 전역 컨텍스트 변수 업데이트
-    quantityModalContext.mode = 'history';
-    quantityModalContext.dateKey = dateKey;
-    quantityModalContext.onConfirm = async (newQuantities) => {
-        // (이 로직은 app.js의 confirmQuantityBtn 리스너에서 가져와야 함)
-        // [수정] 이 onConfirm 로직은 app-listeners.js에서 정의합니다.
-        // 여기서는 모달을 열기만 합니다.
+    // ✅ [수정] context.quantityModalContext에 onConfirm 로직을 *내부에* 올바르게 할당합니다.
+    context.quantityModalContext.mode = 'history';
+    context.quantityModalContext.dateKey = dateKey;
+    context.quantityModalContext.onConfirm = async (newQuantities) => {
         
-        // [재수정] app.js의 원래 구조는 onConfirm을 *여기서* 정의했습니다.
-        // 그 구조를 따르겠습니다.
-        
+        // --- ⬇️ 이 로직이 onConfirm 함수 *내부*에 있어야 합니다 ⬇️ ---
         const idx = allHistoryData.findIndex(d => d.id === dateKey);
         if (idx === -1 && dateKey !== todayDateString) { 
              showToast('이력 데이터를 찾을 수 없어 수정할 수 없습니다.', true);
@@ -341,8 +339,10 @@ export const openHistoryQuantityModal = (dateKey) => {
             console.error('Error updating history quantities:', e);
             showToast('처리량 업데이트 중 오류 발생.', true);
         }
-    };
-    quantityModalContext.onCancel = () => {};
+        // --- ⬆️ 여기까지 onConfirm 함수 내부 ⬆️ ---
+    }; // ✅ 여기가 onConfirm이 끝나는 지점입니다.
+    
+    context.quantityModalContext.onCancel = () => {};
 
 
     const cBtn = document.getElementById('confirm-quantity-btn');
@@ -599,7 +599,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
  * (app.js의 window.requestHistoryDeletion)
  */
 export const requestHistoryDeletion = (dateKey) => {
-  historyKeyToDelete = dateKey; // app.js의 전역 변수 설정
+  context.historyKeyToDelete = dateKey; // ✅ [수정] 'context.' 추가
   if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
 };
 
