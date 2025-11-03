@@ -18,7 +18,12 @@ import {
     editAttendanceEndDateInput, editAttendanceDateKeyInput, editAttendanceRecordIndexInput,
     editAttendanceTimeFields, editAttendanceDateFields, teamStatusBoard, workLogBody,
     teamSelectModal, deleteConfirmModal, confirmDeleteBtn, cancelDeleteBtn, historyModal,
+    
+    // ================== [ ✨ 수정된 부분 ✨ ] ==================
+    // (index.html에서 전체화면 기능 구현을 위해 ID 추가)
     historyModalContentBox,
+    // =======================================================
+
     openHistoryBtn, closeHistoryBtn, historyDateList, historyViewContainer, historyTabs,
     historyMainTabs, workHistoryPanel, attendanceHistoryPanel, attendanceHistoryTabs,
     attendanceHistoryViewContainer, trendAnalysisPanel, quantityModal, confirmQuantityBtn,
@@ -90,7 +95,21 @@ import {
     downloadHistoryAsExcel,
     downloadAttendanceHistoryAsExcel,
     switchHistoryView,
+    // ================== [ ✨ 수정된 부분 ✨ ] ==================
+    // (주별/월별 상세 렌더링을 위해 import 추가)
+    renderHistoryDateListByMode
+    // =======================================================
 } from './app-history-logic.js';
+
+// (ui-history에서 직접 가져와야 함 - app-history-logic가 ui를 import하므로 순환참조 방지)
+import {
+  renderAttendanceDailyHistory,
+  renderAttendanceWeeklyHistory,
+  renderAttendanceMonthlyHistory,
+  renderWeeklyHistory,
+  renderMonthlyHistory
+} from './ui-history.js';
+
 
 // Firebase (Firestore & Auth)
 import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -232,6 +251,7 @@ export function initializeAppListeners() {
             return;
         }
         
+        // ================== [ ✨ 수정된 부분 ✨ ] ==================
         // 6. 통합 근태 수정 카드 클릭 (data-action="edit-leave-record")
         const editLeaveCard = e.target.closest('[data-action="edit-leave-record"]');
         if (editLeaveCard) {
@@ -248,7 +268,23 @@ export function initializeAppListeners() {
                 showToast('본인의 근태 기록만 수정할 수 있습니다.', true);
                 return;
             }
+            
+            // '외출' 또는 '조퇴'인 경우, '복귀' 확인 모달을 바로 띄웁니다.
+            if (currentType === '외출' || currentType === '조퇴') {
+                context.memberToCancelLeave = memberName;
+                if (cancelLeaveConfirmMessage) {
+                    cancelLeaveConfirmMessage.textContent = `${memberName}님을 '${currentType}' 상태에서 복귀(취소) 처리하시겠습니까?`;
+                }
+                if (cancelLeaveConfirmModal) {
+                    cancelLeaveConfirmModal.classList.remove('hidden');
+                }
+                return; // 👈 중요: 수정 모달을 열지 않고 여기서 종료
+            }
+            // =========================================================
 
+
+            // (이하 기존 로직)
+            // '연차', '출장', '결근'인 경우에만 전체 수정 모달이 열립니다.
             const modal = document.getElementById('edit-leave-record-modal');
             const titleEl = document.getElementById('edit-leave-modal-title');
             const nameEl = document.getElementById('edit-leave-member-name');
@@ -410,6 +446,8 @@ export function initializeAppListeners() {
       });
     }
 
+    // ================== [ ✨ 수정된 부분 ✨ ] ==================
+    // (근태 삭제 로직 수정 및 render() 호출 추가)
     if (confirmDeleteBtn) {
       confirmDeleteBtn.addEventListener('click', async () => {
         let stateChanged = false; 
@@ -456,12 +494,10 @@ export function initializeAppListeners() {
                         await saveLeaveSchedule(db, persistentLeaveSchedule); 
                         recordDeleted = true;
                         
-                        // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
                         // 'persistent' (연차 등) 삭제 시에도 상태 변경을 알리고
                         // markDataAsDirty()를 호출해야 합니다.
                         stateChanged = true;
                         markDataAsDirty();
-                        // =========================================================
 
                     } catch (e) {
                          console.error('Error deleting persistent leave record:', e);
@@ -502,11 +538,19 @@ export function initializeAppListeners() {
             }
         }
         
-        if (stateChanged && context.deleteMode !== 'leave') { 
-             debouncedSaveState();
-        }
-        if (context.deleteMode === 'leave' && context.attendanceRecordToDelete?.recordType === 'daily' && stateChanged) {
-            debouncedSaveState();
+        // stateChanged가 true일 때, 삭제 모드에 따라 올바르게 저장/반영되도록 수정
+        if (stateChanged) {
+            if (context.deleteMode === 'leave') {
+                // '일일 근태' (조퇴, 외출) 삭제 시
+                if (context.attendanceRecordToDelete?.recordType === 'daily') {
+                    debouncedSaveState();
+                }
+                // '영구 근태' (연차 등)는 이미 saveLeaveSchedule()로 저장되었으므로
+                // 여기서는 별도 처리가 필요 없습니다.
+            } else {
+                // 'all' 또는 'single' (업무 기록) 삭제 시
+                debouncedSaveState();
+            }
         }
 
         if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
@@ -514,15 +558,14 @@ export function initializeAppListeners() {
         context.attendanceRecordToDelete = null; // ✅ context.
         context.deleteMode = 'single'; // ✅ context.
         
-        // ================== [ ✨ 수정된 부분 2 ✨ ] ==================
         // 상태 변경(stateChanged)이 있었다면,
         // (업무 기록이든, 근태 기록이든) 화면을 새로고침합니다.
         if (stateChanged) {
             render();
         }
-        // =========================================================
       });
     }
+    // =========================================================
 
     if (endShiftBtn) {
       endShiftBtn.addEventListener('click', () => {
@@ -602,6 +645,8 @@ export function initializeAppListeners() {
       });
     }
 
+    // ================== [ ✨ 수정된 부분 ✨ ] ==================
+    // (주별/월별 요약 클릭 시 상세 뷰 렌더링)
     if (historyDateList) {
       historyDateList.addEventListener('click', (e) => {
         const btn = e.target.closest('.history-date-btn');
@@ -615,32 +660,32 @@ export function initializeAppListeners() {
             : attendanceHistoryTabs?.querySelector('button.font-semibold');
           const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily'); // ✅ context.
           
-          if (activeView === 'daily') {
-              const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
-              const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
-                                    ? allHistoryData[currentIndex + 1] 
-                                    : null;
-              renderHistoryDetail(dateKey, previousDayData);
-
-          } else if (activeView === 'attendance-daily') {
-              renderAttendanceDailyHistory(dateKey, allHistoryData);
-          
-          } else if (activeView === 'weekly' || activeView === 'monthly' || activeView === 'attendance-weekly' || activeView === 'attendance-monthly') {
-              const targetKey = dateKey; 
-              if (activeView === 'weekly' || activeView === 'monthly') {
-                  const summaryCard = document.getElementById(`summary-card-${targetKey}`);
-                  if (summaryCard) {
-                      summaryCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      summaryCard.classList.add('ring-2', 'ring-blue-400', 'transition-all', 'duration-300');
-                      setTimeout(() => {
-                          summaryCard.classList.remove('ring-2', 'ring-blue-400');
-                      }, 2000); 
-                  }
+          if (context.activeMainHistoryTab === 'work') {
+              if (activeView === 'daily') {
+                  const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
+                  const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
+                                        ? allHistoryData[currentIndex + 1] 
+                                        : null;
+                  renderHistoryDetail(dateKey, previousDayData);
+              } else if (activeView === 'weekly') {
+                  renderWeeklyHistory(dateKey, allHistoryData, appConfig);
+              } else if (activeView === 'monthly') {
+                  renderMonthlyHistory(dateKey, allHistoryData, appConfig);
+              }
+          } else { // attendance tab
+              if (activeView === 'attendance-daily') {
+                  renderAttendanceDailyHistory(dateKey, allHistoryData);
+              } else if (activeView === 'attendance-weekly') {
+                  renderAttendanceWeeklyHistory(dateKey, allHistoryData);
+              } else if (activeView === 'attendance-monthly') {
+                  renderAttendanceMonthlyHistory(dateKey, allHistoryData);
               }
           }
+
         }
       });
     }
+    // =========================================================
 
     if (historyTabs) {
       historyTabs.addEventListener('click', (e) => {
@@ -904,6 +949,8 @@ export function initializeAppListeners() {
         context.memberToSetLeave = null; // ✅ context.
     });
 
+    // ================== [ ✨ 수정된 부분 ✨ ] ==================
+    // (복귀/삭제 후 render() 호출 추가)
     if (confirmCancelLeaveBtn) {
         confirmCancelLeaveBtn.addEventListener('click', async () => {
             if (!context.memberToCancelLeave) return; // ✅ context.
@@ -957,8 +1004,12 @@ export function initializeAppListeners() {
 
             if(cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.add('hidden');
             context.memberToCancelLeave = null; // ✅ context.
+            
+            // 상태 변경 후 화면을 즉시 새로고침합니다.
+            render();
         });
     }
+    // =========================================================
 
     // --- 7. 모달 공통 닫기 및 개별 닫기 리스너 ---
     document.querySelectorAll('.modal-close-btn').forEach(btn => {
@@ -1260,7 +1311,7 @@ export function initializeAppListeners() {
             
             const recordToUpdate = dayData.onLeaveMembers[index];
             if (!recordToUpdate) {
-                 showToast('원본 근태 기록을 찾을 수 없습니다.', true);
+                 showToast('원본 근태 기록을 찾지 못했습니다.', true);
                  confirmEditAttendanceBtn.disabled = false; 
                  return;
             }
@@ -1840,6 +1891,7 @@ export function initializeAppListeners() {
     }
 
 
+    // ================== [ ✨ 수정된 부분 ✨ ] ==================
     // --- 14. 이력 모달 드래그 기능 ---
     const historyHeader = document.getElementById('history-modal-header');
     // const historyModalContentBox = document.getElementById('history-modal-content-box'); // (이미 import됨)
@@ -1847,7 +1899,6 @@ export function initializeAppListeners() {
         makeDraggable(historyModal, historyHeader, historyModalContentBox);
     }
 
-    // ================== [ ✨ 이 코드를 추가하세요 ✨ ] ==================
     // --- 15. 이력 모달 전체화면 버튼 리스너 ---
     const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
     if (toggleFullscreenBtn && historyModal && historyModalContentBox) {
@@ -1889,11 +1940,14 @@ export function initializeAppListeners() {
     }
     // ==============================================================
 
-}
+
+} // <-- initializeAppListeners() 함수 끝
 
 /**
  * 모달 팝업을 드래그 가능하게 만듭니다.
  */
+// ================== [ ✨ 수정된 부분 ✨ ] ==================
+// (화면 밖 드래그가 가능하도록 수정)
 function makeDraggable(modalOverlay, header, contentBox) {
     let isDragging = false;
     let offsetX, offsetY;
@@ -1927,7 +1981,6 @@ function makeDraggable(modalOverlay, header, contentBox) {
         let newLeft = e.clientX - offsetX;
         let newTop = e.clientY - offsetY;
         
-        // ================== [ ✨ 수정된 부분 ✨ ] ==================
         // 화면 밖으로 드래그할 수 있도록 아래 4줄의 경계 제한 로직을 주석 처리(삭제)합니다.
         /*
         const viewportWidth = window.innerWidth;
@@ -1940,7 +1993,6 @@ function makeDraggable(modalOverlay, header, contentBox) {
         if (newLeft + boxWidth > viewportWidth) newLeft = viewportWidth - boxWidth;
         if (newTop + boxHeight > viewportHeight) newTop = viewportHeight - boxHeight;
         */
-        // =========================================================
 
         contentBox.style.left = `${newLeft}px`;
         contentBox.style.top = `${newTop}px`;
@@ -1952,3 +2004,4 @@ function makeDraggable(modalOverlay, header, contentBox) {
         document.removeEventListener('mouseup', onMouseUp);
     }
 }
+// =========================================================

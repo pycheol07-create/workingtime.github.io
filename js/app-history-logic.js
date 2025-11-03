@@ -21,6 +21,8 @@ import {
 } from './app.js';
 
 // UI 렌더링 함수들 (ui.js를 통해 import)
+// ================== [ ✨ 수정된 부분 ✨ ] ==================
+// (ui-history.js에서 가져오는 함수 목록이 변경됩니다)
 import {
   renderQuantityModalInputs,
   renderAttendanceDailyHistory,
@@ -30,6 +32,7 @@ import {
   renderMonthlyHistory,
   renderTrendAnalysisCharts
 } from './ui.js';
+// =======================================================
 
 // 유틸리티 함수들
 import { 
@@ -256,16 +259,34 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
     const firstButton = historyDateList.firstChild?.querySelector('button');
     if (firstButton) {
         firstButton.classList.add('bg-blue-100', 'font-bold');
-        if (mode === 'day') {
-             const previousDayData = (allHistoryData.length > 1) ? allHistoryData[1] : null;
-             
-             // ✅ [수정] context.activeMainHistoryTab을 사용
-             if (context.activeMainHistoryTab === 'work') {
-                renderHistoryDetail(firstButton.dataset.key, previousDayData);
-             } else {
-                renderAttendanceDailyHistory(firstButton.dataset.key, allHistoryData);
-             }
+        
+        // ================== [ ✨ 수정된 부분 ✨ ] ==================
+        // 모드(day, week, month)에 관계없이 첫 번째 항목의 상세 뷰를 렌더링하도록 수정
+        const key = firstButton.dataset.key;
+        
+        if (context.activeMainHistoryTab === 'work') {
+            if (mode === 'day') {
+                const previousDayData = (allHistoryData.length > 1) ? allHistoryData[1] : null;
+                renderHistoryDetail(key, previousDayData);
+            } else if (mode === 'week') {
+                // (ui-history.js 수정 필요)
+                renderWeeklyHistory(key, allHistoryData, appConfig); 
+            } else if (mode === 'month') {
+                // (ui-history.js 수정 필요)
+                renderMonthlyHistory(key, allHistoryData, appConfig); 
+            }
+        } else { // attendance tab
+            if (mode === 'day') {
+                renderAttendanceDailyHistory(key, allHistoryData);
+            } else if (mode === 'week') {
+                // (ui-history.js 수정 필요)
+                renderAttendanceWeeklyHistory(key, allHistoryData); 
+            } else if (mode === 'month') {
+                // (ui-history.js 수정 필요)
+                renderAttendanceMonthlyHistory(key, allHistoryData); 
+            }
         }
+        // =========================================================
     }
 };
 
@@ -486,12 +507,13 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px] flex flex-col justify-center items-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-lg font-bold text-gray-400">주말</p></div>`;
   }
 
-  // ✅ [수정] onclick 핸들러가 전역(window) 대신 'app' 객체를 참조하도록 변경 (app.js에서 window.app = ... 로 노출 필요)
+  // ================== [ ✨ 수정된 부분 ✨ ] ==================
+  // (h3 태그에서 '(전일 대비)' 텍스트 삭제)
   let html = `
     <div class="mb-6 pb-4 border-b flex justify-between items-center">
-      <h3 class="text-2xl font-bold text-gray-800">${dateKey} (전일 대비)</h3>
+      <h3 class="text-2xl font-bold text-gray-800">${dateKey}</h3>
       <div>
-        <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm" onclick="app.openHistoryQuantityModal('${dateKey}')">처리량 수정</button>
+  <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm" onclick="app.openHistoryQuantityModal('${dateKey}')">처리량 수정</button>
         <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="app.downloadHistoryAsExcel('${dateKey}')">엑셀 (전체)</button>
         <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="app.requestHistoryDeletion('${dateKey}')">삭제</button>
       </div>
@@ -1119,13 +1141,19 @@ export const switchHistoryView = (view) => {
           listMode = 'week'; 
           viewToShow = document.getElementById('history-weekly-view');
           tabToActivate = historyTabs?.querySelector('button[data-view="weekly"]');
-          renderWeeklyHistory(allHistoryData, appConfig); 
+          // ================== [ ✨ 수정된 부분 ✨ ] ==================
+          // (렌더링 호출 삭제)
+          // renderWeeklyHistory(allHistoryData, appConfig); 
+          // =======================================================
           break;
       case 'monthly':
           listMode = 'month'; 
           viewToShow = document.getElementById('history-monthly-view');
           tabToActivate = historyTabs?.querySelector('button[data-view="monthly"]');
-          renderMonthlyHistory(allHistoryData, appConfig); 
+          // ================== [ ✨ 수정된 부분 ✨ ] ==================
+          // (렌더링 호출 삭제)
+          // renderMonthlyHistory(allHistoryData, appConfig); 
+          // =======================================================
           break;
       case 'attendance-daily':
           listMode = 'day'; 
@@ -1136,13 +1164,19 @@ export const switchHistoryView = (view) => {
           listMode = 'week'; 
           viewToShow = document.getElementById('history-attendance-weekly-view');
           tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
-          renderAttendanceWeeklyHistory(allHistoryData); 
+          // ================== [ ✨ 수정된 부분 ✨ ] ==================
+          // (렌더링 호출 삭제)
+          // renderAttendanceWeeklyHistory(allHistoryData); 
+          // =======================================================
           break;
       case 'attendance-monthly':
           listMode = 'month'; 
           viewToShow = document.getElementById('history-attendance-monthly-view');
           tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
-          renderAttendanceMonthlyHistory(allHistoryData); 
+          // ================== [ ✨ 수정된 부분 ✨ ] ==================
+          // (렌더링 호출 삭제)
+          // renderAttendanceMonthlyHistory(allHistoryData); 
+          // =======================================================
           break;
   }
   

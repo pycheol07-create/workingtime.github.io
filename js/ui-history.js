@@ -5,6 +5,7 @@ import { formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday } from './uti
 import { getDiffHtmlForMetric } from './ui.js';
 
 // ✅ [수정] renderSummaryView (ui.js -> ui-history.js)
+// (이 함수는 변경되지 않았습니다. 주/월별 상세 표시에 재사용됩니다.)
 const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPeriodDataset = null) => {
     const records = dataset.workRecords || [];
     const quantities = dataset.taskQuantities || {};
@@ -123,7 +124,11 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
     html += `<h4 class="text-lg font-semibold mb-3 text-gray-700">업무별 평균 (
                 ${previousPeriodDataset ? (mode === 'weekly' ? '전주' : '전월') + ' 대비' : '이전 데이터 없음'}
             )</h4>`;
-    html += `<div class="overflow-x-auto max-h-60">
+    
+    // ================== [ ✨ 수정된 부분 ✨ ] ==================
+    // (max-h-60 -> max-h-[60vh]로 변경하여 더 많은 데이터를 볼 수 있도록 함)
+    html += `<div class="overflow-x-auto max-h-[60vh]">
+    // =======================================================
                <table class="w-full text-sm text-left text-gray-600">
                  <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
                    <tr>
@@ -190,14 +195,17 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
 };
 
 /**
- * ✅ [수정] renderWeeklyHistory (ui.js -> ui-history.js)
+ * ================== [ ✨ 수정된 함수 ✨ ] ==================
+ * (선택한 '주'의 데이터만 렌더링하도록 수정)
+ * @param {string} selectedWeekKey - 렌더링할 주 (예: "2025-W45")
  */
-export const renderWeeklyHistory = (allHistoryData, appConfig) => {
+export const renderWeeklyHistory = (selectedWeekKey, allHistoryData, appConfig) => {
     const view = document.getElementById('history-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 데이터 집계 중...</div>';
 
     try {
+        // 1. WageMap 생성 (변경 없음)
         const historyWageMap = {};
         (allHistoryData || []).forEach(dayData => {
             (dayData.partTimers || []).forEach(pt => {
@@ -208,7 +216,7 @@ export const renderWeeklyHistory = (allHistoryData, appConfig) => {
         });
         const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
-
+        // 2. 전체 주별 데이터 집계 (변경 없음)
         const weeklyData = (allHistoryData || []).reduce((acc, day) => {
             if (!day || !day.id || !day.workRecords || typeof day.id !== 'string') return acc;
             try {
@@ -230,37 +238,44 @@ export const renderWeeklyHistory = (allHistoryData, appConfig) => {
             return acc;
         }, {});
 
+        // 3. 렌더링 로직 수정 (선택한 주 + 이전 주 데이터 찾기)
         const sortedWeeks = Object.keys(weeklyData).sort((a,b) => b.localeCompare(a));
-        if (sortedWeeks.length === 0) {
-            view.innerHTML = '<div class="text-center text-gray-500">주별 데이터가 없습니다.</div>';
+        
+        const currentData = weeklyData[selectedWeekKey];
+        if (!currentData) {
+            view.innerHTML = `<div class="text-center text-gray-500">${selectedWeekKey} 주에 해당하는 데이터가 없습니다.</div>`;
             return;
         }
-
-        // ✅ [수정] map 콜백에서 index를 사용해 prevData 전달
-        view.innerHTML = sortedWeeks.map((weekKey, index) => {
-            const currentData = weeklyData[weekKey];
-            // 이전 주 데이터 찾기 (sortedWeeks가 내림차순 정렬이므로 index + 1이 이전 주)
-            const prevWeekKey = sortedWeeks[index + 1] || null;
-            const prevData = prevWeekKey ? weeklyData[prevWeekKey] : null;
-            
-            return renderSummaryView('weekly', currentData, weekKey, combinedWageMap, prevData);
-        }).join('');
+        
+        // 이전 주 데이터 찾기
+        const currentIndex = sortedWeeks.indexOf(selectedWeekKey);
+        const prevWeekKey = (currentIndex > -1 && currentIndex + 1 < sortedWeeks.length) 
+                            ? sortedWeeks[currentIndex + 1] 
+                            : null;
+        const prevData = prevWeekKey ? weeklyData[prevWeekKey] : null;
+        
+        // 4. 선택한 주의 데이터만 렌더링
+        view.innerHTML = renderSummaryView('weekly', currentData, selectedWeekKey, combinedWageMap, prevData);
 
     } catch (error) {
         console.error("Error in renderWeeklyHistory:", error);
         view.innerHTML = '<div class="text-center text-red-500 p-4">주별 데이터를 표시하는 중 오류가 발생했습니다. 개발자 콘솔을 확인하세요.</div>';
     }
 };
+// =========================================================
 
 /**
- * ✅ [수정] renderMonthlyHistory (ui.js -> ui-history.js)
+ * ================== [ ✨ 수정된 함수 ✨ ] ==================
+ * (선택한 '월'의 데이터만 렌더링하도록 수정)
+ * @param {string} selectedMonthKey - 렌더링할 월 (예: "2025-10")
  */
-export const renderMonthlyHistory = (allHistoryData, appConfig) => {
+export const renderMonthlyHistory = (selectedMonthKey, allHistoryData, appConfig) => {
     const view = document.getElementById('history-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 데이터 집계 중...</div>';
 
     try {
+        // 1. WageMap 생성 (변경 없음)
         const historyWageMap = {};
         (allHistoryData || []).forEach(dayData => {
             (dayData.partTimers || []).forEach(pt => {
@@ -271,7 +286,7 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
         });
         const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
-
+        // 2. 전체 월별 데이터 집계 (변경 없음)
         const monthlyData = (allHistoryData || []).reduce((acc, day) => {
             if (!day || !day.id || !day.workRecords || typeof day.id !== 'string' || day.id.length < 7) return acc;
             try {
@@ -289,27 +304,31 @@ export const renderMonthlyHistory = (allHistoryData, appConfig) => {
             return acc;
         }, {});
 
+        // 3. 렌더링 로직 수정 (선택한 월 + 이전 월 데이터 찾기)
         const sortedMonths = Object.keys(monthlyData).sort((a,b) => b.localeCompare(a));
-        if (sortedMonths.length === 0) {
-            view.innerHTML = '<div class="text-center text-gray-500">월별 데이터가 없습니다.</div>';
+
+        const currentData = monthlyData[selectedMonthKey];
+        if (!currentData) {
+            view.innerHTML = `<div class="text-center text-gray-500">${selectedMonthKey} 월에 해당하는 데이터가 없습니다.</div>`;
             return;
         }
 
-        // ✅ [수정] map 콜백에서 index를 사용해 prevData 전달
-        view.innerHTML = sortedMonths.map((monthKey, index) => {
-            const currentData = monthlyData[monthKey];
-            // 이전 월 데이터 찾기 (sortedMonths가 내림차순 정렬이므로 index + 1이 이전 월)
-            const prevMonthKey = sortedMonths[index + 1] || null;
-            const prevData = prevMonthKey ? monthlyData[prevMonthKey] : null;
+        // 이전 월 데이터 찾기
+        const currentIndex = sortedMonths.indexOf(selectedMonthKey);
+        const prevMonthKey = (currentIndex > -1 && currentIndex + 1 < sortedMonths.length)
+                             ? sortedMonths[currentIndex + 1]
+                             : null;
+        const prevData = prevMonthKey ? monthlyData[prevMonthKey] : null;
             
-            return renderSummaryView('monthly', currentData, monthKey, combinedWageMap, prevData);
-        }).join('');
+        // 4. 선택한 월의 데이터만 렌더링
+        view.innerHTML = renderSummaryView('monthly', currentData, selectedMonthKey, combinedWageMap, prevData);
         
     } catch (error) {
         console.error("Error in renderMonthlyHistory:", error);
         view.innerHTML = '<div class="text-center text-red-500 p-4">월별 데이터를 표시하는 중 오류가 발생했습니다. 개발자 콘솔을 확인하세요.</div>';
     }
 };
+// =========================================================
 
 /**
  * ✅ [수정] renderAttendanceDailyHistory (ui.js -> ui-history.js)
@@ -406,16 +425,23 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
  * ✅ [수정] renderAggregatedAttendanceSummary (ui.js -> ui-history.js)
  * (주별/월별 근태 요약 렌더링을 위한 공통 헬퍼 함수)
  */
-const renderAggregatedAttendanceSummary = (viewElement, aggregationMap) => {
-    const sortedKeys = Object.keys(aggregationMap).sort((a,b) => b.localeCompare(a));
-    if (sortedKeys.length === 0) {
-        viewElement.innerHTML = `<div class="text-center text-gray-500">해당 기간의 근태 데이터가 없습니다.</div>`;
+// (이 함수는 변경되지 않았습니다. 주/월별 상세 표시에 재사용됩니다.)
+const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKey) => {
+    
+    // ================== [ ✨ 수정된 부분 ✨ ] ==================
+    // (기존: 모든 periodKey를 순회 -> 단일 periodKey만 처리)
+    // const sortedKeys = Object.keys(aggregationMap).sort((a,b) => b.localeCompare(a));
+    // if (sortedKeys.length === 0) { ... }
+    
+    const data = aggregationMap[periodKey];
+    if (!data) {
+        viewElement.innerHTML = `<div class="text-center text-gray-500">${periodKey} 기간의 근태 데이터가 없습니다.</div>`;
         return;
     }
 
     let html = '';
-    sortedKeys.forEach(periodKey => {
-        const data = aggregationMap[periodKey];
+    // sortedKeys.forEach(periodKey => { ... }); // (루프 제거)
+    // =======================================================
         
         // [수정] 근태 항목 집계 (member-type 기준)
         const summary = data.leaveEntries.reduce((acc, entry) => {
@@ -449,7 +475,7 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap) => {
 
         html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
                     <h3 class="text-xl font-bold mb-3">${periodKey}</h3>
-                    <div class="space-y-1">`;
+                    <div class="space-y-1 max-h-[60vh] overflow-y-auto">`; // (max-h 추가)
 
         if (Object.keys(summary).length === 0) {
              html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
@@ -463,20 +489,22 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap) => {
             });
         }
         html += `</div></div>`;
-    });
+    // }); // (루프 제거)
 
     viewElement.innerHTML = html;
 };
 
 /**
- * ✅ [수정] renderAttendanceWeeklyHistory (ui.js -> ui-history.js)
+ * ================== [ ✨ 수정된 함수 ✨ ] ==================
+ * (선택한 '주'의 근태 데이터만 렌더링하도록 수정)
+ * @param {string} selectedWeekKey - 렌더링할 주 (예: "2025-W45")
  */
-export const renderAttendanceWeeklyHistory = (allHistoryData) => {
+export const renderAttendanceWeeklyHistory = (selectedWeekKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터 집계 중...</div>';
 
-    // 주별 데이터 집계 로직
+    // 1. 주별 데이터 집계 로직 (변경 없음)
     const weeklyData = (allHistoryData || []).reduce((acc, day) => {
         if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string') return acc;
         try {
@@ -506,19 +534,22 @@ export const renderAttendanceWeeklyHistory = (allHistoryData) => {
         return acc;
     }, {});
 
-    // ✅ [수정] 공통 헬퍼 함수로 렌더링 위임 (기존 중복 로직 삭제)
-    renderAggregatedAttendanceSummary(view, weeklyData);
+    // 2. 공통 헬퍼 함수로 렌더링 위임 (선택한 키만 전달)
+    renderAggregatedAttendanceSummary(view, weeklyData, selectedWeekKey);
 };
+// =========================================================
 
 /**
- * ✅ [수정] renderAttendanceMonthlyHistory (ui.js -> ui-history.js)
+ * ================== [ ✨ 수정된 함수 ✨ ] ==================
+ * (선택한 '월'의 근태 데이터만 렌더링하도록 수정)
+ * @param {string} selectedMonthKey - 렌더링할 월 (예: "2025-10")
  */
-export const renderAttendanceMonthlyHistory = (allHistoryData) => {
+export const renderAttendanceMonthlyHistory = (selectedMonthKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터 집계 중...</div>';
 
-    // 월별 데이터 집계 로직
+    // 1. 월별 데이터 집계 로직 (변경 없음)
     const monthlyData = (allHistoryData || []).reduce((acc, day) => {
         if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string' || day.id.length < 7) return acc;
          try {
@@ -546,9 +577,10 @@ export const renderAttendanceMonthlyHistory = (allHistoryData) => {
         return acc;
     }, {});
 
-    // ✅ [수정] 공통 헬퍼 함수로 렌더링 위임 (기존 중복 로직 삭제)
-    renderAggregatedAttendanceSummary(view, monthlyData);
+    // 2. 공통 헬퍼 함수로 렌더링 위임 (선택한 키만 전달)
+    renderAggregatedAttendanceSummary(view, monthlyData, selectedMonthKey);
 };
+// =========================================================
 
 
 /**
