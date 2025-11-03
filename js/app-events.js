@@ -29,7 +29,6 @@ import {
     // 핵심 함수
     generateId,
     normalizeName,
-    debounce,
     updateElapsedTimes,
     render,
     markDataAsDirty,
@@ -100,7 +99,7 @@ import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, 
 
 
 // 3. 유틸리티 함수 임포트
-import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes } from './utils.js';
+import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes, debounce } from './utils.js'; // ❗️ 여기에 추가
 
 // 4. UI 렌더링 함수 임포트
 import {
