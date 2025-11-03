@@ -1,22 +1,91 @@
 // === ui-history.js (이력 보기 렌더링 담당) ===
 
 import { formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday } from './utils.js';
-// ✅ [추가] ui.js에서 공유 헬퍼 가져오기
-import { getDiffHtmlForMetric } from './ui.js';
+// ⛔️ [삭제] ui.js에서 헬퍼 함수 가져오기 (아래에 직접 정의)
+// import { getDiffHtmlForMetric } from './ui.js';
+
+// ================== [ ✨ 추가된 부분 1 ✨ ] ==================
+// (getDiffHtmlForMetric 헬퍼 함수를 ui.js에서 가져와 여기에 로컬로 정의)
+// (totalDuration, totalQuantity, totalCost 등 총계 항목 비교 로직 추가)
+const getDiffHtmlForMetric = (metric, current, previous) => {
+    const currValue = current || 0;
+    const prevValue = previous || 0;
+
+    if (prevValue === 0) {
+        if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
+        return ''; // 둘 다 0
+    }
+    
+    const diff = currValue - prevValue;
+    if (Math.abs(diff) < 0.001) return `<span class="text-xs text-gray-400 ml-1">(-)</span>`;
+    
+    const percent = (diff / prevValue) * 100;
+    const sign = diff > 0 ? '↑' : '↓';
+    
+    let colorClass = 'text-gray-500';
+    // [ ✨ 수정 ✨ ] (Higher is better)
+    if (metric === 'avgThroughput' || metric === 'avgStaff' || metric === 'totalQuantity' || metric === 'overallAvgThroughput') {
+        colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
+    // [ ✨ 수정 ✨ ] (Lower is better)
+    } else if (metric === 'avgCostPerItem' || metric === 'avgTime' || metric === 'totalDuration' || metric === 'totalCost' || metric === 'overallAvgCostPerItem') {
+        colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
+    }
+    
+    let diffStr = '';
+    let prevStr = '';
+    // [ ✨ 수정 ✨ ] (포맷팅)
+    if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration') {
+        diffStr = formatDuration(Math.abs(diff));
+        prevStr = formatDuration(prevValue);
+    // [ ✨ 수정 ✨ ] (포맷팅)
+    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem') {
+        diffStr = Math.round(Math.abs(diff)).toLocaleString(); // 👈 .toFixed(0) -> .toLocaleString()
+        prevStr = Math.round(prevValue).toLocaleString();
+    } else { // avgThroughput
+        diffStr = Math.abs(diff).toFixed(2);
+        prevStr = prevValue.toFixed(2);
+    }
+
+    return `<span class="text-xs ${colorClass} ml-1 font-mono" title="이전: ${prevStr}">
+                ${sign} ${diffStr} (${percent.toFixed(0)}%)
+            </span>`;
+};
+// =========================================================
+
 
 // ✅ [수정] renderSummaryView (ui.js -> ui-history.js)
-// (이 함수는 변경되지 않았습니다. 주/월별 상세 표시에 재사용됩니다.)
 const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPeriodDataset = null) => {
     const records = dataset.workRecords || [];
     const quantities = dataset.taskQuantities || {};
 
     // --- 1. 이전 기간(Previous) 데이터 계산 ---
     let prevTaskSummary = {};
+    // ================== [ ✨ 추가된 부분 2 ✨ ] ==================
+    // (이전 기간의 '총계' 계산)
+    let prevTotalDuration = 0;
+    let prevTotalQuantity = 0;
+    let prevTotalCost = 0;
+    let prevOverallAvgThroughput = 0;
+    let prevOverallAvgCostPerItem = 0;
+    // =========================================================
+
     if (previousPeriodDataset) {
         const prevRecords = previousPeriodDataset.workRecords || [];
         const prevQuantities = previousPeriodDataset.taskQuantities || {};
 
-        // 1a. 이전 기간 Reduce
+        // ================== [ ✨ 추가된 부분 3 ✨ ] ==================
+        // (이전 기간의 '총계' 값 할당)
+        prevTotalDuration = prevRecords.reduce((s, r) => s + (r.duration || 0), 0);
+        prevTotalQuantity = Object.values(prevQuantities).reduce((s, q) => s + (Number(q) || 0), 0);
+        prevTotalCost = prevRecords.reduce((s, r) => {
+            const wage = wageMap[r.member] || 0;
+            return s + ((r.duration || 0) / 60) * wage;
+        }, 0);
+        prevOverallAvgThroughput = prevTotalDuration > 0 ? (prevTotalQuantity / prevTotalDuration) : 0;
+        prevOverallAvgCostPerItem = prevTotalQuantity > 0 ? (prevTotalCost / prevTotalQuantity) : 0;
+        // =========================================================
+
+        // 1a. 이전 기간 Reduce (업무별)
         prevTaskSummary = prevRecords.reduce((acc, r) => {
             if (!r || !r.task) return acc;
             if (!acc[r.task]) {
@@ -30,7 +99,7 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
             return acc;
         }, {});
 
-        // 1b. 이전 기간 Post-process (평균값 계산)
+        // 1b. 이전 기간 Post-process (업무별)
         Object.keys(prevTaskSummary).forEach(task => {
             const summary = prevTaskSummary[task];
             const qty = Number(prevQuantities[task]) || 0;
@@ -62,10 +131,14 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
         return s + ((r.duration || 0) / 60) * wage;
     }, 0);
 
-    const overallAvgThroughput = totalDuration > 0 ? (totalQuantity / totalDuration).toFixed(2) : '0.00';
-    const overallAvgCostPerItem = totalQuantity > 0 ? (totalCost / totalQuantity).toFixed(0) : '0';
+    // [ ✨ 수정 ✨ ] (비교를 위해 숫자형(Num)과 문자열(Str) 분리)
+    const overallAvgThroughputNum = totalDuration > 0 ? (totalQuantity / totalDuration) : 0;
+    const overallAvgCostPerItemNum = totalQuantity > 0 ? (totalCost / totalQuantity) : 0;
 
-    // 2a. 현재 기간 Reduce (✅ members, recordCount 추가)
+    const overallAvgThroughputStr = overallAvgThroughputNum.toFixed(2);
+    const overallAvgCostPerItemStr = overallAvgCostPerItemNum.toFixed(0);
+
+    // 2a. 현재 기간 Reduce (업무별)
     const taskSummary = records.reduce((acc, r) => {
         if (!r || !r.task) return acc;
         if (!acc[r.task]) {
@@ -84,7 +157,7 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
         return acc;
     }, {});
 
-    // 2b. 현재 기간 Post-process (평균값 계산)
+    // 2b. 현재 기간 Post-process (업무별)
     Object.keys(taskSummary).forEach(task => {
         const summary = taskSummary[task];
         const qty = Number(quantities[task]) || 0;
@@ -109,24 +182,54 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
 
     // --- 3. HTML 렌더링 ---
     
-    // ✅ [수정] 스크롤 타겟을 위한 ID 추가
+    // ================== [ ✨ 추가된 부분 4 ✨ ] ==================
+    // (총계 카드에 들어갈 증감 HTML 생성)
+    const durationDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalDuration', totalDuration, prevTotalDuration) : '';
+    const quantityDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalQuantity', totalQuantity, prevTotalQuantity) : '';
+    const costDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalCost', totalCost, prevTotalCost) : '';
+    const throughputDiff = previousPeriodDataset ? getDiffHtmlForMetric('overallAvgThroughput', overallAvgThroughputNum, prevOverallAvgThroughput) : '';
+    const costPerItemDiff = previousPeriodDataset ? getDiffHtmlForMetric('overallAvgCostPerItem', overallAvgCostPerItemNum, prevOverallAvgCostPerItem) : '';
+    // =========================================================
+
     let html = `<div id="summary-card-${periodKey}" class="bg-white p-4 rounded-lg shadow-sm mb-6 scroll-mt-4">`;
     html += `<h3 class="text-xl font-bold mb-4">${periodKey} 요약</h3>`;
 
+    // ================== [ ✨ 수정된 부분 5 ✨ ] ==================
+    // (총계 카드 HTML 구조 변경: <div>와 증감 {diff} 변수 추가)
     html += `<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 text-center">
-        <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">총 시간</div><div class="text-lg font-bold">${formatDuration(totalDuration)}</div></div>
-        <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">총 처리량</div><div class="text-lg font-bold">${totalQuantity} 개</div></div>
-        <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">총 인건비</div><div class="text-lg font-bold">${Math.round(totalCost).toLocaleString()} 원</div></div>
-        <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">평균 처리량</div><div class="text-lg font-bold">${overallAvgThroughput} 개/분</div></div>
-        <div class="bg-gray-50 p-3 rounded"><div class="text-xs text-gray-500">평균 처리비용</div><div class="text-lg font-bold">${overallAvgCostPerItem} 원/개</div></div>
+        <div class="bg-gray-50 p-3 rounded">
+            <div class="text-xs text-gray-500">총 시간</div>
+            <div class="text-lg font-bold">${formatDuration(totalDuration)}</div>
+            ${durationDiff}
+        </div>
+        <div class="bg-gray-50 p-3 rounded">
+            <div class="text-xs text-gray-500">총 처리량</div>
+            <div class="text-lg font-bold">${totalQuantity.toLocaleString()} 개</div>
+            ${quantityDiff}
+        </div>
+        <div class="bg-gray-50 p-3 rounded">
+            <div class="text-xs text-gray-500">총 인건비</div>
+            <div class="text-lg font-bold">${Math.round(totalCost).toLocaleString()} 원</div>
+            ${costDiff}
+        </div>
+        <div class="bg-gray-50 p-3 rounded">
+            <div class="text-xs text-gray-500">평균 처리량</div>
+            <div class="text-lg font-bold">${overallAvgThroughputStr} 개/분</div>
+            ${throughputDiff}
+        </div>
+        <div class="bg-gray-50 p-3 rounded">
+            <div class="text-xs text-gray-500">평균 처리비용</div>
+            <div class="text-lg font-bold">${overallAvgCostPerItemStr} 원/개</div>
+            ${costPerItemDiff}
+        </div>
     </div>`;
+    // =========================================================
 
     html += `<h4 class="text-lg font-semibold mb-3 text-gray-700">업무별 평균 (
                 ${previousPeriodDataset ? (mode === 'weekly' ? '전주' : '전월') + ' 대비' : '이전 데이터 없음'}
             )</h4>`;
     
-    // ================== [ ✨ 수정된 부분 ✨ ] ==================
-    // (max-h-60 -> max-h-[60vh]로 변경하여 더 많은 데이터를 볼 수 있도록 함)
+    // (기존 주석 삭제됨)
     html += `<div class="overflow-x-auto max-h-[60vh]">
                <table class="w-full text-sm text-left text-gray-600">
                  <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
@@ -150,30 +253,29 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
             if (summary && (summary.duration > 0 || summary.quantity > 0)) {
                 hasTaskData = true;
 
-                // ✅ [추가] 증감 HTML 계산
-                const throughputDiff = previousPeriodDataset ? getDiffHtmlForMetric('avgThroughput', summary.avgThroughput, prevSummary?.avgThroughput) : '';
-                const costDiff = previousPeriodDataset ? getDiffHtmlForMetric('avgCostPerItem', summary.avgCostPerItem, prevSummary?.avgCostPerItem) : '';
-                const staffDiff = previousPeriodDataset ? getDiffHtmlForMetric('avgStaff', summary.avgStaff, prevSummary?.avgStaff) : '';
-                const timeDiff = previousPeriodDataset ? getDiffHtmlForMetric('avgTime', summary.avgTime, prevSummary?.avgTime) : '';
+                // [ ✨ 수정 ✨ ] (테이블 증감 계산 시 getDiffHtmlForMetric을 올바르게 호출)
+                const tableThroughputDiff = previousPeriodDataset ? getDiffHtmlForMetric('avgThroughput', summary.avgThroughput, prevSummary?.avgThroughput) : '';
+                const tableCostDiff = previousPeriodDataset ? getDiffHtmlForMetric('avgCostPerItem', summary.avgCostPerItem, prevSummary?.avgCostPerItem) : '';
+                const tableStaffDiff = previousPeriodDataset ? getDiffHtmlForMetric('avgStaff', summary.avgStaff, prevSummary?.avgStaff) : '';
+                const tableTimeDiff = previousPeriodDataset ? getDiffHtmlForMetric('avgTime', summary.avgTime, prevSummary?.avgTime) : '';
 
-                // ✅ [수정] <td> 내부 구조 변경 (div + span)
                 html += `<tr class="bg-white border-b hover:bg-gray-50">
                            <td class="px-4 py-2 font-medium text-gray-900">${task}</td>
                            <td class="px-4 py-2 text-right">
                                 <div>${summary.avgThroughput.toFixed(2)}</div>
-                                ${throughputDiff}
+                                ${tableThroughputDiff}
                            </td>
                            <td class="px-4 py-2 text-right">
                                 <div>${summary.avgCostPerItem.toFixed(0)}</div>
-                                ${costDiff}
+                                ${tableCostDiff}
                            </td>
                            <td class="px-4 py-2 text-right">
                                 <div>${summary.avgStaff}</div>
-                                ${staffDiff}
+                                ${tableStaffDiff}
                            </td>
                            <td class="px-4 py-2 text-right">
                                 <div>${formatDuration(summary.avgTime)}</div>
-                                ${timeDiff}
+                                ${tableTimeDiff}
                            </td>
                          </tr>`;
             }
@@ -181,7 +283,6 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
     }
 
     if (!hasTaskData) {
-        // ✅ [수정] colspan="5"
         html += `<tr><td colspan="5" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
     }
 
@@ -421,16 +522,11 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 };
 
 /**
- * ✅ [수정] renderAggregatedAttendanceSummary (ui.js -> ui-history.js)
+ * ================== [ ✨ 수정된 함수 ✨ ] ==================
  * (주별/월별 근태 요약 렌더링을 위한 공통 헬퍼 함수)
+ * (선택한 'periodKey'의 데이터만 렌더링하도록 수정)
  */
-// (이 함수는 변경되지 않았습니다. 주/월별 상세 표시에 재사용됩니다.)
 const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKey) => {
-    
-    // ================== [ ✨ 수정된 부분 ✨ ] ==================
-    // (기존: 모든 periodKey를 순회 -> 단일 periodKey만 처리)
-    // const sortedKeys = Object.keys(aggregationMap).sort((a,b) => b.localeCompare(a));
-    // if (sortedKeys.length === 0) { ... }
     
     const data = aggregationMap[periodKey];
     if (!data) {
@@ -439,26 +535,19 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
     }
 
     let html = '';
-    // sortedKeys.forEach(periodKey => { ... }); // (루프 제거)
-    // =======================================================
         
         // [수정] 근태 항목 집계 (member-type 기준)
         const summary = data.leaveEntries.reduce((acc, entry) => {
             const key = `${entry.member}-${entry.type}`;
             
-            // [수정] days: 0 제거, count만 초기화
             if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0 };
 
-            // [수정] '연차', '출장', '결근'은 date-based (날짜 기반)
             if (['연차', '출장', '결근'].includes(entry.type)) {
-                 // 이 entry는 하루에 하나씩 추가되므로, count가 곧 days임.
                  acc[key].count += 1;
             } 
-            // [수정] '외출', '조퇴'는 time-based (시간 기반)
             else if (['외출', '조퇴'].includes(entry.type)) {
                  acc[key].count += 1;
             }
-            // (기타 유형도 count)
             
             return acc;
         }, {});
@@ -488,10 +577,10 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
             });
         }
         html += `</div></div>`;
-    // }); // (루프 제거)
 
     viewElement.innerHTML = html;
 };
+// =========================================================
 
 /**
  * ================== [ ✨ 수정된 함수 ✨ ] ==================
