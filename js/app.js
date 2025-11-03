@@ -242,6 +242,9 @@ export let appConfig = {
     keyTasks: []
 };
 
+// ✅ [추가] 이 줄을 여기에 추가해야 합니다.
+export let allHistoryData = [];
+
 // ⛔️ [삭제] 
 // ⛔️ (컨텍스트 변수) ... (export let selectedTaskForStart = null; ... 등 13줄 모두 삭제)
 // ⛔️ ...
