@@ -3,7 +3,8 @@
 // app.js (메인)에서 가져올 핵심 상태 및 DOM 요소들
 import {
     appState, appConfig, db, auth, 
-    persistentLeaveSchedule, allHistoryData, trendCharts,
+    persistentLeaveSchedule, allHistoryData, 
+    // ✅ [수정] trendCharts를 이 목록에서 제거했습니다.
     
     // 상태 변수
     recordCounter, recordIdOrGroupIdToEdit, editType,
@@ -68,13 +69,13 @@ import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime } fro
 // ui.js (통합)에서 가져올 렌더링 함수
 import {
     getAllDashboardDefinitions,
-    renderRealtimeStatus, // (이건 app.js의 render()가 호출)
     renderManualAddModalDatalists,
     renderQuantityModalInputs,
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderPersonalAnalysis,
-    renderTrendAnalysisCharts
+    renderTrendAnalysisCharts,
+    trendCharts // ✅ [수정] trendCharts를 app.js가 아닌 ui.js에서 가져옵니다.
 } from './ui.js';
 
 // app-logic.js (업무 로직)
