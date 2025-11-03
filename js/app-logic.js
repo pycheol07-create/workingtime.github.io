@@ -8,9 +8,10 @@ import {
 } from './app.js'; 
 
 // utils.js에서 헬퍼 함수들을 가져옵니다.
-// ✅ [수정] getTodayDateString을 추가합니다.
 import { debounce, calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
 
+// ✅ [수정] Firebase Firestore의 doc 및 setDoc 함수를 가져옵니다.
+import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 // Firebase Firestore의 doc 함수를 가져옵니다.
 import { doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 

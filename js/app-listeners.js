@@ -4,20 +4,7 @@
 import {
     appState, appConfig, db, auth, 
     persistentLeaveSchedule, allHistoryData,
-    
-    // ✅ [수정] context 객체를 import
     context, 
-    
-    // ⛔️ [삭제] context로 이동한 모든 상태 변수들
-    // recordCounter, recordIdOrGroupIdToEdit, editType,
-    // selectedTaskForStart, selectedGroupForAdd,
-    // recordToDeleteId, recordToStopId, historyKeyToDelete,
-    // recordToEditId, deleteMode, groupToStopId,
-    // quantityModalContext, tempSelectedMembers,
-    // memberToSetLeave, memberToCancelLeave, activeMainHistoryTab,
-    // attendanceRecordToDelete,
-
-    // ✅ [유지] LEAVE_TYPES는 const이므로 context에 없음
     LEAVE_TYPES,
 
     // DOM 요소 (전부)
@@ -54,6 +41,9 @@ import {
     editStartTimeContextIdInput, editStartTimeContextTypeInput, confirmEditStartTimeBtn,
     cancelEditStartTimeBtn,
     analysisMemberSelect,
+
+    // ✅ [추가] 이 DOM 요소를 import 목록에 추가합니다.
+    editLeaveModal,
 
     // app.js (메인)의 헬퍼/로직 함수
     render, debouncedSaveState, saveStateToFirestore, 
