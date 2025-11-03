@@ -38,7 +38,14 @@ export const renderTaskAnalysis = (appState, appConfig) => {
 
     let gradientParts = [];
     let cumulativePercentage = 0;
-    let legendHTML = '<div class="flex-grow">';
+    
+    // ================== [ ✨ 수정된 부분 ✨ ] ==================
+    // 기존:
+    // let legendHTML = '<div class="flex-grow">';
+    //
+    // 변경: (max-h-72: 최대 높이 288px, overflow-y-auto: 세로 스크롤, pr-2: 스크롤바 여백)
+    let legendHTML = '<div class="flex-grow max-h-72 overflow-y-auto pr-2">';
+    // =========================================================
 
     sortedTasks.forEach(([task, minutes]) => {
         const percentage = totalLoggedMinutes > 0 ? (minutes / totalLoggedMinutes) * 100 : 0;
