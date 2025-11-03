@@ -7,7 +7,6 @@ import {
     appState, persistentLeaveSchedule, appConfig,
     recordCounter, // generateId를 위해
     elapsedTimeTimer, autoSaveTimer, // 타이머 제어
-    appStateHistory, // ❗️ app.js에서 이 변수들을 export 해야 합니다.
     recordIdOrGroupIdToEdit,
     editType,
     isDataDirty,
