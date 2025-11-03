@@ -189,13 +189,16 @@ export let unsubscribeToday;
 export let unsubscribeLeaveSchedule;
 export let unsubscribeConfig; 
 export let elapsedTimeTimer = null;
+
+// ✅ [수정] 이 아래 변수들을 모두 const에서 let으로 변경합니다.
+// (다른 모듈에서 값을 재할당해야 하기 때문입니다)
 export let recordCounter = 0;
 export let recordIdOrGroupIdToEdit = null;
 export let editType = null; 
 
 export let isDataDirty = false;
 export let autoSaveTimer = null;
-export const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
+export const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // (이것만 const 유지)
 
 export let appState = {
   workRecords: [],
@@ -204,7 +207,6 @@ export let appState = {
   dateBasedOnLeaveMembers: [],
   partTimers: [],
   hiddenGroupIds: [],
-  // (로그인 시 채워짐)
   currentUser: null,
   currentUserRole: 'user' 
 };
@@ -226,7 +228,7 @@ export let selectedGroupForAdd = null;
 export let recordToDeleteId = null;
 export let recordToStopId = null;
 export let historyKeyToDelete = null;
-export let allHistoryData = []; // ✅ 이력 데이터 (전역 관리)
+export let allHistoryData = []; 
 export let recordToEditId = null;
 export let deleteMode = 'single';
 export let groupToStopId = null;
@@ -237,7 +239,7 @@ export let memberToCancelLeave = null;
 export let activeMainHistoryTab = 'work';
 export let attendanceRecordToDelete = null; 
 
-export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
+export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장']; // (이것도 const 유지)
 
 // ========== 7. Core Helpers (EXPORT) ==========
 // (utils.js로 이동한 함수는 삭제)
