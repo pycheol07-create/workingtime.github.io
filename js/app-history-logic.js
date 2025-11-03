@@ -4,10 +4,7 @@ import {
     appState, appConfig, db, auth, 
     allHistoryData, 
     
-    // ⛔️ [삭제] quantityModalContext, historyKeyToDelete, 
-    activeMainHistoryTab, 
-    
-    // ✅ [추가] context 객체를 import
+    // ✅ [수정] context 객체만 import 합니다.
     context,
     
     // DOM Elements (app.js에서 가져옴)
@@ -216,14 +213,15 @@ export const loadAndRenderHistoryList = async () => {
             const viewEl = document.getElementById(viewId);
             if (viewEl) viewEl.innerHTML = '';
         });
-        // 트렌드 분석 차트도 비워야 하지만, 해당 탭을 클릭할 때 렌더링되므로 일단 둠.
         return;
     }
 
-    const activeSubTabBtn = (activeMainHistoryTab === 'work')
+    // ✅ [수정] context.activeMainHistoryTab을 사용합니다.
+    const activeSubTabBtn = (context.activeMainHistoryTab === 'work')
         ? historyTabs?.querySelector('button.font-semibold')
         : attendanceHistoryTabs?.querySelector('button.font-semibold');
-    const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
+    // ✅ [수정] context.activeMainHistoryTab을 사용합니다.
+    const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
     
     switchHistoryView(activeView); 
 };
@@ -265,10 +263,11 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
         firstButton.classList.add('bg-blue-100', 'font-bold');
         if (mode === 'day') {
              const previousDayData = (allHistoryData.length > 1) ? allHistoryData[1] : null;
-             if (activeMainHistoryTab === 'work') {
+             
+             // ✅ [수정] context.activeMainHistoryTab을 사용합니다.
+             if (context.activeMainHistoryTab === 'work') {
                 renderHistoryDetail(firstButton.dataset.key, previousDayData);
              } else {
-                // ui-history.js에서 렌더링 함수를 가져옵니다.
                 renderAttendanceDailyHistory(firstButton.dataset.key, allHistoryData);
              }
         }
