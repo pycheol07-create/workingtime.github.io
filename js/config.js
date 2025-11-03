@@ -56,7 +56,7 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             
-            // ✅ [수정] taskGroups 마이그레이션 로직
+            // ✅ [수정] taskGroups 마이그레이션 로직 (더욱 강력하게 수정)
             if (Array.isArray(loadedData.taskGroups)) {
                 // 1. Firestore에 이미 새 배열 [] 형식이면 그대로 사용
                 mergedConfig.taskGroups = loadedData.taskGroups;
@@ -64,7 +64,9 @@ export const loadAppConfig = async (dbInstance) => {
                 // 2. Firestore에 이전 객체 {} 형식이면 새 배열 [] 형식으로 변환
                 console.warn("Firestore 'taskGroups' (객체)를 (배열) 형식으로 마이그레이션합니다.");
                 mergedConfig.taskGroups = Object.entries(loadedData.taskGroups).map(([groupName, tasks]) => {
-                    return { name: groupName, tasks: tasks || [] };
+                    // ✅ [수정] tasks가 배열이 아닐 수도 있는 경우(null, string 등)를 대비해
+                    // ✅ Array.isArray()로 확인하고, 아니면 강제로 빈 배열을 할당합니다.
+                    return { name: groupName, tasks: Array.isArray(tasks) ? tasks : [] };
                 });
             } else {
                 // 3. Firestore에 데이터가 없으면 기본값(배열) 사용

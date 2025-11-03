@@ -244,22 +244,22 @@ function renderKeyTasks(keyTasks) {
 }
 
 
-function renderTaskGroups(taskGroups) { // taskGroups is now an Array: [{name: 'G1', tasks: [...]}, ...]
+function renderTaskGroups(taskGroups) { // taskGroups is an Array: [{name: 'G1', tasks: [...]}, ...]
     const container = document.getElementById('task-groups-container');
     container.innerHTML = '';
     
-    // ✅ [수정] taskGroups 배열(Array)을 직접 순회(forEach)합니다.
-    (taskGroups || []).forEach((group, index) => { // .forEach 앞에 (taskGroups || [])로 안전장치 추가
+    (taskGroups || []).forEach((group, index) => {
         
-        // ✅ [수정] groupName과 tasks를 배열 요소(group)에서 가져옵니다.
         const groupName = group.name;
-        const tasks = group.tasks || []; // tasks도 배열이어야 합니다.
+        // ✅ [수정] group.tasks가 배열(Array)이 아닐 경우(null, string 등)를 대비해
+        // ✅ Array.isArray()로 확인하고, 아니면 강제로 빈 배열을 할당합니다.
+        const tasks = Array.isArray(group.tasks) ? group.tasks : [];
         
         const groupEl = document.createElement('div');
         groupEl.className = 'p-4 border rounded-lg bg-gray-50 task-group-card';
         groupEl.dataset.index = index;
 
-        // ✅ [수정] tasks.map()이 이제 정상 작동해야 합니다.
+        // ✅ tasks가 이제 확실히 배열이므로 .map()이 정상 작동합니다.
         const tasksHtml = tasks.map((task, tIndex) => `
             <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item">
                 <span class="drag-handle" draggable="true">☰</span>
