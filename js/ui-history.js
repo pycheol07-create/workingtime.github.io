@@ -24,24 +24,26 @@ const getDiffHtmlForMetric = (metric, current, previous) => {
     // [ ✨✨✨ 핵심 수정 ✨✨✨ ]
     // (모든 +는 green, 모든 -는 red로 통일)
     let colorClass = 'text-gray-500';
-    if (diff > 0) {
-        colorClass = 'text-green-600'; // 플러스(+)는 초록색
-    } else {
-        colorClass = 'text-red-600'; // 마이너스(-)는 빨간색
+    // ✅ [수정] 효율성 지표(avgThroughput, quantity, avgStaff)는 높을수록 좋음
+    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity'].includes(metric)) {
+        colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
+    } 
+    // ✅ [수정] 비용 지표(avgCostPerItem, duration, totalCost, nonWorkTime)는 낮을수록 좋음
+    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount'].includes(metric)) {
+        colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
     }
-    // [ ✨✨✨ (기존 if/else if 복잡한 로직 삭제) ✨✨✨ ]
     
     let diffStr = '';
     let prevStr = '';
     // [ ✨ 수정 ✨ ] (포맷팅)
-    if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration') {
+    if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration' || metric === 'nonWorkTime') {
         diffStr = formatDuration(Math.abs(diff));
         prevStr = formatDuration(prevValue);
     // [ ✨ 수정 ✨ ] (포맷팅)
-    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem') {
+    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem' || metric === 'activeMembersCount') {
         diffStr = Math.round(Math.abs(diff)).toLocaleString(); // 👈 .toFixed(0) -> .toLocaleString()
         prevStr = Math.round(prevValue).toLocaleString();
-    } else { // avgThroughput
+    } else { // avgThroughput, overallAvgThroughput
         diffStr = Math.abs(diff).toFixed(2);
         prevStr = prevValue.toFixed(2);
     }
@@ -944,7 +946,7 @@ export const renderTrendAnalysisCharts = (allHistoryData, appConfig, trendCharts
 // ✅ [수정] 업무 리포트 렌더링 함수 (Placeholder -> 실제 구현)
 
 /**
- * 헬퍼: 테이블 행 생성
+ * 헬퍼: 테이블 행 생성 (증감율 표시 지원)
  */
 const createTableRow = (columns, isHeader = false) => {
     const cellTag = isHeader ? 'th' : 'td';
@@ -958,86 +960,57 @@ const createTableRow = (columns, isHeader = false) => {
         if (index > 0) { 
              alignClass = 'text-right';
         }
+        
+        // 객체로 셀 데이터가 오면 (증감율 포함)
         if (typeof col === 'object' && col !== null) {
-            // ✅ [수정] span 태그 추가 (증감율 표시용)
             return `<${cellTag} class="${cellClass} ${alignClass} ${col.class || ''}">
                         <div>${col.content}</div>
                         ${col.diff || ''}
                     </${cellTag}>`;
         }
+        // 문자열로 오면 (단순 텍스트)
         return `<${cellTag} class="${cellClass} ${alignClass}">${col}</${cellTag}>`;
     }).join('');
     
     return `<tr class="${rowClass}">${cellsHtml}</tr>`;
 };
 
+
 /**
- * 일별 리포트 렌더링 (실제 구현)
+ * 헬퍼: 일별 리포트용 KPI 계산
  */
-export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
-    const view = document.getElementById('report-daily-view');
-    if (!view) return;
-    view.innerHTML = '<div class="text-center text-gray-500">일별 리포트 집계 중...</div>';
-
-    // ✅ [수정] allHistoryData(필터링 된)가 아닌 '원본' allHistoryData에서 데이터를 찾아야 함
-    // (app-history-logic.js의 renderHistoryDateListByMode에서 filteredData를 사용하고 있으나,
-    // 증감율 비교를 위해선 원본(allHistoryData) 접근이 필요함. 
-    // 여기서는 일단 함수로 넘어온 allHistoryData가 '필터링 된' 데이터라고 가정하고,
-    // 증감율 계산(prevTaskMetrics) 시에도 이 '필터링 된' 데이터 내에서만 찾도록 구현합니다.)
-
-    // const data = allHistoryData.find(d => d.id === dateKey); // <- 이 allHistoryData가 필터링 되었을 수 있음
-    
-    // ✅ [수정] 필터링 여부와 관계없이, '원본' 데이터 소스(allHistoryData)에서 날짜 키로 데이터를 찾습니다.
-    // (app.js에서 export한 allHistoryData를 직접 참조해야 하나, 순환 참조 문제로 인해
-    // 이 함수로 전달된 allHistoryData가 '필터링 되지 않은 원본'이라고 가정하고 진행합니다.
-    // -> 앗, app-history-logic.js에서 이 함수를 호출할 때 filteredData를 넘겨주기로 했습니다.
-    // -> 증감율 계산을 위해 '원본' allHistoryData가 필요합니다.
-    // -> 이 함수(renderReportDaily)는 원본 allHistoryData를 직접 참조하도록 수정해야 합니다.
-    // -> 하지만 app.js를 import할 수 없습니다.
-    // -> [결론] app-history-logic.js에서 renderReportDaily를 호출할 때,
-    // 1. dateKey
-    // 2. appConfig
-    // 3. '필터링된' allHistoryData (목록에서 이전/다음을 찾기 위함)
-    // 4. '원본' allHistoryData (증감율 비교용)
-    // 이렇게 4개를 넘겨주도록 수정해야 합니다.
-    
-    // [임시 조치] 일단 넘어온 allHistoryData를 '필터링 된 데이터'로 간주하고,
-    // 증감율 계산(prevTaskMetrics)도 '필터링 된 데이터' 내에서만 수행합니다.
-    const data = allHistoryData.find(d => d.id === dateKey);
-    
+const _calculateDailyReportKPIs = (data, appConfig, wageMap) => {
     if (!data) {
-        view.innerHTML = '<div class="text-center text-gray-500">데이터 없음</div>';
-        return;
+        return {
+            totalDuration: 0, totalCost: 0, totalQuantity: 0,
+            overallAvgThroughput: 0, overallAvgCostPerItem: 0,
+            activeMembersCount: 0, nonWorkMinutes: 0, totalQualityCost: 0
+        };
     }
-
+    
     const records = data.workRecords || [];
     const quantities = data.taskQuantities || {};
     const onLeaveMemberEntries = data.onLeaveMembers || [];
     const partTimersFromHistory = data.partTimers || [];
+    const qualityCostTasks = new Set(appConfig.qualityCostTasks || []);
 
-    // --- 1. WageMap 및 PartMap 생성 ---
-    const wageMap = { ...(appConfig.memberWages || {}) };
-    partTimersFromHistory.forEach(pt => {
-        if (pt && pt.name && !wageMap[pt.name]) {
-            wageMap[pt.name] = pt.wage || 0;
+    let totalDuration = 0;
+    let totalCost = 0;
+    let totalQualityCost = 0;
+    
+    records.forEach(r => {
+        const duration = r.duration || 0;
+        const cost = (duration / 60) * (wageMap[r.member] || 0);
+        
+        totalDuration += duration;
+        totalCost += cost;
+        
+        if (qualityCostTasks.has(r.task)) {
+            totalQualityCost += cost;
         }
     });
 
-    const memberToPartMap = new Map();
-    (appConfig.teamGroups || []).forEach(group => {
-        group.members.forEach(member => {
-            memberToPartMap.set(member, group.name);
-        });
-    });
-
-    // --- 2. KPI 계산 ---
-    const totalDuration = records.reduce((s, r) => s + (r.duration || 0), 0);
     const totalQuantity = Object.values(quantities).reduce((s, q) => s + (Number(q) || 0), 0);
-    const totalCost = records.reduce((s, r) => {
-        const wage = wageMap[r.member] || 0;
-        return s + ((r.duration || 0) / 60) * wage;
-    }, 0);
-    
     const overallAvgThroughput = totalDuration > 0 ? (totalQuantity / totalDuration) : 0;
     const overallAvgCostPerItem = totalQuantity > 0 ? (totalCost / totalQuantity) : 0;
 
@@ -1048,12 +1021,25 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     const activeMembersCount = activeRegularMembers + activePartTimers;
 
     let nonWorkMinutes = 0;
-    if (isWeekday(dateKey)) {
+    if (isWeekday(data.id)) {
         const totalPotentialMinutes = activeMembersCount * 8 * 60; // 8시간 기준
         nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalDuration);
     }
+    
+    return {
+        totalDuration, totalCost, totalQuantity,
+        overallAvgThroughput, overallAvgCostPerItem,
+        activeMembersCount, nonWorkMinutes, totalQualityCost
+    };
+};
 
-    // --- 3. 데이터 집계 (파트별, 인원별, 업무별) ---
+/**
+ * 헬퍼: 일별 리포트용 상세 집계 계산
+ */
+const _calculateDailyReportAggregations = (data, appConfig, wageMap, memberToPartMap) => {
+    const records = data?.workRecords || [];
+    const quantities = data?.taskQuantities || {};
+    
     const partSummary = {};
     const memberSummary = {};
     const taskSummary = {};
@@ -1065,28 +1051,23 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
         const cost = (duration / 60) * wage;
         const part = memberToPartMap.get(r.member) || '알바';
 
-        // 3a. 파트별 집계
         if (!partSummary[part]) partSummary[part] = { duration: 0, cost: 0, members: new Set() };
         partSummary[part].duration += duration;
         partSummary[part].cost += cost;
         partSummary[part].members.add(r.member);
 
-        // 3b. 인원별 집계
         if (!memberSummary[r.member]) memberSummary[r.member] = { duration: 0, cost: 0, tasks: new Set(), part: part };
         memberSummary[r.member].duration += duration;
         memberSummary[r.member].cost += cost;
         memberSummary[r.member].tasks.add(r.task);
 
-        // 3c. 업무별 집계
-        // ✅ [수정] recordCount 추가
         if (!taskSummary[r.task]) taskSummary[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
         taskSummary[r.task].duration += duration;
         taskSummary[r.task].cost += cost;
         taskSummary[r.task].members.add(r.member);
-        taskSummary[r.task].recordCount += 1; // ✅ [추가]
+        taskSummary[r.task].recordCount += 1;
     });
-    
-    // ✅ [추가] 3d. 업무별 통계 후처리 (증감율 비교를 위해)
+
     const allTaskKeys = new Set([...Object.keys(taskSummary), ...Object.keys(quantities)]);
     allTaskKeys.forEach(task => {
         if (!taskSummary[task]) {
@@ -1100,73 +1081,116 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
         summary.avgCostPerItem = qty > 0 ? (summary.cost / qty) : 0;
         summary.avgStaff = summary.members.size;
         summary.avgTime = (summary.recordCount > 0) ? (summary.duration / summary.recordCount) : 0;
+        summary.efficiency = summary.avgStaff > 0 ? (summary.avgThroughput / summary.avgStaff) : 0;
     });
+    
+    return { partSummary, memberSummary, taskSummary };
+};
 
-    // ✅ [추가] 3e. 이전 데이터 가져오기 (증감율 비교용)
-    // (renderHistoryDetail 로직 복사)
-    let prevTaskMetrics = {};
-    // ✅ [수정] 'allHistoryData'(필터링된)를 사용합니다.
-    const currentIndex = allHistoryData.findIndex(d => d.id === dateKey); 
 
-    if (currentIndex > -1) {
-        allTaskKeys.forEach(task => {
-            let foundPrevDayData = null;
-            // ✅ [수정] 'allHistoryData'(필터링된)를 순회합니다.
-            for (let i = currentIndex + 1; i < allHistoryData.length; i++) {
-                const prevDay = allHistoryData[i]; 
-                if (prevDay.workRecords?.some(r => r.task === task && (r.duration || 0) > 0) || (prevDay.taskQuantities?.[task] || 0) > 0) {
-                    foundPrevDayData = prevDay;
-                    break; 
-                }
-            }
+/**
+ * 일별 리포트 렌더링 (실제 구현)
+ */
+export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
+    const view = document.getElementById('report-daily-view');
+    if (!view) return;
+    view.innerHTML = '<div class="text-center text-gray-500">일별 리포트 집계 중...</div>';
 
-            if (foundPrevDayData) {
-                const prevRecords = foundPrevDayData.workRecords || [];
-                const prevQuantities = foundPrevDayData.taskQuantities || {};
-                
-                const taskRecords = prevRecords.filter(r => r.task === task);
-                const duration = taskRecords.reduce((sum, r) => sum + (Number(r.duration) || 0), 0);
-                const cost = taskRecords.reduce((sum, r) => {
-                    // ✅ [수정] wageMap을 올바르게 참조
-                    const wage = wageMap[r.member] || 0; 
-                    return sum + ((Number(r.duration) || 0) / 60) * wage;
-                }, 0);
-                const qty = Number(prevQuantities[task]) || 0;
-                const members = new Set(taskRecords.map(r => r.member));
-                const recordCount = taskRecords.length;
+    // allHistoryData는 필터링된 데이터일 수 있습니다.
+    const data = allHistoryData.find(d => d.id === dateKey);
+    if (!data) {
+        view.innerHTML = '<div class="text-center text-gray-500">데이터 없음</div>';
+        return;
+    }
+    
+    // 증감율 비교를 위해 이전 날짜 데이터를 (필터링된) 목록에서 찾습니다.
+    const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
+    const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
+                                ? allHistoryData[currentIndex + 1] 
+                                : null;
 
-                prevTaskMetrics[task] = {
-                    date: foundPrevDayData.id,
-                    duration: duration,
-                    cost: cost,
-                    quantity: qty,
-                    avgThroughput: duration > 0 ? (qty / duration) : 0,
-                    avgCostPerItem: qty > 0 ? (cost / qty) : 0,
-                    avgStaff: members.size,
-                    avgTime: recordCount > 0 ? (duration / recordCount) : 0
-                };
+    // --- 1. Map 생성 ---
+    const wageMap = { ...(appConfig.memberWages || {}) };
+    (data.partTimers || []).forEach(pt => {
+        if (pt && pt.name && !wageMap[pt.name]) {
+            wageMap[pt.name] = pt.wage || 0;
+        }
+    });
+    // 이전 날짜의 알바 정보도 wageMap에 추가 (데이터가 없을 경우 대비)
+    if (previousDayData) {
+        (previousDayData.partTimers || []).forEach(pt => {
+            if (pt && pt.name && !wageMap[pt.name]) {
+                wageMap[pt.name] = pt.wage || 0;
             }
         });
     }
 
+    const memberToPartMap = new Map();
+    (appConfig.teamGroups || []).forEach(group => {
+        group.members.forEach(member => {
+            memberToPartMap.set(member, group.name);
+        });
+    });
+
+    // --- 2. 오늘 KPI 및 집계 계산 ---
+    const todayKPIs = _calculateDailyReportKPIs(data, appConfig, wageMap);
+    const todayAggr = _calculateDailyReportAggregations(data, appConfig, wageMap, memberToPartMap);
+    
+    // --- 3. 이전 날짜 KPI 및 집계 계산 ---
+    const prevKPIs = _calculateDailyReportKPIs(previousDayData, appConfig, wageMap);
+    const prevAggr = _calculateDailyReportAggregations(previousDayData, appConfig, wageMap, memberToPartMap);
+    
     // --- 4. HTML 렌더링 ---
     let html = `<div class="space-y-6">`;
-    html += `<h2 class="text-2xl font-bold text-gray-800">${dateKey} 업무 리포트</h2>`;
+    html += `<h2 class="text-2xl font-bold text-gray-800">${dateKey} 업무 리포트 (이전 기록 대비)</h2>`;
     
-    // 4a. KPI 요약
+    // 4a. KPI 요약 (8개, 증감율 포함)
     html += `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">총 업무 시간</div><div class="text-xl font-bold">${formatDuration(totalDuration)}</div></div>
-            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">총 인건비</div><div class="text-xl font-bold">${Math.round(totalCost).toLocaleString()} 원</div></div>
-            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">총 처리량</div><div class="text-xl font-bold">${totalQuantity.toLocaleString()} 개</div></div>
-            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">분당 처리량</div><div class="text-xl font-bold">${overallAvgThroughput.toFixed(2)} 개/분</div></div>
-            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">개당 처리비용</div><div class="text-xl font-bold">${overallAvgCostPerItem.toFixed(0)} 원/개</div></div>
-            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">근무 인원</div><div class="text-xl font-bold">${activeMembersCount} 명</div></div>
-            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">비업무 시간</div><div class="text-xl font-bold">${formatDuration(nonWorkMinutes)}</div></div>
+            <div class="bg-white p-3 rounded-lg shadow-sm">
+                <div class="text-xs text-gray-500">총 업무 시간</div>
+                <div class="text-xl font-bold">${formatDuration(todayKPIs.totalDuration)}</div>
+                ${getDiffHtmlForMetric('totalDuration', todayKPIs.totalDuration, prevKPIs.totalDuration)}
+            </div>
+            <div class="bg-white p-3 rounded-lg shadow-sm">
+                <div class="text-xs text-gray-500">총 인건비</div>
+                <div class="text-xl font-bold">${Math.round(todayKPIs.totalCost).toLocaleString()} 원</div>
+                ${getDiffHtmlForMetric('totalCost', todayKPIs.totalCost, prevKPIs.totalCost)}
+            </div>
+            <div class="bg-white p-3 rounded-lg shadow-sm">
+                <div class="text-xs text-gray-500">총 처리량</div>
+                <div class="text-xl font-bold">${todayKPIs.totalQuantity.toLocaleString()} 개</div>
+                ${getDiffHtmlForMetric('totalQuantity', todayKPIs.totalQuantity, prevKPIs.totalQuantity)}
+            </div>
+            <div class="bg-white p-3 rounded-lg shadow-sm">
+                <div class="text-xs text-gray-500">분당 처리량</div>
+                <div class="text-xl font-bold">${todayKPIs.overallAvgThroughput.toFixed(2)} 개/분</div>
+                ${getDiffHtmlForMetric('overallAvgThroughput', todayKPIs.overallAvgThroughput, prevKPIs.overallAvgThroughput)}
+            </div>
+            <div class="bg-white p-3 rounded-lg shadow-sm">
+                <div class="text-xs text-gray-500">개당 처리비용</div>
+                <div class="text-xl font-bold">${todayKPIs.overallAvgCostPerItem.toFixed(0)} 원/개</div>
+                ${getDiffHtmlForMetric('overallAvgCostPerItem', todayKPIs.overallAvgCostPerItem, prevKPIs.overallAvgCostPerItem)}
+            </div>
+            <div class="bg-white p-3 rounded-lg shadow-sm">
+                <div class="text-xs text-gray-500">근무 인원</div>
+                <div class="text-xl font-bold">${todayKPIs.activeMembersCount} 명</div>
+                ${getDiffHtmlForMetric('activeMembersCount', todayKPIs.activeMembersCount, prevKPIs.activeMembersCount)}
+            </div>
+            <div class="bg-white p-3 rounded-lg shadow-sm">
+                <div class="text-xs text-gray-500">비업무 시간</div>
+                <div class="text-xl font-bold">${formatDuration(todayKPIs.nonWorkMinutes)}</div>
+                ${getDiffHtmlForMetric('nonWorkTime', todayKPIs.nonWorkMinutes, prevKPIs.nonWorkMinutes)}
+            </div>
+            <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200">
+                <div class="text-xs text-red-600 font-semibold">총 품질 비용 (COQ)</div>
+                <div class="text-xl font-bold text-red-600">${Math.round(todayKPIs.totalQualityCost).toLocaleString()} 원</div>
+                ${getDiffHtmlForMetric('totalCost', todayKPIs.totalQualityCost, prevKPIs.totalQualityCost)}
+            </div>
         </div>
     `;
 
-    // 4b. 파트별 요약
+    // 4b. 파트별 요약 (증감율 포함)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">파트별 요약</h3>
@@ -1175,15 +1199,17 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
                     <thead>${createTableRow(['파트', '총 업무시간', '총 인건비', '참여 인원 (명)'], true)}</thead>
                     <tbody>
     `;
-    const sortedParts = Object.keys(partSummary).sort();
+    const allParts = new Set([...Object.keys(todayAggr.partSummary), ...Object.keys(prevAggr.partSummary)]);
+    const sortedParts = Array.from(allParts).sort();
     if (sortedParts.length > 0) {
         sortedParts.forEach(part => {
-            const d = partSummary[part];
+            const d = todayAggr.partSummary[part] || { duration: 0, cost: 0, members: new Set() };
+            const p = prevAggr.partSummary[part] || { duration: 0, cost: 0, members: new Set() };
             html += createTableRow([
                 part,
-                formatDuration(d.duration),
-                `${Math.round(d.cost).toLocaleString()} 원`,
-                d.members.size
+                { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p.duration) },
+                { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, p.cost) },
+                { content: d.members.size, diff: getDiffHtmlForMetric('activeMembersCount', d.members.size, p.members.size) }
             ]);
         });
     } else {
@@ -1191,50 +1217,53 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     }
     html += `</tbody></table></div></div>`;
     
-    // 4c. 인원별 상세
+    // 4c. 인원별 상세 (증감율, 업무 수 포함)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">인원별 상세</h3>
             <div class="overflow-x-auto max-h-[60vh]">
                 <table class="w-full text-sm text-left text-gray-600">
-                    <thead>${createTableRow(['이름', '파트', '총 업무시간', '총 인건비', '수행 업무'], true)}</thead>
+                    <thead>${createTableRow(['이름', '파트', '총 업무시간', '총 인건비', '수행 업무 수', '수행 업무'], true)}</thead>
                     <tbody>
     `;
-    const sortedMembers = Object.keys(memberSummary).sort();
+    const allMembers = new Set([...Object.keys(todayAggr.memberSummary), ...Object.keys(prevAggr.memberSummary)]);
+    const sortedMembers = Array.from(allMembers).sort();
     if (sortedMembers.length > 0) {
         sortedMembers.forEach(member => {
-            const d = memberSummary[member];
+            const d = todayAggr.memberSummary[member] || { duration: 0, cost: 0, tasks: new Set(), part: memberToPartMap.get(member) || '알바' };
+            const p = prevAggr.memberSummary[member] || { duration: 0, cost: 0, tasks: new Set() };
             const tasksStr = Array.from(d.tasks).join(', ');
             html += createTableRow([
                 member,
                 d.part,
-                formatDuration(d.duration),
-                `${Math.round(d.cost).toLocaleString()} 원`,
+                { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p.duration) },
+                { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, p.cost) },
+                { content: d.tasks.size, diff: getDiffHtmlForMetric('quantity', d.tasks.size, p.tasks.size) },
                 { content: tasksStr, class: "text-xs" } // Task list
             ]);
         });
     } else {
-        html += `<tr><td colspan="5" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+        html += `<tr><td colspan="6" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
     }
     html += `</tbody></table></div></div>`;
 
-    // 4d. 업무별 상세 (✅ [수정] 증감율 및 새 컬럼 추가)
+    // 4d. 업무별 상세 (증감율, 효율성 지표 포함)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
-            <h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 최근 기록 대비)</h3>
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 이전 리포트일 대비)</h3>
             <div class="overflow-x-auto max-h-[70vh]">
                 <table class="w-full text-sm text-left text-gray-600">
-                    <thead>${createTableRow(['업무', '총 시간', '총 인건비', '총 처리량', '분당 처리량', '개당 처리비용', '총 참여인원', '평균 처리시간(건)'], true)}</thead>
+                    <thead>${createTableRow(['업무', '총 시간', '총 인건비', '총 처리량', '분당 처리량(Avg)', '개당 처리비용(Avg)', '총 참여인원', '평균 처리시간(건)', '인당 분당 처리량(효율)'], true)}</thead>
                     <tbody>
     `;
-    const sortedTasks = Array.from(allTaskKeys).sort();
+    const allTasks = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
+    const sortedTasks = Array.from(allTasks).sort();
     if (sortedTasks.length > 0) {
         sortedTasks.forEach(task => {
-            const d = taskSummary[task];
-            const p = prevTaskMetrics[task] || null; // Previous data
-            if (d.duration === 0 && d.quantity === 0) return; // 데이터 없으면 스킵
+            const d = todayAggr.taskSummary[task] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
+            const p = prevAggr.taskSummary[task] || null; // Previous data (null or object)
+            if (d.duration === 0 && d.quantity === 0) return; // 오늘 데이터 없으면 스킵
 
-            // ✅ [수정] 렌더링 함수 호출 시 p 객체에서 올바른 숫자 속성을 전달
             html += createTableRow([
                 { content: task, class: "font-medium text-gray-900" },
                 { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p?.duration) },
@@ -1243,29 +1272,28 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
                 { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, p?.avgThroughput) },
                 { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, p?.avgCostPerItem) },
                 { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, p?.avgStaff) },
-                { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, p?.avgTime) }
+                { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, p?.avgTime) },
+                { content: d.efficiency.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.efficiency, p?.efficiency), class: "font-bold" } // 효율성
             ]);
         });
     } else {
-        html += `<tr><td colspan="8" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+        html += `<tr><td colspan="9" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
     }
     html += `</tbody></table></div></div>`;
 
-    // 4e. 근태 현황 (✅ [수정] 그룹화 로직 적용)
+    // 4e. 근태 현황 (그룹화 적용)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3>
             <div class="space-y-3 max-h-[60vh] overflow-y-auto">
     `;
     
-    // (renderAggregatedAttendanceSummary 로직 복사)
-    const attendanceSummary = onLeaveMemberEntries.reduce((acc, entry) => {
+    const attendanceSummary = (data.onLeaveMembers || []).reduce((acc, entry) => {
         const member = entry.member;
         const type = entry.type;
         if (!acc[member]) acc[member] = { member: member, counts: {} };
         if (!acc[member].counts[type]) acc[member].counts[type] = 0;
         
-        // 일/회 구분 (일별 리포트에서는 모두 '회'로 처리하거나, startDate 기준으로 구분)
         if (entry.startDate) { // 연차, 출장, 결근
              acc[member].counts[type] += 1; // '일'
         } else { // 외출, 조퇴

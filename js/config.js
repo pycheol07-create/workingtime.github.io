@@ -56,6 +56,9 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             
+            // ✅ [추가] 품질 비용 항목 로드
+            mergedConfig.qualityCostTasks = loadedData.qualityCostTasks || defaultData.qualityCostTasks;
+
             // ✅ [수정] taskGroups 마이그레이션 로직 (더욱 강력하게 수정)
             if (Array.isArray(loadedData.taskGroups)) {
                 // 1. Firestore에 이미 새 배열 [] 형식이면 그대로 사용
@@ -175,6 +178,10 @@ function getDefaultConfig() {
         ],
         
         quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '검수'],
+        
+        // ✅ [추가] 품질 비용(COQ)으로 간주할 업무 목록
+        qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
+
         defaultPartTimerWage: 10000
     };
 }
