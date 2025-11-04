@@ -445,46 +445,89 @@ export function setupHistoryModalListeners() {
         makeDraggable(historyModal, historyHeader, historyModalContentBox);
     }
 
-    // --- 15. 이력 모달 전체화면 버튼 리스너 ---
+    // ✅ [수정] --- 15. 이력 모달 전체화면 버튼 리스너 (모니터 전체화면 API 사용) ---
     const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
+    
     if (toggleFullscreenBtn && historyModal && historyModalContentBox) {
+        
+        // 새 아이콘 정의
+        const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`; // 새 확대 아이콘
+        const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`; // 새 축소 아이콘
+
+        // 1. 클릭 이벤트 리스너: Fullscreen API 호출
         toggleFullscreenBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             
-            // 드래그로 인해 적용된 인라인 스타일 초기화
-            historyModalContentBox.style.position = '';
-            historyModalContentBox.style.top = '';
-            historyModalContentBox.style.left = '';
-            historyModalContentBox.style.transform = '';
-            historyModalContentBox.dataset.hasBeenUncentered = 'false';
-
-            // 오버레이(배경)의 정렬 클래스 토글
-            historyModal.classList.toggle('flex');
-            historyModal.classList.toggle('items-center');
-            historyModal.classList.toggle('justify-center');
-            
-            // 콘텐츠 박스의 크기 클래스 토글
-            historyModalContentBox.classList.toggle('max-w-7xl'); // (기본) 최대 너비
-            historyModalContentBox.classList.toggle('h-[90vh]');  // (기본) 높이
-            historyModalContentBox.classList.toggle('w-screen');  // (전체) 너비 100vw
-            historyModalContentBox.classList.toggle('h-screen');  // (전체) 높이 100vh
-            historyModalContentBox.classList.toggle('max-w-none');// (전체) 최대 너비 없음
-
-            // 아이콘 변경
-            const icon = toggleFullscreenBtn.querySelector('svg');
-            const isFullscreen = historyModalContentBox.classList.contains('w-screen');
-            if (isFullscreen) {
-                // 축소 아이콘
-                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M10 4H4v6m0 0l6 6m-6-6l6 6m10 10h6v-6m0 0l-6-6m6 6l-6 6" />`;
-                toggleFullscreenBtn.title = "기본 크기로";
+            if (!document.fullscreenElement) {
+                // 모니터 전체화면 시작
+                historyModalContentBox.requestFullscreen().catch(err => {
+                    alert(`전체화면 모드를 시작할 수 없습니다: ${err.message} (${err.name})`);
+                });
             } else {
-                // 확대 아이콘
-                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
-                toggleFullscreenBtn.title = "전체화면";
+                // 모니터 전체화면 종료
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
             }
         });
-    }
-}
+
+        // 2. Fullscreen 상태 변경 감지 리스너 (아이콘 및 스타일 변경용)
+        const handleFullscreenChange = () => {
+            const icon = toggleFullscreenBtn.querySelector('svg');
+            if (!icon) return;
+
+            // 현재 전체화면 요소가 이 모달 컨텐츠 박스인지 확인
+            if (document.fullscreenElement === historyModalContentBox) {
+                // (A) 전체화면 *진입* 시
+                
+                // 드래그로 인해 적용된 인라인 스타일 초기화
+                historyModalContentBox.style.position = '';
+                historyModalContentBox.style.top = '';
+                historyModalContentBox.style.left = '';
+                historyModalContentBox.style.transform = '';
+                historyModalContentBox.dataset.hasBeenUncentered = 'false';
+
+                // 오버레이(배경)의 정렬 클래스 *제거*
+                historyModal.classList.remove('flex', 'items-center', 'justify-center');
+                
+                // 콘텐츠 박스의 크기 클래스를 *전체화면용*으로 변경
+                historyModalContentBox.classList.remove('max-w-7xl', 'h-[90vh]');
+                historyModalContentBox.classList.add('w-screen', 'h-screen', 'max-w-none');
+
+                // 아이콘 변경
+                icon.innerHTML = iconMinimize;
+                toggleFullscreenBtn.title = "기본 크기로";
+
+            } else if (document.fullscreenElement === null) { 
+                // (B) 전체화면 *종료* 시 (Esc 또는 버튼 클릭)
+
+                // 오버레이(배경)의 정렬 클래스 *복구*
+                historyModal.classList.add('flex', 'items-center', 'justify-center');
+                
+                // 콘텐츠 박스의 크기 클래스를 *기본*으로 변경
+                historyModalContentBox.classList.add('max-w-7xl', 'h-[90vh]');
+                historyModalContentBox.classList.remove('w-screen', 'h-screen', 'max-w-none');
+
+                // 아이콘 변경
+                icon.innerHTML = iconMaximize;
+                toggleFullscreenBtn.title = "전체화면";
+            }
+        };
+
+        // 'document'에 리스너를 추가하여 'Esc' 키도 감지
+        // (중복 등록 방지를 위해 플래그 사용)
+        if (!document.fullscreenListenerAdded) {
+            document.addEventListener('fullscreenchange', handleFullscreenChange);
+            document.fullscreenListenerAdded = true; // 플래그 설정
+        }
+
+        // 3. (페이지 로드 시 초기 아이콘 설정 - 확대 아이콘)
+        const icon = toggleFullscreenBtn.querySelector('svg');
+        if (icon) {
+             icon.innerHTML = iconMaximize;
+        }
+
+    } // ✅ [수정] --- 15번 항목 끝 ---
 
 /**
  * 모달 팝업을 드래그 가능하게 만듭니다.
