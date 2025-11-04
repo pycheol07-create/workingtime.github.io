@@ -441,6 +441,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
     const data = allHistoryData.find(d => d.id === dateKey);
 
+    // --- [ ✨ 수정된 부분 시작 (onclick -> data-action) ✨ ] ---
     let html = `
         <div class="mb-4 pb-2 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
@@ -460,8 +461,10 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
             </div>
         </div>
     `;
+    // --- [ ✨ 수정된 부분 끝 ✨ ] ---
     
-    // --- [ ✨ 수정된 부분 시작 ✨ ] ---
+
+    // --- [ ✨ 수정된 부분 시작 (그룹화 로직) ✨ ] ---
 
     if (!data || !data.onLeaveMembers || data.onLeaveMembers.length === 0) {
         html += `<div class="bg-white p-4 rounded-lg shadow-sm text-center text-gray-500">해당 날짜의 근태 기록이 없습니다.</div>`;
@@ -470,7 +473,15 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     }
 
     const leaveEntries = data.onLeaveMembers;
-    leaveEntries.sort((a, b) => (a.member || '').localeCompare(b.member || ''));
+    // [✨ 수정] 정렬 기준: 1.이름, 2.유형(시간/기간), 3.시작시간/시작일
+    leaveEntries.sort((a, b) => {
+        if (a.member !== b.member) return (a.member || '').localeCompare(b.member || '');
+        if ((a.startTime || a.startDate) !== (b.startTime || b.startDate)) {
+             return (a.startTime || a.startDate || '').localeCompare(b.startTime || b.startDate || '');
+        }
+        return (a.type || '').localeCompare(b.type || '');
+    });
+
 
     // 1. 근태 기록을 멤버별로 그룹화합니다.
     const groupedEntries = new Map();
@@ -518,11 +529,13 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                 }
             }
 
-            html += `<tr class="bg-white border-b hover:bg-gray-50">`;
+            // [✨ 수정] border-b가 tr에 있으므로, rowspan 셀에도 border가 적용되도록
+            html += `<tr class="bg-white hover:bg-gray-50 border-b">`;
             
             // 4. 첫 번째 항목일 때만 '이름' 셀에 rowspan을 적용합니다.
             if (entryIndex === 0) {
-                html += `<td class="px-6 py-4 font-medium text-gray-900" rowspan="${memberEntryCount}">${member}</td>`;
+                // [✨ 수정] 맨 아래 border가 겹치지 않게 border-b-0 추가
+                html += `<td class="px-6 py-4 font-medium text-gray-900 align-top border-b-0" rowspan="${memberEntryCount}">${member}</td>`;
             }
             // (entryIndex > 0 인 경우에는 '이름' 셀을 그리지 않습니다)
 
