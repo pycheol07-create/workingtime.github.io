@@ -185,7 +185,7 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
     // ================== [ ✨ 추가된 부분 4 ✨ ] ==================
     // (총계 카드에 들어갈 증감 HTML 생성)
     const durationDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalDuration', totalDuration, prevTotalDuration) : '';
-    const quantityDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalQuantity', totalDuration, prevTotalQuantity) : '';
+    const quantityDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalQuantity', totalQuantity, prevTotalQuantity) : '';
     const costDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalCost', totalCost, prevTotalCost) : '';
     const throughputDiff = previousPeriodDataset ? getDiffHtmlForMetric('overallAvgThroughput', overallAvgThroughputNum, prevOverallAvgThroughput) : '';
     const costPerItemDiff = previousPeriodDataset ? getDiffHtmlForMetric('overallAvgCostPerItem', overallAvgCostPerItemNum, prevOverallAvgCostPerItem) : '';
@@ -941,18 +941,247 @@ export const renderTrendAnalysisCharts = (allHistoryData, appConfig, trendCharts
     }
 };
 
-// ✅ [추가] 업무 리포트 렌더링 함수 (Placeholder)
+// ✅ [수정] 업무 리포트 렌더링 함수 (Placeholder -> 실제 구현)
 
 /**
- * 일별 리포트 렌더링 (Placeholder)
+ * 헬퍼: 테이블 행 생성
+ */
+const createTableRow = (columns, isHeader = false) => {
+    const cellTag = isHeader ? 'th' : 'td';
+    const rowClass = isHeader ? 'text-xs text-gray-700 uppercase bg-gray-100' : 'bg-white border-b hover:bg-gray-50';
+    const cellClass = "px-4 py-2";
+
+    let cellsHtml = columns.map((col, index) => {
+        let alignClass = 'text-left';
+        if (index > 0) { // 첫 번째 열(이름/업무/파트) 제외하고 우측 정렬
+             alignClass = 'text-right';
+        }
+        if (typeof col === 'object' && col !== null) {
+            return `<${cellTag} class="${cellClass} ${alignClass} ${col.class || ''}">${col.content}</${cellTag}>`;
+        }
+        return `<${cellTag} class="${cellClass} ${alignClass}">${col}</${cellTag}>`;
+    }).join('');
+    
+    return `<tr class="${rowClass}">${cellsHtml}</tr>`;
+};
+
+/**
+ * 일별 리포트 렌더링 (실제 구현)
  */
 export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     const view = document.getElementById('report-daily-view');
     if (!view) return;
-    view.innerHTML = `<div class="p-4">
-        <h3 class="text-xl font-bold mb-4">${dateKey} 일별 리포트 (준비 중)</h3>
-        <p class="text-gray-600">이곳에 ${dateKey}의 상세 업무 리포트 내용이 표시될 예정입니다.</p>
-    </div>`;
+    view.innerHTML = '<div class="text-center text-gray-500">일별 리포트 집계 중...</div>';
+
+    const data = allHistoryData.find(d => d.id === dateKey);
+    if (!data) {
+        view.innerHTML = '<div class="text-center text-gray-500">데이터 없음</div>';
+        return;
+    }
+
+    const records = data.workRecords || [];
+    const quantities = data.taskQuantities || {};
+    const onLeaveMemberEntries = data.onLeaveMembers || [];
+    const partTimersFromHistory = data.partTimers || [];
+
+    // --- 1. WageMap 및 PartMap 생성 ---
+    const wageMap = { ...(appConfig.memberWages || {}) };
+    partTimersFromHistory.forEach(pt => {
+        if (pt && pt.name && !wageMap[pt.name]) {
+            wageMap[pt.name] = pt.wage || 0;
+        }
+    });
+
+    const memberToPartMap = new Map();
+    (appConfig.teamGroups || []).forEach(group => {
+        group.members.forEach(member => {
+            memberToPartMap.set(member, group.name);
+        });
+    });
+
+    // --- 2. KPI 계산 ---
+    const totalDuration = records.reduce((s, r) => s + (r.duration || 0), 0);
+    const totalQuantity = Object.values(quantities).reduce((s, q) => s + (Number(q) || 0), 0);
+    const totalCost = records.reduce((s, r) => {
+        const wage = wageMap[r.member] || 0;
+        return s + ((r.duration || 0) / 60) * wage;
+    }, 0);
+    
+    const overallAvgThroughput = totalDuration > 0 ? (totalQuantity / totalDuration) : 0;
+    const overallAvgCostPerItem = totalQuantity > 0 ? (totalCost / totalQuantity) : 0;
+
+    const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
+    const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
+    const activeRegularMembers = allRegularMembers.size - onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length;
+    const activePartTimers = partTimersFromHistory.length - onLeaveMemberNames.filter(name => partTimersFromHistory.some(pt => pt.name === name)).length;
+    const activeMembersCount = activeRegularMembers + activePartTimers;
+
+    let nonWorkMinutes = 0;
+    if (isWeekday(dateKey)) {
+        const totalPotentialMinutes = activeMembersCount * 8 * 60; // 8시간 기준
+        nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalDuration);
+    }
+
+    // --- 3. 데이터 집계 (파트별, 인원별, 업무별) ---
+    const partSummary = {};
+    const memberSummary = {};
+    const taskSummary = {};
+
+    records.forEach(r => {
+        if (!r || !r.task) return;
+        const duration = r.duration || 0;
+        const wage = wageMap[r.member] || 0;
+        const cost = (duration / 60) * wage;
+        const part = memberToPartMap.get(r.member) || '알바';
+
+        // 3a. 파트별 집계
+        if (!partSummary[part]) partSummary[part] = { duration: 0, cost: 0, members: new Set() };
+        partSummary[part].duration += duration;
+        partSummary[part].cost += cost;
+        partSummary[part].members.add(r.member);
+
+        // 3b. 인원별 집계
+        if (!memberSummary[r.member]) memberSummary[r.member] = { duration: 0, cost: 0, tasks: new Set(), part: part };
+        memberSummary[r.member].duration += duration;
+        memberSummary[r.member].cost += cost;
+        memberSummary[r.member].tasks.add(r.task);
+
+        // 3c. 업무별 집계
+        if (!taskSummary[r.task]) taskSummary[r.task] = { duration: 0, cost: 0, members: new Set() };
+        taskSummary[r.task].duration += duration;
+        taskSummary[r.task].cost += cost;
+        taskSummary[r.task].members.add(r.member);
+    });
+
+    // --- 4. HTML 렌더링 ---
+    let html = `<div class="space-y-6">`;
+    html += `<h2 class="text-2xl font-bold text-gray-800">${dateKey} 업무 리포트</h2>`;
+    
+    // 4a. KPI 요약
+    html += `
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">총 업무 시간</div><div class="text-xl font-bold">${formatDuration(totalDuration)}</div></div>
+            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">총 인건비</div><div class="text-xl font-bold">${Math.round(totalCost).toLocaleString()} 원</div></div>
+            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">총 처리량</div><div class="text-xl font-bold">${totalQuantity.toLocaleString()} 개</div></div>
+            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">분당 처리량</div><div class="text-xl font-bold">${overallAvgThroughput.toFixed(2)} 개/분</div></div>
+            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">개당 처리비용</div><div class="text-xl font-bold">${overallAvgCostPerItem.toFixed(0)} 원/개</div></div>
+            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">근무 인원</div><div class="text-xl font-bold">${activeMembersCount} 명</div></div>
+            <div class="bg-white p-3 rounded-lg shadow-sm"><div class="text-xs text-gray-500">비업무 시간</div><div class="text-xl font-bold">${formatDuration(nonWorkMinutes)}</div></div>
+        </div>
+    `;
+
+    // 4b. 파트별 요약
+    html += `
+        <div class="bg-white p-4 rounded-lg shadow-sm">
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">파트별 요약</h3>
+            <div class="overflow-x-auto max-h-[60vh]">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead>${createTableRow(['파트', '총 업무시간', '총 인건비', '참여 인원 (명)'], true)}</thead>
+                    <tbody>
+    `;
+    const sortedParts = Object.keys(partSummary).sort();
+    if (sortedParts.length > 0) {
+        sortedParts.forEach(part => {
+            const d = partSummary[part];
+            html += createTableRow([
+                part,
+                formatDuration(d.duration),
+                `${Math.round(d.cost).toLocaleString()} 원`,
+                d.members.size
+            ]);
+        });
+    } else {
+        html += `<tr><td colspan="4" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+    }
+    html += `</tbody></table></div></div>`;
+    
+    // 4c. 인원별 상세
+    html += `
+        <div class="bg-white p-4 rounded-lg shadow-sm">
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">인원별 상세</h3>
+            <div class="overflow-x-auto max-h-[60vh]">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead>${createTableRow(['이름', '파트', '총 업무시간', '총 인건비', '수행 업무'], true)}</thead>
+                    <tbody>
+    `;
+    const sortedMembers = Object.keys(memberSummary).sort();
+    if (sortedMembers.length > 0) {
+        sortedMembers.forEach(member => {
+            const d = memberSummary[member];
+            const tasksStr = Array.from(d.tasks).join(', ');
+            html += createTableRow([
+                member,
+                d.part,
+                formatDuration(d.duration),
+                `${Math.round(d.cost).toLocaleString()} 원`,
+                { content: tasksStr, class: "text-xs" } // Task list
+            ]);
+        });
+    } else {
+        html += `<tr><td colspan="5" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+    }
+    html += `</tbody></table></div></div>`;
+
+    // 4d. 업무별 상세
+    html += `
+        <div class="bg-white p-4 rounded-lg shadow-sm">
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세</h3>
+            <div class="overflow-x-auto max-h-[60vh]">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead>${createTableRow(['업무', '총 시간', '총 인건비', '총 처리량', '분당 처리량', '개당 처리비용'], true)}</thead>
+                    <tbody>
+    `;
+    const sortedTasks = Object.keys(taskSummary).sort();
+    if (sortedTasks.length > 0) {
+        sortedTasks.forEach(task => {
+            const d = taskSummary[task];
+            const q = quantities[task] || 0;
+            const throughput = d.duration > 0 ? (q / d.duration) : 0;
+            const costPerItem = q > 0 ? (d.cost / q) : 0;
+            html += createTableRow([
+                task,
+                formatDuration(d.duration),
+                `${Math.round(d.cost).toLocaleString()} 원`,
+                q.toLocaleString(),
+                throughput.toFixed(2),
+                `${Math.round(costPerItem).toLocaleString()} 원`
+            ]);
+        });
+    } else {
+        html += `<tr><td colspan="6" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+    }
+    html += `</tbody></table></div></div>`;
+
+    // 4e. 근태 현황
+    html += `
+        <div class="bg-white p-4 rounded-lg shadow-sm">
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3>
+            <div class="overflow-x-auto max-h-[60vh]">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead>${createTableRow(['이름', '유형', '상세 시간/기간'], true)}</thead>
+                    <tbody>
+    `;
+    if (onLeaveMemberEntries.length > 0) {
+        onLeaveMemberEntries.sort((a,b) => (a.member || '').localeCompare(b.member || '')).forEach(entry => {
+            let detailText = '-';
+            if (entry.startTime) {
+                detailText = formatTimeTo24H(entry.startTime);
+                if (entry.endTime) detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+                else if (entry.type === '외출') detailText += ' ~';
+            } else if (entry.startDate) {
+                detailText = entry.startDate;
+                if (entry.endDate && entry.endDate !== entry.startDate) detailText += ` ~ ${entry.endDate}`;
+            }
+            html += createTableRow([entry.member, entry.type, detailText]);
+        });
+    } else {
+        html += `<tr><td colspan="3" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+    }
+    html += `</tbody></table></div></div>`;
+
+
+    html += `</div>`; // .space-y-6 닫기
+    view.innerHTML = html;
 };
 
 /**
