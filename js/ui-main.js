@@ -2,8 +2,8 @@
 
 import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday } from './utils.js';
 // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
-// (TASK_GROUP_COLORS 임포트 추가)
-import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors, TASK_GROUP_COLORS } from './ui.js';
+// (taskCardStyles와 taskTitleColors 대신 TASK_CARD_STYLES_BY_GROUP 임포트)
+import { getAllDashboardDefinitions, TASK_CARD_STYLES_BY_GROUP } from './ui.js';
 // =========================================================
 
 /**
@@ -250,13 +250,11 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 /**
  * ================== [ ✨ 수정된 함수 ✨ ] ==================
  * (taskGroups 인자를 받도록 수정)
- * (taskGroupMap을 생성하여 titleClass를 그룹 색상으로 지정)
+ * (taskGroupMap을 생성하여 titleClass와 currentStyle을 그룹 색상으로 지정)
  */
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], taskGroups = []) => {
-    // === ✅ [수정] 현재 사용자 정보 가져오기 (함수 상단으로 이동) ===
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
-    // ----------------------------------------------------
 
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) {
@@ -270,7 +268,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], t
         if (!memberGroupMap.has(member)) memberGroupMap.set(member, group.name);
     }));
 
-    // ================== [ ✨ 추가된 부분 2 ✨ ] ==================
     // (Task 이름을 Key로, Task Group 이름을 Value로 하는 Map 생성)
     const taskGroupMap = new Map();
     (taskGroups || []).forEach(group => {
@@ -278,7 +275,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], t
             taskGroupMap.set(taskName, group.name);
         });
     });
-    // =========================================================
 
     // --- Section 1: Preset Task Quick Actions ---
     const presetTaskContainer = document.createElement('div');
@@ -294,7 +290,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], t
 
     const presetGrid = document.createElement('div');
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4';
-    presetGrid.id = 'preset-task-grid'; // 👈 [추가] ID 추가
+    presetGrid.id = 'preset-task-grid'; 
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
     
@@ -310,22 +306,27 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], t
 
         const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
         const isOngoing = groupRecords.some(r => r.status === 'ongoing');
+        
+        // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
+        // (업무 그룹 이름을 찾음)
+        const taskGroupName = taskGroupMap.get(task) || 'default';
+        // (그룹 이름에 해당하는 스타일 객체를 가져옴)
+        const groupStyleSet = TASK_CARD_STYLES_BY_GROUP[taskGroupName] || TASK_CARD_STYLES_BY_GROUP['default'];
 
         let currentStyle;
         if (isPaused) {
-            currentStyle = taskCardStyles['paused'];
+            // (일시정지는 그룹 색상이 아닌, 노란색 경고 스타일을 사용)
+            currentStyle = groupStyleSet['paused']; 
         } else if (isOngoing || groupRecords.length > 0) {
-            currentStyle = taskCardStyles['ongoing'];
+            // (진행 중일 땐, 그룹별 'ongoing' 스타일)
+            currentStyle = groupStyleSet['ongoing'];
         } else {
-            currentStyle = taskCardStyles['default'];
+            // (시작 전일 땐, 그룹별 'default' 스타일)
+            currentStyle = groupStyleSet['default'];
         }
 
-        // ================== [ ✨ 수정된 부분 3 ✨ ] ==================
-        // (taskGroupMap에서 업무 그룹 이름을 찾음)
-        const taskGroupName = taskGroupMap.get(task) || 'default';
-        
-        // (taskTitleColors[task] -> TASK_GROUP_COLORS[taskGroupName]로 변경)
-        const titleClass = isPaused ? currentStyle.title : (TASK_GROUP_COLORS[taskGroupName] || TASK_GROUP_COLORS['default']);
+        // (제목 색상도 currentStyle에서 가져옴)
+        const titleClass = currentStyle.title;
         // =========================================================
 
         const mobileVisibilityClass = isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex mobile-task-hidden';
@@ -345,11 +346,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], t
 
                 const isRecPaused = rec.status === 'paused';
 
-                const memberTextColor = isRecPaused ? 'text-yellow-800' : 'text-gray-800';
-                const timeTextColor = isRecPaused ? 'text-yellow-600' : 'text-gray-500';
-                const stopButtonBg = isRecPaused ? 'bg-yellow-200 hover:bg-yellow-300' : 'bg-red-100 hover:bg-red-200';
-                const stopButtonText = isRecPaused ? 'text-yellow-700' : 'text-red-700';
+                // ================== [ ✨ 수정된 부분 2 ✨ ] ==================
+                // (일시정지 시 텍스트/배경색은 currentStyle(노란색)에서 가져옴)
+                const memberTextColor = isRecPaused ? currentStyle.title : 'text-gray-800';
+                const timeTextColor = isRecPaused ? currentStyle.subtitle : 'text-gray-500';
                 const memberRowBg = isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
+                // =========================================================
 
                 const pauseIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg>`;
                 const playIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg>`;
@@ -391,7 +393,18 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], t
             const pauses = representativeRecord ? representativeRecord.pauses : [];
             const pausesJson = JSON.stringify(pauses || []);
             const durationStatus = isOngoing ? 'ongoing' : 'paused';
-            const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
+            
+            // ================== [ ✨ 수정된 부분 3 ✨ ] ==================
+            // (버튼 색상을 currentStyle에서 가져옴)
+            const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`; // 종료 버튼은 빨간색 고정
+            const pauseBtnClass = isPaused 
+                ? `${currentStyle.buttonBgOn} ${currentStyle.buttonTextOn} ${currentStyle.buttonHoverOn}`.replace('yellow', 'green') // (일시정지시 -> 초록색 재개 버튼)
+                : `${currentStyle.buttonBgOn} ${currentStyle.buttonTextOn} ${currentStyle.buttonHoverOn}`.replace(taskGroupName.toLowerCase(), 'yellow'); // (진행중 -> 노란색 정지 버튼)
+            
+            // (그룹 테두리 색상으로 경계선 색상 지정)
+            const borderColorClass = currentStyle.card.find(c => c.startsWith('border-')) || 'border-gray-300/60';
+            const lighterBorderColorClass = borderColorClass.replace('500', '300/60').replace('300', '300/60');
+            // =========================================================
 
             const groupTimeDisplayHtml = `
                 <div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" 
@@ -412,7 +425,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], t
                                 <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
                                 
-                                <div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions"
+                                <div class="mt-3 border-t ${lighterBorderColorClass} pt-3 flex gap-2 card-actions"
                                      data-group-id="${firstRecord.groupId}"
                                      data-task="${firstRecord.task}">
 
@@ -433,6 +446,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], t
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
+            // ================== [ ✨ 수정된 부분 4 ✨ ] ==================
+            // (시작 전 카드의 경계선 색상도 그룹 색상에 맞게 수정)
+            const borderColorClass = currentStyle.card.find(c => c.startsWith('border-')) || 'border-gray-300/60';
+            const lighterBorderColorClass = borderColorClass.replace('500', '300/60').replace('300', '300/60');
+            // =========================================================
+
             card.innerHTML = `
                 <div class="flex-grow">
                     <div class="font-bold text-lg ${titleClass} break-keep">${task}</div>
@@ -441,7 +460,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], t
                     <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
                 </div>
                 
-                <div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2">
+                <div class="mt-3 border-t ${lighterBorderColorClass} pt-3 flex gap-2">
                     <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} 
                          flex-1 rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center opacity-50 cursor-not-allowed">
                         <span>전체 정지</span>
@@ -457,15 +476,19 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], t
     });
 
     const otherTaskCard = document.createElement('div');
-    const otherStyle = taskCardStyles['default'];
+    // ================== [ ✨ 수정된 부분 5 ✨ ] ==================
+    // ('기타 업무' 카드는 'default' 그룹의 'default' 스타일을 사용)
+    const otherStyle = TASK_CARD_STYLES_BY_GROUP['default']['default'];
+    // =========================================================
+    
     otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
-        <div class="font-bold text-lg text-gray-700">기타 업무</div>
+        <div class="font-bold text-lg ${otherStyle.title}">기타 업무</div>
         <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mt-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <div class="text-xs text-gray-500 mt-3">새로운 업무 시작</div>
+        <div class="text-xs ${otherStyle.subtitle} mt-3">새로운 업무 시작</div>
     `;
     presetGrid.appendChild(otherTaskCard);
     presetTaskContainer.appendChild(presetGrid);
@@ -799,7 +822,7 @@ export const updateSummary = (appState, appConfig) => {
     const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
     
     const ongoingMembers = new Set(ongoingRecords.map(r => r.member));
-    const pausedMembers = new Set(pausedRecords.map(r => r.member));
+    const pausedMembers = new Set(pausedMembers.map(r => r.member));
 
     // '업무중'은 'ongoing' 상태인 사람만 카운트
     const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
