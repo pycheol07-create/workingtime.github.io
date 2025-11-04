@@ -432,7 +432,7 @@ export const renderMonthlyHistory = (selectedMonthKey, allHistoryData, appConfig
 
 /**
  * ✅ [수정] renderAttendanceDailyHistory (ui.js -> ui-history.js)
- * ✨ [수정] 개인별 그룹화 + 테두리(border-b) 로직 수정
+ * ✨ [수정] 개인별 그룹화 + 테두리(border-t) 로직으로 변경
  */
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-daily-view');
@@ -442,6 +442,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const data = allHistoryData.find(d => d.id === dateKey);
 
     // --- [ ✨ 수정된 부분 (onclick -> data-action) ✨ ] ---
+    // (이 부분은 '처리량 수정' 버튼 등이 동작하도록 data-action을 사용합니다)
     let html = `
         <div class="mb-4 pb-2 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
@@ -473,6 +474,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     }
 
     const leaveEntries = data.onLeaveMembers;
+    // 1. 정렬 (이름 -> 시작시간/날짜 -> 유형)
     leaveEntries.sort((a, b) => {
         if (a.member !== b.member) return (a.member || '').localeCompare(b.member || '');
         if ((a.startTime || a.startDate) !== (b.startTime || b.startDate)) {
@@ -482,7 +484,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     });
 
 
-    // 1. 근태 기록을 멤버별로 그룹화합니다. (변경 없음)
+    // 2. 근태 기록을 멤버별로 그룹화 (원본 인덱스 포함)
     const groupedEntries = new Map();
     leaveEntries.forEach((entry, index) => {
         const member = entry.member || 'N/A';
@@ -506,12 +508,17 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                 <tbody>
     `;
 
-    // 2. 그룹화된 데이터를 기반으로 테이블을 생성합니다.
+    // 3. 그룹화된 데이터를 기반으로 테이블 생성
+    
+    // [✨✨✨ 핵심 수정 ✨✨✨]
+    // 첫 번째 멤버 그룹인지 확인하기 위한 플래그
+    let isFirstMemberGroup = true; 
+
     groupedEntries.forEach((entries, member) => {
         const memberEntryCount = entries.length;
 
         entries.forEach((entry, entryIndex) => {
-            // 3. 상세 시간/기간 텍스트 계산 (변경 없음)
+            // 4. 상세 시간/기간 텍스트 계산 (변경 없음)
             let detailText = '-';
             if (entry.startTime) {
                 detailText = formatTimeTo24H(entry.startTime);
@@ -528,21 +535,21 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
             }
 
             // [✨✨✨ 핵심 수정 ✨✨✨]
-            // 이 항목이 이 멤버의 '마지막' 항목인지 확인합니다.
-            const isLastEntry = (entryIndex === memberEntryCount - 1);
-            // 마지막 항목일 때만 'border-b' (아래쪽 테두리)를 적용합니다.
-            const rowClass = `bg-white hover:bg-gray-50 ${isLastEntry ? 'border-b' : ''}`;
+            // 각 멤버 그룹의 '첫 번째' 행인지 확인합니다.
+            const isFirstRowOfGroup = (entryIndex === 0);
+            
+            // 첫 번째 행이면서, *전체 테이블의 첫 번째 멤버가 아니라면* 'border-t' (상단 테두리)를 추가합니다.
+            const rowClass = `bg-white hover:bg-gray-50 ${isFirstRowOfGroup && !isFirstMemberGroup ? 'border-t' : ''}`;
 
             html += `<tr class="${rowClass}">`;
             
-            // 4. 첫 번째 항목일 때만 '이름' 셀에 rowspan을 적용합니다.
-            if (entryIndex === 0) {
-                // [✨✨✨ 핵심 수정 ✨✨✨]
-                // align-top을 추가하여 텍스트가 위로 정렬되도록 하고, 불필요한 border 클래스를 제거합니다.
+            // 5. 첫 번째 항목일 때만 '이름' 셀에 rowspan을 적용합니다.
+            if (isFirstRowOfGroup) {
+                // align-top (상단 정렬)을 추가하고, 불필요한 border 클래스를 제거합니다.
                 html += `<td class="px-6 py-4 font-medium text-gray-900 align-top" rowspan="${memberEntryCount}">${member}</td>`;
             }
 
-            // 5. 나머지 셀을 그립니다. (변경 없음)
+            // 6. 나머지 셀을 그립니다.
             html += `
                 <td class="px-6 py-4">${entry.type}</td>
                 <td class="px-6 py-4">${detailText}</td>
@@ -553,6 +560,10 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
             </tr>
             `;
         });
+        
+        // [✨✨✨ 핵심 수정 ✨✨✨]
+        // 이 멤버 그룹의 렌더링이 끝났으므로, 다음 멤버는 더 이상 '첫 번째 멤버'가 아닙니다.
+        isFirstMemberGroup = false; 
     });
     // --- [ ✨ 수정된 부분 끝 ✨ ] ---
 
