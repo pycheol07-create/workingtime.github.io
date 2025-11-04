@@ -247,9 +247,9 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 
 /**
  * ✅ [수정] renderRealtimeStatus (ui.js -> ui-main.js)
- * (모바일 뷰 상태 파라미터 isMobileTaskViewExpanded, isMobileMemberViewExpanded 추가)
+ * (모든 근태 카드에 data-action="edit-leave-record" 추가)
  */
-export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
+export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
     // === ✅ [수정] 현재 사용자 정보 가져오기 (함수 상단으로 이동) ===
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
@@ -276,19 +276,14 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         <div class="flex justify-end items-center border-b pb-2 mb-4 md:hidden">
             <button id="toggle-all-tasks-mobile" 
                     class="md:hidden bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-xs py-1 px-2 rounded-md transition active:scale-[0.98]">
-                ${isMobileTaskViewExpanded ? '간략히' : '전체보기'}
+                전체보기
             </button>
-        </div>`; // 👈 [수정] 버튼 텍스트를 동적으로 설정
+        </div>`;
 
     const presetGrid = document.createElement('div');
     // ✅ [수정] 그리드 컬럼 설정 변경 및 ID 추가
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4';
     presetGrid.id = 'preset-task-grid'; // 👈 [추가] ID 추가
-    
-    // 👈 [추가] '전체보기' 상태이면 'mobile-expanded' 클래스 추가
-    if (isMobileTaskViewExpanded) {
-        presetGrid.classList.add('mobile-expanded');
-    }
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
     
@@ -317,8 +312,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
         const titleClass = isPaused ? currentStyle.title : (taskTitleColors[task] || taskTitleColors['default']);
 
-        // ✅ [수정] 모바일 반응형 클래스 (isMobileTaskViewExpanded 값에 따라 'flex' 또는 'hidden' 결정)
-        const mobileVisibilityClass = (isCurrentUserWorkingOnThisTask || isMobileTaskViewExpanded) ? 'flex' : 'hidden md:flex mobile-task-hidden';
+        // ✅ [수정] 모바일 반응형 클래스 (토글을 위한 'mobile-task-hidden' 클래스 추가)
+        const mobileVisibilityClass = isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex mobile-task-hidden';
         
         // (진행 중인 카드)
         if (groupRecords.length > 0) {
@@ -475,11 +470,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container'; // ✅ [추가] 토글을 위한 ID
     
-    // 👈 [추가] '전체보기' 상태이면 'mobile-expanded' 클래스 추가
-    if (isMobileMemberViewExpanded) {
-        allMembersContainer.classList.add('mobile-expanded');
-    }
-
     const allMembersHeader = document.createElement('div');
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `
@@ -487,9 +477,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         <h3 class="text-lg font-bold text-gray-700 md:hidden">팀원 현황</h3>
         <button id="toggle-all-members-mobile"
                 class="md:hidden bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-xs py-1 px-2 rounded-md transition active:scale-[0.98]">
-            ${isMobileMemberViewExpanded ? '간략히' : '전체보기'}
+            전체보기
         </button>
-    `; // 👈 [수정] 버튼 텍스트를 동적으로 설정
+    `;
     allMembersContainer.appendChild(allMembersHeader);
 
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
@@ -533,8 +523,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
             const isSelf = (member === currentUserName); // ✅ [추가] 본인 확인
 
-            // 👈 [수정] isMobileMemberViewExpanded 값에 따라 'flex' 또는 'hidden' 결정
-            const visibilityClass = (isSelf || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
+            const visibilityClass = isSelf ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
             const widthClass = isSelf ? 'w-full md:w-28' : 'w-28'; 
             card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClass} ${widthClass} flex-col justify-center`;
 
@@ -617,8 +606,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
              
              const isSelfAlba = (pt.name === currentUserName); // ✅ [추가] 본인 확인 (알바)
 
-             // 👈 [수정] isMobileMemberViewExpanded 값에 따라 'flex' 또는 'hidden' 결정
-             const visibilityClassAlba = (isSelfAlba || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
+             const visibilityClassAlba = isSelfAlba ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
              const widthClassAlba = isSelfAlba ? 'w-full md:w-28' : 'w-28'; 
              card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClassAlba} ${widthClassAlba} flex-col justify-center`;
 

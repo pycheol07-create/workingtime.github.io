@@ -8,7 +8,7 @@ import {
     // DOM Elements (app.js에서 가져옴)
     historyDateList, historyTabs, attendanceHistoryTabs, 
     historyViewContainer, attendanceHistoryViewContainer, 
-    workHistoryPanel, attendanceHistoryPanel, trendAnalysisPanel, // 👈 [수정] workHistoryPanel, attendanceHistoryPanel 2개 추가
+    trendAnalysisPanel, 
     historyAttendanceDailyView, historyAttendanceWeeklyView, historyAttendanceMonthlyView,
     deleteHistoryModal,
     quantityModal,
@@ -215,46 +215,13 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
-    // ✅ [수정] 모달을 열 때 항상 '업무 이력'의 '일별 상세' 탭을 강제로 활성화하고 
-    // ✅ 데이터를 즉시 렌더링하도록 수정합니다.
-
-    // 1. 메인 탭(업무 이력) 활성화 (UI)
-    document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
-        btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-        btn.classList.remove('font-medium', 'text-gray-500');
-    });
-    document.querySelectorAll('.history-main-tab-btn:not([data-main-tab="work"])').forEach(btn => {
-        btn.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-        btn.classList.add('font-medium', 'text-gray-500');
-    });
-
-    // 2. 서브 탭(일별 상세) 활성화 (UI)
-    document.querySelectorAll('#history-tabs button[data-view="daily"]').forEach(btn => {
-        btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-        btn.classList.remove('text-gray-500');
-    });
-    document.querySelectorAll('#history-tabs button:not([data-view="daily"])').forEach(btn => {
-        btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-        btn.classList.add('text-gray-500');
-    });
+    // ✅ [수정] context.activeMainHistoryTab을 사용
+    const activeSubTabBtn = (context.activeMainHistoryTab === 'work')
+        ? historyTabs?.querySelector('button.font-semibold')
+        : attendanceHistoryTabs?.querySelector('button.font-semibold');
+    const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
     
-    // 3. 패널(업무 이력) 및 뷰(일별 상세) 표시 (UI)
-    if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
-    if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
-    if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
-
-    document.getElementById('history-daily-view')?.classList.remove('hidden');
-    document.getElementById('history-weekly-view')?.classList.add('hidden');
-    document.getElementById('history-monthly-view')?.classList.add('hidden');
-    document.getElementById('history-attendance-daily-view')?.classList.add('hidden');
-    document.getElementById('history-attendance-weekly-view')?.classList.add('hidden');
-    document.getElementById('history-attendance-monthly-view')?.classList.add('hidden');
-
-    // 4. 👈 [핵심 수정] '상태(context)'를 'work'로 설정
-    context.activeMainHistoryTab = 'work';
-
-    // 5. '일별' 모드로 날짜 목록 렌더링 (이 함수가 '일별 상세' 데이터도 렌더링함)
-    renderHistoryDateListByMode('day');
+    switchHistoryView(activeView); 
 };
 
 /**
@@ -434,8 +401,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
   const totalSumDuration = records.reduce((sum, r) => sum + (r.duration || 0), 0);
   const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
 
-  // 👈 [수정] (rec.duration || 0)을 (Number(rec.duration) || 0)으로 변경
-  const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (Number(rec.duration) || 0); return acc; }, {});
+  const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (rec.duration || 0); return acc; }, {});
   const taskCosts = records.reduce((acc, rec) => {
       const wage = wageMap[rec.member] || 0;
       const cost = ((Number(rec.duration) || 0) / 60) * wage;
