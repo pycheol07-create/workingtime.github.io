@@ -570,39 +570,75 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
   });
 
 
-  // --- 2. 전일(Previous) 데이터 계산 ---
+  // --- 2. [✨ 수정] 전일(Previous) 데이터 계산 (최근 기록 조회) ---
   let prevTaskMetrics = {};
-  if (previousDayData) {
-      const prevRecords = previousDayData.workRecords || [];
-      const prevQuantities = previousDayData.taskQuantities || {};
-      const prevTaskDurations = prevRecords.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (Number(rec.duration) || 0); return acc; }, {}); // 👈 [수정] Number()
-      const prevTaskCosts = prevRecords.reduce((acc, rec) => {
-          const wage = wageMap[rec.member] || 0;
-          const cost = ((Number(rec.duration) || 0) / 60) * wage;
-          acc[rec.task] = (acc[rec.task] || 0) + cost;
-          return acc;
-      }, {});
-      const allPrevTaskKeys = new Set([...Object.keys(prevTaskDurations), ...Object.keys(prevQuantities)]);
-      allPrevTaskKeys.forEach(task => {
-          const duration = prevTaskDurations[task] || 0;
-          const cost = prevTaskCosts[task] || 0;
-          const qty = Number(prevQuantities[task]) || 0;
-          prevTaskMetrics[task] = {
-              duration: duration,
-              cost: cost,
-              quantity: qty,
-              avgThroughput: duration > 0 ? (qty / duration) : 0,
-              avgCostPerItem: qty > 0 ? (cost / qty) : 0
-          };
+  const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
+
+  if (currentIndex > -1) {
+      allTaskKeys.forEach(task => {
+          let foundPrevDayData = null;
+          // 현재 날짜의 다음 인덱스부터 (즉, 과거로) 순회
+          for (let i = currentIndex + 1; i < allHistoryData.length; i++) {
+              const prevDay = allHistoryData[i];
+              // 해당 날짜에 이 'task'에 대한 기록(업무시간 or 처리량)이 있는지 확인
+              if (prevDay.workRecords?.some(r => r.task === task && (r.duration || 0) > 0) || (prevDay.taskQuantities?.[task] || 0) > 0) {
+                  foundPrevDayData = prevDay;
+                  break; // 가장 가까운 과거의 기록을 찾았으면 중단
+              }
+          }
+
+          // 만약 찾았다면, 해당 날짜의 'task' 메트릭을 계산
+          if (foundPrevDayData) {
+              const prevRecords = foundPrevDayData.workRecords || [];
+              const prevQuantities = foundPrevDayData.taskQuantities || {};
+              
+              const taskRecords = prevRecords.filter(r => r.task === task);
+              const duration = taskRecords.reduce((sum, r) => sum + (Number(r.duration) || 0), 0);
+              const cost = taskRecords.reduce((sum, r) => {
+                  const wage = wageMap[r.member] || 0;
+                  return sum + ((Number(r.duration) || 0) / 60) * wage;
+              }, 0);
+              const qty = Number(prevQuantities[task]) || 0;
+
+              prevTaskMetrics[task] = {
+                  date: foundPrevDayData.id, // [추가] 며칠 전 데이터인지 툴팁에 표시
+                  duration: duration,
+                  cost: cost,
+                  quantity: qty,
+                  avgThroughput: duration > 0 ? (qty / duration) : 0,
+                  avgCostPerItem: qty > 0 ? (cost / qty) : 0
+              };
+          }
+          // 못 찾았다면 prevTaskMetrics[task]는 undefined로 남음
       });
   }
+  // --- [✨ 수정 끝] ---
   
-  const getDiffHtmlForMetric = (metric, current, previous) => {
+  
+  // --- 3. [✨ 수정] HTML 렌더링 (getDiffHtmlForMetric 헬퍼 함수 수정) ---
+  
+  // [✨ 수정] 헬퍼 함수가 previousMetric 객체를 받도록 변경 (툴팁에 날짜 추가)
+  const getDiffHtmlForMetric = (metric, current, previousMetric) => {
       const currValue = current || 0;
-      const prevValue = previous || 0;
-  
-      if (prevValue === 0) {
+      
+      // [수정] prevValue 및 prevDate 추출
+      let prevValue = 0;
+      let prevDate = previousMetric?.date || '이전'; // 날짜
+      
+      if (!previousMetric) { // [수정]
           if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
+          return ''; 
+      }
+      
+      // [수정] metric에 따라 prevValue 할당
+      if (metric === 'quantity') prevValue = previousMetric.quantity || 0;
+      else if (metric === 'avgThroughput') prevValue = previousMetric.avgThroughput || 0;
+      else if (metric === 'avgCostPerItem') prevValue = previousMetric.avgCostPerItem || 0;
+      else if (metric === 'duration') prevValue = previousMetric.duration || 0;
+      // (avgStaff, avgTime은 이 함수에서 사용 안 함)
+
+      if (prevValue === 0) {
+           if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
           return ''; 
       }
       
@@ -632,13 +668,14 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
           prevStr = prevValue.toFixed(2);
       }
   
-      return `<span class="text-xs ${colorClass} ml-1 font-mono" title="이전: ${prevStr}">
+      // [수정] title에 prevDate 추가
+      return `<span class="text-xs ${colorClass} ml-1 font-mono" title="${prevDate}: ${prevStr}">
                   ${sign} ${diffStr} (${percent.toFixed(0)}%)
               </span>`;
   };
 
 
-  // --- 3. HTML 렌더링 ---
+  // --- 4. HTML 렌더링 (본문) ---
   const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
 
   let nonWorkHtml = '';
@@ -651,9 +688,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px] flex flex-col justify-center items-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-lg font-bold text-gray-400">주말</p></div>`;
   }
 
-  // ================== [ ✨ 수정된 부분 ✨ ] ==================
-  // (h3 태그에서 '(전일 대비)' 텍스트 삭제)
-  // (onclick="" 제거 -> data-action="" 및 data-date-key="" 추가)
+  // (버튼 부분은 이전 단계에서 data-action으로 수정된 상태입니다)
   let html = `
     <div class="mb-6 pb-4 border-b flex justify-between items-center">
       <h3 class="text-2xl font-bold text-gray-800">${dateKey}</h3>
@@ -674,7 +709,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
       <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
     </div>
   `;
-  // ================== [ ✨ 수정 끝 ✨ ] ==================
   
   html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">`;
   
@@ -685,8 +719,9 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     .sort(([a],[b]) => a.localeCompare(b))
     .forEach(([task, metrics]) => {
       hasQuantities = true;
-      const prevQty = prevTaskMetrics[task]?.quantity || 0;
-      const diffHtml = previousDayData ? getDiffHtmlForMetric('quantity', metrics.quantity, prevQty) : '';
+      // [✨ 수정] 헬퍼 함수 호출 방식 변경
+      const prevMetricQty = prevTaskMetrics[task] || null;
+      const diffHtml = getDiffHtmlForMetric('quantity', metrics.quantity, prevMetricQty);
       html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
                  <span>${metrics.quantity} 개 ${diffHtml}</span>
@@ -702,8 +737,9 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     .sort(([a],[b]) => a.localeCompare(b))
     .forEach(([task, metrics]) => {
       hasThroughput = true;
-      const prevThroughput = prevTaskMetrics[task]?.avgThroughput || 0;
-      const diffHtml = previousDayData ? getDiffHtmlForMetric('avgThroughput', metrics.avgThroughput, prevThroughput) : '';
+      // [✨ 수정] 헬퍼 함수 호출 방식 변경
+      const prevMetricThroughput = prevTaskMetrics[task] || null;
+      const diffHtml = getDiffHtmlForMetric('avgThroughput', metrics.avgThroughput, prevMetricThroughput);
       html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
                  <span>${metrics.avgThroughput.toFixed(2)} 개/분 ${diffHtml}</span>
@@ -719,8 +755,9 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     .sort(([a],[b]) => a.localeCompare(b))
     .forEach(([task, metrics]) => {
       hasCostPerItem = true;
-      const prevCostPerItem = prevTaskMetrics[task]?.avgCostPerItem || 0;
-      const diffHtml = previousDayData ? getDiffHtmlForMetric('avgCostPerItem', metrics.avgCostPerItem, prevCostPerItem) : '';
+      // [✨ 수정] 헬퍼 함수 호출 방식 변경
+      const prevMetricCost = prevTaskMetrics[task] || null;
+      const diffHtml = getDiffHtmlForMetric('avgCostPerItem', metrics.avgCostPerItem, prevMetricCost);
       html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
                  <span>${metrics.avgCostPerItem.toFixed(0)} 원/개 ${diffHtml}</span>
@@ -736,8 +773,9 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     .sort(([,a],[,b]) => b.duration - a.duration)
     .forEach(([task, metrics]) => {
       const percentage = totalSumDuration > 0 ? (metrics.duration / totalSumDuration * 100).toFixed(1) : 0;
-      const prevDuration = prevTaskMetrics[task]?.duration || 0;
-      const diffHtml = previousDayData ? getDiffHtmlForMetric('duration', metrics.duration, prevDuration) : ''; 
+      // [✨ 수정] 헬퍼 함수 호출 방식 변경
+      const prevMetricDuration = prevTaskMetrics[task] || null;
+      const diffHtml = getDiffHtmlForMetric('duration', metrics.duration, prevMetricDuration); 
       
       html += `
         <div>
