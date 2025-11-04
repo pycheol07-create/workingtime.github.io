@@ -39,134 +39,56 @@ export function getAllDashboardDefinitions(config) {
     };
 }
 
-
-// ================== [ ✨ 수정된 부분 ✨ ] ==================
-// (기존 taskCardStyles, taskTitleColors, TASK_GROUP_COLORS 모두 삭제)
-// (새로운 '그룹별' 카드 스타일 정의)
-
-export const TASK_CARD_STYLES_BY_GROUP = {
-    // --- '공통' 그룹 (초록색 계열) ---
-    '공통': {
-        // (시작 전)
-        'default': {
-            card: ['bg-green-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
-            hover: 'hover:border-green-500 hover:shadow-md',
-            title: 'text-green-800', // 제목 색상
-            subtitle: 'text-gray-500',
-            buttonBgOff: 'bg-gray-200',
-            buttonTextOff: 'text-gray-500'
-        },
-        // (진행 중)
-        'ongoing': {
-            card: ['bg-green-100', 'border-green-500', 'text-gray-900', 'shadow-xl', 'shadow-green-200/50'],
-            hover: 'hover:border-green-600',
-            title: 'text-green-800', // 제목 색상
-            subtitle: 'text-gray-600',
-            buttonBgOn: 'bg-green-600',
-            buttonTextOn: 'text-white',
-            buttonHoverOn: 'hover:bg-green-700'
-        },
-        // (일시 정지)
-        'paused': {
-            card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
-            hover: 'hover:border-yellow-400 hover:shadow-lg',
-            title: 'text-yellow-800', // (일시정지는 노란색 유지)
-            subtitle: 'text-yellow-700',
-            buttonBgOn: 'bg-yellow-600',
-            buttonTextOn: 'text-white',
-            buttonHoverOn: 'hover:bg-yellow-700'
-        }
-    },
-    // --- '담당' 그룹 (남색 계열) ---
-    '담당': {
-        'default': {
-            card: ['bg-indigo-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
-            hover: 'hover:border-indigo-500 hover:shadow-md',
-            title: 'text-indigo-800',
-            subtitle: 'text-gray-500',
-            buttonBgOff: 'bg-gray-200',
-            buttonTextOff: 'text-gray-500'
-        },
-        'ongoing': {
-            card: ['bg-indigo-100', 'border-indigo-500', 'text-gray-900', 'shadow-xl', 'shadow-indigo-200/50'],
-            hover: 'hover:border-indigo-600',
-            title: 'text-indigo-800',
-            subtitle: 'text-gray-600',
-            buttonBgOn: 'bg-indigo-600',
-            buttonTextOn: 'text-white',
-            buttonHoverOn: 'hover:bg-indigo-700'
-        },
-        'paused': {
-            card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
-            hover: 'hover:border-yellow-400 hover:shadow-lg',
-            title: 'text-yellow-800',
-            subtitle: 'text-yellow-700',
-            buttonBgOn: 'bg-yellow-600',
-            buttonTextOn: 'text-white',
-            buttonHoverOn: 'hover:bg-yellow-700'
-        }
-    },
-    // --- '기타' 그룹 (하늘색 계열) ---
-    '기타': {
-        'default': {
-            card: ['bg-sky-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
-            hover: 'hover:border-sky-500 hover:shadow-md',
-            title: 'text-sky-800',
-            subtitle: 'text-gray-500',
-            buttonBgOff: 'bg-gray-200',
-            buttonTextOff: 'text-gray-500'
-        },
-        'ongoing': {
-            card: ['bg-sky-100', 'border-sky-500', 'text-gray-900', 'shadow-xl', 'shadow-sky-200/50'],
-            hover: 'hover:border-sky-600',
-            title: 'text-sky-800',
-            subtitle: 'text-gray-600',
-            buttonBgOn: 'bg-sky-600',
-            buttonTextOn: 'text-white',
-            buttonHoverOn: 'hover:bg-sky-700'
-        },
-        'paused': {
-            card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
-            hover: 'hover:border-yellow-400 hover:shadow-lg',
-            title: 'text-yellow-800',
-            subtitle: 'text-yellow-700',
-            buttonBgOn: 'bg-yellow-600',
-            buttonTextOn: 'text-white',
-            buttonHoverOn: 'hover:bg-yellow-700'
-        }
-    },
-    // --- 'default' (그룹 미지정 - 파란색 계열) ---
+// ✅ [유지] 공유 상수 (taskCardStyles, taskTitleColors) (ui-main.js에서 사용)
+export const taskCardStyles = {
     'default': {
-        'default': {
-            card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
-            hover: 'hover:border-blue-500 hover:shadow-md',
-            title: 'text-blue-800',
-            subtitle: 'text-gray-500',
-            buttonBgOff: 'bg-gray-200',
-            buttonTextOff: 'text-gray-500'
-        },
-        'ongoing': {
-            card: ['bg-blue-100', 'border-blue-500', 'text-gray-900', 'shadow-xl', 'shadow-blue-200/50'],
-            hover: 'hover:border-blue-600',
-            title: 'text-blue-800',
-            subtitle: 'text-gray-600',
-            buttonBgOn: 'bg-blue-600',
-            buttonTextOn: 'text-white',
-            buttonHoverOn: 'hover:bg-blue-700'
-        },
-        'paused': {
-            card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
-            hover: 'hover:border-yellow-400 hover:shadow-lg',
-            title: 'text-yellow-800',
-            subtitle: 'text-yellow-700',
-            buttonBgOn: 'bg-yellow-600',
-            buttonTextOn: 'text-white',
-            buttonHoverOn: 'hover:bg-yellow-700'
-        }
+        card: ['bg-blue-50', 'border-gray-300', 'text-gray-700', 'shadow-sm'],
+        hover: 'hover:border-blue-500 hover:shadow-md',
+        subtitle: 'text-gray-500',
+        buttonBgOff: 'bg-gray-200',
+        buttonTextOff: 'text-gray-500'
+    },
+    'ongoing': {
+        card: ['bg-blue-100', 'border-blue-500', 'text-gray-900', 'shadow-xl', 'shadow-blue-200/50'], // 진행 중 강조
+        hover: 'hover:border-blue-600',
+        subtitle: 'text-gray-600',
+        buttonBgOn: 'bg-blue-600',
+        buttonTextOn: 'text-white',
+        buttonHoverOn: 'hover:bg-blue-700'
+    },
+    'paused': {
+        card: ['bg-yellow-50', 'border-yellow-300', 'text-yellow-800', 'shadow-md', 'shadow-yellow-100/50'],
+        hover: 'hover:border-yellow-400 hover:shadow-lg',
+        title: 'text-yellow-800',
+        subtitle: 'text-yellow-700',
+        buttonBgOn: 'bg-yellow-600',
+        buttonTextOn: 'text-white',
+        buttonHoverOn: 'hover:bg-yellow-700'
     }
 };
-// =========================================================
-
+export const taskTitleColors = {
+    '국내배송': 'text-green-700',
+    '중국제작': 'text-purple-700',
+    '직진배송': 'text-emerald-700',
+    '채우기': 'text-sky-700',
+    '개인담당업무': 'text-indigo-700',
+    '티니': 'text-red-700',
+    '택배포장': 'text-orange-700',
+    '해외배송': 'text-cyan-700',
+    '재고조사': 'text-fuchsia-700',
+    '앵글정리': 'text-amber-700',
+    '상품재작업': 'text-yellow-800',
+    '상.하차': 'text-stone-700',
+    '검수': 'text-teal-700',
+    '아이롱': 'text-violet-700',
+    '오류': 'text-rose-700',
+    '강성': 'text-pink-700',
+    '2층업무': 'text-neutral-700',
+    '재고찾는시간': 'text-lime-700',
+    '매장근무': 'text-blue-700',
+    '출장': 'text-gray-700',
+    'default': 'text-blue-700'
+};
 
 // ✅ [유지] 공유 헬퍼 (getDiffHtmlForMetric) (ui-history.js에서 사용)
 import { formatDuration } from './utils.js'; // 이 함수는 formatDuration이 필요
@@ -186,20 +108,20 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
     
     let colorClass = 'text-gray-500';
-    if (diff > 0) {
-        colorClass = 'text-green-600'; // 플러스(+)는 초록색
-    } else {
-        colorClass = 'text-red-600'; // 마이너스(-)는 빨간색
+    if (metric === 'avgThroughput' || metric === 'avgStaff') {
+        colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
+    } else if (metric === 'avgCostPerItem' || metric === 'avgTime') {
+        colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
     }
     
     let diffStr = '';
     let prevStr = '';
-    if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration') {
+    if (metric === 'avgTime') {
         diffStr = formatDuration(Math.abs(diff));
         prevStr = formatDuration(prevValue);
-    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem') {
-        diffStr = Math.round(Math.abs(diff)).toLocaleString(); 
-        prevStr = Math.round(prevValue).toLocaleString();
+    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem') {
+        diffStr = Math.abs(diff).toFixed(0);
+        prevStr = prevValue.toFixed(0);
     } else { // avgThroughput
         diffStr = Math.abs(diff).toFixed(2);
         prevStr = prevValue.toFixed(2);
