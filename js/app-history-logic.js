@@ -627,13 +627,17 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 
   // ================== [ ✨ 수정된 부분 ✨ ] ==================
   // (h3 태그에서 '(전일 대비)' 텍스트 삭제)
+  // (onclick="" 제거 -> data-action="" 및 data-date-key="" 추가)
   let html = `
     <div class="mb-6 pb-4 border-b flex justify-between items-center">
       <h3 class="text-2xl font-bold text-gray-800">${dateKey}</h3>
       <div>
-  <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm" onclick="app.openHistoryQuantityModal('${dateKey}')">처리량 수정</button>
-        <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="app.downloadHistoryAsExcel('${dateKey}')">엑셀 (전체)</button>
-        <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" onclick="app.requestHistoryDeletion('${dateKey}')">삭제</button>
+        <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm" 
+                data-action="open-history-quantity-modal" data-date-key="${dateKey}">처리량 수정</button>
+        <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" 
+                data-action="download-history-excel" data-date-key="${dateKey}">엑셀 (전체)</button>
+        <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" 
+                data-action="request-history-deletion" data-date-key="${dateKey}">삭제</button>
       </div>
     </div>
     <div class="flex flex-wrap gap-4 mb-6">
@@ -644,6 +648,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
       <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
     </div>
   `;
+  // ================== [ ✨ 수정 끝 ✨ ] ==================
   
   html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">`;
   

@@ -47,8 +47,16 @@ import {
     loadAndRenderHistoryList,
     renderHistoryDetail,
     switchHistoryView,
-    renderHistoryDateListByMode
+    renderHistoryDateListByMode,
+    openHistoryQuantityModal,     // 👈 [추가]
+    requestHistoryDeletion      // 👈 [추가]
 } from './app-history-logic.js';
+
+// history-excel.js (엑셀 로직)
+import {
+    downloadPeriodHistoryAsExcel,
+    downloadHistoryAsExcel      // 👈 [추가]
+} from './history-excel.js';
 
 // history-excel.js (엑셀 로직)
 import {
@@ -322,6 +330,31 @@ export function setupHistoryModalListeners() {
           switchHistoryView(btn.dataset.view);
         }
       });
+    }
+
+    // ✅ [추가] '업무 이력' (일별 상세) 뷰의 버튼 리스너
+    if (historyViewContainer) {
+        historyViewContainer.addEventListener('click', (e) => {
+            const button = e.target.closest('button[data-action]');
+            if (!button) return;
+
+            const action = button.dataset.action;
+            const dateKey = button.dataset.dateKey;
+
+            if (!dateKey) {
+                console.warn('Action button missing dateKey', button);
+                return;
+            }
+
+            // data-action 값에 따라 적절한 함수 호출
+            if (action === 'open-history-quantity-modal') {
+                openHistoryQuantityModal(dateKey);
+            } else if (action === 'download-history-excel') {
+                downloadHistoryAsExcel(dateKey);
+            } else if (action === 'request-history-deletion') {
+                requestHistoryDeletion(dateKey);
+            }
+        });
     }
     
     // (근태 이력) '일별 상세' 보기 리스너 (수정/삭제/추가)
