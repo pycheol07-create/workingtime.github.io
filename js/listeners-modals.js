@@ -14,6 +14,7 @@ import {
     editAttendanceDateKeyInput, editAttendanceRecordIndexInput,
     teamSelectModal, deleteConfirmModal, confirmDeleteBtn, cancelDeleteBtn, 
     historyModal, // (confirmDeleteBtn 로직에서 확인용으로 필요)
+    historyTabs, // (confirmQuantityBtn 로직에서 확인용으로 필요)
     quantityModal, confirmQuantityBtn,
     cancelQuantityBtn, 
     editRecordModal, confirmEditBtn, cancelEditBtn, 
@@ -61,7 +62,7 @@ import {
 // app-history-logic.js (이력 로직)
 import {
     saveProgress, saveDayDataToHistory,
-    // (confirmDeleteBtn, confirmQuantityBtn 에서 필요)
+    // ✅ [오류 수정] confirmQuantityBtn에서 이 함수가 필요합니다.
     switchHistoryView 
 } from './app-history-logic.js';
 
@@ -348,12 +349,7 @@ export function setupGeneralModalListeners() {
                         }
                         
                         if (dateKey !== getTodayDateString()) {
-                             // ✅ [수정] switchHistoryView가 listeners-history.js로 이동했으므로
-                             // 이 함수를 여기서 직접 호출할 수 없습니다.
-                             // (임시) 이력 모달이 열려있으면 UI가 즉시 갱신되지 않을 수 있습니다.
-                             console.warn("이력 처리량 수정됨. UI 갱신을 위해 날짜를 다시 클릭하세요.");
-                             
-                             // ✅ [수정] 이력 모달이 열려있다면, 현재 뷰를 다시 렌더링
+                             // ✅ [오류 수정] switchHistoryView 함수를 여기서 호출합니다.
                              if (historyModal && !historyModal.classList.contains('hidden')) {
                                 const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
                                 const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
@@ -1044,6 +1040,3 @@ export function setupGeneralModalListeners() {
         });
     }
 }
-
-
-// (makeDraggable 함수 전체 삭제 - listeners-history.js로 이동)
