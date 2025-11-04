@@ -432,7 +432,7 @@ export const renderMonthlyHistory = (selectedMonthKey, allHistoryData, appConfig
 
 /**
  * ✅ [수정] renderAttendanceDailyHistory (ui.js -> ui-history.js)
- * ✨ [수정] 개인별로 근태 기록을 그룹화(rowspan)하는 로직으로 변경
+ * ✨ [수정] 개인별 그룹화 + 테두리(border-b) 로직 수정
  */
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-daily-view');
@@ -441,7 +441,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
     const data = allHistoryData.find(d => d.id === dateKey);
 
-    // --- [ ✨ 수정된 부분 시작 (onclick -> data-action) ✨ ] ---
+    // --- [ ✨ 수정된 부분 (onclick -> data-action) ✨ ] ---
     let html = `
         <div class="mb-4 pb-2 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
@@ -461,10 +461,10 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
             </div>
         </div>
     `;
-    // --- [ ✨ 수정된 부분 끝 ✨ ] ---
+    // --- [ ✨ 수정 끝 ✨ ] ---
     
 
-    // --- [ ✨ 수정된 부분 시작 (그룹화 로직) ✨ ] ---
+    // --- [ ✨ 수정된 부분 시작 (그룹화 + 테두리 로직) ✨ ] ---
 
     if (!data || !data.onLeaveMembers || data.onLeaveMembers.length === 0) {
         html += `<div class="bg-white p-4 rounded-lg shadow-sm text-center text-gray-500">해당 날짜의 근태 기록이 없습니다.</div>`;
@@ -473,7 +473,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     }
 
     const leaveEntries = data.onLeaveMembers;
-    // [✨ 수정] 정렬 기준: 1.이름, 2.유형(시간/기간), 3.시작시간/시작일
     leaveEntries.sort((a, b) => {
         if (a.member !== b.member) return (a.member || '').localeCompare(b.member || '');
         if ((a.startTime || a.startDate) !== (b.startTime || b.startDate)) {
@@ -483,14 +482,13 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     });
 
 
-    // 1. 근태 기록을 멤버별로 그룹화합니다.
+    // 1. 근태 기록을 멤버별로 그룹화합니다. (변경 없음)
     const groupedEntries = new Map();
     leaveEntries.forEach((entry, index) => {
         const member = entry.member || 'N/A';
         if (!groupedEntries.has(member)) {
             groupedEntries.set(member, []);
         }
-        // 수정/삭제 버튼을 위해 원본 인덱스(index)를 함께 저장합니다.
         groupedEntries.get(member).push({ ...entry, originalIndex: index });
     });
 
@@ -513,7 +511,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         const memberEntryCount = entries.length;
 
         entries.forEach((entry, entryIndex) => {
-            // 3. 상세 시간/기간 텍스트 계산
+            // 3. 상세 시간/기간 텍스트 계산 (변경 없음)
             let detailText = '-';
             if (entry.startTime) {
                 detailText = formatTimeTo24H(entry.startTime);
@@ -529,18 +527,22 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                 }
             }
 
-            // [✨ 수정] border-b가 tr에 있으므로, rowspan 셀에도 border가 적용되도록
-            html += `<tr class="bg-white hover:bg-gray-50 border-b">`;
+            // [✨✨✨ 핵심 수정 ✨✨✨]
+            // 이 항목이 이 멤버의 '마지막' 항목인지 확인합니다.
+            const isLastEntry = (entryIndex === memberEntryCount - 1);
+            // 마지막 항목일 때만 'border-b' (아래쪽 테두리)를 적용합니다.
+            const rowClass = `bg-white hover:bg-gray-50 ${isLastEntry ? 'border-b' : ''}`;
+
+            html += `<tr class="${rowClass}">`;
             
             // 4. 첫 번째 항목일 때만 '이름' 셀에 rowspan을 적용합니다.
             if (entryIndex === 0) {
-                // [✨ 수정] 맨 아래 border가 겹치지 않게 border-b-0 추가
-                html += `<td class="px-6 py-4 font-medium text-gray-900 align-top border-b-0" rowspan="${memberEntryCount}">${member}</td>`;
+                // [✨✨✨ 핵심 수정 ✨✨✨]
+                // align-top을 추가하여 텍스트가 위로 정렬되도록 하고, 불필요한 border 클래스를 제거합니다.
+                html += `<td class="px-6 py-4 font-medium text-gray-900 align-top" rowspan="${memberEntryCount}">${member}</td>`;
             }
-            // (entryIndex > 0 인 경우에는 '이름' 셀을 그리지 않습니다)
 
-            // 5. 나머지 '유형', '시간', '관리' 셀을 그립니다.
-            // (원본 인덱스(entry.originalIndex)를 사용해야 수정/삭제가 정확히 동작합니다)
+            // 5. 나머지 셀을 그립니다. (변경 없음)
             html += `
                 <td class="px-6 py-4">${entry.type}</td>
                 <td class="px-6 py-4">${detailText}</td>
