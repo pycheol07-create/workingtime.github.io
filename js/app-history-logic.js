@@ -401,7 +401,8 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
   const totalSumDuration = records.reduce((sum, r) => sum + (r.duration || 0), 0);
   const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
 
-  const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (rec.duration || 0); return acc; }, {});
+  // 👈 [수정] (rec.duration || 0)을 (Number(rec.duration) || 0)으로 변경
+  const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (Number(rec.duration) || 0); return acc; }, {});
   const taskCosts = records.reduce((acc, rec) => {
       const wage = wageMap[rec.member] || 0;
       const cost = ((Number(rec.duration) || 0) / 60) * wage;
