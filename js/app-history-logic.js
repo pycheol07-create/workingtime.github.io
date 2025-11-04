@@ -49,7 +49,7 @@ import {
 // ✅ [신규] 해당 날짜의 데이터에 "업무 시간은 있으나 처리량이 0"인 업무가 있는지 확인하는 헬퍼 함수
 // (appConfig가 필요하므로 app.js에서 import된 appConfig를 사용합니다)
 const checkMissingQuantities = (dayData) => {
-    if (!dayData || !dayData.workRecords) return false;
+    if (!dayData || !dayData.workRecords) return []; // ✅ [수정] false 대신 빈 배열 반환
 
     const records = dayData.workRecords;
     const quantities = dayData.taskQuantities || {};
@@ -64,10 +64,13 @@ const checkMissingQuantities = (dayData) => {
 
     // 2. 소요 시간이 0보다 큰 업무들
     const tasksWithDuration = Object.keys(durationByTask);
-    if (tasksWithDuration.length === 0) return false;
+    if (tasksWithDuration.length === 0) return []; // ✅ [수정] false 대신 빈 배열 반환
 
-    // 3. '처리량 집계 대상' 업무 목록 가져오기
+    // 3. '처리량 집계 대상' 업무 목록 가져_
     const quantityTaskTypes = appConfig.quantityTaskTypes || [];
+    
+    // ✅ [추가] 누락된 업무를 저장할 배열
+    const missingTasks = [];
 
     // 4. 소요 시간은 있으나 처리량이 0인 '집계 대상' 업무가 있는지 확인
     for (const task of tasksWithDuration) {
@@ -75,13 +78,14 @@ const checkMissingQuantities = (dayData) => {
         if (quantityTaskTypes.includes(task)) {
             // 처리량 집계 대상인데, 처리량이 0이거나 없으면
             if (!quantities[task] || Number(quantities[task]) <= 0) {
-                return true; // 🚨 경고!
+                // 🚨 [수정] return true 대신, 배열에 추가
+                missingTasks.push(task); 
             }
         }
     }
     
-    // 경고할 항목을 찾지 못함
-    return false;
+    // ✅ [수정] 경고할 항목 배열을 반환 (없으면 빈 배열 [])
+    return missingTasks;
 };
 
 /**
@@ -354,19 +358,29 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
     keys.forEach(key => {
         const li = document.createElement('li');
         
-        // --- [수정 시작] ---
+        // --- [ ✨ 수정된 부분 ✨ ] ---
         let hasWarning = false;
+        let titleAttr = ''; // 툴팁(title) 속성을 저장할 변수
+
         // '일별' 모드일 때만 경고 확인
         if (mode === 'day') {
             const dayData = filteredData.find(d => d.id === key);
             if (dayData) {
-                hasWarning = checkMissingQuantities(dayData);
+                // 1. checkMissingQuantities는 이제 배열을 반환합니다.
+                const missingTasksList = checkMissingQuantities(dayData);
+                // 2. 배열 길이가 0보다 크면 경고가 있는 것입니다.
+                hasWarning = missingTasksList.length > 0;
+                
+                if (hasWarning) {
+                    // 3. title 속성에 누락된 업무 목록을 추가합니다.
+                    titleAttr = ` title="처리량 누락: ${missingTasksList.join(', ')}"`;
+                }
             }
         }
         
-        // 클래스에 hasWarning 결과 적용
-        li.innerHTML = `<button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300 ${hasWarning ? 'warning-no-quantity' : ''}">${key}</button>`;
-        // --- [수정 끝] ---
+        // 4. 클래스와 title 속성을 HTML에 적용합니다.
+        li.innerHTML = `<button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300 ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>${key}</button>`;
+        // --- [ ✨ 수정 끝 ✨ ] ---
 
         historyDateList.appendChild(li);
     });
