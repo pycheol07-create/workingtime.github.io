@@ -224,8 +224,10 @@ export let context = {
     tempSelectedMembers: [],
     memberToSetLeave: null,
     memberToCancelLeave: null,
-    activeMainHistoryTab: 'work',
+    aactiveMainHistoryTab: 'work',
     attendanceRecordToDelete: null,
+    isMobileTaskViewExpanded: false, // 👈 [추가] 모바일 업무카드 '전체보기' 상태
+    isMobileMemberViewExpanded: false, // 👈 [추가] 모바일 팀원현황 '전체보기' 상태
 };
 
 export let appState = {
@@ -400,7 +402,8 @@ export const updateElapsedTimes = () => {
 /** (모든 모듈에서 import) */
 export const render = () => {
   try {
-    renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || []);
+    // 👈 [수정] context의 모바일 뷰 상태 값을 파라미터로 전달
+    renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || [], context.isMobileTaskViewExpanded, context.isMobileMemberViewExpanded);
     renderCompletedWorkLog(appState);
     updateSummary(appState, appConfig); 
     renderTaskAnalysis(appState, appConfig); 
