@@ -215,12 +215,10 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
-    // ⛔️ [삭제] 기존의 탭 감지 로직 (activeSubTabBtn, activeView, switchHistoryView 호출) 4줄 삭제
-
-    // ✅ [추가] 모달을 열 때 항상 '업무 이력'의 '일별 상세' 탭을 강제로 활성화하고 
+    // ✅ [수정] 모달을 열 때 항상 '업무 이력'의 '일별 상세' 탭을 강제로 활성화하고 
     // ✅ 데이터를 즉시 렌더링하도록 수정합니다.
 
-    // 1. 메인 탭(업무 이력) 활성화
+    // 1. 메인 탭(업무 이력) 활성화 (UI)
     document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
         btn.classList.remove('font-medium', 'text-gray-500');
@@ -230,7 +228,7 @@ export const loadAndRenderHistoryList = async () => {
         btn.classList.add('font-medium', 'text-gray-500');
     });
 
-    // 2. 서브 탭(일별 상세) 활성화
+    // 2. 서브 탭(일별 상세) 활성화 (UI)
     document.querySelectorAll('#history-tabs button[data-view="daily"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
         btn.classList.remove('text-gray-500');
@@ -240,7 +238,7 @@ export const loadAndRenderHistoryList = async () => {
         btn.classList.add('text-gray-500');
     });
     
-    // 3. 패널(업무 이력) 및 뷰(일별 상세) 표시
+    // 3. 패널(업무 이력) 및 뷰(일별 상세) 표시 (UI)
     if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
     if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
     if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
@@ -252,7 +250,10 @@ export const loadAndRenderHistoryList = async () => {
     document.getElementById('history-attendance-weekly-view')?.classList.add('hidden');
     document.getElementById('history-attendance-monthly-view')?.classList.add('hidden');
 
-    // 4. '일별' 모드로 날짜 목록 렌더링 (이 함수가 '일별 상세' 데이터도 렌더링함)
+    // 4. 👈 [핵심 수정] '상태(context)'를 'work'로 설정
+    context.activeMainHistoryTab = 'work';
+
+    // 5. '일별' 모드로 날짜 목록 렌더링 (이 함수가 '일별 상세' 데이터도 렌더링함)
     renderHistoryDateListByMode('day');
 };
 
