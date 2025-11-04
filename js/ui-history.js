@@ -5,7 +5,7 @@ import { formatTimeTo24H, formatDuration, getWeekOfYear, isWeekday } from './uti
 // import { getDiffHtmlForMetric } from './ui.js';
 
 // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
-// (getDiffHtmlForMetric 헬퍼 함수를 ui.js에서 가져와 여기에 로컬로 정의)
+// (getDiffHtmlForMetric 헬퍼 함수는 이전과 동일하게 유지합니다)
 const getDiffHtmlForMetric = (metric, current, previous) => {
     const currValue = current || 0;
     const prevValue = previous || 0;
@@ -577,9 +577,10 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 };
 
 /**
- * ================== [ ✨ 수정된 함수 ✨ ] ==================
+ * ================== [ ✨✨✨ 새 로직 적용 ✨✨✨ ] ==================
  * (주별/월별 근태 요약 렌더링을 위한 공통 헬퍼 함수)
  * (선택한 'periodKey'의 데이터만 렌더링하도록 수정)
+ * (요청사항: 멤버별 그룹화)
  */
 const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKey) => {
     
@@ -591,47 +592,71 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
 
     let html = '';
         
-        // [수정] 근태 항목 집계 (member-type 기준)
-        const summary = data.leaveEntries.reduce((acc, entry) => {
-            const key = `${entry.member}-${entry.type}`;
-            
-            if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0 };
-
-            if (['연차', '출장', '결근'].includes(entry.type)) {
-                 acc[key].count += 1;
-            } 
-            else if (['외출', '조퇴'].includes(entry.type)) {
-                 acc[key].count += 1;
-            }
-            
-            return acc;
-        }, {});
-
-        // [수정] '일' 단위와 '회' 단위 구분
-        Object.values(summary).forEach(item => {
-             if (['연차', '출장', '결근'].includes(item.type)) {
-                 item.days = item.count; // '일' 단위
-             } else {
-                 item.days = 0; // '회' 단위 (days는 0으로)
-             }
-        });
-
-        html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-                    <h3 class="text-xl font-bold mb-3">${periodKey}</h3>
-                    <div class="space-y-1 max-h-[60vh] overflow-y-auto">`; // (max-h 추가)
-
-        if (Object.keys(summary).length === 0) {
-             html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
-        } else {
-            Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
-                 html += `<div class="flex justify-between text-sm">
-                            <span class="font-semibold text-gray-700">${item.member}</span>
-                            <span>${item.type}</span>
-                            <span class="text-right">${item.days > 0 ? `${item.days}일` : `${item.count}회`}</span>
-                         </div>`;
-            });
+    // [✨✨✨ 핵심 수정 ✨✨✨]
+    // 1. 근태 항목 집계 (member 기준)
+    const summary = data.leaveEntries.reduce((acc, entry) => {
+        const member = entry.member;
+        const type = entry.type;
+        
+        if (!acc[member]) {
+            acc[member] = { 
+                member: member, 
+                counts: {} // { '연차': 0, '외출': 0, ... }
+            };
         }
-        html += `</div></div>`;
+        
+        if (!acc[member].counts[type]) {
+            acc[member].counts[type] = 0;
+        }
+
+        // '일' 단위와 '회' 단위를 구분하여 누적
+        if (['연차', '출장', '결근'].includes(type)) {
+             acc[member].counts[type] += 1; // '일'
+        } 
+        else if (['외출', '조퇴'].includes(type)) {
+             acc[member].counts[type] += 1; // '회'
+        }
+        
+        return acc;
+    }, {});
+
+    // 2. HTML 생성
+    html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                <h3 class="text-xl font-bold mb-3">${periodKey}</h3>
+                <div class="space-y-3 max-h-[60vh] overflow-y-auto">`; // (max-h 추가, space-y-1 -> 3)
+
+    if (Object.keys(summary).length === 0) {
+         html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
+    } else {
+        // 멤버 이름으로 정렬
+        Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
+            
+            // 이 멤버의 근태 기록(counts)을 HTML로 변환
+            const typesHtml = Object.entries(item.counts)
+                .sort(([typeA], [typeB]) => typeA.localeCompare(typeB)) // 유형별로 정렬
+                .map(([type, count]) => {
+                    const unit = (['연차', '출장', '결근'].includes(type)) ? '일' : '회';
+                    // 개별 항목 HTML
+                    return `<div class="flex justify-between text-sm text-gray-700 pl-4">
+                                <span>${type}</span>
+                                <span class="text-right font-medium">${count}${unit}</span>
+                            </div>`;
+                }).join(''); // 하나의 HTML 문자열로 합침
+
+             // 멤버별로 그룹화된 HTML 생성 (border-t로 구분)
+             html += `
+                <div class="border-t pt-2 first:border-t-0">
+                    <div class="flex justify-between text-md mb-1">
+                        <span class="font-semibold text-gray-900">${item.member}</span>
+                    </div>
+                    <div class="space-y-0.5">
+                        ${typesHtml}
+                    </div>
+                </div>`;
+        });
+    }
+    html += `</div></div>`;
+    // --- [ ✨✨✨ 수정 끝 ✨✨✨ ] ---
 
     viewElement.innerHTML = html;
 };
