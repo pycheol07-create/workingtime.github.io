@@ -787,5 +787,6 @@ async function main() {
 // ⛔️ [삭제] ---
 // ⛔️ 통합 근태 수정 모달 리스너 (editLeaveModal) (약 150줄) 삭제 (app-listeners.js로 이동)
 // ⛔️ ---
+}
 
 main(); // 앱 시작
