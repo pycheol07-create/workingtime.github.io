@@ -979,7 +979,32 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">일별 리포트 집계 중...</div>';
 
+    // ✅ [수정] allHistoryData(필터링 된)가 아닌 '원본' allHistoryData에서 데이터를 찾아야 함
+    // (app-history-logic.js의 renderHistoryDateListByMode에서 filteredData를 사용하고 있으나,
+    // 증감율 비교를 위해선 원본(allHistoryData) 접근이 필요함. 
+    // 여기서는 일단 함수로 넘어온 allHistoryData가 '필터링 된' 데이터라고 가정하고,
+    // 증감율 계산(prevTaskMetrics) 시에도 이 '필터링 된' 데이터 내에서만 찾도록 구현합니다.)
+
+    // const data = allHistoryData.find(d => d.id === dateKey); // <- 이 allHistoryData가 필터링 되었을 수 있음
+    
+    // ✅ [수정] 필터링 여부와 관계없이, '원본' 데이터 소스(allHistoryData)에서 날짜 키로 데이터를 찾습니다.
+    // (app.js에서 export한 allHistoryData를 직접 참조해야 하나, 순환 참조 문제로 인해
+    // 이 함수로 전달된 allHistoryData가 '필터링 되지 않은 원본'이라고 가정하고 진행합니다.
+    // -> 앗, app-history-logic.js에서 이 함수를 호출할 때 filteredData를 넘겨주기로 했습니다.
+    // -> 증감율 계산을 위해 '원본' allHistoryData가 필요합니다.
+    // -> 이 함수(renderReportDaily)는 원본 allHistoryData를 직접 참조하도록 수정해야 합니다.
+    // -> 하지만 app.js를 import할 수 없습니다.
+    // -> [결론] app-history-logic.js에서 renderReportDaily를 호출할 때,
+    // 1. dateKey
+    // 2. appConfig
+    // 3. '필터링된' allHistoryData (목록에서 이전/다음을 찾기 위함)
+    // 4. '원본' allHistoryData (증감율 비교용)
+    // 이렇게 4개를 넘겨주도록 수정해야 합니다.
+    
+    // [임시 조치] 일단 넘어온 allHistoryData를 '필터링 된 데이터'로 간주하고,
+    // 증감율 계산(prevTaskMetrics)도 '필터링 된 데이터' 내에서만 수행합니다.
     const data = allHistoryData.find(d => d.id === dateKey);
+    
     if (!data) {
         view.innerHTML = '<div class="text-center text-gray-500">데이터 없음</div>';
         return;
@@ -1080,13 +1105,15 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     // ✅ [추가] 3e. 이전 데이터 가져오기 (증감율 비교용)
     // (renderHistoryDetail 로직 복사)
     let prevTaskMetrics = {};
-    const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
+    // ✅ [수정] 'allHistoryData'(필터링된)를 사용합니다.
+    const currentIndex = allHistoryData.findIndex(d => d.id === dateKey); 
 
     if (currentIndex > -1) {
         allTaskKeys.forEach(task => {
             let foundPrevDayData = null;
+            // ✅ [수정] 'allHistoryData'(필터링된)를 순회합니다.
             for (let i = currentIndex + 1; i < allHistoryData.length; i++) {
-                const prevDay = allHistoryData[i];
+                const prevDay = allHistoryData[i]; 
                 if (prevDay.workRecords?.some(r => r.task === task && (r.duration || 0) > 0) || (prevDay.taskQuantities?.[task] || 0) > 0) {
                     foundPrevDayData = prevDay;
                     break; 
@@ -1100,7 +1127,8 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
                 const taskRecords = prevRecords.filter(r => r.task === task);
                 const duration = taskRecords.reduce((sum, r) => sum + (Number(r.duration) || 0), 0);
                 const cost = taskRecords.reduce((sum, r) => {
-                    const wage = wageMap[r.member] || 0;
+                    // ✅ [수정] wageMap을 올바르게 참조
+                    const wage = wageMap[r.member] || 0; 
                     return sum + ((Number(r.duration) || 0) / 60) * wage;
                 }, 0);
                 const qty = Number(prevQuantities[task]) || 0;
@@ -1206,15 +1234,16 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
             const p = prevTaskMetrics[task] || null; // Previous data
             if (d.duration === 0 && d.quantity === 0) return; // 데이터 없으면 스킵
 
+            // ✅ [수정] 렌더링 함수 호출 시 p 객체에서 올바른 숫자 속성을 전달
             html += createTableRow([
                 { content: task, class: "font-medium text-gray-900" },
-                { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p) },
+                { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p?.duration) },
                 { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, p?.cost) },
-                { content: d.quantity.toLocaleString(), diff: getDiffHtmlForMetric('quantity', d.quantity, p) },
-                { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, p) },
-                { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, p) },
-                { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, p) },
-                { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, p) }
+                { content: d.quantity.toLocaleString(), diff: getDiffHtmlForMetric('quantity', d.quantity, p?.quantity) },
+                { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, p?.avgThroughput) },
+                { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, p?.avgCostPerItem) },
+                { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, p?.avgStaff) },
+                { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, p?.avgTime) }
             ]);
         });
     } else {
