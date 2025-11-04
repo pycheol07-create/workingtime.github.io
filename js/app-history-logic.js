@@ -48,7 +48,7 @@ import {
 
 // ✅ [신규] 해당 날짜의 데이터에 "업무 시간은 있으나 처리량이 0"인 업무가 있는지 확인하는 헬퍼 함수
 // (appConfig가 필요하므로 app.js에서 import된 appConfig를 사용합니다)
-const checkMissingQuantities = (dayData) => {
+export const checkMissingQuantities = (dayData) => { // ✅ [수정] export 추가
     if (!dayData || !dayData.workRecords) return []; // ✅ [수정] false 대신 빈 배열 반환
 
     const records = dayData.workRecords;
@@ -428,18 +428,30 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
 export const openHistoryQuantityModal = (dateKey) => {
     const todayDateString = getTodayDateString();
     let quantitiesToShow = {};
+    let dayData = null; // ✅ [추가] dayData를 저장할 변수
 
     if (dateKey === todayDateString) {
         quantitiesToShow = appState.taskQuantities || {};
+        // ✅ [추가] 오늘의 데이터로 dayData 객체를 구성합니다.
+        dayData = {
+            id: dateKey,
+            workRecords: appState.workRecords || [],
+            taskQuantities: appState.taskQuantities || {},
+            // (참고: checkMissingQuantities는 workRecords와 taskQuantities만 필요합니다)
+        };
     } else {
-        const data = allHistoryData.find(d => d.id === dateKey);
-        if (!data) {
+        dayData = allHistoryData.find(d => d.id === dateKey); // ✅ [수정] 변수 이름을 data에서 dayData로
+        if (!dayData) {
             return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
         }
-        quantitiesToShow = data.taskQuantities || {};
+        quantitiesToShow = dayData.taskQuantities || {};
     }
 
-    renderQuantityModalInputs(quantitiesToShow, appConfig.quantityTaskTypes);
+    // ✅ [추가] 누락된 업무 목록을 계산합니다.
+    const missingTasksList = checkMissingQuantities(dayData);
+
+    // ✅ [수정] renderQuantityModalInputs에 missingTasksList를 전달합니다.
+    renderQuantityModalInputs(quantitiesToShow, appConfig.quantityTaskTypes, missingTasksList);
     
     const title = document.getElementById('quantity-modal-title');
     if (title) title.textContent = `${dateKey} 처리량 수정`;

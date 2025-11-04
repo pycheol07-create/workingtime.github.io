@@ -135,3 +135,14 @@ body {
     color: #92400e;
     border-color: #f59e0b;
 }
+
+/* ✅ [추가] 처리량 수정 모달에서 누락된 항목 경고 스타일 */
+.warning-missing-quantity {
+    background-color: #fffbeb !important; /* (노란색 배경) */
+    border-color: #fcd34d !important;     /* (노란색 테두리) */
+    color: #b45309 !important;           /* (어두운 주황색 텍스트) */
+}
+.warning-missing-quantity:focus {
+    border-color: #f59e0b !important;
+    box-shadow: 0 0 0 1px #f59e0b;
+}

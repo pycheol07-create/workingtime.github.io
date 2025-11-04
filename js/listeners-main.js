@@ -66,7 +66,10 @@ import {
 
 // app-history-logic.js (이력 로직)
 import {
-    saveProgress, saveDayDataToHistory
+    saveProgress, saveDayDataToHistory,
+    // ✅ [오류 수정] confirmQuantityBtn에서 이 함수가 필요합니다.
+    switchHistoryView,
+    checkMissingQuantities // 👈 [추가]
 } from './app-history-logic.js';
 
 // Firebase (Auth)
@@ -488,7 +491,19 @@ export function setupMainScreenListeners() {
             
             // ✅ 이 리스너는 모달을 열고 'context'를 설정하는 역할만 합니다.
             const quantityModal = document.getElementById('quantity-modal');
-            renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || []);
+
+            // --- [ ✨ 수정된 부분 시작 ✨ ] ---
+            // ✅ 오늘의 누락된 항목을 계산합니다.
+            const todayData = {
+                workRecords: appState.workRecords || [],
+                taskQuantities: appState.taskQuantities || {},
+            };
+            const missingTasksList = checkMissingQuantities(todayData);
+
+            // ✅ missingTasksList를 전달합니다.
+            renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList);
+            // --- [ ✨ 수정된 부분 끝 ✨ ] ---
+
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
 
@@ -563,7 +578,19 @@ export function setupMainScreenListeners() {
             
             // ✅ 위와 동일하게 모달을 열고 'context'를 설정합니다.
             const quantityModal = document.getElementById('quantity-modal');
-            renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || []);
+
+            // --- [ ✨ 수정된 부분 시작 ✨ ] ---
+            // ✅ 오늘의 누락된 항목을 계산합니다.
+            const todayData = {
+                workRecords: appState.workRecords || [],
+                taskQuantities: appState.taskQuantities || {},
+            };
+            const missingTasksList = checkMissingQuantities(todayData);
+
+            // ✅ missingTasksList를 전달합니다.
+            renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList);
+            // --- [ ✨ 수정된 부분 끝 ✨ ] ---
+
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
             

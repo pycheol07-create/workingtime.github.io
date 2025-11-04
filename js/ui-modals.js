@@ -1,16 +1,27 @@
 // === ui-modals.js (모달 렌더링 담당) ===
 
 // ✅ [수정] renderQuantityModalInputs (ui.js -> ui-modals.js)
-export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = []) => {
-    // ... (이전과 동일) ...
+// ✨ [수정] missingTasksList 파라미터를 추가합니다.
+export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
     container.innerHTML = '';
+
+    // ✨ [추가] 빠른 조회를 위해 Set으로 변환
+    const missingTaskSet = new Set(missingTasksList);
+
     quantityTaskTypes.forEach(task => {
         const div = document.createElement('div');
+        
+        // ✨ [추가] 이 업무가 누락 목록에 있는지 확인
+        const isMissing = missingTaskSet.has(task);
+        // ✨ [추가] 경고 클래스 (isMissing이 true일 때만 적용)
+        const warningClass = isMissing ? 'warning-missing-quantity' : '';
+
         div.innerHTML = `
-            <label for="modal-quantity-${task}" class="block text-sm font-medium text-gray-700">${task}</label>
-            <input type="number" id="modal-quantity-${task}" data-task="${task}" value="${sourceQuantities[task] || 0}" min="0" class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            <label for="modal-quantity-${task}" class="block text-sm font-medium text-gray-700 ${isMissing ? 'text-yellow-700 font-bold' : ''}">${task} ${isMissing ? '(누락됨)' : ''}</label>
+            <input type="number" id="modal-quantity-${task}" data-task="${task}" value="${sourceQuantities[task] || 0}" min="0" 
+                   class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition ${warningClass}">
         `;
         container.appendChild(div);
     });
