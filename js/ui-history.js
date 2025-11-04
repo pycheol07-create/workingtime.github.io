@@ -948,16 +948,22 @@ export const renderTrendAnalysisCharts = (allHistoryData, appConfig, trendCharts
  */
 const createTableRow = (columns, isHeader = false) => {
     const cellTag = isHeader ? 'th' : 'td';
-    const rowClass = isHeader ? 'text-xs text-gray-700 uppercase bg-gray-100' : 'bg-white border-b hover:bg-gray-50';
+    // ✅ [수정] 헤더 클래스 수정 (sticky top-0 추가)
+    const rowClass = isHeader ? 'text-xs text-gray-700 uppercase bg-gray-100 sticky top-0' : 'bg-white border-b hover:bg-gray-50';
     const cellClass = "px-4 py-2";
 
     let cellsHtml = columns.map((col, index) => {
         let alignClass = 'text-left';
-        if (index > 0) { // 첫 번째 열(이름/업무/파트) 제외하고 우측 정렬
+        // ✅ [수정] 0번째(이름/업무) 열만 좌측 정렬, 나머지는 우측 정렬
+        if (index > 0) { 
              alignClass = 'text-right';
         }
         if (typeof col === 'object' && col !== null) {
-            return `<${cellTag} class="${cellClass} ${alignClass} ${col.class || ''}">${col.content}</${cellTag}>`;
+            // ✅ [수정] span 태그 추가 (증감율 표시용)
+            return `<${cellTag} class="${cellClass} ${alignClass} ${col.class || ''}">
+                        <div>${col.content}</div>
+                        ${col.diff || ''}
+                    </${cellTag}>`;
         }
         return `<${cellTag} class="${cellClass} ${alignClass}">${col}</${cellTag}>`;
     }).join('');
@@ -1047,11 +1053,73 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
         memberSummary[r.member].tasks.add(r.task);
 
         // 3c. 업무별 집계
-        if (!taskSummary[r.task]) taskSummary[r.task] = { duration: 0, cost: 0, members: new Set() };
+        // ✅ [수정] recordCount 추가
+        if (!taskSummary[r.task]) taskSummary[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
         taskSummary[r.task].duration += duration;
         taskSummary[r.task].cost += cost;
         taskSummary[r.task].members.add(r.member);
+        taskSummary[r.task].recordCount += 1; // ✅ [추가]
     });
+    
+    // ✅ [추가] 3d. 업무별 통계 후처리 (증감율 비교를 위해)
+    const allTaskKeys = new Set([...Object.keys(taskSummary), ...Object.keys(quantities)]);
+    allTaskKeys.forEach(task => {
+        if (!taskSummary[task]) {
+            taskSummary[task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+        }
+        const summary = taskSummary[task];
+        const qty = Number(quantities[task]) || 0;
+        
+        summary.quantity = qty;
+        summary.avgThroughput = summary.duration > 0 ? (qty / summary.duration) : 0;
+        summary.avgCostPerItem = qty > 0 ? (summary.cost / qty) : 0;
+        summary.avgStaff = summary.members.size;
+        summary.avgTime = (summary.recordCount > 0) ? (summary.duration / summary.recordCount) : 0;
+    });
+
+    // ✅ [추가] 3e. 이전 데이터 가져오기 (증감율 비교용)
+    // (renderHistoryDetail 로직 복사)
+    let prevTaskMetrics = {};
+    const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
+
+    if (currentIndex > -1) {
+        allTaskKeys.forEach(task => {
+            let foundPrevDayData = null;
+            for (let i = currentIndex + 1; i < allHistoryData.length; i++) {
+                const prevDay = allHistoryData[i];
+                if (prevDay.workRecords?.some(r => r.task === task && (r.duration || 0) > 0) || (prevDay.taskQuantities?.[task] || 0) > 0) {
+                    foundPrevDayData = prevDay;
+                    break; 
+                }
+            }
+
+            if (foundPrevDayData) {
+                const prevRecords = foundPrevDayData.workRecords || [];
+                const prevQuantities = foundPrevDayData.taskQuantities || {};
+                
+                const taskRecords = prevRecords.filter(r => r.task === task);
+                const duration = taskRecords.reduce((sum, r) => sum + (Number(r.duration) || 0), 0);
+                const cost = taskRecords.reduce((sum, r) => {
+                    const wage = wageMap[r.member] || 0;
+                    return sum + ((Number(r.duration) || 0) / 60) * wage;
+                }, 0);
+                const qty = Number(prevQuantities[task]) || 0;
+                const members = new Set(taskRecords.map(r => r.member));
+                const recordCount = taskRecords.length;
+
+                prevTaskMetrics[task] = {
+                    date: foundPrevDayData.id,
+                    duration: duration,
+                    cost: cost,
+                    quantity: qty,
+                    avgThroughput: duration > 0 ? (qty / duration) : 0,
+                    avgCostPerItem: qty > 0 ? (cost / qty) : 0,
+                    avgStaff: members.size,
+                    avgTime: recordCount > 0 ? (duration / recordCount) : 0
+                };
+            }
+        });
+    }
 
     // --- 4. HTML 렌더링 ---
     let html = `<div class="space-y-6">`;
@@ -1122,62 +1190,87 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     }
     html += `</tbody></table></div></div>`;
 
-    // 4d. 업무별 상세
+    // 4d. 업무별 상세 (✅ [수정] 증감율 및 새 컬럼 추가)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
-            <h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세</h3>
-            <div class="overflow-x-auto max-h-[60vh]">
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 최근 기록 대비)</h3>
+            <div class="overflow-x-auto max-h-[70vh]">
                 <table class="w-full text-sm text-left text-gray-600">
-                    <thead>${createTableRow(['업무', '총 시간', '총 인건비', '총 처리량', '분당 처리량', '개당 처리비용'], true)}</thead>
+                    <thead>${createTableRow(['업무', '총 시간', '총 인건비', '총 처리량', '분당 처리량', '개당 처리비용', '총 참여인원', '평균 처리시간(건)'], true)}</thead>
                     <tbody>
     `;
-    const sortedTasks = Object.keys(taskSummary).sort();
+    const sortedTasks = Array.from(allTaskKeys).sort();
     if (sortedTasks.length > 0) {
         sortedTasks.forEach(task => {
             const d = taskSummary[task];
-            const q = quantities[task] || 0;
-            const throughput = d.duration > 0 ? (q / d.duration) : 0;
-            const costPerItem = q > 0 ? (d.cost / q) : 0;
+            const p = prevTaskMetrics[task] || null; // Previous data
+            if (d.duration === 0 && d.quantity === 0) return; // 데이터 없으면 스킵
+
             html += createTableRow([
-                task,
-                formatDuration(d.duration),
-                `${Math.round(d.cost).toLocaleString()} 원`,
-                q.toLocaleString(),
-                throughput.toFixed(2),
-                `${Math.round(costPerItem).toLocaleString()} 원`
+                { content: task, class: "font-medium text-gray-900" },
+                { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p) },
+                { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, p?.cost) },
+                { content: d.quantity.toLocaleString(), diff: getDiffHtmlForMetric('quantity', d.quantity, p) },
+                { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, p) },
+                { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, p) },
+                { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, p) },
+                { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, p) }
             ]);
         });
     } else {
-        html += `<tr><td colspan="6" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+        html += `<tr><td colspan="8" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
     }
     html += `</tbody></table></div></div>`;
 
-    // 4e. 근태 현황
+    // 4e. 근태 현황 (✅ [수정] 그룹화 로직 적용)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3>
-            <div class="overflow-x-auto max-h-[60vh]">
-                <table class="w-full text-sm text-left text-gray-600">
-                    <thead>${createTableRow(['이름', '유형', '상세 시간/기간'], true)}</thead>
-                    <tbody>
+            <div class="space-y-3 max-h-[60vh] overflow-y-auto">
     `;
-    if (onLeaveMemberEntries.length > 0) {
-        onLeaveMemberEntries.sort((a,b) => (a.member || '').localeCompare(b.member || '')).forEach(entry => {
-            let detailText = '-';
-            if (entry.startTime) {
-                detailText = formatTimeTo24H(entry.startTime);
-                if (entry.endTime) detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
-                else if (entry.type === '외출') detailText += ' ~';
-            } else if (entry.startDate) {
-                detailText = entry.startDate;
-                if (entry.endDate && entry.endDate !== entry.startDate) detailText += ` ~ ${entry.endDate}`;
-            }
-            html += createTableRow([entry.member, entry.type, detailText]);
-        });
+    
+    // (renderAggregatedAttendanceSummary 로직 복사)
+    const attendanceSummary = onLeaveMemberEntries.reduce((acc, entry) => {
+        const member = entry.member;
+        const type = entry.type;
+        if (!acc[member]) acc[member] = { member: member, counts: {} };
+        if (!acc[member].counts[type]) acc[member].counts[type] = 0;
+        
+        // 일/회 구분 (일별 리포트에서는 모두 '회'로 처리하거나, startDate 기준으로 구분)
+        if (entry.startDate) { // 연차, 출장, 결근
+             acc[member].counts[type] += 1; // '일'
+        } else { // 외출, 조퇴
+             acc[member].counts[type] += 1; // '회'
+        }
+        return acc;
+    }, {});
+
+    if (Object.keys(attendanceSummary).length === 0) {
+         html += `<p class="text-sm text-gray-500 text-center">데이터 없음</p>`;
     } else {
-        html += `<tr><td colspan="3" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+        Object.values(attendanceSummary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
+            const typesHtml = Object.entries(item.counts)
+                .sort(([typeA], [typeB]) => typeA.localeCompare(typeB))
+                .map(([type, count]) => {
+                    const unit = (['연차', '출장', '결근'].includes(type)) ? '일' : '회';
+                    return `<div class="flex justify-between text-sm text-gray-700 pl-4">
+                                <span>${type}</span>
+                                <span class="text-right font-medium">${count}${unit}</span>
+                            </div>`;
+                }).join('');
+
+             html += `
+                <div class="border-t pt-2 first:border-t-0">
+                    <div class="flex justify-between text-md mb-1">
+                        <span class="font-semibold text-gray-900">${item.member}</span>
+                    </div>
+                    <div class="space-y-0.5">
+                        ${typesHtml}
+                    </div>
+                </div>`;
+        });
     }
-    html += `</tbody></table></div></div>`;
+    html += `</div></div>`; // div 2개 닫기
 
 
     html += `</div>`; // .space-y-6 닫기
