@@ -188,7 +188,6 @@ export const confirmEditStartTimeBtn = document.getElementById('confirm-edit-sta
 export const cancelEditStartTimeBtn = document.getElementById('cancel-edit-start-time-btn');
 export const analysisMemberSelect = document.getElementById('analysis-member-select');
 
-// ✅ [추가] 이 DOM 요소를 export 목록에 추가합니다.
 export const editLeaveModal = document.getElementById('edit-leave-record-modal');
 
 
@@ -198,10 +197,6 @@ export let unsubscribeToday;
 export let unsubscribeLeaveSchedule;
 export let unsubscribeConfig; 
 export let elapsedTimeTimer = null;
-
-// ⛔️ [삭제] export let recordCounter = 0;
-// ⛔️ [삭제] export let recordIdOrGroupIdToEdit = null;
-// ... (isDataDirty를 제외한 모든 export let 변수 선언 삭제) ...
 
 export let isDataDirty = false; // (이 변수는 autoSaveProgress만 사용하므로 그대로 둡니다)
 export let autoSaveTimer = null;
@@ -231,7 +226,6 @@ export let context = {
 export let appState = {
   workRecords: [],
   taskQuantities: {},
-// ... (appState, persistentLeaveSchedule, appConfig, LEAVE_TYPES는 기존과 동일) ...
   dailyOnLeaveMembers: [],
   dateBasedOnLeaveMembers: [],
   partTimers: [],
@@ -245,18 +239,13 @@ export let persistentLeaveSchedule = {
 export let appConfig = {
     teamGroups: [],
     memberWages: {},
-    taskGroups: {},
+    taskGroups: [], // 👈 [중요] {} -> [] (배열)로 변경 (config.js의 마이그레이션 로직과 일치)
     quantityTaskTypes: [],
     defaultPartTimerWage: 10000,
     keyTasks: []
 };
 
-// ✅ [추가] 이 줄을 여기에 추가해야 합니다.
 export let allHistoryData = [];
-
-// ⛔️ [삭제] 
-// ⛔️ (컨텍스트 변수) ... (export let selectedTaskForStart = null; ... 등 13줄 모두 삭제)
-// ⛔️ ...
 
 export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
@@ -400,7 +389,10 @@ export const updateElapsedTimes = () => {
 /** (모든 모듈에서 import) */
 export const render = () => {
   try {
-    renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || []);
+    // ================== [ ✨ 수정된 부분 ✨ ] ==================
+    // (appConfig.taskGroups를 4번째 인자로 전달)
+    renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || [], appConfig.taskGroups || []);
+    // =======================================================
     renderCompletedWorkLog(appState);
     updateSummary(appState, appConfig); 
     renderTaskAnalysis(appState, appConfig); 
@@ -423,19 +415,6 @@ export const autoSaveProgress = () => {
         isDataDirty = false; // ✅ [수정] saveProgress 호출 후 플래그 초기화
     }
 };
-
-// ⛔️ [삭제] --- 
-// ⛔️ app-logic.js로 이동한 함수 (startWorkGroup ~ resumeWorkIndividual) (약 150줄) 삭제
-// ⛔️ ---
-
-// ⛔️ [삭제] ---
-// ⛔️ app-history-logic.js로 이동한 함수 (saveProgress ~ switchHistoryView) (약 1100줄) 삭제
-// ⛔️ ---
-
-// ⛔️ [삭제] ---
-// ⛔️ app-listeners.js로 이동한 함수 (모든 if (teamStatusBoard) ... addEventListener) (약 1100줄) 삭제
-// ⛔️ ---
-
 
 // ========== 9. 앱 초기화 (ENTRY POINT) ==========
 // (startAppAfterLogin, main, onAuthStateChanged는 app.js에 남겨둡니다)
@@ -758,10 +737,6 @@ async function main() {
   // ✅ [수정] 모든 이벤트 리스너를 app-listeners.js에서 가져와 초기화합니다.
   initializeAppListeners();
   
-  // ⛔️ [삭제] ---
-  // ⛔️ main() 함수 내부에 있던 모든 리스너 (loginForm, logoutBtn, makeDraggable 등) 삭제
-  // ⛔️ ---
-  
   // ✅ [추가] 1분(60000ms)마다 페이지 자동 새로고침 (기존 로직 유지)
   setInterval(() => {
     const activeModal = document.querySelector('.fixed.inset-0.z-50:not(.hidden), .fixed.inset-0.z-\[60\]:not(.hidden), .fixed.inset-0.z-\[99\]:not(.hidden)');
@@ -781,13 +756,5 @@ async function main() {
     };
 
 } // <-- main() 함수 끝
-
-// ⛔️ [삭제] ---
-// ⛔️ makeDraggable 함수 정의 (약 50줄) 삭제 (app-listeners.js로 이동)
-// ⛔️ ---
-
-// ⛔️ [삭제] ---
-// ⛔️ 통합 근태 수정 모달 리스너 (editLeaveModal) (약 150줄) 삭제 (app-listeners.js로 이동)
-// ⛔️ ---
 
 main(); // 앱 시작

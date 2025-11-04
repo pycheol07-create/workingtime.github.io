@@ -90,6 +90,17 @@ export const taskTitleColors = {
     'default': 'text-blue-700'
 };
 
+// ================== [ ✨ 추가된 부분 ✨ ] ==================
+// (업무 '그룹'별 제목 색상 정의)
+export const TASK_GROUP_COLORS = {
+    '공통': 'text-green-700',
+    '담당': 'text-indigo-700',
+    '기타': 'text-sky-700',
+    'default': 'text-gray-700' // 👈 혹시 그룹이 없는 경우 회색
+};
+// =========================================================
+
+
 // ✅ [유지] 공유 헬퍼 (getDiffHtmlForMetric) (ui-history.js에서 사용)
 import { formatDuration } from './utils.js'; // 이 함수는 formatDuration이 필요
 export const getDiffHtmlForMetric = (metric, current, previous) => {
@@ -108,10 +119,10 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
     
     let colorClass = 'text-gray-500';
-    if (metric === 'avgThroughput' || metric === 'avgStaff') {
-        colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
-    } else if (metric === 'avgCostPerItem' || metric === 'avgTime') {
-        colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
+    if (diff > 0) {
+        colorClass = 'text-green-600'; // 플러스(+)는 초록색
+    } else {
+        colorClass = 'text-red-600'; // 마이너스(-)는 빨간색
     }
     
     let diffStr = '';
