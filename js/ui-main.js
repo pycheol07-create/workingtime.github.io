@@ -1,8 +1,10 @@
 // === ui-main.js (메인 화면 렌더링 담당) ===
 
 import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday } from './utils.js';
-// ✅ [추가] ui.js에서 공유 상수/헬퍼 가져오기
-import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
+// ================== [ ✨ 수정된 부분 1 ✨ ] ==================
+// (TASK_GROUP_COLORS 임포트 추가)
+import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors, TASK_GROUP_COLORS } from './ui.js';
+// =========================================================
 
 /**
  * ✅ [수정] renderTaskAnalysis (ui.js -> ui-main.js)
@@ -246,10 +248,11 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 };
 
 /**
- * ✅ [수정] renderRealtimeStatus (ui.js -> ui-main.js)
- * (모든 근태 카드에 data-action="edit-leave-record" 추가)
+ * ================== [ ✨ 수정된 함수 ✨ ] ==================
+ * (taskGroups 인자를 받도록 수정)
+ * (taskGroupMap을 생성하여 titleClass를 그룹 색상으로 지정)
  */
-export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) => {
+export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], taskGroups = []) => {
     // === ✅ [수정] 현재 사용자 정보 가져오기 (함수 상단으로 이동) ===
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
@@ -267,11 +270,20 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         if (!memberGroupMap.has(member)) memberGroupMap.set(member, group.name);
     }));
 
+    // ================== [ ✨ 추가된 부분 2 ✨ ] ==================
+    // (Task 이름을 Key로, Task Group 이름을 Value로 하는 Map 생성)
+    const taskGroupMap = new Map();
+    (taskGroups || []).forEach(group => {
+        (group.tasks || []).forEach(taskName => {
+            taskGroupMap.set(taskName, group.name);
+        });
+    });
+    // =========================================================
+
     // --- Section 1: Preset Task Quick Actions ---
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     
-    // ✅ [수정] "주요 업무" 헤더 텍스트(h3) 삭제, 버튼만 남김
     presetTaskContainer.innerHTML = `
         <div class="flex justify-end items-center border-b pb-2 mb-4 md:hidden">
             <button id="toggle-all-tasks-mobile" 
@@ -281,7 +293,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         </div>`;
 
     const presetGrid = document.createElement('div');
-    // ✅ [수정] 그리드 컬럼 설정 변경 및 ID 추가
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4';
     presetGrid.id = 'preset-task-grid'; // 👈 [추가] ID 추가
 
@@ -295,7 +306,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
-        // ✅ [수정] 현재 유저가 이 업무를 하는지 확인
         const isCurrentUserWorkingOnThisTask = groupRecords.some(r => r.member === currentUserName);
 
         const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
@@ -310,28 +320,27 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             currentStyle = taskCardStyles['default'];
         }
 
-        const titleClass = isPaused ? currentStyle.title : (taskTitleColors[task] || taskTitleColors['default']);
+        // ================== [ ✨ 수정된 부분 3 ✨ ] ==================
+        // (taskGroupMap에서 업무 그룹 이름을 찾음)
+        const taskGroupName = taskGroupMap.get(task) || 'default';
+        
+        // (taskTitleColors[task] -> TASK_GROUP_COLORS[taskGroupName]로 변경)
+        const titleClass = isPaused ? currentStyle.title : (TASK_GROUP_COLORS[taskGroupName] || TASK_GROUP_COLORS['default']);
+        // =========================================================
 
-        // ✅ [수정] 모바일 반응형 클래스 (토글을 위한 'mobile-task-hidden' 클래스 추가)
         const mobileVisibilityClass = isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex mobile-task-hidden';
         
         // (진행 중인 카드)
         if (groupRecords.length > 0) {
-            const firstRecord = groupRecords[0]; // 대표 레코드 (그룹 ID, 태스크 이름 등)
+            const firstRecord = groupRecords[0]; 
 
-            // 🚨 [수정] 카드 자체에 cursor-pointer 추가 및 data 속성 부여
-            card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover} cursor-pointer`; // 👈 cursor-pointer 추가
+            card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover} cursor-pointer`;
             
-            // 🚨 [추가] 리스너가 참조할 수 있도록 카드 자체에 data 속성 부여
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
 
-
-            // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
-            // (max-h-48 -> max-h-64 로 변경하여 7명까지 표시되도록 함)
+            // (멤버 목록 최대 높이 max-h-48 -> max-h-64로 변경)
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-64 members-list">';
-            // =========================================================
-            
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
 
                 const isRecPaused = rec.status === 'paused';
@@ -347,10 +356,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                 
                 let pauseResumeButtonHtml = '';
                 if (rec.status === 'ongoing') {
-                    // 정지 버튼 (Pause 아이콘)
                     pauseResumeButtonHtml = `<button data-action="pause-individual" title="정지" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-yellow-100 hover:bg-yellow-200 text-yellow-700 transition">${pauseIcon}</button>`;
                 } else if (rec.status === 'paused') {
-                    // 재개 버튼 (Play 아이콘)
                     pauseResumeButtonHtml = `<button data-action="resume-individual" title="재개" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-green-100 hover:bg-green-200 text-green-700 transition">${playIcon}</button>`;
                 }
                 
@@ -419,7 +426,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                                         전체 종료
                                     </button>
                                 </div>
-                                </div>`;
+                            </div>`;
         } else {
              // (시작 전 카드)
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
@@ -444,14 +451,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                         <span>전체 종료</span>
                     </div>
                 </div>
-                `;
+            `;
         }
         presetGrid.appendChild(card);
     });
 
     const otherTaskCard = document.createElement('div');
     const otherStyle = taskCardStyles['default'];
-    // ✅ [수정] '기타 업무' 카드는 모바일에서도 항상 보이도록 'flex' 유지
     otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
