@@ -765,9 +765,10 @@ async function main() {
   // ⛔️ main() 함수 내부에 있던 모든 리스너 (loginForm, logoutBtn, makeDraggable 등) 삭제
   // ⛔️ ---
   
-  // ✅ [추가] 1분(60000ms)마다 페이지 자동 새로고침 (기존 로직 유지)
+  / ✅ [추가] 1분(60000ms)마다 페이지 자동 새로고침 (기존 로직 유지)
   setInterval(() => {
-    const activeModal = document.querySelector('.fixed.inset-0.z-50:not(.hidden), .fixed.inset-0.z-\[60\]:not(.hidden), .fixed.inset-0.z-\[99\]:not(.hidden)');
+    // 👈 [수정] z-index를 모두 제거하고 공통 클래스(.fixed.inset-0)만 선택
+    const activeModal = document.querySelector('.fixed.inset-0:not(.hidden)');
     if (!activeModal) { 
         location.reload();
     } else {
