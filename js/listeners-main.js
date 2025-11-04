@@ -54,7 +54,8 @@ import {
     getAllDashboardDefinitions,
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
-    renderPersonalAnalysis
+    renderPersonalAnalysis,
+    renderQuantityModalInputs // ✅ [추가] 이 함수를 추가해주세요
 } from './ui.js';
 
 // app-logic.js (업무 로직)
