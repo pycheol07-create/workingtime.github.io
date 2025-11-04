@@ -779,28 +779,7 @@ async function main() {
   // ⛔️ main() 함수 내부에 있던 모든 리스너 (loginForm, logoutBtn, makeDraggable 등) 삭제
   // ⛔️ ---
   
-  // ✅ [추가] 1분(60000ms)마다 페이지 자동 새로고침 (기존 로직 유지)
-  setInterval(() => {
-    // 👈 [수정] z-index를 모두 제거하고 공통 클래스(.fixed.inset-0)만 선택
-    const activeModal = document.querySelector('.fixed.inset-0:not(.hidden)');
-    if (!activeModal) { 
-        location.reload();
-    } else {
-        console.log("모달이 열려 있어 자동 새로고침을 건너뜁니다."); 
-    }
-  }, 60000); 
-
-  // ✅ [추가] HTML의 onclick=""에서 호출할 수 있도록 함수들을 전역 app 객체에 노출
-    window.app = {
-        openHistoryQuantityModal,
-        downloadHistoryAsExcel,
-        requestHistoryDeletion,
-        downloadAttendanceHistoryAsExcel,
-        downloadPeriodHistoryAsExcel // 👈 [추가] 기간 엑셀 다운로드
-    };
-
-} // <-- main() 함수 끝
-
+  
 // ⛔️ [삭제] ---
 // ⛔️ makeDraggable 함수 정의 (약 50줄) 삭제 (app-listeners.js로 이동)
 // ⛔️ ---
