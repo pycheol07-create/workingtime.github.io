@@ -126,5 +126,3 @@ export const debounce = (func, delay) => {
         }, delay);
     };
 };
-
-// ⛔️ [삭제] 파일 끝에 있던 불필요한 '}' 괄호를 제거했습니다.

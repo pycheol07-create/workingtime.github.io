@@ -46,6 +46,43 @@ import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ✅ [신규] 해당 날짜의 데이터에 "업무 시간은 있으나 처리량이 0"인 업무가 있는지 확인하는 헬퍼 함수
+// (appConfig가 필요하므로 app.js에서 import된 appConfig를 사용합니다)
+const checkMissingQuantities = (dayData) => {
+    if (!dayData || !dayData.workRecords) return false;
+
+    const records = dayData.workRecords;
+    const quantities = dayData.taskQuantities || {};
+
+    // 1. 업무별 총 소요 시간을 집계
+    const durationByTask = records.reduce((acc, r) => {
+        if (r.task && r.duration > 0) {
+            acc[r.task] = (acc[r.task] || 0) + r.duration;
+        }
+        return acc;
+    }, {});
+
+    // 2. 소요 시간이 0보다 큰 업무들
+    const tasksWithDuration = Object.keys(durationByTask);
+    if (tasksWithDuration.length === 0) return false;
+
+    // 3. '처리량 집계 대상' 업무 목록 가져오기
+    const quantityTaskTypes = appConfig.quantityTaskTypes || [];
+
+    // 4. 소요 시간은 있으나 처리량이 0인 '집계 대상' 업무가 있는지 확인
+    for (const task of tasksWithDuration) {
+        // 이 업무가 '처리량 집계 대상' 업무인지 확인
+        if (quantityTaskTypes.includes(task)) {
+            // 처리량 집계 대상인데, 처리량이 0이거나 없으면
+            if (!quantities[task] || Number(quantities[task]) <= 0) {
+                return true; // 🚨 경고!
+            }
+        }
+    }
+    
+    // 경고할 항목을 찾지 못함
+    return false;
+};
 
 /**
  * 현재까지 완료된 기록을 'history' 컬렉션에 저장합니다.
@@ -313,9 +350,24 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
         return;
     }
 
+    // ✅ [수정] keys.forEach 루프 수정
     keys.forEach(key => {
         const li = document.createElement('li');
-        li.innerHTML = `<button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300">${key}</button>`;
+        
+        // --- [수정 시작] ---
+        let hasWarning = false;
+        // '일별' 모드일 때만 경고 확인
+        if (mode === 'day') {
+            const dayData = filteredData.find(d => d.id === key);
+            if (dayData) {
+                hasWarning = checkMissingQuantities(dayData);
+            }
+        }
+        
+        // 클래스에 hasWarning 결과 적용
+        li.innerHTML = `<button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300 ${hasWarning ? 'warning-no-quantity' : ''}">${key}</button>`;
+        // --- [수정 끝] ---
+
         historyDateList.appendChild(li);
     });
 
