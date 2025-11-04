@@ -21,7 +21,12 @@ import {
     historyModalContentBox,
     openHistoryBtn, closeHistoryBtn, historyDateList, historyViewContainer, historyTabs,
     historyMainTabs, workHistoryPanel, attendanceHistoryPanel, attendanceHistoryTabs,
-    attendanceHistoryViewContainer, trendAnalysisPanel,
+    attendanceHistoryViewContainer, trendAnalysisPanel, 
+    
+    // ✅ [추가] 리포트 DOM 요소
+    reportPanel, reportTabs, reportViewContainer, 
+    reportDailyView, reportWeeklyView, reportMonthlyView, reportYearlyView,
+
     deleteHistoryModal, confirmHistoryDeleteBtn, 
 
     // 👈 [추가] 기간 조회 DOM 요소들
@@ -39,7 +44,13 @@ import { showToast } from './utils.js';
 // ui.js (통합)에서 가져올 렌더링 함수
 import {
     renderTrendAnalysisCharts,
-    trendCharts // ✅ [수정] trendCharts는 ui.js에서 가져옴
+    trendCharts, // ✅ [수정] trendCharts는 ui.js에서 가져옴
+    
+    // ✅ [추가] 리포트 렌더링 함수
+    renderReportDaily,
+    renderReportWeekly,
+    renderReportMonthly,
+    renderReportYearly
 } from './ui.js';
 
 // app-history-logic.js (이력 로직)
@@ -81,12 +92,20 @@ export function setupHistoryModalListeners() {
     
     // 👈 [추가] 현재 활성화된 탭 모드(day, week, month)를 반환하는 헬퍼 함수
     const getCurrentHistoryListMode = () => {
-        const activeSubTabBtn = (context.activeMainHistoryTab === 'work')
-            ? historyTabs?.querySelector('button.font-semibold')
-            : attendanceHistoryTabs?.querySelector('button.font-semibold');
+        // ✅ [수정] 리포트 탭도 확인
+        let activeSubTabBtn;
+        if (context.activeMainHistoryTab === 'work') {
+            activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
+        } else if (context.activeMainHistoryTab === 'attendance') {
+            activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
+        } else if (context.activeMainHistoryTab === 'report') {
+            activeSubTabBtn = reportTabs?.querySelector('button.font-semibold');
+        }
         
         const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
 
+        // ✅ [수정] 리포트 탭의 'year' 모드 추가
+        if (activeView.includes('yearly')) return 'year';
         if (activeView.includes('weekly')) return 'week';
         if (activeView.includes('monthly')) return 'month';
         return 'day';
@@ -197,10 +216,17 @@ export function setupHistoryModalListeners() {
           btn.classList.add('bg-blue-100', 'font-bold');
           const dateKey = btn.dataset.key; 
           
-          const activeSubTabBtn = (context.activeMainHistoryTab === 'work') // ✅ context.
-            ? historyTabs?.querySelector('button.font-semibold')
-            : attendanceHistoryTabs?.querySelector('button.font-semibold');
-          const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily'); // ✅ context.
+          // ✅ [수정] 리포트 탭도 확인하도록 로직 수정
+          let activeSubTabBtn;
+          if (context.activeMainHistoryTab === 'work') {
+              activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
+          } else if (context.activeMainHistoryTab === 'attendance') {
+              activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
+          } else if (context.activeMainHistoryTab === 'report') {
+              activeSubTabBtn = reportTabs?.querySelector('button.font-semibold');
+          }
+          
+          const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily'); 
           
           // 👈 [추가] 날짜 클릭 시 필터링된 데이터(filteredData)를 사용해야 함
           const filteredData = (context.historyStartDate || context.historyEndDate)
@@ -228,13 +254,25 @@ export function setupHistoryModalListeners() {
               } else if (activeView === 'monthly') {
                   renderMonthlyHistory(dateKey, filteredData, appConfig); // 👈 filteredData 전달
               }
-          } else { // attendance tab
+          } else if (context.activeMainHistoryTab === 'attendance') { // attendance tab
               if (activeView === 'attendance-daily') {
                   renderAttendanceDailyHistory(dateKey, filteredData); // 👈 filteredData 전달
               } else if (activeView === 'attendance-weekly') {
                   renderAttendanceWeeklyHistory(dateKey, filteredData); // 👈 filteredData 전달
               } else if (activeView === 'attendance-monthly') {
                   renderAttendanceMonthlyHistory(dateKey, filteredData); // 👈 filteredData 전달
+              }
+          }
+          // ✅ [수정] 리포트 탭 클릭 시 (주석 해제 및 활성화)
+          else if (context.activeMainHistoryTab === 'report') {
+              if (activeView === 'report-daily') {
+                  renderReportDaily(dateKey, filteredData, appConfig);
+              } else if (activeView === 'report-weekly') {
+                  renderReportWeekly(dateKey, filteredData, appConfig);
+              } else if (activeView === 'report-monthly') {
+                  renderReportMonthly(dateKey, filteredData, appConfig);
+              } else if (activeView === 'report-yearly') {
+                  renderReportYearly(dateKey, filteredData, appConfig);
               }
           }
 
@@ -289,6 +327,7 @@ export function setupHistoryModalListeners() {
             if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
             if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
             if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden'); 
+            if (reportPanel) reportPanel.classList.add('hidden'); // ✅ [추가]
             if (dateListContainer) dateListContainer.style.display = 'block'; 
 
             const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
@@ -299,6 +338,7 @@ export function setupHistoryModalListeners() {
             if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
             if (attendanceHistoryPanel) attendanceHistoryPanel.classList.remove('hidden');
             if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden'); 
+            if (reportPanel) reportPanel.classList.add('hidden'); // ✅ [추가]
             if (dateListContainer) dateListContainer.style.display = 'block'; 
 
             const activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
@@ -309,10 +349,23 @@ export function setupHistoryModalListeners() {
             if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
             if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
             if (trendAnalysisPanel) trendAnalysisPanel.classList.remove('hidden');
+            if (reportPanel) reportPanel.classList.add('hidden'); // ✅ [추가]
             if (dateListContainer) dateListContainer.style.display = 'none'; 
             
             // 👈 [수정] 트렌드 분석은 필터된 데이터가 아닌 '전체' 데이터 기준
             renderTrendAnalysisCharts(allHistoryData, appConfig, trendCharts);
+          
+          // ✅ [추가] 리포트 탭 클릭 시
+          } else if (tabName === 'report') {
+            if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
+            if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
+            if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
+            if (reportPanel) reportPanel.classList.remove('hidden');
+            
+            // 리포트 탭의 현재 활성화된 뷰(또는 기본값) 확인
+            const activeSubTabBtn = reportTabs?.querySelector('button.font-semibold');
+            const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'report-daily';
+            switchHistoryView(view); // (이 함수는 'report-yearly'일 때 dateList를 숨길 것임)
           }
         }
       });
@@ -320,6 +373,16 @@ export function setupHistoryModalListeners() {
 
     if (attendanceHistoryTabs) {
       attendanceHistoryTabs.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-view]');
+        if (btn) {
+          switchHistoryView(btn.dataset.view);
+        }
+      });
+    }
+
+    // ✅ [추가] 업무 리포트 탭 리스너
+    if (reportTabs) {
+      reportTabs.addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-view]');
         if (btn) {
           switchHistoryView(btn.dataset.view);

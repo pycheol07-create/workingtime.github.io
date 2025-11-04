@@ -435,6 +435,7 @@
                     <button data-main-tab="work" class="history-main-tab-btn py-3 font-semibold text-blue-600 border-b-2 border-blue-600">업무 이력</button>
                     <button data-main-tab="attendance" class="history-main-tab-btn py-3 font-medium text-gray-500">근태 이력</button>
                     <button data-main-tab="trends" class="history-main-tab-btn py-3 font-medium text-gray-500">📈 트렌드 분석</button>
+                    <button data-main-tab="report" class="history-main-tab-btn py-3 font-medium text-gray-500">📊 업무 리포트</button>
                 </div>
             </div>
             <div class="flex-grow flex overflow-hidden">
@@ -489,6 +490,27 @@
                                 <h4 class="text-lg font-semibold text-gray-700 mb-2">⏳ 총 비업무시간 (분)</h4>
                                 <div class="h-64"><canvas id="kpi-chart-nonwork"></canvas></div>
                             </div>
+                        </div>
+                    </div>
+                    
+                    <div id="report-panel" class="hidden flex flex-col h-full">
+                        <div class="p-4 border-b border-gray-200 flex-shrink-0">
+                            <div id="report-tabs" class="flex gap-4">
+                                <button data-view="report-daily" class="report-tab-btn pb-2 font-semibold text-blue-600 border-blue-600 border-b-2">일별 리포트</button>
+                                <button data-view="report-weekly" class="report-tab-btn pb-2 text-gray-500">주별 리포트</button>
+                                <button data-view="report-monthly" class="report-tab-btn pb-2 text-gray-500">월별 리포트</button>
+                                <button data-view="report-yearly" class="report-tab-btn pb-2 text-gray-500">연간 리포트</button>
+                            </div>
+                        </div>
+                        <div id="report-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                            <div id="report-daily-view" class="">
+                                </div>
+                            <div id="report-weekly-view" class="hidden space-y-6">
+                                </div>
+                            <div id="report-monthly-view" class="hidden space-y-6">
+                                </div>
+                            <div id="report-yearly-view" class="hidden space-y-6">
+                                </div>
                         </div>
                     </div>
                     </div>

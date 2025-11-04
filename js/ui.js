@@ -159,7 +159,12 @@ import {
     renderAttendanceDailyHistory,
     renderAttendanceWeeklyHistory,
     renderAttendanceMonthlyHistory,
-    renderTrendAnalysisCharts
+    renderTrendAnalysisCharts,
+    // ✅ [추가] 리포트 렌더링 함수
+    renderReportDaily,
+    renderReportWeekly,
+    renderReportMonthly,
+    renderReportYearly
 } from './ui-history.js';
 
 export {
@@ -168,7 +173,12 @@ export {
     renderAttendanceDailyHistory,
     renderAttendanceWeeklyHistory,
     renderAttendanceMonthlyHistory,
-    renderTrendAnalysisCharts
+    renderTrendAnalysisCharts,
+    // ✅ [추가] 리포트 렌더링 함수
+    renderReportDaily,
+    renderReportWeekly,
+    renderReportMonthly,
+    renderReportYearly
     // ❗참고: renderSummaryView, renderAggregatedAttendanceSummary 등은
     // ui-history.js 내부에서만 쓰이므로 여기서 내보낼 필요가 없습니다.
 };

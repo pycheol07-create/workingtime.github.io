@@ -105,6 +105,17 @@ export const attendanceHistoryPanel = document.getElementById('attendance-histor
 export const attendanceHistoryTabs = document.getElementById('attendance-history-tabs');
 export const attendanceHistoryViewContainer = document.getElementById('attendance-history-view-container');
 export const trendAnalysisPanel = document.getElementById('trend-analysis-panel');
+
+// ✅ [추가] 업무 리포트 DOM 요소
+export const reportPanel = document.getElementById('report-panel');
+export const reportTabs = document.getElementById('report-tabs');
+export const reportViewContainer = document.getElementById('report-view-container');
+export const reportDailyView = document.getElementById('report-daily-view');
+export const reportWeeklyView = document.getElementById('report-weekly-view');
+export const reportMonthlyView = document.getElementById('report-monthly-view');
+export const reportYearlyView = document.getElementById('report-yearly-view');
+// ✅ [추가] 끝
+
 export const historyAttendanceDailyView = document.getElementById('history-attendance-daily-view');
 export const historyAttendanceWeeklyView = document.getElementById('history-attendance-weekly-view');
 export const historyAttendanceMonthlyView = document.getElementById('history-attendance-monthly-view');

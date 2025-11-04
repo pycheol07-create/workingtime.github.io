@@ -10,6 +10,11 @@ import {
     historyViewContainer, attendanceHistoryViewContainer, 
     // 👈 [수정] 3개 패널 import
     workHistoryPanel, attendanceHistoryPanel, trendAnalysisPanel, 
+    
+    // ✅ [추가] 리포트 패널 DOM 요소
+    reportPanel, reportTabs, 
+    reportDailyView, reportWeeklyView, reportMonthlyView, reportYearlyView,
+
     historyAttendanceDailyView, historyAttendanceWeeklyView, historyAttendanceMonthlyView,
     deleteHistoryModal,
     quantityModal,
@@ -31,7 +36,12 @@ import {
   renderAttendanceMonthlyHistory,
   renderWeeklyHistory,
   renderMonthlyHistory,
-  renderTrendAnalysisCharts
+  renderTrendAnalysisCharts,
+  // ✅ [추가] 리포트 렌더링 함수
+  renderReportDaily,
+  renderReportWeekly,
+  renderReportMonthly,
+  renderReportYearly
 } from './ui.js';
 // =======================================================
 
@@ -248,7 +258,8 @@ export const loadAndRenderHistoryList = async () => {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
         const viewsToClear = [
             'history-daily-view', 'history-weekly-view', 'history-monthly-view', 
-            'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view'
+            'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
+            'report-daily-view', 'report-weekly-view', 'report-monthly-view', 'report-yearly-view' // ✅ [추가]
         ];
         viewsToClear.forEach(viewId => {
             const viewEl = document.getElementById(viewId);
@@ -284,6 +295,7 @@ export const loadAndRenderHistoryList = async () => {
     if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
     if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
     if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
+    if (reportPanel) reportPanel.classList.add('hidden'); // ✅ [추가]
 
     document.getElementById('history-daily-view')?.classList.remove('hidden');
     document.getElementById('history-weekly-view')?.classList.add('hidden');
@@ -291,6 +303,12 @@ export const loadAndRenderHistoryList = async () => {
     document.getElementById('history-attendance-daily-view')?.classList.add('hidden');
     document.getElementById('history-attendance-weekly-view')?.classList.add('hidden');
     document.getElementById('history-attendance-monthly-view')?.classList.add('hidden');
+    
+    // ✅ [추가] 리포트 뷰 숨기기
+    document.getElementById('report-daily-view')?.classList.add('hidden');
+    document.getElementById('report-weekly-view')?.classList.add('hidden');
+    document.getElementById('report-monthly-view')?.classList.add('hidden');
+    document.getElementById('report-yearly-view')?.classList.add('hidden');
 
     // 4. 👈 [핵심 수정] '상태(context)'를 'work'로 설정
     context.activeMainHistoryTab = 'work';
@@ -336,6 +354,10 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
     } else if (mode === 'month') {
         const monthSet = new Set(filteredData.map(d => d.id.substring(0, 7)));
         keys = Array.from(monthSet).sort((a, b) => b.localeCompare(a));
+    // ✅ [추가] 'year' 모드 로직
+    } else if (mode === 'year') {
+        const yearSet = new Set(filteredData.map(d => d.id.substring(0, 4)));
+        keys = Array.from(yearSet).sort((a, b) => b.localeCompare(a));
     }
 
     if (keys.length === 0) {
@@ -344,7 +366,8 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
         // 👈 [추가] 목록이 비었을 때 오른쪽 상세 뷰도 비움
         const viewsToClear = [
             'history-daily-view', 'history-weekly-view', 'history-monthly-view', 
-            'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view'
+            'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
+            'report-daily-view', 'report-weekly-view', 'report-monthly-view', 'report-yearly-view' // ✅ [추가]
         ];
         viewsToClear.forEach(viewId => {
             const viewEl = document.getElementById(viewId);
@@ -408,13 +431,25 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
                 // 👈 [수정] filteredData를 전달
                 renderMonthlyHistory(key, filteredData, appConfig); 
             }
-        } else { // attendance tab
+        } else if (context.activeMainHistoryTab === 'attendance') { // attendance tab
             if (mode === 'day') {
                 renderAttendanceDailyHistory(key, filteredData); // 👈 filteredData 전달
             } else if (mode === 'week') {
                 renderAttendanceWeeklyHistory(key, filteredData); // 👈 filteredData 전달
             } else if (mode === 'month') {
                 renderAttendanceMonthlyHistory(key, filteredData); // 👈 filteredData 전달
+            }
+        }
+        // ✅ [추가] 리포트 탭 렌더링 (주석 해제)
+        else if (context.activeMainHistoryTab === 'report') {
+            if (mode === 'day') {
+                renderReportDaily(key, filteredData, appConfig);
+            } else if (mode === 'week') {
+                renderReportWeekly(key, filteredData, appConfig);
+            } else if (mode === 'month') {
+                renderReportMonthly(key, filteredData, appConfig);
+            } else if (mode === 'year') {
+                renderReportYearly(key, filteredData, appConfig);
             }
         }
         // =========================================================
@@ -812,7 +847,12 @@ export const switchHistoryView = (view) => {
       document.getElementById('history-monthly-view'),
       document.getElementById('history-attendance-daily-view'),
       document.getElementById('history-attendance-weekly-view'),
-      document.getElementById('history-attendance-monthly-view')
+      document.getElementById('history-attendance-monthly-view'),
+      // ✅ [추가] 리포트 뷰
+      document.getElementById('report-daily-view'),
+      document.getElementById('report-weekly-view'),
+      document.getElementById('report-monthly-view'),
+      document.getElementById('report-yearly-view')
   ];
   allViews.forEach(v => v && v.classList.add('hidden'));
 
@@ -824,6 +864,13 @@ export const switchHistoryView = (view) => {
   }
   if (attendanceHistoryTabs) {
       attendanceHistoryTabs.querySelectorAll('button').forEach(btn => {
+          btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+          btn.classList.add('text-gray-500');
+      });
+  }
+  // ✅ [추가] 리포트 탭 비활성화
+  if (reportTabs) {
+      reportTabs.querySelectorAll('button').forEach(btn => {
           btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
           btn.classList.add('text-gray-500');
       });
@@ -848,19 +895,11 @@ export const switchHistoryView = (view) => {
           listMode = 'week'; 
           viewToShow = document.getElementById('history-weekly-view');
           tabToActivate = historyTabs?.querySelector('button[data-view="weekly"]');
-          // ================== [ ✨ 수정된 부분 ✨ ] ==================
-          // (렌더링 호출 삭제)
-          // renderWeeklyHistory(allHistoryData, appConfig); 
-          // =======================================================
           break;
       case 'monthly':
           listMode = 'month'; 
           viewToShow = document.getElementById('history-monthly-view');
           tabToActivate = historyTabs?.querySelector('button[data-view="monthly"]');
-          // ================== [ ✨ 수정된 부분 ✨ ] ==================
-          // (렌더링 호출 삭제)
-          // renderMonthlyHistory(allHistoryData, appConfig); 
-          // =======================================================
           break;
       case 'attendance-daily':
           listMode = 'day'; 
@@ -871,19 +910,33 @@ export const switchHistoryView = (view) => {
           listMode = 'week'; 
           viewToShow = document.getElementById('history-attendance-weekly-view');
           tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
-          // ================== [ ✨ 수정된 부분 ✨ ] ==================
-          // (렌더링 호출 삭제)
-          // renderAttendanceWeeklyHistory(allHistoryData); 
-          // =======================================================
           break;
       case 'attendance-monthly':
           listMode = 'month'; 
           viewToShow = document.getElementById('history-attendance-monthly-view');
           tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
-          // ================== [ ✨ 수정된 부분 ✨ ] ==================
-          // (렌더링 호출 삭제)
-          // renderAttendanceMonthlyHistory(allHistoryData); 
-          // =======================================================
+          break;
+      
+      // ✅ [추가] 리포트 뷰 케이스
+      case 'report-daily':
+          listMode = 'day'; 
+          viewToShow = document.getElementById('report-daily-view');
+          tabToActivate = reportTabs?.querySelector('button[data-view="report-daily"]');
+          break;
+      case 'report-weekly':
+          listMode = 'week'; 
+          viewToShow = document.getElementById('report-weekly-view');
+          tabToActivate = reportTabs?.querySelector('button[data-view="report-weekly"]');
+          break;
+      case 'report-monthly':
+          listMode = 'month'; 
+          viewToShow = document.getElementById('report-monthly-view');
+          tabToActivate = reportTabs?.querySelector('button[data-view="report-monthly"]');
+          break;
+      case 'report-yearly':
+          listMode = 'year'; // 👈 [수정] 'year' 모드
+          viewToShow = document.getElementById('report-yearly-view');
+          tabToActivate = reportTabs?.querySelector('button[data-view="report-yearly"]');
           break;
   }
   

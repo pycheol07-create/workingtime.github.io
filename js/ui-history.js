@@ -185,7 +185,7 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
     // ================== [ ✨ 추가된 부분 4 ✨ ] ==================
     // (총계 카드에 들어갈 증감 HTML 생성)
     const durationDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalDuration', totalDuration, prevTotalDuration) : '';
-    const quantityDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalQuantity', totalQuantity, prevTotalQuantity) : '';
+    const quantityDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalQuantity', totalDuration, prevTotalQuantity) : '';
     const costDiff = previousPeriodDataset ? getDiffHtmlForMetric('totalCost', totalCost, prevTotalCost) : '';
     const throughputDiff = previousPeriodDataset ? getDiffHtmlForMetric('overallAvgThroughput', overallAvgThroughputNum, prevOverallAvgThroughput) : '';
     const costPerItemDiff = previousPeriodDataset ? getDiffHtmlForMetric('overallAvgCostPerItem', overallAvgCostPerItemNum, prevOverallAvgCostPerItem) : '';
@@ -939,4 +939,54 @@ export const renderTrendAnalysisCharts = (allHistoryData, appConfig, trendCharts
         console.error("트렌드 차트 렌더링 실패:", e);
         // 오류 발생 시 캔버스 영역을 비우거나 오류 메시지 표시
     }
+};
+
+// ✅ [추가] 업무 리포트 렌더링 함수 (Placeholder)
+
+/**
+ * 일별 리포트 렌더링 (Placeholder)
+ */
+export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
+    const view = document.getElementById('report-daily-view');
+    if (!view) return;
+    view.innerHTML = `<div class="p-4">
+        <h3 class="text-xl font-bold mb-4">${dateKey} 일별 리포트 (준비 중)</h3>
+        <p class="text-gray-600">이곳에 ${dateKey}의 상세 업무 리포트 내용이 표시될 예정입니다.</p>
+    </div>`;
+};
+
+/**
+ * 주별 리포트 렌더링 (Placeholder)
+ */
+export const renderReportWeekly = (weekKey, allHistoryData, appConfig) => {
+    const view = document.getElementById('report-weekly-view');
+    if (!view) return;
+    view.innerHTML = `<div class="p-4">
+        <h3 class="text-xl font-bold mb-4">${weekKey} 주별 리포트 (준비 중)</h3>
+        <p class="text-gray-600">이곳에 ${weekKey}의 주간 업무 리포트 내용이 표시될 예정입니다.</p>
+    </div>`;
+};
+
+/**
+ * 월별 리포트 렌더링 (Placeholder)
+ */
+export const renderReportMonthly = (monthKey, allHistoryData, appConfig) => {
+    const view = document.getElementById('report-monthly-view');
+    if (!view) return;
+    view.innerHTML = `<div class="p-4">
+        <h3 class="text-xl font-bold mb-4">${monthKey} 월별 리포트 (준비 중)</h3>
+        <p class="text-gray-600">이곳에 ${monthKey}의 월간 업무 리포트 내용이 표시될 예정입니다.</p>
+    </div>`;
+};
+
+/**
+ * 연간 리포트 렌더링 (Placeholder)
+ */
+export const renderReportYearly = (yearKey, allHistoryData, appConfig) => {
+    const view = document.getElementById('report-yearly-view');
+    if (!view) return;
+    view.innerHTML = `<div class="p-4">
+        <h3 class="text-xl font-bold mb-4">${yearKey} 연간 리포트 (준비 중)</h3>
+        <p class="text-gray-600">이곳에 ${yearKey}의 연간 업무 리포트 내용이 표시될 예정입니다.</p>
+    </div>`;
 };
