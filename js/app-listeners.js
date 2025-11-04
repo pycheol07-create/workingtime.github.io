@@ -132,35 +132,22 @@ export function initializeAppListeners() {
         const toggleMobileBtn = e.target.closest('#toggle-all-tasks-mobile');
         if (toggleMobileBtn) {
             e.stopPropagation(); 
-            const grid = document.getElementById('preset-task-grid');
-            if (!grid) return;
-            const isExpanded = grid.classList.contains('mobile-expanded');
-            if (isExpanded) {
-                grid.classList.remove('mobile-expanded');
-                grid.querySelectorAll('.mobile-task-hidden').forEach(el => el.classList.add('hidden'));
-                toggleMobileBtn.textContent = '전체보기';
-            } else {
-                grid.classList.add('mobile-expanded');
-                grid.querySelectorAll('.mobile-task-hidden').forEach(el => el.classList.remove('hidden'));
-                toggleMobileBtn.textContent = '간략히';
-            }
+            
+            // 👈 [수정] DOM을 직접 조작하는 대신 context 상태를 변경하고 render() 호출
+            context.isMobileTaskViewExpanded = !context.isMobileTaskViewExpanded;
+            render(); // render()가 'ui-main.js'의 renderRealtimeStatus를 올바른 상태로 호출
+            
             return;
         }
+        
         const toggleMemberBtn = e.target.closest('#toggle-all-members-mobile');
         if (toggleMemberBtn) {
             e.stopPropagation();
-            const container = document.getElementById('all-members-container');
-            if (!container) return;
-            const isExpanded = container.classList.contains('mobile-expanded');
-            if (isExpanded) {
-                container.classList.remove('mobile-expanded');
-                container.querySelectorAll('.mobile-member-hidden').forEach(el => el.classList.add('hidden'));
-                toggleMemberBtn.textContent = '전체보기';
-            } else {
-                container.classList.add('mobile-expanded');
-                container.querySelectorAll('.mobile-member-hidden').forEach(el => el.classList.remove('hidden'));
-                toggleMemberBtn.textContent = '간략히';
-            }
+
+            // 👈 [수정] DOM을 직접 조작하는 대신 context 상태를 변경하고 render() 호출
+            context.isMobileMemberViewExpanded = !context.isMobileMemberViewExpanded;
+            render(); // render()가 'ui-main.js'의 renderRealtimeStatus를 올바른 상태로 호출
+            
             return;
         }
 
