@@ -320,17 +320,21 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         // ✅ [수정] 모바일 반응형 클래스 (토글을 위한 'mobile-task-hidden' 클래스 추가)
         const mobileVisibilityClass = isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex mobile-task-hidden';
         
-        // 🚨 [수정] 카드 자체의 cursor-pointer 제거 (하위 요소에서 클릭 처리)
-        card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
-
-
+        // 🚨 [수정] 카드 자체의 cursor-pointer 제거 (하위 요소에서 클릭 처리) -> [재수정] cursor-pointer 추가
+        
+        // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
+        // (진행 중인 카드)
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0]; // 대표 레코드 (그룹 ID, 태스크 이름 등)
 
-            // 🚨 [수정] 카드 데이터셋 이동 방지, 클릭은 하위 요소에서 처리
-            // card.dataset.action = 'add-member';
-            // card.dataset.groupId = firstRecord.groupId;
-            // card.dataset.task = firstRecord.task;
+            // 🚨 [수정] 카드 자체에 cursor-pointer 추가 및 data 속성 부여
+            card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover} cursor-pointer`; // 👈 cursor-pointer 추가
+            
+            // 🚨 [추가] 리스너가 참조할 수 있도록 카드 자체에 data 속성 부여
+            card.dataset.groupId = firstRecord.groupId;
+            card.dataset.task = firstRecord.task;
+            // =========================================================
+
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
@@ -407,16 +411,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                                 ${groupTimeDisplayHtml} 
                                 <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
+                                
                                 <div class="mt-auto flex gap-2 pt-2 card-actions"
                                      data-group-id="${firstRecord.groupId}"
                                      data-task="${firstRecord.task}">
-
-                                    <button class="add-member-btn flex-1 aspect-square flex flex-col items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm"
-                                            data-action="add-member"
-                                            data-group-id="${firstRecord.groupId}"
-                                            data-task="${firstRecord.task}">
-                                        <span class="text-center leading-tight">인원<br>추가</span>
-                                    </button>
 
                                     <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 aspect-square flex flex-col items-center justify-center text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm">
                                         ${isPaused
@@ -429,7 +427,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                                         <span class="text-center leading-tight">전체<br>종료</span>
                                     </button>
                                 </div>
-                            </div>`;
+                                </div>`;
         } else {
              // 🚨 [수정] 시작 전 카드는 클릭 가능하도록 cursor-pointer 유지, data-* 속성 추가
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
@@ -711,6 +709,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     // teamStatusBoard.appendChild(presetTaskContainer); // presetTaskContainer는 이미 추가됨
     teamStatusBoard.appendChild(allMembersContainer);
 };
+
+// ... (이하 renderCompletedWorkLog, renderDashboardLayout, updateSummary 함수는 기존과 동일) ...
+// ... (파일 끝까지) ...
 
 /**
  * ✅ [수정] renderCompletedWorkLog (ui.js -> ui-main.js)

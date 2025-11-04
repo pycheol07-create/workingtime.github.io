@@ -203,6 +203,8 @@ export function initializeAppListeners() {
             if (stopIndividualConfirmModal) stopIndividualConfirmModal.classList.remove('hidden');
             return;
         }
+        
+        /*
         const addMemberButton = e.target.closest('.add-member-btn[data-action="add-member"]');
         if (addMemberButton) {
             context.selectedTaskForStart = addMemberButton.dataset.task; // ✅ context.
@@ -213,6 +215,7 @@ export function initializeAppListeners() {
             if (teamSelectModal) teamSelectModal.classList.remove('hidden');
             return;
         }
+        */
 
         // 3. 그룹 시작 시간 수정 영역
         const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
@@ -369,29 +372,56 @@ export function initializeAppListeners() {
             return;
         }
 
-        // 8. 업무 카드 전체 클릭 (시작 또는 기타 업무)
-        const card = e.target.closest('div[data-action]');
+        // 8. 업무 카드 전체 클릭 (시작, 기타, 또는 인원 추가)
+        
+        // 8a. 카드 내부의 상호작용 요소 클릭 시, 카드 전체 클릭(8b)으로 
+        //     이벤트가 전파되는 것을 막습니다. (가장 중요)
+        if (e.target.closest('.members-list, .card-actions, .group-time-display')) {
+            // (members-list: 멤버 목록)
+            // (card-actions: 하단 버튼 영역)
+            // (group-time-display: 상단 시간 표시 영역)
+            e.stopPropagation(); // 👈 이 클릭은 카드 전체 클릭으로 간주하지 않음
+            return;
+        }
+
+        // 8b. 카드 자체(빈 공간) 클릭 처리
+        // 'start-task' 카드는 data-action을, '진행 중' 카드는 data-group-id를 가집니다.
+        const card = e.target.closest('div[data-group-id], div[data-action]');
+        
         if (card) { 
             const action = card.dataset.action;
-            if (action === 'start-task' || action === 'other') {
-                if (e.target.closest('a, input, select, .members-list')) {
-                    return; 
-                }
-                const task = card.dataset.task;
-                if (action === 'start-task') {
-                    context.selectedTaskForStart = task; // ✅ context.
-                    context.selectedGroupForAdd = null; // ✅ context.
-                    renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
-                    const titleEl = document.getElementById('team-select-modal-title');
-                    if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
-                    if (teamSelectModal) teamSelectModal.classList.remove('hidden');
-                    return;
-                } else if (action === 'other') {
-                    if (taskSelectModal) taskSelectModal.classList.remove('hidden');
-                    return;
-                }
+            const groupId = card.dataset.groupId;
+            const task = card.dataset.task;
+
+            if (action === 'start-task') {
+                // (기존) 시작 전 카드 클릭
+                context.selectedTaskForStart = task; 
+                context.selectedGroupForAdd = null; 
+                renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
+                const titleEl = document.getElementById('team-select-modal-title');
+                if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
+                if (teamSelectModal) teamSelectModal.classList.remove('hidden');
+                return;
+
+            } else if (action === 'other') {
+                // (기존) 기타 업무 카드 클릭
+                if (taskSelectModal) taskSelectModal.classList.remove('hidden');
+                return;
+            
+            } else if (groupId && task) {
+                // (신규) 진행 중인 카드 (data-group-id가 있는 카드)의 
+                // 빈 공간 클릭 시 -> '인원 추가' 로직 실행
+                
+                context.selectedTaskForStart = task;
+                context.selectedGroupForAdd = Number(groupId); 
+                renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
+                const titleEl = document.getElementById('team-select-modal-title');
+                if (titleEl) titleEl.textContent = `'${task}' 인원 추가`;
+                if (teamSelectModal) teamSelectModal.classList.remove('hidden');
+                return;
             }
         }
+        
       }); 
     } 
 
@@ -542,17 +572,12 @@ export function initializeAppListeners() {
                 // '일일 근태' (조퇴, 외출) 삭제 시
                 if (context.attendanceRecordToDelete?.recordType === 'daily') {
                     debouncedSaveState();
-                    // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
                     saveProgress(true); // 이력(history)에도 즉시 저장
-                    // ========================================================
                 }
-                // ================== [ ✨ 수정된 부분 2 ✨ ] ==================
                 // '영구 근태' (연차 등) 삭제 시
                 if (context.attendanceRecordToDelete?.recordType === 'persistent') {
-                    // (debouncedSaveState는 필요 없지만, history 저장은 필요)
                     saveProgress(true);
                 }
-                // ========================================================
             } else {
                 // 'all' 또는 'single' (업무 기록) 삭제 시
                 debouncedSaveState();
@@ -1858,7 +1883,7 @@ export function initializeAppListeners() {
                     render(); 
                 } catch (e) {
                     console.error('Error saving updated leave record:', e);
-                    showToast('근태 기록 저장 중 오류 발생.', true);
+                    showToast('근태 기록 저장 중 오류가 발생했습니다.', true);
                     if (recordRemoved) {
                         if (isOriginalTimeBased) appState.dailyOnLeaveMembers.push(recordRemoved);
                         else persistentLeaveSchedule.onLeaveMembers.push(recordRemoved);
