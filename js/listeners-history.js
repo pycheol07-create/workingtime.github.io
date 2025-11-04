@@ -58,11 +58,6 @@ import {
     downloadHistoryAsExcel      // 👈 [추가]
 } from './history-excel.js';
 
-// history-excel.js (엑셀 로직)
-import {
-    downloadPeriodHistoryAsExcel 
-} from './history-excel.js';
-
 // (ui-history에서 직접 가져와야 함 - app-history-logic가 ui를 import하므로 순환참조 방지)
 import {
   renderAttendanceDailyHistory,
