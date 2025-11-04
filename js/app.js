@@ -45,7 +45,9 @@ import {
     openHistoryQuantityModal,
     downloadHistoryAsExcel,
     requestHistoryDeletion,
-    downloadAttendanceHistoryAsExcel
+    downloadAttendanceHistoryAsExcel,
+    // 👈 [추가] 기간 엑셀 다운로드를 위해
+    downloadPeriodHistoryAsExcel 
 } from './app-history-logic.js';
 
 
@@ -191,6 +193,13 @@ export const analysisMemberSelect = document.getElementById('analysis-member-sel
 // ✅ [추가] 이 DOM 요소를 export 목록에 추가합니다.
 export const editLeaveModal = document.getElementById('edit-leave-record-modal');
 
+// 👈 [추가] 기간 조회 DOM 요소들
+export const historyStartDateInput = document.getElementById('history-start-date');
+export const historyEndDateInput = document.getElementById('history-end-date');
+export const historyFilterBtn = document.getElementById('history-filter-btn');
+export const historyClearFilterBtn = document.getElementById('history-clear-filter-btn');
+export const historyDownloadPeriodExcelBtn = document.getElementById('history-download-period-excel-btn');
+
 
 // ========== 6. Firebase/App State (모두 EXPORT) ==========
 export let db, auth;
@@ -224,10 +233,12 @@ export let context = {
     tempSelectedMembers: [],
     memberToSetLeave: null,
     memberToCancelLeave: null,
-    aactiveMainHistoryTab: 'work',
+    activeMainHistoryTab: 'work',
     attendanceRecordToDelete: null,
     isMobileTaskViewExpanded: false, // 👈 [추가] 모바일 업무카드 '전체보기' 상태
     isMobileMemberViewExpanded: false, // 👈 [추가] 모바일 팀원현황 '전체보기' 상태
+    historyStartDate: null, // 👈 [추가] 이력 조회 시작일
+    historyEndDate: null, // 👈 [추가] 이력 조회 종료일
 };
 
 export let appState = {
@@ -781,7 +792,8 @@ async function main() {
         openHistoryQuantityModal,
         downloadHistoryAsExcel,
         requestHistoryDeletion,
-        downloadAttendanceHistoryAsExcel
+        downloadAttendanceHistoryAsExcel,
+        downloadPeriodHistoryAsExcel // 👈 [추가] 기간 엑셀 다운로드
     };
 
 } // <-- main() 함수 끝

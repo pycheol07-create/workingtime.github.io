@@ -46,6 +46,10 @@ import {
     // ✅ [추가] 이 DOM 요소를 import 목록에 추가합니다.
     editLeaveModal,
 
+    // 👈 [추가] 기간 조회 DOM 요소들
+    historyStartDateInput, historyEndDateInput, historyFilterBtn, 
+    historyClearFilterBtn, historyDownloadPeriodExcelBtn,
+
     // app.js (메인)의 헬퍼/로직 함수
     render, debouncedSaveState, saveStateToFirestore, 
     generateId, normalizeName, 
@@ -100,7 +104,9 @@ import {
     downloadHistoryAsExcel,
     downloadAttendanceHistoryAsExcel,
     switchHistoryView,
-    renderHistoryDateListByMode
+    renderHistoryDateListByMode,
+    // 👈 [추가] 기간 엑셀 다운로드 함수
+    downloadPeriodHistoryAsExcel 
 } from './app-history-logic.js';
 
 // (ui-history에서 직접 가져와야 함 - app-history-logic가 ui를 import하므로 순환참조 방지)
@@ -616,8 +622,70 @@ export function initializeAppListeners() {
     if (saveProgressBtn) {
       saveProgressBtn.addEventListener('click', () => saveProgress(false));
     }
+    
+    // --- 4. 👈 [수정] 이력(History) 모달 리스너 (기간 조회 버튼 추가) ---
+    
+    // 👈 [추가] 현재 활성화된 탭 모드(day, week, month)를 반환하는 헬퍼 함수
+    const getCurrentHistoryListMode = () => {
+        const activeSubTabBtn = (context.activeMainHistoryTab === 'work')
+            ? historyTabs?.querySelector('button.font-semibold')
+            : attendanceHistoryTabs?.querySelector('button.font-semibold');
+        
+        const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
 
-    // --- 4. 이력(History) 모달 리스너 ---
+        if (activeView.includes('weekly')) return 'week';
+        if (activeView.includes('monthly')) return 'month';
+        return 'day';
+    };
+
+    // 👈 [추가] '조회' 버튼 리스너
+    if (historyFilterBtn) {
+        historyFilterBtn.addEventListener('click', () => {
+            const startDate = historyStartDateInput.value;
+            const endDate = historyEndDateInput.value;
+
+            if (startDate && endDate && endDate < startDate) {
+                showToast('종료일은 시작일보다 이후여야 합니다.', true);
+                return;
+            }
+            
+            context.historyStartDate = startDate || null;
+            context.historyEndDate = endDate || null;
+            
+            renderHistoryDateListByMode(getCurrentHistoryListMode());
+            showToast('이력 목록을 필터링했습니다.');
+        });
+    }
+
+    // 👈 [추가] '초기화' 버튼 리스너
+    if (historyClearFilterBtn) {
+        historyClearFilterBtn.addEventListener('click', () => {
+            historyStartDateInput.value = '';
+            historyEndDateInput.value = '';
+            context.historyStartDate = null;
+            context.historyEndDate = null;
+            
+            renderHistoryDateListByMode(getCurrentHistoryListMode());
+            showToast('필터를 초기화했습니다.');
+        });
+    }
+
+    // 👈 [추가] '선택기간 엑셀다운' 버튼 리스너
+    if (historyDownloadPeriodExcelBtn) {
+        historyDownloadPeriodExcelBtn.addEventListener('click', () => {
+            const startDate = context.historyStartDate;
+            const endDate = context.historyEndDate;
+
+            if (!startDate || !endDate) {
+                showToast('엑셀 다운로드를 위해 시작일과 종료일을 모두 설정(조회)해주세요.', true);
+                return;
+            }
+            
+            // 이 함수는 app-history-logic.js에서 구현할 것입니다.
+            downloadPeriodHistoryAsExcel(startDate, endDate); 
+        });
+    }
+
     if (openHistoryBtn) {
       openHistoryBtn.addEventListener('click', async () => {
         if (!auth || !auth.currentUser) {
@@ -632,6 +700,12 @@ export function initializeAppListeners() {
         if (historyModal) {
           historyModal.classList.remove('hidden'); 
           
+          // 👈 [추가] 모달 열 때 필터값 초기화
+          if (historyStartDateInput) historyStartDateInput.value = '';
+          if (historyEndDateInput) historyEndDateInput.value = '';
+          context.historyStartDate = null;
+          context.historyEndDate = null;
+
           const contentBox = document.getElementById('history-modal-content-box');
           const overlay = document.getElementById('history-modal');
           
@@ -674,25 +748,39 @@ export function initializeAppListeners() {
             : attendanceHistoryTabs?.querySelector('button.font-semibold');
           const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily'); // ✅ context.
           
+          // 👈 [추가] 날짜 클릭 시 필터링된 데이터(filteredData)를 사용해야 함
+          const filteredData = (context.historyStartDate || context.historyEndDate)
+              ? allHistoryData.filter(d => {
+                  const date = d.id;
+                  const start = context.historyStartDate;
+                  const end = context.historyEndDate;
+                  if (start && end) return date >= start && date <= end;
+                  if (start) return date >= start;
+                  if (end) return date <= end;
+                  return true;
+                })
+              : allHistoryData;
+
           if (context.activeMainHistoryTab === 'work') {
               if (activeView === 'daily') {
-                  const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
-                  const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
-                                        ? allHistoryData[currentIndex + 1] 
+                  const currentIndex = filteredData.findIndex(d => d.id === dateKey);
+                  // 👈 [수정] filteredData에서 previousDayData를 찾음
+                  const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length) 
+                                        ? filteredData[currentIndex + 1] 
                                         : null;
-                  renderHistoryDetail(dateKey, previousDayData);
+                  renderHistoryDetail(dateKey, previousDayData); // 👈 dateKey로 찾지만, prev는 filteredData 기준
               } else if (activeView === 'weekly') {
-                  renderWeeklyHistory(dateKey, allHistoryData, appConfig);
+                  renderWeeklyHistory(dateKey, filteredData, appConfig); // 👈 filteredData 전달
               } else if (activeView === 'monthly') {
-                  renderMonthlyHistory(dateKey, allHistoryData, appConfig);
+                  renderMonthlyHistory(dateKey, filteredData, appConfig); // 👈 filteredData 전달
               }
           } else { // attendance tab
               if (activeView === 'attendance-daily') {
-                  renderAttendanceDailyHistory(dateKey, allHistoryData);
+                  renderAttendanceDailyHistory(dateKey, filteredData); // 👈 filteredData 전달
               } else if (activeView === 'attendance-weekly') {
-                  renderAttendanceWeeklyHistory(dateKey, allHistoryData);
+                  renderAttendanceWeeklyHistory(dateKey, filteredData); // 👈 filteredData 전달
               } else if (activeView === 'attendance-monthly') {
-                  renderAttendanceMonthlyHistory(dateKey, allHistoryData);
+                  renderAttendanceMonthlyHistory(dateKey, filteredData); // 👈 filteredData 전달
               }
           }
 
@@ -769,6 +857,7 @@ export function initializeAppListeners() {
             if (trendAnalysisPanel) trendAnalysisPanel.classList.remove('hidden');
             if (dateListContainer) dateListContainer.style.display = 'none'; 
             
+            // 👈 [수정] 트렌드 분석은 필터된 데이터가 아닌 '전체' 데이터 기준
             renderTrendAnalysisCharts(allHistoryData, appConfig, trendCharts);
           }
         }
@@ -1154,7 +1243,10 @@ export function initializeAppListeners() {
                 const dateKey = editBtn.dataset.dateKey;
                 const index = parseInt(editBtn.dataset.index, 10);
                 if (!dateKey || isNaN(index)) { return; }
+                
+                // 👈 [수정] 필터된 데이터를 기준으로 찾지 않고, '전체' 데이터에서 찾음
                 const dayData = allHistoryData.find(d => d.id === dateKey);
+                
                 if (!dayData || !dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
                     showToast('원본 근태 기록을 찾을 수 없습니다.', true); return;
                 }
@@ -1196,8 +1288,11 @@ export function initializeAppListeners() {
                 const dateKey = deleteBtn.dataset.dateKey;
                 const index = parseInt(deleteBtn.dataset.index, 10);
                 if (!dateKey || isNaN(index)) { return; }
+
+                // 👈 [수정] 필터된 데이터를 기준으로 찾지 않고, '전체' 데이터에서 찾음
                 const dayData = allHistoryData.find(d => d.id === dateKey);
                 const record = dayData?.onLeaveMembers?.[index];
+                
                 if (!record) { showToast('삭제할 근태 기록을 찾을 수 없습니다.', true); return; }
 
                 context.deleteMode = 'attendance'; // ✅ context.
@@ -1294,7 +1389,21 @@ export function initializeAppListeners() {
             try {
                 await setDoc(historyDocRef, dayData); 
                 showToast('근태 기록이 성공적으로 추가되었습니다.');
-                renderAttendanceDailyHistory(dateKey, allHistoryData);
+                
+                // 👈 [수정] 필터링된 데이터로 렌더링
+                const filteredData = (context.historyStartDate || context.historyEndDate)
+                    ? allHistoryData.filter(d => {
+                        const date = d.id;
+                        const start = context.historyStartDate;
+                        const end = context.historyEndDate;
+                        if (start && end) return date >= start && date <= end;
+                        if (start) return date >= start;
+                        if (end) return date <= end;
+                        return true;
+                      })
+                    : allHistoryData;
+                renderAttendanceDailyHistory(dateKey, filteredData);
+
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.add('hidden');
             } catch (e) {
                 console.error('Error adding attendance history:', e);
@@ -1368,7 +1477,21 @@ export function initializeAppListeners() {
             try {
                 await setDoc(historyDocRef, allHistoryData[dayDataIndex]); 
                 showToast('근태 기록이 성공적으로 수정되었습니다.'); 
-                renderAttendanceDailyHistory(dateKey, allHistoryData);
+                
+                // 👈 [수정] 필터링된 데이터로 렌더링
+                const filteredData = (context.historyStartDate || context.historyEndDate)
+                    ? allHistoryData.filter(d => {
+                        const date = d.id;
+                        const start = context.historyStartDate;
+                        const end = context.historyEndDate;
+                        if (start && end) return date >= start && date <= end;
+                        if (start) return date >= start;
+                        if (end) return date <= end;
+                        return true;
+                      })
+                    : allHistoryData;
+                renderAttendanceDailyHistory(dateKey, filteredData);
+
                 if (editAttendanceRecordModal) editAttendanceRecordModal.classList.add('hidden');
             } catch (e) {
                 console.error('Error updating attendance history:', e);

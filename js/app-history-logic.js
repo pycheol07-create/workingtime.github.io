@@ -3,12 +3,13 @@
 import {
     appState, appConfig, db, auth, 
     allHistoryData, // ✅ app.js에서 export
-    context, // ✅ context 객체 import
+    context, // 👈 [수정] context 객체 import
     
     // DOM Elements (app.js에서 가져옴)
     historyDateList, historyTabs, attendanceHistoryTabs, 
     historyViewContainer, attendanceHistoryViewContainer, 
-    workHistoryPanel, attendanceHistoryPanel, trendAnalysisPanel, // 👈 [수정] workHistoryPanel, attendanceHistoryPanel 2개 추가
+    // 👈 [수정] 3개 패널 import
+    workHistoryPanel, attendanceHistoryPanel, trendAnalysisPanel, 
     historyAttendanceDailyView, historyAttendanceWeeklyView, historyAttendanceMonthlyView,
     deleteHistoryModal,
     quantityModal,
@@ -193,7 +194,7 @@ export async function fetchAllHistoryData() {
 }
 
 /**
- * 이력 데이터를 다시 불러오고, 현재 탭 설정에 맞게 목록과 뷰를 렌더링합니다.
+ * 👈 [수정] 이력 데이터를 다시 불러오고, 기본 탭('일별 상세')을 렌더링합니다.
  * (app.js의 loadAndRenderHistoryList)
  */
 export const loadAndRenderHistoryList = async () => {
@@ -257,8 +258,9 @@ export const loadAndRenderHistoryList = async () => {
     renderHistoryDateListByMode('day');
 };
 
+
 /**
- * 이력 목록(왼쪽)을 모드(일/주/월)에 맞게 렌더링합니다.
+ * 👈 [수정] 이력 목록(왼쪽)을 모드(일/주/월) 및 '기간 필터'에 맞게 렌더링합니다.
  * (app.js의 renderHistoryDateListByMode)
  * @param {string} mode - 'day', 'week', 'month'
  */
@@ -266,20 +268,48 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
     if (!historyDateList) return;
     historyDateList.innerHTML = '';
 
+    // 1. 👈 [추가] 기간 필터링 적용
+    const filteredData = (context.historyStartDate || context.historyEndDate)
+        ? allHistoryData.filter(d => {
+            const date = d.id;
+            const start = context.historyStartDate;
+            const end = context.historyEndDate;
+            // 시작일과 종료일이 모두 있으면
+            if (start && end) return date >= start && date <= end;
+            // 시작일만 있으면
+            if (start) return date >= start;
+            // 종료일만 있으면
+            if (end) return date <= end;
+            // 둘 다 없으면 (필터링 안 함 - 이 경우는 context 체크로 인해 발생하지 않음)
+            return true;
+          })
+        : allHistoryData; // 필터가 없으면 전체 데이터 사용
+
     let keys = [];
     
     if (mode === 'day') {
-        keys = allHistoryData.map(d => d.id);
+        keys = filteredData.map(d => d.id);
     } else if (mode === 'week') {
-        const weekSet = new Set(allHistoryData.map(d => getWeekOfYear(new Date(d.id + "T00:00:00"))));
+        const weekSet = new Set(filteredData.map(d => getWeekOfYear(new Date(d.id + "T00:00:00"))));
         keys = Array.from(weekSet).sort((a, b) => b.localeCompare(a));
     } else if (mode === 'month') {
-        const monthSet = new Set(allHistoryData.map(d => d.id.substring(0, 7)));
+        const monthSet = new Set(filteredData.map(d => d.id.substring(0, 7)));
         keys = Array.from(monthSet).sort((a, b) => b.localeCompare(a));
     }
 
     if (keys.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
+        
+        // 👈 [추가] 목록이 비었을 때 오른쪽 상세 뷰도 비움
+        const viewsToClear = [
+            'history-daily-view', 'history-weekly-view', 'history-monthly-view', 
+            'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view'
+        ];
+        viewsToClear.forEach(viewId => {
+            const viewEl = document.getElementById(viewId);
+            if (viewEl) viewEl.innerHTML = '';
+        });
+        
         return;
     }
 
@@ -299,24 +329,26 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
         
         if (context.activeMainHistoryTab === 'work') {
             if (mode === 'day') {
-                const previousDayData = (allHistoryData.length > 1) ? allHistoryData[1] : null;
+                // 👈 [수정] filteredData를 기준으로 previousDayData를 찾음
+                const currentIndex = filteredData.findIndex(d => d.id === key);
+                const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length) 
+                                        ? filteredData[currentIndex + 1] 
+                                        : null;
                 renderHistoryDetail(key, previousDayData);
             } else if (mode === 'week') {
-                // (ui-history.js 수정 필요)
-                renderWeeklyHistory(key, allHistoryData, appConfig); 
+                // 👈 [수정] filteredData를 전달
+                renderWeeklyHistory(key, filteredData, appConfig); 
             } else if (mode === 'month') {
-                // (ui-history.js 수정 필요)
-                renderMonthlyHistory(key, allHistoryData, appConfig); 
+                // 👈 [수정] filteredData를 전달
+                renderMonthlyHistory(key, filteredData, appConfig); 
             }
         } else { // attendance tab
             if (mode === 'day') {
-                renderAttendanceDailyHistory(key, allHistoryData);
+                renderAttendanceDailyHistory(key, filteredData); // 👈 filteredData 전달
             } else if (mode === 'week') {
-                // (ui-history.js 수정 필요)
-                renderAttendanceWeeklyHistory(key, allHistoryData); 
+                renderAttendanceWeeklyHistory(key, filteredData); // 👈 filteredData 전달
             } else if (mode === 'month') {
-                // (ui-history.js 수정 필요)
-                renderAttendanceMonthlyHistory(key, allHistoryData); 
+                renderAttendanceMonthlyHistory(key, filteredData); // 👈 filteredData 전달
             }
         }
         // =========================================================
@@ -407,6 +439,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
   if (!view) return;
   view.innerHTML = '<div class="text-center text-gray-500">데이터 로딩 중...</div>';
   
+  // 👈 [수정] '전체' 데이터에서 ID로 조회
   const data = allHistoryData.find(d => d.id === dateKey);
   if (!data) { 
       view.innerHTML = '<div class="text-center text-red-500">해당 날짜의 데이터를 찾을 수 없습니다.</div>'; 
@@ -421,7 +454,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 
   const wageMap = { ...appConfig.memberWages };
   partTimersFromHistory.forEach(pt => {
-      if (!wageMap[pt.name]) {
+      if (pt && pt.name && !wageMap[pt.name]) { // 👈 [수정] pt 유효성 검사
           wageMap[pt.name] = pt.wage || 0;
       }
   });
@@ -431,11 +464,10 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
                            + partTimersFromHistory.length - onLeaveMemberNames.filter(name => partTimersFromHistory.some(pt => pt.name === name)).length;
 
   // --- 1. 현재일(Current) 데이터 계산 ---
-  const totalSumDuration = records.reduce((sum, r) => sum + (r.duration || 0), 0);
+  const totalSumDuration = records.reduce((sum, r) => sum + (Number(r.duration) || 0), 0); // 👈 [수정] Number()
   const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
 
-  // 👈 [수정] (rec.duration || 0)을 (Number(rec.duration) || 0)으로 변경
-  const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (Number(rec.duration) || 0); return acc; }, {});
+  const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (Number(rec.duration) || 0); return acc; }, {}); // 👈 [수정] Number()
   const taskCosts = records.reduce((acc, rec) => {
       const wage = wageMap[rec.member] || 0;
       const cost = ((Number(rec.duration) || 0) / 60) * wage;
@@ -465,7 +497,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
   if (previousDayData) {
       const prevRecords = previousDayData.workRecords || [];
       const prevQuantities = previousDayData.taskQuantities || {};
-      const prevTaskDurations = prevRecords.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (rec.duration || 0); return acc; }, {});
+      const prevTaskDurations = prevRecords.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (Number(rec.duration) || 0); return acc; }, {}); // 👈 [수정] Number()
       const prevTaskCosts = prevRecords.reduce((acc, rec) => {
           const wage = wageMap[rec.member] || 0;
           const cost = ((Number(rec.duration) || 0) / 60) * wage;
@@ -705,6 +737,7 @@ export const downloadHistoryAsExcel = async (dateKey) => {
             return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
         }
         
+        // 👈 [수정] 필터 여부와 관계없이 '전체' 데이터에서 이전 날짜를 찾음
         const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
         const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
                                 ? allHistoryData[currentIndex + 1] 
@@ -855,9 +888,9 @@ export const downloadHistoryAsExcel = async (dateKey) => {
             const taskSummary = records.reduce((acc, r) => {
                 if (!r || !r.task) return acc;
                 if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 }; 
-                acc[r.task].duration += (r.duration || 0);
+                acc[r.task].duration += (Number(r.duration) || 0); // 👈 [수정] Number()
                 const wage = combinedWageMap[r.member] || 0;
-                acc[r.task].cost += ((r.duration || 0) / 60) * wage;
+                acc[r.task].cost += ((Number(r.duration) || 0) / 60) * wage; // 👈 [수정] Number()
                 acc[r.task].members.add(r.member); 
                 acc[r.task].recordCount += 1; 
                 return acc;
@@ -920,9 +953,9 @@ export const downloadHistoryAsExcel = async (dateKey) => {
             const taskSummary = records.reduce((acc, r) => {
                 if (!r || !r.task) return acc;
                 if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
-                acc[r.task].duration += (r.duration || 0);
+                acc[r.task].duration += (Number(r.duration) || 0); // 👈 [수정] Number()
                 const wage = combinedWageMap[r.member] || 0;
-                acc[r.task].cost += ((r.duration || 0) / 60) * wage;
+                acc[r.task].cost += ((Number(r.duration) || 0) / 60) * wage; // 👈 [수정] Number()
                 acc[r.task].members.add(r.member);
                 acc[r.task].recordCount += 1;
                 return acc;
@@ -1214,6 +1247,7 @@ export const switchHistoryView = (view) => {
           break;
   }
   
+  // 👈 [수정] 이 함수가 필터링된 목록을 렌더링합니다.
   renderHistoryDateListByMode(listMode);
 
   if (viewToShow) viewToShow.classList.remove('hidden');
@@ -1221,4 +1255,163 @@ export const switchHistoryView = (view) => {
       tabToActivate.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
       tabToActivate.classList.remove('text-gray-500');
   }
+};
+
+
+// 👈 [추가] 선택한 기간의 엑셀을 다운로드하는 새 함수
+export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
+    if (!startDate || !endDate) {
+        return showToast('시작일과 종료일을 모두 선택해야 합니다.', true);
+    }
+    if (endDate < startDate) {
+        return showToast('종료일은 시작일보다 이후여야 합니다.', true);
+    }
+
+    showToast('선택 기간 엑셀 생성 중... (데이터가 많으면 오래 걸릴 수 있습니다)');
+
+    try {
+        // 1. 선택 기간 데이터 필터링
+        const filteredData = allHistoryData.filter(d => {
+            const date = d.id;
+            return date >= startDate && date <= endDate;
+        });
+
+        if (filteredData.length === 0) {
+            return showToast('선택한 기간에 해당하는 이력 데이터가 없습니다.', true);
+        }
+
+        const workbook = XLSX.utils.book_new();
+
+        // 2. WageMap 생성 (전체 이력 기준)
+        const historyWageMap = {};
+        (allHistoryData || []).forEach(dayData => {
+            (dayData.partTimers || []).forEach(pt => {
+                if (pt && pt.name && !historyWageMap[pt.name]) {
+                     historyWageMap[pt.name] = pt.wage || 0;
+                }
+            });
+        });
+        const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
+
+        // 3. (시트 1) 상세 기록 (기간 합산)
+        const sheet1Headers = ['날짜', '팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)'];
+        const sheet1Data = filteredData.flatMap(day => {
+            return (day.workRecords || []).map(r => ({
+                '날짜': day.id,
+                '팀원': r.member || '',
+                '업무 종류': r.task || '',
+                '시작 시간': formatTimeTo24H(r.startTime),
+                '종료 시간': formatTimeTo24H(r.endTime),
+                '소요 시간(분)': Math.round(Number(r.duration) || 0)
+            }));
+        }).sort((a,b) => { // 날짜순, 그다음 팀원순 정렬
+            if (a['날짜'] !== b['날짜']) return a['날짜'].localeCompare(b['날짜']);
+            return a['팀원'].localeCompare(b['팀원']);
+        });
+
+        const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
+        if (sheet1Data.length > 0) appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
+        fitToColumn(worksheet1);
+        XLSX.utils.book_append_sheet(workbook, worksheet1, `상세 기록 (기간)`);
+
+        // 4. (시트 2) 업무 요약 (기간 합산)
+        const aggregatedQuantities = {};
+        const summaryByTask = {};
+
+        filteredData.forEach(day => {
+            // 수량 합산
+            Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
+                aggregatedQuantities[task] = (aggregatedQuantities[task] || 0) + (Number(qty) || 0);
+            });
+            // 업무 기록 합산
+            (day.workRecords || []).forEach(r => {
+                if (!r || !r.task) return;
+                if (!summaryByTask[r.task]) {
+                    summaryByTask[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+                }
+                const duration = Number(r.duration) || 0;
+                const wage = combinedWageMap[r.member] || 0;
+                summaryByTask[r.task].duration += duration;
+                summaryByTask[r.task].cost += (duration / 60) * wage;
+                summaryByTask[r.task].members.add(r.member); 
+                summaryByTask[r.task].recordCount += 1; 
+            });
+        });
+
+        const sheet2Headers = [
+            '업무 종류', 
+            '총 소요 시간(분)', 
+            '총 인건비(원)', 
+            '총 처리량(개)', 
+            '평균 처리량(개/분)', 
+            '평균 처리비용(원/개)', 
+            '총 참여인원(명)', 
+            '평균 처리시간(건)'
+        ];
+        
+        const sheet2Data = Object.keys(summaryByTask).sort().map(task => {
+            const summary = summaryByTask[task];
+            const qty = aggregatedQuantities[task] || 0;
+            const duration = summary.duration || 0;
+            const cost = summary.cost || 0;
+
+            const avgThroughput = duration > 0 ? (qty / duration).toFixed(2) : '0.00';
+            const avgCostPerItem = qty > 0 ? (cost / qty).toFixed(0) : '0';
+            const avgStaff = summary.members.size;
+            const avgTime = (summary.recordCount > 0) ? (duration / summary.recordCount) : 0;
+            
+            return {
+                '업무 종류': task,
+                '총 소요 시간(분)': Math.round(duration),
+                '총 인건비(원)': Math.round(cost),
+                '총 처리량(개)': qty,
+                '평균 처리량(개/분)': avgThroughput,
+                '평균 처리비용(원/개)': avgCostPerItem,
+                '총 참여인원(명)': avgStaff, 
+                '평균 처리시간(건)': formatDuration(avgTime)
+            };
+        });
+
+        const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
+        if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers); 
+        fitToColumn(worksheet2);
+        XLSX.utils.book_append_sheet(workbook, worksheet2, `업무 요약 (기간 합산)`);
+        
+        // 5. (시트 3) 근태 기록 (기간 합산)
+        const sheet3Headers = ['날짜', '이름', '유형', '시간 / 기간'];
+        const sheet3Data = filteredData.flatMap(day => {
+            return (day.onLeaveMembers || []).map(entry => {
+                let detailText = '-';
+                if (entry.startTime) {
+                    detailText = formatTimeTo24H(entry.startTime);
+                    if (entry.endTime) detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+                    else if (entry.type === '외출') detailText += ' ~';
+                } else if (entry.startDate) {
+                    detailText = entry.startDate;
+                    if (entry.endDate && entry.endDate !== entry.startDate) detailText += ` ~ ${entry.endDate}`;
+                }
+                return {
+                    '날짜': day.id,
+                    '이름': entry.member || '',
+                    '유형': entry.type || '',
+                    '시간 / 기간': detailText
+                };
+            });
+        }).sort((a,b) => { // 날짜순, 그다음 이름순 정렬
+            if (a['날짜'] !== b['날짜']) return a['날짜'].localeCompare(b['날짜']);
+            return a['이름'].localeCompare(b['이름']);
+        });
+
+        const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
+        fitToColumn(worksheet3);
+        XLSX.utils.book_append_sheet(workbook, worksheet3, `근태 기록 (기간)`);
+
+
+        // 6. 파일 저장
+        XLSX.writeFile(workbook, `업무기록_요약_${startDate}_to_${endDate}.xlsx`);
+
+    } catch (error) {
+        console.error('Period Excel export failed:', error);
+        showToast('기간 엑셀 파일 생성에 실패했습니다.', true);
+    }
 };
