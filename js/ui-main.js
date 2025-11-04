@@ -327,7 +327,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             card.dataset.task = firstRecord.task;
 
 
-            let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
+            // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
+            // (max-h-48 -> max-h-64 로 변경하여 7명까지 표시되도록 함)
+            let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-64 members-list">';
+            // =========================================================
+            
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
 
                 const isRecPaused = rec.status === 'paused';
@@ -401,19 +405,18 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                                 <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
                                 
-                                <div class="mt-4 border-t border-gray-300 pt-3 flex flex-col gap-2 card-actions"
+                                <div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions"
                                      data-group-id="${firstRecord.groupId}"
                                      data-task="${firstRecord.task}">
 
-                                    <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white rounded-md transition text-sm font-semibold py-2 px-1 shadow-sm">
-                                        ${isPaused
-                                            ? `<span>전체 재개</span>`
-                                            : `<span>전체 정지</span>`
-                                        }
+                                    <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} 
+                                             flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">
+                                        ${isPaused ? '전체 재개' : '전체 정지'}
                                     </button>
 
-                                    <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} w-full text-white rounded-md transition text-sm font-semibold py-2 px-1 shadow-sm">
-                                        <span>전체 종료</span>
+                                    <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} 
+                                             flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">
+                                        전체 종료
                                     </button>
                                 </div>
                                 </div>`;
@@ -431,11 +434,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
                 </div>
                 
-                <div class="mt-4 border-t border-gray-300 pt-3 flex flex-col gap-2">
-                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full rounded-md text-sm font-semibold py-2 px-1 opacity-50 cursor-not-allowed text-center">
+                <div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2">
+                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} 
+                         flex-1 rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center opacity-50 cursor-not-allowed">
                         <span>전체 정지</span>
                     </div>
-                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full rounded-md text-sm font-semibold py-2 px-1 opacity-50 cursor-not-allowed text-center">
+                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} 
+                         flex-1 rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center opacity-50 cursor-not-allowed">
                         <span>전체 종료</span>
                     </div>
                 </div>
