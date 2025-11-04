@@ -432,6 +432,7 @@ export const renderMonthlyHistory = (selectedMonthKey, allHistoryData, appConfig
 
 /**
  * ✅ [수정] renderAttendanceDailyHistory (ui.js -> ui-history.js)
+ * ✨ [수정] 개인별로 근태 기록을 그룹화(rowspan)하는 로직으로 변경
  */
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-daily-view');
@@ -449,16 +450,18 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                     수동 추가
                 </button>
                 <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
-                        onclick="downloadAttendanceHistoryAsExcel('${dateKey}')">
+                        data-action="download-attendance-excel" data-date-key="${dateKey}">
                     근태 엑셀 (전체)
                 </button>
                 <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" 
-                        onclick="requestHistoryDeletion('${dateKey}')">
+                        data-action="request-history-deletion" data-date-key="${dateKey}">
                     삭제
                 </button>
             </div>
         </div>
     `;
+    
+    // --- [ ✨ 수정된 부분 시작 ✨ ] ---
 
     if (!data || !data.onLeaveMembers || data.onLeaveMembers.length === 0) {
         html += `<div class="bg-white p-4 rounded-lg shadow-sm text-center text-gray-500">해당 날짜의 근태 기록이 없습니다.</div>`;
@@ -468,6 +471,17 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
     const leaveEntries = data.onLeaveMembers;
     leaveEntries.sort((a, b) => (a.member || '').localeCompare(b.member || ''));
+
+    // 1. 근태 기록을 멤버별로 그룹화합니다.
+    const groupedEntries = new Map();
+    leaveEntries.forEach((entry, index) => {
+        const member = entry.member || 'N/A';
+        if (!groupedEntries.has(member)) {
+            groupedEntries.set(member, []);
+        }
+        // 수정/삭제 버튼을 위해 원본 인덱스(index)를 함께 저장합니다.
+        groupedEntries.get(member).push({ ...entry, originalIndex: index });
+    });
 
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
@@ -483,34 +497,49 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                 <tbody>
     `;
 
-    leaveEntries.forEach((entry, index) => {
-        let detailText = '-';
-        if (entry.startTime) {
-            detailText = formatTimeTo24H(entry.startTime);
-            if (entry.endTime) {
-                 detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
-            } else if (entry.type === '외출') {
-                 detailText += ' ~';
-            }
-        } else if (entry.startDate) {
-            detailText = entry.startDate;
-            if (entry.endDate && entry.endDate !== entry.startDate) {
-                detailText += ` ~ ${entry.endDate}`;
-            }
-        }
+    // 2. 그룹화된 데이터를 기반으로 테이블을 생성합니다.
+    groupedEntries.forEach((entries, member) => {
+        const memberEntryCount = entries.length;
 
-        html += `
-            <tr class="bg-white border-b">
-                <td class="px-6 py-4 font-medium text-gray-900">${entry.member}</td>
+        entries.forEach((entry, entryIndex) => {
+            // 3. 상세 시간/기간 텍스트 계산
+            let detailText = '-';
+            if (entry.startTime) {
+                detailText = formatTimeTo24H(entry.startTime);
+                if (entry.endTime) {
+                     detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+                } else if (entry.type === '외출') {
+                     detailText += ' ~';
+                }
+            } else if (entry.startDate) {
+                detailText = entry.startDate;
+                if (entry.endDate && entry.endDate !== entry.startDate) {
+                    detailText += ` ~ ${entry.endDate}`;
+                }
+            }
+
+            html += `<tr class="bg-white border-b hover:bg-gray-50">`;
+            
+            // 4. 첫 번째 항목일 때만 '이름' 셀에 rowspan을 적용합니다.
+            if (entryIndex === 0) {
+                html += `<td class="px-6 py-4 font-medium text-gray-900" rowspan="${memberEntryCount}">${member}</td>`;
+            }
+            // (entryIndex > 0 인 경우에는 '이름' 셀을 그리지 않습니다)
+
+            // 5. 나머지 '유형', '시간', '관리' 셀을 그립니다.
+            // (원본 인덱스(entry.originalIndex)를 사용해야 수정/삭제가 정확히 동작합니다)
+            html += `
                 <td class="px-6 py-4">${entry.type}</td>
                 <td class="px-6 py-4">${detailText}</td>
                 <td class="px-6 py-4 text-right space-x-2">
-                    <button data-action="edit-attendance" data-date-key="${dateKey}" data-index="${index}" class="font-medium text-blue-500 hover:underline">수정</button>
-                    <button data-action="delete-attendance" data-date-key="${dateKey}" data-index="${index}" class="font-medium text-red-500 hover:underline">삭제</button>
+                    <button data-action="edit-attendance" data-date-key="${dateKey}" data-index="${entry.originalIndex}" class="font-medium text-blue-500 hover:underline">수정</button>
+                    <button data-action="delete-attendance" data-date-key="${dateKey}" data-index="${entry.originalIndex}" class="font-medium text-red-500 hover:underline">삭제</button>
                 </td>
             </tr>
-        `;
+            `;
+        });
     });
+    // --- [ ✨ 수정된 부분 끝 ✨ ] ---
 
     html += `
                 </tbody>
