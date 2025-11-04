@@ -39,13 +39,8 @@ export const renderTaskAnalysis = (appState, appConfig) => {
     let gradientParts = [];
     let cumulativePercentage = 0;
     
-    // ================== [ ✨ 수정된 부분 ✨ ] ==================
-    // 기존:
-    // let legendHTML = '<div class="flex-grow">';
-    //
-    // 변경: (max-h-72: 최대 높이 288px, overflow-y-auto: 세로 스크롤, pr-2: 스크롤바 여백)
+    // (max-h-72: 최대 높이 288px, overflow-y-auto: 세로 스크롤, pr-2: 스크롤바 여백)
     let legendHTML = '<div class="flex-grow max-h-72 overflow-y-auto pr-2">';
-    // =========================================================
 
     sortedTasks.forEach(([task, minutes]) => {
         const percentage = totalLoggedMinutes > 0 ? (minutes / totalLoggedMinutes) * 100 : 0;
@@ -320,9 +315,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         // ✅ [수정] 모바일 반응형 클래스 (토글을 위한 'mobile-task-hidden' 클래스 추가)
         const mobileVisibilityClass = isCurrentUserWorkingOnThisTask ? 'flex' : 'hidden md:flex mobile-task-hidden';
         
-        // 🚨 [수정] 카드 자체의 cursor-pointer 제거 (하위 요소에서 클릭 처리) -> [재수정] cursor-pointer 추가
-        
-        // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
         // (진행 중인 카드)
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0]; // 대표 레코드 (그룹 ID, 태스크 이름 등)
@@ -333,7 +325,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             // 🚨 [추가] 리스너가 참조할 수 있도록 카드 자체에 data 속성 부여
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
-            // =========================================================
 
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-48 members-list">';
@@ -380,7 +371,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                         
                     </div>
                 </div>`;
-                // === 여기까지 수정 ===
             });
             membersHtml += '</div>';
 
@@ -392,7 +382,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             const durationStatus = isOngoing ? 'ongoing' : 'paused';
             const stopBtnClass = `bg-red-600 hover:bg-red-700 text-white`;
 
-            // ✅ [수정] 그룹 시간 표시 부분을 div로 감싸고 data-* 속성 추가
             const groupTimeDisplayHtml = `
                 <div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" 
                      data-action="edit-group-start-time" 
@@ -412,29 +401,28 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                                 <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
                                 <div class="flex-grow">${membersHtml}</div>
                                 
-                                <div class="mt-auto flex gap-2 pt-2 card-actions"
+                                <div class="mt-4 border-t border-gray-300 pt-3 flex flex-col gap-2 card-actions"
                                      data-group-id="${firstRecord.groupId}"
                                      data-task="${firstRecord.task}">
 
-                                    <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 aspect-square flex flex-col items-center justify-center text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm">
+                                    <button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} w-full text-white rounded-md transition text-sm font-semibold py-2 px-1 shadow-sm">
                                         ${isPaused
-                                            ? `<span class="text-center leading-tight">전체<br>재개</span>`
-                                            : `<span class="text-center leading-tight">전체<br>정지</span>`
+                                            ? `<span>전체 재개</span>`
+                                            : `<span>전체 정지</span>`
                                         }
                                     </button>
 
-                                    <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} flex-1 aspect-square flex flex-col items-center justify-center text-white rounded-lg transition text-xs font-semibold p-1 shadow-sm">
-                                        <span class="text-center leading-tight">전체<br>종료</span>
+                                    <button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn ${stopBtnClass} w-full text-white rounded-md transition text-sm font-semibold py-2 px-1 shadow-sm">
+                                        <span>전체 종료</span>
                                     </button>
                                 </div>
                                 </div>`;
         } else {
-             // 🚨 [수정] 시작 전 카드는 클릭 가능하도록 cursor-pointer 유지, data-* 속성 추가
+             // (시작 전 카드)
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
             card.dataset.action = 'start-task';
             card.dataset.task = task;
 
-            // === ⬇️ [수정] 여기 <button> 3개를 <div>로 변경 ⬇️ ===
             card.innerHTML = `
                 <div class="flex-grow">
                     <div class="font-bold text-lg ${titleClass} break-keep">${task}</div>
@@ -442,19 +430,16 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                     <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">참여 인원 (0명):</div>
                     <div class="text-xs ${currentStyle.subtitle} italic flex-grow flex items-center justify-center text-center">카드를 클릭하여 팀원 선택</div>
                 </div>
-                <div class="mt-auto flex gap-2 pt-2">
-                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
-                        <span class="text-center leading-tight">인원<br>추가</span>
+                
+                <div class="mt-4 border-t border-gray-300 pt-3 flex flex-col gap-2">
+                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full rounded-md text-sm font-semibold py-2 px-1 opacity-50 cursor-not-allowed text-center">
+                        <span>전체 정지</span>
                     </div>
-                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
-                        <span class="text-center leading-tight">전체<br>정지</span>
-                    </div>
-                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} flex-1 aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-semibold p-1 opacity-50 cursor-not-allowed">
-                        <span class="text-center leading-tight">전체<br>종료</span>
+                    <div class="${currentStyle.buttonBgOff} ${currentStyle.buttonTextOff} w-full rounded-md text-sm font-semibold py-2 px-1 opacity-50 cursor-not-allowed text-center">
+                        <span>전체 종료</span>
                     </div>
                 </div>
-            `;
-            // === ⬆️ [수정] 여기 <button> 3개를 <div>로 변경 ⬆️ ===
+                `;
         }
         presetGrid.appendChild(card);
     });
@@ -477,13 +462,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
 
     // --- Section 2: ALL TEAM MEMBER STATUS ---
-    // (이하 코드 동일)
-    // ... (이하 renderRealtimeStatus 함수의 나머지 코드는 그대로 유지) ...
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container'; // ✅ [추가] 토글을 위한 ID
     
     const allMembersHeader = document.createElement('div');
-    // ✅ [수정] 모바일에서도 헤더가 보이도록 'hidden' 클래스 제거, 토글 버튼 추가
     allMembersHeader.className = 'flex justify-between items-center border-b pb-2 mb-4 mt-8';
     allMembersHeader.innerHTML = `
         <h3 class="text-lg font-bold text-gray-700 hidden md:block">전체 팀원 현황 (클릭하여 근태 설정/취소/수정)</h3>
@@ -498,11 +480,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
     const ongoingRecordsForStatus = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const workingMembers = new Map(ongoingRecordsForStatus.map(r => [r.member, r.task]));
     const pausedMembers = new Map((appState.workRecords || []).filter(r => r.status === 'paused').map(r => [r.member, r.task]));
-
-    // --- ✅ [추가] 현재 사용자 정보 가져오기 (이미 상단으로 이동함) ---
-    // const currentUserRole = appState.currentUserRole || 'user';
-    // const currentUserName = appState.currentUser || null;
-    // ------------------------------------
 
     const combinedOnLeaveMembers = [
         ...(appState.dailyOnLeaveMembers || []),
@@ -524,10 +501,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
     orderedTeamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
-        // ✅ [수정] 모바일에서 그룹 전체 숨김 ('hidden md:block') -> ('mb-4')
         groupContainer.className = 'mb-4'; // 이 컨테이너는 항상 보이도록 수정
         const groupHeader = document.createElement('div');
-        // ✅ [수정] 모바일에서 그룹 헤더 숨김 ('hidden md:flex')
         groupHeader.className = 'flex items-center gap-2 mb-2 hidden md:flex'; // 헤더만 숨김
         groupHeader.innerHTML = `<h4 class="text-md font-semibold text-gray-600">${group.name}</h4>`;
         groupContainer.appendChild(groupHeader);
@@ -543,17 +518,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
             const isWorking = workingMembers.has(member) || pausedMembers.has(member);
             const isSelf = (member === currentUserName); // ✅ [추가] 본인 확인
 
-            // === 📌 [재수정] 팀원 카드 className 설정 ===
-            // ✅ [수정] 토글을 위해 'mobile-member-hidden' 클래스 추가
             const visibilityClass = isSelf ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
             const widthClass = isSelf ? 'w-full md:w-28' : 'w-28'; 
             card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClass} ${widthClass} flex-col justify-center`;
-            // ============================================
 
-            // ✅ [수정] data-action을 설정 (근태 중이면 edit-leave-record, 아니면 member-toggle-leave)
             card.dataset.memberName = member; // 공통: 이름
             if (isOnLeave) {
-                // [수정] 근태 중이면 무조건 수정 모달 열기
                 card.dataset.action = 'edit-leave-record'; 
                 card.dataset.leaveType = leaveInfo.type;
                 card.dataset.startTime = leaveInfo.startTime || ''; // 식별자
@@ -562,22 +532,16 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                 card.dataset.endDate = leaveInfo.endDate || '';
                 
             } else {
-                // [수정] 근태 중이 아니면 근태 설정 모달 열기 (기존)
                 card.dataset.action = 'member-toggle-leave'; 
             }
             
-            // ✅ [수정] 권한에 따라 커서/투명도 조절 (근태 중일 때도 수정 가능하도록)
             if (!isWorking) {
-                // 업무 중이 아닐 때
                 if (currentUserRole === 'admin' || isSelf) {
-                    // 관리자거나 본인이면 활성화
                     card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
                 } else {
-                    // 관리자가 아니고 타인이면 비활성화
                     card.classList.add('cursor-not-allowed', 'opacity-70'); 
                 }
             } else {
-                // 업무 중이면 비활성화
                 card.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
@@ -625,9 +589,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
 
     if (activePartTimers.length > 0) {
         const albaContainer = document.createElement('div');
-        // ✅ [수정] 모바일에서 알바 섹션 숨김 ('hidden md:block') -> ('mb-4')
         albaContainer.className = 'mb-4'; // 이 컨테이너는 항상 보이도록 수정
-        // ✅ [수정] 모바일에서 알바 헤더 숨김 ('hidden md:block')
         albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2 hidden md:block">알바</h4>`; // 헤더만 숨김
 
         const albaGrid = document.createElement('div');
@@ -639,12 +601,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              
              const isSelfAlba = (pt.name === currentUserName); // ✅ [추가] 본인 확인 (알바)
 
-             // === 📌 [재수정] 알바 카드 className 설정 ===
-             // ✅ [수정] 토글을 위해 'mobile-member-hidden' 클래스 추가
              const visibilityClassAlba = isSelfAlba ? 'flex' : 'hidden md:flex mobile-member-hidden'; 
              const widthClassAlba = isSelfAlba ? 'w-full md:w-28' : 'w-28'; 
              card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClassAlba} ${widthClassAlba} flex-col justify-center`;
-             // ===========================================
 
              const currentlyWorkingTask = workingMembers.get(pt.name);
              const isPaused = pausedMembers.has(pt.name);
@@ -652,10 +611,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = currentlyWorkingTask || isPaused;
 
-            // ✅ [수정] data-action을 설정 (근태 중이면 edit-leave-record, 아니면 member-toggle-leave)
             card.dataset.memberName = pt.name; // 공통: 이름
             if (isAlbaOnLeave) {
-                // [수정] 근태 중이면 무조건 수정 모달 열기
                 card.dataset.action = 'edit-leave-record';
                 card.dataset.leaveType = albaLeaveInfo.type;
                 card.dataset.startTime = albaLeaveInfo.startTime || ''; // 식별자
@@ -663,11 +620,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
                 card.dataset.endTime = albaLeaveInfo.endTime || '';
                 card.dataset.endDate = albaLeaveInfo.endDate || '';
             } else {
-                // [수정] 근태 중이 아니면 근태 설정 모달 열기 (기존)
                 card.dataset.action = 'member-toggle-leave';
             }
 
-             // ✅ [수정] 권한에 따라 커서/투명도 조절 (근태 중일 때도 수정 가능하도록)
              if (!isAlbaWorking) {
                  if (currentUserRole === 'admin' || isSelfAlba) {
                     card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
@@ -705,13 +660,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = []) =
         allMembersContainer.appendChild(albaContainer);
     }
     
-    // ✅ [수정] 직원 현황판(allMembersContainer)은 항상 추가되도록 수정 (내부에서 모바일 숨김 처리)
-    // teamStatusBoard.appendChild(presetTaskContainer); // presetTaskContainer는 이미 추가됨
     teamStatusBoard.appendChild(allMembersContainer);
 };
-
-// ... (이하 renderCompletedWorkLog, renderDashboardLayout, updateSummary 함수는 기존과 동일) ...
-// ... (파일 끝까지) ...
 
 /**
  * ✅ [수정] renderCompletedWorkLog (ui.js -> ui-main.js)
