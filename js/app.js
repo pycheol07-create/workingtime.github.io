@@ -43,12 +43,15 @@ import { initializeAppListeners } from './app-listeners.js';
 import { 
     saveProgress,
     openHistoryQuantityModal,
-    downloadHistoryAsExcel,
-    requestHistoryDeletion,
-    downloadAttendanceHistoryAsExcel,
-    // 👈 [추가] 기간 엑셀 다운로드를 위해
-    downloadPeriodHistoryAsExcel 
+    requestHistoryDeletion
 } from './app-history-logic.js';
+
+// history-excel.js (엑셀 로직)
+import {
+    downloadHistoryAsExcel,
+    downloadAttendanceHistoryAsExcel,
+    downloadPeriodHistoryAsExcel 
+} from './history-excel.js';
 
 
 // ========== 5. DOM Elements (모두 EXPORT) ==========
