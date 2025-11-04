@@ -680,3 +680,98 @@ export const requestHistoryDeletion = (dateKey) => {
   context.historyKeyToDelete = dateKey; // ✅ context.
   if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
 };
+
+/**
+ * 이력 보기 탭(일/주/월)을 전환합니다.
+ */
+export const switchHistoryView = (view) => {
+  const allViews = [
+      document.getElementById('history-daily-view'),
+      document.getElementById('history-weekly-view'),
+      document.getElementById('history-monthly-view'),
+      document.getElementById('history-attendance-daily-view'),
+      document.getElementById('history-attendance-weekly-view'),
+      document.getElementById('history-attendance-monthly-view')
+  ];
+  allViews.forEach(v => v && v.classList.add('hidden'));
+
+  if (historyTabs) {
+      historyTabs.querySelectorAll('button').forEach(btn => {
+          btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+          btn.classList.add('text-gray-500');
+      });
+  }
+  if (attendanceHistoryTabs) {
+      attendanceHistoryTabs.querySelectorAll('button').forEach(btn => {
+          btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+          btn.classList.add('text-gray-500');
+      });
+  }
+
+  const dateListContainer = document.getElementById('history-date-list-container');
+  if (dateListContainer) {
+      dateListContainer.style.display = 'block'; 
+  }
+
+  let viewToShow = null;
+  let tabToActivate = null;
+  let listMode = 'day'; 
+
+  switch(view) {
+      case 'daily':
+          listMode = 'day'; 
+          viewToShow = document.getElementById('history-daily-view');
+          tabToActivate = historyTabs?.querySelector('button[data-view="daily"]');
+          break;
+      case 'weekly':
+          listMode = 'week'; 
+          viewToShow = document.getElementById('history-weekly-view');
+          tabToActivate = historyTabs?.querySelector('button[data-view="weekly"]');
+          // ================== [ ✨ 수정된 부분 ✨ ] ==================
+          // (렌더링 호출 삭제)
+          // renderWeeklyHistory(allHistoryData, appConfig); 
+          // =======================================================
+          break;
+      case 'monthly':
+          listMode = 'month'; 
+          viewToShow = document.getElementById('history-monthly-view');
+          tabToActivate = historyTabs?.querySelector('button[data-view="monthly"]');
+          // ================== [ ✨ 수정된 부분 ✨ ] ==================
+          // (렌더링 호출 삭제)
+          // renderMonthlyHistory(allHistoryData, appConfig); 
+          // =======================================================
+          break;
+      case 'attendance-daily':
+          listMode = 'day'; 
+          viewToShow = document.getElementById('history-attendance-daily-view');
+          tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-daily"]');
+          break;
+      case 'attendance-weekly':
+          listMode = 'week'; 
+          viewToShow = document.getElementById('history-attendance-weekly-view');
+          tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
+          // ================== [ ✨ 수정된 부분 ✨ ] ==================
+          // (렌더링 호출 삭제)
+          // renderAttendanceWeeklyHistory(allHistoryData); 
+          // =======================================================
+          break;
+      case 'attendance-monthly':
+          listMode = 'month'; 
+          viewToShow = document.getElementById('history-attendance-monthly-view');
+          tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
+          // ================== [ ✨ 수정된 부분 ✨ ] ==================
+          // (렌더링 호출 삭제)
+          // renderAttendanceMonthlyHistory(allHistoryData); 
+          // =======================================================
+          break;
+  }
+  
+  // 👈 [수정] 이 함수가 필터링된 목록을 렌더링합니다.
+  renderHistoryDateListByMode(listMode);
+
+  if (viewToShow) viewToShow.classList.remove('hidden');
+  if (tabToActivate) {
+      tabToActivate.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+      tabToActivate.classList.remove('text-gray-500');
+  }
+};
