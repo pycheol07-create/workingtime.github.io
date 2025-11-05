@@ -1,6 +1,6 @@
 // === ui-history-reports.js (업무 리포트 렌더링 담당) ===
 
-import { formatDuration, isWeekday } from './utils.js';
+import { formatDuration, isWeekday, getWeekOfYear } from './utils.js';
 // ⛔️ [삭제] ui.js에서 헬퍼 함수 가져오기
 // ⛔️ [삭제] ui-history.js에서 Diff 헬퍼 함수 가져오기 (이 파일에 정의됨)
 // import { getDiffHtmlForMetric } from './ui-history.js'; // <- 이 줄을 삭제했습니다.

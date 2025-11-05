@@ -588,12 +588,17 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
   const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
 
   const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (Number(rec.duration) || 0); return acc; }, {}); // 👈 [수정] Number()
-  const taskCosts = records.reduce((acc, rec) => {
+  
+  // ================== [ ✨✨✨ 오류 수정된 부분 ✨✨✨ ] ==================
+  const taskCosts = records.reduce((acc, rec) => { // 'rec' 사용
       const wage = wageMap[rec.member] || 0;
-      const cost = ((Number(r.duration) || 0) / 60) * wage;
+      // ⛔️ [오류] (Number(r.duration) || 0)
+      // ✅ [수정] (Number(rec.duration) || 0)
+      const cost = ((Number(rec.duration) || 0) / 60) * wage; 
       acc[rec.task] = (acc[rec.task] || 0) + cost;
       return acc;
   }, {});
+  // =================================================================
   
   const taskMetrics = {};
   const allTaskKeys = new Set([...Object.keys(taskDurations), ...Object.keys(quantities)]);
