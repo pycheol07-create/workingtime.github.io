@@ -1,13 +1,11 @@
 // === listeners-main.js (메인 화면 리스너) ===
 
-// app.js (메인)에서 가져올 핵심 상태 및 DOM 요소들
 import {
     appState, appConfig, db, auth, 
     persistentLeaveSchedule, allHistoryData,
     context, 
     LEAVE_TYPES,
 
-    // DOM 요소 (이 파일에서 필요한 것들)
     teamStatusBoard, workLogBody,
     deleteConfirmModal, 
     endShiftBtn, endShiftConfirmModal, endShiftConfirmTitle, endShiftConfirmMessage,
@@ -19,7 +17,7 @@ import {
     editStartTimeModal, editStartTimeModalTitle, editStartTimeModalMessage, 
     editStartTimeInput, editStartTimeContextIdInput, editStartTimeContextTypeInput,
     editLeaveModal,
-    leaveTypeModal, leaveModalTitle, leaveMemberNameSpan, leaveTypeOptionsContainer,
+    leaveTypeModal, leaveMemberNameSpan, leaveTypeOptionsContainer,
     leaveDateInputsDiv, leaveStartDateInput, leaveEndDateInput,
     cancelLeaveConfirmModal, cancelLeaveConfirmMessage,
     toggleCompletedLog, toggleAnalysis, toggleSummary,
@@ -28,51 +26,35 @@ import {
     hamburgerBtn, navContent, 
     analysisMemberSelect,
 
-    // app.js (메인)의 헬퍼/로직 함수
     render, debouncedSaveState, 
     generateId, 
+    markDataAsDirty,
     
-    // (로그인/로그아웃 DOM 요소)
-    loginModal, 
-    loginForm,
-    loginEmailInput,
-    loginPasswordInput,
-    loginSubmitBtn,
-    loginErrorMsg,
-    loginButtonText,
-    loginButtonSpinner,
-    logoutBtn,
-    logoutBtnMobile,
+    loginModal, loginForm, loginEmailInput, loginPasswordInput, loginSubmitBtn,
+    loginErrorMsg, loginButtonText, loginButtonSpinner, logoutBtn, logoutBtnMobile,
     
 } from './app.js';
 
-// utils.js에서 필요한 모든 헬퍼 함수 가져오기
 import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime } from './utils.js';
 
-// ui.js (통합)에서 가져올 렌더링 함수
 import {
     getAllDashboardDefinitions,
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderPersonalAnalysis,
-    renderQuantityModalInputs // ✅ [추가] 이 함수를 추가해주세요
+    renderQuantityModalInputs 
 } from './ui.js';
 
-// app-logic.js (업무 로직)
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual
 } from './app-logic.js';
 
-// app-history-logic.js (이력 로직)
 import {
     saveProgress, saveDayDataToHistory,
-    // ✅ [오류 수정] confirmQuantityBtn에서 이 함수가 필요합니다.
-    switchHistoryView,
-    checkMissingQuantities // 👈 [추가]
+    checkMissingQuantities 
 } from './app-history-logic.js';
 
-// Firebase (Auth)
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 
@@ -81,37 +63,28 @@ import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/fir
  */
 export function setupMainScreenListeners() {
     
-    // --- 1. 메인 화면 (teamStatusBoard) 리스너 ---
     if (teamStatusBoard) {
       teamStatusBoard.addEventListener('click', (e) => {
         
-        // 1. 모바일 토글 버튼들
         const toggleMobileBtn = e.target.closest('#toggle-all-tasks-mobile');
         if (toggleMobileBtn) {
             e.stopPropagation(); 
-            
-            // 👈 [수정] DOM을 직접 조작하는 대신 context 상태를 변경하고 render() 호출
             context.isMobileTaskViewExpanded = !context.isMobileTaskViewExpanded;
-            render(); // render()가 'ui-main.js'의 renderRealtimeStatus를 올바른 상태로 호출
-            
+            render(); 
             return;
         }
         
         const toggleMemberBtn = e.target.closest('#toggle-all-members-mobile');
         if (toggleMemberBtn) {
             e.stopPropagation();
-
-            // 👈 [수정] DOM을 직접 조작하는 대신 context 상태를 변경하고 render() 호출
             context.isMobileMemberViewExpanded = !context.isMobileMemberViewExpanded;
-            render(); // render()가 'ui-main.js'의 renderRealtimeStatus를 올바른 상태로 호출
-            
+            render(); 
             return;
         }
 
-        // 2. 카드 내부의 액션 버튼들
         const stopGroupButton = e.target.closest('.stop-work-group-btn');
         if (stopGroupButton) {
-            context.groupToStopId = Number(stopGroupButton.dataset.groupId); // ✅ context.
+            context.groupToStopId = Number(stopGroupButton.dataset.groupId); 
             if (document.getElementById('stop-group-confirm-modal')) {
                  document.getElementById('stop-group-confirm-modal').classList.remove('hidden');
             }
@@ -139,7 +112,7 @@ export function setupMainScreenListeners() {
         }
         const individualStopBtn = e.target.closest('button[data-action="stop-individual"]');
         if (individualStopBtn) {
-            context.recordToStopId = individualStopBtn.dataset.recordId; // ✅ context.
+            context.recordToStopId = individualStopBtn.dataset.recordId; 
             const record = (appState.workRecords || []).find(r => r.id === context.recordToStopId);
             if (stopIndividualConfirmMessage && record) {
                  stopIndividualConfirmMessage.textContent = `${record.member}님의 '${record.task}' 업무를 종료하시겠습니까?`;
@@ -148,15 +121,14 @@ export function setupMainScreenListeners() {
             return;
         }
 
-        // 3. 그룹 시작 시간 수정 영역
         const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
         if (groupTimeDisplay) {
             const groupId = Number(groupTimeDisplay.dataset.groupId);
             const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
             if (!groupId || !currentStartTime) return;
 
-            context.recordIdOrGroupIdToEdit = groupId; // ✅ context.
-            context.editType = 'group'; // ✅ context.
+            context.recordIdOrGroupIdToEdit = groupId; 
+            context.editType = 'group'; 
 
             if(editStartTimeModalTitle) editStartTimeModalTitle.textContent = '그룹 시작 시간 변경';
             if(editStartTimeModalMessage) editStartTimeModalMessage.textContent = '이 그룹의 모든 팀원의 시작 시간이 변경됩니다.';
@@ -168,7 +140,6 @@ export function setupMainScreenListeners() {
             return;
         }
 
-        // 4. 개별 시작 시간 수정 (시계 아이콘 버튼)
         const individualEditTimeBtn = e.target.closest('button[data-action="edit-individual-start-time"]');
         if (individualEditTimeBtn) {
             const recordId = individualEditTimeBtn.dataset.recordId;
@@ -176,8 +147,8 @@ export function setupMainScreenListeners() {
             const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
             if (!record) return;
 
-            context.recordIdOrGroupIdToEdit = recordId; // ✅ context.
-            context.editType = 'individual'; // ✅ context.
+            context.recordIdOrGroupIdToEdit = recordId; 
+            context.editType = 'individual'; 
 
             if(editStartTimeModalTitle) editStartTimeModalTitle.textContent = '개별 시작 시간 변경';
             if(editStartTimeModalMessage) editStartTimeModalMessage.textContent = `${record.member}님의 시작 시간을 변경합니다.`;
@@ -189,13 +160,12 @@ export function setupMainScreenListeners() {
             return;
         }
         
-        // 6. 통합 근태 수정 카드 클릭 (data-action="edit-leave-record")
         const editLeaveCard = e.target.closest('[data-action="edit-leave-record"]');
         if (editLeaveCard) {
             const memberName = editLeaveCard.dataset.memberName;
             const currentType = editLeaveCard.dataset.leaveType;
-            const currentStartTime = editLeaveCard.dataset.startTime; // 외출/조퇴용
-            const currentStartDate = editLeaveCard.dataset.startDate; // 연차/결근/출장용
+            const currentStartTime = editLeaveCard.dataset.startTime; 
+            const currentStartDate = editLeaveCard.dataset.startDate; 
             const currentEndTime = editLeaveCard.dataset.endTime;
             const currentEndDate = editLeaveCard.dataset.endDate;
 
@@ -206,8 +176,8 @@ export function setupMainScreenListeners() {
                 return;
             }
             
-            // '외출' 또는 '조퇴'인 경우, '복귀' 확인 모달을 바로 띄웁니다.
-            if (currentType === '외출' || currentType === '조퇴') {
+            // ✅ [수정] '외출'인 경우에만 '복귀' 모달 띄움. ('조퇴'는 수정 모달로)
+            if (currentType === '외출') {
                 context.memberToCancelLeave = memberName;
                 if (cancelLeaveConfirmMessage) {
                     cancelLeaveConfirmMessage.textContent = `${memberName}님을 '${currentType}' 상태에서 복귀(취소) 처리하시겠습니까?`;
@@ -215,12 +185,9 @@ export function setupMainScreenListeners() {
                 if (cancelLeaveConfirmModal) {
                     cancelLeaveConfirmModal.classList.remove('hidden');
                 }
-                return; // 👈 중요: 수정 모달을 열지 않고 여기서 종료
+                return; 
             }
 
-
-            // (이하 기존 로직)
-            // '연차', '출장', '결근'인 경우에만 전체 수정 모달이 열립니다.
             const modal = document.getElementById('edit-leave-record-modal');
             const titleEl = document.getElementById('edit-leave-modal-title');
             const nameEl = document.getElementById('edit-leave-member-name');
@@ -252,7 +219,6 @@ export function setupMainScreenListeners() {
             });
 
             const isTimeBased = (currentType === '외출' || currentType === '조퇴');
-            const isDateBased = !isTimeBased;
 
             timeFields.classList.toggle('hidden', !isTimeBased);
             dateFields.classList.toggle('hidden', isTimeBased);
@@ -273,7 +239,6 @@ export function setupMainScreenListeners() {
             return; 
         }
 
-        // 7. 근태 설정 카드 (data-action="member-toggle-leave")
         const memberCard = e.target.closest('[data-action="member-toggle-leave"]');
         if (memberCard) {
             const memberName = memberCard.dataset.memberName;
@@ -288,7 +253,7 @@ export function setupMainScreenListeners() {
                 return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
             }
             
-            context.memberToSetLeave = memberName; // ✅ context.
+            context.memberToSetLeave = memberName; 
             if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
             renderLeaveTypeModalOptions(LEAVE_TYPES);
             if(leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
@@ -303,20 +268,11 @@ export function setupMainScreenListeners() {
             return;
         }
 
-        // 8. 업무 카드 전체 클릭 (시작, 기타, 또는 인원 추가)
-        
-        // 8a. 카드 내부의 상호작용 요소 클릭 시, 카드 전체 클릭(8b)으로 
-        //     이벤트가 전파되는 것을 막습니다. (가장 중요)
         if (e.target.closest('.members-list, .card-actions, .group-time-display')) {
-            // (members-list: 멤버 목록)
-            // (card-actions: 하단 버튼 영역)
-            // (group-time-display: 상단 시간 표시 영역)
-            e.stopPropagation(); // 👈 이 클릭은 카드 전체 클릭으로 간주하지 않음
+            e.stopPropagation(); 
             return;
         }
 
-        // 8b. 카드 자체(빈 공간) 클릭 처리
-        // 'start-task' 카드는 data-action을, '진행 중' 카드는 data-group-id를 가집니다.
         const card = e.target.closest('div[data-group-id], div[data-action]');
         
         if (card) { 
@@ -325,7 +281,6 @@ export function setupMainScreenListeners() {
             const task = card.dataset.task;
 
             if (action === 'start-task') {
-                // (기존) 시작 전 카드 클릭
                 context.selectedTaskForStart = task; 
                 context.selectedGroupForAdd = null; 
                 renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
@@ -335,14 +290,10 @@ export function setupMainScreenListeners() {
                 return;
 
             } else if (action === 'other') {
-                // (기존) 기타 업무 카드 클릭
                 if (taskSelectModal) taskSelectModal.classList.remove('hidden');
                 return;
             
             } else if (groupId && task) {
-                // (신규) 진행 중인 카드 (data-group-id가 있는 카드)의 
-                // 빈 공간 클릭 시 -> '인원 추가' 로직 실행
-                
                 context.selectedTaskForStart = task;
                 context.selectedGroupForAdd = Number(groupId); 
                 renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
@@ -356,7 +307,6 @@ export function setupMainScreenListeners() {
       }); 
     } 
 
-    // --- 2. 완료 기록 (workLogBody) 리스너 ---
     if (workLogBody) {
       workLogBody.addEventListener('click', (e) => {
         const deleteBtn = e.target.closest('button[data-action="delete"]');
@@ -397,11 +347,10 @@ export function setupMainScreenListeners() {
       });
     }
 
-    // --- 3. 버튼 리스너 (일괄 삭제, 저장, 마감 등) ---
     const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
     if (deleteAllCompletedBtn) {
       deleteAllCompletedBtn.addEventListener('click', () => {
-        context.deleteMode = 'all'; // ✅ context.
+        context.deleteMode = 'all'; 
         const msgEl = document.getElementById('delete-confirm-message');
         if (msgEl) msgEl.textContent = '오늘 완료된 모든 업무 기록을 삭제하시겠습니까?';
         if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
@@ -429,7 +378,6 @@ export function setupMainScreenListeners() {
       saveProgressBtn.addEventListener('click', () => saveProgress(false));
     }
 
-    // --- 8. 기타 UI 리스너 ---
     [toggleCompletedLog, toggleAnalysis, toggleSummary].forEach(toggle => {
       if (!toggle) return;
       toggle.addEventListener('click', () => {
@@ -442,7 +390,6 @@ export function setupMainScreenListeners() {
       });
     });
 
-    // --- 10. 메뉴 및 햄버거 리스너 ---
     if (hamburgerBtn && navContent) {
         hamburgerBtn.addEventListener('click', (e) => {
             e.stopPropagation(); 
@@ -486,23 +433,16 @@ export function setupMainScreenListeners() {
                 if (loginModal) loginModal.classList.remove('hidden');
                 return;
             }
-            // (로직이 listeners-modals.js의 'confirmQuantityBtn' 리스너로 이동)
-            // ...
             
-            // ✅ 이 리스너는 모달을 열고 'context'를 설정하는 역할만 합니다.
             const quantityModal = document.getElementById('quantity-modal');
 
-            // --- [ ✨ 수정된 부분 시작 ✨ ] ---
-            // ✅ 오늘의 누락된 항목을 계산합니다.
             const todayData = {
                 workRecords: appState.workRecords || [],
                 taskQuantities: appState.taskQuantities || {},
             };
             const missingTasksList = checkMissingQuantities(todayData);
 
-            // ✅ missingTasksList를 전달합니다.
             renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList);
-            // --- [ ✨ 수정된 부분 끝 ✨ ] ---
 
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
@@ -545,16 +485,8 @@ export function setupMainScreenListeners() {
                     const todayHistoryData = allHistoryData[todayHistoryIndex];
                     const updatedHistoryData = { ...todayHistoryData, taskQuantities: newQuantities };
                     allHistoryData[todayHistoryIndex] = updatedHistoryData;
-                    const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
-                    try {
-                        // (이 import가 누락되어 있었네요. listeners-modals.js로 옮길 때 추가해야 합니다.)
-                        // import { doc, setDoc } from "https/..."
-                        // await setDoc(historyDocRef, updatedHistoryData);
-                        console.warn("setDoc in openQuantityModalTodayBtn listener needs to be moved to listeners-modals.js confirm logic");
-                    } catch (e) {
-                        console.error('오늘 날짜 이력(history) 처리량 업데이트 실패:', e);
-                        allHistoryData[todayHistoryIndex] = todayHistoryData;
-                    }
+                    
+                    saveProgress(true); 
                 }
             };
             context.quantityModalContext.onCancel = () => {}; 
@@ -576,20 +508,15 @@ export function setupMainScreenListeners() {
                 return;
             }
             
-            // ✅ 위와 동일하게 모달을 열고 'context'를 설정합니다.
             const quantityModal = document.getElementById('quantity-modal');
 
-            // --- [ ✨ 수정된 부분 시작 ✨ ] ---
-            // ✅ 오늘의 누락된 항목을 계산합니다.
             const todayData = {
                 workRecords: appState.workRecords || [],
                 taskQuantities: appState.taskQuantities || {},
             };
             const missingTasksList = checkMissingQuantities(todayData);
 
-            // ✅ missingTasksList를 전달합니다.
             renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList);
-            // --- [ ✨ 수정된 부분 끝 ✨ ] ---
 
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
@@ -599,6 +526,9 @@ export function setupMainScreenListeners() {
             context.quantityModalContext.onConfirm = (newQuantities) => { 
                 appState.taskQuantities = newQuantities;
                 debouncedSaveState(); 
+                
+                saveProgress(true); 
+
                 showToast('오늘의 처리량이 저장되었습니다.');
                 render(); 
             };
@@ -613,7 +543,6 @@ export function setupMainScreenListeners() {
         });
     }
     
-    // --- 12. 분석 탭 리스너 ---
     const analysisTabs = document.getElementById('analysis-tabs');
     if (analysisTabs) {
         analysisTabs.addEventListener('click', (e) => {
@@ -646,7 +575,6 @@ export function setupMainScreenListeners() {
         });
     }
     
-    // --- 16. 로그인/로그아웃 리스너 ---
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -660,8 +588,7 @@ export function setupMainScreenListeners() {
 
             try {
                 await signInWithEmailAndPassword(auth, email, password);
-                // onAuthStateChanged in app.js가 성공 처리를 합니다.
-                if (loginPasswordInput) loginPasswordInput.value = ''; // 비밀번호 필드 지우기
+                if (loginPasswordInput) loginPasswordInput.value = ''; 
             } catch (error) {
                 console.error('Login error:', error.code, error.message);
                 if (loginErrorMsg) {
@@ -684,7 +611,6 @@ export function setupMainScreenListeners() {
         logoutBtn.addEventListener('click', async () => {
             try {
                 await signOut(auth);
-                // onAuthStateChanged in app.js가 UI 변경을 처리합니다.
             } catch (error) {
                 console.error('Logout error:', error);
                 showToast('로그아웃 중 오류가 발생했습니다.', true);
@@ -696,7 +622,6 @@ export function setupMainScreenListeners() {
         logoutBtnMobile.addEventListener('click', async () => {
             try {
                 await signOut(auth);
-                // onAuthStateChanged in app.js가 UI 변경을 처리합니다.
             } catch (error) {
                 console.error('Logout error:', error);
                 showToast('로그아웃 중 오류가 발생했습니다.', true);

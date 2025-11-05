@@ -146,3 +146,31 @@ body {
     border-color: #f59e0b !important;
     box-shadow: 0 0 0 1px #f59e0b;
 }
+
+/* ✅ [추가] 리포트 테이블 정렬 헤더 스타일 */
+.sortable-header {
+    cursor: pointer;
+    position: relative;
+    padding-right: 1.5rem !important; /* 아이콘을 위한 여백 */
+    user-select: none;
+}
+.sortable-header:hover {
+    background-color: #e5e7eb; /* bg-gray-200 */
+}
+.sort-icon {
+    position: absolute;
+    right: 0.25rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.8em;
+    color: #9ca3af; /* text-gray-400 */
+    opacity: 0.5;
+}
+.sortable-header:hover .sort-icon {
+    opacity: 1;
+}
+.sort-icon.sorted-asc,
+.sort-icon.sorted-desc {
+    opacity: 1;
+    color: #2563eb; /* text-blue-600 */
+}

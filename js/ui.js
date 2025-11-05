@@ -90,47 +90,10 @@ export const taskTitleColors = {
     'default': 'text-blue-700'
 };
 
-// ✅ [유지] 공유 헬퍼 (getDiffHtmlForMetric) (ui-history.js에서 사용)
-import { formatDuration } from './utils.js'; // 이 함수는 formatDuration이 필요
-export const getDiffHtmlForMetric = (metric, current, previous) => {
-    const currValue = current || 0;
-    const prevValue = previous || 0;
-
-    if (prevValue === 0) {
-        if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
-        return ''; // 둘 다 0
-    }
-    
-    const diff = currValue - prevValue;
-    if (Math.abs(diff) < 0.001) return `<span class="text-xs text-gray-400 ml-1">(-)</span>`;
-    
-    const percent = (diff / prevValue) * 100;
-    const sign = diff > 0 ? '↑' : '↓';
-    
-    let colorClass = 'text-gray-500';
-    if (metric === 'avgThroughput' || metric === 'avgStaff') {
-        colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
-    } else if (metric === 'avgCostPerItem' || metric === 'avgTime') {
-        colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
-    }
-    
-    let diffStr = '';
-    let prevStr = '';
-    if (metric === 'avgTime') {
-        diffStr = formatDuration(Math.abs(diff));
-        prevStr = formatDuration(prevValue);
-    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem') {
-        diffStr = Math.abs(diff).toFixed(0);
-        prevStr = prevValue.toFixed(0);
-    } else { // avgThroughput
-        diffStr = Math.abs(diff).toFixed(2);
-        prevStr = prevValue.toFixed(2);
-    }
-
-    return `<span class="text-xs ${colorClass} ml-1 font-mono" title="이전: ${prevStr}">
-                ${sign} ${diffStr} (${percent.toFixed(0)}%)
-            </span>`;
-};
+// ⛔️ [삭제] ---
+// ⛔️ getDiffHtmlForMetric 함수 정의 (약 40줄)가 여기서 삭제되었습니다.
+// ⛔️ (ui-history-reports.js로 완전히 이동했습니다.)
+// ⛔️ ---
 
 
 // --- 1. Main UI 함수들 가져오기 및 내보내기 ---
