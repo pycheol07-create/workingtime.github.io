@@ -11,32 +11,21 @@ export const showToast = (message, isError = false) => {
     }, 3000);
 };
 
-// ✅ [추가] app.js에서 이동해 온 함수
-/**
- * 시작 시간, 종료 시간, 그리고 정지 기록 배열을 바탕으로 순수 작업 시간을 분 단위로 계산합니다.
- * @param {string} start - 시작 시간 (HH:MM)
- * @param {string} end - 종료 시간 (HH:MM)
- * @param {Array<Object>} pauses - 정지 기록 배열 (e.g., [{start: 'HH:MM', end: 'HH:MM'}])
- * @returns {number} - 계산된 총 분
- */
 export const calcElapsedMinutes = (start, end, pauses = []) => {
-  if (!start || !end) return 0;
-  const s = new Date(`1970-01-01T${start}:00Z`).getTime();
-  const e = new Date(`1970-01-01T${end}:00Z`).getTime();
-  let total = Math.max(0, e - s);
-  (pauses || []).forEach(p => {
-    if (p.start && p.end) {
-      const ps = new Date(`1970-01-01T${p.start}:00Z`).getTime();
-      const pe = new Date(`1970-01-01T${p.end}:00Z`).getTime();
-      if (pe > ps) total -= (pe - ps);
-    }
-  });
-  return Math.max(0, total / 60000);
+    if (!start || !end) return 0;
+    const s = new Date(`1970-01-01T${start}:00Z`).getTime();
+    const e = new Date(`1970-01-01T${end}:00Z`).getTime();
+    let total = Math.max(0, e - s);
+    (pauses || []).forEach(p => {
+        if (p.start && p.end) {
+            const ps = new Date(`1970-01-01T${p.start}:00Z`).getTime();
+            const pe = new Date(`1970-01-01T${p.end}:00Z`).getTime();
+            if (pe > ps) total -= (pe - ps);
+        }
+    });
+    return Math.max(0, total / 60000);
 };
 
-// === utils.js (36번째 줄부터 파일 끝까지 교체) ===
-
-// ✅ [수정] 중복 선언 및 불필요한 괄호 제거
 export const formatTimeTo24H = (timeStr) => {
     if (!timeStr) return '';
     const [hours, minutes] = timeStr.split(':');
@@ -62,9 +51,9 @@ export const formatDuration = (minutes) => {
 };
 
 export const isWeekday = (dateString) => {
-    const date = new Date(dateString + 'T00:00:00'); // Treat as local date
+    const date = new Date(dateString + 'T00:00:00');
     const day = date.getDay();
-    return day >= 1 && day <= 5; // Monday to Friday
+    return day >= 1 && day <= 5;
 };
 
 export const getTodayDateString = () => {
@@ -93,18 +82,7 @@ export const displayCurrentDate = () => {
     document.getElementById('current-date-display').textContent = dateString;
 };
 
-// === utils.js (파일 맨 아래에 추가) ===
-
-export const generateId = () => `${Date.now()}-${++recordCounter}`;
-// (참고: recordCounter는 app.js에 있으므로, 이 함수를 app.js에서 호출 시
-// recordCounter를 인자로 받거나 app.js에 그대로 두는 것이 낫습니다.)
-
-// 앗, generateId는 app.js의 전역 변수 recordCounter를 사용하네요.
-// 이 함수는 app.js에 그대로 두는 것이 좋겠습니다!
-
-// generateId를 제외한 나머지 3개 함수를 utils.js로 옮기겠습니다.
-
-export const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
+export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
 export const calculateDateDifference = (start, end) => {
     if (!start) return 0;
