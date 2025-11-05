@@ -45,21 +45,17 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
-// ================== [ ✨ 핵심 추가 로직 ✨ ] ==================
+// ================== [ 헬퍼 함수 ] ==================
 /**
  * [내부 헬퍼] '오늘'의 실시간 데이터(appState)를 이력 데이터 배열(allHistoryData)에 동기화합니다.
- * 이 함수 덕분에 이력 팝업에서 항상 최신 '오늘' 데이터를 볼 수 있습니다.
  */
 const _syncTodayToHistory = () => {
     const todayKey = getTodayDateString();
     
-    // 1. 현재 메인 화면의 상태를 이력 데이터 형식으로 변환
     const liveTodayData = {
         id: todayKey,
-        // 깊은 복사로 참조 끊기
         workRecords: JSON.parse(JSON.stringify(appState.workRecords || [])),
         taskQuantities: JSON.parse(JSON.stringify(appState.taskQuantities || {})),
-        // 근태는 일일 근태와 기간 근태를 합쳐서 보여줌
         onLeaveMembers: [
             ...(JSON.parse(JSON.stringify(appState.dailyOnLeaveMembers || []))),
             ...(JSON.parse(JSON.stringify(appState.dateBasedOnLeaveMembers || [])))
@@ -67,27 +63,21 @@ const _syncTodayToHistory = () => {
         partTimers: JSON.parse(JSON.stringify(appState.partTimers || []))
     };
 
-    // 2. allHistoryData 배열에서 '오늘' 데이터를 찾아 교체하거나, 없으면 추가
     const idx = allHistoryData.findIndex(d => d.id === todayKey);
     if (idx > -1) {
         allHistoryData[idx] = liveTodayData;
     } else {
         allHistoryData.unshift(liveTodayData);
-        // 날짜 내림차순 정렬 유지
         allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
     }
 };
-// =========================================================
 
-
-// ✅ [신규] 해당 날짜의 데이터에 "업무 시간은 있으나 처리량이 0"인 업무가 있는지 확인하는 헬퍼 함수
 export const checkMissingQuantities = (dayData) => { 
     if (!dayData || !dayData.workRecords) return []; 
 
     const records = dayData.workRecords;
     const quantities = dayData.taskQuantities || {};
 
-    // 1. 업무별 총 소요 시간을 집계
     const durationByTask = records.reduce((acc, r) => {
         if (r.task && r.duration > 0) {
             acc[r.task] = (acc[r.task] || 0) + r.duration;
@@ -95,16 +85,12 @@ export const checkMissingQuantities = (dayData) => {
         return acc;
     }, {});
 
-    // 2. 소요 시간이 0보다 큰 업무들
     const tasksWithDuration = Object.keys(durationByTask);
     if (tasksWithDuration.length === 0) return []; 
 
-    // 3. '처리량 집계 대상' 업무 목록 가져오기
     const quantityTaskTypes = appConfig.quantityTaskTypes || [];
-    
     const missingTasks = [];
 
-    // 4. 소요 시간은 있으나 처리량이 0인 '집계 대상' 업무가 있는지 확인
     for (const task of tasksWithDuration) {
         if (quantityTaskTypes.includes(task)) {
             if (!quantities[task] || Number(quantities[task]) <= 0) {
@@ -117,23 +103,31 @@ export const checkMissingQuantities = (dayData) => {
 };
 
 /**
- * 현재까지 완료된 기록을 'history' 컬렉션에 저장합니다.
+ * 현재까지의 모든 기록(진행 중 포함)을 'history' 컬렉션에 스냅샷으로 저장합니다.
  */
 export async function saveProgress(isAutoSave = false) {
   const dateStr = getTodayDateString();
-  
+  const now = getCurrentTime(); 
+
   if (!isAutoSave) {
-    showToast('현재까지 완료된 기록을 저장합니다...');
+    showToast('현재 상태를 이력에 저장합니다...');
   }
   
   const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
   
   try {
-    // (저장 로직은 기존과 동일하게 유지하되, _syncTodayToHistory를 활용해 코드 중복을 줄일 수도 있습니다.
-    //  안전성을 위해 기존 로직을 유지합니다.)
     const docSnap = await getDoc(historyDocRef);
     const existingData = docSnap.exists() ? (docSnap.data() || { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] }) : { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
-    const completedRecordsFromState = (appState.workRecords || []).filter(r => r.status === 'completed');
+    
+    // ✅ [핵심 수정] 진행 중인 기록은 '현재까지의 시간'으로 duration을 계산하여 저장
+    const allRecordsSnapshot = (appState.workRecords || []).map(record => {
+        const snapshot = JSON.parse(JSON.stringify(record));
+        if (snapshot.status !== 'completed') {
+            snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
+             snapshot.endTime = now; 
+        }
+        return snapshot;
+    });
 
     const currentQuantities = {};
     for (const task in (appState.taskQuantities || {})) {
@@ -149,40 +143,33 @@ export async function saveProgress(isAutoSave = false) {
     ];
     const currentPartTimers = appState.partTimers || [];
 
-    if (completedRecordsFromState.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0 && !(existingData.workRecords?.length > 0) && !(existingData.taskQuantities && Object.keys(existingData.taskQuantities).length > 0) && !(existingData.onLeaveMembers?.length > 0) && !(existingData.partTimers?.length > 0)) {
-        if (!isAutoSave) {
-            showToast('저장할 새로운 완료 기록, 처리량, 근태 정보 또는 알바 정보가 없습니다.', true);
-        }
+    if (allRecordsSnapshot.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0 && !(existingData.workRecords?.length > 0)) {
+        if (!isAutoSave) showToast('저장할 데이터가 없습니다.', true);
         return;
     }
 
-    // 기존 기록과 합치는 로직 (중복 방지)
-    const combinedRecords = [...(existingData.workRecords || []), ...completedRecordsFromState];
-    const uniqueRecords = Array.from(new Map(combinedRecords.map(item => [item.id, item])).values());
-
-    const finalQuantities = currentQuantities;
-
-    const combinedPartTimers = [...(existingData.partTimers || []), ...currentPartTimers];
-    const uniquePartTimers = Array.from(new Map(combinedPartTimers.map(item => [item.id, item])).values());
+    const mergedRecordsMap = new Map();
+    (existingData.workRecords || []).forEach(r => mergedRecordsMap.set(r.id, r));
+    allRecordsSnapshot.forEach(r => mergedRecordsMap.set(r.id, r)); 
 
     const dataToSave = {
-      workRecords: uniqueRecords,
-      taskQuantities: finalQuantities, 
+      workRecords: Array.from(mergedRecordsMap.values()),
+      taskQuantities: currentQuantities, 
       onLeaveMembers: currentLeaveMembersCombined, 
-      partTimers: uniquePartTimers
+      partTimers: currentPartTimers
     };
 
     await setDoc(historyDocRef, dataToSave);
 
     if (isAutoSave) {
-        console.log("Auto-save completed.");
+        console.log(`Auto-save to history completed at ${now}`);
     } else {
-        showToast('현재까지의 기록이 성공적으로 저장되었습니다.');
+        showToast('현재 상태가 이력에 저장되었습니다.');
     }
 
   } catch (e) {
     console.error('Error in saveProgress: ', e);
-    showToast(`중간 저장 중 오류가 발생했습니다: ${e.message}`, true);
+    showToast(`이력 저장 중 오류가 발생했습니다: ${e.message}`, true);
   }
 }
 
@@ -264,8 +251,6 @@ export const loadAndRenderHistoryList = async () => {
     historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
     
     await fetchAllHistoryData(); 
-    
-    // ✅ [핵심] Firestore에서 데이터를 가져온 후, '오늘' 데이터는 현재 라이브 상태로 덮어씁니다.
     _syncTodayToHistory();
 
     if (allHistoryData.length === 0) {
@@ -282,7 +267,6 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
-    // UI 초기화 및 기본 탭 활성화
     document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
         btn.classList.remove('font-medium', 'text-gray-500');
@@ -332,7 +316,6 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
     if (!historyDateList) return;
     historyDateList.innerHTML = '';
 
-    // ✅ [추가] 렌더링 할 때마다 '오늘' 데이터는 최신으로 동기화 (중요!)
     _syncTodayToHistory();
 
     const filteredData = (context.historyStartDate || context.historyEndDate)
@@ -444,10 +427,7 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
 export const openHistoryQuantityModal = (dateKey) => {
     const todayDateString = getTodayDateString();
     
-    // ✅ [핵심] '오늘'이면 무조건 최신 appState 데이터 사용
     if (dateKey === todayDateString) {
-        // ... (listeners-main.js의 openQuantityModalTodayBtn 로직과 동일하게 처리하도록 유도)
-        // 하지만 여기서는 공통 모달을 사용하므로, 데이터를 주입해줍니다.
         const todayData = {
             id: todayDateString,
             workRecords: appState.workRecords || [],
@@ -469,8 +449,6 @@ export const openHistoryQuantityModal = (dateKey) => {
 
     context.quantityModalContext.mode = 'history';
     context.quantityModalContext.dateKey = dateKey;
-    
-    // (onConfirm은 listeners-history.js에서 정의됨)
     
     const cBtn = document.getElementById('confirm-quantity-btn');
     const xBtn = document.getElementById('cancel-quantity-btn');
@@ -542,8 +520,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 
   // --- 2. 전일(Previous) 데이터 계산 ---
   let prevTaskMetrics = {};
-  // (참고: 이미 allHistoryData는 정렬되어 있고 '오늘' 데이터도 동기화되어 있음)
-  // previousDayData 파라미터가 전달되었다면 그것을 사용, 아니면 직접 찾음
   let prevDay = previousDayData;
   if (!prevDay) {
        const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
@@ -552,8 +528,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
        }
   }
 
-  if (prevDay) { // 이전 데이터가 있을 때만 계산
-       // (단순화를 위해 바로 전날 데이터만 비교 대상으로 삼음. 필요시 '가장 최근 기록' 로직 복원 가능)
+  if (prevDay) {
        const prevRecords = prevDay.workRecords || [];
        const prevQuantities = prevDay.taskQuantities || {};
 
