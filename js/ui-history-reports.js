@@ -2,8 +2,8 @@
 
 import { formatDuration, isWeekday } from './utils.js';
 // ⛔️ [삭제] ui.js에서 헬퍼 함수 가져오기
-// ✅ [추가] 부모 파일(ui-history.js)에서 Diff 헬퍼 함수 가져오기
-import { getDiffHtmlForMetric } from './ui-history.js';
+// ⛔️ [삭제] ui-history.js에서 Diff 헬퍼 함수 가져오기 (이 파일에 정의됨)
+// import { getDiffHtmlForMetric } from './ui-history.js'; // <- 이 줄을 삭제했습니다.
 
 // ================== [ ✨ 수정된 부분 ✨ ] ==================
 // (getDiffHtmlForMetric 헬퍼 함수를 이 파일로 이동)
@@ -49,6 +49,61 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
             </span>`;
 };
 // =========================================================
+
+
+/**
+ * 헬퍼: 테이블 행 생성 (증감율 표시 + 정렬 기능 지원)
+ * ✅ [수정] 정렬 아이콘 로직 수정
+ */
+const createTableRow = (columns, isHeader = false, sortState = null) => {
+    const cellTag = isHeader ? 'th' : 'td';
+    // ✅ [수정] 헤더 클래스 수정 (sticky top-0 추가)
+    const rowClass = isHeader ? 'text-xs text-gray-700 uppercase bg-gray-100 sticky top-0' : 'bg-white border-b hover:bg-gray-50';
+    
+    let cellsHtml = columns.map((col, index) => {
+        // 헤더가 아닌 경우 (데이터 셀)
+        if (!isHeader) {
+            const alignClass = (index > 0) ? 'text-right' : 'text-left';
+            if (typeof col === 'object' && col !== null) {
+                return `<${cellTag} class="px-4 py-2 ${alignClass} ${col.class || ''}">
+                            <div>${col.content}</div>
+                            ${col.diff || ''}
+                        </${cellTag}>`;
+            }
+            return `<${cellTag} class="px-4 py-2 ${alignClass}">${col}</${cellTag}>`;
+        }
+
+        // 헤더인 경우 (정렬 로직 추가)
+        const alignClass = (index > 0) ? 'text-right' : 'text-left';
+        const sortable = col.sortKey ? 'sortable-header' : '';
+        const dataSortKey = col.sortKey ? `data-sort-key="${col.sortKey}"` : '';
+        const title = col.title ? `title="${col.title}"` : '';
+        
+        let sortIcon = '';
+        if (col.sortKey) {
+            let iconChar = '↕';
+            let iconClass = 'sort-icon';
+            if (sortState && col.sortKey === sortState.key) { // ✅ [수정]
+                if (sortState.dir === 'asc') { // ✅ [수정]
+                    iconChar = '▲';
+                    iconClass += ' sorted-asc';
+                } else if (sortState.dir === 'desc') { // ✅ [수정]
+                    iconChar = '▼';
+                    iconClass += ' sorted-desc';
+                }
+            }
+            sortIcon = `<span class="${iconClass}">${iconChar}</span>`;
+        }
+        
+        return `<${cellTag} scope="col" class="px-4 py-2 ${alignClass} ${sortable}" ${dataSortKey} ${title}>
+                    ${col.content}
+                    ${sortIcon}
+                </${cellTag}>`;
+
+    }).join('');
+    
+    return `<tr class="${rowClass}">${cellsHtml}</tr>`;
+};
 
 
 /**
