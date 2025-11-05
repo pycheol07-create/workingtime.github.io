@@ -1,4 +1,7 @@
-// === app.js (파일 분리 후 메인 파일 - 최종 수정 완료 버전) ===
+// === app.js (파일 분리 후 메인 파일) ===
+// 이 파일은 앱의 핵심 상태(State)와 DOM 요소를 정의하고,
+// 다른 모듈(logic, history, listeners)이 가져다 쓸 수 있도록 export합니다.
+// 또한 앱의 진입점(main, onAuthStateChanged) 역할을 합니다.
 
 // --- 1. Firebase 및 라이브러리 Imports ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -7,29 +10,53 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from
 
 // --- 2. 설정 및 유틸리티 Imports ---
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
+// ✅ [수정] utils.js에서 debounce도 가져옵니다. (saveStateToFirestore에서 사용)
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes, debounce } from './utils.js';
 
 // --- 3. UI 렌더링 함수 Imports (ui.js) ---
 import {
-  renderDashboardLayout,
+  getAllDashboardDefinitions,
+  DASHBOARD_ITEM_DEFINITIONS,
   renderRealtimeStatus,
   renderCompletedWorkLog,
   updateSummary,
   renderTaskAnalysis,
+  renderPersonalAnalysis,
   renderTaskSelectionModal,
+  renderTeamSelectionModalContent,
+  renderQuantityModalInputs,
+  renderLeaveTypeModalOptions,
+  renderAttendanceDailyHistory,
+  renderAttendanceWeeklyHistory,
+  renderAttendanceMonthlyHistory,
+  renderWeeklyHistory,
+  renderMonthlyHistory,
+  renderDashboardLayout,
   renderManualAddModalDatalists,
-  trendCharts 
+  renderTrendAnalysisCharts,
+  trendCharts // ✅ 차트 객체 import
 } from './ui.js';
 
-// --- 4. 분리된 모듈 Imports ---
+// --- 4. [신규] 분리된 모듈 Imports ---
 import { initializeAppListeners } from './app-listeners.js';
+// ✅ [수정] app-history-logic에서 필요한 함수들을 app.js(main)에서도 import
 import { 
     saveProgress,
-    saveDayDataToHistory
+    openHistoryQuantityModal,
+    requestHistoryDeletion
 } from './app-history-logic.js';
+
+// history-excel.js (엑셀 로직)
+import {
+    downloadHistoryAsExcel,
+    downloadAttendanceHistoryAsExcel,
+    downloadPeriodHistoryAsExcel 
+} from './history-excel.js';
 
 
 // ========== 5. DOM Elements (모두 EXPORT) ==========
+// (다른 모듈, 특히 app-listeners.js에서 사용합니다)
+
 export const addAttendanceRecordModal = document.getElementById('add-attendance-record-modal');
 export const addAttendanceForm = document.getElementById('add-attendance-form');
 export const confirmAddAttendanceBtn = document.getElementById('confirm-add-attendance-btn');
@@ -79,6 +106,7 @@ export const attendanceHistoryTabs = document.getElementById('attendance-history
 export const attendanceHistoryViewContainer = document.getElementById('attendance-history-view-container');
 export const trendAnalysisPanel = document.getElementById('trend-analysis-panel');
 
+// ✅ [추가] 업무 리포트 DOM 요소
 export const reportPanel = document.getElementById('report-panel');
 export const reportTabs = document.getElementById('report-tabs');
 export const reportViewContainer = document.getElementById('report-view-container');
@@ -86,6 +114,7 @@ export const reportDailyView = document.getElementById('report-daily-view');
 export const reportWeeklyView = document.getElementById('report-weekly-view');
 export const reportMonthlyView = document.getElementById('report-monthly-view');
 export const reportYearlyView = document.getElementById('report-yearly-view');
+// ✅ [추가] 끝
 
 export const historyAttendanceDailyView = document.getElementById('history-attendance-daily-view');
 export const historyAttendanceWeeklyView = document.getElementById('history-attendance-weekly-view');
@@ -175,11 +204,15 @@ export const confirmEditStartTimeBtn = document.getElementById('confirm-edit-sta
 export const cancelEditStartTimeBtn = document.getElementById('cancel-edit-start-time-btn');
 export const analysisMemberSelect = document.getElementById('analysis-member-select');
 export const editLeaveModal = document.getElementById('edit-leave-record-modal');
+
+// 👈 [추가] 기간 조회 DOM 요소들
 export const historyStartDateInput = document.getElementById('history-start-date');
 export const historyEndDateInput = document.getElementById('history-end-date');
 export const historyFilterBtn = document.getElementById('history-filter-btn');
 export const historyClearFilterBtn = document.getElementById('history-clear-filter-btn');
 export const historyDownloadPeriodExcelBtn = document.getElementById('history-download-period-excel-btn');
+
+// ✅ [추가] 품질 비용(COQ) 설명 모달
 export const coqExplanationModal = document.getElementById('coq-explanation-modal');
 
 
@@ -190,11 +223,15 @@ export let unsubscribeLeaveSchedule;
 export let unsubscribeConfig; 
 export let elapsedTimeTimer = null;
 
-export let isDataDirty = false; 
-export let autoSaveTimer = null;
-// ✅ [수정] 자동 저장 간격 1분으로 변경
-export const AUTO_SAVE_INTERVAL = 1 * 60 * 1000; 
+// ⛔️ [삭제] export let recordCounter = 0;
+// ⛔️ [삭제] export let recordIdOrGroupIdToEdit = null;
+// ... (isDataDirty를 제외한 모든 export let 변수 선언 삭제) ...
 
+export let isDataDirty = false; // (이 변수는 autoSaveProgress만 사용하므로 그대로 둡니다)
+export let autoSaveTimer = null;
+export const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; 
+
+// ✅ [추가] 다른 모듈에서 변경해야 하는 모든 변수를 이 context 객체에 넣습니다.
 export let context = {
     recordCounter: 0,
     recordIdOrGroupIdToEdit: null,
@@ -213,17 +250,16 @@ export let context = {
     memberToCancelLeave: null,
     activeMainHistoryTab: 'work',
     attendanceRecordToDelete: null,
-    isMobileTaskViewExpanded: false, 
-    isMobileMemberViewExpanded: false, 
-    historyStartDate: null, 
-    historyEndDate: null, 
-    reportSortState: {}, 
-    currentReportParams: null 
+    isMobileTaskViewExpanded: false, // 👈 [추가] 모바일 업무카드 '전체보기' 상태
+    isMobileMemberViewExpanded: false, // 👈 [추가] 모바일 팀원현황 '전체보기' 상태
+    historyStartDate: null, // 👈 [추가] 이력 조회 시작일
+    historyEndDate: null, // 👈 [추가] 이력 조회 종료일
 };
 
 export let appState = {
   workRecords: [],
   taskQuantities: {},
+// ... (appState, persistentLeaveSchedule, appConfig, LEAVE_TYPES는 기존과 동일) ...
   dailyOnLeaveMembers: [],
   dateBasedOnLeaveMembers: [],
   partTimers: [],
@@ -243,19 +279,24 @@ export let appConfig = {
     keyTasks: []
 };
 
+// ✅ [추가] 이 줄을 여기에 추가해야 합니다.
 export let allHistoryData = [];
+
+// ⛔️ [삭제] 
+// ⛔️ (컨텍스트 변수) ... (export let selectedTaskForStart = null; ... 등 13줄 모두 삭제)
+// ⛔️ ...
 
 export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // ========== 7. Core Helpers (EXPORT) ==========
-// ✅ [복구] generateId, normalizeName 함수 복구
+// ✅ [수정] generateId 함수가 context.recordCounter를 사용하도록 수정
 export const generateId = () => `${Date.now()}-${++context.recordCounter}`;
 export const normalizeName = (s='') => s.normalize('NFC').trim().toLowerCase();
-
 
 // ========== 8. Core Functions (Timers, Render, Save) (EXPORT) ==========
 
 /**
+ * (app-listeners.js가 import)
  * Firestore 'daily_data'에 현재 상태를 저장합니다.
  */
 export async function saveStateToFirestore() {
@@ -282,7 +323,7 @@ export async function saveStateToFirestore() {
     }
 
     await setDoc(docRef, { state: stateToSave });
-    markDataAsDirty(); 
+    markDataAsDirty(); // Firestore 저장 시 dirty 플래그 설정 (기존 로직 유지)
 
   } catch (error) {
     console.error('Error saving state to Firestore:', error);
@@ -290,12 +331,15 @@ export async function saveStateToFirestore() {
   }
 }
 
+/** (app-listeners.js가 import) */
 export const debouncedSaveState = debounce(saveStateToFirestore, 1000);
+
 
 /** (메인 타이머) */
 export const updateElapsedTimes = () => {
-  const now = getCurrentTime(); 
+  const now = getCurrentTime(); // "HH:MM"
 
+  // 12:30 자동 일시정지
   if (now === '12:30' && !appState.lunchPauseExecuted) {
     appState.lunchPauseExecuted = true; 
     let tasksPaused = 0;
@@ -318,6 +362,7 @@ export const updateElapsedTimes = () => {
     }
   }
 
+  // 13:30 자동 재개
   if (now === '13:30' && !appState.lunchResumeExecuted) {
     appState.lunchResumeExecuted = true;
     let tasksResumed = 0;
@@ -342,6 +387,7 @@ export const updateElapsedTimes = () => {
     }
   }
   
+  // (진행 시간 UI 업데이트)
   document.querySelectorAll('.ongoing-duration').forEach(el => {
     try {
       const startTime = el.dataset.startTime;
@@ -360,13 +406,14 @@ export const updateElapsedTimes = () => {
           const dur = calcElapsedMinutes(startTime, now, tempPauses);
           el.textContent = `(진행: ${formatDuration(dur)})`;
 
-      } else { 
+      } else { // status === 'ongoing'
           const dur = calcElapsedMinutes(startTime, now, currentPauses);
           el.textContent = `(진행: ${formatDuration(dur)})`;
       }
     } catch(e) { /* noop */ }
   });
 
+  // (요약: 총 업무 시간 업데이트)
   const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
   const totalCompletedMinutes = completedRecords.reduce((sum, r) => sum + (r.duration || 0), 0);
   const ongoingLiveRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
@@ -381,6 +428,7 @@ export const updateElapsedTimes = () => {
 /** (모든 모듈에서 import) */
 export const render = () => {
   try {
+    // 👈 [수정] context의 모바일 뷰 상태 값을 파라미터로 전달
     renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || [], context.isMobileTaskViewExpanded, context.isMobileMemberViewExpanded);
     renderCompletedWorkLog(appState);
     updateSummary(appState, appConfig); 
@@ -398,16 +446,32 @@ export const markDataAsDirty = () => {
 
 /** (메인 타이머) */
 export const autoSaveProgress = () => {
-    // ✅ [수정] 진행 중인 업무가 있으면 무조건 저장 트리거
-    const hasOngoing = (appState.workRecords || []).some(r => r.status === 'ongoing');
-    
-    if (isDataDirty || hasOngoing) {
+    if (isDataDirty) {
+        // app-history-logic.js에서 가져온 saveProgress 호출
         saveProgress(true); 
-        isDataDirty = false; 
+        isDataDirty = false; // ✅ [수정] saveProgress 호출 후 플래그 초기화
     }
 };
 
+// ⛔️ [삭제] --- 
+// ⛔️ app-logic.js로 이동한 함수 (startWorkGroup ~ resumeWorkIndividual) (약 150줄) 삭제
+// ⛔️ ---
+
+// ⛔️ [삭제] ---
+// ⛔️ app-history-logic.js로 이동한 함수 (saveProgress ~ switchHistoryView) (약 1100줄) 삭제
+// ⛔️ ---
+
+// ⛔️ [삭제] ---
+// ⛔️ app-listeners.js로 이동한 함수 (모든 if (teamStatusBoard) ... addEventListener) (약 1100줄) 삭제
+// ⛔️ ---
+
+
 // ========== 9. 앱 초기화 (ENTRY POINT) ==========
+// (startAppAfterLogin, main, onAuthStateChanged는 app.js에 남겨둡니다)
+
+/**
+ * 로그인 성공 후 앱 리스너를 설정하고 데이터를 로드합니다.
+ */
 async function startAppAfterLogin(user) { 
   const loadingSpinner = document.getElementById('loading-spinner');
   if (loadingSpinner) loadingSpinner.style.display = 'block'; 
@@ -422,6 +486,7 @@ async function startAppAfterLogin(user) {
       
       if (!userEmail) {
           showToast('로그인 사용자의 이메일 정보를 가져올 수 없습니다. 다시 로그인해주세요.', true);
+          // ... (오류 처리) ...
           if (loadingSpinner) loadingSpinner.style.display = 'none';
           if (connectionStatusEl) connectionStatusEl.textContent = '인증 오류';
           auth.signOut(); 
@@ -443,6 +508,7 @@ async function startAppAfterLogin(user) {
 
       if (!currentUserName) {
           showToast('로그인했으나 앱에 등록된 사용자가 아닙니다. 관리자에게 문의하세요.', true);
+          // ... (오류 처리) ...
           if (loadingSpinner) loadingSpinner.style.display = 'none';
           if (connectionStatusEl) connectionStatusEl.textContent = '사용자 미등록';
           auth.signOut(); 
@@ -460,6 +526,7 @@ async function startAppAfterLogin(user) {
       if (logoutBtn) logoutBtn.classList.remove('hidden');
       if (logoutBtnMobile) logoutBtnMobile.classList.remove('hidden');
       
+      // (역할(Role)에 따른 UI 제어)
       const adminLinkBtn = document.getElementById('admin-link-btn');
       const resetAppBtn = document.getElementById('reset-app-btn');
       const openHistoryBtn = document.getElementById('open-history-btn'); 
@@ -480,6 +547,7 @@ async function startAppAfterLogin(user) {
           if (openHistoryBtn) openHistoryBtn.style.display = 'none'; 
       }
 
+      // (로그인 성공 후 UI 표시)
       document.getElementById('current-date-display')?.classList.remove('hidden');
       document.getElementById('top-right-controls')?.classList.remove('hidden');
       document.querySelector('.bg-gray-800.shadow-lg')?.classList.remove('hidden'); 
@@ -510,6 +578,7 @@ async function startAppAfterLogin(user) {
   if (autoSaveTimer) clearInterval(autoSaveTimer);
   autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
 
+  // (실시간 리스너: 근태 일정)
   const leaveScheduleDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
   if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule();
   unsubscribeLeaveSchedule = onSnapshot(leaveScheduleDocRef, (docSnap) => {
@@ -532,12 +601,15 @@ async function startAppAfterLogin(user) {
       render();
   });
 
+  // (실시간 리스너: 앱 설정)
   const configDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
   if (unsubscribeConfig) unsubscribeConfig();
   unsubscribeConfig = onSnapshot(configDocRef, (docSnap) => {
       if (docSnap.exists()) {
           console.log("실시간 앱 설정 감지: 변경 사항을 적용합니다.");
           const loadedConfig = docSnap.data();
+          
+          // ✅ [수정] config.js의 loadAppConfig와 동일한 마이그레이션 로직을 적용합니다.
           
           const mergedConfig = { ...appConfig, ...loadedConfig }; 
           
@@ -546,16 +618,22 @@ async function startAppAfterLogin(user) {
           mergedConfig.dashboardItems = loadedConfig.dashboardItems || appConfig.dashboardItems;
           mergedConfig.dashboardCustomItems = { ...(loadedConfig.dashboardCustomItems || {}) };
           mergedConfig.quantityTaskTypes = loadedConfig.quantityTaskTypes || appConfig.quantityTaskTypes;
+          
+          // ✅ [추가] 품질 비용 항목 실시간 로드
           mergedConfig.qualityCostTasks = loadedConfig.qualityCostTasks || appConfig.qualityCostTasks;
 
+          // ✅ [수정] taskGroups 마이그레이션 로직 (config.js에서 복사)
           if (Array.isArray(loadedConfig.taskGroups)) {
+              // 1. Firestore에 이미 새 배열 [] 형식이면 그대로 사용
               mergedConfig.taskGroups = loadedConfig.taskGroups;
           } else if (typeof loadedConfig.taskGroups === 'object' && loadedConfig.taskGroups !== null && !Array.isArray(loadedConfig.taskGroups)) {
+              // 2. Firestore에 이전 객체 {} 형식이면 새 배열 [] 형식으로 변환
               console.warn("실시간 감지: 'taskGroups' (객체)를 (배열) 형식으로 마이그레이션합니다.");
               mergedConfig.taskGroups = Object.entries(loadedConfig.taskGroups).map(([groupName, tasks]) => {
-                  return { name: groupName, tasks: Array.isArray(tasks) ? tasks : [] };
+                  return { name: groupName, tasks: tasks || [] };
               });
           } else {
+              // 3. Firestore에 데이터가 없으면 현재 앱의 설정(appConfig) 유지
               mergedConfig.taskGroups = appConfig.taskGroups;
           }
           
@@ -564,8 +642,9 @@ async function startAppAfterLogin(user) {
           mergedConfig.memberRoles = { ...appConfig.memberRoles, ...(loadedConfig.memberRoles || {}) };
           mergedConfig.quantityToDashboardMap = { ...appConfig.quantityToDashboardMap, ...(loadedConfig.quantityToDashboardMap || {}) };
 
-          appConfig = mergedConfig; 
+          appConfig = mergedConfig; // 전역 appConfig 업데이트
 
+          // (이하 렌더링 호출은 동일)
           renderDashboardLayout(appConfig);
           renderTaskSelectionModal(appConfig.taskGroups);
           render(); 
@@ -590,11 +669,14 @@ async function startAppAfterLogin(user) {
       showToast("앱 설정 연결에 실패했습니다.", true);
   });
 
+  // (실시간 리스너: 오늘의 데이터)
   const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
   if (unsubscribeToday) unsubscribeToday();
 
   unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
     try {
+      // ✅ [수정] 업무 목록을 새 배열 구조에서 가져옵니다.
+      // [].concat(...Object.values(appConfig.taskGroups || {})) -> (appConfig.taskGroups || []).flatMap(group => group.tasks)
       const taskTypes = (appConfig.taskGroups || []).flatMap(group => group.tasks);
       const defaultQuantities = {};
       taskTypes.forEach(task => defaultQuantities[task] = 0);
@@ -635,6 +717,9 @@ async function startAppAfterLogin(user) {
   });
 }
 
+/**
+ * 앱 메인 함수
+ */
 async function main() {
   const loadingSpinner = document.getElementById('loading-spinner');
   if (loadingSpinner) loadingSpinner.style.display = 'block';
@@ -653,13 +738,16 @@ async function main() {
     return;
   }
 
+  // (인증 상태 변경 감지)
   onAuthStateChanged(auth, async user => {
     const loadingSpinner = document.getElementById('loading-spinner');
     if (user) {
+      // (로그인 시)
       if (loginModal) loginModal.classList.add('hidden'); 
       if (loadingSpinner) loadingSpinner.style.display = 'block'; 
       await startAppAfterLogin(user); 
     } else {
+      // (로그아웃 시)
       if (connectionStatusEl) connectionStatusEl.textContent = '인증 필요';
       if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
 
@@ -679,29 +767,18 @@ async function main() {
       document.getElementById('main-content-area')?.classList.add('hidden'); 
       document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { 
           if(el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
-              el.classList.remove('hidden');
+              el.classList.add('hidden');
           }
       });
       
       const adminLinkBtn = document.getElementById('admin-link-btn');
       const resetAppBtn = document.getElementById('reset-app-btn');
       const openHistoryBtn = document.getElementById('open-history-btn'); 
-      const adminLinkBtnMobile = document.getElementById('admin-link-btn-mobile');
-      const resetAppBtnMobile = document.getElementById('reset-app-btn-mobile');
-
-      if (currentUserRole === 'admin') {
-          if (adminLinkBtn) adminLinkBtn.style.display = 'flex';
-          if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'flex'; 
-          if (resetAppBtn) resetAppBtn.style.display = 'flex';
-          if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'flex'; 
-          if (openHistoryBtn) openHistoryBtn.style.display = 'inline-block'; 
-      } else {
-          if (adminLinkBtn) adminLinkBtn.style.display = 'none';
-          if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'none'; 
-          if (resetAppBtn) resetAppBtn.style.display = 'none';
-          if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'none'; 
-          if (openHistoryBtn) openHistoryBtn.style.display = 'none'; 
-      }
+      if (adminLinkBtn) adminLinkBtn.style.display = 'none';
+      if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'none'; 
+      if (resetAppBtn) resetAppBtn.style.display = 'none';
+      if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'none'; 
+      if (openHistoryBtn) openHistoryBtn.style.display = 'none'; 
 
       if (loginModal) loginModal.classList.remove('hidden');
       if (loadingSpinner) loadingSpinner.style.display = 'none';
@@ -710,7 +787,21 @@ async function main() {
     }
   });
 
+  // ✅ [수정] 모든 이벤트 리스너를 app-listeners.js에서 가져와 초기화합니다.
   initializeAppListeners();
+  
+  // ⛔️ [삭제] ---
+  // ⛔️ main() 함수 내부에 있던 모든 리스너 (loginForm, logoutBtn, makeDraggable 등) 삭제
+  // ⛔️ ---
+  
+  
+// ⛔️ [삭제] ---
+// ⛔️ makeDraggable 함수 정의 (약 50줄) 삭제 (app-listeners.js로 이동)
+// ⛔️ ---
+
+// ⛔️ [삭제] ---
+// ⛔️ 통합 근태 수정 모달 리스너 (editLeaveModal) (약 150줄) 삭제 (app-listeners.js로 이동)
+// ⛔️ ---
 }
 
-main();
+main(); // 앱 시작
