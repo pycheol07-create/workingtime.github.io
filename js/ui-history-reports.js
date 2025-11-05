@@ -40,6 +40,17 @@ const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
 };
 
 /**
+ * [공통] 기간 내 총 근무 인원(연인원) 계산 헬퍼
+ * ✅ [수정] 평균이 아닌 총합을 계산하기 위해 추가됨
+ */
+const _calculateTotalActiveMembers = (daysData, appConfig, wageMap) => {
+    return daysData.reduce((sum, day) => {
+        return sum + calculateReportKPIs(day, appConfig, wageMap).activeMembersCount;
+    }, 0);
+};
+
+
+/**
  * 일별 리포트 렌더링
  */
 export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) => {
@@ -111,11 +122,12 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     
     const sortState = context.reportSortState || {};
     
-    // 주간 KPI 수정 (비업무 시간 -> 0, 근무 인원 -> 평균)
+    // ✅ [수정] 주간 KPI 수정 (비업무 시간 -> 0, 근무 인원 -> 총합(연인원)으로 변경)
     todayKPIs.nonWorkMinutes = 0; 
     prevKPIs.nonWorkMinutes = 0;
-    todayKPIs.activeMembersCount = todayKPIs.activeMembersCount / (currentWeekDays.length || 1);
-    prevKPIs.activeMembersCount = prevKPIs.activeMembersCount / (prevWeekDays.length || 1);
+    // todayKPIs.activeMembersCount = todayKPIs.activeMembersCount / (currentWeekDays.length || 1); // ⛔️ 기존 평균 계산 삭제
+    todayKPIs.activeMembersCount = _calculateTotalActiveMembers(currentWeekDays, appConfig, wageMap); // ✅ 총합 계산 적용
+    prevKPIs.activeMembersCount = _calculateTotalActiveMembers(prevWeekDays, appConfig, wageMap);     // ✅ 총합 계산 적용
 
     renderGenericReport(
         'report-weekly-view',
@@ -158,11 +170,12 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     
     const sortState = context.reportSortState || {};
 
-    // 월간 KPI 수정 (비업무 시간 -> 0, 근무 인원 -> 평균)
+    // ✅ [수정] 월간 KPI 수정 (비업무 시간 -> 0, 근무 인원 -> 총합(연인원)으로 변경)
     todayKPIs.nonWorkMinutes = 0; 
     prevKPIs.nonWorkMinutes = 0;
-    todayKPIs.activeMembersCount = todayKPIs.activeMembersCount / (currentMonthDays.length || 1);
-    prevKPIs.activeMembersCount = prevKPIs.activeMembersCount / (prevMonthDays.length || 1);
+    // todayKPIs.activeMembersCount = todayKPIs.activeMembersCount / (currentMonthDays.length || 1); // ⛔️ 삭제
+    todayKPIs.activeMembersCount = _calculateTotalActiveMembers(currentMonthDays, appConfig, wageMap); // ✅ 추가
+    prevKPIs.activeMembersCount = _calculateTotalActiveMembers(prevMonthDays, appConfig, wageMap);     // ✅ 추가
 
     renderGenericReport(
         'report-monthly-view',
@@ -205,11 +218,12 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     
     const sortState = context.reportSortState || {};
 
-    // 연간 KPI 수정 (비업무 시간 -> 0, 근무 인원 -> 평균)
+    // ✅ [수정] 연간 KPI 수정 (비업무 시간 -> 0, 근무 인원 -> 총합(연인원)으로 변경)
     todayKPIs.nonWorkMinutes = 0; 
     prevKPIs.nonWorkMinutes = 0;
-    todayKPIs.activeMembersCount = todayKPIs.activeMembersCount / (currentYearDays.length || 1);
-    prevKPIs.activeMembersCount = prevKPIs.activeMembersCount / (prevYearDays.length || 1);
+    // todayKPIs.activeMembersCount = todayKPIs.activeMembersCount / (currentYearDays.length || 1); // ⛔️ 삭제
+    todayKPIs.activeMembersCount = _calculateTotalActiveMembers(currentYearDays, appConfig, wageMap); // ✅ 추가
+    prevKPIs.activeMembersCount = _calculateTotalActiveMembers(prevYearDays, appConfig, wageMap);     // ✅ 추가
 
     renderGenericReport(
         'report-yearly-view',
