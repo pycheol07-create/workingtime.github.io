@@ -231,7 +231,7 @@ export let isDataDirty = false; // (이 변수는 autoSaveProgress만 사용하�
 export let autoSaveTimer = null;
 export const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; 
 
-// ✅ [추가] 다른 모듈에서 변경해야 하는 모든 변수를 이 context 객체에 넣습니다.
+// ✅ [수정] context 객체에 reportSortState, currentReportParams 추가
 export let context = {
     recordCounter: 0,
     recordIdOrGroupIdToEdit: null,
@@ -254,6 +254,8 @@ export let context = {
     isMobileMemberViewExpanded: false, // 👈 [추가] 모바일 팀원현황 '전체보기' 상태
     historyStartDate: null, // 👈 [추가] 이력 조회 시작일
     historyEndDate: null, // 👈 [추가] 이력 조회 종료일
+    reportSortState: {}, // ✅ [추가] 리포트 테이블 정렬 상태
+    currentReportParams: null // ✅ [추가] 현재 렌더링된 리포트의 파라미터 (정렬 재실행용)
 };
 
 export let appState = {
@@ -323,7 +325,7 @@ export async function saveStateToFirestore() {
     }
 
     await setDoc(docRef, { state: stateToSave });
-    markDataAsDirty(); // Firestore 저장 시 dirty 플래그 설정 (기존 로직 유지)
+    markDataAsDirty(); // Firestore 저장 시 dirty 플S래그 설정 (기존 로직 유지)
 
   } catch (error) {
     console.error('Error saving state to Firestore:', error);
@@ -767,7 +769,7 @@ async function main() {
       document.getElementById('main-content-area')?.classList.add('hidden'); 
       document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => { 
           if(el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
-              el.classList.add('hidden');
+              el.classList.remove('hidden');
           }
       });
       

@@ -312,6 +312,10 @@ export const loadAndRenderHistoryList = async () => {
 
     // 4. 👈 [핵심 수정] '상태(context)'를 'work'로 설정
     context.activeMainHistoryTab = 'work';
+    
+    // ✅ [추가] 리포트 정렬 상태 초기화
+    context.reportSortState = {};
+    context.currentReportParams = null; // ✅ [추가]
 
     // 5. '일별' 모드로 날짜 목록 렌더링 (이 함수가 '일별 상세' 데이터도 렌더링함)
     renderHistoryDateListByMode('day');
@@ -440,16 +444,16 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
                 renderAttendanceMonthlyHistory(key, filteredData); // 👈 filteredData 전달
             }
         }
-        // ✅ [추가] 리포트 탭 렌더링 (주석 해제)
+        // ✅ [수정] 리포트 탭 렌더링 (context 전달)
         else if (context.activeMainHistoryTab === 'report') {
             if (mode === 'day') {
-                renderReportDaily(key, filteredData, appConfig);
+                renderReportDaily(key, filteredData, appConfig, context);
             } else if (mode === 'week') {
-                renderReportWeekly(key, filteredData, appConfig);
+                renderReportWeekly(key, filteredData, appConfig, context);
             } else if (mode === 'month') {
-                renderReportMonthly(key, filteredData, appConfig);
+                renderReportMonthly(key, filteredData, appConfig, context);
             } else if (mode === 'year') {
-                renderReportYearly(key, filteredData, appConfig);
+                renderReportYearly(key, filteredData, appConfig, context);
             }
         }
         // =========================================================
@@ -583,7 +587,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
   const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (Number(rec.duration) || 0); return acc; }, {}); // 👈 [수정] Number()
   const taskCosts = records.reduce((acc, rec) => {
       const wage = wageMap[rec.member] || 0;
-      const cost = ((Number(rec.duration) || 0) / 60) * wage;
+      const cost = ((Number(r.duration) || 0) / 60) * wage;
       acc[rec.task] = (acc[rec.task] || 0) + cost;
       return acc;
   }, {});

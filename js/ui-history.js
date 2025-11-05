@@ -946,30 +946,52 @@ export const renderTrendAnalysisCharts = (allHistoryData, appConfig, trendCharts
 // ✅ [수정] 업무 리포트 렌더링 함수 (Placeholder -> 실제 구현)
 
 /**
- * 헬퍼: 테이블 행 생성 (증감율 표시 지원)
+ * 헬퍼: 테이블 행 생성 (증감율 표시 + 정렬 기능 지원)
  */
-const createTableRow = (columns, isHeader = false) => {
+const createTableRow = (columns, isHeader = false, sortKey = null, sortDir = null) => {
     const cellTag = isHeader ? 'th' : 'td';
-    // ✅ [수정] 헤더 클래스 수정 (sticky top-0 추가)
     const rowClass = isHeader ? 'text-xs text-gray-700 uppercase bg-gray-100 sticky top-0' : 'bg-white border-b hover:bg-gray-50';
-    const cellClass = "px-4 py-2";
-
+    
     let cellsHtml = columns.map((col, index) => {
-        let alignClass = 'text-left';
-        // ✅ [수정] 0번째(이름/업무) 열만 좌측 정렬, 나머지는 우측 정렬
-        if (index > 0) { 
-             alignClass = 'text-right';
+        // 헤더가 아닌 경우 (데이터 셀)
+        if (!isHeader) {
+            const alignClass = (index > 0) ? 'text-right' : 'text-left';
+            if (typeof col === 'object' && col !== null) {
+                return `<${cellTag} class="px-4 py-2 ${alignClass} ${col.class || ''}">
+                            <div>${col.content}</div>
+                            ${col.diff || ''}
+                        </${cellTag}>`;
+            }
+            return `<${cellTag} class="px-4 py-2 ${alignClass}">${col}</${cellTag}>`;
+        }
+
+        // 헤더인 경우 (정렬 로직 추가)
+        const alignClass = (index > 0) ? 'text-right' : 'text-left';
+        const sortable = col.sortKey ? 'sortable-header' : '';
+        const dataSortKey = col.sortKey ? `data-sort-key="${col.sortKey}"` : '';
+        const title = col.title ? `title="${col.title}"` : '';
+        
+        let sortIcon = '';
+        if (col.sortKey) {
+            let iconChar = '↕';
+            let iconClass = 'sort-icon';
+            if (col.sortKey === sortKey) {
+                if (sortDir === 'asc') {
+                    iconChar = '▲';
+                    iconClass += ' sorted-asc';
+                } else if (sortDir === 'desc') {
+                    iconChar = '▼';
+                    iconClass += ' sorted-desc';
+                }
+            }
+            sortIcon = `<span class="${iconClass}">${iconChar}</span>`;
         }
         
-        // 객체로 셀 데이터가 오면 (증감율 포함)
-        if (typeof col === 'object' && col !== null) {
-            return `<${cellTag} class="${cellClass} ${alignClass} ${col.class || ''}">
-                        <div>${col.content}</div>
-                        ${col.diff || ''}
-                    </${cellTag}>`;
-        }
-        // 문자열로 오면 (단순 텍스트)
-        return `<${cellTag} class="${cellClass} ${alignClass}">${col}</${cellTag}>`;
+        return `<${cellTag} scope="col" class="px-4 py-2 ${alignClass} ${sortable}" ${dataSortKey} ${title}>
+                    ${col.content}
+                    ${sortIcon}
+                </${cellTag}>`;
+
     }).join('');
     
     return `<tr class="${rowClass}">${cellsHtml}</tr>`;
@@ -1091,20 +1113,19 @@ const _calculateDailyReportAggregations = (data, appConfig, wageMap, memberToPar
 
 /**
  * 일별 리포트 렌더링 (실제 구현)
+ * ✅ [수정] context 파라미터 추가
  */
-export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
+export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) => {
     const view = document.getElementById('report-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">일별 리포트 집계 중...</div>';
 
-    // allHistoryData는 필터링된 데이터일 수 있습니다.
     const data = allHistoryData.find(d => d.id === dateKey);
     if (!data) {
         view.innerHTML = '<div class="text-center text-gray-500">데이터 없음</div>';
         return;
     }
     
-    // 증감율 비교를 위해 이전 날짜 데이터를 (필터링된) 목록에서 찾습니다.
     const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
     const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
                                 ? allHistoryData[currentIndex + 1] 
@@ -1117,7 +1138,6 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
             wageMap[pt.name] = pt.wage || 0;
         }
     });
-    // 이전 날짜의 알바 정보도 wageMap에 추가 (데이터가 없을 경우 대비)
     if (previousDayData) {
         (previousDayData.partTimers || []).forEach(pt => {
             if (pt && pt.name && !wageMap[pt.name]) {
@@ -1141,11 +1161,17 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     const prevKPIs = _calculateDailyReportKPIs(previousDayData, appConfig, wageMap);
     const prevAggr = _calculateDailyReportAggregations(previousDayData, appConfig, wageMap, memberToPartMap);
     
-    // --- 4. HTML 렌더링 ---
+    // ✅ [추가] 4. 정렬 상태 가져오기
+    const sortState = context.reportSortState || {};
+    const partSort = sortState.partSummary || { key: 'partName', dir: 'asc' };
+    const memberSort = sortState.memberSummary || { key: 'memberName', dir: 'asc' };
+    const taskSort = sortState.taskSummary || { key: 'taskName', dir: 'asc' };
+
+    // --- 5. HTML 렌더링 ---
     let html = `<div class="space-y-6">`;
     html += `<h2 class="text-2xl font-bold text-gray-800">${dateKey} 업무 리포트 (이전 기록 대비)</h2>`;
     
-    // 4a. KPI 요약 (8개, 증감율 포함)
+    // 5a. KPI 요약 (8개, 증감율 포함)
     html += `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -1191,17 +1217,35 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
         </div>
     `;
 
-    // 4b. 파트별 요약 (증감율 포함)
+    // 5b. 파트별 요약 (증감율, 정렬 포함)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">파트별 요약</h3>
             <div class="overflow-x-auto max-h-[60vh]">
-                <table class="w-full text-sm text-left text-gray-600">
-                    <thead>${createTableRow(['파트', '총 업무시간', '총 인건비', '참여 인원 (명)'], true)}</thead>
+                <table class="w-full text-sm text-left text-gray-600" id="report-table-part">
+                    <thead>${createTableRow([
+                        { content: '파트', sortKey: 'partName' },
+                        { content: '총 업무시간', sortKey: 'duration' },
+                        { content: '총 인건비', sortKey: 'cost' },
+                        { content: '참여 인원 (명)', sortKey: 'members' }
+                    ], true, partSort.key, partSort.dir)}</thead>
                     <tbody>
     `;
     const allParts = new Set([...Object.keys(todayAggr.partSummary), ...Object.keys(prevAggr.partSummary)]);
-    const sortedParts = Array.from(allParts).sort();
+    // ✅ [수정] 데이터 정렬
+    const sortedParts = Array.from(allParts).sort((a, b) => {
+        const d1 = todayAggr.partSummary[a] || { duration: 0, cost: 0, members: new Set() };
+        const d2 = todayAggr.partSummary[b] || { duration: 0, cost: 0, members: new Set() };
+        let v1, v2;
+        if (partSort.key === 'partName') { v1 = a; v2 = b; }
+        else if (partSort.key === 'duration') { v1 = d1.duration; v2 = d2.duration; }
+        else if (partSort.key === 'cost') { v1 = d1.cost; v2 = d2.cost; }
+        else if (partSort.key === 'members') { v1 = d1.members.size; v2 = d2.members.size; }
+        
+        if (typeof v1 === 'string') return v1.localeCompare(v2) * (partSort.dir === 'asc' ? 1 : -1);
+        return (v1 - v2) * (partSort.dir === 'asc' ? 1 : -1);
+    });
+    
     if (sortedParts.length > 0) {
         sortedParts.forEach(part => {
             const d = todayAggr.partSummary[part] || { duration: 0, cost: 0, members: new Set() };
@@ -1218,17 +1262,38 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     }
     html += `</tbody></table></div></div>`;
     
-    // 4c. 인원별 상세 (증감율, 업무 수 포함)
+    // 5c. 인원별 상세 (증감율, 업무 수, 정렬 포함)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">인원별 상세</h3>
             <div class="overflow-x-auto max-h-[60vh]">
-                <table class="w-full text-sm text-left text-gray-600">
-                    <thead>${createTableRow(['이름', '파트', '총 업무시간', '총 인건비', '수행 업무 수', '수행 업무'], true)}</thead>
+                <table class="w-full text-sm text-left text-gray-600" id="report-table-member">
+                    <thead>${createTableRow([
+                        { content: '이름', sortKey: 'memberName' },
+                        { content: '파트', sortKey: 'part' },
+                        { content: '총 업무시간', sortKey: 'duration' },
+                        { content: '총 인건비', sortKey: 'cost' },
+                        { content: '수행 업무 수', sortKey: 'taskCount' },
+                        { content: '수행 업무', sortKey: null } // 업무 목록은 정렬 X
+                    ], true, memberSort.key, memberSort.dir)}</thead>
                     <tbody>
     `;
     const allMembers = new Set([...Object.keys(todayAggr.memberSummary), ...Object.keys(prevAggr.memberSummary)]);
-    const sortedMembers = Array.from(allMembers).sort();
+    // ✅ [수정] 데이터 정렬
+    const sortedMembers = Array.from(allMembers).sort((a, b) => {
+        const d1 = todayAggr.memberSummary[a] || { duration: 0, cost: 0, tasks: new Set(), part: memberToPartMap.get(a) || '알바' };
+        const d2 = todayAggr.memberSummary[b] || { duration: 0, cost: 0, tasks: new Set(), part: memberToPartMap.get(b) || '알바' };
+        let v1, v2;
+        if (memberSort.key === 'memberName') { v1 = a; v2 = b; }
+        else if (memberSort.key === 'part') { v1 = d1.part; v2 = d2.part; }
+        else if (memberSort.key === 'duration') { v1 = d1.duration; v2 = d2.duration; }
+        else if (memberSort.key === 'cost') { v1 = d1.cost; v2 = d2.cost; }
+        else if (memberSort.key === 'taskCount') { v1 = d1.tasks.size; v2 = d2.tasks.size; }
+
+        if (typeof v1 === 'string') return v1.localeCompare(v2) * (memberSort.dir === 'asc' ? 1 : -1);
+        return (v1 - v2) * (memberSort.dir === 'asc' ? 1 : -1);
+    });
+
     if (sortedMembers.length > 0) {
         sortedMembers.forEach(member => {
             const d = todayAggr.memberSummary[member] || { duration: 0, cost: 0, tasks: new Set(), part: memberToPartMap.get(member) || '알바' };
@@ -1248,24 +1313,44 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     }
     html += `</tbody></table></div></div>`;
 
-    // 4d. 업무별 상세 (증감율, 효율성 지표 포함)
+    // 5d. 업무별 상세 (증감율, 효율성 지표, 정렬, 툴팁 포함)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 이전 리포트일 대비)</h3>
             <div class="overflow-x-auto max-h-[70vh]">
-                <table class="w-full text-sm text-left text-gray-600">
-                    <thead>${createTableRow(['업무', '총 시간', '총 인건비', '총 처리량', '분당 처리량(Avg)', '개당 처리비용(Avg)', '총 참여인원', '평균 처리시간(건)', '인당 분당 처리량(효율)'], true)}</thead>
+                <table class="w-full text-sm text-left text-gray-600" id="report-table-task">
+                    <thead>${createTableRow([
+                        { content: '업무', sortKey: 'taskName' },
+                        { content: '총 시간', sortKey: 'duration' },
+                        { content: '총 인건비', sortKey: 'cost' },
+                        { content: '총 처리량', sortKey: 'quantity' },
+                        { content: '분당 처리량(Avg)', sortKey: 'avgThroughput' },
+                        { content: '개당 처리비용(Avg)', sortKey: 'avgCostPerItem' },
+                        { content: '총 참여인원', sortKey: 'avgStaff' },
+                        { content: '평균 처리시간(건)', sortKey: 'avgTime' },
+                        { content: '인당 분당 처리량(효율)', sortKey: 'efficiency', title: '개념: (총 처리량) / (총 시간) / (총 참여인원) \n계산: (분당 처리량) / (총 참여인원) \n*지표가 높을수록 투입 인원 대비 효율이 높음*' }
+                    ], true, taskSort.key, taskSort.dir)}</thead>
                     <tbody>
     `;
     const allTasks = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
-    const sortedTasks = Array.from(allTasks).sort();
+    // ✅ [수정] 데이터 정렬
+    const sortedTasks = Array.from(allTasks).sort((a, b) => {
+        const d1 = todayAggr.taskSummary[a] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
+        const d2 = todayAggr.taskSummary[b] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
+        let v1, v2;
+        if (taskSort.key === 'taskName') { v1 = a; v2 = b; }
+        else { v1 = d1[taskSort.key]; v2 = d2[taskSort.key]; }
+
+        if (typeof v1 === 'string') return v1.localeCompare(v2) * (taskSort.dir === 'asc' ? 1 : -1);
+        return (v1 - v2) * (taskSort.dir === 'asc' ? 1 : -1);
+    });
+
     if (sortedTasks.length > 0) {
         sortedTasks.forEach(task => {
-            const d = todayAggr.taskSummary[task] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
-            const p = prevAggr.taskSummary[task] || null; // Previous data (null or object)
-            if (d.duration === 0 && d.quantity === 0) return; // 오늘 데이터 없으면 스킵
+            const d = todayAggr.taskSummary[task]; // 위에서 이미 기본값 채움
+            const p = prevAggr.taskSummary[task] || null;
+            if (!d || (d.duration === 0 && d.quantity === 0)) return; // 오늘 데이터 없으면 스킵
 
-            // ✅ [수정] 렌더링 함수 호출 시 p 객체에서 올바른 숫자 속성을 전달
             html += createTableRow([
                 { content: task, class: "font-medium text-gray-900" },
                 { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p?.duration) },
@@ -1275,7 +1360,6 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
                 { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, p?.avgCostPerItem) },
                 { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, p?.avgStaff) },
                 { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, p?.avgTime) },
-                // ✅ [추가] 4번 기능: 효율성 지표
                 { content: d.efficiency.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.efficiency, p?.efficiency), class: "font-bold" } // 효율성
             ]);
         });
@@ -1284,7 +1368,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     }
     html += `</tbody></table></div></div>`;
 
-    // 4e. 근태 현황 (✅ [수정] 그룹화 로직 적용)
+    // 5e. 근태 현황 (그룹화 적용)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3>

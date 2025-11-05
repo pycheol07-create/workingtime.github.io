@@ -251,6 +251,9 @@ export function setupHistoryModalListeners() {
                   return true;
                 })
               : allHistoryData;
+              
+          // ✅ [추가] 정렬 상태 초기화 (날짜가 바뀌었으므로)
+          context.reportSortState = {};
 
           if (context.activeMainHistoryTab === 'work') {
               if (activeView === 'daily') {
@@ -274,16 +277,16 @@ export function setupHistoryModalListeners() {
                   renderAttendanceMonthlyHistory(dateKey, filteredData); // 👈 filteredData 전달
               }
           }
-          // ✅ [수정] 리포트 탭 클릭 시 (주석 해제 및 활성화)
+          // ✅ [수정] 리포트 탭 클릭 시 (context 전달)
           else if (context.activeMainHistoryTab === 'report') {
               if (activeView === 'report-daily') {
-                  renderReportDaily(dateKey, filteredData, appConfig);
+                  renderReportDaily(dateKey, filteredData, appConfig, context);
               } else if (activeView === 'report-weekly') {
-                  renderReportWeekly(dateKey, filteredData, appConfig);
+                  renderReportWeekly(dateKey, filteredData, appConfig, context);
               } else if (activeView === 'report-monthly') {
-                  renderReportMonthly(dateKey, filteredData, appConfig);
+                  renderReportMonthly(dateKey, filteredData, appConfig, context);
               } else if (activeView === 'report-yearly') {
-                  renderReportYearly(dateKey, filteredData, appConfig);
+                  renderReportYearly(dateKey, filteredData, appConfig, context);
               }
           }
 
@@ -324,6 +327,9 @@ export function setupHistoryModalListeners() {
         if (btn) {
           const tabName = btn.dataset.mainTab;
           context.activeMainHistoryTab = tabName; // ✅ context.
+          
+          // ✅ [추가] 탭 전환 시 정렬 상태 초기화
+          context.reportSortState = {};
 
           document.querySelectorAll('.history-main-tab-btn').forEach(b => {
               b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
@@ -396,6 +402,8 @@ export function setupHistoryModalListeners() {
       reportTabs.addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-view]');
         if (btn) {
+          // ✅ [추가] 리포트 탭 전환 시 정렬 상태 초기화
+          context.reportSortState = {};
           switchHistoryView(btn.dataset.view);
         }
       });
@@ -548,9 +556,10 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] '업무 리포트' 뷰 컨테이너 리스너
+    // ✅ [수정] '업무 리포트' 뷰 컨테이너 리스너 (정렬 기능 추가)
     if (reportViewContainer) {
         reportViewContainer.addEventListener('click', (e) => {
+            // 1. 품질 비용 모달 띄우기
             const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
             if (coqButton) {
                 e.stopPropagation();
@@ -558,6 +567,62 @@ export function setupHistoryModalListeners() {
                 if (coqExplanationModal) {
                     coqExplanationModal.classList.remove('hidden');
                 }
+                return;
+            }
+            
+            // 2. ✅ [추가] 정렬 헤더 클릭 처리
+            const header = e.target.closest('.sortable-header');
+            if (header) {
+                e.stopPropagation();
+                const sortKey = header.dataset.sortKey;
+                if (!sortKey) return;
+                
+                const tableId = header.closest('table')?.id;
+                let tableKey;
+                if (tableId === 'report-table-part') tableKey = 'partSummary';
+                else if (tableId === 'report-table-member') tableKey = 'memberSummary';
+                else if (tableId === 'report-table-task') tableKey = 'taskSummary';
+                else return;
+                
+                // 3. 정렬 상태 업데이트
+                const currentSort = context.reportSortState[tableKey] || { key: null, dir: 'asc' };
+                let newDir = 'desc';
+                if (currentSort.key === sortKey) {
+                    newDir = (currentSort.dir === 'desc') ? 'asc' : 'desc';
+                }
+                context.reportSortState[tableKey] = { key: sortKey, dir: newDir };
+                
+                // 4. 현재 활성화된 뷰를 다시 렌더링
+                const activeBtn = historyDateList.querySelector('button.bg-blue-100');
+                const dateKey = activeBtn ? activeBtn.dataset.key : null;
+                if (!dateKey) return;
+
+                const activeView = reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
+
+                // (현재 날짜 목록은 필터링된 상태일 수 있으므로, 해당 데이터를 그대로 사용)
+                const filteredData = (context.historyStartDate || context.historyEndDate)
+                    ? allHistoryData.filter(d => {
+                        const date = d.id;
+                        const start = context.historyStartDate;
+                        const end = context.historyEndDate;
+                        if (start && end) return date >= start && date <= end;
+                        if (start) return date >= start;
+                        if (end) return date <= end;
+                        return true;
+                      })
+                    : allHistoryData;
+                
+                // 5. 현재 뷰에 맞는 렌더링 함수 재호출 (업데이트된 context와 함께)
+                if (activeView === 'report-daily') {
+                    renderReportDaily(dateKey, filteredData, appConfig, context);
+                } else if (activeView === 'report-weekly') {
+                    renderReportWeekly(dateKey, filteredData, appConfig, context);
+                } else if (activeView === 'report-monthly') {
+                    renderReportMonthly(dateKey, filteredData, appConfig, context);
+                } else if (activeView === 'report-yearly') {
+                    renderReportYearly(dateKey, filteredData, appConfig, context);
+                }
+                
                 return;
             }
         });
