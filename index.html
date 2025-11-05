@@ -772,6 +772,47 @@
            </div>
        </div>
     </div>
+    
+    <div id="coq-explanation-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+           <div class="p-6 border-b border-gray-200">
+               <h2 class="text-xl font-bold text-gray-900">
+                   <span class="text-red-600">총 품질 비용 (COQ)</span> 이란?
+               </h2>
+               <button class="modal-close-btn" data-modal-id="coq-explanation-modal">&times;</button>
+           </div>
+           <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div>
+                    <h3 class="font-semibold text-gray-800">개념</h3>
+                    <p class="text-sm text-gray-600 mt-1">
+                        COQ (Cost of Quality)는 원하는 품질 수준을 달성하지 못했을 때 발생하는 모든 비용을 의미합니다.
+                        여기서는 "오류", "상품재작업", "재고찾는시간" 등, 정상적인 생산 활동 외에 추가로 투입된 노동력(인건비)을 의미합니다.
+                        이 비용이 낮을수록 업무 프로세스가 효율적이고 정확하게 운영되고 있음을 나타냅니다.
+                    </p>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-800">계산 방식</h3>
+                    <p class="text-sm text-gray-600 mt-1">
+                        관리자 페이지의 `config.js` 파일에 정의된 '품질 비용 업무' 목록(기본값: '오류', '상품재작업', '재고찾는시간')을 기준으로,
+                        해당 업무들에 투입된 모든 인원의 총 인건비를 합산합니다.
+                    </p>
+                    <p class="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded border">
+                        <span class="font-mono text-xs">
+                           (각 인원의 '오류' 업무 시간 * 시급) + <br>
+                           (각 인원의 '상품재작업' 업무 시간 * 시급) + <br>
+                           (...)
+                        </span>
+                    </p>
+                </div>
+           </div>
+           <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end">
+                <button type="button" class="modal-close-btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition" data-modal-id="coq-explanation-modal">
+                    닫기
+                </button>
+           </div>
+       </div>
+    </div>
+    
     </div> <script type="module" src="js/app.js"></script>
 </body>
 </html>

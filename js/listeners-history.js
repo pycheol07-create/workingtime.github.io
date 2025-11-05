@@ -27,6 +27,9 @@ import {
     reportPanel, reportTabs, reportViewContainer, 
     reportDailyView, reportWeeklyView, reportMonthlyView, reportYearlyView,
 
+    // ✅ [추가] COQ 설명 모달
+    coqExplanationModal,
+
     deleteHistoryModal, confirmHistoryDeleteBtn, 
 
     // 👈 [추가] 기간 조회 DOM 요소들
@@ -525,6 +528,20 @@ export function setupHistoryModalListeners() {
                 if (addAttendanceDateFields) addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
 
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.remove('hidden');
+                return;
+            }
+        });
+    }
+
+    // ✅ [추가] '업무 리포트' 뷰 컨테이너 리스너
+    if (reportViewContainer) {
+        reportViewContainer.addEventListener('click', (e) => {
+            const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
+            if (coqButton) {
+                e.stopPropagation();
+                if (coqExplanationModal) {
+                    coqExplanationModal.classList.remove('hidden');
+                }
                 return;
             }
         });

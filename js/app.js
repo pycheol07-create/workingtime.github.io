@@ -203,8 +203,6 @@ export const editStartTimeContextTypeInput = document.getElementById('edit-start
 export const confirmEditStartTimeBtn = document.getElementById('confirm-edit-start-time-btn');
 export const cancelEditStartTimeBtn = document.getElementById('cancel-edit-start-time-btn');
 export const analysisMemberSelect = document.getElementById('analysis-member-select');
-
-// ✅ [추가] 이 DOM 요소를 export 목록에 추가합니다.
 export const editLeaveModal = document.getElementById('edit-leave-record-modal');
 
 // 👈 [추가] 기간 조회 DOM 요소들
@@ -213,6 +211,9 @@ export const historyEndDateInput = document.getElementById('history-end-date');
 export const historyFilterBtn = document.getElementById('history-filter-btn');
 export const historyClearFilterBtn = document.getElementById('history-clear-filter-btn');
 export const historyDownloadPeriodExcelBtn = document.getElementById('history-download-period-excel-btn');
+
+// ✅ [추가] 품질 비용(COQ) 설명 모달
+export const coqExplanationModal = document.getElementById('coq-explanation-modal');
 
 
 // ========== 6. Firebase/App State (모두 EXPORT) ==========
@@ -617,6 +618,9 @@ async function startAppAfterLogin(user) {
           mergedConfig.dashboardItems = loadedConfig.dashboardItems || appConfig.dashboardItems;
           mergedConfig.dashboardCustomItems = { ...(loadedConfig.dashboardCustomItems || {}) };
           mergedConfig.quantityTaskTypes = loadedConfig.quantityTaskTypes || appConfig.quantityTaskTypes;
+          
+          // ✅ [추가] 품질 비용 항목 실시간 로드
+          mergedConfig.qualityCostTasks = loadedConfig.qualityCostTasks || appConfig.qualityCostTasks;
 
           // ✅ [수정] taskGroups 마이그레이션 로직 (config.js에서 복사)
           if (Array.isArray(loadedConfig.taskGroups)) {

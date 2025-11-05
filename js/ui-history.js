@@ -1081,6 +1081,7 @@ const _calculateDailyReportAggregations = (data, appConfig, wageMap, memberToPar
         summary.avgCostPerItem = qty > 0 ? (summary.cost / qty) : 0;
         summary.avgStaff = summary.members.size;
         summary.avgTime = (summary.recordCount > 0) ? (summary.duration / summary.recordCount) : 0;
+        // ✅ [추가] 4번 기능 (인당 분당 처리량)
         summary.efficiency = summary.avgStaff > 0 ? (summary.avgThroughput / summary.avgStaff) : 0;
     });
     
@@ -1182,8 +1183,8 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
                 <div class="text-xl font-bold">${formatDuration(todayKPIs.nonWorkMinutes)}</div>
                 ${getDiffHtmlForMetric('nonWorkTime', todayKPIs.nonWorkMinutes, prevKPIs.nonWorkMinutes)}
             </div>
-            <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200">
-                <div class="text-xs text-red-600 font-semibold">총 품질 비용 (COQ)</div>
+            <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
+                <div class="text-xs text-red-600 font-semibold">총 품질 비용 (COQ) ⓘ</div>
                 <div class="text-xl font-bold text-red-600">${Math.round(todayKPIs.totalQualityCost).toLocaleString()} 원</div>
                 ${getDiffHtmlForMetric('totalCost', todayKPIs.totalQualityCost, prevKPIs.totalQualityCost)}
             </div>
@@ -1264,6 +1265,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
             const p = prevAggr.taskSummary[task] || null; // Previous data (null or object)
             if (d.duration === 0 && d.quantity === 0) return; // 오늘 데이터 없으면 스킵
 
+            // ✅ [수정] 렌더링 함수 호출 시 p 객체에서 올바른 숫자 속성을 전달
             html += createTableRow([
                 { content: task, class: "font-medium text-gray-900" },
                 { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p?.duration) },
@@ -1273,6 +1275,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
                 { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, p?.avgCostPerItem) },
                 { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, p?.avgStaff) },
                 { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, p?.avgTime) },
+                // ✅ [추가] 4번 기능: 효율성 지표
                 { content: d.efficiency.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.efficiency, p?.efficiency), class: "font-bold" } // 효율성
             ]);
         });
@@ -1281,7 +1284,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig) => {
     }
     html += `</tbody></table></div></div>`;
 
-    // 4e. 근태 현황 (그룹화 적용)
+    // 4e. 근태 현황 (✅ [수정] 그룹화 로직 적용)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3>
