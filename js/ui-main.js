@@ -1,17 +1,16 @@
-// === ui-main.js (메인 화면 렌더링 담당) ===
+// === ui-main.js (메인 화면 렌더링 담당 - 최종 수정본) ===
 
 import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday } from './utils.js';
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 
 /**
- * 메인 화면 - 상단 현황판 레이아웃 렌더링
+ * 1. 메인 화면 - 상단 현황판 레이아웃 렌더링
  */
 export const renderDashboardLayout = (appConfig) => {
     const container = document.getElementById('summary-content');
     if (!container) return;
 
     const itemIds = appConfig.dashboardItems || [];
-    // quantities는 이제 사용하지 않지만 호환성을 위해 남겨둘 수 있음
     const allDefinitions = getAllDashboardDefinitions(appConfig);
 
     container.innerHTML = '';
@@ -22,7 +21,7 @@ export const renderDashboardLayout = (appConfig) => {
         if (!def) return;
 
         const isQuantity = def.isQuantity === true;
-        const valueContent = `<p id="${def.valueId}">0</p>`; // 초기값 0
+        const valueContent = `<p id="${def.valueId}">0</p>`;
 
         html += `
             <div class="dashboard-card p-4 rounded-lg ${isQuantity ? 'dashboard-card-quantity' : ''}">
@@ -36,7 +35,7 @@ export const renderDashboardLayout = (appConfig) => {
 };
 
 /**
- * 메인 화면 - 상단 현황판 수치 업데이트
+ * 2. 메인 화면 - 상단 현황판 수치 업데이트
  */
 export const updateSummary = (appState, appConfig) => {
     const allDefinitions = getAllDashboardDefinitions(appConfig);
@@ -73,7 +72,8 @@ export const updateSummary = (appState, appConfig) => {
     const pausedMembers = new Set(pausedRecords.map(r => r.member));
 
     const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
-    // const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length; // 사용 안 함
+    // ✅ [수정] 주석 해제됨
+    const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
     const totalWorkingCount = ongoingMembers.size;
 
     const availableStaffCount = totalStaffCount - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
@@ -97,7 +97,6 @@ export const updateSummary = (appState, appConfig) => {
     if (elements['idle-staff']) elements['idle-staff'].textContent = `${totalIdleCount}`;
     if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`;
 
-    // 수량 항목 업데이트
     const quantitiesFromState = appState.taskQuantities || {};
     const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
     
@@ -112,7 +111,7 @@ export const updateSummary = (appState, appConfig) => {
 };
 
 /**
- * 메인 화면 - 업무 분석 렌더링
+ * 3. 메인 화면 - 업무 분석 렌더링 (실시간 반영)
  */
 export const renderTaskAnalysis = (appState, appConfig) => {
     const analysisContainer = document.getElementById('analysis-task-summary-panel'); 
@@ -206,7 +205,7 @@ export const renderTaskAnalysis = (appState, appConfig) => {
 };
 
 /**
- * 메인 화면 - 개인별 분석 렌더링
+ * 4. 메인 화면 - 개인별 분석 렌더링 (실시간 반영)
  */
 export const renderPersonalAnalysis = (selectedMember, appState) => {
     const container = document.getElementById('analysis-personal-stats-container');
@@ -305,7 +304,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 };
 
 /**
- * 메인 화면 - 실시간 현황판 렌더링
+ * 5. 메인 화면 - 실시간 현황판 렌더링
  */
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
     const currentUserRole = appState.currentUserRole || 'user';
@@ -474,7 +473,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 };
 
 /**
- * 메인 화면 - 업무 기록 렌더링 (완료 + 진행 중)
+ * 6. 메인 화면 - 업무 기록 렌더링 (완료 + 진행 중)
  */
 export const renderCompletedWorkLog = (appState) => {
     const workLogBody = document.getElementById('work-log-body');
