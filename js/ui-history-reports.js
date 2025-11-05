@@ -5,59 +5,50 @@ import { formatDuration, isWeekday } from './utils.js';
 // ✅ [추가] 부모 파일(ui-history.js)에서 Diff 헬퍼 함수 가져오기
 import { getDiffHtmlForMetric } from './ui-history.js';
 
-/**
- * 헬퍼: 테이블 행 생성 (증감율 표시 + 정렬 기능 지원)
- * ✅ [수정] 정렬 아이콘 로직 수정
- */
-const createTableRow = (columns, isHeader = false, sortState = null) => {
-    const cellTag = isHeader ? 'th' : 'td';
-    // ✅ [수정] 헤더 클래스 수정 (sticky top-0 추가)
-    const rowClass = isHeader ? 'text-xs text-gray-700 uppercase bg-gray-100 sticky top-0' : 'bg-white border-b hover:bg-gray-50';
-    
-    let cellsHtml = columns.map((col, index) => {
-        // 헤더가 아닌 경우 (데이터 셀)
-        if (!isHeader) {
-            const alignClass = (index > 0) ? 'text-right' : 'text-left';
-            if (typeof col === 'object' && col !== null) {
-                return `<${cellTag} class="px-4 py-2 ${alignClass} ${col.class || ''}">
-                            <div>${col.content}</div>
-                            ${col.diff || ''}
-                        </${cellTag}>`;
-            }
-            return `<${cellTag} class="px-4 py-2 ${alignClass}">${col}</${cellTag}>`;
-        }
+// ================== [ ✨ 수정된 부분 ✨ ] ==================
+// (getDiffHtmlForMetric 헬퍼 함수를 이 파일로 이동)
+// ✅ [추가] 이 헬퍼 함수는 다른 파일에서도 사용하므로 export합니다.
+export const getDiffHtmlForMetric = (metric, current, previous) => {
+    const currValue = current || 0;
+    const prevValue = previous || 0;
 
-        // 헤더인 경우 (정렬 로직 추가)
-        const alignClass = (index > 0) ? 'text-right' : 'text-left';
-        const sortable = col.sortKey ? 'sortable-header' : '';
-        const dataSortKey = col.sortKey ? `data-sort-key="${col.sortKey}"` : '';
-        const title = col.title ? `title="${col.title}"` : '';
-        
-        let sortIcon = '';
-        if (col.sortKey) {
-            let iconChar = '↕';
-            let iconClass = 'sort-icon';
-            if (sortState && col.sortKey === sortState.key) { // ✅ [수정]
-                if (sortState.dir === 'asc') { // ✅ [수정]
-                    iconChar = '▲';
-                    iconClass += ' sorted-asc';
-                } else if (sortState.dir === 'desc') { // ✅ [수정]
-                    iconChar = '▼';
-                    iconClass += ' sorted-desc';
-                }
-            }
-            sortIcon = `<span class="${iconClass}">${iconChar}</span>`;
-        }
-        
-        return `<${cellTag} scope="col" class="px-4 py-2 ${alignClass} ${sortable}" ${dataSortKey} ${title}>
-                    ${col.content}
-                    ${sortIcon}
-                </${cellTag}>`;
-
-    }).join('');
+    if (prevValue === 0) {
+        if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
+        return ''; // 둘 다 0
+    }
     
-    return `<tr class="${rowClass}">${cellsHtml}</tr>`;
+    const diff = currValue - prevValue;
+    if (Math.abs(diff) < 0.001) return `<span class="text-xs text-gray-400 ml-1">(-)</span>`;
+    
+    const percent = (diff / prevValue) * 100;
+    const sign = diff > 0 ? '↑' : '↓';
+    
+    let colorClass = 'text-gray-500';
+    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity'].includes(metric)) {
+        colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
+    } 
+    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount'].includes(metric)) {
+        colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
+    }
+    
+    let diffStr = '';
+    let prevStr = '';
+    if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration' || metric === 'nonWorkTime') {
+        diffStr = formatDuration(Math.abs(diff));
+        prevStr = formatDuration(prevValue);
+    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem' || metric === 'activeMembersCount') {
+        diffStr = Math.round(Math.abs(diff)).toLocaleString();
+        prevStr = Math.round(prevValue).toLocaleString();
+    } else { // avgThroughput, overallAvgThroughput
+        diffStr = Math.abs(diff).toFixed(2);
+        prevStr = prevValue.toFixed(2);
+    }
+
+    return `<span class="text-xs ${colorClass} ml-1 font-mono" title="이전: ${prevStr}">
+                ${sign} ${diffStr} (${percent.toFixed(0)}%)
+            </span>`;
 };
+// =========================================================
 
 
 /**

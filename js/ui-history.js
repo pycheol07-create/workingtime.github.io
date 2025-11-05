@@ -8,7 +8,9 @@ import {
     renderReportDaily,
     renderReportWeekly,
     renderReportMonthly,
-    renderReportYearly
+    renderReportYearly,
+    // ✅ [추가] 헬퍼 함수를 reports 파일에서 역으로 import
+    getDiffHtmlForMetric
 } from './ui-history-reports.js';
 
 // ✅ [추가] 분리된 리포트 렌더링 함수들 export
@@ -19,6 +21,18 @@ export {
     renderReportMonthly,
     renderReportYearly
 };
+
+
+// ⛔️ [삭제] ================== [ ✨ 수정된 부분 1 ✨ ] ==================
+// ⛔️ (getDiffHtmlForMetric 헬퍼 함수를 ui-history-reports.js로 이동)
+// ⛔️ export const getDiffHtmlForMetric = (...) => { ... };
+// ⛔️ (70줄 가량의 함수 정의 전체 삭제)
+// ⛔️ =========================================================
+
+
+// ✅ [수정] renderSummaryView (ui.js -> ui-history.js)
+// 🚨 [삭제] renderSummaryView 함수는 이제 renderReport... 함수들로 대체되었으므로 삭제합니다.
+// const renderSummaryView = (...) => { ... }
 
 
 // ================== [ ✨ 수정된 부분 1 ✨ ] ==================
