@@ -1,4 +1,4 @@
-// === ui-history-reports-renderer.js (리포트 HTML 렌더링) ===
+// === ui-history-reports-renderer.js ===
 
 import { formatDuration } from './utils.js';
 import { getDiffHtmlForMetric, createTableRow } from './ui-history-reports-logic.js';
@@ -35,9 +35,7 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
                 ${getDiffHtmlForMetric('overallAvgCostPerItem', tKPIs.overallAvgCostPerItem, pKPIs.overallAvgCostPerItem)}
             </div>
             <div class="bg-white p-3 rounded-lg shadow-sm">
-                <div class="text-xs text-gray-500">근무 인원</div>
-                <div class="text-xl font-bold">${tKPIs.activeMembersCount} 명</div>
-                ${getDiffHtmlForMetric('activeMembersCount', tKPIs.activeMembersCount, pKPIs.activeMembersCount)}
+                <div class="text-xs text-gray-500">평균 근무 인원</div> <div class="text-xl font-bold">${Number(tKPIs.activeMembersCount).toFixed(1).replace(/\.0$/, '')} 명</div> ${getDiffHtmlForMetric('activeMembersCount', tKPIs.activeMembersCount, pKPIs.activeMembersCount)}
             </div>
             <div class="bg-white p-3 rounded-lg shadow-sm">
                 <div class="text-xs text-gray-500">비업무 시간</div>

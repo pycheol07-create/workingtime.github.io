@@ -1,19 +1,15 @@
-// === listeners-history.js (이력 모달 리스너) ===
-
-// app.js (메인)에서 가져올 핵심 상태 및 DOM 요소들
 import {
-    appState, appConfig, db, auth, 
+    appState, appConfig, db, auth,
     allHistoryData,
-    context, 
+    context,
     LEAVE_TYPES,
 
-    // DOM 요소
     addAttendanceRecordModal, addAttendanceForm, confirmAddAttendanceBtn, cancelAddAttendanceBtn,
     addAttendanceMemberNameInput, addAttendanceMemberDatalist, addAttendanceTypeSelect,
     addAttendanceStartTimeInput, addAttendanceEndTimeInput, addAttendanceStartDateInput,
     addAttendanceEndDateInput, addAttendanceDateKeyInput, addAttendanceTimeFields,
-    addAttendanceDateFields, 
-    
+    addAttendanceDateFields,
+
     editAttendanceRecordModal, confirmEditAttendanceBtn, cancelEditAttendanceBtn,
     editAttendanceMemberName, editAttendanceTypeSelect,
     editAttendanceStartTimeInput, editAttendanceEndTimeInput, editAttendanceStartDateInput,
@@ -24,29 +20,25 @@ import {
     historyModalContentBox,
     openHistoryBtn, closeHistoryBtn, historyDateList, historyViewContainer, historyTabs,
     historyMainTabs, workHistoryPanel, attendanceHistoryPanel, attendanceHistoryTabs,
-    attendanceHistoryViewContainer, trendAnalysisPanel, 
-    
-    reportPanel, reportTabs, reportViewContainer, 
-    
-    coqExplanationModal,
-    deleteHistoryModal, confirmHistoryDeleteBtn, 
+    attendanceHistoryViewContainer, trendAnalysisPanel,
 
-    historyStartDateInput, historyEndDateInput, historyFilterBtn, 
+    reportPanel, reportTabs, reportViewContainer,
+
+    coqExplanationModal,
+    deleteHistoryModal, confirmHistoryDeleteBtn,
+
+    historyStartDateInput, historyEndDateInput, historyFilterBtn,
     historyClearFilterBtn, historyDownloadPeriodExcelBtn,
-    
-    loginModal, 
-    
+
+    loginModal,
+
 } from './app.js';
 
 import { showToast } from './utils.js';
 
 import {
     renderTrendAnalysisCharts,
-    trendCharts, 
-    renderReportDaily,
-    renderReportWeekly,
-    renderReportMonthly,
-    renderReportYearly
+    trendCharts
 } from './ui.js';
 
 import {
@@ -54,31 +46,31 @@ import {
     renderHistoryDetail,
     switchHistoryView,
     renderHistoryDateListByMode,
-    openHistoryQuantityModal,     
-    requestHistoryDeletion      
+    openHistoryQuantityModal,
+    requestHistoryDeletion
 } from './app-history-logic.js';
 
 import {
     downloadHistoryAsExcel,
-    downloadPeriodHistoryAsExcel 
+    downloadPeriodHistoryAsExcel
 } from './history-excel.js';
 
 import {
-  renderAttendanceDailyHistory,
-  renderAttendanceWeeklyHistory,
-  renderAttendanceMonthlyHistory,
-  renderWeeklyHistory,
-  renderMonthlyHistory
+    renderAttendanceDailyHistory,
+    renderAttendanceWeeklyHistory,
+    renderAttendanceMonthlyHistory,
+    renderWeeklyHistory,
+    renderMonthlyHistory,
+    renderReportDaily,
+    renderReportWeekly,
+    renderReportMonthly,
+    renderReportYearly
 } from './ui-history.js';
 
 import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-
-/**
- * 2. 이력(History) 모달 관련 리스너 설정
- */
 export function setupHistoryModalListeners() {
-    
+
     const exitFullscreenIfActive = () => {
         if (document.fullscreenElement === historyModalContentBox) {
             document.exitFullscreen();
@@ -94,7 +86,7 @@ export function setupHistoryModalListeners() {
         } else if (context.activeMainHistoryTab === 'report') {
             activeSubTabBtn = reportTabs?.querySelector('button.font-semibold');
         }
-        
+
         const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
 
         if (activeView.includes('yearly')) return 'year';
@@ -112,11 +104,11 @@ export function setupHistoryModalListeners() {
                 showToast('종료일은 시작일보다 이후여야 합니다.', true);
                 return;
             }
-            
+
             context.historyStartDate = startDate || null;
             context.historyEndDate = endDate || null;
-            
-            context.reportSortState = {}; 
+
+            context.reportSortState = {};
             renderHistoryDateListByMode(getCurrentHistoryListMode());
             showToast('이력 목록을 필터링했습니다.');
         });
@@ -128,8 +120,8 @@ export function setupHistoryModalListeners() {
             historyEndDateInput.value = '';
             context.historyStartDate = null;
             context.historyEndDate = null;
-            
-            context.reportSortState = {}; 
+
+            context.reportSortState = {};
             renderHistoryDateListByMode(getCurrentHistoryListMode());
             showToast('필터를 초기화했습니다.');
         });
@@ -144,237 +136,237 @@ export function setupHistoryModalListeners() {
                 showToast('엑셀 다운로드를 위해 시작일과 종료일을 모두 설정(조회)해주세요.', true);
                 return;
             }
-            downloadPeriodHistoryAsExcel(startDate, endDate); 
+            downloadPeriodHistoryAsExcel(startDate, endDate);
         });
     }
 
     if (openHistoryBtn) {
-      openHistoryBtn.addEventListener('click', async () => {
-        if (!auth || !auth.currentUser) {
-            showToast('이력을 보려면 로그인이 필요합니다.', true);
-            if (historyModal && !historyModal.classList.contains('hidden')) {
-                 historyModal.classList.add('hidden'); 
+        openHistoryBtn.addEventListener('click', async () => {
+            if (!auth || !auth.currentUser) {
+                showToast('이력을 보려면 로그인이 필요합니다.', true);
+                if (historyModal && !historyModal.classList.contains('hidden')) {
+                    historyModal.classList.add('hidden');
+                }
+                if (loginModal) loginModal.classList.remove('hidden');
+                return;
             }
-            if (loginModal) loginModal.classList.remove('hidden'); 
-            return; 
-        }
-          
-        if (historyModal) {
-          historyModal.classList.remove('hidden'); 
-          
-          if (historyStartDateInput) historyStartDateInput.value = '';
-          if (historyEndDateInput) historyEndDateInput.value = '';
-          context.historyStartDate = null;
-          context.historyEndDate = null;
 
-          const contentBox = document.getElementById('history-modal-content-box');
-          const overlay = document.getElementById('history-modal');
-          
-          if (contentBox && overlay && contentBox.dataset.hasBeenUncentered === 'true') {
-              overlay.classList.add('flex', 'items-center', 'justify-center');
-              contentBox.style.position = '';
-              contentBox.style.top = '';
-              contentBox.style.left = '';
-              contentBox.dataset.hasBeenUncentered = 'false';
-          }
-          
-          try {
-              await loadAndRenderHistoryList(); 
-          } catch (loadError) {
-              console.error("이력 데이터 로딩 중 오류:", loadError);
-              showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true);
-          }
-        }
-      });
+            if (historyModal) {
+                historyModal.classList.remove('hidden');
+
+                if (historyStartDateInput) historyStartDateInput.value = '';
+                if (historyEndDateInput) historyEndDateInput.value = '';
+                context.historyStartDate = null;
+                context.historyEndDate = null;
+
+                const contentBox = document.getElementById('history-modal-content-box');
+                const overlay = document.getElementById('history-modal');
+
+                if (contentBox && overlay && contentBox.dataset.hasBeenUncentered === 'true') {
+                    overlay.classList.add('flex', 'items-center', 'justify-center');
+                    contentBox.style.position = '';
+                    contentBox.style.top = '';
+                    contentBox.style.left = '';
+                    contentBox.dataset.hasBeenUncentered = 'false';
+                }
+
+                try {
+                    await loadAndRenderHistoryList();
+                } catch (loadError) {
+                    console.error("이력 데이터 로딩 중 오류:", loadError);
+                    showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true);
+                }
+            }
+        });
     }
-    
+
     if (closeHistoryBtn) {
-      closeHistoryBtn.addEventListener('click', () => {
-        if (historyModal) {
-            historyModal.classList.add('hidden'); 
-        }
-      });
+        closeHistoryBtn.addEventListener('click', () => {
+            if (historyModal) {
+                historyModal.classList.add('hidden');
+            }
+        });
     }
 
     if (historyDateList) {
-      historyDateList.addEventListener('click', (e) => {
-        const btn = e.target.closest('.history-date-btn');
-        if (btn) {
-          historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
-          btn.classList.add('bg-blue-100', 'font-bold');
-          const dateKey = btn.dataset.key; 
-          
-          let activeSubTabBtn;
-          if (context.activeMainHistoryTab === 'work') {
-              activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
-          } else if (context.activeMainHistoryTab === 'attendance') {
-              activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
-          } else if (context.activeMainHistoryTab === 'report') {
-              activeSubTabBtn = reportTabs?.querySelector('button.font-semibold');
-          }
-          
-          const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily'); 
-          
-          const filteredData = (context.historyStartDate || context.historyEndDate)
-              ? allHistoryData.filter(d => {
-                  const date = d.id;
-                  const start = context.historyStartDate;
-                  const end = context.historyEndDate;
-                  if (start && end) return date >= start && date <= end;
-                  if (start) return date >= start;
-                  if (end) return date <= end;
-                  return true;
-                })
-              : allHistoryData;
-              
-          context.reportSortState = {};
+        historyDateList.addEventListener('click', (e) => {
+            const btn = e.target.closest('.history-date-btn');
+            if (btn) {
+                historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
+                btn.classList.add('bg-blue-100', 'font-bold');
+                const dateKey = btn.dataset.key;
 
-          if (context.activeMainHistoryTab === 'work') {
-              if (activeView === 'daily') {
-                  const currentIndex = filteredData.findIndex(d => d.id === dateKey);
-                  const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length) 
-                                        ? filteredData[currentIndex + 1] 
-                                        : null;
-                  renderHistoryDetail(dateKey, previousDayData); 
-              } else if (activeView === 'weekly') {
-                  renderWeeklyHistory(dateKey, filteredData, appConfig); 
-              } else if (activeView === 'monthly') {
-                  renderMonthlyHistory(dateKey, filteredData, appConfig); 
-              }
-          } else if (context.activeMainHistoryTab === 'attendance') { 
-              if (activeView === 'attendance-daily') {
-                  renderAttendanceDailyHistory(dateKey, filteredData); 
-              } else if (activeView === 'attendance-weekly') {
-                  renderAttendanceWeeklyHistory(dateKey, filteredData); 
-              } else if (activeView === 'attendance-monthly') {
-                  renderAttendanceMonthlyHistory(dateKey, filteredData); 
-              }
-          }
-          else if (context.activeMainHistoryTab === 'report') {
-              if (activeView === 'report-daily') {
-                  renderReportDaily(dateKey, filteredData, appConfig, context);
-              } else if (activeView === 'report-weekly') {
-                  renderReportWeekly(dateKey, filteredData, appConfig, context);
-              } else if (activeView === 'report-monthly') {
-                  renderReportMonthly(dateKey, filteredData, appConfig, context);
-              } else if (activeView === 'report-yearly') {
-                  renderReportYearly(dateKey, filteredData, appConfig, context);
-              }
-          }
+                let activeSubTabBtn;
+                if (context.activeMainHistoryTab === 'work') {
+                    activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
+                } else if (context.activeMainHistoryTab === 'attendance') {
+                    activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
+                } else if (context.activeMainHistoryTab === 'report') {
+                    activeSubTabBtn = reportTabs?.querySelector('button.font-semibold');
+                }
 
-        }
-      });
+                const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
+
+                const filteredData = (context.historyStartDate || context.historyEndDate)
+                    ? allHistoryData.filter(d => {
+                        const date = d.id;
+                        const start = context.historyStartDate;
+                        const end = context.historyEndDate;
+                        if (start && end) return date >= start && date <= end;
+                        if (start) return date >= start;
+                        if (end) return date <= end;
+                        return true;
+                    })
+                    : allHistoryData;
+
+                context.reportSortState = {};
+
+                if (context.activeMainHistoryTab === 'work') {
+                    if (activeView === 'daily') {
+                        const currentIndex = filteredData.findIndex(d => d.id === dateKey);
+                        const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length)
+                            ? filteredData[currentIndex + 1]
+                            : null;
+                        renderHistoryDetail(dateKey, previousDayData);
+                    } else if (activeView === 'weekly') {
+                        renderWeeklyHistory(dateKey, filteredData, appConfig);
+                    } else if (activeView === 'monthly') {
+                        renderMonthlyHistory(dateKey, filteredData, appConfig);
+                    }
+                } else if (context.activeMainHistoryTab === 'attendance') {
+                    if (activeView === 'attendance-daily') {
+                        renderAttendanceDailyHistory(dateKey, filteredData);
+                    } else if (activeView === 'attendance-weekly') {
+                        renderAttendanceWeeklyHistory(dateKey, filteredData);
+                    } else if (activeView === 'attendance-monthly') {
+                        renderAttendanceMonthlyHistory(dateKey, filteredData);
+                    }
+                }
+                else if (context.activeMainHistoryTab === 'report') {
+                    if (activeView === 'report-daily') {
+                        renderReportDaily(dateKey, filteredData, appConfig, context);
+                    } else if (activeView === 'report-weekly') {
+                        renderReportWeekly(dateKey, filteredData, appConfig, context);
+                    } else if (activeView === 'report-monthly') {
+                        renderReportMonthly(dateKey, filteredData, appConfig, context);
+                    } else if (activeView === 'report-yearly') {
+                        renderReportYearly(dateKey, filteredData, appConfig, context);
+                    }
+                }
+
+            }
+        });
     }
 
     if (historyTabs) {
-      historyTabs.addEventListener('click', (e) => {
-        const btn = e.target.closest('button[data-view]');
-        if (btn) {
-          switchHistoryView(btn.dataset.view);
-        }
-      });
+        historyTabs.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-view]');
+            if (btn) {
+                switchHistoryView(btn.dataset.view);
+            }
+        });
     }
 
     if (confirmHistoryDeleteBtn) {
-      confirmHistoryDeleteBtn.addEventListener('click', async () => {
-        if (context.historyKeyToDelete) { 
-          const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', context.historyKeyToDelete); 
-          try {
-            await deleteDoc(historyDocRef);
-            showToast(`${context.historyKeyToDelete} 이력이 삭제되었습니다.`); 
-            await loadAndRenderHistoryList();
-          } catch (e) {
-            console.error('Error deleting history:', e);
-            showToast('이력 삭제 중 오류 발생.', true);
-          }
-        }
-        if (deleteHistoryModal) deleteHistoryModal.classList.add('hidden');
-        context.historyKeyToDelete = null; 
-      });
+        confirmHistoryDeleteBtn.addEventListener('click', async () => {
+            if (context.historyKeyToDelete) {
+                const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', context.historyKeyToDelete);
+                try {
+                    await deleteDoc(historyDocRef);
+                    showToast(`${context.historyKeyToDelete} 이력이 삭제되었습니다.`);
+                    await loadAndRenderHistoryList();
+                } catch (e) {
+                    console.error('Error deleting history:', e);
+                    showToast('이력 삭제 중 오류 발생.', true);
+                }
+            }
+            if (deleteHistoryModal) deleteHistoryModal.classList.add('hidden');
+            context.historyKeyToDelete = null;
+        });
     }
 
     if (historyMainTabs) {
-      historyMainTabs.addEventListener('click', (e) => {
-        const btn = e.target.closest('button[data-main-tab]');
-        if (btn) {
-          const tabName = btn.dataset.mainTab;
-          context.activeMainHistoryTab = tabName; 
-          
-          context.reportSortState = {};
-          context.currentReportParams = null; 
+        historyMainTabs.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-main-tab]');
+            if (btn) {
+                const tabName = btn.dataset.mainTab;
+                context.activeMainHistoryTab = tabName;
 
-          document.querySelectorAll('.history-main-tab-btn').forEach(b => {
-              b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-              b.classList.add('font-medium', 'text-gray-500');
-          });
-          btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-          btn.classList.remove('font-medium', 'text-gray-500');
+                context.reportSortState = {};
+                context.currentReportParams = null;
 
-          const dateListContainer = document.getElementById('history-date-list-container');
+                document.querySelectorAll('.history-main-tab-btn').forEach(b => {
+                    b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
+                    b.classList.add('font-medium', 'text-gray-500');
+                });
+                btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
+                btn.classList.remove('font-medium', 'text-gray-500');
 
-          if (tabName === 'work') {
-            if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
-            if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
-            if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden'); 
-            if (reportPanel) reportPanel.classList.add('hidden'); 
-            if (dateListContainer) dateListContainer.style.display = 'block'; 
+                const dateListContainer = document.getElementById('history-date-list-container');
 
-            const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
-            const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-            switchHistoryView(view);
-          
-          } else if (tabName === 'attendance') { 
-            if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
-            if (attendanceHistoryPanel) attendanceHistoryPanel.classList.remove('hidden');
-            if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden'); 
-            if (reportPanel) reportPanel.classList.add('hidden'); 
-            if (dateListContainer) dateListContainer.style.display = 'block'; 
+                if (tabName === 'work') {
+                    if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
+                    if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
+                    if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
+                    if (reportPanel) reportPanel.classList.add('hidden');
+                    if (dateListContainer) dateListContainer.style.display = 'block';
 
-            const activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
-            const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
-            switchHistoryView(view);
-          
-          } else if (tabName === 'trends') { 
-            if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
-            if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
-            if (trendAnalysisPanel) trendAnalysisPanel.classList.remove('hidden');
-            if (reportPanel) reportPanel.classList.add('hidden'); 
-            if (dateListContainer) dateListContainer.style.display = 'none'; 
-            
-            renderTrendAnalysisCharts(allHistoryData, appConfig, trendCharts);
-          
-          } else if (tabName === 'report') {
-            if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
-            if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
-            if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
-            if (reportPanel) reportPanel.classList.remove('hidden');
-            
-            const activeSubTabBtn = reportTabs?.querySelector('button.font-semibold');
-            const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'report-daily';
-            switchHistoryView(view); 
-          }
-        }
-      });
+                    const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
+                    const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
+                    switchHistoryView(view);
+
+                } else if (tabName === 'attendance') {
+                    if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
+                    if (attendanceHistoryPanel) attendanceHistoryPanel.classList.remove('hidden');
+                    if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
+                    if (reportPanel) reportPanel.classList.add('hidden');
+                    if (dateListContainer) dateListContainer.style.display = 'block';
+
+                    const activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
+                    const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
+                    switchHistoryView(view);
+
+                } else if (tabName === 'trends') {
+                    if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
+                    if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
+                    if (trendAnalysisPanel) trendAnalysisPanel.classList.remove('hidden');
+                    if (reportPanel) reportPanel.classList.add('hidden');
+                    if (dateListContainer) dateListContainer.style.display = 'none';
+
+                    renderTrendAnalysisCharts(allHistoryData, appConfig, trendCharts);
+
+                } else if (tabName === 'report') {
+                    if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
+                    if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
+                    if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
+                    if (reportPanel) reportPanel.classList.remove('hidden');
+
+                    const activeSubTabBtn = reportTabs?.querySelector('button.font-semibold');
+                    const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'report-daily';
+                    switchHistoryView(view);
+                }
+            }
+        });
     }
 
     if (attendanceHistoryTabs) {
-      attendanceHistoryTabs.addEventListener('click', (e) => {
-        const btn = e.target.closest('button[data-view]');
-        if (btn) {
-          switchHistoryView(btn.dataset.view);
-        }
-      });
+        attendanceHistoryTabs.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-view]');
+            if (btn) {
+                switchHistoryView(btn.dataset.view);
+            }
+        });
     }
 
     if (reportTabs) {
-      reportTabs.addEventListener('click', (e) => {
-        const btn = e.target.closest('button[data-view]');
-        if (btn) {
-          context.reportSortState = {};
-          context.currentReportParams = null; 
-          switchHistoryView(btn.dataset.view);
-        }
-      });
+        reportTabs.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-view]');
+            if (btn) {
+                context.reportSortState = {};
+                context.currentReportParams = null;
+                switchHistoryView(btn.dataset.view);
+            }
+        });
     }
 
     if (historyViewContainer) {
@@ -388,28 +380,28 @@ export function setupHistoryModalListeners() {
             if (!dateKey) { return; }
 
             if (action === 'open-history-quantity-modal') {
-                exitFullscreenIfActive(); 
+                exitFullscreenIfActive();
                 openHistoryQuantityModal(dateKey);
             } else if (action === 'download-history-excel') {
-                downloadHistoryAsExcel(dateKey); 
+                downloadHistoryAsExcel(dateKey);
             } else if (action === 'request-history-deletion') {
-                exitFullscreenIfActive(); 
+                exitFullscreenIfActive();
                 requestHistoryDeletion(dateKey);
             }
         });
     }
-    
+
     if (attendanceHistoryViewContainer) {
         attendanceHistoryViewContainer.addEventListener('click', (e) => {
-            
+
             const editBtn = e.target.closest('button[data-action="edit-attendance"]');
             if (editBtn) {
                 const dateKey = editBtn.dataset.dateKey;
                 const index = parseInt(editBtn.dataset.index, 10);
                 if (!dateKey || isNaN(index)) { return; }
-                
+
                 const dayData = allHistoryData.find(d => d.id === dateKey);
-                
+
                 if (!dayData || !dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
                     showToast('원본 근태 기록을 찾을 수 없습니다.', true); return;
                 }
@@ -417,7 +409,7 @@ export function setupHistoryModalListeners() {
 
                 if (editAttendanceMemberName) editAttendanceMemberName.value = record.member;
                 if (editAttendanceTypeSelect) {
-                    editAttendanceTypeSelect.innerHTML = ''; 
+                    editAttendanceTypeSelect.innerHTML = '';
                     LEAVE_TYPES.forEach(type => {
                         const option = document.createElement('option');
                         option.value = type;
@@ -441,12 +433,12 @@ export function setupHistoryModalListeners() {
                 }
                 if (editAttendanceDateKeyInput) editAttendanceDateKeyInput.value = dateKey;
                 if (editAttendanceRecordIndexInput) editAttendanceRecordIndexInput.value = index;
-                
-                exitFullscreenIfActive(); 
+
+                exitFullscreenIfActive();
                 if (editAttendanceRecordModal) editAttendanceRecordModal.classList.remove('hidden');
-                return; 
+                return;
             }
-            
+
             const deleteBtn = e.target.closest('button[data-action="delete-attendance"]');
             if (deleteBtn) {
                 const dateKey = deleteBtn.dataset.dateKey;
@@ -455,18 +447,18 @@ export function setupHistoryModalListeners() {
 
                 const dayData = allHistoryData.find(d => d.id === dateKey);
                 const record = dayData?.onLeaveMembers?.[index];
-                
+
                 if (!record) { showToast('삭제할 근태 기록을 찾을 수 없습니다.', true); return; }
 
-                context.deleteMode = 'attendance'; 
-                context.attendanceRecordToDelete = { dateKey, index }; 
-                
+                context.deleteMode = 'attendance';
+                context.attendanceRecordToDelete = { dateKey, index };
+
                 const msgEl = document.getElementById('delete-confirm-message');
                 if (msgEl) msgEl.textContent = `${record.member}님의 '${record.type}' 기록을 삭제하시겠습니까?`;
-                
-                exitFullscreenIfActive(); 
+
+                exitFullscreenIfActive();
                 if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
-                return; 
+                return;
             }
 
             const addBtn = e.target.closest('button[data-action="open-add-attendance-modal"]');
@@ -491,12 +483,12 @@ export function setupHistoryModalListeners() {
                 }
 
                 if (addAttendanceTypeSelect) {
-                    addAttendanceTypeSelect.innerHTML = ''; 
+                    addAttendanceTypeSelect.innerHTML = '';
                     LEAVE_TYPES.forEach((type, index) => {
                         const option = document.createElement('option');
                         option.value = type;
                         option.textContent = type;
-                        if (index === 0) option.selected = true; 
+                        if (index === 0) option.selected = true;
                         addAttendanceTypeSelect.appendChild(option);
                     });
                 }
@@ -506,7 +498,7 @@ export function setupHistoryModalListeners() {
                 if (addAttendanceTimeFields) addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
                 if (addAttendanceDateFields) addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
 
-                exitFullscreenIfActive(); 
+                exitFullscreenIfActive();
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.remove('hidden');
                 return;
             }
@@ -518,41 +510,41 @@ export function setupHistoryModalListeners() {
             const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
             if (coqButton) {
                 e.stopPropagation();
-                exitFullscreenIfActive(); 
+                exitFullscreenIfActive();
                 if (coqExplanationModal) {
                     coqExplanationModal.classList.remove('hidden');
                 }
                 return;
             }
-            
+
             const header = e.target.closest('.sortable-header');
             if (header) {
                 e.stopPropagation();
                 const sortKey = header.dataset.sortKey;
                 if (!sortKey) return;
-                
+
                 const tableId = header.closest('table')?.id;
                 let tableKey;
                 if (tableId === 'report-table-part') tableKey = 'partSummary';
                 else if (tableId === 'report-table-member') tableKey = 'memberSummary';
                 else if (tableId === 'report-table-task') tableKey = 'taskSummary';
                 else return;
-                
+
                 const currentSort = context.reportSortState[tableKey] || { key: null, dir: 'asc' };
                 let newDir = 'desc';
                 if (currentSort.key === sortKey) {
                     newDir = (currentSort.dir === 'desc') ? 'asc' : 'desc';
                 }
                 context.reportSortState[tableKey] = { key: sortKey, dir: newDir };
-                
+
                 if (!context.currentReportParams) {
                     console.warn("정렬 재실행 오류: currentReportParams가 없습니다.");
                     return;
                 }
-                
+
                 const { dateKey, weekKey, monthKey, yearKey, allHistoryData, appConfig } = context.currentReportParams;
                 const activeView = reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
-                
+
                 if (activeView === 'report-daily') {
                     renderReportDaily(dateKey, allHistoryData, appConfig, context);
                 } else if (activeView === 'report-weekly') {
@@ -606,7 +598,7 @@ export function setupHistoryModalListeners() {
                 icon.innerHTML = iconMinimize;
                 toggleFullscreenBtn.title = "기본 크기로";
 
-            } else if (document.fullscreenElement === null) { 
+            } else if (document.fullscreenElement === null) {
                 historyModal.classList.add('flex', 'items-center', 'justify-center');
                 historyModalContentBox.classList.add('max-w-7xl', 'h-[90vh]');
                 historyModalContentBox.classList.remove('w-screen', 'h-screen', 'max-w-none');
@@ -622,20 +614,15 @@ export function setupHistoryModalListeners() {
 
         const icon = toggleFullscreenBtn.querySelector('svg');
         if (icon) {
-             icon.innerHTML = iconMaximize;
+            icon.innerHTML = iconMaximize;
         }
-    } 
+    }
 
-    // ==========================================================================
-    // ✅ [추가/수정] 이력 모달 내의 근태 추가/수정/취소 버튼 리스너 (누락분 추가)
-    // ==========================================================================
-
-    // 1. 근태 수정 모달 - '저장' 버튼
     if (confirmEditAttendanceBtn) {
         confirmEditAttendanceBtn.addEventListener('click', async () => {
             const dateKey = editAttendanceDateKeyInput?.value;
             const indexStr = editAttendanceRecordIndexInput?.value;
-            
+
             if (!dateKey || indexStr === '') {
                 showToast('수정할 기록 정보를 찾을 수 없습니다.', true); return;
             }
@@ -671,18 +658,18 @@ export function setupHistoryModalListeners() {
                 showToast('시작 시간을 입력해주세요.', true); return;
             }
             if (!isTimeBased && !updatedRecord.startDate) {
-                 showToast('시작일을 입력해주세요.', true); return;
+                showToast('시작일을 입력해주세요.', true); return;
             }
 
             dayData.onLeaveMembers[index] = updatedRecord;
-            
+
             try {
                 const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                 await setDoc(historyDocRef, dayData);
-                
+
                 showToast('근태 기록이 수정되었습니다.');
                 if (editAttendanceRecordModal) editAttendanceRecordModal.classList.add('hidden');
-                
+
                 renderAttendanceDailyHistory(dateKey, allHistoryData);
 
             } catch (e) {
@@ -692,14 +679,12 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 2. 근태 수정 모달 - '취소' 버튼
     if (cancelEditAttendanceBtn) {
         cancelEditAttendanceBtn.addEventListener('click', () => {
             if (editAttendanceRecordModal) editAttendanceRecordModal.classList.add('hidden');
         });
     }
 
-    // 3. 근태 추가 모달 - '저장' 버튼
     if (confirmAddAttendanceBtn) {
         confirmAddAttendanceBtn.addEventListener('click', async () => {
             const dateKey = addAttendanceDateKeyInput?.value;
@@ -710,7 +695,7 @@ export function setupHistoryModalListeners() {
             const memberName = addAttendanceMemberNameInput?.value.trim();
             const type = addAttendanceTypeSelect?.value;
             if (!memberName || !type) {
-                 showToast('이름과 유형을 모두 입력해주세요.', true); return;
+                showToast('이름과 유형을 모두 입력해주세요.', true); return;
             }
 
             const isTimeBased = (type === '외출' || type === '조퇴');
@@ -742,7 +727,7 @@ export function setupHistoryModalListeners() {
 
                 showToast(`${memberName}님의 근태 기록이 추가되었습니다.`);
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.add('hidden');
-                
+
                 renderAttendanceDailyHistory(dateKey, allHistoryData);
 
             } catch (e) {
@@ -753,14 +738,12 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 4. 근태 추가 모달 - '취소' 버튼
     if (cancelAddAttendanceBtn) {
         cancelAddAttendanceBtn.addEventListener('click', () => {
             if (addAttendanceRecordModal) addAttendanceRecordModal.classList.add('hidden');
         });
     }
-    
-    // 5. 근태 추가/수정 모달 내의 유형 선택 변경 리스너
+
     if (addAttendanceTypeSelect) {
         addAttendanceTypeSelect.addEventListener('change', (e) => {
             const isTimeBased = (e.target.value === '외출' || e.target.value === '조퇴');
@@ -778,9 +761,6 @@ export function setupHistoryModalListeners() {
 
 }
 
-/**
- * 모달 팝업을 드래그 가능하게 만듭니다.
- */
 function makeDraggable(modalOverlay, header, contentBox) {
     let isDragging = false;
     let offsetX, offsetY;
@@ -790,21 +770,21 @@ function makeDraggable(modalOverlay, header, contentBox) {
             return;
         }
         isDragging = true;
-        
+
         if (contentBox.dataset.hasBeenUncentered !== 'true') {
             const rect = contentBox.getBoundingClientRect();
             modalOverlay.classList.remove('flex', 'items-center', 'justify-center');
             contentBox.style.position = 'absolute';
             contentBox.style.top = `${rect.top}px`;
             contentBox.style.left = `${rect.left}px`;
-            contentBox.style.transform = 'none'; 
+            contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';
         }
 
         const rect = contentBox.getBoundingClientRect();
         offsetX = e.clientX - rect.left;
         offsetY = e.clientY - rect.top;
-        
+
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
     });
@@ -813,7 +793,7 @@ function makeDraggable(modalOverlay, header, contentBox) {
         if (!isDragging) return;
         let newLeft = e.clientX - offsetX;
         let newTop = e.clientY - offsetY;
-        
+
         contentBox.style.left = `${newLeft}px`;
         contentBox.style.top = `${newTop}px`;
     }

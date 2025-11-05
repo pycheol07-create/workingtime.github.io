@@ -1,20 +1,18 @@
-// === listeners-main.js (메인 화면 리스너) ===
-
 import {
-    appState, appConfig, db, auth, 
+    appState, appConfig, db, auth,
     persistentLeaveSchedule, allHistoryData,
-    context, 
+    context,
     LEAVE_TYPES,
 
     teamStatusBoard, workLogBody,
-    deleteConfirmModal, 
+    deleteConfirmModal,
     endShiftBtn, endShiftConfirmModal, endShiftConfirmTitle, endShiftConfirmMessage,
     saveProgressBtn,
-    editRecordModal, 
+    editRecordModal,
     taskSelectModal,
     stopIndividualConfirmModal, stopIndividualConfirmMessage,
-    teamSelectModal, 
-    editStartTimeModal, editStartTimeModalTitle, editStartTimeModalMessage, 
+    teamSelectModal,
+    editStartTimeModal, editStartTimeModalTitle, editStartTimeModalMessage,
     editStartTimeInput, editStartTimeContextIdInput, editStartTimeContextTypeInput,
     editLeaveModal,
     leaveTypeModal, leaveMemberNameSpan, leaveTypeOptionsContainer,
@@ -22,17 +20,17 @@ import {
     cancelLeaveConfirmModal, cancelLeaveConfirmMessage,
     toggleCompletedLog, toggleAnalysis, toggleSummary,
     menuToggleBtn, menuDropdown,
-    openQuantityModalTodayBtn, openQuantityModalTodayBtnMobile, 
-    hamburgerBtn, navContent, 
+    openQuantityModalTodayBtn, openQuantityModalTodayBtnMobile,
+    hamburgerBtn, navContent,
     analysisMemberSelect,
 
-    render, debouncedSaveState, 
-    generateId, 
+    render, debouncedSaveState,
+    generateId,
     markDataAsDirty,
-    
+
     loginModal, loginForm, loginEmailInput, loginPasswordInput, loginSubmitBtn,
     loginErrorMsg, loginButtonText, loginButtonSpinner, logoutBtn, logoutBtnMobile,
-    
+
 } from './app.js';
 
 import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime } from './utils.js';
@@ -42,7 +40,7 @@ import {
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderPersonalAnalysis,
-    renderQuantityModalInputs 
+    renderQuantityModalInputs
 } from './ui.js';
 
 import {
@@ -52,347 +50,342 @@ import {
 
 import {
     saveProgress, saveDayDataToHistory,
-    checkMissingQuantities 
+    checkMissingQuantities
 } from './app-history-logic.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-
-/**
- * 1. 메인 화면 (작업 보드, 완료 기록, 메뉴, 분석) 리스너 설정
- */
 export function setupMainScreenListeners() {
-    
+
     if (teamStatusBoard) {
-      teamStatusBoard.addEventListener('click', (e) => {
-        
-        const toggleMobileBtn = e.target.closest('#toggle-all-tasks-mobile');
-        if (toggleMobileBtn) {
-            e.stopPropagation(); 
-            context.isMobileTaskViewExpanded = !context.isMobileTaskViewExpanded;
-            render(); 
-            return;
-        }
-        
-        const toggleMemberBtn = e.target.closest('#toggle-all-members-mobile');
-        if (toggleMemberBtn) {
-            e.stopPropagation();
-            context.isMobileMemberViewExpanded = !context.isMobileMemberViewExpanded;
-            render(); 
-            return;
-        }
+        teamStatusBoard.addEventListener('click', (e) => {
 
-        const stopGroupButton = e.target.closest('.stop-work-group-btn');
-        if (stopGroupButton) {
-            context.groupToStopId = Number(stopGroupButton.dataset.groupId); 
-            if (document.getElementById('stop-group-confirm-modal')) {
-                 document.getElementById('stop-group-confirm-modal').classList.remove('hidden');
-            }
-            return;
-        }
-        const pauseGroupButton = e.target.closest('.pause-work-group-btn');
-        if (pauseGroupButton) {
-            pauseWorkGroup(Number(pauseGroupButton.dataset.groupId));
-            return;
-        }
-        const resumeGroupButton = e.target.closest('.resume-work-group-btn');
-        if (resumeGroupButton) {
-            resumeWorkGroup(Number(resumeGroupButton.dataset.groupId));
-            return;
-        }
-        const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
-        if (individualPauseBtn) {
-            pauseWorkIndividual(individualPauseBtn.dataset.recordId);
-            return;
-        }
-        const individualResumeBtn = e.target.closest('[data-action="resume-individual"]');
-        if (individualResumeBtn) {
-            resumeWorkIndividual(individualResumeBtn.dataset.recordId);
-            return;
-        }
-        const individualStopBtn = e.target.closest('button[data-action="stop-individual"]');
-        if (individualStopBtn) {
-            context.recordToStopId = individualStopBtn.dataset.recordId; 
-            const record = (appState.workRecords || []).find(r => r.id === context.recordToStopId);
-            if (stopIndividualConfirmMessage && record) {
-                 stopIndividualConfirmMessage.textContent = `${record.member}님의 '${record.task}' 업무를 종료하시겠습니까?`;
-            }
-            if (stopIndividualConfirmModal) stopIndividualConfirmModal.classList.remove('hidden');
-            return;
-        }
-
-        const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
-        if (groupTimeDisplay) {
-            const groupId = Number(groupTimeDisplay.dataset.groupId);
-            const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
-            if (!groupId || !currentStartTime) return;
-
-            context.recordIdOrGroupIdToEdit = groupId; 
-            context.editType = 'group'; 
-
-            if(editStartTimeModalTitle) editStartTimeModalTitle.textContent = '그룹 시작 시간 변경';
-            if(editStartTimeModalMessage) editStartTimeModalMessage.textContent = '이 그룹의 모든 팀원의 시작 시간이 변경됩니다.';
-            if(editStartTimeInput) editStartTimeInput.value = currentStartTime;
-            if(editStartTimeContextIdInput) editStartTimeContextIdInput.value = groupId;
-            if(editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = 'group';
-            
-            if (editStartTimeModal) editStartTimeModal.classList.remove('hidden');
-            return;
-        }
-
-        const individualEditTimeBtn = e.target.closest('button[data-action="edit-individual-start-time"]');
-        if (individualEditTimeBtn) {
-            const recordId = individualEditTimeBtn.dataset.recordId;
-            const currentStartTime = individualEditTimeBtn.dataset.currentStartTime;
-            const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
-            if (!record) return;
-
-            context.recordIdOrGroupIdToEdit = recordId; 
-            context.editType = 'individual'; 
-
-            if(editStartTimeModalTitle) editStartTimeModalTitle.textContent = '개별 시작 시간 변경';
-            if(editStartTimeModalMessage) editStartTimeModalMessage.textContent = `${record.member}님의 시작 시간을 변경합니다.`;
-            if(editStartTimeInput) editStartTimeInput.value = currentStartTime;
-            if(editStartTimeContextIdInput) editStartTimeContextIdInput.value = recordId;
-            if(editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = 'individual';
-
-            if (editStartTimeModal) editStartTimeModal.classList.remove('hidden');
-            return;
-        }
-        
-        const editLeaveCard = e.target.closest('[data-action="edit-leave-record"]');
-        if (editLeaveCard) {
-            const memberName = editLeaveCard.dataset.memberName;
-            const currentType = editLeaveCard.dataset.leaveType;
-            const currentStartTime = editLeaveCard.dataset.startTime; 
-            const currentStartDate = editLeaveCard.dataset.startDate; 
-            const currentEndTime = editLeaveCard.dataset.endTime;
-            const currentEndDate = editLeaveCard.dataset.endDate;
-
-            const role = appState.currentUserRole || 'user';
-            const selfName = appState.currentUser || null;
-            if (role !== 'admin' && memberName !== selfName) {
-                showToast('본인의 근태 기록만 수정할 수 있습니다.', true);
+            const toggleMobileBtn = e.target.closest('#toggle-all-tasks-mobile');
+            if (toggleMobileBtn) {
+                e.stopPropagation();
+                context.isMobileTaskViewExpanded = !context.isMobileTaskViewExpanded;
+                render();
                 return;
             }
-            
-            // ✅ [수정] '외출'인 경우에만 '복귀' 모달 띄움. ('조퇴'는 수정 모달로)
-            if (currentType === '외출') {
-                context.memberToCancelLeave = memberName;
-                if (cancelLeaveConfirmMessage) {
-                    cancelLeaveConfirmMessage.textContent = `${memberName}님을 '${currentType}' 상태에서 복귀(취소) 처리하시겠습니까?`;
+
+            const toggleMemberBtn = e.target.closest('#toggle-all-members-mobile');
+            if (toggleMemberBtn) {
+                e.stopPropagation();
+                context.isMobileMemberViewExpanded = !context.isMobileMemberViewExpanded;
+                render();
+                return;
+            }
+
+            const stopGroupButton = e.target.closest('.stop-work-group-btn');
+            if (stopGroupButton) {
+                context.groupToStopId = Number(stopGroupButton.dataset.groupId);
+                if (document.getElementById('stop-group-confirm-modal')) {
+                    document.getElementById('stop-group-confirm-modal').classList.remove('hidden');
                 }
-                if (cancelLeaveConfirmModal) {
-                    cancelLeaveConfirmModal.classList.remove('hidden');
+                return;
+            }
+            const pauseGroupButton = e.target.closest('.pause-work-group-btn');
+            if (pauseGroupButton) {
+                pauseWorkGroup(Number(pauseGroupButton.dataset.groupId));
+                return;
+            }
+            const resumeGroupButton = e.target.closest('.resume-work-group-btn');
+            if (resumeGroupButton) {
+                resumeWorkGroup(Number(resumeGroupButton.dataset.groupId));
+                return;
+            }
+            const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
+            if (individualPauseBtn) {
+                pauseWorkIndividual(individualPauseBtn.dataset.recordId);
+                return;
+            }
+            const individualResumeBtn = e.target.closest('[data-action="resume-individual"]');
+            if (individualResumeBtn) {
+                resumeWorkIndividual(individualResumeBtn.dataset.recordId);
+                return;
+            }
+            const individualStopBtn = e.target.closest('button[data-action="stop-individual"]');
+            if (individualStopBtn) {
+                context.recordToStopId = individualStopBtn.dataset.recordId;
+                const record = (appState.workRecords || []).find(r => r.id === context.recordToStopId);
+                if (stopIndividualConfirmMessage && record) {
+                    stopIndividualConfirmMessage.textContent = `${record.member}님의 '${record.task}' 업무를 종료하시겠습니까?`;
                 }
-                return; 
+                if (stopIndividualConfirmModal) stopIndividualConfirmModal.classList.remove('hidden');
+                return;
             }
 
-            const modal = document.getElementById('edit-leave-record-modal');
-            const titleEl = document.getElementById('edit-leave-modal-title');
-            const nameEl = document.getElementById('edit-leave-member-name');
-            const typeSelect = document.getElementById('edit-leave-type');
-            const timeFields = document.getElementById('edit-leave-time-fields');
-            const dateFields = document.getElementById('edit-leave-date-fields');
-            const startTimeInput = document.getElementById('edit-leave-start-time');
-            const endTimeInput = document.getElementById('edit-leave-end-time');
-            const startDateInput = document.getElementById('edit-leave-start-date');
-            const endDateInput = document.getElementById('edit-leave-end-date');
-            const originalNameInput = document.getElementById('edit-leave-original-member-name');
-            const originalStartInput = document.getElementById('edit-leave-original-start-identifier');
-            const originalTypeInput = document.getElementById('edit-leave-original-type');
+            const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
+            if (groupTimeDisplay) {
+                const groupId = Number(groupTimeDisplay.dataset.groupId);
+                const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
+                if (!groupId || !currentStartTime) return;
 
-            if (!modal || !typeSelect) return;
+                context.recordIdOrGroupIdToEdit = groupId;
+                context.editType = 'group';
 
-            titleEl.textContent = `${memberName}님 근태 수정`;
-            nameEl.textContent = memberName;
+                if (editStartTimeModalTitle) editStartTimeModalTitle.textContent = '그룹 시작 시간 변경';
+                if (editStartTimeModalMessage) editStartTimeModalMessage.textContent = '이 그룹의 모든 팀원의 시작 시간이 변경됩니다.';
+                if (editStartTimeInput) editStartTimeInput.value = currentStartTime;
+                if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = groupId;
+                if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = 'group';
 
-            typeSelect.innerHTML = '';
-            LEAVE_TYPES.forEach(type => {
-                const option = document.createElement('option');
-                option.value = type;
-                option.textContent = type;
-                if (type === currentType) {
-                    option.selected = true;
+                if (editStartTimeModal) editStartTimeModal.classList.remove('hidden');
+                return;
+            }
+
+            const individualEditTimeBtn = e.target.closest('button[data-action="edit-individual-start-time"]');
+            if (individualEditTimeBtn) {
+                const recordId = individualEditTimeBtn.dataset.recordId;
+                const currentStartTime = individualEditTimeBtn.dataset.currentStartTime;
+                const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
+                if (!record) return;
+
+                context.recordIdOrGroupIdToEdit = recordId;
+                context.editType = 'individual';
+
+                if (editStartTimeModalTitle) editStartTimeModalTitle.textContent = '개별 시작 시간 변경';
+                if (editStartTimeModalMessage) editStartTimeModalMessage.textContent = `${record.member}님의 시작 시간을 변경합니다.`;
+                if (editStartTimeInput) editStartTimeInput.value = currentStartTime;
+                if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = recordId;
+                if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = 'individual';
+
+                if (editStartTimeModal) editStartTimeModal.classList.remove('hidden');
+                return;
+            }
+
+            const editLeaveCard = e.target.closest('[data-action="edit-leave-record"]');
+            if (editLeaveCard) {
+                const memberName = editLeaveCard.dataset.memberName;
+                const currentType = editLeaveCard.dataset.leaveType;
+                const currentStartTime = editLeaveCard.dataset.startTime;
+                const currentStartDate = editLeaveCard.dataset.startDate;
+                const currentEndTime = editLeaveCard.dataset.endTime;
+                const currentEndDate = editLeaveCard.dataset.endDate;
+
+                const role = appState.currentUserRole || 'user';
+                const selfName = appState.currentUser || null;
+                if (role !== 'admin' && memberName !== selfName) {
+                    showToast('본인의 근태 기록만 수정할 수 있습니다.', true);
+                    return;
                 }
-                typeSelect.appendChild(option);
-            });
 
-            const isTimeBased = (currentType === '외출' || currentType === '조퇴');
+                if (currentType === '외출') {
+                    context.memberToCancelLeave = memberName;
+                    if (cancelLeaveConfirmMessage) {
+                        cancelLeaveConfirmMessage.textContent = `${memberName}님을 '${currentType}' 상태에서 복귀(취소) 처리하시겠습니까?`;
+                    }
+                    if (cancelLeaveConfirmModal) {
+                        cancelLeaveConfirmModal.classList.remove('hidden');
+                    }
+                    return;
+                }
 
-            timeFields.classList.toggle('hidden', !isTimeBased);
-            dateFields.classList.toggle('hidden', isTimeBased);
+                const modal = document.getElementById('edit-leave-record-modal');
+                const titleEl = document.getElementById('edit-leave-modal-title');
+                const nameEl = document.getElementById('edit-leave-member-name');
+                const typeSelect = document.getElementById('edit-leave-type');
+                const timeFields = document.getElementById('edit-leave-time-fields');
+                const dateFields = document.getElementById('edit-leave-date-fields');
+                const startTimeInput = document.getElementById('edit-leave-start-time');
+                const endTimeInput = document.getElementById('edit-leave-end-time');
+                const startDateInput = document.getElementById('edit-leave-start-date');
+                const endDateInput = document.getElementById('edit-leave-end-date');
+                const originalNameInput = document.getElementById('edit-leave-original-member-name');
+                const originalStartInput = document.getElementById('edit-leave-original-start-identifier');
+                const originalTypeInput = document.getElementById('edit-leave-original-type');
 
-            if (isTimeBased) {
-                startTimeInput.value = currentStartTime || '';
-                endTimeInput.value = currentEndTime || '';
-            } else {
-                startDateInput.value = currentStartDate || '';
-                endDateInput.value = currentEndDate || '';
-            }
+                if (!modal || !typeSelect) return;
 
-            originalNameInput.value = memberName;
-            originalStartInput.value = isTimeBased ? currentStartTime : currentStartDate;
-            originalTypeInput.value = isTimeBased ? 'daily' : 'persistent'; 
+                titleEl.textContent = `${memberName}님 근태 수정`;
+                nameEl.textContent = memberName;
 
-            modal.classList.remove('hidden');
-            return; 
-        }
+                typeSelect.innerHTML = '';
+                LEAVE_TYPES.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    if (type === currentType) {
+                        option.selected = true;
+                    }
+                    typeSelect.appendChild(option);
+                });
 
-        const memberCard = e.target.closest('[data-action="member-toggle-leave"]');
-        if (memberCard) {
-            const memberName = memberCard.dataset.memberName;
-            const role = appState.currentUserRole || 'user';
-            const selfName = appState.currentUser || null;
+                const isTimeBased = (currentType === '외출' || currentType === '조퇴');
 
-            if (role !== 'admin' && memberName !== selfName) {
-                showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
-            }
-            const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
-            if (isWorking) {
-                return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
-            }
-            
-            context.memberToSetLeave = memberName; 
-            if(leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
-            renderLeaveTypeModalOptions(LEAVE_TYPES);
-            if(leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
-            if(leaveEndDateInput) leaveEndDateInput.value = '';
-            const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
-            if (firstRadio) {
-                const initialType = firstRadio.value;
-                if (leaveDateInputsDiv) leaveDateInputsDiv.classList.toggle('hidden', !(initialType === '연차' || initialType === '출장' || initialType === '결근'));
-            } else if (leaveDateInputsDiv) { leaveDateInputsDiv.classList.add('hidden'); }
-            if(leaveTypeModal) leaveTypeModal.classList.remove('hidden');
-            
-            return;
-        }
+                timeFields.classList.toggle('hidden', !isTimeBased);
+                dateFields.classList.toggle('hidden', isTimeBased);
 
-        if (e.target.closest('.members-list, .card-actions, .group-time-display')) {
-            e.stopPropagation(); 
-            return;
-        }
+                if (isTimeBased) {
+                    startTimeInput.value = currentStartTime || '';
+                    endTimeInput.value = currentEndTime || '';
+                } else {
+                    startDateInput.value = currentStartDate || '';
+                    endDateInput.value = currentEndDate || '';
+                }
 
-        const card = e.target.closest('div[data-group-id], div[data-action]');
-        
-        if (card) { 
-            const action = card.dataset.action;
-            const groupId = card.dataset.groupId;
-            const task = card.dataset.task;
+                originalNameInput.value = memberName;
+                originalStartInput.value = isTimeBased ? currentStartTime : currentStartDate;
+                originalTypeInput.value = isTimeBased ? 'daily' : 'persistent';
 
-            if (action === 'start-task') {
-                context.selectedTaskForStart = task; 
-                context.selectedGroupForAdd = null; 
-                renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
-                const titleEl = document.getElementById('team-select-modal-title');
-                if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
-                if (teamSelectModal) teamSelectModal.classList.remove('hidden');
-                return;
-
-            } else if (action === 'other') {
-                if (taskSelectModal) taskSelectModal.classList.remove('hidden');
-                return;
-            
-            } else if (groupId && task) {
-                context.selectedTaskForStart = task;
-                context.selectedGroupForAdd = Number(groupId); 
-                renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
-                const titleEl = document.getElementById('team-select-modal-title');
-                if (titleEl) titleEl.textContent = `'${task}' 인원 추가`;
-                if (teamSelectModal) teamSelectModal.classList.remove('hidden');
+                modal.classList.remove('hidden');
                 return;
             }
-        }
-        
-      }); 
-    } 
+
+            const memberCard = e.target.closest('[data-action="member-toggle-leave"]');
+            if (memberCard) {
+                const memberName = memberCard.dataset.memberName;
+                const role = appState.currentUserRole || 'user';
+                const selfName = appState.currentUser || null;
+
+                if (role !== 'admin' && memberName !== selfName) {
+                    showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
+                }
+                const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
+                if (isWorking) {
+                    return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
+                }
+
+                context.memberToSetLeave = memberName;
+                if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
+                renderLeaveTypeModalOptions(LEAVE_TYPES);
+                if (leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
+                if (leaveEndDateInput) leaveEndDateInput.value = '';
+                const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
+                if (firstRadio) {
+                    const initialType = firstRadio.value;
+                    if (leaveDateInputsDiv) leaveDateInputsDiv.classList.toggle('hidden', !(initialType === '연차' || initialType === '출장' || initialType === '결근'));
+                } else if (leaveDateInputsDiv) { leaveDateInputsDiv.classList.add('hidden'); }
+                if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
+
+                return;
+            }
+
+            if (e.target.closest('.members-list, .card-actions, .group-time-display')) {
+                e.stopPropagation();
+                return;
+            }
+
+            const card = e.target.closest('div[data-group-id], div[data-action]');
+
+            if (card) {
+                const action = card.dataset.action;
+                const groupId = card.dataset.groupId;
+                const task = card.dataset.task;
+
+                if (action === 'start-task') {
+                    context.selectedTaskForStart = task;
+                    context.selectedGroupForAdd = null;
+                    renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
+                    const titleEl = document.getElementById('team-select-modal-title');
+                    if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
+                    if (teamSelectModal) teamSelectModal.classList.remove('hidden');
+                    return;
+
+                } else if (action === 'other') {
+                    if (taskSelectModal) taskSelectModal.classList.remove('hidden');
+                    return;
+
+                } else if (groupId && task) {
+                    context.selectedTaskForStart = task;
+                    context.selectedGroupForAdd = Number(groupId);
+                    renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
+                    const titleEl = document.getElementById('team-select-modal-title');
+                    if (titleEl) titleEl.textContent = `'${task}' 인원 추가`;
+                    if (teamSelectModal) teamSelectModal.classList.remove('hidden');
+                    return;
+                }
+            }
+
+        });
+    }
 
     if (workLogBody) {
-      workLogBody.addEventListener('click', (e) => {
-        const deleteBtn = e.target.closest('button[data-action="delete"]');
-        if (deleteBtn) {
-          context.recordToDeleteId = deleteBtn.dataset.recordId; 
-          context.deleteMode = 'single'; 
-          const msgEl = document.getElementById('delete-confirm-message');
-          if (msgEl) msgEl.textContent = '이 업무 기록을 삭제하시겠습니까?';
-          if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
-          return;
-        }
-        const editBtn = e.target.closest('button[data-action="edit"]');
-        if (editBtn) {
-          context.recordToEditId = editBtn.dataset.recordId; 
-          const record = (appState.workRecords || []).find(r => String(r.id) === String(context.recordToEditId));
-          if (record) {
-            document.getElementById('edit-member-name').value = record.member;
-            document.getElementById('edit-start-time').value = record.startTime || '';
-            document.getElementById('edit-end-time').value = record.endTime || '';
+        workLogBody.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('button[data-action="delete"]');
+            if (deleteBtn) {
+                context.recordToDeleteId = deleteBtn.dataset.recordId;
+                context.deleteMode = 'single';
+                const msgEl = document.getElementById('delete-confirm-message');
+                if (msgEl) msgEl.textContent = '이 업무 기록을 삭제하시겠습니까?';
+                if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
+                return;
+            }
+            const editBtn = e.target.closest('button[data-action="edit"]');
+            if (editBtn) {
+                context.recordToEditId = editBtn.dataset.recordId;
+                const record = (appState.workRecords || []).find(r => String(r.id) === String(context.recordToEditId));
+                if (record) {
+                    document.getElementById('edit-member-name').value = record.member;
+                    document.getElementById('edit-start-time').value = record.startTime || '';
+                    document.getElementById('edit-end-time').value = record.endTime || '';
 
-            const taskSelect = document.getElementById('edit-task-type');
-            taskSelect.innerHTML = ''; 
-            
-            const allTasks = (appConfig.taskGroups || []).flatMap(group => group.tasks);
-            
-            allTasks.forEach(task => {
-                const option = document.createElement('option');
-                option.value = task;
-                option.textContent = task;
-                if (task === record.task) option.selected = true;
-                taskSelect.appendChild(option);
-            });
+                    const taskSelect = document.getElementById('edit-task-type');
+                    taskSelect.innerHTML = '';
 
-            if (editRecordModal) editRecordModal.classList.remove('hidden');
-          }
-          return;
-        }
-      });
+                    const allTasks = (appConfig.taskGroups || []).flatMap(group => group.tasks);
+
+                    allTasks.forEach(task => {
+                        const option = document.createElement('option');
+                        option.value = task;
+                        option.textContent = task;
+                        if (task === record.task) option.selected = true;
+                        taskSelect.appendChild(option);
+                    });
+
+                    if (editRecordModal) editRecordModal.classList.remove('hidden');
+                }
+                return;
+            }
+        });
     }
 
     const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
     if (deleteAllCompletedBtn) {
-      deleteAllCompletedBtn.addEventListener('click', () => {
-        context.deleteMode = 'all'; 
-        const msgEl = document.getElementById('delete-confirm-message');
-        if (msgEl) msgEl.textContent = '오늘 완료된 모든 업무 기록을 삭제하시겠습니까?';
-        if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
-      });
+        deleteAllCompletedBtn.addEventListener('click', () => {
+            context.deleteMode = 'all';
+            const msgEl = document.getElementById('delete-confirm-message');
+            if (msgEl) msgEl.textContent = '오늘 완료된 모든 업무 기록을 삭제하시겠습니까?';
+            if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
+        });
     }
-        
+
     if (endShiftBtn) {
-      endShiftBtn.addEventListener('click', () => {
-        const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
-        
-        if (ongoingRecords.length > 0) {
-            const ongoingTaskNames = new Set(ongoingRecords.map(r => r.task));
-            const ongoingTaskCount = ongoingTaskNames.size;
-            if (endShiftConfirmTitle) endShiftConfirmTitle.textContent = `진행 중인 업무 ${ongoingTaskCount}종`;
-            if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = `총 ${ongoingRecords.length}명이 참여 중인 ${ongoingTaskCount}종의 업무가 있습니다. 모두 종료하고 마감하시겠습니까?`;
-            if (endShiftConfirmModal) endShiftConfirmModal.classList.remove('hidden');
-        } else {
-            saveDayDataToHistory(false);
-            showToast('업무 마감 처리 완료. 오늘의 기록을 이력에 저장하고 초기화했습니다.');
-        }
-      });
+        endShiftBtn.addEventListener('click', () => {
+            const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+
+            if (ongoingRecords.length > 0) {
+                const ongoingTaskNames = new Set(ongoingRecords.map(r => r.task));
+                const ongoingTaskCount = ongoingTaskNames.size;
+                if (endShiftConfirmTitle) endShiftConfirmTitle.textContent = `진행 중인 업무 ${ongoingTaskCount}종`;
+                if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = `총 ${ongoingRecords.length}명이 참여 중인 ${ongoingTaskCount}종의 업무가 있습니다. 모두 종료하고 마감하시겠습니까?`;
+                if (endShiftConfirmModal) endShiftConfirmModal.classList.remove('hidden');
+            } else {
+                saveDayDataToHistory(false);
+                showToast('업무 마감 처리 완료. 오늘의 기록을 이력에 저장하고 초기화했습니다.');
+            }
+        });
     }
-    
+
     if (saveProgressBtn) {
-      saveProgressBtn.addEventListener('click', () => saveProgress(false));
+        saveProgressBtn.addEventListener('click', () => saveProgress(false));
     }
 
     [toggleCompletedLog, toggleAnalysis, toggleSummary].forEach(toggle => {
-      if (!toggle) return;
-      toggle.addEventListener('click', () => {
-        if (window.innerWidth >= 768) return;
-        const content = toggle.nextElementSibling;
-        const arrow = toggle.querySelector('svg');
-        if (!content) return;
-        content.classList.toggle('hidden');
-        if (arrow) arrow.classList.toggle('rotate-180');
-      });
+        if (!toggle) return;
+        toggle.addEventListener('click', () => {
+            if (window.innerWidth >= 768) return;
+            const content = toggle.nextElementSibling;
+            const arrow = toggle.querySelector('svg');
+            if (!content) return;
+            content.classList.toggle('hidden');
+            if (arrow) arrow.classList.toggle('rotate-180');
+        });
     });
 
     if (hamburgerBtn && navContent) {
         hamburgerBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); 
+            e.stopPropagation();
             navContent.classList.toggle('hidden');
         });
         navContent.addEventListener('click', (e) => {
@@ -404,13 +397,13 @@ export function setupMainScreenListeners() {
 
     if (menuToggleBtn) {
         menuToggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); 
+            e.stopPropagation();
             if (menuDropdown) menuDropdown.classList.toggle('hidden');
         });
     }
 
     document.addEventListener('click', (e) => {
-        if (navContent && hamburgerBtn) { 
+        if (navContent && hamburgerBtn) {
             const isClickInsideNav = navContent.contains(e.target);
             const isClickOnHamburger = hamburgerBtn.contains(e.target);
             if (!navContent.classList.contains('hidden') && !isClickInsideNav && !isClickOnHamburger) {
@@ -425,7 +418,7 @@ export function setupMainScreenListeners() {
             }
         }
     });
-    
+
     if (openQuantityModalTodayBtn) {
         openQuantityModalTodayBtn.addEventListener('click', () => {
             if (!auth || !auth.currentUser) {
@@ -433,7 +426,7 @@ export function setupMainScreenListeners() {
                 if (loginModal) loginModal.classList.remove('hidden');
                 return;
             }
-            
+
             const quantityModal = document.getElementById('quantity-modal');
 
             const todayData = {
@@ -447,33 +440,33 @@ export function setupMainScreenListeners() {
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
 
-            context.quantityModalContext.mode = 'today'; 
-            context.quantityModalContext.dateKey = null; 
-            context.quantityModalContext.onConfirm = async (newQuantities) => { 
+            context.quantityModalContext.mode = 'today';
+            context.quantityModalContext.dateKey = null;
+            context.quantityModalContext.onConfirm = async (newQuantities) => {
                 appState.taskQuantities = newQuantities;
-                debouncedSaveState(); 
+                debouncedSaveState();
                 showToast('오늘의 처리량이 저장되었습니다.');
                 render();
 
                 try {
-                    const allDefinitions = getAllDashboardDefinitions(appConfig); 
-                    const dashboardItemIds = appConfig.dashboardItems || [];     
-                    const quantityTaskTypes = appConfig.quantityTaskTypes || []; 
-                    const quantitiesFromState = appState.taskQuantities || {}; 
+                    const allDefinitions = getAllDashboardDefinitions(appConfig);
+                    const dashboardItemIds = appConfig.dashboardItems || [];
+                    const quantityTaskTypes = appConfig.quantityTaskTypes || [];
+                    const quantitiesFromState = appState.taskQuantities || {};
                     const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
-                    
+
                     for (const task in quantitiesFromState) {
                         if (!quantityTaskTypes.includes(task)) continue;
                         const quantity = newQuantities[task] || 0;
-                        const targetDashboardId = taskNameToDashboardIdMap[task]; 
+                        const targetDashboardId = taskNameToDashboardIdMap[task];
 
                         if (targetDashboardId && allDefinitions[targetDashboardId] && dashboardItemIds.includes(targetDashboardId)) {
-                            const valueId = allDefinitions[targetDashboardId].valueId; 
-                            const element = document.getElementById(valueId);        
+                            const valueId = allDefinitions[targetDashboardId].valueId;
+                            const element = document.getElementById(valueId);
                             if (element) {
-                                element.textContent = quantity; 
-                            } 
-                        } 
+                                element.textContent = quantity;
+                            }
+                        }
                     }
                 } catch (syncError) {
                     console.error("Error during dashboard sync:", syncError);
@@ -485,11 +478,11 @@ export function setupMainScreenListeners() {
                     const todayHistoryData = allHistoryData[todayHistoryIndex];
                     const updatedHistoryData = { ...todayHistoryData, taskQuantities: newQuantities };
                     allHistoryData[todayHistoryIndex] = updatedHistoryData;
-                    
-                    saveProgress(true); 
+
+                    saveProgress(true);
                 }
             };
-            context.quantityModalContext.onCancel = () => {}; 
+            context.quantityModalContext.onCancel = () => {};
 
             const cBtn = document.getElementById('confirm-quantity-btn');
             const xBtn = document.getElementById('cancel-quantity-btn');
@@ -507,7 +500,7 @@ export function setupMainScreenListeners() {
                 if (loginModal) loginModal.classList.remove('hidden');
                 return;
             }
-            
+
             const quantityModal = document.getElementById('quantity-modal');
 
             const todayData = {
@@ -520,19 +513,19 @@ export function setupMainScreenListeners() {
 
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
-            
-            context.quantityModalContext.mode = 'today'; 
-            context.quantityModalContext.dateKey = null; 
-            context.quantityModalContext.onConfirm = (newQuantities) => { 
+
+            context.quantityModalContext.mode = 'today';
+            context.quantityModalContext.dateKey = null;
+            context.quantityModalContext.onConfirm = (newQuantities) => {
                 appState.taskQuantities = newQuantities;
-                debouncedSaveState(); 
-                
-                saveProgress(true); 
+                debouncedSaveState();
+
+                saveProgress(true);
 
                 showToast('오늘의 처리량이 저장되었습니다.');
-                render(); 
+                render();
             };
-            context.quantityModalContext.onCancel = () => {}; 
+            context.quantityModalContext.onCancel = () => {};
 
             const cBtn = document.getElementById('confirm-quantity-btn');
             const xBtn = document.getElementById('cancel-quantity-btn');
@@ -542,7 +535,7 @@ export function setupMainScreenListeners() {
             if (navContent) navContent.classList.add('hidden');
         });
     }
-    
+
     const analysisTabs = document.getElementById('analysis-tabs');
     if (analysisTabs) {
         analysisTabs.addEventListener('click', (e) => {
@@ -574,7 +567,7 @@ export function setupMainScreenListeners() {
             renderPersonalAnalysis(selectedMember, appState);
         });
     }
-    
+
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -588,7 +581,7 @@ export function setupMainScreenListeners() {
 
             try {
                 await signInWithEmailAndPassword(auth, email, password);
-                if (loginPasswordInput) loginPasswordInput.value = ''; 
+                if (loginPasswordInput) loginPasswordInput.value = '';
             } catch (error) {
                 console.error('Login error:', error.code, error.message);
                 if (loginErrorMsg) {
@@ -617,7 +610,7 @@ export function setupMainScreenListeners() {
             }
         });
     }
-    
+
     if (logoutBtnMobile) {
         logoutBtnMobile.addEventListener('click', async () => {
             try {

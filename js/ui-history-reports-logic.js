@@ -35,11 +35,11 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration' || metric === 'nonWorkTime') {
         diffStr = formatDuration(Math.abs(diff));
         prevStr = formatDuration(prevValue);
-    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem' || metric === 'activeMembersCount') {
+    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem') { // ✅ activeMembersCount 제거
         diffStr = Math.round(Math.abs(diff)).toLocaleString();
         prevStr = Math.round(prevValue).toLocaleString();
-    } else { 
-        diffStr = Math.abs(diff).toFixed(1); 
+    } else {  // ✅ activeMembersCount는 여기서 소수점 1자리로 처리됨 (기본값)
+        diffStr = Math.abs(diff).toFixed(1);
         prevStr = prevValue.toFixed(1);
     }
 
