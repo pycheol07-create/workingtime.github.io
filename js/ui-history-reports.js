@@ -253,6 +253,7 @@ const _aggregateDaysToSingleData = (daysData, id) => {
 /**
  * 일별 리포트 렌더링 (실제 구현)
  * ✅ [수정] context 파라미터 추가
+ * ✅ [수정] 5b. AI Insights에 COQ 연관 분석 로직 추가
  */
 export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) => {
     const view = document.getElementById('report-daily-view');
@@ -359,7 +360,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         </div>
     `;
     
-    // ✅ [추가] 5b. 주요 업무 분석 (AI Insights)
+    // ================== [ ✨ 수정된 부분 (AI Insights) ✨ ] ==================
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 분석 (Beta)</h3>
@@ -380,6 +381,33 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
 
             // (속도 증가 또는 인원 증가) AND (효율 감소)
             if ((speedDiff > 0.1 || staffDiff > 0) && effDiff < -0.1) {
+                
+                // --- ✅ [ 5번 기능 추가 ] ---
+                let coqHtml = '';
+                const coqTasks = appConfig.qualityCostTasks || [];
+                const coqInsights = [];
+                
+                coqTasks.forEach(coqTaskName => {
+                    const d_coq = todayAggr.taskSummary[coqTaskName];
+                    const p_coq = prevAggr.taskSummary[coqTaskName];
+                    const coqDuration = d_coq?.duration || 0;
+                    const prevCoqDuration = p_coq?.duration || 0;
+                    
+                    // 오늘 COQ 작업 시간이 0보다 크고, 이전보다 (10% 이상) 증가했을 때
+                    if (coqDuration > 0 && coqDuration > (prevCoqDuration * 1.1)) { 
+                        coqInsights.push(`'${coqTaskName}' (${formatDuration(prevCoqDuration)} → ${formatDuration(coqDuration)})`);
+                    }
+                });
+
+                if (coqInsights.length > 0) {
+                    coqHtml = `
+                        <p class="text-xs text-gray-600 mt-1">
+                            <strong class="text-red-600">⚠️ 연관 분석:</strong> 이 효율 저하는 <strong>품질 비용(COQ) 업무 (${coqInsights.join(', ')})</strong>의 증가와 동시에 발생했습니다.
+                        </p>
+                    `;
+                }
+                // --- ✅ [ 5번 기능 끝 ] ---
+
                 insightsA += `
                     <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <h4 class="font-semibold text-yellow-800">${taskName} - 📉 효율 저하 감지</h4>
@@ -391,7 +419,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
                         <p class="text-xs text-gray-600 mt-1">
                             <strong>분석:</strong> ${staffDiff > 0 ? '인원을 더 투입했지만' : '인원은 비슷했지만'}, 1인당 생산성이 떨어졌습니다. 작업 공간, 동선, 대기 인원 등을 점검할 필요가 있습니다.
                         </p>
-                    </div>
+                        ${coqHtml} </div>
                 `;
             } else if (staffDiff > 0 && effDiff > 0.1) {
                  insightsA += `
@@ -410,6 +438,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         insightsA = `<p class="text-sm text-gray-500">주요 업무에 대한 비교 데이터(이전/오늘)가 부족하여 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
     }
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
+    // ================== [ ✨ 수정 끝 ✨ ] ==================
 
     // Part B (Difficulty Comparison)
     let insightsB = '';
@@ -650,8 +679,9 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
 };
 
 /**
- * 주별 리포트 렌더링 (Placeholder)
+ * 주별 리포트 렌더링
  * ✅ [수정] context 파라미터 추가
+ * ✅ [수정] 5b. AI Insights에 COQ 연관 분석 로직 추가
  */
 export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) => { 
     const view = document.getElementById('report-weekly-view');
@@ -758,7 +788,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         </div>
     `;
     
-    // 5b. 주요 업무 분석 (AI Insights) - (일별 리포트와 동일한 로직 사용)
+    // ================== [ ✨ 수정된 부분 (AI Insights) ✨ ] ==================
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 분석 (Beta)</h3>
@@ -778,6 +808,33 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
             const staffDiff = d.avgStaff - p.avgStaff;
 
             if ((speedDiff > 0.1 || staffDiff > 0) && effDiff < -0.1) {
+                
+                // --- ✅ [ 5번 기능 추가 ] ---
+                let coqHtml = '';
+                const coqTasks = appConfig.qualityCostTasks || [];
+                const coqInsights = [];
+                
+                coqTasks.forEach(coqTaskName => {
+                    const d_coq = todayAggr.taskSummary[coqTaskName];
+                    const p_coq = prevAggr.taskSummary[coqTaskName];
+                    const coqDuration = d_coq?.duration || 0;
+                    const prevCoqDuration = p_coq?.duration || 0;
+                    
+                    // 오늘 COQ 작업 시간이 0보다 크고, 이전보다 (10% 이상) 증가했을 때
+                    if (coqDuration > 0 && coqDuration > (prevCoqDuration * 1.1)) { 
+                        coqInsights.push(`'${coqTaskName}' (${formatDuration(prevCoqDuration)} → ${formatDuration(coqDuration)})`);
+                    }
+                });
+
+                if (coqInsights.length > 0) {
+                    coqHtml = `
+                        <p class="text-xs text-gray-600 mt-1">
+                            <strong class="text-red-600">⚠️ 연관 분석:</strong> 이 효율 저하는 <strong>품질 비용(COQ) 업무 (${coqInsights.join(', ')})</strong>의 증가와 동시에 발생했습니다.
+                        </p>
+                    `;
+                }
+                // --- ✅ [ 5번 기능 끝 ] ---
+
                 insightsA += `
                     <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <h4 class="font-semibold text-yellow-800">${taskName} - 📉 효율 저하 감지</h4>
@@ -789,7 +846,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
                         <p class="text-xs text-gray-600 mt-1">
                             <strong>분석:</strong> ${staffDiff > 0 ? '인원을 더 투입했지만' : '인원은 비슷했지만'}, 1인당 생산성이 떨어졌습니다.
                         </p>
-                    </div>
+                        ${coqHtml} </div>
                 `;
             } else if (staffDiff > 0 && effDiff > 0.1) {
                  insightsA += `
@@ -808,6 +865,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         insightsA = `<p class="text-sm text-gray-500">주요 업무에 대한 비교 데이터(이전 주/이번 주)가 부족하여 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
     }
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
+    // ================== [ ✨ 수정 끝 ✨ ] ==================
 
     // Part B (Difficulty Comparison)
     let insightsB = '';
