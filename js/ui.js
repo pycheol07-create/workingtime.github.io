@@ -92,6 +92,7 @@ export const taskTitleColors = {
 
 // ⛔️ [삭제] ---
 // ⛔️ getDiffHtmlForMetric 함수 정의 (약 40줄)가 여기서 삭제되었습니다.
+// ⛔️ (ui-history-reports.js로 완전히 이동했습니다.)
 // ⛔️ ---
 
 
