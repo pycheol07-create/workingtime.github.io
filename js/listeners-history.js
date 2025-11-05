@@ -7,72 +7,62 @@ import {
     context, 
     LEAVE_TYPES,
 
-    // DOM 요소 (이 파일에서 필요한 것들)
-    addAttendanceRecordModal, addAttendanceForm, confirmAddAttendanceBtn,
+    // DOM 요소
+    addAttendanceRecordModal, addAttendanceForm, confirmAddAttendanceBtn, cancelAddAttendanceBtn,
     addAttendanceMemberNameInput, addAttendanceMemberDatalist, addAttendanceTypeSelect,
     addAttendanceStartTimeInput, addAttendanceEndTimeInput, addAttendanceStartDateInput,
     addAttendanceEndDateInput, addAttendanceDateKeyInput, addAttendanceTimeFields,
-    addAttendanceDateFields, editAttendanceRecordModal, confirmEditAttendanceBtn,
+    addAttendanceDateFields, 
+    
+    editAttendanceRecordModal, confirmEditAttendanceBtn, cancelEditAttendanceBtn,
     editAttendanceMemberName, editAttendanceTypeSelect,
     editAttendanceStartTimeInput, editAttendanceEndTimeInput, editAttendanceStartDateInput,
     editAttendanceEndDateInput, editAttendanceDateKeyInput, editAttendanceRecordIndexInput,
     editAttendanceTimeFields, editAttendanceDateFields,
+
     deleteConfirmModal, historyModal,
     historyModalContentBox,
     openHistoryBtn, closeHistoryBtn, historyDateList, historyViewContainer, historyTabs,
     historyMainTabs, workHistoryPanel, attendanceHistoryPanel, attendanceHistoryTabs,
     attendanceHistoryViewContainer, trendAnalysisPanel, 
     
-    // ✅ [추가] 리포트 DOM 요소
     reportPanel, reportTabs, reportViewContainer, 
-    reportDailyView, reportWeeklyView, reportMonthlyView, reportYearlyView,
-
-    // ✅ [추가] COQ 설명 모달
+    
     coqExplanationModal,
-
     deleteHistoryModal, confirmHistoryDeleteBtn, 
 
-    // 👈 [추가] 기간 조회 DOM 요소들
     historyStartDateInput, historyEndDateInput, historyFilterBtn, 
     historyClearFilterBtn, historyDownloadPeriodExcelBtn,
     
-    // (로그인/로그아웃 DOM 요소)
     loginModal, 
     
 } from './app.js';
 
-// utils.js에서 필요한 모든 헬퍼 함수 가져오기
 import { showToast } from './utils.js';
 
-// ui.js (통합)에서 가져올 렌더링 함수
 import {
     renderTrendAnalysisCharts,
-    trendCharts, // ✅ [수정] trendCharts는 ui.js에서 가져옴
-    
-    // ✅ [추가] 리포트 렌더링 함수
+    trendCharts, 
     renderReportDaily,
     renderReportWeekly,
     renderReportMonthly,
     renderReportYearly
 } from './ui.js';
 
-// app-history-logic.js (이력 로직)
 import {
     loadAndRenderHistoryList,
     renderHistoryDetail,
     switchHistoryView,
     renderHistoryDateListByMode,
-    openHistoryQuantityModal,     // 👈 [추가]
-    requestHistoryDeletion      // 👈 [추가]
+    openHistoryQuantityModal,     
+    requestHistoryDeletion      
 } from './app-history-logic.js';
 
-// history-excel.js (엑셀 로직)
 import {
-    downloadPeriodHistoryAsExcel,
-    downloadHistoryAsExcel      // 👈 [추가]
+    downloadHistoryAsExcel,
+    downloadPeriodHistoryAsExcel 
 } from './history-excel.js';
 
-// (ui-history에서 직접 가져와야 함 - app-history-logic가 ui를 import하므로 순환참조 방지)
 import {
   renderAttendanceDailyHistory,
   renderAttendanceWeeklyHistory,
@@ -81,8 +71,6 @@ import {
   renderMonthlyHistory
 } from './ui-history.js';
 
-
-// Firebase (Firestore)
 import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
@@ -91,19 +79,13 @@ import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12
  */
 export function setupHistoryModalListeners() {
     
-    // ✅ [추가] 전체화면 감지 및 종료 헬퍼
     const exitFullscreenIfActive = () => {
-        // historyModalContentBox가 현재 전체화면 요소인지 확인
         if (document.fullscreenElement === historyModalContentBox) {
             document.exitFullscreen();
         }
     };
 
-    // --- 4. 👈 [수정] 이력(History) 모달 리스너 (기간 조회 버튼 추가) ---
-    
-    // 👈 [추가] 현재 활성화된 탭 모드(day, week, month)를 반환하는 헬퍼 함수
     const getCurrentHistoryListMode = () => {
-        // ✅ [수정] 리포트 탭도 확인
         let activeSubTabBtn;
         if (context.activeMainHistoryTab === 'work') {
             activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
@@ -115,14 +97,12 @@ export function setupHistoryModalListeners() {
         
         const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
 
-        // ✅ [수정] 리포트 탭의 'year' 모드 추가
         if (activeView.includes('yearly')) return 'year';
         if (activeView.includes('weekly')) return 'week';
         if (activeView.includes('monthly')) return 'month';
         return 'day';
     };
 
-    // 👈 [추가] '조회' 버튼 리스너
     if (historyFilterBtn) {
         historyFilterBtn.addEventListener('click', () => {
             const startDate = historyStartDateInput.value;
@@ -136,14 +116,12 @@ export function setupHistoryModalListeners() {
             context.historyStartDate = startDate || null;
             context.historyEndDate = endDate || null;
             
-            // ✅ [추가] 조회 시 정렬 초기화
             context.reportSortState = {}; 
             renderHistoryDateListByMode(getCurrentHistoryListMode());
             showToast('이력 목록을 필터링했습니다.');
         });
     }
 
-    // 👈 [추가] '초기화' 버튼 리스너
     if (historyClearFilterBtn) {
         historyClearFilterBtn.addEventListener('click', () => {
             historyStartDateInput.value = '';
@@ -151,14 +129,12 @@ export function setupHistoryModalListeners() {
             context.historyStartDate = null;
             context.historyEndDate = null;
             
-            // ✅ [추가] 초기화 시 정렬 초기화
             context.reportSortState = {}; 
             renderHistoryDateListByMode(getCurrentHistoryListMode());
             showToast('필터를 초기화했습니다.');
         });
     }
 
-    // 👈 [추가] '선택기간 엑셀다운' 버튼 리스너
     if (historyDownloadPeriodExcelBtn) {
         historyDownloadPeriodExcelBtn.addEventListener('click', () => {
             const startDate = context.historyStartDate;
@@ -168,8 +144,6 @@ export function setupHistoryModalListeners() {
                 showToast('엑셀 다운로드를 위해 시작일과 종료일을 모두 설정(조회)해주세요.', true);
                 return;
             }
-            
-            // 이 함수는 history-excel.js에서 구현했습니다.
             downloadPeriodHistoryAsExcel(startDate, endDate); 
         });
     }
@@ -188,7 +162,6 @@ export function setupHistoryModalListeners() {
         if (historyModal) {
           historyModal.classList.remove('hidden'); 
           
-          // 👈 [추가] 모달 열 때 필터값 초기화
           if (historyStartDateInput) historyStartDateInput.value = '';
           if (historyEndDateInput) historyEndDateInput.value = '';
           context.historyStartDate = null;
@@ -231,7 +204,6 @@ export function setupHistoryModalListeners() {
           btn.classList.add('bg-blue-100', 'font-bold');
           const dateKey = btn.dataset.key; 
           
-          // ✅ [수정] 리포트 탭도 확인하도록 로직 수정
           let activeSubTabBtn;
           if (context.activeMainHistoryTab === 'work') {
               activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
@@ -243,7 +215,6 @@ export function setupHistoryModalListeners() {
           
           const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily'); 
           
-          // 👈 [추가] 날짜 클릭 시 필터링된 데이터(filteredData)를 사용해야 함
           const filteredData = (context.historyStartDate || context.historyEndDate)
               ? allHistoryData.filter(d => {
                   const date = d.id;
@@ -256,32 +227,29 @@ export function setupHistoryModalListeners() {
                 })
               : allHistoryData;
               
-          // ✅ [추가] 정렬 상태 초기화 (날짜가 바뀌었으므로)
           context.reportSortState = {};
 
           if (context.activeMainHistoryTab === 'work') {
               if (activeView === 'daily') {
                   const currentIndex = filteredData.findIndex(d => d.id === dateKey);
-                  // 👈 [수정] filteredData에서 previousDayData를 찾음
                   const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length) 
                                         ? filteredData[currentIndex + 1] 
                                         : null;
-                  renderHistoryDetail(dateKey, previousDayData); // 👈 dateKey로 찾지만, prev는 filteredData 기준
+                  renderHistoryDetail(dateKey, previousDayData); 
               } else if (activeView === 'weekly') {
-                  renderWeeklyHistory(dateKey, filteredData, appConfig); // 👈 filteredData 전달
+                  renderWeeklyHistory(dateKey, filteredData, appConfig); 
               } else if (activeView === 'monthly') {
-                  renderMonthlyHistory(dateKey, filteredData, appConfig); // 👈 filteredData 전달
+                  renderMonthlyHistory(dateKey, filteredData, appConfig); 
               }
-          } else if (context.activeMainHistoryTab === 'attendance') { // attendance tab
+          } else if (context.activeMainHistoryTab === 'attendance') { 
               if (activeView === 'attendance-daily') {
-                  renderAttendanceDailyHistory(dateKey, filteredData); // 👈 filteredData 전달
+                  renderAttendanceDailyHistory(dateKey, filteredData); 
               } else if (activeView === 'attendance-weekly') {
-                  renderAttendanceWeeklyHistory(dateKey, filteredData); // 👈 filteredData 전달
+                  renderAttendanceWeeklyHistory(dateKey, filteredData); 
               } else if (activeView === 'attendance-monthly') {
-                  renderAttendanceMonthlyHistory(dateKey, filteredData); // 👈 filteredData 전달
+                  renderAttendanceMonthlyHistory(dateKey, filteredData); 
               }
           }
-          // ✅ [수정] 리포트 탭 클릭 시 (context 전달)
           else if (context.activeMainHistoryTab === 'report') {
               if (activeView === 'report-daily') {
                   renderReportDaily(dateKey, filteredData, appConfig, context);
@@ -309,11 +277,11 @@ export function setupHistoryModalListeners() {
 
     if (confirmHistoryDeleteBtn) {
       confirmHistoryDeleteBtn.addEventListener('click', async () => {
-        if (context.historyKeyToDelete) { // ✅ context.
-          const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', context.historyKeyToDelete); // ✅ context.
+        if (context.historyKeyToDelete) { 
+          const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', context.historyKeyToDelete); 
           try {
             await deleteDoc(historyDocRef);
-            showToast(`${context.historyKeyToDelete} 이력이 삭제되었습니다.`); // ✅ context.
+            showToast(`${context.historyKeyToDelete} 이력이 삭제되었습니다.`); 
             await loadAndRenderHistoryList();
           } catch (e) {
             console.error('Error deleting history:', e);
@@ -321,7 +289,7 @@ export function setupHistoryModalListeners() {
           }
         }
         if (deleteHistoryModal) deleteHistoryModal.classList.add('hidden');
-        context.historyKeyToDelete = null; // ✅ context.
+        context.historyKeyToDelete = null; 
       });
     }
 
@@ -330,11 +298,10 @@ export function setupHistoryModalListeners() {
         const btn = e.target.closest('button[data-main-tab]');
         if (btn) {
           const tabName = btn.dataset.mainTab;
-          context.activeMainHistoryTab = tabName; // ✅ context.
+          context.activeMainHistoryTab = tabName; 
           
-          // ✅ [추가] 탭 전환 시 정렬 상태 초기화
           context.reportSortState = {};
-          context.currentReportParams = null; // ✅ [추가]
+          context.currentReportParams = null; 
 
           document.querySelectorAll('.history-main-tab-btn').forEach(b => {
               b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
@@ -349,7 +316,7 @@ export function setupHistoryModalListeners() {
             if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
             if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
             if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden'); 
-            if (reportPanel) reportPanel.classList.add('hidden'); // ✅ [추가]
+            if (reportPanel) reportPanel.classList.add('hidden'); 
             if (dateListContainer) dateListContainer.style.display = 'block'; 
 
             const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
@@ -360,7 +327,7 @@ export function setupHistoryModalListeners() {
             if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
             if (attendanceHistoryPanel) attendanceHistoryPanel.classList.remove('hidden');
             if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden'); 
-            if (reportPanel) reportPanel.classList.add('hidden'); // ✅ [추가]
+            if (reportPanel) reportPanel.classList.add('hidden'); 
             if (dateListContainer) dateListContainer.style.display = 'block'; 
 
             const activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
@@ -371,23 +338,20 @@ export function setupHistoryModalListeners() {
             if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
             if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
             if (trendAnalysisPanel) trendAnalysisPanel.classList.remove('hidden');
-            if (reportPanel) reportPanel.classList.add('hidden'); // ✅ [추가]
+            if (reportPanel) reportPanel.classList.add('hidden'); 
             if (dateListContainer) dateListContainer.style.display = 'none'; 
             
-            // 👈 [수정] 트렌드 분석은 필터된 데이터가 아닌 '전체' 데이터 기준
             renderTrendAnalysisCharts(allHistoryData, appConfig, trendCharts);
           
-          // ✅ [추가] 리포트 탭 클릭 시
           } else if (tabName === 'report') {
             if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
             if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
             if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
             if (reportPanel) reportPanel.classList.remove('hidden');
             
-            // 리포트 탭의 현재 활성화된 뷰(또는 기본값) 확인
             const activeSubTabBtn = reportTabs?.querySelector('button.font-semibold');
             const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'report-daily';
-            switchHistoryView(view); // (이 함수는 'report-yearly'일 때 dateList를 숨길 것임)
+            switchHistoryView(view); 
           }
         }
       });
@@ -402,20 +366,17 @@ export function setupHistoryModalListeners() {
       });
     }
 
-    // ✅ [수정] 업무 리포트 탭 리스너
     if (reportTabs) {
       reportTabs.addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-view]');
         if (btn) {
-          // ✅ [추가] 리포트 탭 전환 시 정렬 상태 초기화
           context.reportSortState = {};
-          context.currentReportParams = null; // ✅ [추가]
+          context.currentReportParams = null; 
           switchHistoryView(btn.dataset.view);
         }
       });
     }
 
-    // ✅ [수정] '업무 이력' (일별 상세) 뷰의 버튼 리스너
     if (historyViewContainer) {
         historyViewContainer.addEventListener('click', (e) => {
             const button = e.target.closest('button[data-action]');
@@ -424,36 +385,29 @@ export function setupHistoryModalListeners() {
             const action = button.dataset.action;
             const dateKey = button.dataset.dateKey;
 
-            if (!dateKey) {
-                console.warn('Action button missing dateKey', button);
-                return;
-            }
+            if (!dateKey) { return; }
 
-            // data-action 값에 따라 적절한 함수 호출
             if (action === 'open-history-quantity-modal') {
-                exitFullscreenIfActive(); // ✅ [FIX]
+                exitFullscreenIfActive(); 
                 openHistoryQuantityModal(dateKey);
             } else if (action === 'download-history-excel') {
-                downloadHistoryAsExcel(dateKey); // (모달 아님)
+                downloadHistoryAsExcel(dateKey); 
             } else if (action === 'request-history-deletion') {
-                exitFullscreenIfActive(); // ✅ [FIX]
+                exitFullscreenIfActive(); 
                 requestHistoryDeletion(dateKey);
             }
         });
     }
     
-    // (근태 이력) '일별 상세' 보기 리스너 (수정/삭제/추가)
     if (attendanceHistoryViewContainer) {
         attendanceHistoryViewContainer.addEventListener('click', (e) => {
             
-            // 1. '수정' 버튼 클릭
             const editBtn = e.target.closest('button[data-action="edit-attendance"]');
             if (editBtn) {
                 const dateKey = editBtn.dataset.dateKey;
                 const index = parseInt(editBtn.dataset.index, 10);
                 if (!dateKey || isNaN(index)) { return; }
                 
-                // 👈 [수정] 필터된 데이터를 기준으로 찾지 않고, '전체' 데이터에서 찾음
                 const dayData = allHistoryData.find(d => d.id === dateKey);
                 
                 if (!dayData || !dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
@@ -488,36 +442,33 @@ export function setupHistoryModalListeners() {
                 if (editAttendanceDateKeyInput) editAttendanceDateKeyInput.value = dateKey;
                 if (editAttendanceRecordIndexInput) editAttendanceRecordIndexInput.value = index;
                 
-                exitFullscreenIfActive(); // ✅ [FIX]
+                exitFullscreenIfActive(); 
                 if (editAttendanceRecordModal) editAttendanceRecordModal.classList.remove('hidden');
                 return; 
             }
             
-            // 2. '삭제' 버튼 클릭
             const deleteBtn = e.target.closest('button[data-action="delete-attendance"]');
             if (deleteBtn) {
                 const dateKey = deleteBtn.dataset.dateKey;
                 const index = parseInt(deleteBtn.dataset.index, 10);
                 if (!dateKey || isNaN(index)) { return; }
 
-                // 👈 [수정] 필터된 데이터를 기준으로 찾지 않고, '전체' 데이터에서 찾음
                 const dayData = allHistoryData.find(d => d.id === dateKey);
                 const record = dayData?.onLeaveMembers?.[index];
                 
                 if (!record) { showToast('삭제할 근태 기록을 찾을 수 없습니다.', true); return; }
 
-                context.deleteMode = 'attendance'; // ✅ context.
-                context.attendanceRecordToDelete = { dateKey, index }; // ✅ context.
+                context.deleteMode = 'attendance'; 
+                context.attendanceRecordToDelete = { dateKey, index }; 
                 
                 const msgEl = document.getElementById('delete-confirm-message');
                 if (msgEl) msgEl.textContent = `${record.member}님의 '${record.type}' 기록을 삭제하시겠습니까?`;
                 
-                exitFullscreenIfActive(); // ✅ [FIX]
+                exitFullscreenIfActive(); 
                 if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
                 return; 
             }
 
-            // 3. '수동 추가' 버튼 클릭
             const addBtn = e.target.closest('button[data-action="open-add-attendance-modal"]');
             if (addBtn) {
                 const dateKey = addBtn.dataset.dateKey;
@@ -555,28 +506,25 @@ export function setupHistoryModalListeners() {
                 if (addAttendanceTimeFields) addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
                 if (addAttendanceDateFields) addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
 
-                exitFullscreenIfActive(); // ✅ [FIX]
+                exitFullscreenIfActive(); 
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.remove('hidden');
                 return;
             }
         });
     }
 
-    // ✅ [수정] '업무 리포트' 뷰 컨테이너 리스너 (정렬 기능 추가)
     if (reportViewContainer) {
         reportViewContainer.addEventListener('click', (e) => {
-            // 1. 품질 비용 모달 띄우기
             const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
             if (coqButton) {
                 e.stopPropagation();
-                exitFullscreenIfActive(); // ✅ [FIX]
+                exitFullscreenIfActive(); 
                 if (coqExplanationModal) {
                     coqExplanationModal.classList.remove('hidden');
                 }
                 return;
             }
             
-            // 2. ✅ [추가] 정렬 헤더 클릭 처리
             const header = e.target.closest('.sortable-header');
             if (header) {
                 e.stopPropagation();
@@ -590,7 +538,6 @@ export function setupHistoryModalListeners() {
                 else if (tableId === 'report-table-task') tableKey = 'taskSummary';
                 else return;
                 
-                // 3. 정렬 상태 업데이트
                 const currentSort = context.reportSortState[tableKey] || { key: null, dir: 'asc' };
                 let newDir = 'desc';
                 if (currentSort.key === sortKey) {
@@ -598,122 +545,238 @@ export function setupHistoryModalListeners() {
                 }
                 context.reportSortState[tableKey] = { key: sortKey, dir: newDir };
                 
-                // 4. 현재 렌더링된 파라미터로 뷰 다시 렌더링
                 if (!context.currentReportParams) {
                     console.warn("정렬 재실행 오류: currentReportParams가 없습니다.");
                     return;
                 }
                 
-                // 5. 저장된 파라미터와 '업데이트된 context'로 렌더링 함수 재호출
-                const { dateKey, allHistoryData, appConfig } = context.currentReportParams;
+                const { dateKey, weekKey, monthKey, yearKey, allHistoryData, appConfig } = context.currentReportParams;
                 const activeView = reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
                 
                 if (activeView === 'report-daily') {
                     renderReportDaily(dateKey, allHistoryData, appConfig, context);
                 } else if (activeView === 'report-weekly') {
-                    renderReportWeekly(dateKey, allHistoryData, appConfig, context);
+                    renderReportWeekly(weekKey, allHistoryData, appConfig, context);
                 } else if (activeView === 'report-monthly') {
-                    renderReportMonthly(dateKey, allHistoryData, appConfig, context);
+                    renderReportMonthly(monthKey, allHistoryData, appConfig, context);
                 } else if (activeView === 'report-yearly') {
-                    renderReportYearly(dateKey, allHistoryData, appConfig, context);
+                    renderReportYearly(yearKey, allHistoryData, appConfig, context);
                 }
-                
                 return;
             }
         });
     }
 
-    // --- 14. 이력 모달 드래그 기능 ---
     const historyHeader = document.getElementById('history-modal-header');
     if (historyModal && historyHeader && historyModalContentBox) {
         makeDraggable(historyModal, historyHeader, historyModalContentBox);
     }
 
-    // ✅ [수정] --- 15. 이력 모달 전체화면 버튼 리스너 (모니터 전체화면 API 사용) ---
     const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
-    
     if (toggleFullscreenBtn && historyModal && historyModalContentBox) {
-        
-        // 새 아이콘 정의
-        const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`; // 새 확대 아이콘
-        const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`; // 새 축소 아이콘
+        const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
+        const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
 
-        // 1. 클릭 이벤트 리스너: Fullscreen API 호출
         toggleFullscreenBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            
             if (!document.fullscreenElement) {
-                // 모니터 전체화면 시작
                 historyModalContentBox.requestFullscreen().catch(err => {
                     alert(`전체화면 모드를 시작할 수 없습니다: ${err.message} (${err.name})`);
                 });
             } else {
-                // 모니터 전체화면 종료
                 if (document.exitFullscreen) {
                     document.exitFullscreen();
                 }
             }
         });
 
-        // 2. Fullscreen 상태 변경 감지 리스너 (아이콘 및 스타일 변경용)
         const handleFullscreenChange = () => {
             const icon = toggleFullscreenBtn.querySelector('svg');
             if (!icon) return;
 
-            // 현재 전체화면 요소가 이 모달 컨텐츠 박스인지 확인
             if (document.fullscreenElement === historyModalContentBox) {
-                // (A) 전체화면 *진입* 시
-                
-                // 드래그로 인해 적용된 인라인 스타일 초기화
                 historyModalContentBox.style.position = '';
                 historyModalContentBox.style.top = '';
                 historyModalContentBox.style.left = '';
                 historyModalContentBox.style.transform = '';
                 historyModalContentBox.dataset.hasBeenUncentered = 'false';
-
-                // 오버레이(배경)의 정렬 클래스 *제거*
                 historyModal.classList.remove('flex', 'items-center', 'justify-center');
-                
-                // 콘텐츠 박스의 크기 클래스를 *전체화면용*으로 변경
                 historyModalContentBox.classList.remove('max-w-7xl', 'h-[90vh]');
                 historyModalContentBox.classList.add('w-screen', 'h-screen', 'max-w-none');
-
-                // 아이콘 변경
                 icon.innerHTML = iconMinimize;
                 toggleFullscreenBtn.title = "기본 크기로";
 
             } else if (document.fullscreenElement === null) { 
-                // (B) 전체화면 *종료* 시 (Esc 또는 버튼 클릭)
-
-                // 오버레이(배경)의 정렬 클래스 *복구*
                 historyModal.classList.add('flex', 'items-center', 'justify-center');
-                
-                // 콘텐츠 박스의 크기 클래스를 *기본*으로 변경
                 historyModalContentBox.classList.add('max-w-7xl', 'h-[90vh]');
                 historyModalContentBox.classList.remove('w-screen', 'h-screen', 'max-w-none');
-
-                // 아이콘 변경
                 icon.innerHTML = iconMaximize;
                 toggleFullscreenBtn.title = "전체화면";
             }
         };
 
-        // 'document'에 리스너를 추가하여 'Esc' 키도 감지
-        // (중복 등록 방지를 위해 플래그 사용)
         if (!document.fullscreenListenerAdded) {
             document.addEventListener('fullscreenchange', handleFullscreenChange);
-            document.fullscreenListenerAdded = true; // 플래그 설정
+            document.fullscreenListenerAdded = true;
         }
 
-        // 3. (페이지 로드 시 초기 아이콘 설정 - 확대 아이콘)
         const icon = toggleFullscreenBtn.querySelector('svg');
         if (icon) {
              icon.innerHTML = iconMaximize;
         }
+    } 
 
-    } // ✅ [수정] --- 15번 항목 끝 ---
+    // ==========================================================================
+    // ✅ [추가/수정] 이력 모달 내의 근태 추가/수정/취소 버튼 리스너 (누락분 추가)
+    // ==========================================================================
 
-}    
+    // 1. 근태 수정 모달 - '저장' 버튼
+    if (confirmEditAttendanceBtn) {
+        confirmEditAttendanceBtn.addEventListener('click', async () => {
+            const dateKey = editAttendanceDateKeyInput?.value;
+            const indexStr = editAttendanceRecordIndexInput?.value;
+            
+            if (!dateKey || indexStr === '') {
+                showToast('수정할 기록 정보를 찾을 수 없습니다.', true); return;
+            }
+            const index = parseInt(indexStr, 10);
+
+            const dayDataIndex = allHistoryData.findIndex(d => d.id === dateKey);
+            if (dayDataIndex === -1) {
+                showToast('해당 날짜의 이력 데이터를 찾을 수 없습니다.', true); return;
+            }
+            const dayData = allHistoryData[dayDataIndex];
+            if (!dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
+                showToast('수정할 근태 기록을 찾을 수 없습니다.', true); return;
+            }
+
+            const newType = editAttendanceTypeSelect?.value;
+            const isTimeBased = (newType === '외출' || newType === '조퇴');
+
+            const updatedRecord = { ...dayData.onLeaveMembers[index], type: newType };
+
+            if (isTimeBased) {
+                updatedRecord.startTime = editAttendanceStartTimeInput?.value || null;
+                updatedRecord.endTime = editAttendanceEndTimeInput?.value || null;
+                delete updatedRecord.startDate;
+                delete updatedRecord.endDate;
+            } else {
+                updatedRecord.startDate = editAttendanceStartDateInput?.value || null;
+                updatedRecord.endDate = editAttendanceEndDateInput?.value || null;
+                delete updatedRecord.startTime;
+                delete updatedRecord.endTime;
+            }
+
+            if (isTimeBased && !updatedRecord.startTime) {
+                showToast('시작 시간을 입력해주세요.', true); return;
+            }
+            if (!isTimeBased && !updatedRecord.startDate) {
+                 showToast('시작일을 입력해주세요.', true); return;
+            }
+
+            dayData.onLeaveMembers[index] = updatedRecord;
+            
+            try {
+                const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+                await setDoc(historyDocRef, dayData);
+                
+                showToast('근태 기록이 수정되었습니다.');
+                if (editAttendanceRecordModal) editAttendanceRecordModal.classList.add('hidden');
+                
+                renderAttendanceDailyHistory(dateKey, allHistoryData);
+
+            } catch (e) {
+                console.error('Error updating attendance history:', e);
+                showToast('근태 기록 저장 중 오류가 발생했습니다.', true);
+            }
+        });
+    }
+
+    // 2. 근태 수정 모달 - '취소' 버튼
+    if (cancelEditAttendanceBtn) {
+        cancelEditAttendanceBtn.addEventListener('click', () => {
+            if (editAttendanceRecordModal) editAttendanceRecordModal.classList.add('hidden');
+        });
+    }
+
+    // 3. 근태 추가 모달 - '저장' 버튼
+    if (confirmAddAttendanceBtn) {
+        confirmAddAttendanceBtn.addEventListener('click', async () => {
+            const dateKey = addAttendanceDateKeyInput?.value;
+            if (!dateKey) {
+                showToast('날짜 정보를 찾을 수 없습니다.', true); return;
+            }
+
+            const memberName = addAttendanceMemberNameInput?.value.trim();
+            const type = addAttendanceTypeSelect?.value;
+            if (!memberName || !type) {
+                 showToast('이름과 유형을 모두 입력해주세요.', true); return;
+            }
+
+            const isTimeBased = (type === '외출' || type === '조퇴');
+            const newRecord = { member: memberName, type: type };
+
+            if (isTimeBased) {
+                newRecord.startTime = addAttendanceStartTimeInput?.value || null;
+                newRecord.endTime = addAttendanceEndTimeInput?.value || null;
+                if (!newRecord.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
+            } else {
+                newRecord.startDate = addAttendanceStartDateInput?.value || null;
+                newRecord.endDate = addAttendanceEndDateInput?.value || null;
+                if (!newRecord.startDate) { showToast('시작일을 입력해주세요.', true); return; }
+            }
+
+            let dayData = allHistoryData.find(d => d.id === dateKey);
+            if (!dayData) {
+                dayData = { id: dateKey, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
+                allHistoryData.push(dayData);
+                allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
+            }
+
+            if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
+            dayData.onLeaveMembers.push(newRecord);
+
+            try {
+                const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+                await setDoc(historyDocRef, dayData);
+
+                showToast(`${memberName}님의 근태 기록이 추가되었습니다.`);
+                if (addAttendanceRecordModal) addAttendanceRecordModal.classList.add('hidden');
+                
+                renderAttendanceDailyHistory(dateKey, allHistoryData);
+
+            } catch (e) {
+                console.error('Error adding attendance history:', e);
+                showToast('근태 기록 추가 중 오류가 발생했습니다.', true);
+                dayData.onLeaveMembers.pop();
+            }
+        });
+    }
+
+    // 4. 근태 추가 모달 - '취소' 버튼
+    if (cancelAddAttendanceBtn) {
+        cancelAddAttendanceBtn.addEventListener('click', () => {
+            if (addAttendanceRecordModal) addAttendanceRecordModal.classList.add('hidden');
+        });
+    }
+    
+    // 5. 근태 추가/수정 모달 내의 유형 선택 변경 리스너
+    if (addAttendanceTypeSelect) {
+        addAttendanceTypeSelect.addEventListener('change', (e) => {
+            const isTimeBased = (e.target.value === '외출' || e.target.value === '조퇴');
+            if (addAttendanceTimeFields) addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
+            if (addAttendanceDateFields) addAttendanceDateFields.classList.toggle('hidden', isTimeBased);
+        });
+    }
+    if (editAttendanceTypeSelect) {
+        editAttendanceTypeSelect.addEventListener('change', (e) => {
+            const isTimeBased = (e.target.value === '외출' || e.target.value === '조퇴');
+            if (editAttendanceTimeFields) editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
+            if (editAttendanceDateFields) editAttendanceDateFields.classList.toggle('hidden', isTimeBased);
+        });
+    }
+
+}
 
 /**
  * 모달 팝업을 드래그 가능하게 만듭니다.
@@ -751,19 +814,6 @@ function makeDraggable(modalOverlay, header, contentBox) {
         let newLeft = e.clientX - offsetX;
         let newTop = e.clientY - offsetY;
         
-        // 화면 밖으로 드래그할 수 있도록 경계 제한 로직 주석 처리
-        /*
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        const boxWidth = contentBox.offsetWidth;
-        const boxHeight = contentBox.offsetHeight;
-
-        if (newLeft < 0) newLeft = 0;
-        if (newTop < 0) newTop = 0;
-        if (newLeft + boxWidth > viewportWidth) newLeft = viewportWidth - boxWidth;
-        if (newTop + boxHeight > viewportHeight) newTop = viewportHeight - boxHeight;
-        */
-
         contentBox.style.left = `${newLeft}px`;
         contentBox.style.top = `${newTop}px`;
     }
