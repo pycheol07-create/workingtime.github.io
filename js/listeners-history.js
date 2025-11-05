@@ -91,6 +91,14 @@ import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12
  */
 export function setupHistoryModalListeners() {
     
+    // ✅ [추가] 전체화면 감지 및 종료 헬퍼
+    const exitFullscreenIfActive = () => {
+        // historyModalContentBox가 현재 전체화면 요소인지 확인
+        if (document.fullscreenElement === historyModalContentBox) {
+            document.exitFullscreen();
+        }
+    };
+
     // --- 4. 👈 [수정] 이력(History) 모달 리스너 (기간 조회 버튼 추가) ---
     
     // 👈 [추가] 현재 활성화된 탭 모드(day, week, month)를 반환하는 헬퍼 함수
@@ -393,7 +401,7 @@ export function setupHistoryModalListeners() {
       });
     }
 
-    // ✅ [추가] '업무 이력' (일별 상세) 뷰의 버튼 리스너
+    // ✅ [수정] '업무 이력' (일별 상세) 뷰의 버튼 리스너
     if (historyViewContainer) {
         historyViewContainer.addEventListener('click', (e) => {
             const button = e.target.closest('button[data-action]');
@@ -409,10 +417,12 @@ export function setupHistoryModalListeners() {
 
             // data-action 값에 따라 적절한 함수 호출
             if (action === 'open-history-quantity-modal') {
+                exitFullscreenIfActive(); // ✅ [FIX]
                 openHistoryQuantityModal(dateKey);
             } else if (action === 'download-history-excel') {
-                downloadHistoryAsExcel(dateKey);
+                downloadHistoryAsExcel(dateKey); // (모달 아님)
             } else if (action === 'request-history-deletion') {
+                exitFullscreenIfActive(); // ✅ [FIX]
                 requestHistoryDeletion(dateKey);
             }
         });
@@ -463,6 +473,8 @@ export function setupHistoryModalListeners() {
                 }
                 if (editAttendanceDateKeyInput) editAttendanceDateKeyInput.value = dateKey;
                 if (editAttendanceRecordIndexInput) editAttendanceRecordIndexInput.value = index;
+                
+                exitFullscreenIfActive(); // ✅ [FIX]
                 if (editAttendanceRecordModal) editAttendanceRecordModal.classList.remove('hidden');
                 return; 
             }
@@ -485,6 +497,8 @@ export function setupHistoryModalListeners() {
                 
                 const msgEl = document.getElementById('delete-confirm-message');
                 if (msgEl) msgEl.textContent = `${record.member}님의 '${record.type}' 기록을 삭제하시겠습니까?`;
+                
+                exitFullscreenIfActive(); // ✅ [FIX]
                 if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
                 return; 
             }
@@ -527,18 +541,20 @@ export function setupHistoryModalListeners() {
                 if (addAttendanceTimeFields) addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
                 if (addAttendanceDateFields) addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
 
+                exitFullscreenIfActive(); // ✅ [FIX]
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.remove('hidden');
                 return;
             }
         });
     }
 
-    // ✅ [추가] '업무 리포트' 뷰 컨테이너 리스너
+    // ✅ [수정] '업무 리포트' 뷰 컨테이너 리스너
     if (reportViewContainer) {
         reportViewContainer.addEventListener('click', (e) => {
             const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
             if (coqButton) {
                 e.stopPropagation();
+                exitFullscreenIfActive(); // ✅ [FIX]
                 if (coqExplanationModal) {
                     coqExplanationModal.classList.remove('hidden');
                 }
