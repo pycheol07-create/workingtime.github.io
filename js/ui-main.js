@@ -4,8 +4,115 @@ import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, is
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 
 /**
+ * 메인 화면 - 상단 현황판 레이아웃 렌더링
+ */
+export const renderDashboardLayout = (appConfig) => {
+    const container = document.getElementById('summary-content');
+    if (!container) return;
+
+    const itemIds = appConfig.dashboardItems || [];
+    // quantities는 이제 사용하지 않지만 호환성을 위해 남겨둘 수 있음
+    const allDefinitions = getAllDashboardDefinitions(appConfig);
+
+    container.innerHTML = '';
+    let html = '';
+
+    itemIds.forEach(id => {
+        const def = allDefinitions[id];
+        if (!def) return;
+
+        const isQuantity = def.isQuantity === true;
+        const valueContent = `<p id="${def.valueId}">0</p>`; // 초기값 0
+
+        html += `
+            <div class="dashboard-card p-4 rounded-lg ${isQuantity ? 'dashboard-card-quantity' : ''}">
+                <h4 class="text-sm font-bold uppercase tracking-wider">${def.title}</h4>
+                ${valueContent}
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+};
+
+/**
+ * 메인 화면 - 상단 현황판 수치 업데이트
+ */
+export const updateSummary = (appState, appConfig) => {
+    const allDefinitions = getAllDashboardDefinitions(appConfig);
+    const elements = {};
+    Object.keys(allDefinitions).forEach(id => {
+        const def = allDefinitions[id];
+        if (def && def.valueId) {
+            elements[id] = document.getElementById(def.valueId);
+        }
+    });
+
+    const teamGroups = appConfig.teamGroups || [];
+    const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
+    const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
+    const totalStaffCount = allStaffMembers.size;
+    const totalPartTimerCount = allPartTimers.size;
+
+    const combinedOnLeaveMembers = [
+        ...(appState.dailyOnLeaveMembers || []),
+        ...(appState.dateBasedOnLeaveMembers || [])
+    ];
+
+    const onLeaveMemberNames = new Set(
+        combinedOnLeaveMembers
+            .filter(item => !(item.type === '외출' && item.endTime))
+            .map(item => item.member)
+    );
+    const onLeaveTotalCount = onLeaveMemberNames.size;
+
+    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
+    const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
+    
+    const ongoingMembers = new Set(ongoingRecords.map(r => r.member));
+    const pausedMembers = new Set(pausedRecords.map(r => r.member));
+
+    const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
+    // const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length; // 사용 안 함
+    const totalWorkingCount = ongoingMembers.size;
+
+    const availableStaffCount = totalStaffCount - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
+    const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
+    
+    const pausedStaffCount = [...pausedMembers].filter(member => allStaffMembers.has(member)).length;
+    const pausedPartTimerCount = [...pausedMembers].filter(member => allPartTimers.has(member)).length;
+    
+    const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount - pausedStaffCount);
+    const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount - pausedPartTimerCount);
+    
+    const totalIdleCount = idleStaffCount + idlePartTimerCount;
+
+    const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+    const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
+
+    if (elements['total-staff']) elements['total-staff'].textContent = `${totalStaffCount}/${totalPartTimerCount}`;
+    if (elements['leave-staff']) elements['leave-staff'].textContent = `${onLeaveTotalCount}`;
+    if (elements['active-staff']) elements['active-staff'].textContent = `${availableStaffCount}/${availablePartTimerCount}`;
+    if (elements['working-staff']) elements['working-staff'].textContent = `${totalWorkingCount}`;
+    if (elements['idle-staff']) elements['idle-staff'].textContent = `${totalIdleCount}`;
+    if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`;
+
+    // 수량 항목 업데이트
+    const quantitiesFromState = appState.taskQuantities || {};
+    const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
+    
+    for (const task in quantitiesFromState) {
+        const quantity = quantitiesFromState[task] || 0;
+        const targetDashboardId = taskNameToDashboardIdMap[task];
+
+        if (targetDashboardId && elements[targetDashboardId]) {
+            elements[targetDashboardId].textContent = quantity;
+        }
+    }
+};
+
+/**
  * 메인 화면 - 업무 분석 렌더링
- * ✅ [수정] 진행 중인 업무도 실시간으로 포함하여 분석
  */
 export const renderTaskAnalysis = (appState, appConfig) => {
     const analysisContainer = document.getElementById('analysis-task-summary-panel'); 
@@ -14,7 +121,6 @@ export const renderTaskAnalysis = (appState, appConfig) => {
     
     const now = getCurrentTime();
 
-    // 1. 모든 기록(완료 + 진행 + 휴식)을 가져와서 현재까지의 소요 시간을 계산
     const allRecords = appState.workRecords || [];
     if (allRecords.length === 0) {
         analysisContainer.innerHTML = `<div class="text-center text-gray-500 py-4">기록된 업무가 없어 분석을 시작할 수 없습니다.</div>`;
@@ -32,7 +138,6 @@ export const renderTaskAnalysis = (appState, appConfig) => {
         if (record.status === 'completed') {
             duration = record.duration || 0;
         } else {
-            // 진행 중 또는 휴식 중인 경우, 현재 시간까지의 경과 시간 계산
             duration = calcElapsedMinutes(record.startTime, now, record.pauses);
         }
 
@@ -41,10 +146,9 @@ export const renderTaskAnalysis = (appState, appConfig) => {
              totalLoggedMinutes += duration;
         }
 
-        // 휴식 시간 계산
         (record.pauses || []).forEach(pause => {
             if (pause.start && (pause.type === 'break' || !pause.type)) { 
-                const endTime = pause.end || now; // 끝나는 시간이 없으면 현재 시간 기준
+                const endTime = pause.end || now;
                 const s = new Date(`1970-01-01T${pause.start}:00Z`).getTime();
                 const e = new Date(`1970-01-01T${endTime}:00Z`).getTime();
                 if (e > s) {
@@ -88,7 +192,7 @@ export const renderTaskAnalysis = (appState, appConfig) => {
     </div>`;
 
     const memberSelect = document.getElementById('analysis-member-select');
-    if (memberSelect && memberSelect.options.length <= 1) { // 옵션이 없을 때만 새로 채움 (깜빡임 방지)
+    if (memberSelect && memberSelect.options.length <= 1) {
         const staff = (appConfig.teamGroups || []).flatMap(g => g.members);
         const partTimers = (appState.partTimers || []).map(p => p.name);
         const allMembers = [...new Set([...staff, ...partTimers])].sort((a, b) => a.localeCompare(b));
@@ -103,7 +207,6 @@ export const renderTaskAnalysis = (appState, appConfig) => {
 
 /**
  * 메인 화면 - 개인별 분석 렌더링
- * ✅ [수정] 진행 중인 업무도 실시간으로 포함하여 분석
  */
 export const renderPersonalAnalysis = (selectedMember, appState) => {
     const container = document.getElementById('analysis-personal-stats-container');
@@ -202,10 +305,9 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 };
 
 /**
- * 메인 화면 - 실시간 현황판 렌더링 (기존과 동일)
+ * 메인 화면 - 실시간 현황판 렌더링
  */
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
-    // (이전 코드와 동일하므로 생략 없이 전체 포함)
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
     const teamStatusBoard = document.getElementById('team-status-board');
@@ -270,7 +372,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         }
         presetGrid.appendChild(card);
     });
-    
+
     const otherTaskCard = document.createElement('div');
     const otherStyle = taskCardStyles['default'];
     otherTaskCard.className = `p-3 rounded-lg border flex flex-col justify-center items-center min-h-[300px] transition-all duration-200 cursor-pointer ${otherStyle.card.join(' ')} ${otherStyle.hover}`;
@@ -280,7 +382,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     presetTaskContainer.appendChild(presetGrid);
     teamStatusBoard.appendChild(presetTaskContainer);
 
-    // --- ALL TEAM MEMBER STATUS (생략 없이 포함) ---
+    // --- ALL TEAM MEMBER STATUS ---
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container';
     if (isMobileMemberViewExpanded) allMembersContainer.classList.add('mobile-expanded');
@@ -373,7 +475,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
 /**
  * 메인 화면 - 업무 기록 렌더링 (완료 + 진행 중)
- * ✅ [수정] 헤더 텍스트 변경 및 진행 중인 업무 포함
  */
 export const renderCompletedWorkLog = (appState) => {
     const workLogBody = document.getElementById('work-log-body');
