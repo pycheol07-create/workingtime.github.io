@@ -2,7 +2,7 @@
 
 import { formatDuration, getWeekOfYear } from './utils.js';
 // 헬퍼 함수를 reports 파일에서 가져옴 (순환 참조 해결)
-import { getDiffHtmlForMetric } from './ui-history-reports.js';
+import { getDiffHtmlForMetric } from './ui-history-reports-logic.js';
 
 /**
  * 주/월별 요약 뷰 렌더링 (내부 헬퍼)
