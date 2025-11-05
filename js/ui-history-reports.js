@@ -3,7 +3,10 @@
 import { formatDuration, isWeekday, getWeekOfYear } from './utils.js';
 
 // ================== [ 헬퍼 함수 ] ==================
-// (getDiffHtmlForMetric 헬퍼 함수)
+/**
+ * 헬퍼: 증감율 HTML 생성
+ * ✅ [1번 기능 수정] 'coqPercentage' 항목 추가
+ */
 export const getDiffHtmlForMetric = (metric, current, previous) => {
     const currValue = current || 0;
     const prevValue = previous || 0;
@@ -23,7 +26,8 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     } 
-    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount'].includes(metric)) {
+    // ✅ [1번 기능 수정] 'coqPercentage' (비용 항목) 추가
+    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage'].includes(metric)) {
         colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
     }
     
@@ -35,9 +39,9 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem' || metric === 'activeMembersCount') {
         diffStr = Math.round(Math.abs(diff)).toLocaleString();
         prevStr = Math.round(prevValue).toLocaleString();
-    } else { // avgThroughput, overallAvgThroughput
-        diffStr = Math.abs(diff).toFixed(2);
-        prevStr = prevValue.toFixed(2);
+    } else { // avgThroughput, overallAvgThroughput, coqPercentage
+        diffStr = Math.abs(diff).toFixed(1); // ✅ [수정] 소수점 1자리로 (비율 표시용)
+        prevStr = prevValue.toFixed(1);
     }
 
     return `<span class="text-xs ${colorClass} ml-1 font-mono" title="이전: ${prevStr}">
@@ -98,13 +102,15 @@ const createTableRow = (columns, isHeader = false, sortState = null) => {
 
 /**
  * 헬퍼: 일별 리포트용 KPI 계산
+ * ✅ [1번 기능 수정] coqPercentage 반환
  */
 const _calculateDailyReportKPIs = (data, appConfig, wageMap) => {
     if (!data) {
         return {
             totalDuration: 0, totalCost: 0, totalQuantity: 0,
             overallAvgThroughput: 0, overallAvgCostPerItem: 0,
-            activeMembersCount: 0, nonWorkMinutes: 0, totalQualityCost: 0
+            activeMembersCount: 0, nonWorkMinutes: 0, totalQualityCost: 0,
+            coqPercentage: 0 // ✅ [1번 기능 추가]
         };
     }
     
@@ -134,6 +140,9 @@ const _calculateDailyReportKPIs = (data, appConfig, wageMap) => {
     const overallAvgThroughput = totalDuration > 0 ? (totalQuantity / totalDuration) : 0;
     const overallAvgCostPerItem = totalQuantity > 0 ? (totalCost / totalQuantity) : 0;
 
+    // ✅ [1번 기능 추가] COQ 비율 계산
+    const coqPercentage = (totalCost > 0) ? (totalQualityCost / totalCost) * 100 : 0;
+
     const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
     const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
     const activeRegularMembers = allRegularMembers.size - onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length;
@@ -149,7 +158,8 @@ const _calculateDailyReportKPIs = (data, appConfig, wageMap) => {
     return {
         totalDuration, totalCost, totalQuantity,
         overallAvgThroughput, overallAvgCostPerItem,
-        activeMembersCount, nonWorkMinutes, totalQualityCost
+        activeMembersCount, nonWorkMinutes, totalQualityCost,
+        coqPercentage // ✅ [1번 기능 추가]
     };
 };
 
@@ -302,7 +312,8 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     let html = `<div class="space-y-6">`;
     html += `<h2 class="text-2xl font-bold text-gray-800">${dateKey} 업무 리포트 (이전 기록 대비)</h2>`;
     
-    // 5a. KPI 요약
+    // ================== [ ✨ 1번 기능 수정 ✨ ] ==================
+    // 5a. KPI 요약 (8개, COQ 카드 수정)
     html += `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -340,32 +351,32 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
                 <div class="text-xl font-bold">${formatDuration(todayKPIs.nonWorkMinutes)}</div>
                 ${getDiffHtmlForMetric('nonWorkTime', todayKPIs.nonWorkMinutes, prevKPIs.nonWorkMinutes)}
             </div>
+            
             <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
-                <div class="text-xs text-red-600 font-semibold">총 품질 비용 (COQ) ⓘ</div>
-                <div class="text-xl font-bold text-red-600">${Math.round(todayKPIs.totalQualityCost).toLocaleString()} 원</div>
-                ${getDiffHtmlForMetric('totalCost', todayKPIs.totalQualityCost, prevKPIs.totalQualityCost)}
+                <div class="text-xs text-red-600 font-semibold">COQ 비율 (총 ${Math.round(todayKPIs.totalQualityCost).toLocaleString()}원) ⓘ</div>
+                <div class="text-xl font-bold text-red-600">${todayKPIs.coqPercentage.toFixed(1)} %</div>
+                ${getDiffHtmlForMetric('coqPercentage', todayKPIs.coqPercentage, prevKPIs.coqPercentage)}
             </div>
         </div>
     `;
+    // ================== [ ✨ 1번 기능 수정 끝 ✨ ] ==================
+
     
-    // ================== [ ✨ 1. AI Insights 수정 (keyTasks -> allTaskNames) ✨ ] ==================
+    // 5b. 주요 업무 분석 (AI Insights)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 분석 (Beta)</h3>
             <div class="space-y-4">
     `;
 
-    // ⛔️ [삭제] const keyTasks = appConfig.keyTasks || [];
-    // ✅ [추가] 오늘 또는 이전에 데이터가 있었던 모든 업무 목록
     const allTaskNames = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
     let insightsA = ''; // Part A insights
     
-    // ✅ [수정] keyTasks.forEach -> allTaskNames.forEach
     allTaskNames.forEach(taskName => {
         const d = todayAggr.taskSummary[taskName];
         const p = prevAggr.taskSummary[taskName];
 
-        if (d && p) { // (로직 동일: 비교를 위해 이틀치 데이터가 모두 있어야 함)
+        if (d && p) { 
             const speedDiff = d.avgThroughput - p.avgThroughput;
             const effDiff = d.efficiency - p.efficiency;
             const staffDiff = d.avgStaff - p.avgStaff;
@@ -423,14 +434,12 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     });
 
     if (insightsA === '') {
-        // ✅ [수정] 텍스트 변경 ("주요 업무" -> "업무")
         insightsA = `<p class="text-sm text-gray-500">비교(이전/오늘) 데이터가 있는 업무가 없어 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
     }
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
 
     // Part B (Difficulty Comparison)
     let insightsB = '';
-    // ✅ [수정] keyTasks -> Object.keys(todayAggr.taskSummary)
     const efficiencyTasks = Object.keys(todayAggr.taskSummary)
         .map(taskName => ({ name: taskName, ...todayAggr.taskSummary[taskName] })) 
         .filter(d => d && d.efficiency > 0) 
@@ -456,15 +465,12 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
             </div>
         `;
     } else {
-        // ✅ [수정] 텍스트 변경 ("주요 업무" -> "업무")
         insightsB = `<p class="text-sm text-gray-500">업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
     }
     
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (오늘 기준)</h5>${insightsB}</div>`;
     
     html += `</div></div>`; 
-    // ================== [ ✨ 수정 끝 ✨ ] ==================
-
 
     // 5c. 파트별 요약
     html += `
@@ -579,9 +585,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
                     ], true, taskSort)}</thead>
                     <tbody>
     `;
-    // ⛔️ [삭제] const allTasks = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
-    // ✅ [수정] allTaskNames는 위에서 이미 정의됨 (insightsA)
-    const sortedTasks = Array.from(allTaskNames).sort((a, b) => { // ✅ allTasks -> allTaskNames
+    const sortedTasks = Array.from(allTaskNames).sort((a, b) => {
         const d1 = todayAggr.taskSummary[a] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         const d2 = todayAggr.taskSummary[b] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         let v1, v2;
@@ -723,7 +727,8 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     let html = `<div class="space-y-6">`;
     html += `<h2 class="text-2xl font-bold text-gray-800">${weekKey} 주별 업무 리포트 (이전 주 대비)</h2>`;
     
-    // 5a. KPI 요약
+    // ================== [ ✨ 1번 기능 수정 ✨ ] ==================
+    // 5a. KPI 요약 (COQ 카드 수정)
     html += `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -761,27 +766,27 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
                 <div class="text-xl font-bold">${formatDuration(todayKPIs.nonWorkMinutes)}</div>
                 ${getDiffHtmlForMetric('nonWorkTime', todayKPIs.nonWorkMinutes, prevKPIs.nonWorkMinutes)}
             </div>
+            
             <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
-                <div class="text-xs text-red-600 font-semibold">총 품질 비용 (COQ) ⓘ</div>
-                <div class="text-xl font-bold text-red-600">${Math.round(todayKPIs.totalQualityCost).toLocaleString()} 원</div>
-                ${getDiffHtmlForMetric('totalCost', todayKPIs.totalQualityCost, prevKPIs.totalQualityCost)}
+                <div class="text-xs text-red-600 font-semibold">COQ 비율 (총 ${Math.round(todayKPIs.totalQualityCost).toLocaleString()}원) ⓘ</div>
+                <div class="text-xl font-bold text-red-600">${todayKPIs.coqPercentage.toFixed(1)} %</div>
+                ${getDiffHtmlForMetric('coqPercentage', todayKPIs.coqPercentage, prevKPIs.coqPercentage)}
             </div>
         </div>
     `;
+    // ================== [ ✨ 1번 기능 수정 끝 ✨ ] ==================
+
     
-    // ================== [ ✨ 2. AI Insights 수정 (keyTasks -> allTaskNames) ✨ ] ==================
+    // 5b. 주요 업무 분석 (AI Insights)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 분석 (Beta)</h3>
             <div class="space-y-4">
     `;
 
-    // ⛔️ [삭제] const keyTasks = appConfig.keyTasks || [];
-    // ✅ [추가]
     const allTaskNames = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
     let insightsA = ''; 
     
-    // ✅ [수정] keyTasks.forEach -> allTaskNames.forEach
     allTaskNames.forEach(taskName => {
         const d = todayAggr.taskSummary[taskName];
         const p = prevAggr.taskSummary[taskName];
@@ -844,14 +849,12 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     });
 
     if (insightsA === '') {
-        // ✅ [수정] 텍스트 변경
         insightsA = `<p class="text-sm text-gray-500">비교(이전 주/이번 주) 데이터가 있는 업무가 없어 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
     }
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
 
     // Part B (Difficulty Comparison)
     let insightsB = '';
-    // ✅ [수정] keyTasks -> Object.keys(todayAggr.taskSummary)
     const efficiencyTasks = Object.keys(todayAggr.taskSummary)
         .map(taskName => ({ name: taskName, ...todayAggr.taskSummary[taskName] })) 
         .filter(d => d && d.efficiency > 0) 
@@ -877,15 +880,12 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
             </div>
         `;
     } else {
-        // ✅ [수정] 텍스트 변경
         insightsB = `<p class="text-sm text-gray-500">업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
     }
     
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (이번 주 기준)</h5>${insightsB}</div>`;
     
     html += `</div></div>`;
-    // ================== [ ✨ 수정 끝 ✨ ] ==================
-
 
     // 5c. 파트별 요약
     html += `
@@ -1000,7 +1000,6 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
                     ], true, taskSort)}</thead>
                     <tbody>
     `;
-    // ✅ [수정] allTaskNames는 위에서 이미 정의됨
     const sortedTasks = Array.from(allTaskNames).sort((a, b) => {
         const d1 = todayAggr.taskSummary[a] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         const d2 = prevAggr.taskSummary[b] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
@@ -1088,7 +1087,6 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     view.innerHTML = html;
 };
 
-// ================== [ ✨ 3. 월별 리포트 수정 ✨ ] ==================
 /**
  * 월별 리포트 렌더링 (구현)
  */
@@ -1108,7 +1106,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
 
     const prevMonthDays = prevMonthKey ? allHistoryData.filter(d => d.id.substring(0, 7) === prevMonthKey) : [];
 
-    // 1d. WageMap 생성
     const wageMap = { ...(appConfig.memberWages || {}) };
     [...currentMonthDays, ...prevMonthDays].forEach(day => {
         (day.partTimers || []).forEach(pt => {
@@ -1118,7 +1115,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         });
     });
 
-    // 1e. 파트 Map 생성
     const memberToPartMap = new Map();
     (appConfig.teamGroups || []).forEach(group => {
         group.members.forEach(member => {
@@ -1146,7 +1142,8 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     let html = `<div class="space-y-6">`;
     html += `<h2 class="text-2xl font-bold text-gray-800">${monthKey} 월별 업무 리포트 (이전 월 대비)</h2>`;
     
-    // 5a. KPI 요약
+    // ================== [ ✨ 1번 기능 수정 ✨ ] ==================
+    // 5a. KPI 요약 (COQ 카드 수정)
     html += `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -1184,13 +1181,16 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
                 <div class="text-xl font-bold">${formatDuration(todayKPIs.nonWorkMinutes)}</div>
                 ${getDiffHtmlForMetric('nonWorkTime', todayKPIs.nonWorkMinutes, prevKPIs.nonWorkMinutes)}
             </div>
+
             <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
-                <div class="text-xs text-red-600 font-semibold">총 품질 비용 (COQ) ⓘ</div>
-                <div class="text-xl font-bold text-red-600">${Math.round(todayKPIs.totalQualityCost).toLocaleString()} 원</div>
-                ${getDiffHtmlForMetric('totalCost', todayKPIs.totalQualityCost, prevKPIs.totalQualityCost)}
+                <div class="text-xs text-red-600 font-semibold">COQ 비율 (총 ${Math.round(todayKPIs.totalQualityCost).toLocaleString()}원) ⓘ</div>
+                <div class="text-xl font-bold text-red-600">${todayKPIs.coqPercentage.toFixed(1)} %</div>
+                ${getDiffHtmlForMetric('coqPercentage', todayKPIs.coqPercentage, prevKPIs.coqPercentage)}
             </div>
         </div>
     `;
+    // ================== [ ✨ 1번 기능 수정 끝 ✨ ] ==================
+
     
     // 5b. 주요 업무 분석 (AI Insights)
     html += `
@@ -1199,7 +1199,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
             <div class="space-y-4">
     `;
 
-    // ✅ [수정]
     const allTaskNames = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
     let insightsA = ''; 
     
@@ -1265,14 +1264,12 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     });
 
     if (insightsA === '') {
-        // ✅ [수정] 텍스트 변경
         insightsA = `<p class="text-sm text-gray-500">비교(이전 월/이번 월) 데이터가 있는 업무가 없어 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
     }
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
 
     // Part B (Difficulty Comparison)
     let insightsB = '';
-    // ✅ [수정]
     const efficiencyTasks = Object.keys(todayAggr.taskSummary)
         .map(taskName => ({ name: taskName, ...todayAggr.taskSummary[taskName] })) 
         .filter(d => d && d.efficiency > 0) 
@@ -1298,7 +1295,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
             </div>
         `;
     } else {
-        // ✅ [수정] 텍스트 변경
         insightsB = `<p class="text-sm text-gray-500">업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
     }
     
@@ -1419,7 +1415,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
                     ], true, taskSort)}</thead>
                     <tbody>
     `;
-    // ✅ [수정] allTaskNames는 위에서 이미 정의됨
     const sortedTasks = Array.from(allTaskNames).sort((a, b) => {
         const d1 = todayAggr.taskSummary[a] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         const d2 = prevAggr.taskSummary[b] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
@@ -1507,7 +1502,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     view.innerHTML = html;
 };
 
-// ================== [ ✨ 4. 연간 리포트 수정 ✨ ] ==================
 /**
  * 연간 리포트 렌더링 (구현)
  */
@@ -1527,7 +1521,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
 
     const prevYearDays = prevYearKey ? allHistoryData.filter(d => d.id.substring(0, 4) === prevYearKey) : [];
 
-    // 1d. WageMap 생성
     const wageMap = { ...(appConfig.memberWages || {}) };
     [...currentYearDays, ...prevYearDays].forEach(day => {
         (day.partTimers || []).forEach(pt => {
@@ -1537,7 +1530,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         });
     });
 
-    // 1e. 파트 Map 생성
     const memberToPartMap = new Map();
     (appConfig.teamGroups || []).forEach(group => {
         group.members.forEach(member => {
@@ -1565,7 +1557,8 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     let html = `<div class="space-y-6">`;
     html += `<h2 class="text-2xl font-bold text-gray-800">${yearKey} 연간 업무 리포트 (이전 연도 대비)</h2>`;
     
-    // 5a. KPI 요약
+    // ================== [ ✨ 1번 기능 수정 ✨ ] ==================
+    // 5a. KPI 요약 (COQ 카드 수정)
     html += `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -1603,13 +1596,15 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
                 <div class="text-xl font-bold">${formatDuration(todayKPIs.nonWorkMinutes)}</div>
                 ${getDiffHtmlForMetric('nonWorkTime', todayKPIs.nonWorkMinutes, prevKPIs.nonWorkMinutes)}
             </div>
+            
             <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
-                <div class="text-xs text-red-600 font-semibold">총 품질 비용 (COQ) ⓘ</div>
-                <div class="text-xl font-bold text-red-600">${Math.round(todayKPIs.totalQualityCost).toLocaleString()} 원</div>
-                ${getDiffHtmlForMetric('totalCost', todayKPIs.totalQualityCost, prevKPIs.totalQualityCost)}
+                <div class="text-xs text-red-600 font-semibold">COQ 비율 (총 ${Math.round(todayKPIs.totalQualityCost).toLocaleString()}원) ⓘ</div>
+                <div class="text-xl font-bold text-red-600">${todayKPIs.coqPercentage.toFixed(1)} %</div>
+                ${getDiffHtmlForMetric('coqPercentage', todayKPIs.coqPercentage, prevKPIs.coqPercentage)}
             </div>
         </div>
     `;
+    // ================== [ ✨ 1번 기능 수정 끝 ✨ ] ==================
     
     // 5b. 주요 업무 분석 (AI Insights)
     html += `
@@ -1618,7 +1613,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
             <div class="space-y-4">
     `;
 
-    // ✅ [수정]
     const allTaskNames = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
     let insightsA = ''; 
     
@@ -1684,14 +1678,12 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     });
 
     if (insightsA === '') {
-        // ✅ [수정] 텍스트 변경
         insightsA = `<p class="text-sm text-gray-500">비교(이전 연도/올해) 데이터가 있는 업무가 없어 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
     }
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
 
     // Part B (Difficulty Comparison)
     let insightsB = '';
-    // ✅ [수정]
     const efficiencyTasks = Object.keys(todayAggr.taskSummary)
         .map(taskName => ({ name: taskName, ...todayAggr.taskSummary[taskName] })) 
         .filter(d => d && d.efficiency > 0) 
@@ -1717,7 +1709,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
             </div>
         `;
     } else {
-        // ✅ [수정] 텍스트 변경
         insightsB = `<p class="text-sm text-gray-500">업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
     }
     
@@ -1838,7 +1829,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
                     ], true, taskSort)}</thead>
                     <tbody>
     `;
-    // ✅ [수정] allTaskNames는 위에서 이미 정의됨
     const sortedTasks = Array.from(allTaskNames).sort((a, b) => {
         const d1 = todayAggr.taskSummary[a] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         const d2 = prevAggr.taskSummary[b] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
