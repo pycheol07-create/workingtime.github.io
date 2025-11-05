@@ -136,6 +136,8 @@ export function setupHistoryModalListeners() {
             context.historyStartDate = startDate || null;
             context.historyEndDate = endDate || null;
             
+            // ✅ [추가] 조회 시 정렬 초기화
+            context.reportSortState = {}; 
             renderHistoryDateListByMode(getCurrentHistoryListMode());
             showToast('이력 목록을 필터링했습니다.');
         });
@@ -149,6 +151,8 @@ export function setupHistoryModalListeners() {
             context.historyStartDate = null;
             context.historyEndDate = null;
             
+            // ✅ [추가] 초기화 시 정렬 초기화
+            context.reportSortState = {}; 
             renderHistoryDateListByMode(getCurrentHistoryListMode());
             showToast('필터를 초기화했습니다.');
         });
@@ -330,6 +334,7 @@ export function setupHistoryModalListeners() {
           
           // ✅ [추가] 탭 전환 시 정렬 상태 초기화
           context.reportSortState = {};
+          context.currentReportParams = null; // ✅ [추가]
 
           document.querySelectorAll('.history-main-tab-btn').forEach(b => {
               b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
@@ -397,13 +402,14 @@ export function setupHistoryModalListeners() {
       });
     }
 
-    // ✅ [추가] 업무 리포트 탭 리스너
+    // ✅ [수정] 업무 리포트 탭 리스너
     if (reportTabs) {
       reportTabs.addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-view]');
         if (btn) {
           // ✅ [추가] 리포트 탭 전환 시 정렬 상태 초기화
           context.reportSortState = {};
+          context.currentReportParams = null; // ✅ [추가]
           switchHistoryView(btn.dataset.view);
         }
       });
@@ -592,35 +598,24 @@ export function setupHistoryModalListeners() {
                 }
                 context.reportSortState[tableKey] = { key: sortKey, dir: newDir };
                 
-                // 4. 현재 활성화된 뷰를 다시 렌더링
-                const activeBtn = historyDateList.querySelector('button.bg-blue-100');
-                const dateKey = activeBtn ? activeBtn.dataset.key : null;
-                if (!dateKey) return;
-
-                const activeView = reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
-
-                // (현재 날짜 목록은 필터링된 상태일 수 있으므로, 해당 데이터를 그대로 사용)
-                const filteredData = (context.historyStartDate || context.historyEndDate)
-                    ? allHistoryData.filter(d => {
-                        const date = d.id;
-                        const start = context.historyStartDate;
-                        const end = context.historyEndDate;
-                        if (start && end) return date >= start && date <= end;
-                        if (start) return date >= start;
-                        if (end) return date <= end;
-                        return true;
-                      })
-                    : allHistoryData;
+                // 4. 현재 렌더링된 파라미터로 뷰 다시 렌더링
+                if (!context.currentReportParams) {
+                    console.warn("정렬 재실행 오류: currentReportParams가 없습니다.");
+                    return;
+                }
                 
-                // 5. 현재 뷰에 맞는 렌더링 함수 재호출 (업데이트된 context와 함께)
+                // 5. 저장된 파라미터와 '업데이트된 context'로 렌더링 함수 재호출
+                const { dateKey, allHistoryData, appConfig } = context.currentReportParams;
+                const activeView = reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
+                
                 if (activeView === 'report-daily') {
-                    renderReportDaily(dateKey, filteredData, appConfig, context);
+                    renderReportDaily(dateKey, allHistoryData, appConfig, context);
                 } else if (activeView === 'report-weekly') {
-                    renderReportWeekly(dateKey, filteredData, appConfig, context);
+                    renderReportWeekly(dateKey, allHistoryData, appConfig, context);
                 } else if (activeView === 'report-monthly') {
-                    renderReportMonthly(dateKey, filteredData, appConfig, context);
+                    renderReportMonthly(dateKey, allHistoryData, appConfig, context);
                 } else if (activeView === 'report-yearly') {
-                    renderReportYearly(dateKey, filteredData, appConfig, context);
+                    renderReportYearly(dateKey, allHistoryData, appConfig, context);
                 }
                 
                 return;

@@ -420,6 +420,9 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
         // 모드(day, week, month)에 관계없이 첫 번째 항목의 상세 뷰를 렌더링하도록 수정
         const key = firstButton.dataset.key;
         
+        // ✅ [추가] 첫 항목 렌더링 시 정렬 상태 초기화
+        context.reportSortState = {};
+
         if (context.activeMainHistoryTab === 'work') {
             if (mode === 'day') {
                 // 👈 [수정] filteredData를 기준으로 previousDayData를 찾음

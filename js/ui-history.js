@@ -947,8 +947,9 @@ export const renderTrendAnalysisCharts = (allHistoryData, appConfig, trendCharts
 
 /**
  * 헬퍼: 테이블 행 생성 (증감율 표시 + 정렬 기능 지원)
+ * ✅ [수정] 정렬 아이콘 로직 수정
  */
-const createTableRow = (columns, isHeader = false, sortKey = null, sortDir = null) => {
+const createTableRow = (columns, isHeader = false, sortState = null) => {
     const cellTag = isHeader ? 'th' : 'td';
     const rowClass = isHeader ? 'text-xs text-gray-700 uppercase bg-gray-100 sticky top-0' : 'bg-white border-b hover:bg-gray-50';
     
@@ -975,11 +976,11 @@ const createTableRow = (columns, isHeader = false, sortKey = null, sortDir = nul
         if (col.sortKey) {
             let iconChar = '↕';
             let iconClass = 'sort-icon';
-            if (col.sortKey === sortKey) {
-                if (sortDir === 'asc') {
+            if (sortState && col.sortKey === sortState.key) { // ✅ [수정]
+                if (sortState.dir === 'asc') { // ✅ [수정]
                     iconChar = '▲';
                     iconClass += ' sorted-asc';
-                } else if (sortDir === 'desc') {
+                } else if (sortState.dir === 'desc') { // ✅ [수정]
                     iconChar = '▼';
                     iconClass += ' sorted-desc';
                 }
@@ -1119,6 +1120,9 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     const view = document.getElementById('report-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">일별 리포트 집계 중...</div>';
+    
+    // ✅ [추가] 렌더링 파라미터 저장 (정렬 시 재사용)
+    context.currentReportParams = { dateKey, allHistoryData, appConfig };
 
     const data = allHistoryData.find(d => d.id === dateKey);
     if (!data) {
@@ -1216,8 +1220,94 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
             </div>
         </div>
     `;
+    
+    // ✅ [추가] 5b. 주요 업무 분석 (AI Insights)
+    html += `
+        <div class="bg-white p-4 rounded-lg shadow-sm">
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 분석 (Beta)</h3>
+            <div class="space-y-4">
+    `;
 
-    // 5b. 파트별 요약 (증감율, 정렬 포함)
+    const keyTasks = appConfig.keyTasks || [];
+    let insightsA = ''; // Part A insights
+    
+    keyTasks.forEach(taskName => {
+        const d = todayAggr.taskSummary[taskName];
+        const p = prevAggr.taskSummary[taskName];
+
+        if (d && p) { // 비교를 위해 이틀치 데이터가 모두 있어야 함
+            const speedDiff = d.avgThroughput - p.avgThroughput;
+            const effDiff = d.efficiency - p.efficiency;
+            const staffDiff = d.avgStaff - p.avgStaff;
+
+            // (속도 증가 또는 인원 증가) AND (효율 감소)
+            if ((speedDiff > 0.1 || staffDiff > 0) && effDiff < -0.1) {
+                insightsA += `
+                    <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <h4 class="font-semibold text-yellow-800">${taskName} - 📉 효율 저하 감지</h4>
+                        <p class="text-sm text-gray-700 mt-1">
+                            이전 기록 대비 <strong>총 속도(분당 ${p.avgThroughput.toFixed(2)} → ${d.avgThroughput.toFixed(2)})</strong>는 ${speedDiff > 0 ? '증가' : '유지/감소'}했으나, 
+                            <strong>1인당 효율( ${p.efficiency.toFixed(2)} → ${d.efficiency.toFixed(2)})</strong>은 <strong class="text-red-600">감소</strong>했습니다.
+                            (투입 인원: ${p.avgStaff}명 → ${d.avgStaff}명)
+                        </p>
+                        <p class="text-xs text-gray-600 mt-1">
+                            <strong>분석:</strong> ${staffDiff > 0 ? '인원을 더 투입했지만' : '인원은 비슷했지만'}, 1인당 생산성이 떨어졌습니다. 작업 공간, 동선, 대기 인원 등을 점검할 필요가 있습니다.
+                        </p>
+                    </div>
+                `;
+            } else if (staffDiff > 0 && effDiff > 0.1) {
+                 insightsA += `
+                    <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <h4 class="font-semibold text-green-800">${taskName} - 📈 효율 증가</h4>
+                        <p class="text-sm text-gray-700 mt-1">
+                            <strong>인원(${p.avgStaff}명 → ${d.avgStaff}명)</strong>을 더 투입했음에도 <strong>1인당 효율(${p.efficiency.toFixed(2)} → ${d.efficiency.toFixed(2)})</strong>이 <strong class="text-green-600">증가(또는 유지)</strong>되었습니다. 긍정적인 신호입니다.
+                        </p>
+                    </div>
+                `;
+            }
+        }
+    });
+
+    if (insightsA === '') {
+        insightsA = `<p class="text-sm text-gray-500">주요 업무에 대한 비교 데이터(이전/오늘)가 부족하여 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
+    }
+    html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
+
+    // Part B (Difficulty Comparison)
+    let insightsB = '';
+    const efficiencyTasks = keyTasks
+        .map(taskName => ({ name: taskName, ...todayAggr.taskSummary[taskName] })) // 이름과 데이터 매핑
+        .filter(d => d && d.efficiency > 0) // 오늘 효율 데이터가 있는 것만
+        .sort((a, b) => b.efficiency - a.efficiency); // 효율순 정렬
+
+    if (efficiencyTasks.length >= 2) {
+        const mostEfficient = efficiencyTasks[0];
+        const leastEfficient = efficiencyTasks[efficiencyTasks.length - 1];
+        const comparisonFactor = (mostEfficient.efficiency / leastEfficient.efficiency);
+
+        insightsB = `
+            <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p class="text-sm text-gray-700">
+                    오늘 가장 효율이 높았던 주요 업무는 <strong>'${mostEfficient.name}'</strong> (효율: ${mostEfficient.efficiency.toFixed(2)}) 입니다.
+                </p>
+                <p class="text-sm text-gray-700 mt-1">
+                    반면, 가장 효율이 낮았던(손이 많이 간) 업무는 <strong>'${leastEfficient.name}'</strong> (효율: ${leastEfficient.efficiency.toFixed(2)}) 입니다.
+                </p>
+                ${comparisonFactor > 1.1 ? // 10% 이상 차이날 때만 분석 표시
+                `<p class="text-xs text-gray-600 mt-1">
+                    <strong>분석:</strong> '${mostEfficient.name}' 대비 '${leastEfficient.name}' 업무는 약 <strong>${comparisonFactor.toFixed(1)}배</strong> 더 많은 인력/시간이 소요(난이도가 높음)된 것으로 보입니다.
+                </p>` : ''}
+            </div>
+        `;
+    } else {
+        insightsB = `<p class="text-sm text-gray-500">주요 업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
+    }
+    
+    html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (오늘 기준)</h5>${insightsB}</div>`;
+    
+    html += `</div></div>`; // .space-y-4, .bg-white 닫기
+
+    // 5c. 파트별 요약 (증감율, 정렬 포함)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">파트별 요약</h3>
@@ -1228,7 +1318,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
                         { content: '총 업무시간', sortKey: 'duration' },
                         { content: '총 인건비', sortKey: 'cost' },
                         { content: '참여 인원 (명)', sortKey: 'members' }
-                    ], true, partSort.key, partSort.dir)}</thead>
+                    ], true, partSort)}</thead>
                     <tbody>
     `;
     const allParts = new Set([...Object.keys(todayAggr.partSummary), ...Object.keys(prevAggr.partSummary)]);
@@ -1262,7 +1352,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     }
     html += `</tbody></table></div></div>`;
     
-    // 5c. 인원별 상세 (증감율, 업무 수, 정렬 포함)
+    // 5d. 인원별 상세 (증감율, 업무 수, 정렬 포함)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">인원별 상세</h3>
@@ -1275,7 +1365,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
                         { content: '총 인건비', sortKey: 'cost' },
                         { content: '수행 업무 수', sortKey: 'taskCount' },
                         { content: '수행 업무', sortKey: null } // 업무 목록은 정렬 X
-                    ], true, memberSort.key, memberSort.dir)}</thead>
+                    ], true, memberSort)}</thead>
                     <tbody>
     `;
     const allMembers = new Set([...Object.keys(todayAggr.memberSummary), ...Object.keys(prevAggr.memberSummary)]);
@@ -1313,7 +1403,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     }
     html += `</tbody></table></div></div>`;
 
-    // 5d. 업무별 상세 (증감율, 효율성 지표, 정렬, 툴팁 포함)
+    // 5e. 업무별 상세 (증감율, 효율성 지표, 정렬, 툴팁 포함)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 이전 리포트일 대비)</h3>
@@ -1329,7 +1419,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
                         { content: '총 참여인원', sortKey: 'avgStaff' },
                         { content: '평균 처리시간(건)', sortKey: 'avgTime' },
                         { content: '인당 분당 처리량(효율)', sortKey: 'efficiency', title: '개념: (총 처리량) / (총 시간) / (총 참여인원) \n계산: (분당 처리량) / (총 참여인원) \n*지표가 높을수록 투입 인원 대비 효율이 높음*' }
-                    ], true, taskSort.key, taskSort.dir)}</thead>
+                    ], true, taskSort)}</thead>
                     <tbody>
     `;
     const allTasks = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
@@ -1368,7 +1458,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     }
     html += `</tbody></table></div></div>`;
 
-    // 5e. 근태 현황 (그룹화 적용)
+    // 5f. 근태 현황 (그룹화 적용)
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3>
@@ -1424,7 +1514,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
 /**
  * 주별 리포트 렌더링 (Placeholder)
  */
-export const renderReportWeekly = (weekKey, allHistoryData, appConfig) => {
+export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) => { // ✅ context 추가
     const view = document.getElementById('report-weekly-view');
     if (!view) return;
     view.innerHTML = `<div class="p-4">
@@ -1436,7 +1526,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig) => {
 /**
  * 월별 리포트 렌더링 (Placeholder)
  */
-export const renderReportMonthly = (monthKey, allHistoryData, appConfig) => {
+export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context) => { // ✅ context 추가
     const view = document.getElementById('report-monthly-view');
     if (!view) return;
     view.innerHTML = `<div class="p-4">
@@ -1448,7 +1538,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig) => {
 /**
  * 연간 리포트 렌더링 (Placeholder)
  */
-export const renderReportYearly = (yearKey, allHistoryData, appConfig) => {
+export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) => { // ✅ context 추가
     const view = document.getElementById('report-yearly-view');
     if (!view) return;
     view.innerHTML = `<div class="p-4">
