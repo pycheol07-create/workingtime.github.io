@@ -3,10 +3,7 @@
 import { formatDuration, isWeekday, getWeekOfYear } from './utils.js';
 
 // ================== [ 헬퍼 함수 ] ==================
-/**
- * 헬퍼: 증감율 HTML 생성
- * ✅ [1번 기능 수정] 'coqPercentage' 항목 추가
- */
+// (getDiffHtmlForMetric 헬퍼 함수)
 export const getDiffHtmlForMetric = (metric, current, previous) => {
     const currValue = current || 0;
     const prevValue = previous || 0;
@@ -26,7 +23,6 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     } 
-    // ✅ [1번 기능 수정] 'coqPercentage' (비용 항목) 추가
     else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage'].includes(metric)) {
         colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
     }
@@ -40,7 +36,7 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
         diffStr = Math.round(Math.abs(diff)).toLocaleString();
         prevStr = Math.round(prevValue).toLocaleString();
     } else { // avgThroughput, overallAvgThroughput, coqPercentage
-        diffStr = Math.abs(diff).toFixed(1); // ✅ [수정] 소수점 1자리로 (비율 표시용)
+        diffStr = Math.abs(diff).toFixed(1); 
         prevStr = prevValue.toFixed(1);
     }
 
@@ -102,7 +98,6 @@ const createTableRow = (columns, isHeader = false, sortState = null) => {
 
 /**
  * 헬퍼: 일별 리포트용 KPI 계산
- * ✅ [1번 기능 수정] coqPercentage 반환
  */
 const _calculateDailyReportKPIs = (data, appConfig, wageMap) => {
     if (!data) {
@@ -110,7 +105,7 @@ const _calculateDailyReportKPIs = (data, appConfig, wageMap) => {
             totalDuration: 0, totalCost: 0, totalQuantity: 0,
             overallAvgThroughput: 0, overallAvgCostPerItem: 0,
             activeMembersCount: 0, nonWorkMinutes: 0, totalQualityCost: 0,
-            coqPercentage: 0 // ✅ [1번 기능 추가]
+            coqPercentage: 0 
         };
     }
     
@@ -139,8 +134,6 @@ const _calculateDailyReportKPIs = (data, appConfig, wageMap) => {
     const totalQuantity = Object.values(quantities).reduce((s, q) => s + (Number(q) || 0), 0);
     const overallAvgThroughput = totalDuration > 0 ? (totalQuantity / totalDuration) : 0;
     const overallAvgCostPerItem = totalQuantity > 0 ? (totalCost / totalQuantity) : 0;
-
-    // ✅ [1번 기능 추가] COQ 비율 계산
     const coqPercentage = (totalCost > 0) ? (totalQualityCost / totalCost) * 100 : 0;
 
     const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
@@ -151,7 +144,7 @@ const _calculateDailyReportKPIs = (data, appConfig, wageMap) => {
 
     let nonWorkMinutes = 0;
     if (data.id && isWeekday(data.id)) { 
-        const totalPotentialMinutes = activeMembersCount * 8 * 60; // 8시간 기준
+        const totalPotentialMinutes = activeMembersCount * 8 * 60; 
         nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalDuration);
     }
     
@@ -159,7 +152,7 @@ const _calculateDailyReportKPIs = (data, appConfig, wageMap) => {
         totalDuration, totalCost, totalQuantity,
         overallAvgThroughput, overallAvgCostPerItem,
         activeMembersCount, nonWorkMinutes, totalQualityCost,
-        coqPercentage // ✅ [1번 기능 추가]
+        coqPercentage 
     };
 };
 
@@ -312,8 +305,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     let html = `<div class="space-y-6">`;
     html += `<h2 class="text-2xl font-bold text-gray-800">${dateKey} 업무 리포트 (이전 기록 대비)</h2>`;
     
-    // ================== [ ✨ 1번 기능 수정 ✨ ] ==================
-    // 5a. KPI 요약 (8개, COQ 카드 수정)
+    // 5a. KPI 요약
     html += `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -351,7 +343,6 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
                 <div class="text-xl font-bold">${formatDuration(todayKPIs.nonWorkMinutes)}</div>
                 ${getDiffHtmlForMetric('nonWorkTime', todayKPIs.nonWorkMinutes, prevKPIs.nonWorkMinutes)}
             </div>
-            
             <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
                 <div class="text-xs text-red-600 font-semibold">COQ 비율 (총 ${Math.round(todayKPIs.totalQualityCost).toLocaleString()}원) ⓘ</div>
                 <div class="text-xl font-bold text-red-600">${todayKPIs.coqPercentage.toFixed(1)} %</div>
@@ -359,8 +350,6 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
             </div>
         </div>
     `;
-    // ================== [ ✨ 1번 기능 수정 끝 ✨ ] ==================
-
     
     // 5b. 주요 업무 분석 (AI Insights)
     html += `
@@ -370,7 +359,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     `;
 
     const allTaskNames = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
-    let insightsA = ''; // Part A insights
+    let insightsA = ''; // Part A
     
     allTaskNames.forEach(taskName => {
         const d = todayAggr.taskSummary[taskName];
@@ -470,7 +459,81 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (오늘 기준)</h5>${insightsB}</div>`;
     
-    html += `</div></div>`; 
+    
+    // ================== [ ✨ 3번 기능 추가 (변동성 Top 3) ✨ ] ==================
+    let insightsC = '';
+    const variabilityList = [];
+    
+    // 1. 모든 업무에 대해 변동성 계산
+    allTaskNames.forEach(taskName => {
+        const d = todayAggr.taskSummary[taskName];
+        const p = prevAggr.taskSummary[taskName];
+
+        // 두 기간 모두 데이터가 있어야 변동성 계산 가능
+        if (d && p) {
+            // 인당 효율 변동성
+            if (p.efficiency > 0 && d.efficiency > 0) {
+                const effChange = ((d.efficiency - p.efficiency) / p.efficiency) * 100;
+                if (Math.abs(effChange) > 10) { // 10% 이상 변동만 의미있다고 간주
+                    variabilityList.push({
+                        task: taskName,
+                        metric: '인당 효율',
+                        change: effChange,
+                        from: p.efficiency,
+                        to: d.efficiency
+                    });
+                }
+            }
+            
+            // 개당 비용 변동성
+            if (p.avgCostPerItem > 0 && d.avgCostPerItem > 0) {
+                const costChange = ((d.avgCostPerItem - p.avgCostPerItem) / p.avgCostPerItem) * 100;
+                if (Math.abs(costChange) > 10) { // 10% 이상 변동만 의미있다고 간주
+                    variabilityList.push({
+                        task: taskName,
+                        metric: '개당 비용',
+                        change: costChange,
+                        from: p.avgCostPerItem,
+                        to: d.avgCostPerItem
+                    });
+                }
+            }
+        }
+    });
+
+    // 2. 변동성 절대값 기준으로 Top 3 정렬
+    const top3Variability = variabilityList
+        .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+        .slice(0, 3);
+
+    // 3. HTML 생성
+    if (top3Variability.length > 0) {
+        insightsC = '<div class="space-y-2">';
+        top3Variability.forEach(item => {
+            const isGoodChange = (item.metric === '인당 효율' && item.change > 0) || (item.metric === '개당 비용' && item.change < 0);
+            const icon = item.change > 0 ? '📈' : '📉';
+            const colorClass = isGoodChange ? 'text-green-700' : 'text-red-700';
+            const fromVal = item.metric === '개당 비용' ? Math.round(item.from) : item.from.toFixed(2);
+            const toVal = item.metric === '개당 비용' ? Math.round(item.to) : item.to.toFixed(2);
+
+            insightsC += `
+                <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <h4 class="font-semibold ${colorClass}">${icon} ${item.task} (${item.metric} ${item.change > 0 ? '+' : ''}${item.change.toFixed(0)}%)</h4>
+                    <p class="text-sm text-gray-700 mt-1">
+                        ${item.metric}이(가) ${fromVal} (이전)에서 ${toVal} (오늘)로 변동했습니다.
+                    </p>
+                </div>
+            `;
+        });
+        insightsC += '</div>';
+    } else {
+        insightsC = `<p class="text-sm text-gray-500">이전 기록 대비 10% 이상 변동한 업무가 없습니다.</p>`;
+    }
+
+    html += `<div><h5 class="font-semibold mb-2 text-gray-600">C. 주요 변동성 Top 3 (오늘 기준)</h5>${insightsC}</div>`;
+    // ================== [ ✨ 3번 기능 끝 ✨ ] ==================
+
+    html += `</div></div>`; // .space-y-4, .bg-white 닫기
 
     // 5c. 파트별 요약
     html += `
@@ -585,7 +648,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
                     ], true, taskSort)}</thead>
                     <tbody>
     `;
-    const sortedTasks = Array.from(allTaskNames).sort((a, b) => {
+    const sortedTasks = Array.from(allTaskNames).sort((a, b) => { 
         const d1 = todayAggr.taskSummary[a] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         const d2 = todayAggr.taskSummary[b] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         let v1, v2;
@@ -727,8 +790,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     let html = `<div class="space-y-6">`;
     html += `<h2 class="text-2xl font-bold text-gray-800">${weekKey} 주별 업무 리포트 (이전 주 대비)</h2>`;
     
-    // ================== [ ✨ 1번 기능 수정 ✨ ] ==================
-    // 5a. KPI 요약 (COQ 카드 수정)
+    // 5a. KPI 요약
     html += `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -766,7 +828,6 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
                 <div class="text-xl font-bold">${formatDuration(todayKPIs.nonWorkMinutes)}</div>
                 ${getDiffHtmlForMetric('nonWorkTime', todayKPIs.nonWorkMinutes, prevKPIs.nonWorkMinutes)}
             </div>
-            
             <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
                 <div class="text-xs text-red-600 font-semibold">COQ 비율 (총 ${Math.round(todayKPIs.totalQualityCost).toLocaleString()}원) ⓘ</div>
                 <div class="text-xl font-bold text-red-600">${todayKPIs.coqPercentage.toFixed(1)} %</div>
@@ -774,8 +835,6 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
             </div>
         </div>
     `;
-    // ================== [ ✨ 1번 기능 수정 끝 ✨ ] ==================
-
     
     // 5b. 주요 업무 분석 (AI Insights)
     html += `
@@ -885,6 +944,55 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (이번 주 기준)</h5>${insightsB}</div>`;
     
+    // ================== [ ✨ 3번 기능 추가 (변동성 Top 3) ✨ ] ==================
+    let insightsC = '';
+    const variabilityList = [];
+    
+    allTaskNames.forEach(taskName => {
+        const d = todayAggr.taskSummary[taskName];
+        const p = prevAggr.taskSummary[taskName];
+        if (d && p) {
+            if (p.efficiency > 0 && d.efficiency > 0) {
+                const effChange = ((d.efficiency - p.efficiency) / p.efficiency) * 100;
+                if (Math.abs(effChange) > 10) { 
+                    variabilityList.push({ task: taskName, metric: '인당 효율', change: effChange, from: p.efficiency, to: d.efficiency });
+                }
+            }
+            if (p.avgCostPerItem > 0 && d.avgCostPerItem > 0) {
+                const costChange = ((d.avgCostPerItem - p.avgCostPerItem) / p.avgCostPerItem) * 100;
+                if (Math.abs(costChange) > 10) { 
+                    variabilityList.push({ task: taskName, metric: '개당 비용', change: costChange, from: p.avgCostPerItem, to: d.avgCostPerItem });
+                }
+            }
+        }
+    });
+
+    const top3Variability = variabilityList.sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 3);
+
+    if (top3Variability.length > 0) {
+        insightsC = '<div class="space-y-2">';
+        top3Variability.forEach(item => {
+            const isGoodChange = (item.metric === '인당 효율' && item.change > 0) || (item.metric === '개당 비용' && item.change < 0);
+            const icon = item.change > 0 ? '📈' : '📉';
+            const colorClass = isGoodChange ? 'text-green-700' : 'text-red-700';
+            const fromVal = item.metric === '개당 비용' ? Math.round(item.from) : item.from.toFixed(2);
+            const toVal = item.metric === '개당 비용' ? Math.round(item.to) : item.to.toFixed(2);
+            insightsC += `
+                <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <h4 class="font-semibold ${colorClass}">${icon} ${item.task} (${item.metric} ${item.change > 0 ? '+' : ''}${item.change.toFixed(0)}%)</h4>
+                    <p class="text-sm text-gray-700 mt-1">
+                        ${item.metric}이(가) ${fromVal} (이전)에서 ${toVal} (이번 주)로 변동했습니다.
+                    </p>
+                </div>
+            `;
+        });
+        insightsC += '</div>';
+    } else {
+        insightsC = `<p class="text-sm text-gray-500">이전 주 대비 10% 이상 변동한 업무가 없습니다.</p>`;
+    }
+    html += `<div><h5 class="font-semibold mb-2 text-gray-600">C. 주요 변동성 Top 3 (이번 주 기준)</h5>${insightsC}</div>`;
+    // ================== [ ✨ 3번 기능 끝 ✨ ] ==================
+
     html += `</div></div>`;
 
     // 5c. 파트별 요약
@@ -1142,8 +1250,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     let html = `<div class="space-y-6">`;
     html += `<h2 class="text-2xl font-bold text-gray-800">${monthKey} 월별 업무 리포트 (이전 월 대비)</h2>`;
     
-    // ================== [ ✨ 1번 기능 수정 ✨ ] ==================
-    // 5a. KPI 요약 (COQ 카드 수정)
+    // 5a. KPI 요약
     html += `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -1181,7 +1288,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
                 <div class="text-xl font-bold">${formatDuration(todayKPIs.nonWorkMinutes)}</div>
                 ${getDiffHtmlForMetric('nonWorkTime', todayKPIs.nonWorkMinutes, prevKPIs.nonWorkMinutes)}
             </div>
-
             <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
                 <div class="text-xs text-red-600 font-semibold">COQ 비율 (총 ${Math.round(todayKPIs.totalQualityCost).toLocaleString()}원) ⓘ</div>
                 <div class="text-xl font-bold text-red-600">${todayKPIs.coqPercentage.toFixed(1)} %</div>
@@ -1189,8 +1295,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
             </div>
         </div>
     `;
-    // ================== [ ✨ 1번 기능 수정 끝 ✨ ] ==================
-
     
     // 5b. 주요 업무 분석 (AI Insights)
     html += `
@@ -1299,6 +1403,55 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     }
     
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (이번 월 기준)</h5>${insightsB}</div>`;
+    
+    // ================== [ ✨ 3번 기능 추가 (변동성 Top 3) ✨ ] ==================
+    let insightsC = '';
+    const variabilityList = [];
+    
+    allTaskNames.forEach(taskName => {
+        const d = todayAggr.taskSummary[taskName];
+        const p = prevAggr.taskSummary[taskName];
+        if (d && p) {
+            if (p.efficiency > 0 && d.efficiency > 0) {
+                const effChange = ((d.efficiency - p.efficiency) / p.efficiency) * 100;
+                if (Math.abs(effChange) > 10) { 
+                    variabilityList.push({ task: taskName, metric: '인당 효율', change: effChange, from: p.efficiency, to: d.efficiency });
+                }
+            }
+            if (p.avgCostPerItem > 0 && d.avgCostPerItem > 0) {
+                const costChange = ((d.avgCostPerItem - p.avgCostPerItem) / p.avgCostPerItem) * 100;
+                if (Math.abs(costChange) > 10) { 
+                    variabilityList.push({ task: taskName, metric: '개당 비용', change: costChange, from: p.avgCostPerItem, to: d.avgCostPerItem });
+                }
+            }
+        }
+    });
+
+    const top3Variability = variabilityList.sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 3);
+
+    if (top3Variability.length > 0) {
+        insightsC = '<div class="space-y-2">';
+        top3Variability.forEach(item => {
+            const isGoodChange = (item.metric === '인당 효율' && item.change > 0) || (item.metric === '개당 비용' && item.change < 0);
+            const icon = item.change > 0 ? '📈' : '📉';
+            const colorClass = isGoodChange ? 'text-green-700' : 'text-red-700';
+            const fromVal = item.metric === '개당 비용' ? Math.round(item.from) : item.from.toFixed(2);
+            const toVal = item.metric === '개당 비용' ? Math.round(item.to) : item.to.toFixed(2);
+            insightsC += `
+                <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <h4 class="font-semibold ${colorClass}">${icon} ${item.task} (${item.metric} ${item.change > 0 ? '+' : ''}${item.change.toFixed(0)}%)</h4>
+                    <p class="text-sm text-gray-700 mt-1">
+                        ${item.metric}이(가) ${fromVal} (이전)에서 ${toVal} (이번 월)로 변동했습니다.
+                    </p>
+                </div>
+            `;
+        });
+        insightsC += '</div>';
+    } else {
+        insightsC = `<p class="text-sm text-gray-500">이전 월 대비 10% 이상 변동한 업무가 없습니다.</p>`;
+    }
+    html += `<div><h5 class="font-semibold mb-2 text-gray-600">C. 주요 변동성 Top 3 (이번 월 기준)</h5>${insightsC}</div>`;
+    // ================== [ ✨ 3번 기능 끝 ✨ ] ==================
     
     html += `</div></div>`;
 
@@ -1557,8 +1710,7 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     let html = `<div class="space-y-6">`;
     html += `<h2 class="text-2xl font-bold text-gray-800">${yearKey} 연간 업무 리포트 (이전 연도 대비)</h2>`;
     
-    // ================== [ ✨ 1번 기능 수정 ✨ ] ==================
-    // 5a. KPI 요약 (COQ 카드 수정)
+    // 5a. KPI 요약
     html += `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -1596,7 +1748,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
                 <div class="text-xl font-bold">${formatDuration(todayKPIs.nonWorkMinutes)}</div>
                 ${getDiffHtmlForMetric('nonWorkTime', todayKPIs.nonWorkMinutes, prevKPIs.nonWorkMinutes)}
             </div>
-            
             <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
                 <div class="text-xs text-red-600 font-semibold">COQ 비율 (총 ${Math.round(todayKPIs.totalQualityCost).toLocaleString()}원) ⓘ</div>
                 <div class="text-xl font-bold text-red-600">${todayKPIs.coqPercentage.toFixed(1)} %</div>
@@ -1604,7 +1755,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
             </div>
         </div>
     `;
-    // ================== [ ✨ 1번 기능 수정 끝 ✨ ] ==================
     
     // 5b. 주요 업무 분석 (AI Insights)
     html += `
@@ -1713,6 +1863,55 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     }
     
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (올해 기준)</h5>${insightsB}</div>`;
+    
+    // ================== [ ✨ 3번 기능 추가 (변동성 Top 3) ✨ ] ==================
+    let insightsC = '';
+    const variabilityList = [];
+    
+    allTaskNames.forEach(taskName => {
+        const d = todayAggr.taskSummary[taskName];
+        const p = prevAggr.taskSummary[taskName];
+        if (d && p) {
+            if (p.efficiency > 0 && d.efficiency > 0) {
+                const effChange = ((d.efficiency - p.efficiency) / p.efficiency) * 100;
+                if (Math.abs(effChange) > 10) { 
+                    variabilityList.push({ task: taskName, metric: '인당 효율', change: effChange, from: p.efficiency, to: d.efficiency });
+                }
+            }
+            if (p.avgCostPerItem > 0 && d.avgCostPerItem > 0) {
+                const costChange = ((d.avgCostPerItem - p.avgCostPerItem) / p.avgCostPerItem) * 100;
+                if (Math.abs(costChange) > 10) { 
+                    variabilityList.push({ task: taskName, metric: '개당 비용', change: costChange, from: p.avgCostPerItem, to: d.avgCostPerItem });
+                }
+            }
+        }
+    });
+
+    const top3Variability = variabilityList.sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 3);
+
+    if (top3Variability.length > 0) {
+        insightsC = '<div class="space-y-2">';
+        top3Variability.forEach(item => {
+            const isGoodChange = (item.metric === '인당 효율' && item.change > 0) || (item.metric === '개당 비용' && item.change < 0);
+            const icon = item.change > 0 ? '📈' : '📉';
+            const colorClass = isGoodChange ? 'text-green-700' : 'text-red-700';
+            const fromVal = item.metric === '개당 비용' ? Math.round(item.from) : item.from.toFixed(2);
+            const toVal = item.metric === '개당 비용' ? Math.round(item.to) : item.to.toFixed(2);
+            insightsC += `
+                <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <h4 class="font-semibold ${colorClass}">${icon} ${item.task} (${item.metric} ${item.change > 0 ? '+' : ''}${item.change.toFixed(0)}%)</h4>
+                    <p class="text-sm text-gray-700 mt-1">
+                        ${item.metric}이(가) ${fromVal} (이전)에서 ${toVal} (올해)로 변동했습니다.
+                    </p>
+                </div>
+            `;
+        });
+        insightsC += '</div>';
+    } else {
+        insightsC = `<p class="text-sm text-gray-500">이전 연도 대비 10% 이상 변동한 업무가 없습니다.</p>`;
+    }
+    html += `<div><h5 class="font-semibold mb-2 text-gray-600">C. 주요 변동성 Top 3 (올해 기준)</h5>${insightsC}</div>`;
+    // ================== [ ✨ 3번 기능 끝 ✨ ] ==================
     
     html += `</div></div>`;
 
