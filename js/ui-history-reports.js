@@ -348,21 +348,24 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         </div>
     `;
     
-    // 5b. 주요 업무 분석 (AI Insights)
+    // ================== [ ✨ 1. AI Insights 수정 (keyTasks -> allTaskNames) ✨ ] ==================
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 분석 (Beta)</h3>
             <div class="space-y-4">
     `;
 
-    const keyTasks = appConfig.keyTasks || [];
+    // ⛔️ [삭제] const keyTasks = appConfig.keyTasks || [];
+    // ✅ [추가] 오늘 또는 이전에 데이터가 있었던 모든 업무 목록
+    const allTaskNames = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
     let insightsA = ''; // Part A insights
     
-    keyTasks.forEach(taskName => {
+    // ✅ [수정] keyTasks.forEach -> allTaskNames.forEach
+    allTaskNames.forEach(taskName => {
         const d = todayAggr.taskSummary[taskName];
         const p = prevAggr.taskSummary[taskName];
 
-        if (d && p) { 
+        if (d && p) { // (로직 동일: 비교를 위해 이틀치 데이터가 모두 있어야 함)
             const speedDiff = d.avgThroughput - p.avgThroughput;
             const effDiff = d.efficiency - p.efficiency;
             const staffDiff = d.avgStaff - p.avgStaff;
@@ -420,13 +423,15 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     });
 
     if (insightsA === '') {
-        insightsA = `<p class="text-sm text-gray-500">주요 업무에 대한 비교 데이터(이전/오늘)가 부족하여 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
+        // ✅ [수정] 텍스트 변경 ("주요 업무" -> "업무")
+        insightsA = `<p class="text-sm text-gray-500">비교(이전/오늘) 데이터가 있는 업무가 없어 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
     }
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
 
     // Part B (Difficulty Comparison)
     let insightsB = '';
-    const efficiencyTasks = keyTasks
+    // ✅ [수정] keyTasks -> Object.keys(todayAggr.taskSummary)
+    const efficiencyTasks = Object.keys(todayAggr.taskSummary)
         .map(taskName => ({ name: taskName, ...todayAggr.taskSummary[taskName] })) 
         .filter(d => d && d.efficiency > 0) 
         .sort((a, b) => b.efficiency - a.efficiency); 
@@ -439,7 +444,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         insightsB = `
             <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p class="text-sm text-gray-700">
-                    오늘 가장 효율이 높았던 주요 업무는 <strong>'${mostEfficient.name}'</strong> (효율: ${mostEfficient.efficiency.toFixed(2)}) 입니다.
+                    오늘 가장 효율이 높았던 업무는 <strong>'${mostEfficient.name}'</strong> (효율: ${mostEfficient.efficiency.toFixed(2)}) 입니다.
                 </p>
                 <p class="text-sm text-gray-700 mt-1">
                     반면, 가장 효율이 낮았던(손이 많이 간) 업무는 <strong>'${leastEfficient.name}'</strong> (효율: ${leastEfficient.efficiency.toFixed(2)}) 입니다.
@@ -451,12 +456,15 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
             </div>
         `;
     } else {
-        insightsB = `<p class="text-sm text-gray-500">주요 업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
+        // ✅ [수정] 텍스트 변경 ("주요 업무" -> "업무")
+        insightsB = `<p class="text-sm text-gray-500">업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
     }
     
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (오늘 기준)</h5>${insightsB}</div>`;
     
     html += `</div></div>`; 
+    // ================== [ ✨ 수정 끝 ✨ ] ==================
+
 
     // 5c. 파트별 요약
     html += `
@@ -571,8 +579,9 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
                     ], true, taskSort)}</thead>
                     <tbody>
     `;
-    const allTasks = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
-    const sortedTasks = Array.from(allTasks).sort((a, b) => {
+    // ⛔️ [삭제] const allTasks = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
+    // ✅ [수정] allTaskNames는 위에서 이미 정의됨 (insightsA)
+    const sortedTasks = Array.from(allTaskNames).sort((a, b) => { // ✅ allTasks -> allTaskNames
         const d1 = todayAggr.taskSummary[a] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         const d2 = todayAggr.taskSummary[b] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         let v1, v2;
@@ -760,17 +769,20 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         </div>
     `;
     
-    // 5b. 주요 업무 분석 (AI Insights)
+    // ================== [ ✨ 2. AI Insights 수정 (keyTasks -> allTaskNames) ✨ ] ==================
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 분석 (Beta)</h3>
             <div class="space-y-4">
     `;
 
-    const keyTasks = appConfig.keyTasks || [];
+    // ⛔️ [삭제] const keyTasks = appConfig.keyTasks || [];
+    // ✅ [추가]
+    const allTaskNames = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
     let insightsA = ''; 
     
-    keyTasks.forEach(taskName => {
+    // ✅ [수정] keyTasks.forEach -> allTaskNames.forEach
+    allTaskNames.forEach(taskName => {
         const d = todayAggr.taskSummary[taskName];
         const p = prevAggr.taskSummary[taskName];
 
@@ -832,13 +844,15 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     });
 
     if (insightsA === '') {
-        insightsA = `<p class="text-sm text-gray-500">주요 업무에 대한 비교 데이터(이전 주/이번 주)가 부족하여 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
+        // ✅ [수정] 텍스트 변경
+        insightsA = `<p class="text-sm text-gray-500">비교(이전 주/이번 주) 데이터가 있는 업무가 없어 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
     }
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
 
     // Part B (Difficulty Comparison)
     let insightsB = '';
-    const efficiencyTasks = keyTasks
+    // ✅ [수정] keyTasks -> Object.keys(todayAggr.taskSummary)
+    const efficiencyTasks = Object.keys(todayAggr.taskSummary)
         .map(taskName => ({ name: taskName, ...todayAggr.taskSummary[taskName] })) 
         .filter(d => d && d.efficiency > 0) 
         .sort((a, b) => b.efficiency - a.efficiency); 
@@ -851,7 +865,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         insightsB = `
             <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p class="text-sm text-gray-700">
-                    이번 주 가장 효율이 높았던 주요 업무는 <strong>'${mostEfficient.name}'</strong> (효율: ${mostEfficient.efficiency.toFixed(2)}) 입니다.
+                    이번 주 가장 효율이 높았던 업무는 <strong>'${mostEfficient.name}'</strong> (효율: ${mostEfficient.efficiency.toFixed(2)}) 입니다.
                 </p>
                 <p class="text-sm text-gray-700 mt-1">
                     반면, 가장 효율이 낮았던(손이 많이 간) 업무는 <strong>'${leastEfficient.name}'</strong> (효율: ${leastEfficient.efficiency.toFixed(2)}) 입니다.
@@ -863,12 +877,15 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
             </div>
         `;
     } else {
-        insightsB = `<p class="text-sm text-gray-500">주요 업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
+        // ✅ [수정] 텍스트 변경
+        insightsB = `<p class="text-sm text-gray-500">업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
     }
     
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (이번 주 기준)</h5>${insightsB}</div>`;
     
     html += `</div></div>`;
+    // ================== [ ✨ 수정 끝 ✨ ] ==================
+
 
     // 5c. 파트별 요약
     html += `
@@ -983,8 +1000,8 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
                     ], true, taskSort)}</thead>
                     <tbody>
     `;
-    const allTasks = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
-    const sortedTasks = Array.from(allTasks).sort((a, b) => {
+    // ✅ [수정] allTaskNames는 위에서 이미 정의됨
+    const sortedTasks = Array.from(allTaskNames).sort((a, b) => {
         const d1 = todayAggr.taskSummary[a] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         const d2 = prevAggr.taskSummary[b] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         let v1, v2;
@@ -1071,7 +1088,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     view.innerHTML = html;
 };
 
-// ================== [ ✨ 1번 기능 - 월별 리포트 ✨ ] ==================
+// ================== [ ✨ 3. 월별 리포트 수정 ✨ ] ==================
 /**
  * 월별 리포트 렌더링 (구현)
  */
@@ -1083,15 +1100,12 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     context.currentReportParams = { monthKey, allHistoryData, appConfig };
     
     // --- 1. 월간 데이터 집계 ---
-    // 1a. 현재 월 데이터 필터링
     const currentMonthDays = allHistoryData.filter(d => d.id.substring(0, 7) === monthKey);
     
-    // 1b. 이전 월 키 찾기
     const sortedMonths = Array.from(new Set(allHistoryData.map(d => d.id.substring(0, 7)))).sort((a, b) => b.localeCompare(a));
     const currentIndex = sortedMonths.indexOf(monthKey);
     const prevMonthKey = (currentIndex > -1 && currentIndex + 1 < sortedMonths.length) ? sortedMonths[currentIndex + 1] : null;
 
-    // 1c. 이전 월 데이터 필터링
     const prevMonthDays = prevMonthKey ? allHistoryData.filter(d => d.id.substring(0, 7) === prevMonthKey) : [];
 
     // 1d. WageMap 생성
@@ -1185,10 +1199,11 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
             <div class="space-y-4">
     `;
 
-    const keyTasks = appConfig.keyTasks || [];
+    // ✅ [수정]
+    const allTaskNames = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
     let insightsA = ''; 
     
-    keyTasks.forEach(taskName => {
+    allTaskNames.forEach(taskName => {
         const d = todayAggr.taskSummary[taskName];
         const p = prevAggr.taskSummary[taskName];
 
@@ -1250,13 +1265,15 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     });
 
     if (insightsA === '') {
-        insightsA = `<p class="text-sm text-gray-500">주요 업무에 대한 비교 데이터(이전 월/이번 월)가 부족하여 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
+        // ✅ [수정] 텍스트 변경
+        insightsA = `<p class="text-sm text-gray-500">비교(이전 월/이번 월) 데이터가 있는 업무가 없어 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
     }
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
 
     // Part B (Difficulty Comparison)
     let insightsB = '';
-    const efficiencyTasks = keyTasks
+    // ✅ [수정]
+    const efficiencyTasks = Object.keys(todayAggr.taskSummary)
         .map(taskName => ({ name: taskName, ...todayAggr.taskSummary[taskName] })) 
         .filter(d => d && d.efficiency > 0) 
         .sort((a, b) => b.efficiency - a.efficiency); 
@@ -1269,7 +1286,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         insightsB = `
             <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p class="text-sm text-gray-700">
-                    이번 월 가장 효율이 높았던 주요 업무는 <strong>'${mostEfficient.name}'</strong> (효율: ${mostEfficient.efficiency.toFixed(2)}) 입니다.
+                    이번 월 가장 효율이 높았던 업무는 <strong>'${mostEfficient.name}'</strong> (효율: ${mostEfficient.efficiency.toFixed(2)}) 입니다.
                 </p>
                 <p class="text-sm text-gray-700 mt-1">
                     반면, 가장 효율이 낮았던(손이 많이 간) 업무는 <strong>'${leastEfficient.name}'</strong> (효율: ${leastEfficient.efficiency.toFixed(2)}) 입니다.
@@ -1281,7 +1298,8 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
             </div>
         `;
     } else {
-        insightsB = `<p class="text-sm text-gray-500">주요 업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
+        // ✅ [수정] 텍스트 변경
+        insightsB = `<p class="text-sm text-gray-500">업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
     }
     
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (이번 월 기준)</h5>${insightsB}</div>`;
@@ -1401,8 +1419,8 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
                     ], true, taskSort)}</thead>
                     <tbody>
     `;
-    const allTasks = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
-    const sortedTasks = Array.from(allTasks).sort((a, b) => {
+    // ✅ [수정] allTaskNames는 위에서 이미 정의됨
+    const sortedTasks = Array.from(allTaskNames).sort((a, b) => {
         const d1 = todayAggr.taskSummary[a] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         const d2 = prevAggr.taskSummary[b] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         let v1, v2;
@@ -1489,7 +1507,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     view.innerHTML = html;
 };
 
-// ================== [ ✨ 1번 기능 - 연간 리포트 ✨ ] ==================
+// ================== [ ✨ 4. 연간 리포트 수정 ✨ ] ==================
 /**
  * 연간 리포트 렌더링 (구현)
  */
@@ -1501,15 +1519,12 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     context.currentReportParams = { yearKey, allHistoryData, appConfig };
     
     // --- 1. 연간 데이터 집계 ---
-    // 1a. 현재 연도 데이터 필터링
     const currentYearDays = allHistoryData.filter(d => d.id.substring(0, 4) === yearKey);
     
-    // 1b. 이전 연도 키 찾기
     const sortedYears = Array.from(new Set(allHistoryData.map(d => d.id.substring(0, 4)))).sort((a, b) => b.localeCompare(a));
     const currentIndex = sortedYears.indexOf(yearKey);
     const prevYearKey = (currentIndex > -1 && currentIndex + 1 < sortedYears.length) ? sortedYears[currentIndex + 1] : null;
 
-    // 1c. 이전 연도 데이터 필터링
     const prevYearDays = prevYearKey ? allHistoryData.filter(d => d.id.substring(0, 4) === prevYearKey) : [];
 
     // 1d. WageMap 생성
@@ -1603,10 +1618,11 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
             <div class="space-y-4">
     `;
 
-    const keyTasks = appConfig.keyTasks || [];
+    // ✅ [수정]
+    const allTaskNames = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
     let insightsA = ''; 
     
-    keyTasks.forEach(taskName => {
+    allTaskNames.forEach(taskName => {
         const d = todayAggr.taskSummary[taskName];
         const p = prevAggr.taskSummary[taskName];
 
@@ -1668,13 +1684,15 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     });
 
     if (insightsA === '') {
-        insightsA = `<p class="text-sm text-gray-500">주요 업무에 대한 비교 데이터(이전 연도/올해)가 부족하여 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
+        // ✅ [수정] 텍스트 변경
+        insightsA = `<p class="text-sm text-gray-500">비교(이전 연도/올해) 데이터가 있는 업무가 없어 인원 효율성(수확 체감) 분석을 건너뜁니다.</p>`;
     }
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
 
     // Part B (Difficulty Comparison)
     let insightsB = '';
-    const efficiencyTasks = keyTasks
+    // ✅ [수정]
+    const efficiencyTasks = Object.keys(todayAggr.taskSummary)
         .map(taskName => ({ name: taskName, ...todayAggr.taskSummary[taskName] })) 
         .filter(d => d && d.efficiency > 0) 
         .sort((a, b) => b.efficiency - a.efficiency); 
@@ -1687,7 +1705,7 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         insightsB = `
             <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p class="text-sm text-gray-700">
-                    올해 가장 효율이 높았던 주요 업무는 <strong>'${mostEfficient.name}'</strong> (효율: ${mostEfficient.efficiency.toFixed(2)}) 입니다.
+                    올해 가장 효율이 높았던 업무는 <strong>'${mostEfficient.name}'</strong> (효율: ${mostEfficient.efficiency.toFixed(2)}) 입니다.
                 </p>
                 <p class="text-sm text-gray-700 mt-1">
                     반면, 가장 효율이 낮았던(손이 많이 간) 업무는 <strong>'${leastEfficient.name}'</strong> (효율: ${leastEfficient.efficiency.toFixed(2)}) 입니다.
@@ -1699,7 +1717,8 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
             </div>
         `;
     } else {
-        insightsB = `<p class="text-sm text-gray-500">주요 업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
+        // ✅ [수정] 텍스트 변경
+        insightsB = `<p class="text-sm text-gray-500">업무가 1개만 기록되었거나 효율(처리량/시간/인원) 데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
     }
     
     html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (올해 기준)</h5>${insightsB}</div>`;
@@ -1819,8 +1838,8 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
                     ], true, taskSort)}</thead>
                     <tbody>
     `;
-    const allTasks = new Set([...Object.keys(todayAggr.taskSummary), ...Object.keys(prevAggr.taskSummary)]);
-    const sortedTasks = Array.from(allTasks).sort((a, b) => {
+    // ✅ [수정] allTaskNames는 위에서 이미 정의됨
+    const sortedTasks = Array.from(allTaskNames).sort((a, b) => {
         const d1 = todayAggr.taskSummary[a] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         const d2 = prevAggr.taskSummary[b] || { duration: 0, cost: 0, members: new Set(), recordCount: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
         let v1, v2;
