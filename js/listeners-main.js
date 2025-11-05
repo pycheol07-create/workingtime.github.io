@@ -206,8 +206,8 @@ export function setupMainScreenListeners() {
                 return;
             }
             
-            // '외출' 또는 '조퇴'인 경우, '복귀' 확인 모달을 바로 띄웁니다.
-            if (currentType === '외출' || currentType === '조퇴') {
+            // '외출'인 경우에만 '복귀' 확인 모달을 바로 띄웁니다. ('조퇴'는 수정 모달로 이동)
+            if (currentType === '외출') {
                 context.memberToCancelLeave = memberName;
                 if (cancelLeaveConfirmMessage) {
                     cancelLeaveConfirmMessage.textContent = `${memberName}님을 '${currentType}' 상태에서 복귀(취소) 처리하시겠습니까?`;
