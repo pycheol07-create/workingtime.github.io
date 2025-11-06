@@ -54,134 +54,99 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
 };
 
 /**
- * ✨ [신규] 생산성 및 인력 운용 종합 분석 HTML 생성 (매트릭스 진단 포함)
+ * [내부 헬퍼] 인력 효율성 분석 HTML 생성
  */
-const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
-    // 주간/월간/연간 리포트에서만 표시
+const _generateStaffingEfficiencyHTML = (tMetrics, pMetrics, periodText) => {
     if (!tMetrics.staffing || ['기록'].includes(periodText)) return '';
 
-    const {
-        theoreticalRequiredStaff, efficiencyRatio, totalStandardMinutesNeeded, // 기존 효율성 지표
-        utilizationRate, totalStandardAvailableMinutes, totalActualWorkedMinutes // 신규 활용률 지표
-    } = tMetrics.staffing;
-
+    const { theoreticalRequiredStaff, efficiencyRatio, totalStandardMinutesNeeded } = tMetrics.staffing;
     const actualStaff = tMetrics.kpis.activeMembersCount;
-
-    // 이전 기간 데이터 (증감 표시용)
+    const prevRequired = pMetrics?.staffing?.theoreticalRequiredStaff || 0;
     const prevEfficiency = pMetrics?.staffing?.efficiencyRatio || 0;
-    const prevUtilization = pMetrics?.staffing?.utilizationRate || 0;
 
-    if (theoreticalRequiredStaff <= 0 && utilizationRate <= 0) return '';
+    if (theoreticalRequiredStaff <= 0) return '';
 
-    // --- 종합 진단 로직 (매트릭스) ---
-    let diagnosis = { icon: '✅', title: '최적 상태 유지', desc: '업무 시간과 속도 모두 적절한 균형을 유지하고 있습니다.', color: 'text-green-700', bg: 'bg-green-50 border-green-200' };
+    let statusHtml = '';
+    let textColor = '';
+    let bgColor = '';
+    let message = '';
 
-    const isOverloaded = utilizationRate >= 100;     // 시간 부족 (야근 등)
-    const isUnderloaded = utilizationRate <= 80;     // 시간 남음 (유휴)
-    const isFast = efficiencyRatio >= 110;           // 속도 빠름
-    const isSlow = efficiencyRatio <= 90;            // 속도 느림
-
-    if (isOverloaded && isFast) {
-        diagnosis = { icon: '🔥', title: '극한 과부하 (Burnout 위험)', desc: '절대적인 시간이 부족한 와중에도 매우 빠르게 일하고 있습니다. 인원 충원이 시급합니다.', color: 'text-red-700', bg: 'bg-red-50 border-red-200' };
-    } else if (isOverloaded && isSlow) {
-        diagnosis = { icon: '💦', title: '비효율적 과로', desc: '장시간 근무하고 있지만 실제 처리 속도는 느립니다. 업무 프로세스 점검이나 교육이 필요합니다.', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' };
-    } else if (isOverloaded) {
-         diagnosis = { icon: '⏰', title: '시간 부족 (과부하)', desc: '표준 근무 시간을 초과하여 업무를 수행했습니다. 업무량 조절이 필요합니다.', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' };
-    } else if (isUnderloaded && isFast) {
-        diagnosis = { icon: '⚡', title: '유휴 인력 발생 (고숙련)', desc: '업무를 빨리 끝내고 남는 시간이 많습니다. 더 많은 업무를 배정하거나 인원을 효율화할 수 있습니다.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
-    } else if (isUnderloaded && isSlow) {
-        diagnosis = { icon: '⚠️', title: '생산성 저하', desc: '시간적 여유가 있음에도 업무 속도가 느립니다. 동기 부여나 집중 근무 관리가 필요해 보입니다.', color: 'text-gray-700', bg: 'bg-gray-100 border-gray-300' };
-    } else if (isUnderloaded) {
-         diagnosis = { icon: '☕', title: '시간 여유', desc: '표준 근무 시간 대비 실제 업무 수행 시간이 적습니다. (대기 시간 발생)', color: 'text-gray-600', bg: 'bg-gray-50 border-gray-200' };
-    } else if (isFast) {
-         diagnosis = { icon: '🚀', title: '고효율 상태', desc: '적절한 근무 시간 내에서 표준보다 빠르게 성과를 내고 있습니다.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
-    } else if (isSlow) {
-         diagnosis = { icon: '🐢', title: '속도 개선 필요', desc: '근무 시간은 적절하나 표준 속도보다 다소 느립니다.', color: 'text-yellow-600', bg: 'bg-yellow-50 border-yellow-200' };
+    if (efficiencyRatio >= 110) {
+        statusHtml = '🔥 고효율 (과부하 주의)';
+        textColor = 'text-red-600';
+        bgColor = 'bg-red-50 border-red-100';
+        message = `팀원들이 표준 속도보다 약 <strong>${(efficiencyRatio - 100).toFixed(0)}% 더 빠르게</strong> 일했습니다. 지속될 경우 피로도 관리가 필요할 수 있습니다.`;
+    } else if (efficiencyRatio <= 90) {
+        statusHtml = '📉 효율 저하 (여유 인력)';
+        textColor = 'text-yellow-600';
+        bgColor = 'bg-yellow-50 border-yellow-100';
+        message = `표준 속도 대비 약 <strong>${(100 - efficiencyRatio).toFixed(0)}% 더 많은 시간</strong>이 소요되었습니다. 업무 프로세스 점검이나 인원 재배치가 필요할 수 있습니다.`;
+    } else {
+        statusHtml = '✅ 적정 효율 유지';
+        textColor = 'text-green-600';
+        bgColor = 'bg-green-50 border-green-100';
+        message = `현재 업무량 대비 인원 투입이 <strong>매우 적절</strong>하게 이루어지고 있습니다. (표준 대비 ${efficiencyRatio.toFixed(0)}% 수준)`;
     }
 
     return `
         <div class="bg-white p-5 rounded-lg shadow-sm">
             <h3 class="text-lg font-bold mb-4 text-gray-800 flex items-center">
-                📊 생산성 및 인력 운용 분석 (Beta)
+                👥 인력 효율성 분석 (Beta)
+                <span class="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">과거 평균 데이터 기반</span>
             </h3>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div class="p-4 rounded-lg border bg-gray-50">
-                     <div class="flex justify-between items-start mb-2">
-                        <div class="text-sm font-semibold text-gray-700">⏰ 시간 활용률 (Utilization)</div>
-                        ${getDiffHtmlForMetric('utilizationRate', utilizationRate, prevUtilization)}
-                    </div>
-                    <div class="text-3xl font-bold ${utilizationRate >= 100 ? 'text-red-600' : 'text-gray-800'} mb-1">
-                        ${utilizationRate.toFixed(0)}%
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                        <div class="h-2.5 rounded-full ${utilizationRate >= 100 ? 'bg-red-500' : 'bg-blue-500'}" style="width: ${Math.min(utilizationRate, 100)}%"></div>
-                    </div>
-                    <p class="text-xs text-gray-500">
-                        총 표준 가용 ${formatDuration(totalStandardAvailableMinutes)} 중<br>
-                        실제 ${formatDuration(totalActualWorkedMinutes)} 업무 수행
-                    </p>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div class="p-4 rounded-lg border bg-gray-50 text-center">
+                    <div class="text-sm text-gray-500 mb-1">실제 투입 인원 (평균)</div>
+                    <div class="text-2xl font-bold text-gray-800">${actualStaff.toFixed(1)} 명</div>
+                    ${getDiffHtmlForMetric('activeMembersCount', actualStaff, pMetrics.kpis.activeMembersCount)}
                 </div>
-
-                <div class="p-4 rounded-lg border bg-gray-50">
-                    <div class="flex justify-between items-start mb-2">
-                        <div class="text-sm font-semibold text-gray-700">⚡ 업무 효율성 (Efficiency)</div>
-                         ${getDiffHtmlForMetric('efficiencyRatio', efficiencyRatio, prevEfficiency)}
-                    </div>
-                    <div class="text-3xl font-bold ${efficiencyRatio >= 110 ? 'text-blue-600' : (efficiencyRatio <= 90 ? 'text-red-600' : 'text-gray-800')} mb-1">
-                        ${efficiencyRatio.toFixed(0)}%
-                    </div>
-                     <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                        <div class="h-2.5 rounded-full ${efficiencyRatio >= 110 ? 'bg-blue-500' : (efficiencyRatio <= 90 ? 'bg-red-500' : 'bg-green-500')}" style="width: ${Math.min(efficiencyRatio, 100)}%"></div>
-                    </div>
-                    <p class="text-xs text-gray-500">
-                        표준 속도 기준 ${formatDuration(totalStandardMinutesNeeded)} 분량을<br>
-                        실제 ${formatDuration(tMetrics.kpis.totalDuration)} 만에 처리함
-                    </p>
+                <div class="p-4 rounded-lg border bg-blue-50 border-blue-100 text-center">
+                    <div class="text-sm text-blue-700 mb-1">이론적 적정 인원</div>
+                    <div class="text-2xl font-bold text-blue-600">${theoreticalRequiredStaff.toFixed(1)} 명</div>
+                    ${getDiffHtmlForMetric('theoreticalRequiredStaff', theoreticalRequiredStaff, prevRequired)}
                 </div>
-
-                 <div class="p-4 rounded-lg border ${diagnosis.bg} flex flex-col justify-center">
-                    <div class="text-lg font-bold ${diagnosis.color} mb-2 flex items-center">
-                        <span class="mr-2 text-2xl">${diagnosis.icon}</span> ${diagnosis.title}
-                    </div>
-                    <p class="text-sm ${diagnosis.color} opacity-90">
-                        ${diagnosis.desc}
-                    </p>
-                     <div class="mt-3 pt-3 border-t border-gray-200/50 text-xs text-gray-500">
-                        이론적 적정 인원: <strong>${theoreticalRequiredStaff.toFixed(1)}명</strong> (실제 ${actualStaff.toFixed(1)}명 투입)
-                    </div>
+                <div class="p-4 rounded-lg border ${bgColor} text-center">
+                    <div class="text-sm ${textColor} mb-1">업무 효율성 지수</div>
+                    <div class="text-2xl font-bold ${textColor}">${efficiencyRatio.toFixed(0)}%</div>
+                     ${getDiffHtmlForMetric('efficiencyRatio', efficiencyRatio, prevEfficiency)}
                 </div>
+                 <div class="p-4 rounded-lg border bg-gray-50 text-center flex flex-col justify-center">
+                    <div class="text-sm text-gray-500 mb-1">분석 결과</div>
+                    <div class="text-lg font-bold ${textColor}">${statusHtml}</div>
+                </div>
+            </div>
+            <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded border">
+                💡 <strong>분석 코멘트:</strong> ${message}<br>
+                <span class="text-xs text-gray-500 mt-1 block">(산출 근거: 이 기간의 총 업무량을 우리 팀의 과거 평균 속도로 처리했을 때 약 ${formatDuration(totalStandardMinutesNeeded)}이 필요함)</span>
             </div>
         </div>
     `;
 };
 
 /**
- * [내부 헬퍼] 매출액 연동 분석 HTML 생성
+ * ✨ [신규] 매출액 연동 분석 HTML 생성
  */
 const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, currentRevenue) => {
+    // 월간 리포트에서만 표시
     if (periodText !== '월') return '';
 
     let analysisResultHtml = '';
     if (revenueAnalysisData) {
         const { staffNeededPerUnitIncrease, formattedUnit } = revenueAnalysisData;
         analysisResultHtml = `
-            <div class="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-lg animate-fade-in">
-                <h4 class="font-semibold text-indigo-800 mb-2 flex items-center">
-                    📊 매출 기반 인원 예측 모델
-                </h4>
-                <p class="text-gray-700 text-sm leading-relaxed">
-                    이 달의 업무 데이터로 분석했을 때,<br>
-                    매출액이 <strong>${formattedUnit} 증가</strong>할 때마다
+            <div class="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
+                <h4 class="font-semibold text-indigo-800 mb-2">📊 매출 기반 예측 모델</h4>
+                <p class="text-gray-700">
+                    이 달의 데이터로 분석했을 때, 매출액이 <strong>${formattedUnit} 증가</strong>할 때마다
                     약 <strong class="text-indigo-600 text-lg">${staffNeededPerUnitIncrease.toFixed(1)}명</strong>의 추가 인원 투입이 필요했습니다.
                 </p>
-                 <p class="text-xs text-gray-500 mt-2">
-                    * 실제 수행한 업무량(표준 공수)을 기반으로 역산한 예측치입니다.
+                <p class="text-xs text-gray-500 mt-2">
+                    (계산 근거: 실제 발생한 총 표준 업무량을 매출액으로 나누어 산출된 '매출 단위당 필요 공수' 기반)
                 </p>
             </div>
         `;
     } else if (currentRevenue > 0) {
-         analysisResultHtml = `<div class="mt-4 text-sm text-gray-500">⚠️ 분석을 위한 업무 데이터가 충분하지 않습니다.</div>`;
+         analysisResultHtml = `<div class="mt-4 text-sm text-red-500">분석을 위한 데이터가 충분하지 않습니다.</div>`;
     }
 
     return `
@@ -189,20 +154,18 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, currentRe
             <h3 class="text-lg font-bold mb-4 text-gray-800 flex items-center">
                 💰 매출액 연동 분석 (Beta)
             </h3>
-            <div class="flex flex-wrap items-end gap-4 mb-4">
-                <div>
-                    <label for="report-monthly-revenue-input" class="block text-sm font-medium text-gray-700 mb-1">이 달의 확정 매출액</label>
-                    <div class="flex items-center">
-                        <input type="text" id="report-monthly-revenue-input" value="${currentRevenue ? currentRevenue.toLocaleString() : ''}" placeholder="예: 150,000,000"
-                               class="p-2 border border-gray-300 rounded-l-md focus:ring-indigo-500 focus:border-indigo-500 w-40 text-right"
-                               onkeyup="this.value=this.value.replace(/[^0-9]/g,'').replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');">
-                        <span class="p-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500">원</span>
-                    </div>
+            <div class="flex items-center gap-4 mb-4">
+                <label for="report-monthly-revenue-input" class="font-medium text-gray-700">이 달의 확정 매출액:</label>
+                <div class="flex items-center">
+                    <input type="number" id="report-monthly-revenue-input" value="${currentRevenue || ''}" placeholder="예: 150000000"
+                           class="p-2 border border-gray-300 rounded-l-md focus:ring-indigo-500 focus:border-indigo-500 w-40 text-right">
+                    <span class="p-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500">원</span>
                 </div>
-                <button id="report-apply-revenue-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium transition h-[42px]">
+                <button id="report-apply-revenue-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium transition">
                     분석 적용
                 </button>
             </div>
+            <p class="text-sm text-gray-500 mb-2">매출액을 입력하고 '분석 적용'을 누르면, 실제 업무량 데이터와 연동하여 예측 지표를 제공합니다.</p>
             ${analysisResultHtml}
         </div>
     `;
@@ -215,7 +178,7 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, currentRe
 const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
     let html = `
         <div class="bg-white p-4 rounded-lg shadow-sm">
-            <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 심층 분석</h3>
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 분석 (Beta)</h3>
             <div class="space-y-4">
     `;
 
@@ -231,8 +194,7 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
             const effDiff = d.efficiency - p.efficiency;
             const staffDiff = d.avgStaff - p.avgStaff;
 
-            // 인원이 늘었는데 효율이 떨어진 경우 (수확 체감)
-            if (staffDiff > 0 && effDiff < -0.1) {
+            if ((speedDiff > 0.1 || staffDiff > 0) && effDiff < -0.1) {
                 let coqHtml = '';
                 (appConfig.qualityCostTasks || []).forEach(coqTask => {
                      const d_c = tAggr.taskSummary[coqTask]?.duration || 0;
@@ -242,76 +204,94 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
                      }
                 });
                 if (coqHtml) {
-                    coqHtml = `<p class="text-xs text-gray-600 mt-1 ml-4">↳ <strong>참고:</strong> 동기간 <strong>COQ 업무(${coqHtml})</strong>도 함께 증가했습니다.</p>`;
+                    coqHtml = `<p class="text-xs text-gray-600 mt-1"><strong class="text-red-600">⚠️ 연관 분석:</strong> 이 효율 저하는 <strong>품질 비용(COQ) 업무 (${coqHtml})</strong>의 증가와 동시에 발생했습니다.</p>`;
                 }
 
                 insightsA += `
                     <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <h4 class="font-semibold text-yellow-800 flex items-center">
-                            📉 '${taskName}' - 인원 투입 대비 효율 저하
-                        </h4>
-                        <p class="text-sm text-gray-700 mt-1 ml-4">
-                            투입 인원은 증가했으나(${p.avgStaff.toFixed(1)}명 → ${d.avgStaff.toFixed(1)}명),
-                            인당 처리 효율은 오히려 감소했습니다(${p.efficiency.toFixed(2)} → ${d.efficiency.toFixed(2)}).
+                        <h4 class="font-semibold text-yellow-800">${taskName} - 📉 효율 저하 감지</h4>
+                        <p class="text-sm text-gray-700 mt-1">
+                            이전 ${periodText} 대비 <strong>총 속도(${p.avgThroughput.toFixed(2)} → ${d.avgThroughput.toFixed(2)})</strong>는 ${speedDiff > 0 ? '증가' : '유지'}했으나,
+                            <strong>1인당 효율(${p.efficiency.toFixed(2)} → ${d.efficiency.toFixed(2)})</strong>은 <strong class="text-red-600">감소</strong>했습니다.
+                            (투입: ${p.avgStaff.toFixed(1)}명 → ${d.avgStaff.toFixed(1)}명)
                         </p>
                         ${coqHtml}
                     </div>`;
-            }
-            // 인원이 늘었는데 효율도 함께 오른 경우 (시너지)
-            else if (staffDiff > 0 && effDiff > 0.1) {
+            } else if (staffDiff > 0 && effDiff > 0.1) {
                  insightsA += `
                     <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <h4 class="font-semibold text-green-800 flex items-center">
-                            📈 '${taskName}' - 인원 투입 시너지 발생
-                        </h4>
-                        <p class="text-sm text-gray-700 mt-1 ml-4">
-                            인원을 더 투입함에 따라(${p.avgStaff.toFixed(1)}명 → ${d.avgStaff.toFixed(1)}명)
-                            인당 처리 효율까지 함께 증가했습니다(${p.efficiency.toFixed(2)} → ${d.efficiency.toFixed(2)}).
+                        <h4 class="font-semibold text-green-800">${taskName} - 📈 효율 증가</h4>
+                        <p class="text-sm text-gray-700 mt-1">
+                            <strong>인원(${p.avgStaff.toFixed(1)}명 → ${d.avgStaff.toFixed(1)}명)</strong>을 더 투입했음에도 <strong>1인당 효율(${p.efficiency.toFixed(2)} → ${d.efficiency.toFixed(2)})</strong>이 <strong class="text-green-600">증가</strong>했습니다.
                         </p>
                     </div>`;
             }
         }
     });
-    if (!insightsA) insightsA = `<p class="text-sm text-gray-500">인원 변동에 따른 유의미한 효율 변화가 감지되지 않았습니다.</p>`;
-    html += `<div><h5 class="font-semibold mb-2 text-gray-600 text-sm">A. 인원 투입 효과 분석</h5>${insightsA}</div>`;
+    if (!insightsA) insightsA = `<p class="text-sm text-gray-500">비교 데이터가 부족하여 인원 효율성 분석을 건너뜁니다.</p>`;
+    html += `<div><h5 class="font-semibold mb-2 text-gray-600">A. 투입 인원 효율성 (수확 체감)</h5>${insightsA}</div>`;
 
     // --- B. 업무 난이도 비교 ---
     let insightsB = '';
     const effTasks = Object.keys(tAggr.taskSummary)
         .map(n => ({ name: n, ...tAggr.taskSummary[n] }))
-        .filter(d => d && d.efficiency > 0 && d.duration > 60) // 1시간 이상 수행한 업무만
+        .filter(d => d && d.efficiency > 0)
         .sort((a, b) => b.efficiency - a.efficiency);
 
     if (effTasks.length >= 2) {
         const best = effTasks[0];
         const worst = effTasks[effTasks.length - 1];
         const factor = best.efficiency / worst.efficiency;
-        if (factor >= 1.5) {
-             insightsB = `
-                <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div class="text-sm text-gray-800">
-                        현재 <strong>'${worst.name}'</strong> 업무가 <strong>'${best.name}'</strong>보다 약 <strong>${factor.toFixed(1)}배</strong> 더 많은 리소스(시간/인원)가 투입되고 있습니다.
-                    </div>
-                    <div class="text-xs text-gray-500 mt-1">
-                        (인당 분당 처리량 기준: ${best.name} ${best.efficiency.toFixed(2)} vs ${worst.name} ${worst.efficiency.toFixed(2)})
-                    </div>
-                </div>`;
-        } else {
-             insightsB = `<p class="text-sm text-gray-500">업무 간 현격한 효율 차이는 발견되지 않았습니다.</p>`;
-        }
+        insightsB = `
+            <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p class="text-sm text-gray-700">최고 효율: <strong>'${best.name}'</strong> (${best.efficiency.toFixed(2)}) / 최저 효율: <strong>'${worst.name}'</strong> (${worst.efficiency.toFixed(2)})</p>
+                ${factor > 1.1 ? `<p class="text-xs text-gray-600 mt-1"><strong>분석:</strong> '${worst.name}' 업무는 '${best.name}' 대비 약 <strong>${factor.toFixed(1)}배</strong> 더 많은 리소스가 투입되었습니다.</p>` : ''}
+            </div>`;
     } else {
-        insightsB = `<p class="text-sm text-gray-500">데이터가 부족하여 비교할 수 없습니다.</p>`;
+        insightsB = `<p class="text-sm text-gray-500">데이터가 부족하여 난이도 비교를 건너뜁니다.</p>`;
     }
-    html += `<div class="mt-4"><h5 class="font-semibold mb-2 text-gray-600 text-sm">B. 업무별 리소스 투입 강도 비교</h5>${insightsB}</div>`;
+    html += `<div><h5 class="font-semibold mb-2 text-gray-600">B. 업무 난이도 비교 (현재 기준)</h5>${insightsB}</div>`;
+
+    // --- C. 주요 변동성 Top 3 ---
+    let insightsC = '';
+    const varList = [];
+    allTaskNames.forEach(task => {
+        const d = tAggr.taskSummary[task], p = pAggr.taskSummary[task];
+        if (d && p) {
+            if (p.efficiency > 0 && d.efficiency > 0) {
+                const chg = ((d.efficiency - p.efficiency) / p.efficiency) * 100;
+                if (Math.abs(chg) > 10) varList.push({ task, metric: '인당 효율', change: chg, from: p.efficiency, to: d.efficiency });
+            }
+            if (p.avgCostPerItem > 0 && d.avgCostPerItem > 0) {
+                const chg = ((d.avgCostPerItem - p.avgCostPerItem) / p.avgCostPerItem) * 100;
+                if (Math.abs(chg) > 10) varList.push({ task, metric: '개당 비용', change: chg, from: p.avgCostPerItem, to: d.avgCostPerItem });
+            }
+        }
+    });
+    const top3 = varList.sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 3);
+    if (top3.length > 0) {
+        insightsC = '<div class="space-y-2">';
+        top3.forEach(item => {
+            const isGood = (item.metric === '인당 효율' && item.change > 0) || (item.metric === '개당 비용' && item.change < 0);
+            insightsC += `
+                <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <h4 class="font-semibold ${isGood ? 'text-green-700' : 'text-red-700'}">${item.change > 0 ? '📈' : '📉'} ${item.task} (${item.metric} ${item.change > 0 ? '+' : ''}${item.change.toFixed(0)}%)</h4>
+                    <p class="text-sm text-gray-700 mt-1">${item.metric}: ${item.metric === '개당 비용' ? Math.round(item.from) : item.from.toFixed(2)} → ${item.metric === '개당 비용' ? Math.round(item.to) : item.to.toFixed(2)}</p>
+                </div>`;
+        });
+        insightsC += '</div>';
+    } else {
+        insightsC = `<p class="text-sm text-gray-500">이전 ${periodText} 대비 10% 이상 변동한 업무가 없습니다.</p>`;
+    }
+    html += `<div><h5 class="font-semibold mb-2 text-gray-600">C. 주요 변동성 Top 3 (현재 기준)</h5>${insightsC}</div>`;
 
     html += `</div></div>`;
     return html;
 };
 
-/**
- * [내부 헬퍼] 모든 테이블 섹션 HTML 생성
- */
+// ... (_generateTablesHTML 유지) ...
 const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMap, attendanceData) => {
+    // ... (기존 코드 그대로 유지)
     let html = '';
 
     // 1. 파트별 요약 테이블
@@ -404,16 +384,10 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
 
     let html = `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800">${title}</h2>`;
     html += _generateKPIHTML(tMetrics.kpis, pMetrics.kpis);
-
-    // ✨ 인력 효율성 분석 섹션 (매트릭스 진단 포함)
-    html += _generateProductivityAnalysisHTML(tMetrics, pMetrics, periodText);
-
-    // ✨ 매출액 연동 분석 섹션
+    html += _generateStaffingEfficiencyHTML(tMetrics, pMetrics, periodText);
+    // ✨ [신규] 매출액 분석 섹션 추가
     html += _generateRevenueAnalysisHTML(periodText, tMetrics.revenueAnalysis, currentRevenue);
-
-    // 기존 AI Insights (내용 보강됨)
     html += _generateInsightsHTML(tMetrics.aggr, pMetrics.aggr, appConfig, periodText);
-
     html += _generateTablesHTML(tMetrics.aggr, pMetrics.aggr, periodText, sortState, tData.memberToPartMap, tData.raw.onLeaveMembers);
     html += `</div>`;
 

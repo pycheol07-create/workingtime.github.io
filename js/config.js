@@ -1,4 +1,3 @@
-// js/config.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -46,7 +45,7 @@ export const loadAppConfig = async (dbInstance) => {
 
             const mergedConfig = { ...defaultData, ...loadedData };
 
-            // 배열 및 객체 필드 기본값 확인 및 안전한 병합
+            // 배열 및 객체 필드 기본값 확인
             mergedConfig.teamGroups = loadedData.teamGroups || defaultData.teamGroups;
             mergedConfig.keyTasks = loadedData.keyTasks || defaultData.keyTasks;
             mergedConfig.dashboardItems = loadedData.dashboardItems || defaultData.dashboardItems;
@@ -54,10 +53,8 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             mergedConfig.qualityCostTasks = loadedData.qualityCostTasks || defaultData.qualityCostTasks;
+            // 시스템 계정 초기화 보장
             mergedConfig.systemAccounts = loadedData.systemAccounts || defaultData.systemAccounts;
-
-            // ✨ [신규] 표준 일일 근무시간 안전 병합
-            mergedConfig.standardDailyWorkHours = { ...defaultData.standardDailyWorkHours, ...(loadedData.standardDailyWorkHours || {}) };
 
             // taskGroups 마이그레이션 로직
             if (Array.isArray(loadedData.taskGroups)) {
@@ -139,6 +136,7 @@ function getDefaultConfig() {
             { name: '담당파트', members: ['송다진', '정미혜', '진희주'] },
             { name: '제작파트', members: ['이승운'] },
         ],
+        // 시스템 계정 (실제 근무 인원에서 제외)
         systemAccounts: ['관리자', '시스템'],
         memberWages: {
             '유아라': 14114, '박호진': 14354, '송다진': 11722, '정미혜': 11483,
@@ -174,13 +172,8 @@ function getDefaultConfig() {
 
         defaultPartTimerWage: 10000,
 
-        revenueIncrementUnit: 10000000,
-        standardMonthlyWorkHours: 209,
-
-        // ✨ [신규] 표준 가용 시간 기준 (단위: 시간)
-        standardDailyWorkHours: {
-             weekday: 8,  // 평일 (08:30~17:30, 휴게 1H 제외)
-             weekend: 4   // 주말 (12:00~16:00, 휴게 없음)
-        }
+        // ✨ [신규] 매출액 분석 기준 설정
+        revenueIncrementUnit: 10000000, // 매출 증가 단위 (기본 1,000만원)
+        standardMonthlyWorkHours: 209   // 1인당 월 표준 근무시간 (기본 209시간)
     };
 }

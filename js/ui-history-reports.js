@@ -8,9 +8,8 @@ import {
     aggregateDaysToSingleData,
     calculateStandardThroughputs,
     analyzeStaffingEfficiency,
-    analyzeRevenueBasedStaffing,
-    // ✨ [중요] calculateUtilization 추가
-    calculateUtilization
+    // ✨ [신규] 매출 분석 함수 import
+    analyzeRevenueBasedStaffing
 } from './ui-history-reports-logic.js';
 
 // 2. HTML 렌더링 로직 import
@@ -19,6 +18,7 @@ import {
 } from './ui-history-reports-renderer.js';
 
 
+// ... (_prepareReportData, _calculateAverageActiveMembers 유지) ...
 /**
  * [공통] 리포트 데이터 준비 헬퍼
  */
@@ -56,7 +56,7 @@ const _calculateAverageActiveMembers = (daysData, appConfig, wageMap) => {
     return totalActive / workingDays.length;
 };
 
-
+// ... (renderReportDaily, renderReportWeekly 유지) ...
 /**
  * 일별 리포트 렌더링
  */
@@ -131,15 +131,8 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevWeekDays, appConfig, wageMap);
 
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
-
-    // ✨ [수정] 효율성(Efficiency)과 활용률(Utilization)을 모두 계산하여 병합
-    const todayEfficiency = analyzeStaffingEfficiency(todayAggr, standardThroughputs, todayKPIs.totalDuration, todayKPIs.activeMembersCount);
-    const todayUtilization = calculateUtilization(currentWeekDays, appConfig, wageMap);
-    const todayStaffing = { ...todayEfficiency, ...todayUtilization };
-
-    const prevEfficiency = analyzeStaffingEfficiency(prevAggr, standardThroughputs, prevKPIs.totalDuration, prevKPIs.activeMembersCount);
-    const prevUtilization = calculateUtilization(prevWeekDays, appConfig, wageMap);
-    const prevStaffing = { ...prevEfficiency, ...prevUtilization };
+    const todayStaffing = analyzeStaffingEfficiency(todayAggr, standardThroughputs, todayKPIs.totalDuration, todayKPIs.activeMembersCount);
+    const prevStaffing = analyzeStaffingEfficiency(prevAggr, standardThroughputs, prevKPIs.totalDuration, prevKPIs.activeMembersCount);
 
     const sortState = context.reportSortState || {};
 
@@ -186,16 +179,10 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevMonthDays, appConfig, wageMap);
 
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
+    const todayStaffing = analyzeStaffingEfficiency(todayAggr, standardThroughputs, todayKPIs.totalDuration, todayKPIs.activeMembersCount);
+    const prevStaffing = analyzeStaffingEfficiency(prevAggr, standardThroughputs, prevKPIs.totalDuration, prevKPIs.activeMembersCount);
 
-    // ✨ [수정] 효율성(Efficiency)과 활용률(Utilization)을 모두 계산하여 병합
-    const todayEfficiency = analyzeStaffingEfficiency(todayAggr, standardThroughputs, todayKPIs.totalDuration, todayKPIs.activeMembersCount);
-    const todayUtilization = calculateUtilization(currentMonthDays, appConfig, wageMap);
-    const todayStaffing = { ...todayEfficiency, ...todayUtilization };
-
-    const prevEfficiency = analyzeStaffingEfficiency(prevAggr, standardThroughputs, prevKPIs.totalDuration, prevKPIs.activeMembersCount);
-    const prevUtilization = calculateUtilization(prevMonthDays, appConfig, wageMap);
-    const prevStaffing = { ...prevEfficiency, ...prevUtilization };
-
+    // ✨ [신규] 매출액 연동 분석 수행
     context.monthlyRevenues = context.monthlyRevenues || {};
     const currentRevenue = context.monthlyRevenues[monthKey] || 0;
     const revenueAnalysis = analyzeRevenueBasedStaffing(currentRevenue, todayStaffing.totalStandardMinutesNeeded, appConfig);
@@ -205,7 +192,9 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     renderGenericReport(
         'report-monthly-view',
         `${monthKey} 월별 업무 리포트 (이전 월 대비)`,
+        // ✨ 렌더러에 현재 매출액 정보 전달
         { raw: todayData, memberToPartMap: memberToPartMap, revenue: currentRevenue },
+        // ✨ 렌더러에 매출 분석 결과 전달
         { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing, revenueAnalysis: revenueAnalysis },
         { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
         appConfig,
@@ -245,15 +234,8 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevYearDays, appConfig, wageMap);
 
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
-
-    // ✨ [수정] 효율성(Efficiency)과 활용률(Utilization)을 모두 계산하여 병합
-    const todayEfficiency = analyzeStaffingEfficiency(todayAggr, standardThroughputs, todayKPIs.totalDuration, todayKPIs.activeMembersCount);
-    const todayUtilization = calculateUtilization(currentYearDays, appConfig, wageMap);
-    const todayStaffing = { ...todayEfficiency, ...todayUtilization };
-
-    const prevEfficiency = analyzeStaffingEfficiency(prevAggr, standardThroughputs, prevKPIs.totalDuration, prevKPIs.activeMembersCount);
-    const prevUtilization = calculateUtilization(prevYearDays, appConfig, wageMap);
-    const prevStaffing = { ...prevEfficiency, ...prevUtilization };
+    const todayStaffing = analyzeStaffingEfficiency(todayAggr, standardThroughputs, todayKPIs.totalDuration, todayKPIs.activeMembersCount);
+    const prevStaffing = analyzeStaffingEfficiency(prevAggr, standardThroughputs, prevKPIs.totalDuration, prevKPIs.activeMembersCount);
 
     const sortState = context.reportSortState || {};
 

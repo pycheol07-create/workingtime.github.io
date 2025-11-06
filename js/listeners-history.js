@@ -523,9 +523,7 @@ export function setupHistoryModalListeners() {
             if (applyRevenueBtn) {
                 const revenueInput = document.getElementById('report-monthly-revenue-input');
                 if (revenueInput && context.currentReportParams && context.currentReportParams.monthKey) {
-                    // 콤마 제거 후 숫자로 변환
-                    const rawRevenue = revenueInput.value.replace(/,/g, '');
-                    const revenue = Number(rawRevenue) || 0;
+                    const revenue = Number(revenueInput.value) || 0;
                     const monthKey = context.currentReportParams.monthKey;
 
                     context.monthlyRevenues = context.monthlyRevenues || {};

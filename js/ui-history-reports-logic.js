@@ -23,8 +23,7 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
 
     let colorClass = 'text-gray-500';
-    // ✅ [수정] utilizationRate 추가 (높을수록 좋은 지표인지, 낮을수록 좋은 지표인지에 따라 색상 결정. 여기선 일단 중립 또는 높으면 초록색으로 가정하되 과부하 고려 필요. 일단 초록색 그룹에 추가)
-    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate'].includes(metric)) {
+    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     }
     else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage', 'theoreticalRequiredStaff'].includes(metric)) {
@@ -143,23 +142,15 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
     const coqPercentage = (totalCost > 0) ? (totalQualityCost / totalCost) * 100 : 0;
 
     const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
-    // ✨ [수정] 시스템 계정 제외 로직 추가
-    const systemAccounts = new Set(appConfig.systemAccounts || []);
     const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
-
-    // 정직원 중 휴무자 제외하고, 시스템 계정도 제외
-    const activeRegularMembers = [...allRegularMembers].filter(name => !onLeaveMemberNames.includes(name) && !systemAccounts.has(name)).length;
-    // 알바 중 휴무자 제외
-    const activePartTimers = partTimersFromHistory.filter(pt => !onLeaveMemberNames.includes(pt.name)).length;
-
+    const activeRegularMembers = allRegularMembers.size - onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length;
+    const activePartTimers = partTimersFromHistory.length - onLeaveMemberNames.filter(name => partTimersFromHistory.some(pt => pt.name === name)).length;
     const activeMembersCount = activeRegularMembers + activePartTimers;
 
     let nonWorkMinutes = 0;
     // (일별 데이터일 때만 비업무 시간 계산)
     if (data.id && data.id.length === 10 && isWeekday(data.id)) {
-        // ✨ [수정] 표준 근무 시간 설정값 연동
-        const standardHours = (appConfig.standardDailyWorkHours?.weekday || 8);
-        const totalPotentialMinutes = activeMembersCount * standardHours * 60;
+        const totalPotentialMinutes = activeMembersCount * 8 * 60;
         nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalDuration);
     }
 
@@ -290,6 +281,7 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     const standards = {};
     Object.keys(totals).forEach(task => {
         const t = totals[task];
+        // 유의미한 데이터가 있는 경우만 표준으로 설정 (예: 누적 60분 이상)
         if (t.duration > 60 && t.quantity > 0) {
             standards[task] = t.quantity / t.duration; // (개/분)
         }
@@ -298,11 +290,12 @@ export const calculateStandardThroughputs = (allHistoryData) => {
 };
 
 /**
- * ✨ 헬퍼: 적정 인원 분석 (표준 공수 기반 - 업무 효율성)
+ * ✨ 헬퍼: 적정 인원 분석 (표준 공수 기반)
  */
 export const analyzeStaffingEfficiency = (currentDataAggr, standardThroughputs, actualTotalDuration, actualActiveStaff) => {
     let totalStandardMinutesNeeded = 0;
 
+    // 현재 기간의 각 업무별 실제 처리량을 '표준 속도'로 나누어 '표준 필요 시간' 계산
     Object.entries(currentDataAggr.taskSummary).forEach(([task, summary]) => {
         const actualQty = summary.quantity || 0;
         const stdSpeed = standardThroughputs[task];
@@ -311,6 +304,7 @@ export const analyzeStaffingEfficiency = (currentDataAggr, standardThroughputs, 
             const standardMinutes = actualQty / stdSpeed;
             totalStandardMinutesNeeded += standardMinutes;
         } else if (summary.duration > 0) {
+            // 표준 속도가 없는 업무(시간만 기록되는 업무 등)는 실제 투입 시간을 그대로 필요 시간으로 인정
             totalStandardMinutesNeeded += summary.duration;
         }
     });
@@ -327,17 +321,26 @@ export const analyzeStaffingEfficiency = (currentDataAggr, standardThroughputs, 
 
 /**
  * ✨ 헬퍼: 매출액 기반 업무량 및 적정 인원 예측 분석
+ * @param {number} revenue 입력된 월 매출액
+ * @param {number} totalStandardMinutesNeeded 해당 월의 총 표준 필요 업무 시간 (분)
+ * @param {object} appConfig 앱 설정 (기준 단위, 표준 근무시간 등)
  */
 export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded, appConfig) => {
     if (!revenue || revenue <= 0 || !totalStandardMinutesNeeded || totalStandardMinutesNeeded <= 0) {
         return null;
     }
 
-    const revenueUnit = appConfig.revenueIncrementUnit || 10000000;
-    const monthlyWorkMinutes = (appConfig.standardMonthlyWorkHours || 209) * 60;
+    const revenueUnit = appConfig.revenueIncrementUnit || 10000000; // 예: 1,000만원
+    const monthlyWorkMinutes = (appConfig.standardMonthlyWorkHours || 209) * 60; // 월 표준 근무 분
 
+    // 1. 매출 1원당 필요한 표준 업무 시간 (분/원)
     const minutesPerRevenue = totalStandardMinutesNeeded / revenue;
+
+    // 2. 기준 단위(예: 1천만원) 매출 증가 시 필요한 추가 업무 시간 (분)
     const minutesPerUnitIncrease = minutesPerRevenue * revenueUnit;
+
+    // 3. 기준 단위 매출 증가 시 필요한 추가 인원 (명)
+    // = (추가 필요한 분) / (1명이 한 달에 일하는 분)
     const staffNeededPerUnitIncrease = minutesPerUnitIncrease / monthlyWorkMinutes;
 
     return {
@@ -345,45 +348,5 @@ export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded,
         staffNeededPerUnitIncrease,
         revenueUnit,
         formattedUnit: (revenueUnit / 10000000 >= 1) ? `${revenueUnit / 10000000}천만원` : `${revenueUnit.toLocaleString()}원`
-    };
-};
-
-/**
- * ✨ [신규] 헬퍼: 업무 활용률(Utilization Rate) 계산
- * 기간 내 모든 날짜에 대해 (실제 투입 인원 * 표준 근무 시간)을 합산하여 '총 표준 가용 시간'을 구하고,
- * 이를 실제 총 업무 시간과 비교합니다.
- */
-export const calculateUtilization = (daysData, appConfig, wageMap) => {
-    let totalStandardAvailableMinutes = 0;
-    let totalActualWorkedMinutes = 0;
-
-    daysData.forEach(day => {
-        // 실제 업무 기록이 있는 날만 계산에 포함
-        if (day.workRecords && day.workRecords.length > 0) {
-             // 해당 일자의 KPI 계산 (근무 인원 파악용)
-            const kpis = calculateReportKPIs(day, appConfig, wageMap);
-            const activeStaff = kpis.activeMembersCount;
-
-            if (activeStaff > 0) {
-                totalActualWorkedMinutes += kpis.totalDuration;
-
-                // 표준 가용 시간 계산 (설정값 사용, 없으면 기본값 적용)
-                const standardHours = appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
-                // isWeekday 유틸리티 함수 활용
-                const hoursPerPerson = isWeekday(day.id) ? (standardHours.weekday || 8) : (standardHours.weekend || 4);
-
-                totalStandardAvailableMinutes += (activeStaff * hoursPerPerson * 60);
-            }
-        }
-    });
-
-    const utilizationRate = totalStandardAvailableMinutes > 0
-        ? (totalActualWorkedMinutes / totalStandardAvailableMinutes) * 100
-        : 0;
-
-    return {
-        utilizationRate,
-        totalStandardAvailableMinutes,
-        totalActualWorkedMinutes
     };
 };
