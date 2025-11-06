@@ -48,13 +48,16 @@ const appendTotalRow = (ws, data, headers) => {
     headers.forEach((header, index) => {
         if (index === 0) {
             total[header] = '총 합계';
-        } else if (header.includes('(분)') || header.includes('총 인건비(원)') || header.includes('총 처리량(개)')) {
-            total[header] = Math.round(sums[header]);
-        } else if (header === '개당 처리비용(원)') {
-            const totalCost = sums['총 인건비(원)'] || 0;
-            const totalQty = sums['총 처리량(개)'] || 0;
-            const totalCostPerItem = (totalQty > 0) ? (totalCost / totalQty) : 0;
-            total[header] = Math.round(totalCostPerItem);
+        } else if (header.includes('(분)') || header.includes('(원)') || header.includes('(개)')) {
+            // 인건비(원), 총 인건비(원) 등 '(원)'이 포함된 모든 컬럼 합계 처리
+            if (header === '개당 처리비용(원)') {
+                 const totalCost = sums['총 인건비(원)'] || 0;
+                 const totalQty = sums['총 처리량(개)'] || 0;
+                 const totalCostPerItem = (totalQty > 0) ? (totalCost / totalQty) : 0;
+                 total[header] = Math.round(totalCostPerItem);
+            } else {
+                 total[header] = Math.round(sums[header]);
+            }
         } else {
             total[header] = '';
         }
@@ -69,7 +72,6 @@ export const downloadHistoryAsExcel = async (dateKey) => {
             return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
         }
         
-        // 👈 [수정] 필터 여부와 관계없이 '전체' 데이터에서 이전 날짜를 찾음
         const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
         const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
                                 ? allHistoryData[currentIndex + 1] 
@@ -87,18 +89,25 @@ export const downloadHistoryAsExcel = async (dateKey) => {
         });
         const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
-        // Sheet 1: 상세 기록
+        // Sheet 1: 상세 기록 (✅ 인건비 항목 추가)
         const dailyRecords = data.workRecords || [];
         const dailyQuantities = data.taskQuantities || {};
         
-        const sheet1Headers = ['팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)'];
-        const sheet1Data = dailyRecords.map(r => ({
-            '팀원': r.member || '',
-            '업무 종류': r.task || '',
-            '시작 시간': formatTimeTo24H(r.startTime),
-            '종료 시간': formatTimeTo24H(r.endTime),
-            '소요 시간(분)': Math.round(Number(r.duration) || 0)
-        }));
+        const sheet1Headers = ['팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)', '인건비(원)'];
+        const sheet1Data = dailyRecords.map(r => {
+            const duration = Number(r.duration) || 0;
+            const wage = combinedWageMap[r.member] || 0;
+            const cost = (duration / 60) * wage;
+            
+            return {
+                '팀원': r.member || '',
+                '업무 종류': r.task || '',
+                '시작 시간': formatTimeTo24H(r.startTime),
+                '종료 시간': formatTimeTo24H(r.endTime),
+                '소요 시간(분)': Math.round(duration),
+                '인건비(원)': Math.round(cost)
+            };
+        });
         const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
         if (sheet1Data.length > 0) appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
         fitToColumn(worksheet1);
@@ -220,9 +229,9 @@ export const downloadHistoryAsExcel = async (dateKey) => {
             const taskSummary = records.reduce((acc, r) => {
                 if (!r || !r.task) return acc;
                 if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 }; 
-                acc[r.task].duration += (Number(r.duration) || 0); // 👈 [수정] Number()
+                acc[r.task].duration += (Number(r.duration) || 0);
                 const wage = combinedWageMap[r.member] || 0;
-                acc[r.task].cost += ((Number(r.duration) || 0) / 60) * wage; // 👈 [수정] Number()
+                acc[r.task].cost += ((Number(r.duration) || 0) / 60) * wage;
                 acc[r.task].members.add(r.member); 
                 acc[r.task].recordCount += 1; 
                 return acc;
@@ -285,9 +294,9 @@ export const downloadHistoryAsExcel = async (dateKey) => {
             const taskSummary = records.reduce((acc, r) => {
                 if (!r || !r.task) return acc;
                 if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
-                acc[r.task].duration += (Number(r.duration) || 0); // 👈 [수정] Number()
+                acc[r.task].duration += (Number(r.duration) || 0);
                 const wage = combinedWageMap[r.member] || 0;
-                acc[r.task].cost += ((Number(r.duration) || 0) / 60) * wage; // 👈 [수정] Number()
+                acc[r.task].cost += ((Number(r.duration) || 0) / 60) * wage;
                 acc[r.task].members.add(r.member);
                 acc[r.task].recordCount += 1;
                 return acc;
@@ -496,7 +505,7 @@ export const downloadAttendanceHistoryAsExcel = async (dateKey) => {
 
 
 /**
- * 👈 [추가] 선택한 기간의 엑셀을 다운로드하는 새 함수
+ * 선택한 기간의 엑셀을 다운로드하는 새 함수
  */
 export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
     if (!startDate || !endDate) {
@@ -532,17 +541,24 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
         });
         const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
-        // 3. (시트 1) 상세 기록 (기간 합산)
-        const sheet1Headers = ['날짜', '팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)'];
+        // 3. (시트 1) 상세 기록 (기간 합산) - ✅ 인건비(원) 추가
+        const sheet1Headers = ['날짜', '팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)', '인건비(원)'];
         const sheet1Data = filteredData.flatMap(day => {
-            return (day.workRecords || []).map(r => ({
-                '날짜': day.id,
-                '팀원': r.member || '',
-                '업무 종류': r.task || '',
-                '시작 시간': formatTimeTo24H(r.startTime),
-                '종료 시간': formatTimeTo24H(r.endTime),
-                '소요 시간(분)': Math.round(Number(r.duration) || 0)
-            }));
+            return (day.workRecords || []).map(r => {
+                const duration = Number(r.duration) || 0;
+                const wage = combinedWageMap[r.member] || 0;
+                const cost = (duration / 60) * wage;
+
+                return {
+                    '날짜': day.id,
+                    '팀원': r.member || '',
+                    '업무 종류': r.task || '',
+                    '시작 시간': formatTimeTo24H(r.startTime),
+                    '종료 시간': formatTimeTo24H(r.endTime),
+                    '소요 시간(분)': Math.round(duration),
+                    '인건비(원)': Math.round(cost) // 인건비 추가
+                };
+            });
         }).sort((a,b) => { // 날짜순, 그다음 팀원순 정렬
             if (a['날짜'] !== b['날짜']) return a['날짜'].localeCompare(b['날짜']);
             return a['팀원'].localeCompare(b['팀원']);
