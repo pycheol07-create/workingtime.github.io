@@ -1,4 +1,3 @@
-// === js/app-logic.js ===
 import {
     appState, db, auth,
     render, generateId,
@@ -168,64 +167,4 @@ export const resumeWorkIndividual = (recordId) => {
         saveStateToFirestore(); // ✅ 즉시 저장
         showToast(`${record.member}님 ${record.task} 업무 재개.`);
     }
-};
-
-// ✨ [신규] 출근 처리 함수
-export const clockIn = (memberName) => {
-    const now = getCurrentTime();
-    if (!appState.commuteRecords) appState.commuteRecords = {};
-    
-    appState.commuteRecords[memberName] = {
-        status: 'in',
-        inTime: now,
-        outTime: null
-    };
-    
-    saveStateToFirestore();
-    render();
-    showToast(`${memberName}님 출근 처리되었습니다.`);
-};
-
-// ✨ [신규] 퇴근 처리 함수
-export const clockOut = (memberName) => {
-    const now = getCurrentTime();
-    if (!appState.commuteRecords || !appState.commuteRecords[memberName]) {
-        appState.commuteRecords = appState.commuteRecords || {};
-        appState.commuteRecords[memberName] = { status: 'in', inTime: null, outTime: null };
-    }
-
-    // ⛔️ 진행 중인 업무가 있는지 확인
-    const hasOngoingWork = (appState.workRecords || []).some(r => r.member === memberName && r.status !== 'completed');
-    if (hasOngoingWork) {
-        showToast(`${memberName}님의 진행 중인 업무를 먼저 종료해주세요.`, true);
-        return;
-    }
-
-    appState.commuteRecords[memberName].status = 'out';
-    appState.commuteRecords[memberName].outTime = now;
-
-    saveStateToFirestore();
-    render();
-    showToast(`${memberName}님 퇴근 처리되었습니다.`);
-};
-
-// ✨ [신규] 퇴근 취소 함수 (상태를 'in'으로 되돌림)
-export const cancelClockOut = (memberName) => {
-    if (!appState.commuteRecords || !appState.commuteRecords[memberName]) {
-         showToast(`${memberName}님의 출퇴근 기록이 없습니다.`, true);
-         return;
-    }
-
-    if (appState.commuteRecords[memberName].status !== 'out') {
-        showToast(`${memberName}님은 현재 퇴근 상태가 아닙니다.`, true);
-        return;
-    }
-
-    // 상태를 'in'으로 되돌리고, 퇴근 시간만 지움 (원래 출근 시간은 유지됨)
-    appState.commuteRecords[memberName].status = 'in';
-    appState.commuteRecords[memberName].outTime = null;
-
-    saveStateToFirestore();
-    render();
-    showToast(`${memberName}님의 퇴근이 취소되었습니다. (다시 근무 상태)`);
 };

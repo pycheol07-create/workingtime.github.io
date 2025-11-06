@@ -1,4 +1,3 @@
-// === js/listeners-main.js ===
 import {
     appState, appConfig, db, auth,
     persistentLeaveSchedule, allHistoryData,
@@ -32,10 +31,6 @@ import {
     loginModal, loginForm, loginEmailInput, loginPasswordInput, loginSubmitBtn,
     loginErrorMsg, loginButtonText, loginButtonSpinner, logoutBtn, logoutBtnMobile,
 
-    // ✨ [신규] 추가된 DOM 요소 임포트
-    btnClockIn, btnClockOut,
-    btnClockInMobile, btnClockOutMobile
-
 } from './app.js';
 
 import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime } from './utils.js';
@@ -50,8 +45,7 @@ import {
 
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
-    pauseWorkIndividual, resumeWorkIndividual,
-    clockIn, clockOut // ✨ [신규] app-logic.js에서 출퇴근 함수 임포트
+    pauseWorkIndividual, resumeWorkIndividual
 } from './app-logic.js';
 
 import {
@@ -254,26 +248,11 @@ export function setupMainScreenListeners() {
 
                 context.memberToSetLeave = memberName;
                 if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
-
-                // ✨ [수정] 관리자 전용 옵션 추가 (강제 출/퇴근, 퇴근 취소)
-                let optionsToShow = [...LEAVE_TYPES];
-                if (role === 'admin' && memberName !== selfName) {
-                    optionsToShow.push('강제 출근', '강제 퇴근');
-
-                    // ✨ 현재 상태가 '퇴근(out)'인 경우에만 '퇴근 취소' 옵션 추가
-                    const commute = appState.commuteRecords?.[memberName];
-                    if (commute && commute.status === 'out') {
-                        optionsToShow.push('퇴근 취소');
-                    }
-                }
-
-                renderLeaveTypeModalOptions(optionsToShow);
-
+                renderLeaveTypeModalOptions(LEAVE_TYPES);
                 if (leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
                 if (leaveEndDateInput) leaveEndDateInput.value = '';
                 const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
                 if (firstRadio) {
-                    firstRadio.checked = true;
                     const initialType = firstRadio.value;
                     if (leaveDateInputsDiv) leaveDateInputsDiv.classList.toggle('hidden', !(initialType === '연차' || initialType === '출장' || initialType === '결근'));
                 } else if (leaveDateInputsDiv) { leaveDateInputsDiv.classList.add('hidden'); }
@@ -639,44 +618,6 @@ export function setupMainScreenListeners() {
             } catch (error) {
                 console.error('Logout error:', error);
                 showToast('로그아웃 중 오류가 발생했습니다.', true);
-            }
-        });
-    }
-
-    // ✨ [신규] 출근 버튼 리스너
-    if (btnClockIn) {
-        btnClockIn.addEventListener('click', () => {
-            if (appState.currentUser) {
-                clockIn(appState.currentUser);
-            }
-        });
-    }
-
-    // ✨ [신규] 퇴근 버튼 리스너
-    if (btnClockOut) {
-        btnClockOut.addEventListener('click', () => {
-            if (appState.currentUser) {
-                clockOut(appState.currentUser);
-            }
-        });
-    }
-
-    // ✨ [신규] 모바일 출근 버튼
-    if (btnClockInMobile) {
-        btnClockInMobile.addEventListener('click', (e) => {
-            e.stopPropagation(); // 아코디언 토글 방지
-            if (appState.currentUser) {
-                clockIn(appState.currentUser);
-            }
-        });
-    }
-
-    // ✨ [신규] 모바일 퇴근 버튼
-    if (btnClockOutMobile) {
-        btnClockOutMobile.addEventListener('click', (e) => {
-            e.stopPropagation(); // 아코디언 토글 방지
-            if (appState.currentUser) {
-                clockOut(appState.currentUser);
             }
         });
     }

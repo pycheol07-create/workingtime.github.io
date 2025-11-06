@@ -1,4 +1,4 @@
-// === ui-main.js (메인 화면 렌더링 담당 - 출퇴근 기능 추가) ===
+// === ui-main.js (메인 화면 렌더링 담당 - 최종 수정본) ===
 
 import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday } from './utils.js';
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
@@ -49,17 +49,9 @@ export const updateSummary = (appState, appConfig) => {
 
     const teamGroups = appConfig.teamGroups || [];
     const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
-    // const allPartTimers = new Set((appState.partTimers || []).map(p => p.name)); // 사용 안함
+    const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
     const totalStaffCount = allStaffMembers.size;
-    const totalPartTimerCount = (appState.partTimers || []).length;
-
-    // ✨ [신규] 출근한 인원 파악 (status === 'in')
-    const commuteRecords = appState.commuteRecords || {};
-    const clockedInMembers = new Set(
-        Object.entries(commuteRecords)
-            .filter(([_, record]) => record.status === 'in')
-            .map(([name, _]) => name)
-    );
+    const totalPartTimerCount = allPartTimers.size;
 
     const combinedOnLeaveMembers = [
         ...(appState.dailyOnLeaveMembers || []),
@@ -79,26 +71,28 @@ export const updateSummary = (appState, appConfig) => {
     const ongoingMembers = new Set(ongoingRecords.map(r => r.member));
     const pausedMembers = new Set(pausedRecords.map(r => r.member));
 
-    // 업무중(Working) = 진행 중인 업무가 있는 인원
+    const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
+    // ✅ [수정] 주석 해제됨
+    const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
     const totalWorkingCount = ongoingMembers.size;
 
-    // 근무(Active) = 출근함 AND 휴무 아님
-    // (참고: 휴무자가 출근 버튼을 누르는 예외 상황은 배제한다고 가정)
-    const activeStaffCount = [...allStaffMembers].filter(m => clockedInMembers.has(m) && !onLeaveMemberNames.has(m)).length;
-    const activePartTimerCount = (appState.partTimers || []).filter(pt => clockedInMembers.has(pt.name) && !onLeaveMemberNames.has(pt.name)).length;
+    const availableStaffCount = totalStaffCount - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
+    const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
     
-    // 대기(Idle) = 근무(Active) - 업무중 - 휴식중
-    // (단, 계산상 음수가 나오지 않도록 방어)
-    const totalActiveCount = activeStaffCount + activePartTimerCount;
-    const totalPausedCount = pausedMembers.size;
-    const totalIdleCount = Math.max(0, totalActiveCount - totalWorkingCount - totalPausedCount);
+    const pausedStaffCount = [...pausedMembers].filter(member => allStaffMembers.has(member)).length;
+    const pausedPartTimerCount = [...pausedMembers].filter(member => allPartTimers.has(member)).length;
+    
+    const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount - pausedStaffCount);
+    const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount - pausedPartTimerCount);
+    
+    const totalIdleCount = idleStaffCount + idlePartTimerCount;
 
     const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
     if (elements['total-staff']) elements['total-staff'].textContent = `${totalStaffCount}/${totalPartTimerCount}`;
     if (elements['leave-staff']) elements['leave-staff'].textContent = `${onLeaveTotalCount}`;
-    if (elements['active-staff']) elements['active-staff'].textContent = `${activeStaffCount}/${activePartTimerCount}`;
+    if (elements['active-staff']) elements['active-staff'].textContent = `${availableStaffCount}/${availablePartTimerCount}`;
     if (elements['working-staff']) elements['working-staff'].textContent = `${totalWorkingCount}`;
     if (elements['idle-staff']) elements['idle-staff'].textContent = `${totalIdleCount}`;
     if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`;
@@ -270,18 +264,6 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     });
     if (ongoingRecord || pausedRecord) lastEffectiveEndTime = now;
 
-    // ✨ [수정] 출퇴근 기록이 있으면 그것을 우선 사용
-    const commute = appState.commuteRecords?.[selectedMember];
-    if (commute && commute.inTime) {
-        firstStartTime = commute.inTime;
-        if (commute.outTime) {
-             lastEffectiveEndTime = commute.outTime;
-        } else if (!lastEffectiveEndTime || lastEffectiveEndTime < now) {
-             // 퇴근 안 했으면 현재 시간까지가 유효 범위
-             lastEffectiveEndTime = now;
-        }
-    }
-
     let totalTimeSpanMinutes = 0;
     if (firstStartTime && lastEffectiveEndTime) {
         totalTimeSpanMinutes = calcElapsedMinutes(firstStartTime, lastEffectiveEndTime, []); 
@@ -322,46 +304,6 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 };
 
 /**
- * ✨ [수정] 내 출퇴근 상태 UI 업데이트 함수 (모바일 지원 추가)
- */
-export const renderMyCommuteStatus = (appState) => {
-    const myName = appState.currentUser;
-    if (!myName) return;
-
-    const commute = appState.commuteRecords?.[myName] || { status: 'before' };
-    
-    // PC Elements
-    const statusEl = document.getElementById('my-commute-status');
-    const btnIn = document.getElementById('btn-clock-in');
-    const btnOut = document.getElementById('btn-clock-out');
-
-    // Mobile Elements
-    const mobStatusEl = document.getElementById('mobile-my-commute-status');
-    const mobBtnIn = document.getElementById('btn-clock-in-mobile');
-    const mobBtnOut = document.getElementById('btn-clock-out-mobile');
-
-    const updateUI = (statusText, statusClass, showIn, showOut) => {
-        // PC 업데이트
-        if (statusEl) { statusEl.textContent = statusText; statusEl.className = `text-sm font-bold min-w-[50px] text-center ${statusClass}`; }
-        if (btnIn) btnIn.classList.toggle('hidden', !showIn);
-        if (btnOut) btnOut.classList.toggle('hidden', !showOut);
-
-        // Mobile 업데이트 (Mobile status class는 별도로 지정 가능하지만 여기선 일단 동일하게)
-        if (mobStatusEl) { mobStatusEl.textContent = statusText; mobStatusEl.className = `text-base font-bold min-w-[50px] text-center px-1 ${statusClass === 'text-green-600' ? 'text-green-400' : (statusClass === 'text-gray-500' ? 'text-gray-400' : 'text-gray-300')}`; }
-        if (mobBtnIn) mobBtnIn.classList.toggle('hidden', !showIn);
-        if (mobBtnOut) mobBtnOut.classList.toggle('hidden', !showOut);
-    };
-
-    if (commute.status === 'in') {
-        updateUI('출근 중', 'text-green-600', false, true);
-    } else if (commute.status === 'out') {
-        updateUI('퇴근 완료', 'text-gray-500', false, false);
-    } else {
-        updateUI('출근 전', 'text-gray-400', true, false);
-    }
-};
-
-/**
  * 5. 메인 화면 - 실시간 현황판 렌더링
  */
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
@@ -370,9 +312,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) return;
     teamStatusBoard.innerHTML = '';
-
-    // ✨ [신규] 내 출퇴근 상태 패널 업데이트 호출
-    renderMyCommuteStatus(appState);
 
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
@@ -472,32 +411,14 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const isWorking = ongoingMembers.has(member) || pausedMembers.has(member);
             const isSelf = (member === currentUserName);
             const visibilityClass = (isSelf || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
-            
-            // ✨ [신규] 출퇴근 상태 확인
-            const commute = appState.commuteRecords?.[member] || {};
-            const commuteStatus = commute.status || 'before'; // 기본값: 출근 전
-
             card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClass} ${isSelf ? 'w-full md:w-28' : 'w-28'} flex-col justify-center`;
             card.dataset.memberName = member;
-
             if (isOnLeave) {
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = leaveInfo.type; card.dataset.startTime = leaveInfo.startTime || ''; card.dataset.startDate = leaveInfo.startDate || ''; card.dataset.endTime = leaveInfo.endTime || ''; card.dataset.endDate = leaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 let detailText = leaveInfo.startTime ? formatTimeTo24H(leaveInfo.startTime) + (leaveInfo.endTime ? ` - ${formatTimeTo24H(leaveInfo.endTime)}` : (leaveInfo.type === '외출' ? ' ~' : '')) : (leaveInfo.startDate ? leaveInfo.startDate.substring(5) + (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate ? ` ~ ${leaveInfo.endDate.substring(5)}` : '') : '');
                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">${leaveInfo.type}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
-            } else if (commuteStatus === 'before') {
-                // ✨ [신규] 출근 전 상태 표시
-                card.dataset.action = 'member-toggle-leave'; // 관리자가 출근 전에 근태(연차 등) 설정 가능하도록
-                card.classList.add('bg-gray-100', 'border-gray-200', 'text-gray-400');
-                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">출근 전</div>`;
-            } else if (commuteStatus === 'out') {
-                // ✨ [신규] 퇴근 상태 표시
-                card.dataset.action = 'member-toggle-leave'; // 필요시 관리자 수정 가능하도록
-                card.classList.add('bg-gray-700', 'border-gray-600', 'text-gray-300');
-                let outTimeText = commute.outTime ? formatTimeTo24H(commute.outTime) : '';
-                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">퇴근</div>${outTimeText ? `<div class="text-[10px] leading-tight mt-0.5">(${outTimeText})</div>` : ''}`;
             } else {
-                // 🟢 [기존] 출근(in) 상태
                 card.dataset.action = 'member-toggle-leave';
                 if (isWorking) {
                     card.classList.add('opacity-70', 'cursor-not-allowed', ongoingMembers.has(member) ? 'bg-red-50' : 'bg-yellow-50', ongoingMembers.has(member) ? 'border-red-200' : 'border-yellow-200');
@@ -505,9 +426,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 } else {
                     if (currentUserRole === 'admin' || isSelf) card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400'); else card.classList.add('cursor-not-allowed', 'opacity-70');
                     card.classList.add('bg-green-50', 'border-green-200');
-                    // 출근 시간 표시 (옵션)
-                    let inTimeText = commute.inTime ? formatTimeTo24H(commute.inTime) : '';
-                    card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>${inTimeText ? `<div class="text-[10px] text-green-500/70 leading-tight mt-0.5">(${inTimeText}~)</div>` : ''}`;
+                    card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
                 }
             }
             groupGrid.appendChild(card);
@@ -517,8 +436,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     });
 
     const workingAlbaMembers = new Set(ongoingRecords.map(r => r.member));
-    const activePartTimers = (appState.partTimers || []).filter(pt => workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name) || appState.commuteRecords?.[pt.name]);
-    
+    const activePartTimers = (appState.partTimers || []).filter(pt => workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name));
     if (activePartTimers.length > 0) {
         const albaContainer = document.createElement('div'); albaContainer.className = 'mb-4'; albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2 hidden md:block">알바</h4>`;
         const albaGrid = document.createElement('div'); albaGrid.className = 'flex flex-wrap gap-2';
@@ -526,31 +444,16 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
              const card = document.createElement('button');
              const isSelfAlba = (pt.name === currentUserName);
              const visibilityClassAlba = (isSelfAlba || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
+             card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClassAlba} ${isSelfAlba ? 'w-full md:w-28' : 'w-28'} flex-col justify-center`;
              const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = workingMembersMap.has(pt.name) || pausedMembers.has(pt.name);
-
-             // ✨ [신규] 알바 출퇴근 상태 확인
-             const commute = appState.commuteRecords?.[pt.name] || {};
-             const commuteStatus = commute.status || 'before';
-
-             card.className = `relative p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClassAlba} ${isSelfAlba ? 'w-full md:w-28' : 'w-28'} flex-col justify-center`;
-             card.dataset.memberName = pt.name;
-
+            card.dataset.memberName = pt.name;
             if (isAlbaOnLeave) {
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? ' ~' : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">${albaLeaveInfo.type}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
-            } else if (commuteStatus === 'before') {
-                 card.dataset.action = 'member-toggle-leave';
-                 card.classList.add('bg-gray-100', 'border-gray-200', 'text-gray-400');
-                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">출근 전</div>`;
-            } else if (commuteStatus === 'out') {
-                 card.dataset.action = 'member-toggle-leave';
-                 card.classList.add('bg-gray-700', 'border-gray-600', 'text-gray-300');
-                 let outTimeText = commute.outTime ? formatTimeTo24H(commute.outTime) : '';
-                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">퇴근</div>${outTimeText ? `<div class="text-[10px] leading-tight mt-0.5">(${outTimeText})</div>` : ''}`;
             } else {
                 card.dataset.action = 'member-toggle-leave';
                 if (isAlbaWorking) {
@@ -559,8 +462,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 } else {
                     if (currentUserRole === 'admin' || isSelfAlba) card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400'); else card.classList.add('cursor-not-allowed', 'opacity-70');
                     card.classList.add('bg-green-50', 'border-green-200');
-                    let inTimeText = commute.inTime ? formatTimeTo24H(commute.inTime) : '';
-                    card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${pt.name}</div><div class="text-xs text-green-600">대기 중</div>${inTimeText ? `<div class="text-[10px] text-green-500/70 leading-tight mt-0.5">(${inTimeText}~)</div>` : ''}`;
+                    card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${pt.name}</div><div class="text-xs text-green-600">대기 중</div>`;
                 }
             }
              albaGrid.appendChild(card);
