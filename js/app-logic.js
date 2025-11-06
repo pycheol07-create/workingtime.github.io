@@ -174,6 +174,9 @@ export const clockIn = (memberName) => {
     const now = getCurrentTime();
     if (!appState.commuteRecords) appState.commuteRecords = {};
     
+    // 기존 출근 기록이 있으면 inTime 유지 (관리자 강제 출근 시에는 덮어쓸 수도 있지만, 일단 안전하게 유지하거나 덮어쓰기 정책 결정 필요. 여기선 강제 출근의 의미로 덮어씀)
+    // 만약 유지하고 싶다면: if (!appState.commuteRecords[memberName]?.inTime) ...
+    
     appState.commuteRecords[memberName] = {
         status: 'in',
         inTime: now,
@@ -207,4 +210,25 @@ export const clockOut = (memberName) => {
     saveStateToFirestore();
     render();
     showToast(`${memberName}님 퇴근 처리되었습니다.`);
+};
+
+// ✨ [추가] 퇴근 취소 함수
+export const cancelClockOut = (memberName) => {
+    if (!appState.commuteRecords || !appState.commuteRecords[memberName]) {
+         showToast(`${memberName}님의 출퇴근 기록이 없습니다.`, true);
+         return;
+    }
+
+    if (appState.commuteRecords[memberName].status !== 'out') {
+        showToast(`${memberName}님은 현재 퇴근 상태가 아닙니다.`, true);
+        return;
+    }
+
+    // 상태를 'in'으로 되돌리고, 퇴근 시간만 지움 (원래 출근 시간은 유지됨)
+    appState.commuteRecords[memberName].status = 'in';
+    appState.commuteRecords[memberName].outTime = null;
+
+    saveStateToFirestore();
+    render();
+    showToast(`${memberName}님의 퇴근이 취소되었습니다. (다시 근무 상태)`);
 };
