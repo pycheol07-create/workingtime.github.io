@@ -1,3 +1,4 @@
+// === js/listeners-main.js ===
 import {
     appState, appConfig, db, auth,
     persistentLeaveSchedule, allHistoryData,
@@ -54,6 +55,7 @@ import {
 } from './app-history-logic.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 export function setupMainScreenListeners() {
 
@@ -419,6 +421,7 @@ export function setupMainScreenListeners() {
         }
     });
 
+    // ✅ [수정] '오늘의 처리량 입력' 버튼 리스너 (PC)
     if (openQuantityModalTodayBtn) {
         openQuantityModalTodayBtn.addEventListener('click', () => {
             if (!auth || !auth.currentUser) {
@@ -432,39 +435,42 @@ export function setupMainScreenListeners() {
             const todayData = {
                 workRecords: appState.workRecords || [],
                 taskQuantities: appState.taskQuantities || {},
+                // ✨ 현재 상태의 confirmedZeroTasks도 전달
+                confirmedZeroTasks: appState.confirmedZeroTasks || []
             };
             const missingTasksList = checkMissingQuantities(todayData);
 
-            renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList);
+            renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList, appState.confirmedZeroTasks || []);
 
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
 
             context.quantityModalContext.mode = 'today';
             context.quantityModalContext.dateKey = null;
-            context.quantityModalContext.onConfirm = async (newQuantities) => {
-                appState.taskQuantities = newQuantities;
-                debouncedSaveState();
-                showToast('오늘의 처리량이 저장되었습니다.');
-                render();
 
+            // ✨ [중요] 저장 콜백 함수 정의 (confirmedZeroTasks 포함)
+            context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
+                // 1. 앱 상태 업데이트
+                appState.taskQuantities = newQuantities;
+                appState.confirmedZeroTasks = confirmedZeroTasks;
+
+                // 2. 로컬 저장 및 화면 갱신
+                debouncedSaveState();
+                render();
+                showToast('오늘의 처리량이 저장되었습니다.');
+
+                // 3. 상단 현황판(Dashboard) 수치 즉시 동기화
                 try {
                     const allDefinitions = getAllDashboardDefinitions(appConfig);
                     const dashboardItemIds = appConfig.dashboardItems || [];
-                    const quantityTaskTypes = appConfig.quantityTaskTypes || [];
-                    const quantitiesFromState = appState.taskQuantities || {};
-                    const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
+                    const quantityToDashboardMap = appConfig.quantityToDashboardMap || {};
 
-                    for (const task in quantitiesFromState) {
-                        if (!quantityTaskTypes.includes(task)) continue;
-                        const quantity = newQuantities[task] || 0;
-                        const targetDashboardId = taskNameToDashboardIdMap[task];
-
-                        if (targetDashboardId && allDefinitions[targetDashboardId] && dashboardItemIds.includes(targetDashboardId)) {
-                            const valueId = allDefinitions[targetDashboardId].valueId;
-                            const element = document.getElementById(valueId);
+                    for (const task in newQuantities) {
+                        const targetId = quantityToDashboardMap[task];
+                        if (targetId && dashboardItemIds.includes(targetId) && allDefinitions[targetId]) {
+                            const element = document.getElementById(allDefinitions[targetId].valueId);
                             if (element) {
-                                element.textContent = quantity;
+                                element.textContent = newQuantities[task];
                             }
                         }
                     }
@@ -472,17 +478,33 @@ export function setupMainScreenListeners() {
                     console.error("Error during dashboard sync:", syncError);
                 }
 
+                // 4. 이력 데이터(Firestore History)도 함께 업데이트 (트랜잭션 권장)
                 const todayDateKey = getTodayDateString();
-                const todayHistoryIndex = allHistoryData.findIndex(d => d.id === todayDateKey);
-                if (todayHistoryIndex > -1) {
-                    const todayHistoryData = allHistoryData[todayHistoryIndex];
-                    const updatedHistoryData = { ...todayHistoryData, taskQuantities: newQuantities };
-                    allHistoryData[todayHistoryIndex] = updatedHistoryData;
+                const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
+                try {
+                    await runTransaction(db, async (transaction) => {
+                        const docSnap = await transaction.get(historyDocRef);
+                        if (!docSnap.exists()) return; // 아직 이력이 없으면 패스
 
-                    saveProgress(true);
+                        transaction.update(historyDocRef, {
+                            taskQuantities: newQuantities,
+                            confirmedZeroTasks: confirmedZeroTasks
+                        });
+                    });
+
+                    // 전역 이력 데이터도 동기화
+                    const idx = allHistoryData.findIndex(d => d.id === todayDateKey);
+                    if (idx > -1) {
+                        allHistoryData[idx].taskQuantities = newQuantities;
+                        allHistoryData[idx].confirmedZeroTasks = confirmedZeroTasks;
+                    }
+
+                } catch (e) {
+                    console.error('오늘자 이력 동기화 실패:', e);
                 }
             };
-            context.quantityModalContext.onCancel = () => {};
+
+            context.quantityModalContext.onCancel = () => { };
 
             const cBtn = document.getElementById('confirm-quantity-btn');
             const xBtn = document.getElementById('cancel-quantity-btn');
@@ -493,6 +515,7 @@ export function setupMainScreenListeners() {
         });
     }
 
+    // ✅ [수정] '오늘의 처리량 입력' 버튼 리스너 (모바일)
     if (openQuantityModalTodayBtnMobile) {
         openQuantityModalTodayBtnMobile.addEventListener('click', () => {
             if (!auth || !auth.currentUser) {
@@ -506,26 +529,31 @@ export function setupMainScreenListeners() {
             const todayData = {
                 workRecords: appState.workRecords || [],
                 taskQuantities: appState.taskQuantities || {},
+                confirmedZeroTasks: appState.confirmedZeroTasks || []
             };
             const missingTasksList = checkMissingQuantities(todayData);
 
-            renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList);
+            renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList, appState.confirmedZeroTasks || []);
 
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
 
             context.quantityModalContext.mode = 'today';
             context.quantityModalContext.dateKey = null;
-            context.quantityModalContext.onConfirm = (newQuantities) => {
+
+            // ✨ [중요] 저장 콜백 함수 정의 (confirmedZeroTasks 포함, PC 버전과 동일)
+            context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
                 appState.taskQuantities = newQuantities;
+                appState.confirmedZeroTasks = confirmedZeroTasks;
                 debouncedSaveState();
-
                 saveProgress(true);
-
                 showToast('오늘의 처리량이 저장되었습니다.');
                 render();
+
+                // 대시보드 동기화 등 추가 로직도 필요시 여기에 포함 (PC 버전 참조)
             };
-            context.quantityModalContext.onCancel = () => {};
+
+            context.quantityModalContext.onCancel = () => { };
 
             const cBtn = document.getElementById('confirm-quantity-btn');
             const xBtn = document.getElementById('cancel-quantity-btn');

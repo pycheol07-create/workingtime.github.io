@@ -5,11 +5,19 @@ import {
     context,
     LEAVE_TYPES,
 
-    addAttendanceRecordModal, addAttendanceForm, cancelAddAttendanceBtn,
-    addAttendanceDateKeyInput, addAttendanceTimeFields,
-    addAttendanceDateFields, editAttendanceRecordModal,
-    editAttendanceDateKeyInput, editAttendanceRecordIndexInput,
-    teamSelectModal, deleteConfirmModal, confirmDeleteBtn, cancelDeleteBtn,
+    addAttendanceRecordModal, addAttendanceForm, confirmAddAttendanceBtn, cancelAddAttendanceBtn,
+    addAttendanceMemberNameInput, addAttendanceMemberDatalist, addAttendanceTypeSelect,
+    addAttendanceStartTimeInput, addAttendanceEndTimeInput, addAttendanceStartDateInput,
+    addAttendanceEndDateInput, addAttendanceDateKeyInput, addAttendanceTimeFields,
+    addAttendanceDateFields,
+
+    editAttendanceRecordModal, confirmEditAttendanceBtn, cancelEditAttendanceBtn,
+    editAttendanceMemberName, editAttendanceTypeSelect,
+    editAttendanceStartTimeInput, editAttendanceEndTimeInput, editAttendanceStartDateInput,
+    editAttendanceEndDateInput, editAttendanceDateKeyInput, editAttendanceRecordIndexInput,
+    editAttendanceTimeFields, editAttendanceDateFields,
+
+    deleteConfirmModal, confirmDeleteBtn, cancelDeleteBtn,
     historyModal,
     historyTabs,
     quantityModal, confirmQuantityBtn,
@@ -30,7 +38,7 @@ import {
     editStartTimeInput, editStartTimeContextIdInput, editStartTimeContextTypeInput,
     editLeaveModal,
 
-    render, debouncedSaveState, saveStateToFirestore,
+    render, debouncedSaveState,
     generateId, normalizeName,
     markDataAsDirty,
 
@@ -40,7 +48,6 @@ import { saveLeaveSchedule } from './config.js';
 import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime } from './utils.js';
 
 import {
-    getAllDashboardDefinitions,
     renderManualAddModalDatalists,
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions
@@ -223,134 +230,29 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ✅ [수정] 처리량 모달 저장 버튼 리스너 (단순화됨)
     if (confirmQuantityBtn) {
         confirmQuantityBtn.addEventListener('click', () => {
+            // 1. 입력된 처리량 수집
             const inputs = quantityModal.querySelectorAll('input[data-task]');
             const newQuantities = {};
             inputs.forEach(input => {
                 const task = input.dataset.task;
                 const quantity = Number(input.value) || 0;
-                if (quantity > 0) newQuantities[task] = quantity;
+                // 0이라도 입력된 값은 저장해야 함 (나중에 0건 확인과 연동)
+                if (quantity >= 0) newQuantities[task] = quantity;
             });
 
-            // ✨ [추가] 체크된 '0건 확인' 목록 수집
+            // 2. '0건 확인' 체크박스 상태 수집
             const confirmedZeroCheckboxes = quantityModal.querySelectorAll('.confirm-zero-checkbox:checked');
             const confirmedZeroTasks = Array.from(confirmedZeroCheckboxes).map(cb => cb.dataset.task);
 
+            // 3. 설정된 콜백 함수 실행 (데이터 전달)
             if (context.quantityModalContext.onConfirm) {
-                if (context.quantityModalContext.mode === 'today') {
-                    // ✨ [수정] confirmedZeroTasks 파라미터 전달
-                    const onConfirmToday = async (newQuantities, confirmedZeroTasks) => {
-                        appState.taskQuantities = newQuantities;
-                        appState.confirmedZeroTasks = confirmedZeroTasks; // 앱 상태 업데이트
-
-                        debouncedSaveState();
-                        showToast('오늘의 처리량이 저장되었습니다.');
-                        render();
-
-                        try {
-                            const allDefinitions = getAllDashboardDefinitions(appConfig);
-                            const dashboardItemIds = appConfig.dashboardItems || [];
-                            const quantityTaskTypes = appConfig.quantityTaskTypes || [];
-                            const quantitiesFromState = appState.taskQuantities || {};
-                            const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
-
-                            for (const task in quantitiesFromState) {
-                                if (!quantityTaskTypes.includes(task)) continue;
-                                const quantity = newQuantities[task] || 0;
-                                const targetDashboardId = taskNameToDashboardIdMap[task];
-
-                                if (targetDashboardId && allDefinitions[targetDashboardId] && dashboardItemIds.includes(targetDashboardId)) {
-                                    const valueId = allDefinitions[targetDashboardId].valueId;
-                                    const element = document.getElementById(valueId);
-                                    if (element) {
-                                        element.textContent = quantity;
-                                    }
-                                }
-                            }
-                        } catch (syncError) {
-                            console.error("Error during dashboard sync:", syncError);
-                        }
-
-                        const todayDateKey = getTodayDateString();
-                        const todayHistoryIndex = allHistoryData.findIndex(d => d.id === todayDateKey);
-                        if (todayHistoryIndex > -1) {
-                            const todayHistoryData = allHistoryData[todayHistoryIndex];
-                            const updatedHistoryData = {
-                                ...todayHistoryData,
-                                taskQuantities: newQuantities,
-                                confirmedZeroTasks: confirmedZeroTasks // 이력 데이터 업데이트
-                            };
-                            allHistoryData[todayHistoryIndex] = updatedHistoryData;
-                            const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
-                            try {
-                                await setDoc(historyDocRef, updatedHistoryData);
-                            } catch (e) {
-                                console.error('오늘 날짜 이력(history) 처리량 업데이트 실패:', e);
-                                // allHistoryData[todayHistoryIndex] = todayHistoryData; // 롤백 필요시
-                            }
-                        }
-                    };
-                    onConfirmToday(newQuantities, confirmedZeroTasks);
-
-                } else if (context.quantityModalContext.mode === 'history') {
-                    // ✨ [수정] confirmedZeroTasks 파라미터 전달
-                    const onConfirmHistory = async (newQuantities, confirmedZeroTasks) => {
-                        const dateKey = context.quantityModalContext.dateKey;
-                        if (!dateKey) return;
-
-                        const idx = allHistoryData.findIndex(d => d.id === dateKey);
-                        if (idx === -1 && dateKey !== getTodayDateString()) {
-                            showToast('이력 데이터를 찾을 수 없어 수정할 수 없습니다.', true);
-                            return;
-                        }
-
-                        if (idx > -1) {
-                            allHistoryData[idx] = {
-                                ...allHistoryData[idx],
-                                taskQuantities: newQuantities,
-                                confirmedZeroTasks: confirmedZeroTasks // 이력 데이터 업데이트
-                            };
-                        }
-
-                        const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                        try {
-                            const dataToSave = (idx > -1)
-                                ? allHistoryData[idx]
-                                : {
-                                    id: dateKey,
-                                    taskQuantities: newQuantities,
-                                    confirmedZeroTasks: confirmedZeroTasks, // 새 데이터 생성 시 포함
-                                    workRecords: [], onLeaveMembers: [], partTimers: []
-                                };
-
-                            await setDoc(historyDocRef, dataToSave);
-
-                            showToast(`${dateKey}의 처리량이 수정되었습니다.`);
-
-                            if (dateKey === getTodayDateString()) {
-                                appState.taskQuantities = newQuantities;
-                                appState.confirmedZeroTasks = confirmedZeroTasks; // 오늘 날짜면 앱 상태도 업데이트
-                                render();
-                            }
-
-                            if (dateKey !== getTodayDateString()) {
-                                if (historyModal && !historyModal.classList.contains('hidden')) {
-                                    const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
-                                    const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-                                    switchHistoryView(currentView);
-                                }
-                            }
-
-                        } catch (e) {
-                            console.error('Error updating history quantities:', e);
-                            showToast('처리량 업데이트 중 오류 발생.', true);
-                        }
-                    };
-                    onConfirmHistory(newQuantities, confirmedZeroTasks);
-                }
+                context.quantityModalContext.onConfirm(newQuantities, confirmedZeroTasks);
             }
 
+            // 4. 모달 닫기
             if (quantityModal) quantityModal.classList.add('hidden');
         });
     }

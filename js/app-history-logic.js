@@ -36,23 +36,15 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
-// ✅ [수정] '오늘'의 실시간 데이터를 이력 데이터로 동기화 (확인된 0건 목록 포함)
+// '오늘'의 실시간 데이터를 이력 데이터로 동기화 (확인된 0건 목록 포함)
 const _syncTodayToHistory = () => {
     const todayKey = getTodayDateString();
     const now = getCurrentTime();
 
     const liveWorkRecords = (appState.workRecords || []).map(record => {
         const snapshot = JSON.parse(JSON.stringify(record));
-        if (snapshot.status !== 'ongoing' && snapshot.status !== 'paused' && snapshot.status !== 'completed') {
-             // 혹시 모를 예외 상태 처리
-        }
         if (snapshot.status === 'ongoing' || snapshot.status === 'paused') {
              snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
-             // 진행 중인 상태 그대로 이력에 보여주기 위해 endTime은 설정하지 않거나,
-             // 현재 시점까지의 계산을 위해 임시로 사용할 수 있습니다.
-             // 여기서는 이력 조회 시 혼동을 줄이기 위해 endTime은 null로 두되 duration만 갱신하거나,
-             // 혹은 기존 로직대로 현재 시간으로 마감된 것처럼 보여줄 수도 있습니다.
-             // 기존 로직 유지:
              snapshot.endTime = now;
         }
         return snapshot;
@@ -62,7 +54,7 @@ const _syncTodayToHistory = () => {
         id: todayKey,
         workRecords: liveWorkRecords,
         taskQuantities: JSON.parse(JSON.stringify(appState.taskQuantities || {})),
-        // ✨ [추가] 확인된 0건 업무 목록 동기화
+        // ✨ 확인된 0건 업무 목록 동기화
         confirmedZeroTasks: JSON.parse(JSON.stringify(appState.confirmedZeroTasks || [])),
         onLeaveMembers: [
             ...(JSON.parse(JSON.stringify(appState.dailyOnLeaveMembers || []))),
@@ -80,13 +72,13 @@ const _syncTodayToHistory = () => {
     }
 };
 
-// ✅ [수정] 누락된 처리량 확인 로직 (확인된 항목 제외)
+// 누락된 처리량 확인 로직 (확인된 항목 제외)
 export const checkMissingQuantities = (dayData) => {
     if (!dayData || !dayData.workRecords) return [];
 
     const records = dayData.workRecords;
     const quantities = dayData.taskQuantities || {};
-    // ✨ [추가] 확인된 0건 업무 목록 가져오기
+    // ✨ 확인된 0건 업무 목록 가져오기
     const confirmedZeroTasks = dayData.confirmedZeroTasks || [];
 
     const durationByTask = records.reduce((acc, r) => {
@@ -104,7 +96,7 @@ export const checkMissingQuantities = (dayData) => {
 
     for (const task of tasksWithDuration) {
         if (quantityTaskTypes.includes(task)) {
-            // ✨ [수정] 수량이 0이면서 '확인됨' 목록에도 없는 경우에만 누락으로 간주
+            // ✨ 수량이 0이면서 '확인됨' 목록에도 없는 경우에만 누락으로 간주
             const quantity = Number(quantities[task]) || 0;
             if (quantity <= 0 && !confirmedZeroTasks.includes(task)) {
                 missingTasks.push(task);
@@ -115,7 +107,7 @@ export const checkMissingQuantities = (dayData) => {
     return missingTasks;
 };
 
-// ✅ [수정] 이력 저장 로직 (확인된 0건 목록 저장 포함)
+// 이력 저장 로직 (확인된 0건 목록 저장 포함)
 export async function saveProgress(isAutoSave = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
@@ -148,7 +140,7 @@ export async function saveProgress(isAutoSave = false) {
                 }
             }
 
-            // ✨ [추가] 현재 확인된 0건 목록 스냅샷
+            // ✨ 현재 확인된 0건 목록 스냅샷
             const currentConfirmedZero = appState.confirmedZeroTasks || [];
 
             const currentLeaveMembersCombined = [
@@ -171,7 +163,7 @@ export async function saveProgress(isAutoSave = false) {
                 id: dateStr,
                 workRecords: Array.from(mergedRecordsMap.values()),
                 taskQuantities: mergedQuantities,
-                // ✨ [추가] 확인된 0건 목록 저장 (로컬 상태 덮어쓰기)
+                // ✨ 확인된 0건 목록 저장 (로컬 상태 덮어쓰기)
                 confirmedZeroTasks: currentConfirmedZero,
                 onLeaveMembers: currentLeaveMembersCombined,
                 partTimers: currentPartTimers
@@ -216,7 +208,7 @@ export async function saveDayDataToHistory(shouldReset) {
     if (shouldReset) {
         appState.workRecords = [];
         Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
-        // ✨ [추가] 초기화 시 확인 목록도 초기화
+        // ✨ 초기화 시 확인 목록도 초기화
         appState.confirmedZeroTasks = [];
         appState.partTimers = [];
         appState.hiddenGroupIds = [];
@@ -439,11 +431,10 @@ export const openHistoryQuantityModal = (dateKey) => {
             id: todayDateString,
             workRecords: appState.workRecords || [],
             taskQuantities: appState.taskQuantities || {},
-            // ✨ [추가] 오늘 데이터에도 확인 목록 전달
+            // ✨ 오늘 데이터에도 확인 목록 전달
             confirmedZeroTasks: appState.confirmedZeroTasks || []
         };
         const missingTasksList = checkMissingQuantities(todayData);
-        // ✨ [수정] renderQuantityModalInputs에 확인 목록 전달
         renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList, appState.confirmedZeroTasks || []);
     } else {
         const dayData = allHistoryData.find(d => d.id === dateKey);
@@ -451,7 +442,6 @@ export const openHistoryQuantityModal = (dateKey) => {
             return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
         }
         const missingTasksList = checkMissingQuantities(dayData);
-        // ✨ [수정] renderQuantityModalInputs에 확인 목록 전달
         renderQuantityModalInputs(dayData.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList, dayData.confirmedZeroTasks || []);
     }
 
@@ -460,6 +450,54 @@ export const openHistoryQuantityModal = (dateKey) => {
 
     context.quantityModalContext.mode = 'history';
     context.quantityModalContext.dateKey = dateKey;
+
+    // ✨ [중요] 이력 저장 콜백 함수 정의
+    context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
+        if (!dateKey) return;
+
+        // 1. 전역 이력 데이터 업데이트
+        const idx = allHistoryData.findIndex(d => d.id === dateKey);
+        if (idx > -1) {
+            allHistoryData[idx] = {
+                ...allHistoryData[idx],
+                taskQuantities: newQuantities,
+                confirmedZeroTasks: confirmedZeroTasks
+            };
+        }
+
+        // 2. Firestore 저장
+        const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+        try {
+            // 기존 데이터가 있으면 병합, 없으면 새로 생성
+            await setDoc(historyDocRef, {
+                taskQuantities: newQuantities,
+                confirmedZeroTasks: confirmedZeroTasks
+            }, { merge: true });
+
+            showToast(`${dateKey}의 처리량이 수정되었습니다.`);
+
+            // 3. 만약 오늘 날짜라면 메인 앱 상태도 즉시 동기화
+            if (dateKey === getTodayDateString()) {
+                appState.taskQuantities = newQuantities;
+                appState.confirmedZeroTasks = confirmedZeroTasks;
+                render(); // 메인 화면 갱신
+            }
+
+            // 4. 이력 보기 화면 갱신
+            if (historyModal && !historyModal.classList.contains('hidden')) {
+                // 현재 보고 있는 탭(일/주/월 등) 유지
+                const activeSubTabBtn = document.querySelector('#history-tabs button.font-semibold') 
+                                     || document.querySelector('#report-tabs button.font-semibold');
+                const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
+                
+                switchHistoryView(currentView);
+            }
+
+        } catch (e) {
+            console.error('Error updating history quantities:', e);
+            showToast('처리량 업데이트 중 오류가 발생했습니다.', true);
+        }
+    };
 
     const cBtn = document.getElementById('confirm-quantity-btn');
     const xBtn = document.getElementById('cancel-quantity-btn');
