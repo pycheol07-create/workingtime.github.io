@@ -31,7 +31,7 @@ import {
 } from './utils.js';
 
 import {
-    doc, setDoc, getDoc, collection, getDocs, deleteDoc
+    doc, setDoc, getDoc, collection, getDocs, deleteDoc, runTransaction // ✅ runTransaction 추가
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
@@ -100,7 +100,7 @@ export const checkMissingQuantities = (dayData) => {
     return missingTasks;
 };
 
-// ✅ [수정] 중간 저장 함수도 진행 중인 업무를 포함하도록 확실하게 처리
+// 2. saveProgress 함수 전체를 아래 코드로 교체
 export async function saveProgress(isAutoSave = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
@@ -112,56 +112,63 @@ export async function saveProgress(isAutoSave = false) {
     const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
 
     try {
-        const docSnap = await getDoc(historyDocRef);
-        const existingData = docSnap.exists() ? (docSnap.data() || { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] }) : { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
+        await runTransaction(db, async (transaction) => {
+            // 1. 트랜잭션 내에서 최신 서버 데이터 읽기
+            const docSnap = await transaction.get(historyDocRef);
+            const existingData = docSnap.exists() ? (docSnap.data() || { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] }) : { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
 
-        // 현재 진행 중인 업무도 포함하여 스냅샷 생성
-        const allRecordsSnapshot = (appState.workRecords || []).map(record => {
-            const snapshot = JSON.parse(JSON.stringify(record));
-            // 완료되지 않은 업무는 현재 시간까지의 경과 시간을 계산하여 저장
-            if (snapshot.status !== 'completed') {
-                snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
-                snapshot.endTime = now;
+            // 2. 현재 앱 상태 스냅샷 생성 (진행 중 업무 시간 계산 포함)
+            const allRecordsSnapshot = (appState.workRecords || []).map(record => {
+                const snapshot = JSON.parse(JSON.stringify(record));
+                if (snapshot.status !== 'completed') {
+                    snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
+                    snapshot.endTime = now;
+                }
+                return snapshot;
+            });
+
+            const currentQuantities = {};
+            for (const task in (appState.taskQuantities || {})) {
+                const q = Number(appState.taskQuantities[task]);
+                if (!Number.isNaN(q) && q >= 0) {
+                    currentQuantities[task] = q;
+                }
             }
-            return snapshot;
+
+            const currentLeaveMembersCombined = [
+                ...(appState.dailyOnLeaveMembers || []),
+                ...(appState.dateBasedOnLeaveMembers || [])
+            ];
+            const currentPartTimers = appState.partTimers || [];
+
+            // 저장할 데이터가 없는 경우 체크
+            if (allRecordsSnapshot.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0 && !(existingData.workRecords?.length > 0)) {
+                // 트랜잭션 내에서는 리턴으로 종료하면 아무 작업도 안 함
+                return;
+            }
+
+            // 3. 데이터 병합 (서버 데이터 + 로컬 데이터)
+            const mergedRecordsMap = new Map();
+            (existingData.workRecords || []).forEach(r => mergedRecordsMap.set(r.id, r));
+            allRecordsSnapshot.forEach(r => mergedRecordsMap.set(r.id, r));
+
+            // 처리량은 로컬 값이 있으면 덮어쓰거나, 더 큰 값을 유지하는 등의 전략 선택 가능
+            // 여기서는 로컬 최신값으로 병합 (동시 수정이 드물다고 가정)
+            const mergedQuantities = { ...existingData.taskQuantities, ...currentQuantities };
+
+            const dataToSave = {
+                id: dateStr,
+                workRecords: Array.from(mergedRecordsMap.values()),
+                taskQuantities: mergedQuantities,
+                onLeaveMembers: currentLeaveMembersCombined, // 근태는 로컬(오늘자) 기준 덮어쓰기
+                partTimers: currentPartTimers
+            };
+
+            // 4. 트랜잭션으로 저장
+            transaction.set(historyDocRef, dataToSave);
         });
 
-        const currentQuantities = {};
-        for (const task in (appState.taskQuantities || {})) {
-            const q = Number(appState.taskQuantities[task]);
-            if (!Number.isNaN(q) && q >= 0) {
-                currentQuantities[task] = q;
-            }
-        }
-
-        const currentLeaveMembersCombined = [
-            ...(appState.dailyOnLeaveMembers || []),
-            ...(appState.dateBasedOnLeaveMembers || [])
-        ];
-        const currentPartTimers = appState.partTimers || [];
-
-        // 저장할 데이터가 아예 없는 경우 체크 (진행 중인 업무가 있으면 allRecordsSnapshot.length > 0 이므로 통과됨)
-        if (allRecordsSnapshot.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0 && !(existingData.workRecords?.length > 0)) {
-            if (!isAutoSave) showToast('저장할 데이터가 없습니다.', true);
-            return;
-        }
-
-        // 기존 이력 데이터와 병합 (ID 기준)
-        const mergedRecordsMap = new Map();
-        (existingData.workRecords || []).forEach(r => mergedRecordsMap.set(r.id, r));
-        allRecordsSnapshot.forEach(r => mergedRecordsMap.set(r.id, r));
-
-        const dataToSave = {
-            id: dateStr, // ID 명시적 포함
-            workRecords: Array.from(mergedRecordsMap.values()),
-            taskQuantities: currentQuantities,
-            onLeaveMembers: currentLeaveMembersCombined,
-            partTimers: currentPartTimers
-        };
-
-        await setDoc(historyDocRef, dataToSave);
-
-        // 저장 후 로컬 이력 데이터도 즉시 갱신
+        // 저장 성공 후 로컬 이력 목록 갱신
         _syncTodayToHistory();
 
         if (isAutoSave) {
@@ -171,8 +178,10 @@ export async function saveProgress(isAutoSave = false) {
         }
 
     } catch (e) {
-        console.error('Error in saveProgress: ', e);
-        showToast(`이력 저장 중 오류가 발생했습니다: ${e.message}`, true);
+        console.error('Error in saveProgress via transaction: ', e);
+        if (!isAutoSave) {
+             showToast(`이력 저장 중 오류가 발생했습니다: ${e.message}`, true);
+        }
     }
 }
 
