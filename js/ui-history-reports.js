@@ -5,10 +5,10 @@ import {
     calculateReportKPIs,
     calculateReportAggregations,
     aggregateDaysToSingleData,
-    calculateStandardThroughputs,
+    // calculateStandardThroughputs, // (삭제됨)
+    calculateThroughputBenchmarks,   // ✨ (신규 추가됨)
     analyzeRevenueBasedStaffing,
     analyzeRevenueWorkloadTrend,
-    // ✨ [신규] 고급 통합 분석 함수 import
     calculateAdvancedProductivity
 } from './ui-history-reports-logic.js';
 
@@ -18,7 +18,8 @@ import {
 
 
 const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
-    const wageMap = { ...(appConfig.memberWages || {}) };
+    // ... (기존 코드 유지) ...
+     const wageMap = { ...(appConfig.memberWages || {}) };
     [...currentDaysData, ...previousDaysData].forEach(day => {
         (day.partTimers || []).forEach(pt => {
             if (pt && pt.name && !wageMap[pt.name]) {
@@ -38,6 +39,7 @@ const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
 };
 
 const _calculateAverageActiveMembers = (daysData, appConfig, wageMap) => {
+    // ... (기존 코드 유지) ...
     if (!daysData || daysData.length === 0) return 0;
     const workingDays = daysData.filter(d => d.workRecords && d.workRecords.length > 0);
     if (workingDays.length === 0) return 0;
@@ -50,7 +52,8 @@ const _calculateAverageActiveMembers = (daysData, appConfig, wageMap) => {
 
 
 export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) => {
-    const view = document.getElementById('report-daily-view');
+    // ... (일별 리포트는 비교 범위가 하루이므로 'Range Best'가 큰 의미가 없을 수 있지만, 일관성을 위해 유지하거나 단순화할 수 있습니다. 일단 동일 로직 적용) ...
+     const view = document.getElementById('report-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">일별 리포트 집계 중...</div>';
 
@@ -67,7 +70,8 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
                                 ? allHistoryData[currentIndex + 1]
                                 : null;
 
-    const { wageMap, memberToPartMap } = _prepareReportData([data], [previousDayData].filter(Boolean), appConfig);
+    const currentDays = [data];
+    const { wageMap, memberToPartMap } = _prepareReportData(currentDays, [previousDayData].filter(Boolean), appConfig);
 
     const todayKPIs = calculateReportKPIs(data, appConfig, wageMap);
     const todayAggr = calculateReportAggregations(data, appConfig, wageMap, memberToPartMap);
@@ -75,13 +79,18 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     const prevKPIs = calculateReportKPIs(previousDayData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(previousDayData, appConfig, wageMap, memberToPartMap);
 
+    // ✨ 벤치마크 계산 (일별은 Range Best가 자기 자신이 됨)
+    const benchmarks = calculateThroughputBenchmarks(allHistoryData, currentDays);
+    const todayStaffing = calculateAdvancedProductivity(currentDays, todayAggr, benchmarks, appConfig, wageMap);
+    // (이전 일자 staffing 계산 시에는 이전 일자 기준 벤치마크가 필요할 수 있으나, 단순화를 위해 현재 기준 사용)
+
     const sortState = context.reportSortState || {};
 
     renderGenericReport(
         'report-daily-view',
         `${dateKey} 업무 리포트 (이전 기록 대비)`,
         { raw: data, memberToPartMap: memberToPartMap },
-        { kpis: todayKPIs, aggr: todayAggr },
+        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing, benchmarks: benchmarks }, // benchmarks 전달
         { kpis: prevKPIs, aggr: prevAggr },
         appConfig,
         sortState,
@@ -90,6 +99,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
 };
 
 export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) => {
+    // ...
     const view = document.getElementById('report-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 리포트 집계 중...</div>';
@@ -116,11 +126,10 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentWeekDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevWeekDays, appConfig, wageMap);
 
-    const standardThroughputs = calculateStandardThroughputs(allHistoryData);
-
-    // ✨ [수정] 고급 생산성 분석 함수 호출
-    const todayStaffing = calculateAdvancedProductivity(currentWeekDays, todayAggr, standardThroughputs, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity(prevWeekDays, prevAggr, standardThroughputs, appConfig, wageMap);
+    // ✨ 벤치마크 및 고급 분석
+    const benchmarks = calculateThroughputBenchmarks(allHistoryData, currentWeekDays);
+    const todayStaffing = calculateAdvancedProductivity(currentWeekDays, todayAggr, benchmarks, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevWeekDays, prevAggr, benchmarks, appConfig, wageMap);
 
     const sortState = context.reportSortState || {};
 
@@ -128,7 +137,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         'report-weekly-view',
         `${weekKey} 주별 업무 리포트 (이전 주 대비)`,
         { raw: todayData, memberToPartMap: memberToPartMap },
-        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
+        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing, benchmarks: benchmarks },
         { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
         appConfig,
         sortState,
@@ -137,6 +146,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
 };
 
 export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context) => {
+    // ...
     const view = document.getElementById('report-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 리포트 집계 중...</div>';
@@ -163,11 +173,10 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentMonthDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevMonthDays, appConfig, wageMap);
 
-    const standardThroughputs = calculateStandardThroughputs(allHistoryData);
-
-    // ✨ [수정] 고급 생산성 분석 함수 호출
-    const todayStaffing = calculateAdvancedProductivity(currentMonthDays, todayAggr, standardThroughputs, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity(prevMonthDays, prevAggr, standardThroughputs, appConfig, wageMap);
+    // ✨ 벤치마크 및 고급 분석
+    const benchmarks = calculateThroughputBenchmarks(allHistoryData, currentMonthDays);
+    const todayStaffing = calculateAdvancedProductivity(currentMonthDays, todayAggr, benchmarks, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevMonthDays, prevAggr, benchmarks, appConfig, wageMap);
 
     context.monthlyRevenues = context.monthlyRevenues || {};
     const currentRevenue = context.monthlyRevenues[monthKey] || 0;
@@ -194,7 +203,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         'report-monthly-view',
         `${monthKey} 월별 업무 리포트 (이전 월 대비)`,
         { raw: todayData, memberToPartMap: memberToPartMap, revenue: currentRevenue },
-        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing, revenueAnalysis: revenueAnalysis, revenueTrend: revenueTrendAnalysis },
+        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing, revenueAnalysis: revenueAnalysis, revenueTrend: revenueTrendAnalysis, benchmarks: benchmarks },
         { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
         appConfig,
         sortState,
@@ -204,6 +213,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
 };
 
 export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) => {
+    // ...
     const view = document.getElementById('report-yearly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">연간 리포트 집계 중...</div>';
@@ -230,11 +240,10 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentYearDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevYearDays, appConfig, wageMap);
 
-    const standardThroughputs = calculateStandardThroughputs(allHistoryData);
-
-    // ✨ [수정] 고급 생산성 분석 함수 호출
-    const todayStaffing = calculateAdvancedProductivity(currentYearDays, todayAggr, standardThroughputs, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity(prevYearDays, prevAggr, standardThroughputs, appConfig, wageMap);
+    // ✨ 벤치마크 및 고급 분석
+    const benchmarks = calculateThroughputBenchmarks(allHistoryData, currentYearDays);
+    const todayStaffing = calculateAdvancedProductivity(currentYearDays, todayAggr, benchmarks, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevYearDays, prevAggr, benchmarks, appConfig, wageMap);
 
     const sortState = context.reportSortState || {};
 
@@ -242,7 +251,7 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         'report-yearly-view',
         `${yearKey} 연간 업무 리포트 (이전 연도 대비)`,
         { raw: todayData, memberToPartMap: memberToPartMap },
-        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
+        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing, benchmarks: benchmarks },
         { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
         appConfig,
         sortState,

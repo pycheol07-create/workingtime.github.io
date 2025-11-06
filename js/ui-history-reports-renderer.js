@@ -4,6 +4,7 @@ import { formatDuration } from './utils.js';
 import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js';
 
 const _generateKPIHTML = (tKPIs, pKPIs) => {
+    // ... (기존 _generateKPIHTML 코드 그대로 유지) ...
     return `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -50,10 +51,8 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
     `;
 };
 
-/**
- * [내부 헬퍼] 도움말 툴팁 HTML 생성
- */
 const _renderTooltip = (metricKey) => {
+    // ... (기존 _renderTooltip 코드 그대로 유지) ...
     const info = PRODUCTIVITY_METRIC_DESCRIPTIONS[metricKey];
     if (!info) return '';
     return `<span class="group relative ml-1 inline-block cursor-help text-gray-400 hover:text-gray-600">
@@ -73,7 +72,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
 
     const {
         utilizationRate, efficiencyRatio, qualityRatio, oee,
-        availableFTE, workedFTE, requiredFTE, qualityFTE,
+        availableFTE, requiredFTE, fteGap, recommendation, // fteGap, recommendation 추가됨
         totalLossCost, availabilityLossCost, performanceLossCost, qualityLossCost
     } = tMetrics.staffing;
 
@@ -84,16 +83,34 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
     if (!analysisResult) return '';
     const { diagnosis, commentHtml } = analysisResult;
 
+    // ✨ [추가] 인력 과부족 추천 배너 HTML
+    let recommendationBanner = '';
+    if (recommendation && recommendation.type !== 'neutral') {
+        const bannerColor = recommendation.type === 'shortage' ? 'bg-red-100 border-red-300 text-red-800' :
+                            recommendation.type === 'warning' ? 'bg-yellow-50 border-yellow-300 text-yellow-800' :
+                                                                'bg-blue-50 border-blue-300 text-blue-800';
+        recommendationBanner = `
+            <div class="mb-6 p-4 rounded-lg border-2 ${bannerColor} flex items-start animate-pulse-slow">
+                <span class="text-3xl mr-3">${recommendation.icon}</span>
+                <div>
+                    <h4 class="text-lg font-bold mb-1">AI 인력 운영 제안</h4>
+                    <div class="text-sm opacity-90">${recommendation.text}</div>
+                </div>
+            </div>
+        `;
+    }
+
     return `
         <div class="bg-white p-6 rounded-lg shadow-sm">
             <h3 class="text-xl font-bold mb-6 text-gray-800 flex items-center">
                 📊 생산성 심층 분석 (Advanced)
             </h3>
 
+            ${recommendationBanner}
+
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
                 <div class="space-y-5">
                     <h4 class="font-bold text-gray-700 border-b pb-2">1️⃣ 3단계 효율 분석 (OEE)</h4>
-                    
                     <div>
                         <div class="flex justify-between text-sm mb-1 items-center">
                             <span class="text-gray-600 flex items-center">① 시간 활용률${_renderTooltip('utilizationRate')}</span>
@@ -103,7 +120,6 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
                             <div class="h-2.5 rounded-full ${utilizationRate >= 100 ? 'bg-red-400' : 'bg-blue-500'}" style="width: ${Math.min(utilizationRate, 100)}%"></div>
                         </div>
                     </div>
-
                     <div>
                         <div class="flex justify-between text-sm mb-1 items-center">
                             <span class="text-gray-600 flex items-center">② 업무 효율성${_renderTooltip('efficiencyRatio')}</span>
@@ -113,7 +129,6 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
                             <div class="h-2.5 rounded-full ${efficiencyRatio >= 110 ? 'bg-blue-500' : (efficiencyRatio <= 90 ? 'bg-red-400' : 'bg-green-500')}" style="width: ${Math.min(efficiencyRatio, 100)}%"></div>
                         </div>
                     </div>
-
                     <div>
                         <div class="flex justify-between text-sm mb-1 items-center">
                             <span class="text-gray-600 flex items-center">③ 품질 효율${_renderTooltip('qualityRatio')}</span>
@@ -123,7 +138,6 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
                             <div class="h-2.5 rounded-full bg-green-500" style="width: ${qualityRatio}%"></div>
                         </div>
                     </div>
-
                     <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-lg flex justify-between items-center">
                         <span class="font-bold text-indigo-800 flex items-center">종합 생산 효율 (OEE)${_renderTooltip('oee')}</span>
                         <span class="text-2xl font-extrabold text-indigo-600">${oee.toFixed(0)}%</span>
@@ -131,31 +145,20 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
                 </div>
 
                 <div class="space-y-4">
-                    <h4 class="font-bold text-gray-700 border-b pb-2">2️⃣ 유효 인력(FTE) 분석</h4>
+                    <h4 class="font-bold text-gray-700 border-b pb-2">2️⃣ 적정 인력(FTE) 분석</h4>
                     <div class="space-y-3 pt-2">
                         <div class="flex justify-between items-center">
-                            <span class="text-gray-600 text-sm flex items-center">총 투입 인력${_renderTooltip('availableFTE')}</span>
+                            <span class="text-gray-600 text-sm flex items-center">현재 투입 인력 (평균)${_renderTooltip('availableFTE')}</span>
                             <span class="font-bold text-gray-800">${availableFTE.toFixed(1)} 명</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-red-500 text-xs pl-6">↳ 유휴 인력 손실</span>
-                            <span class="text-red-500 text-xs">-${(availableFTE - workedFTE).toFixed(1)} 명</span>
+                        <div class="flex justify-between items-center p-2 ${fteGap > 0.3 ? 'bg-red-50' : (fteGap < -0.3 ? 'bg-blue-50' : 'bg-green-50')} rounded">
+                            <span class="text-sm font-semibold flex items-center">이론적 필요 인력${_renderTooltip('requiredFTE')}</span>
+                            <span class="font-extrabold text-lg ${fteGap > 0.3 ? 'text-red-600' : (fteGap < -0.3 ? 'text-blue-600' : 'text-green-600')}">
+                                ${requiredFTE.toFixed(1)} 명
+                            </span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-600 text-sm flex items-center">실제 작업 인력${_renderTooltip('workedFTE')}</span>
-                            <span class="font-semibold text-gray-700">${workedFTE.toFixed(1)} 명</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                             <span class="${efficiencyRatio >= 100 ? 'text-blue-500' : 'text-red-500'} text-xs pl-6">↳ 속도 ${efficiencyRatio >= 100 ? '초과 달성' : '저하 손실'}</span>
-                             <span class="${efficiencyRatio >= 100 ? 'text-blue-500' : 'text-red-500'} text-xs">${efficiencyRatio >= 100 ? '+' : ''}${(requiredFTE - workedFTE).toFixed(1)} 명</span>
-                        </div>
-                         <div class="flex justify-between items-center">
-                            <span class="text-red-500 text-xs pl-6">↳ 품질(재작업) 손실</span>
-                            <span class="text-red-500 text-xs">-${(requiredFTE - qualityFTE).toFixed(1)} 명</span>
-                        </div>
-                        <div class="flex justify-between items-center pt-3 border-t border-gray-200">
-                            <span class="font-bold text-blue-700 flex items-center">최종 유효 인력${_renderTooltip('qualityFTE')}</span>
-                            <span class="text-2xl font-extrabold text-blue-600">${qualityFTE.toFixed(1)} 명</span>
+                        <div class="text-xs text-gray-500 text-right">
+                            (격차: ${fteGap > 0 ? '+' : ''}${fteGap.toFixed(1)}명)
                         </div>
                     </div>
                 </div>
@@ -203,6 +206,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
 };
 
 const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, trendAnalysisData, currentRevenue, prevRevenue) => {
+    // ... (기존 _generateRevenueAnalysisHTML 코드 그대로 유지) ...
     if (periodText !== '월') return '';
 
     let analysisResultHtml = '';
@@ -285,99 +289,78 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, trendAnal
     `;
 };
 
-const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
+/**
+ * ✨ [수정] 3-way 퍼포먼스 비교 인사이트 생성
+ */
+const _generateInsightsHTML = (tAggr, pAggr, benchmarks, periodText) => {
     let html = `
-        <div class="bg-white p-4 rounded-lg shadow-sm">
-            <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 심층 분석</h3>
-            <div class="space-y-4">
+        <div class="bg-white p-6 rounded-lg shadow-sm mt-6">
+            <h3 class="text-xl font-bold mb-4 text-gray-800">💡 주요 업무 심층 분석</h3>
+            <div class="space-y-6">
     `;
 
-    const allTaskNames = new Set([...Object.keys(tAggr.taskSummary), ...Object.keys(pAggr.taskSummary)]);
+    // 1. Performance Loss (3-way 비교)
+    let perfLossHtml = '';
+    const { historicalAvg, rangeBest } = benchmarks || { historicalAvg: {}, rangeBest: {} };
+    const taskNames = Object.keys(tAggr.taskSummary).filter(t => tAggr.taskSummary[t].quantity > 0 && historicalAvg[t]);
 
-    let insightsA = '';
-    allTaskNames.forEach(taskName => {
-        const d = tAggr.taskSummary[taskName];
-        const p = pAggr.taskSummary[taskName];
-        if (d && p) {
-            const speedDiff = d.avgThroughput - p.avgThroughput;
-            const effDiff = d.efficiency - p.efficiency;
-            const staffDiff = d.avgStaff - p.avgStaff;
+    if (taskNames.length > 0) {
+        perfLossHtml += `<div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-600">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                <tr>
+                    <th class="px-4 py-2">업무명</th>
+                    <th class="px-4 py-2 text-center text-blue-600">이번 ${periodText} (Actual)</th>
+                    <th class="px-4 py-2 text-center text-gray-500">과거 평균 (Avg)</th>
+                    <th class="px-4 py-2 text-center text-green-600">${periodText}내 최고 (Best)</th>
+                    <th class="px-4 py-2 text-right">효율성 진단</th>
+                </tr>
+            </thead><tbody>`;
 
-            if (staffDiff > 0 && effDiff < -0.1) {
-                let coqHtml = '';
-                (appConfig.qualityCostTasks || []).forEach(coqTask => {
-                     const d_c = tAggr.taskSummary[coqTask]?.duration || 0;
-                     const p_c = pAggr.taskSummary[coqTask]?.duration || 0;
-                     if (d_c > 0 && d_c > p_c * 1.1) {
-                         coqHtml += (coqHtml ? ', ' : '') + `'${coqTask}'`;
-                     }
-                });
-                if (coqHtml) {
-                    coqHtml = `<p class="text-xs text-gray-600 mt-1 ml-4">↳ <strong>참고:</strong> 동기간 <strong>COQ 업무(${coqHtml})</strong>도 함께 증가했습니다.</p>`;
-                }
+        taskNames.sort((a, b) => tAggr.taskSummary[b].duration - tAggr.taskSummary[a].duration); // 작업 시간 많은 순
 
-                insightsA += `
-                    <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <h4 class="font-semibold text-yellow-800 flex items-center">
-                            📉 '${taskName}' - 인원 투입 대비 효율 저하
-                        </h4>
-                        <p class="text-sm text-gray-700 mt-1 ml-4">
-                            투입 인원은 증가했으나(${p.avgStaff.toFixed(1)}명 → ${d.avgStaff.toFixed(1)}명),
-                            인당 처리 효율은 오히려 감소했습니다(${p.efficiency.toFixed(2)} → ${d.efficiency.toFixed(2)}).
-                        </p>
-                        ${coqHtml}
-                    </div>`;
-            }
-            else if (staffDiff > 0 && effDiff > 0.1) {
-                 insightsA += `
-                    <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <h4 class="font-semibold text-green-800 flex items-center">
-                            📈 '${taskName}' - 인원 투입 시너지 발생
-                        </h4>
-                        <p class="text-sm text-gray-700 mt-1 ml-4">
-                            인원을 더 투입함에 따라(${p.avgStaff.toFixed(1)}명 → ${d.avgStaff.toFixed(1)}명)
-                            인당 처리 효율까지 함께 증가했습니다(${p.efficiency.toFixed(2)} → ${d.efficiency.toFixed(2)}).
-                        </p>
-                    </div>`;
-            }
-        }
-    });
-    if (!insightsA) insightsA = `<p class="text-sm text-gray-500">인원 변동에 따른 유의미한 효율 변화가 감지되지 않았습니다.</p>`;
-    html += `<div><h5 class="font-semibold mb-2 text-gray-600 text-sm">A. 인원 투입 효과 분석</h5>${insightsA}</div>`;
+        taskNames.slice(0, 5).forEach(task => { // 상위 5개만 표시
+            const actual = tAggr.taskSummary[task].avgThroughput || 0;
+            const avg = historicalAvg[task] || 0;
+            const best = rangeBest[task] || 0;
 
-    let insightsB = '';
-    const effTasks = Object.keys(tAggr.taskSummary)
-        .map(n => ({ name: n, ...tAggr.taskSummary[n] }))
-        .filter(d => d && d.efficiency > 0 && d.duration > 60)
-        .sort((a, b) => b.efficiency - a.efficiency);
+            const efficiencyVsAvg = avg > 0 ? (actual / avg) * 100 : 0;
+            const efficiencyVsBest = best > 0 ? (actual / best) * 100 : 0;
 
-    if (effTasks.length >= 2) {
-        const best = effTasks[0];
-        const worst = effTasks[effTasks.length - 1];
-        const factor = best.efficiency / worst.efficiency;
-        if (factor >= 1.5) {
-             insightsB = `
-                <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div class="text-sm text-gray-800">
-                        현재 <strong>'${worst.name}'</strong> 업무가 <strong>'${best.name}'</strong>보다 약 <strong>${factor.toFixed(1)}배</strong> 더 많은 리소스(시간/인원)가 투입되고 있습니다.
-                    </div>
-                    <div class="text-xs text-gray-500 mt-1">
-                        (인당 분당 처리량 기준: ${best.name} ${best.efficiency.toFixed(2)} vs ${worst.name} ${worst.efficiency.toFixed(2)})
-                    </div>
-                </div>`;
-        } else {
-             insightsB = `<p class="text-sm text-gray-500">업무 간 현격한 효율 차이는 발견되지 않았습니다.</p>`;
-        }
+            let diagBadge = '';
+            if (efficiencyVsBest < 70) diagBadge = '<span class="bg-red-100 text-red-800 text-xs font-semibold px-2 py-0.5 rounded">심각한 저하</span>';
+            else if (efficiencyVsAvg < 90) diagBadge = '<span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2 py-0.5 rounded">평균 이하</span>';
+            else if (actual >= best * 0.95) diagBadge = '<span class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded">최고 수준</span>';
+            else diagBadge = '<span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-0.5 rounded">양호</span>';
+
+            perfLossHtml += `<tr class="bg-white border-b hover:bg-gray-50">
+                <td class="px-4 py-3 font-medium text-gray-900">${task}</td>
+                <td class="px-4 py-3 text-center font-bold text-blue-600">${actual.toFixed(2)} <span class="text-xs font-normal">개/분</span></td>
+                <td class="px-4 py-3 text-center">${avg.toFixed(2)}</td>
+                <td class="px-4 py-3 text-center font-semibold text-green-600">${best.toFixed(2)}</td>
+                <td class="px-4 py-3 text-right">${diagBadge} <span class="text-xs text-gray-500 ml-1">(Best 대비 ${efficiencyVsBest.toFixed(0)}%)</span></td>
+            </tr>`;
+        });
+        perfLossHtml += `</tbody></table></div>`;
     } else {
-        insightsB = `<p class="text-sm text-gray-500">데이터가 부족하여 비교할 수 없습니다.</p>`;
+        perfLossHtml = `<p class="text-sm text-gray-500 py-4 text-center">비교할 데이터가 충분하지 않습니다.</p>`;
     }
-    html += `<div class="mt-4"><h5 class="font-semibold mb-2 text-gray-600 text-sm">B. 업무별 리소스 투입 강도 비교</h5>${insightsB}</div>`;
+
+    html += `
+        <div>
+            <h4 class="font-bold text-gray-700 border-b pb-2 mb-3">🚀 속도 효율성 진단 (Top 5 업무)</h4>
+            <p class="text-xs text-gray-500 mb-3">
+                 * <strong>Actual</strong>: 이번 ${periodText} 평균 속도 | <strong>Avg</strong>: 과거 전체 평균 속도 | <strong>Best</strong>: 이번 ${periodText} 중 가장 빨랐던 날의 속도
+            </p>
+            ${perfLossHtml}
+        </div>
+    `;
 
     html += `</div></div>`;
     return html;
 };
 
 const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMap, attendanceData) => {
+    // ... (기존 _generateTablesHTML 코드 그대로 유지) ...
     let html = '';
 
     const partSort = sortState.partSummary || { key: 'partName', dir: 'asc' };
@@ -464,7 +447,8 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
     html += _generateKPIHTML(tMetrics.kpis, pMetrics.kpis);
     html += _generateProductivityAnalysisHTML(tMetrics, pMetrics, periodText);
     html += _generateRevenueAnalysisHTML(periodText, tMetrics.revenueAnalysis, tMetrics.revenueTrend, currentRevenue, prevRevenue);
-    html += _generateInsightsHTML(tMetrics.aggr, pMetrics.aggr, appConfig, periodText);
+    // ✨ [수정] Insights 생성 시 벤치마크 데이터도 전달
+    html += _generateInsightsHTML(tMetrics.aggr, pMetrics.aggr, tMetrics.benchmarks, periodText);
     html += _generateTablesHTML(tMetrics.aggr, pMetrics.aggr, periodText, sortState, tData.memberToPartMap, tData.raw.onLeaveMembers);
     html += `</div>`;
 

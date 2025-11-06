@@ -5,6 +5,7 @@ import { formatDuration, isWeekday, getWeekOfYear } from './utils.js';
 // ================== [ 1. 헬퍼 함수 ] ==================
 
 export const getDiffHtmlForMetric = (metric, current, previous) => {
+    // ... (기존 getDiffHtmlForMetric 코드 그대로 유지) ...
     const currValue = current || 0;
     const prevValue = previous || 0;
 
@@ -20,9 +21,11 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
 
     let colorClass = 'text-gray-500';
-    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee', 'availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
+    // 긍정적인 지표 (높을수록 좋음)
+    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee', 'availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE', 'rangeBestThroughput', 'historicalAvgThroughput'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     }
+    // 부정적인 지표 (낮을수록 좋음)
     else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage', 'theoreticalRequiredStaff', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost'].includes(metric)) {
         colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
     }
@@ -36,8 +39,8 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
         diffStr = Math.round(Math.abs(diff)).toLocaleString();
         prevStr = Math.round(prevValue).toLocaleString();
     } else if (['availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
-        diffStr = Math.abs(diff).toFixed(1) + ' FTE';
-        prevStr = prevValue.toFixed(1) + ' FTE';
+        diffStr = Math.abs(diff).toFixed(1) + ' 명';
+        prevStr = prevValue.toFixed(1) + ' 명';
     } else {
         diffStr = Math.abs(diff).toFixed(1);
         prevStr = prevValue.toFixed(1);
@@ -49,6 +52,7 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
 };
 
 export const createTableRow = (columns, isHeader = false, sortState = null) => {
+    // ... (기존 createTableRow 코드 그대로 유지) ...
     const cellTag = isHeader ? 'th' : 'td';
     const rowClass = isHeader ? 'text-xs text-gray-700 uppercase bg-gray-100 sticky top-0' : 'bg-white border-b hover:bg-gray-50';
 
@@ -99,7 +103,8 @@ export const createTableRow = (columns, isHeader = false, sortState = null) => {
 // ================== [ 2. 계산/집계 로직 ] ==================
 
 export const calculateReportKPIs = (data, appConfig, wageMap) => {
-    if (!data) {
+    // ... (기존 calculateReportKPIs 코드 그대로 유지) ...
+     if (!data) {
         return {
             totalDuration: 0, totalCost: 0, totalQuantity: 0,
             overallAvgThroughput: 0, overallAvgCostPerItem: 0,
@@ -160,6 +165,7 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
 };
 
 export const calculateReportAggregations = (data, appConfig, wageMap, memberToPartMap) => {
+    // ... (기존 calculateReportAggregations 코드 그대로 유지) ...
     const records = data?.workRecords || [];
     const quantities = data?.taskQuantities || {};
 
@@ -211,6 +217,7 @@ export const calculateReportAggregations = (data, appConfig, wageMap, memberToPa
 };
 
 export const aggregateDaysToSingleData = (daysData, id) => {
+    // ... (기존 aggregateDaysToSingleData 코드 그대로 유지) ...
     const aggregated = {
         id: id,
         workRecords: [],
@@ -240,42 +247,51 @@ export const aggregateDaysToSingleData = (daysData, id) => {
     return aggregated;
 };
 
-// ================== [ 3. ✨ 고급 분석 로직 ] ==================
+// ================== [ 3. ✨ 고급 분석 로직 (업데이트됨) ] ==================
 
-export const calculateStandardThroughputs = (allHistoryData) => {
-    const totals = {};
+/**
+ * ✅ [수정] 과거 평균(Avg)과 범위 내 최고(Max) 속도를 계산
+ */
+export const calculateThroughputBenchmarks = (allHistoryData, currentPeriodDays) => {
+    // 1. 과거 전체 평균 (Historical Avg)
+    const historyTotals = {};
     allHistoryData.forEach(day => {
         const records = day.workRecords || [];
         const quantities = day.taskQuantities || {};
-
-        records.forEach(r => {
-            if (r.task && r.duration > 0) {
-                if (!totals[r.task]) totals[r.task] = { duration: 0, quantity: 0 };
-                totals[r.task].duration += r.duration;
-            }
-        });
-
-        Object.entries(quantities).forEach(([task, qty]) => {
-            const q = Number(qty) || 0;
-            if (q > 0) {
-                if (!totals[task]) totals[task] = { duration: 0, quantity: 0 };
-                totals[task].quantity += q;
-            }
-        });
+        records.forEach(r => { if (r.task && r.duration > 0) { if (!historyTotals[r.task]) historyTotals[r.task] = { dur: 0, qty: 0 }; historyTotals[r.task].dur += r.duration; } });
+        Object.entries(quantities).forEach(([t, q]) => { if (Number(q) > 0) { if (!historyTotals[t]) historyTotals[t] = { dur: 0, qty: 0 }; historyTotals[t].qty += Number(q); } });
     });
 
-    const standards = {};
-    Object.keys(totals).forEach(task => {
-        const t = totals[task];
-        if (t.duration > 60 && t.quantity > 0) {
-            standards[task] = t.quantity / t.duration; // (개/분)
+    const historicalAvg = {};
+    Object.keys(historyTotals).forEach(task => {
+        if (historyTotals[task].dur > 60 && historyTotals[task].qty > 0) {
+            historicalAvg[task] = historyTotals[task].qty / historyTotals[task].dur;
         }
     });
-    return standards;
+
+    // 2. 범위 내 최고 속도 (Range Best - 일별 기준)
+    const rangeBest = {};
+    currentPeriodDays.forEach(day => {
+        const dayDurations = {};
+        (day.workRecords || []).forEach(r => { if (r.task) dayDurations[r.task] = (dayDurations[r.task] || 0) + (r.duration || 0); });
+        Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
+            const q = Number(qty);
+            const d = dayDurations[task] || 0;
+            if (q > 0 && d > 30) { // 최소 30분 이상 작업한 날만 인정
+                const dailySpeed = q / d;
+                if (!rangeBest[task] || dailySpeed > rangeBest[task]) {
+                    rangeBest[task] = dailySpeed;
+                }
+            }
+        });
+    });
+
+    return { historicalAvg, rangeBest };
 };
 
 export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded, activeMembersCount, actualTotalDuration, appConfig) => {
-    if (!revenue || revenue <= 0 || !totalStandardMinutesNeeded || totalStandardMinutesNeeded <= 0 || !actualTotalDuration || actualTotalDuration <= 0 || !activeMembersCount || activeMembersCount <= 0) {
+    // ... (기존 analyzeRevenueBasedStaffing 코드 그대로 유지) ...
+     if (!revenue || revenue <= 0 || !totalStandardMinutesNeeded || totalStandardMinutesNeeded <= 0 || !actualTotalDuration || actualTotalDuration <= 0 || !activeMembersCount || activeMembersCount <= 0) {
         return null;
     }
 
@@ -295,7 +311,8 @@ export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded,
 };
 
 export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, currentWorkload, prevWorkload) => {
-    if (!currentRevenue || !prevRevenue || !currentWorkload || !prevWorkload) return null;
+    // ... (기존 analyzeRevenueWorkloadTrend 코드 그대로 유지) ...
+     if (!currentRevenue || !prevRevenue || !currentWorkload || !prevWorkload) return null;
 
     const revenueChangeRate = ((currentRevenue - prevRevenue) / prevRevenue) * 100;
     const workloadChangeRate = ((currentWorkload - prevWorkload) / prevWorkload) * 100;
@@ -330,36 +347,10 @@ export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, current
     };
 };
 
-export const calculateUtilization = (daysData, appConfig, wageMap) => {
-    let totalStandardAvailableMinutes = 0;
-    let totalActualWorkedMinutes = 0;
-
-    daysData.forEach(day => {
-        if (day.workRecords && day.workRecords.length > 0) {
-            const kpis = calculateReportKPIs(day, appConfig, wageMap);
-            const activeStaff = kpis.activeMembersCount;
-
-            if (activeStaff > 0) {
-                totalActualWorkedMinutes += kpis.totalDuration;
-                const standardHours = appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
-                const hoursPerPerson = isWeekday(day.id) ? (standardHours.weekday || 8) : (standardHours.weekend || 4);
-                totalStandardAvailableMinutes += (activeStaff * hoursPerPerson * 60);
-            }
-        }
-    });
-
-    const utilizationRate = totalStandardAvailableMinutes > 0
-        ? (totalActualWorkedMinutes / totalStandardAvailableMinutes) * 100
-        : 0;
-
-    return {
-        utilizationRate,
-        totalStandardAvailableMinutes,
-        totalActualWorkedMinutes
-    };
-};
-
-export const calculateAdvancedProductivity = (daysData, currentDataAggr, standardThroughputs, appConfig, wageMap) => {
+/**
+ * ✅ [수정] 인원 과부족 종합 판단(Recommendation) 추가
+ */
+export const calculateAdvancedProductivity = (daysData, currentDataAggr, throughputBenchmarks, appConfig, wageMap) => {
     let totalStandardAvailableMinutes = 0;
     let totalActualWorkedMinutes = 0;
     let totalStandardMinutesNeeded = 0;
@@ -368,6 +359,7 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
     let totalActiveStaffSum = 0;
     let workingDaysCount = 0;
 
+    // 가용 시간 및 실제 투입 시간 계산
     daysData.forEach(day => {
         if (day.workRecords && day.workRecords.length > 0) {
             workingDaysCount++;
@@ -387,47 +379,71 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
         }
     });
 
+    // 필요 표준 시간 계산 (Historical Avg 기준)
     Object.entries(currentDataAggr.taskSummary).forEach(([task, summary]) => {
         const actualQty = summary.quantity || 0;
-        const stdSpeed = standardThroughputs[task];
+        const stdSpeed = throughputBenchmarks.historicalAvg[task]; // 과거 평균을 표준으로 사용
         if (actualQty > 0 && stdSpeed > 0) {
             totalStandardMinutesNeeded += (actualQty / stdSpeed);
         } else if (summary.duration > 0) {
+            // 수량이 없는 업무는 실제 시간을 그대로 필요 시간으로 간주 (효율 100% 가정)
             totalStandardMinutesNeeded += summary.duration;
         }
     });
 
+    // OEE 관련 지표 계산
     const utilizationRate = totalStandardAvailableMinutes > 0 ? (totalActualWorkedMinutes / totalStandardAvailableMinutes) * 100 : 0;
     const efficiencyRatio = totalActualWorkedMinutes > 0 ? (totalStandardMinutesNeeded / totalActualWorkedMinutes) * 100 : 0;
     const qualityRatio = totalActualCost > 0 ? ((totalActualCost - totalQualityCost) / totalActualCost) * 100 : 100;
     const oee = (utilizationRate / 100) * (efficiencyRatio / 100) * (qualityRatio / 100) * 100;
 
+    // FTE(인력) 기반 분석
     const avgActiveStaff = workingDaysCount > 0 ? totalActiveStaffSum / workingDaysCount : 0;
-    const availableFTE = avgActiveStaff;
-    const workedFTE = availableFTE * (utilizationRate / 100);
-    const requiredFTE = workedFTE * (efficiencyRatio / 100);
-    const qualityFTE = requiredFTE * (qualityRatio / 100);
+    const availableFTE = avgActiveStaff; // 현재 투입된 총 인력
+    const requiredFTE = availableFTE * (oee / 100); // 이론적으로 필요한 인력 (OEE 반영)
 
+    // ✨ 인원 충원/감축 종합 추천 로직
+    const fteGap = requiredFTE - availableFTE; // (+): 부족, (-): 과잉
+    let recommendation = { type: 'neutral', text: '현재 인원은 업무량 대비 적절한 수준입니다.', icon: '✅' };
+
+    // 임계값: ±0.8명 (약 1명분에 근접하면 알림)
+    if (fteGap > 0.8) {
+        recommendation = {
+             type: 'shortage',
+             text: `🚨 **인력 부족 심각**: 현재 업무량을 표준 효율로 처리하기 위해 약 **${Math.round(fteGap)}명 충원**이 권장됩니다. (팀원 과부하 위험)`,
+             icon: '🚨'
+        };
+    } else if (fteGap > 0.4) {
+         recommendation = {
+             type: 'warning',
+             text: `⚠️ **업무 과중**: 인력이 다소 부족합니다(약 ${fteGap.toFixed(1)}명분). 야근/특근 발생 가능성이 높습니다.`,
+             icon: '⚠️'
+        };
+    } else if (fteGap < -1.5) { // 과잉은 기준을 좀 더 보수적으로
+        recommendation = {
+            type: 'surplus',
+            text: `📉 **인력 과잉 감지**: 현재 업무량 대비 약 **${Math.abs(Math.round(fteGap))}명의 유휴 인력**이 발생하고 있습니다. 업무 재배치나 효율화가 필요합니다.`,
+            icon: '📉'
+        };
+    }
+
+    // 손실 비용 계산
     const avgCostPerMinute = totalActualWorkedMinutes > 0 ? totalActualCost / totalActualWorkedMinutes : 0;
-    const availabilityLossMinutes = Math.max(0, totalStandardAvailableMinutes - totalActualWorkedMinutes);
-    const performanceLossMinutes = Math.max(0, totalActualWorkedMinutes - totalStandardMinutesNeeded);
-    const availabilityLossCost = availabilityLossMinutes * avgCostPerMinute;
-    const performanceLossCost = performanceLossMinutes * avgCostPerMinute;
+    const availabilityLossCost = Math.max(0, totalStandardAvailableMinutes - totalActualWorkedMinutes) * avgCostPerMinute;
+    const performanceLossCost = Math.max(0, totalActualWorkedMinutes - totalStandardMinutesNeeded) * avgCostPerMinute;
     const qualityLossCost = totalQualityCost;
     const totalLossCost = availabilityLossCost + performanceLossCost + qualityLossCost;
 
     return {
         utilizationRate, efficiencyRatio, qualityRatio, oee,
-        availableFTE, workedFTE, requiredFTE, qualityFTE,
+        availableFTE, requiredFTE, fteGap, recommendation, // ✨ 추가된 필드
         totalLossCost, availabilityLossCost, performanceLossCost, qualityLossCost,
         totalStandardAvailableMinutes, totalActualWorkedMinutes, totalStandardMinutesNeeded
     };
 };
 
-/**
- * ✨ [신규] 생산성 지표별 도움말 텍스트 정의
- */
 export const PRODUCTIVITY_METRIC_DESCRIPTIONS = {
+    // ... (기존 PRODUCTIVITY_METRIC_DESCRIPTIONS 코드 그대로 유지) ...
     utilizationRate: {
         title: "시간 활용률 (Availability)",
         desc: "표준 근무 시간(평일 8H, 주말 4H) 대비 실제 업무 수행 시간의 비율입니다. 낮으면 대기 시간이 많았음을, 100% 초과는 야근/특근이 발생했음을 의미합니다."
@@ -449,26 +465,24 @@ export const PRODUCTIVITY_METRIC_DESCRIPTIONS = {
         desc: "기간 내 실제로 출근하여 근무한 연인원의 평균입니다."
     },
     workedFTE: {
-        title: "실제 작업 인력",
-        desc: "출근한 인원 중 실제로 업무를 수행하고 있던 시간만을 인원수로 환산한 값입니다."
+        title: "실제 작업 인력", // (사용 안함, requiredFTE로 대체됨)
+        desc: ""
     },
     requiredFTE: {
-        title: "표준 필요 인력",
-        desc: "실제 수행한 업무량을 우리 팀의 표준 속도로 처리했을 때 필요한 이론적인 인원수입니다."
+        title: "표준 필요 인력 (이상적)",
+        desc: "실제 수행한 총 업무량을 우리 팀의 '표준 속도'로, '낭비 없이(품질손실 0)' 처리했을 때 필요한 이론적인 최적 인원수입니다."
     },
     qualityFTE: {
-        title: "최종 유효 인력",
-        desc: "재작업 등으로 낭비된 인력을 제외하고, 최종적으로 가치 있는 성과를 낸 실질 인력 규모입니다."
+        title: "최종 유효 인력", // (사용 안함)
+        desc: ""
     }
 };
 
-/**
- * ✨ [신규] 종합 생산성 진단 및 서술형 코멘트 생성 함수
- */
 export const generateProductivityDiagnosis = (metrics, prevMetrics) => {
+    // ... (기존 generateProductivityDiagnosis 코드 그대로 유지, 단 workedFTE/qualityFTE 관련 로직은 제거하거나 requiredFTE 위주로 변경) ...
     if (!metrics) return null;
     const { utilizationRate, efficiencyRatio, qualityRatio, oee } = metrics;
-    
+
     let diagnosis = { icon: '✅', title: '최적 상태 유지', desc: '업무 시간과 속도 모두 적절한 균형을 유지하고 있습니다.', color: 'text-green-700', bg: 'bg-green-50 border-green-200' };
     const isOverloaded = utilizationRate >= 100;
     const isUnderloaded = utilizationRate <= 80;
