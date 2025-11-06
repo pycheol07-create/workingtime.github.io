@@ -20,11 +20,10 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
 
     let colorClass = 'text-gray-500';
-    // ✅ [수정] utilizationRate 등 새로운 지표 추가
-    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee'].includes(metric)) {
+    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee', 'availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     }
-    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage', 'theoreticalRequiredStaff', 'totalLossCost'].includes(metric)) {
+    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage', 'theoreticalRequiredStaff', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost'].includes(metric)) {
         colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
     }
 
@@ -33,9 +32,12 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration' || metric === 'nonWorkTime') {
         diffStr = formatDuration(Math.abs(diff));
         prevStr = formatDuration(prevValue);
-    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem' || metric === 'totalLossCost') {
+    } else if (['avgStaff', 'avgCostPerItem', 'quantity', 'totalQuantity', 'totalCost', 'overallAvgCostPerItem', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost'].includes(metric)) {
         diffStr = Math.round(Math.abs(diff)).toLocaleString();
         prevStr = Math.round(prevValue).toLocaleString();
+    } else if (['availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
+        diffStr = Math.abs(diff).toFixed(1) + ' FTE';
+        prevStr = prevValue.toFixed(1) + ' FTE';
     } else {
         diffStr = Math.abs(diff).toFixed(1);
         prevStr = prevValue.toFixed(1);
@@ -328,24 +330,52 @@ export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, current
     };
 };
 
-/**
- * ✨ [신규] 3단계 통합 고급 생산성 분석 함수
- * FTE, 손실 비용, 3단계 효율(OEE 개념)을 모두 계산합니다.
- */
-export const calculateAdvancedProductivity = (daysData, currentDataAggr, standardThroughputs, appConfig, wageMap) => {
+export const calculateUtilization = (daysData, appConfig, wageMap) => {
     let totalStandardAvailableMinutes = 0;
     let totalActualWorkedMinutes = 0;
-    let totalStandardMinutesNeeded = 0;
-    let totalQualityCost = 0;
-    let totalActualCost = 0;
 
-    // 1. 가용 시간 및 실제 근무 시간 집계
     daysData.forEach(day => {
         if (day.workRecords && day.workRecords.length > 0) {
             const kpis = calculateReportKPIs(day, appConfig, wageMap);
             const activeStaff = kpis.activeMembersCount;
 
             if (activeStaff > 0) {
+                totalActualWorkedMinutes += kpis.totalDuration;
+                const standardHours = appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
+                const hoursPerPerson = isWeekday(day.id) ? (standardHours.weekday || 8) : (standardHours.weekend || 4);
+                totalStandardAvailableMinutes += (activeStaff * hoursPerPerson * 60);
+            }
+        }
+    });
+
+    const utilizationRate = totalStandardAvailableMinutes > 0
+        ? (totalActualWorkedMinutes / totalStandardAvailableMinutes) * 100
+        : 0;
+
+    return {
+        utilizationRate,
+        totalStandardAvailableMinutes,
+        totalActualWorkedMinutes
+    };
+};
+
+export const calculateAdvancedProductivity = (daysData, currentDataAggr, standardThroughputs, appConfig, wageMap) => {
+    let totalStandardAvailableMinutes = 0;
+    let totalActualWorkedMinutes = 0;
+    let totalStandardMinutesNeeded = 0;
+    let totalQualityCost = 0;
+    let totalActualCost = 0;
+    let totalActiveStaffSum = 0;
+    let workingDaysCount = 0;
+
+    daysData.forEach(day => {
+        if (day.workRecords && day.workRecords.length > 0) {
+            workingDaysCount++;
+            const kpis = calculateReportKPIs(day, appConfig, wageMap);
+            const activeStaff = kpis.activeMembersCount;
+
+            if (activeStaff > 0) {
+                totalActiveStaffSum += activeStaff;
                 totalActualWorkedMinutes += kpis.totalDuration;
                 totalActualCost += kpis.totalCost;
                 totalQualityCost += kpis.totalQualityCost;
@@ -357,7 +387,6 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
         }
     });
 
-    // 2. 표준 필요 시간(공수) 집계
     Object.entries(currentDataAggr.taskSummary).forEach(([task, summary]) => {
         const actualQty = summary.quantity || 0;
         const stdSpeed = standardThroughputs[task];
@@ -368,66 +397,117 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
         }
     });
 
-    // --- 3단계 효율 지표 계산 ---
-    // Stage 1: Availability (시간 활용률)
     const utilizationRate = totalStandardAvailableMinutes > 0 ? (totalActualWorkedMinutes / totalStandardAvailableMinutes) * 100 : 0;
-    
-    // Stage 2: Performance (업무 효율성)
     const efficiencyRatio = totalActualWorkedMinutes > 0 ? (totalStandardMinutesNeeded / totalActualWorkedMinutes) * 100 : 0;
-    
-    // Stage 3: Quality (품질 효율)
     const qualityRatio = totalActualCost > 0 ? ((totalActualCost - totalQualityCost) / totalActualCost) * 100 : 100;
-
-    // 종합 효율 (OEE 개념) = Availability * Performance * Quality
     const oee = (utilizationRate / 100) * (efficiencyRatio / 100) * (qualityRatio / 100) * 100;
 
+    const avgActiveStaff = workingDaysCount > 0 ? totalActiveStaffSum / workingDaysCount : 0;
+    const availableFTE = avgActiveStaff;
+    const workedFTE = availableFTE * (utilizationRate / 100);
+    const requiredFTE = workedFTE * (efficiencyRatio / 100);
+    const qualityFTE = requiredFTE * (qualityRatio / 100);
 
-    // --- FTE(인력) 분석 계산 ---
-    // 기준 FTE 시간 (기간 내 1인당 평균 표준 가용 시간)
-    const kpis = calculateReportKPIs(daysData[0], appConfig, wageMap); // 임시로 첫날 데이터 사용해 인원 파악
-    const avgActiveStaff = kpis.activeMembersCount || 1; 
-    const standardMinutesPerFTE = totalStandardAvailableMinutes / avgActiveStaff;
-
-    const availableFTE = avgActiveStaff; // 실제 투입된 인력 규모
-    const workedFTE = standardMinutesPerFTE > 0 ? totalActualWorkedMinutes / standardMinutesPerFTE : 0; // 실제 일한 시간 기준 인력
-    const requiredFTE = standardMinutesPerFTE > 0 ? totalStandardMinutesNeeded / standardMinutesPerFTE : 0; // 표준 공수 기준 필요 인력
-    const qualityFTE = requiredFTE * (qualityRatio / 100); // 품질 손실을 제외한 최종 유효 인력
-
-    // --- 손실 비용(Opportunity Cost) 계산 ---
     const avgCostPerMinute = totalActualWorkedMinutes > 0 ? totalActualCost / totalActualWorkedMinutes : 0;
-    
     const availabilityLossMinutes = Math.max(0, totalStandardAvailableMinutes - totalActualWorkedMinutes);
     const performanceLossMinutes = Math.max(0, totalActualWorkedMinutes - totalStandardMinutesNeeded);
-    // 품질 손실 시간은 별도로 정확히 추산하기 어려우므로, 품질비용을 분당 비용으로 나누어 역산하거나 단순화함.
-    // 여기서는 COQ(품질비용) 자체를 품질 손실액으로 사용.
-
     const availabilityLossCost = availabilityLossMinutes * avgCostPerMinute;
     const performanceLossCost = performanceLossMinutes * avgCostPerMinute;
     const qualityLossCost = totalQualityCost;
     const totalLossCost = availabilityLossCost + performanceLossCost + qualityLossCost;
 
     return {
-        // 3단계 효율
-        utilizationRate,   // Stage 1
-        efficiencyRatio,   // Stage 2
-        qualityRatio,      // Stage 3
-        oee,               // 종합 효율
+        utilizationRate, efficiencyRatio, qualityRatio, oee,
+        availableFTE, workedFTE, requiredFTE, qualityFTE,
+        totalLossCost, availabilityLossCost, performanceLossCost, qualityLossCost,
+        totalStandardAvailableMinutes, totalActualWorkedMinutes, totalStandardMinutesNeeded
+    };
+};
 
-        // FTE 분석
-        availableFTE,
-        workedFTE,
-        requiredFTE,
-        qualityFTE,
+/**
+ * ✨ [신규] 생산성 지표별 도움말 텍스트 정의
+ */
+export const PRODUCTIVITY_METRIC_DESCRIPTIONS = {
+    utilizationRate: {
+        title: "시간 활용률 (Availability)",
+        desc: "표준 근무 시간(평일 8H, 주말 4H) 대비 실제 업무 수행 시간의 비율입니다. 낮으면 대기 시간이 많았음을, 100% 초과는 야근/특근이 발생했음을 의미합니다."
+    },
+    efficiencyRatio: {
+        title: "업무 효율성 (Performance)",
+        desc: "표준 속도 대비 실제 작업 속도의 비율입니다. 100%보다 높으면 표준보다 빠르게, 낮으면 느리게 작업했음을 의미합니다."
+    },
+    qualityRatio: {
+        title: "품질 효율 (Quality)",
+        desc: "전체 투입된 노력 중 재작업(COQ)을 제외한 유효한 성과의 비율입니다. (100% - COQ비율)과 유사합니다."
+    },
+    oee: {
+        title: "종합 생산 효율 (OEE)",
+        desc: "시간 활용률 × 업무 효율성 × 품질 효율. 팀의 전반적인 생산성 수준을 나타내는 최종 지표입니다."
+    },
+    availableFTE: {
+        title: "총 투입 인력",
+        desc: "기간 내 실제로 출근하여 근무한 연인원의 평균입니다."
+    },
+    workedFTE: {
+        title: "실제 작업 인력",
+        desc: "출근한 인원 중 실제로 업무를 수행하고 있던 시간만을 인원수로 환산한 값입니다."
+    },
+    requiredFTE: {
+        title: "표준 필요 인력",
+        desc: "실제 수행한 업무량을 우리 팀의 표준 속도로 처리했을 때 필요한 이론적인 인원수입니다."
+    },
+    qualityFTE: {
+        title: "최종 유효 인력",
+        desc: "재작업 등으로 낭비된 인력을 제외하고, 최종적으로 가치 있는 성과를 낸 실질 인력 규모입니다."
+    }
+};
 
-        // 손실 비용
-        totalLossCost,
-        availabilityLossCost,
-        performanceLossCost,
-        qualityLossCost,
-        
-        // 원천 데이터 (렌더링 시 필요할 수 있음)
-        totalStandardAvailableMinutes,
-        totalActualWorkedMinutes,
-        totalStandardMinutesNeeded
+/**
+ * ✨ [신규] 종합 생산성 진단 및 서술형 코멘트 생성 함수
+ */
+export const generateProductivityDiagnosis = (metrics, prevMetrics) => {
+    if (!metrics) return null;
+    const { utilizationRate, efficiencyRatio, qualityRatio, oee } = metrics;
+    
+    let diagnosis = { icon: '✅', title: '최적 상태 유지', desc: '업무 시간과 속도 모두 적절한 균형을 유지하고 있습니다.', color: 'text-green-700', bg: 'bg-green-50 border-green-200' };
+    const isOverloaded = utilizationRate >= 100;
+    const isUnderloaded = utilizationRate <= 80;
+    const isFast = efficiencyRatio >= 110;
+    const isSlow = efficiencyRatio <= 90;
+
+    if (isOverloaded && isFast) {
+        diagnosis = { icon: '🔥', title: '극한 과부하 (Burnout 위험)', desc: '절대적인 시간이 부족한 와중에도 매우 빠르게 일하고 있습니다. 인원 충원이 시급합니다.', color: 'text-red-700', bg: 'bg-red-50 border-red-200' };
+    } else if (isOverloaded && isSlow) {
+        diagnosis = { icon: '💦', title: '비효율적 과로', desc: '장시간 근무하고 있지만 실제 처리 속도는 느립니다. 업무 프로세스 점검이나 교육이 필요합니다.', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' };
+    } else if (isOverloaded) {
+         diagnosis = { icon: '⏰', title: '시간 부족 (과부하)', desc: '표준 근무 시간을 초과하여 업무를 수행했습니다. 업무량 조절이 필요합니다.', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' };
+    } else if (isUnderloaded && isFast) {
+        diagnosis = { icon: '⚡', title: '유휴 인력 발생 (고숙련)', desc: '업무를 빨리 끝내고 남는 시간이 많습니다. 더 많은 업무를 배정하거나 인원을 효율화할 수 있습니다.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
+    } else if (isUnderloaded && isSlow) {
+        diagnosis = { icon: '⚠️', title: '생산성 저하', desc: '시간적 여유가 있음에도 업무 속도가 느립니다. 동기 부여나 집중 근무 관리가 필요해 보입니다.', color: 'text-gray-700', bg: 'bg-gray-100 border-gray-300' };
+    } else if (isUnderloaded) {
+         diagnosis = { icon: '☕', title: '시간 여유', desc: '표준 근무 시간 대비 실제 업무 수행 시간이 적습니다. (대기 시간 발생)', color: 'text-gray-600', bg: 'bg-gray-50 border-gray-200' };
+    } else if (isFast) {
+         diagnosis = { icon: '🚀', title: '고효율 상태', desc: '적절한 근무 시간 내에서 표준보다 빠르게 성과를 내고 있습니다.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
+    } else if (isSlow) {
+         diagnosis = { icon: '🐢', title: '속도 개선 필요', desc: '근무 시간은 적절하나 표준 속도보다 다소 느립니다.', color: 'text-yellow-600', bg: 'bg-yellow-50 border-yellow-200' };
+    }
+
+    let comments = [];
+    if (utilizationRate >= 105) comments.push(`팀원들이 표준 근무 시간보다 <strong>약 ${(utilizationRate - 100).toFixed(0)}% 더 많이</strong> 일했습니다. 지속적인 초과 근무는 피로 누적을 유발할 수 있습니다.`);
+    else if (utilizationRate <= 75) comments.push(`근무 시간 중 <strong>약 ${(100 - utilizationRate).toFixed(0)}%가 대기 시간</strong> 등으로 활용되지 못했습니다. 업무 배분 효율화가 필요해 보입니다.`);
+    else comments.push(`근무 시간 활용률은 <strong>${utilizationRate.toFixed(0)}%</strong>로 적정 수준을 유지했습니다.`);
+
+    if (efficiencyRatio >= 115) comments.push(`표준 속도보다 <strong>${(efficiencyRatio - 100).toFixed(0)}% 더 빠르게</strong> 업무를 처리하며 뛰어난 숙련도를 보였습니다.`);
+    else if (efficiencyRatio <= 85) comments.push(`표준 대비 <strong>속도가 다소 저하(${(100 - efficiencyRatio).toFixed(0)}% 느림)</strong>되었습니다. 병목 현상이 있었는지 확인이 필요합니다.`);
+
+    if (qualityRatio < 95) comments.push(`재작업 등으로 인한 <strong>품질 손실이 약 ${(100 - qualityRatio).toFixed(1)}%</strong> 발생했습니다. 오류 감소를 위한 노력이 필요합니다.`);
+
+    if (oee >= 85) comments.push(`종합적으로 <strong>매우 우수한 생산성(OEE ${oee.toFixed(0)}%)</strong>을 기록했습니다. 👏`);
+    else if (oee <= 60) comments.push(`전반적인 생산성 지표가 낮습니다. <strong>가장 큰 손실 요인(${utilizationRate < 80 ? '대기시간' : (efficiencyRatio < 90 ? '속도저하' : '품질이슈')})</strong>부터 개선하는 것이 좋습니다.`);
+
+    return {
+        diagnosis,
+        commentHtml: comments.join('<br>')
     };
 };
