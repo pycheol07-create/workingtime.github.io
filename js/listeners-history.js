@@ -518,14 +518,12 @@ export function setupHistoryModalListeners() {
                 return;
             }
 
-            // ✨ 매출액 분석 적용 버튼 이벤트 (콤마 제거 로직 추가)
+            // ✨ [신규] 매출액 분석 적용 버튼 이벤트
             const applyRevenueBtn = e.target.closest('#report-apply-revenue-btn');
             if (applyRevenueBtn) {
                 const revenueInput = document.getElementById('report-monthly-revenue-input');
                 if (revenueInput && context.currentReportParams && context.currentReportParams.monthKey) {
-                    // 콤마 제거 후 숫자로 변환
-                    const rawRevenue = revenueInput.value.replace(/,/g, '');
-                    const revenue = Number(rawRevenue) || 0;
+                    const revenue = Number(revenueInput.value) || 0;
                     const monthKey = context.currentReportParams.monthKey;
 
                     context.monthlyRevenues = context.monthlyRevenues || {};
