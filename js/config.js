@@ -1,3 +1,4 @@
+// === js/config.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -45,7 +46,6 @@ export const loadAppConfig = async (dbInstance) => {
 
             const mergedConfig = { ...defaultData, ...loadedData };
 
-            // 배열 및 객체 필드 기본값 확인
             mergedConfig.teamGroups = loadedData.teamGroups || defaultData.teamGroups;
             mergedConfig.keyTasks = loadedData.keyTasks || defaultData.keyTasks;
             mergedConfig.dashboardItems = loadedData.dashboardItems || defaultData.dashboardItems;
@@ -53,14 +53,14 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             mergedConfig.qualityCostTasks = loadedData.qualityCostTasks || defaultData.qualityCostTasks;
-            // 시스템 계정 초기화 보장
             mergedConfig.systemAccounts = loadedData.systemAccounts || defaultData.systemAccounts;
+            
+            // 표준 일일 근무시간 안전 병합
+            mergedConfig.standardDailyWorkHours = { ...defaultData.standardDailyWorkHours, ...(loadedData.standardDailyWorkHours || {}) };
 
-            // taskGroups 마이그레이션 로직
             if (Array.isArray(loadedData.taskGroups)) {
                 mergedConfig.taskGroups = loadedData.taskGroups;
             } else if (typeof loadedData.taskGroups === 'object' && loadedData.taskGroups !== null && !Array.isArray(loadedData.taskGroups)) {
-                console.warn("Firestore 'taskGroups' (객체)를 (배열) 형식으로 마이그레이션합니다.");
                 mergedConfig.taskGroups = Object.entries(loadedData.taskGroups).map(([groupName, tasks]) => {
                     return { name: groupName, tasks: Array.isArray(tasks) ? tasks : [] };
                 });
@@ -75,19 +75,17 @@ export const loadAppConfig = async (dbInstance) => {
 
             return mergedConfig;
         } else {
-            console.warn("Firestore에 앱 설정 문서가 없습니다. 기본값으로 새로 생성합니다.");
             const defaultData = getDefaultConfig();
             await setDoc(configDocRef, defaultData);
             return defaultData;
         }
     } catch (e) {
         console.error("앱 설정 불러오기 실패:", e);
-        alert("앱 설정 정보를 불러오는 데 실패했습니다.");
         return getDefaultConfig();
     }
 };
 
-// Firestore에 앱 설정 저장하기 (admin.js용)
+// Firestore에 앱 설정 저장하기
 export const saveAppConfig = async (dbInstance, configData) => {
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
@@ -104,10 +102,8 @@ export const loadLeaveSchedule = async (dbInstance) => {
     try {
         const docSnap = await getDoc(leaveDocRef);
         if (docSnap.exists()) {
-            console.log("Firestore에서 근태 일정을 불러왔습니다.");
             return docSnap.data() || { onLeaveMembers: [] };
         } else {
-            console.warn("Firestore에 근태 일정 문서가 없습니다. 새로 생성합니다.");
             const defaultLeaveData = { onLeaveMembers: [] };
             await setDoc(leaveDocRef, defaultLeaveData);
             return defaultLeaveData;
@@ -136,14 +132,8 @@ function getDefaultConfig() {
             { name: '담당파트', members: ['송다진', '정미혜', '진희주'] },
             { name: '제작파트', members: ['이승운'] },
         ],
-        // 시스템 계정 (실제 근무 인원에서 제외)
         systemAccounts: ['관리자', '시스템'],
-        memberWages: {
-            '유아라': 14114, '박호진': 14354, '송다진': 11722, '정미혜': 11483,
-            '김수은': 11253, '이미숙': 11253, '이승운': 14593, '진희주': 10526,
-            '김현': 10287, '배은정': 10287, '박상희': 10287, '김동훈': 10287,
-            '신민재': 10047, '황호석': 10047
-        },
+        memberWages: {},
         memberEmails: {},
         memberRoles: {},
         keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'],
@@ -152,28 +142,24 @@ function getDefaultConfig() {
             'ongoing-tasks', 'total-work-time',
             'domestic-invoice', 'china-production', 'direct-delivery'
         ],
-        dashboardQuantities: {
-            'domestic-invoice': 0,
-            'china-production': 0,
-            'direct-delivery': 0
-        },
+        dashboardQuantities: { 'domestic-invoice': 0, 'china-production': 0, 'direct-delivery': 0 },
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
-
         taskGroups: [
             { name: '공통', tasks: ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업'] },
             { name: '담당', tasks: ['개인담당업무', '상.하차', '검수', '아이롱', '오류'] },
             { name: '기타', tasks: ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무'] }
         ],
-
         quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '검수'],
-
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
-
         defaultPartTimerWage: 10000,
 
-        // ✨ [신규] 매출액 분석 기준 설정
-        revenueIncrementUnit: 10000000, // 매출 증가 단위 (기본 1,000만원)
-        standardMonthlyWorkHours: 209   // 1인당 월 표준 근무시간 (기본 209시간)
+        // ✨ 매출액 및 근무시간 분석 기준
+        revenueIncrementUnit: 10000000,
+        standardMonthlyWorkHours: 209,
+        standardDailyWorkHours: {
+             weekday: 8,
+             weekend: 4
+        }
     };
 }
