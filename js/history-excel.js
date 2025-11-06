@@ -49,7 +49,6 @@ const appendTotalRow = (ws, data, headers) => {
         if (index === 0) {
             total[header] = '총 합계';
         } else if (header.includes('(분)') || header.includes('(원)') || header.includes('(개)')) {
-            // 인건비(원), 총 인건비(원) 등 '(원)'이 포함된 모든 컬럼 합계 처리
             if (header === '개당 처리비용(원)') {
                  const totalCost = sums['총 인건비(원)'] || 0;
                  const totalQty = sums['총 처리량(개)'] || 0;
@@ -89,7 +88,7 @@ export const downloadHistoryAsExcel = async (dateKey) => {
         });
         const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
-        // Sheet 1: 상세 기록 (✅ 인건비 항목 추가)
+        // Sheet 1: 상세 기록
         const dailyRecords = data.workRecords || [];
         const dailyQuantities = data.taskQuantities || {};
         
@@ -341,171 +340,9 @@ export const downloadHistoryAsExcel = async (dateKey) => {
     }
 };
 
-/**
- * 근태 이력 엑셀 다운로드
- */
-export const downloadAttendanceHistoryAsExcel = async (dateKey) => {
-    try {
-        const data = allHistoryData.find(d => d.id === dateKey);
-        if (!data) {
-            return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
-        }
-
-        const workbook = XLSX.utils.book_new();
-
-        const dailyRecords = data.onLeaveMembers || [];
-        const sheet1Data = dailyRecords
-            .sort((a, b) => (a.member || '').localeCompare(b.member || ''))
-            .map(entry => {
-                let detailText = '-';
-                if (entry.startTime) {
-                    detailText = formatTimeTo24H(entry.startTime);
-                    if (entry.endTime) detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
-                    else if (entry.type === '외출') detailText += ' ~';
-                } else if (entry.startDate) {
-                    detailText = entry.startDate;
-                    if (entry.endDate && entry.endDate !== entry.startDate) detailText += ` ~ ${entry.endDate}`;
-                }
-                return {
-                    '이름': entry.member || '',
-                    '유형': entry.type || '',
-                    '시간 / 기간': detailText
-                };
-            });
-        
-        const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: ['이름', '유형', '시간 / 기간'] });
-        fitToColumn(worksheet1);
-        XLSX.utils.book_append_sheet(workbook, worksheet1, `근태 기록 (${dateKey})`);
-
-        const weeklyData = (allHistoryData || []).reduce((acc, day) => {
-            if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string') return acc;
-            try {
-                 const dateObj = new Date(day.id);
-                 if (isNaN(dateObj.getTime())) return acc;
-                 const weekKey = getWeekOfYear(dateObj);
-                 if (!weekKey) return acc;
-                if (!acc[weekKey]) acc[weekKey] = { leaveEntries: [], dateKeys: new Set() };
-                day.onLeaveMembers.forEach(entry => {
-                    if (entry && entry.type && entry.member) {
-                        if (entry.startDate) {
-                            const currentDate = day.id;
-                            const startDate = entry.startDate;
-                            const endDate = entry.endDate || entry.startDate;
-                            if (currentDate >= startDate && currentDate <= endDate) {
-                                acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
-                            }
-                        } else {
-                            acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
-                        }
-                    }
-                });
-                acc[weekKey].dateKeys.add(day.id);
-            } catch (e) { console.error("Error processing day in attendance weekly aggregation:", day.id, e); }
-            return acc;
-        }, {});
-
-        const sheet2Data = [];
-        const sheet2Headers = ['주(Week)', '이름', '유형', '횟수/일수'];
-        const sortedWeeks = Object.keys(weeklyData).sort((a,b) => a.localeCompare(b));
-
-        for (const weekKey of sortedWeeks) {
-            const weekSummaryData = weeklyData[weekKey];
-            const summary = weekSummaryData.leaveEntries.reduce((acc, entry) => {
-                const key = `${entry.member}-${entry.type}`;
-                if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
-                if(entry.startDate) acc[key].count += 1;
-                else acc[key].count += 1;
-                return acc;
-            }, {});
-
-            Object.values(summary).forEach(item => {
-                 if (['연차', '출장', '결근'].includes(item.type)) {
-                     item.days = item.count;
-                 }
-            });
-
-            Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
-                sheet2Data.push({
-                    '주(Week)': weekKey,
-                    '이름': item.member,
-                    '유형': item.type,
-                    '횟수/일수': item.days > 0 ? `${item.days}일` : `${item.count}회`
-                });
-            });
-        }
-        const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
-        fitToColumn(worksheet2);
-        XLSX.utils.book_append_sheet(workbook, worksheet2, '주별 근태 요약 (전체)');
-
-        const monthlyData = (allHistoryData || []).reduce((acc, day) => {
-            if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string' || day.id.length < 7) return acc;
-             try {
-                const monthKey = day.id.substring(0, 7);
-                 if (!/^\d{4}-\d{2}$/.test(monthKey)) return acc;
-                if (!acc[monthKey]) acc[monthKey] = { leaveEntries: [], dateKeys: new Set() };
-                day.onLeaveMembers.forEach(entry => {
-                     if (entry && entry.type && entry.member) {
-                        if (entry.startDate) {
-                            const currentDate = day.id;
-                            const startDate = entry.startDate;
-                            const endDate = entry.endDate || entry.startDate;
-                            if (currentDate >= startDate && currentDate <= endDate) {
-                                acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
-                            }
-                        } else {
-                            acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
-                        }
-                    }
-                });
-                acc[monthKey].dateKeys.add(day.id);
-            } catch (e) { console.error("Error processing day in attendance monthly aggregation:", day.id, e); }
-            return acc;
-        }, {});
-
-        const sheet3Data = [];
-        const sheet3Headers = ['월(Month)', '이름', '유형', '횟수/일수'];
-        const sortedMonths = Object.keys(monthlyData).sort((a,b) => a.localeCompare(b));
-
-        for (const monthKey of sortedMonths) {
-            const monthSummaryData = monthlyData[monthKey];
-            const summary = monthSummaryData.leaveEntries.reduce((acc, entry) => {
-                const key = `${entry.member}-${entry.type}`;
-                if (!acc[key]) acc[key] = { member: entry.member, type: entry.type, count: 0, days: 0 };
-                if(entry.startDate) acc[key].count += 1;
-                else acc[key].count += 1;
-                return acc;
-            }, {});
-
-            Object.values(summary).forEach(item => {
-                 if (['연차', '출장', '결근'].includes(item.type)) {
-                     item.days = item.count;
-                 }
-            });
-
-            Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
-                sheet3Data.push({
-                    '월(Month)': monthKey,
-                    '이름': item.member,
-                    '유형': item.type,
-                    '횟수/일수': item.days > 0 ? `${item.days}일` : `${item.count}회`
-                });
-            });
-        }
-        const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
-        fitToColumn(worksheet3);
-        XLSX.utils.book_append_sheet(workbook, worksheet3, '월별 근태 요약 (전체)');
-
-        XLSX.writeFile(workbook, `근태기록_${dateKey}_및_전체요약.xlsx`);
-
-    } catch (error) {
-        console.error('Attendance Excel export failed:', error);
-        showToast('근태 Excel 파일 생성에 실패했습니다.', true);
-    }
-};
-
 
 /**
- * 선택한 기간의 엑셀을 다운로드하는 새 함수
+ * 선택한 기간의 엑셀을 다운로드하는 함수
  */
 export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
     if (!startDate || !endDate) {
@@ -541,7 +378,7 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
         });
         const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
-        // 3. (시트 1) 상세 기록 (기간 합산) - ✅ 인건비(원) 추가
+        // 3. (시트 1) 상세 기록 (기간 합산)
         const sheet1Headers = ['날짜', '팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)', '인건비(원)'];
         const sheet1Data = filteredData.flatMap(day => {
             return (day.workRecords || []).map(r => {
@@ -556,7 +393,7 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
                     '시작 시간': formatTimeTo24H(r.startTime),
                     '종료 시간': formatTimeTo24H(r.endTime),
                     '소요 시간(분)': Math.round(duration),
-                    '인건비(원)': Math.round(cost) // 인건비 추가
+                    '인건비(원)': Math.round(cost)
                 };
             });
         }).sort((a,b) => { // 날짜순, 그다음 팀원순 정렬
@@ -569,31 +406,66 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
         fitToColumn(worksheet1);
         XLSX.utils.book_append_sheet(workbook, worksheet1, `상세 기록 (기간)`);
 
-        // 4. (시트 2) 업무 요약 (기간 합산)
-        const aggregatedQuantities = {};
-        const summaryByTask = {};
-
+        // 4. (시트 2) 업무 요약 (✅ 일별, 기간별 정리)
+        const sheet2Data = [];
+        
+        // 날짜별로 순회하며 요약 데이터 생성
         filteredData.forEach(day => {
-            // 수량 합산
-            Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
-                aggregatedQuantities[task] = (aggregatedQuantities[task] || 0) + (Number(qty) || 0);
+            const dateKey = day.id;
+            const dayRecords = day.workRecords || [];
+            const dayQuantities = day.taskQuantities || {};
+            const dayTaskSummary = {};
+
+            // 해당 일자의 업무 기록 집계
+            dayRecords.forEach(r => {
+                 if (!r || !r.task) return;
+                 if (!dayTaskSummary[r.task]) {
+                     dayTaskSummary[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+                 }
+                 const duration = Number(r.duration) || 0;
+                 const wage = combinedWageMap[r.member] || 0;
+                 dayTaskSummary[r.task].duration += duration;
+                 dayTaskSummary[r.task].cost += (duration / 60) * wage;
+                 dayTaskSummary[r.task].members.add(r.member);
+                 dayTaskSummary[r.task].recordCount += 1;
             });
-            // 업무 기록 합산
-            (day.workRecords || []).forEach(r => {
-                if (!r || !r.task) return;
-                if (!summaryByTask[r.task]) {
-                    summaryByTask[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
-                }
-                const duration = Number(r.duration) || 0;
-                const wage = combinedWageMap[r.member] || 0;
-                summaryByTask[r.task].duration += duration;
-                summaryByTask[r.task].cost += (duration / 60) * wage;
-                summaryByTask[r.task].members.add(r.member); 
-                summaryByTask[r.task].recordCount += 1; 
+
+            // 해당 일자에 기록이 있거나 수량이 있는 모든 업무에 대해 행 생성
+            const allDayTasks = new Set([...Object.keys(dayTaskSummary), ...Object.keys(dayQuantities)]);
+            
+            allDayTasks.forEach(task => {
+                const summary = dayTaskSummary[task] || { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+                const qty = Number(dayQuantities[task]) || 0;
+                const duration = summary.duration;
+                const cost = summary.cost;
+
+                const avgThroughput = duration > 0 ? (qty / duration).toFixed(2) : '0.00';
+                const avgCostPerItem = qty > 0 ? (cost / qty).toFixed(0) : '0';
+                const avgStaff = summary.members.size;
+                const avgTime = (summary.recordCount > 0) ? (duration / summary.recordCount) : 0;
+
+                sheet2Data.push({
+                    '날짜': dateKey,
+                    '업무 종류': task,
+                    '총 소요 시간(분)': Math.round(duration),
+                    '총 인건비(원)': Math.round(cost),
+                    '총 처리량(개)': qty,
+                    '평균 처리량(개/분)': avgThroughput,
+                    '평균 처리비용(원/개)': avgCostPerItem,
+                    '총 참여인원(명)': avgStaff,
+                    '평균 처리시간(건)': formatDuration(avgTime)
+                });
             });
         });
 
+        // 날짜순 -> 업무명순 정렬
+        sheet2Data.sort((a, b) => {
+            if (a['날짜'] !== b['날짜']) return a['날짜'].localeCompare(b['날짜']);
+            return a['업무 종류'].localeCompare(b['업무 종류']);
+        });
+
         const sheet2Headers = [
+            '날짜',
             '업무 종류', 
             '총 소요 시간(분)', 
             '총 인건비(원)', 
@@ -603,34 +475,11 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
             '총 참여인원(명)', 
             '평균 처리시간(건)'
         ];
-        
-        const sheet2Data = Object.keys(summaryByTask).sort().map(task => {
-            const summary = summaryByTask[task];
-            const qty = aggregatedQuantities[task] || 0;
-            const duration = summary.duration || 0;
-            const cost = summary.cost || 0;
-
-            const avgThroughput = duration > 0 ? (qty / duration).toFixed(2) : '0.00';
-            const avgCostPerItem = qty > 0 ? (cost / qty).toFixed(0) : '0';
-            const avgStaff = summary.members.size;
-            const avgTime = (summary.recordCount > 0) ? (duration / summary.recordCount) : 0;
-            
-            return {
-                '업무 종류': task,
-                '총 소요 시간(분)': Math.round(duration),
-                '총 인건비(원)': Math.round(cost),
-                '총 처리량(개)': qty,
-                '평균 처리량(개/분)': avgThroughput,
-                '평균 처리비용(원/개)': avgCostPerItem,
-                '총 참여인원(명)': avgStaff, 
-                '평균 처리시간(건)': formatDuration(avgTime)
-            };
-        });
 
         const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
         if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers); 
         fitToColumn(worksheet2);
-        XLSX.utils.book_append_sheet(workbook, worksheet2, `업무 요약 (기간 합산)`);
+        XLSX.utils.book_append_sheet(workbook, worksheet2, `업무 요약 (일별)`);
         
         // 5. (시트 3) 근태 기록 (기간 합산)
         const sheet3Headers = ['날짜', '이름', '유형', '시간 / 기간'];
