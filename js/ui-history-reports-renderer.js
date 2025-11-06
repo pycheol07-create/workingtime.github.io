@@ -50,95 +50,120 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
     `;
 };
 
+/**
+ * ✨ [신규] 생산성 및 인력 운용 종합 분석 HTML 생성 (3단계 효율 + FTE + 손실비용)
+ */
 const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
     if (!tMetrics.staffing || ['기록'].includes(periodText)) return '';
 
     const {
-        theoreticalRequiredStaff, efficiencyRatio, totalStandardMinutesNeeded,
-        utilizationRate, totalStandardAvailableMinutes, totalActualWorkedMinutes
+        utilizationRate, efficiencyRatio, qualityRatio, oee,
+        availableFTE, workedFTE, requiredFTE, qualityFTE,
+        totalLossCost, availabilityLossCost, performanceLossCost, qualityLossCost
     } = tMetrics.staffing;
 
-    const actualStaff = tMetrics.kpis.activeMembersCount;
-    const prevRequired = pMetrics?.staffing?.theoreticalRequiredStaff || 0;
-    const prevEfficiency = pMetrics?.staffing?.efficiencyRatio || 0;
-    const prevUtilization = pMetrics?.staffing?.utilizationRate || 0;
+    const prev = pMetrics?.staffing || {};
 
-    if (theoreticalRequiredStaff <= 0 && utilizationRate <= 0) return '';
-
-    let diagnosis = { icon: '✅', title: '최적 상태 유지', desc: '업무 시간과 속도 모두 적절한 균형을 유지하고 있습니다.', color: 'text-green-700', bg: 'bg-green-50 border-green-200' };
-
-    const isOverloaded = utilizationRate >= 100;
-    const isUnderloaded = utilizationRate <= 80;
-    const isFast = efficiencyRatio >= 110;
-    const isSlow = efficiencyRatio <= 90;
-
-    if (isOverloaded && isFast) {
-        diagnosis = { icon: '🔥', title: '극한 과부하 (Burnout 위험)', desc: '절대적인 시간이 부족한 와중에도 매우 빠르게 일하고 있습니다. 인원 충원이 시급합니다.', color: 'text-red-700', bg: 'bg-red-50 border-red-200' };
-    } else if (isOverloaded && isSlow) {
-        diagnosis = { icon: '💦', title: '비효율적 과로', desc: '장시간 근무하고 있지만 실제 처리 속도는 느립니다. 업무 프로세스 점검이나 교육이 필요합니다.', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' };
-    } else if (isOverloaded) {
-         diagnosis = { icon: '⏰', title: '시간 부족 (과부하)', desc: '표준 근무 시간을 초과하여 업무를 수행했습니다. 업무량 조절이 필요합니다.', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' };
-    } else if (isUnderloaded && isFast) {
-        diagnosis = { icon: '⚡', title: '유휴 인력 발생 (고숙련)', desc: '업무를 빨리 끝내고 남는 시간이 많습니다. 더 많은 업무를 배정하거나 인원을 효율화할 수 있습니다.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
-    } else if (isUnderloaded && isSlow) {
-        diagnosis = { icon: '⚠️', title: '생산성 저하', desc: '시간적 여유가 있음에도 업무 속도가 느립니다. 동기 부여나 집중 근무 관리가 필요해 보입니다.', color: 'text-gray-700', bg: 'bg-gray-100 border-gray-300' };
-    } else if (isUnderloaded) {
-         diagnosis = { icon: '☕', title: '시간 여유', desc: '표준 근무 시간 대비 실제 업무 수행 시간이 적습니다. (대기 시간 발생)', color: 'text-gray-600', bg: 'bg-gray-50 border-gray-200' };
-    } else if (isFast) {
-         diagnosis = { icon: '🚀', title: '고효율 상태', desc: '적절한 근무 시간 내에서 표준보다 빠르게 성과를 내고 있습니다.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
-    } else if (isSlow) {
-         diagnosis = { icon: '🐢', title: '속도 개선 필요', desc: '근무 시간은 적절하나 표준 속도보다 다소 느립니다.', color: 'text-yellow-600', bg: 'bg-yellow-50 border-yellow-200' };
-    }
+    if (availableFTE <= 0) return '';
 
     return `
-        <div class="bg-white p-5 rounded-lg shadow-sm">
-            <h3 class="text-lg font-bold mb-4 text-gray-800 flex items-center">
-                📊 생산성 및 인력 운용 분석 (Beta)
+        <div class="bg-white p-6 rounded-lg shadow-sm">
+            <h3 class="text-xl font-bold mb-6 text-gray-800 flex items-center">
+                📊 생산성 심층 분석 (Advanced)
             </h3>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div class="p-4 rounded-lg border bg-gray-50 text-center">
-                    <div class="text-sm text-gray-500 mb-1">실제 투입 인원 (평균)</div>
-                    <div class="text-2xl font-bold text-gray-800">${actualStaff.toFixed(1)} 명</div>
-                    ${getDiffHtmlForMetric('activeMembersCount', actualStaff, pMetrics.kpis.activeMembersCount)}
-                </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
-                <div class="p-4 rounded-lg border bg-blue-50 border-blue-100 text-center">
-                    <div class="text-sm text-blue-700 mb-1">이론적 적정 인원</div>
-                    <div class="text-2xl font-bold text-blue-600">${theoreticalRequiredStaff.toFixed(1)} 명</div>
-                    ${getDiffHtmlForMetric('theoreticalRequiredStaff', theoreticalRequiredStaff, prevRequired)}
+                <div class="space-y-4">
+                    <h4 class="font-bold text-gray-700 border-b pb-2">1️⃣ 3단계 효율 분석 (OEE)</h4>
+                    
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-gray-600">① 시간 활용률 (Availability)</span>
+                            <span class="font-semibold">${utilizationRate.toFixed(0)}% ${getDiffHtmlForMetric('utilizationRate', utilizationRate, prev.utilizationRate)}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="h-2 rounded-full ${utilizationRate >= 100 ? 'bg-red-400' : 'bg-blue-500'}" style="width: ${Math.min(utilizationRate, 100)}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-gray-600">② 업무 효율성 (Performance)</span>
+                            <span class="font-semibold">${efficiencyRatio.toFixed(0)}% ${getDiffHtmlForMetric('efficiencyRatio', efficiencyRatio, prev.efficiencyRatio)}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="h-2 rounded-full ${efficiencyRatio >= 110 ? 'bg-blue-500' : (efficiencyRatio <= 90 ? 'bg-red-400' : 'bg-green-500')}" style="width: ${Math.min(efficiencyRatio, 100)}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-gray-600">③ 품질 효율 (Quality)</span>
+                            <span class="font-semibold">${qualityRatio.toFixed(1)}% ${getDiffHtmlForMetric('qualityRatio', qualityRatio, prev.qualityRatio)}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="h-2 rounded-full bg-green-500" style="width: ${qualityRatio}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="mt-2 p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex justify-between items-center">
+                        <span class="font-bold text-indigo-800">종합 생산 효율 (OEE)</span>
+                        <span class="text-xl font-extrabold text-indigo-600">${oee.toFixed(0)}%</span>
+                    </div>
                 </div>
 
-                <div class="p-4 rounded-lg border bg-gray-50 text-center">
-                     <div class="text-sm text-gray-500 mb-1">⏰ 시간 활용률 (Utilization)</div>
-                    <div class="text-2xl font-bold ${utilizationRate >= 100 ? 'text-red-600' : 'text-gray-800'}">
-                        ${utilizationRate.toFixed(0)}%
+                <div class="space-y-4">
+                    <h4 class="font-bold text-gray-700 border-b pb-2">2️⃣ 유효 인력(FTE) 분석</h4>
+                    <div class="space-y-3 pt-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600 text-sm">총 투입 인력</span>
+                            <span class="font-bold text-gray-800">${availableFTE.toFixed(1)} 명</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-red-500 text-xs pl-4">↳ 유휴 인력 손실</span>
+                            <span class="text-red-500 text-xs">-${(availableFTE - workedFTE).toFixed(1)} 명</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600 text-sm">실제 작업 인력</span>
+                            <span class="font-semibold text-gray-700">${workedFTE.toFixed(1)} 명</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                             <span class="${efficiencyRatio >= 100 ? 'text-blue-500' : 'text-red-500'} text-xs pl-4">↳ 속도 ${efficiencyRatio >= 100 ? '초과 달성' : '저하 손실'}</span>
+                             <span class="${efficiencyRatio >= 100 ? 'text-blue-500' : 'text-red-500'} text-xs">${efficiencyRatio >= 100 ? '+' : ''}${(requiredFTE - workedFTE).toFixed(1)} 명</span>
+                        </div>
+                         <div class="flex justify-between items-center">
+                            <span class="text-red-500 text-xs pl-4">↳ 품질(재작업) 손실</span>
+                            <span class="text-red-500 text-xs">-${(requiredFTE - qualityFTE).toFixed(1)} 명</span>
+                        </div>
+                        <div class="flex justify-between items-center pt-2 border-t">
+                            <span class="font-bold text-blue-700">최종 유효 인력</span>
+                            <span class="text-xl font-extrabold text-blue-600">${qualityFTE.toFixed(1)} 명</span>
+                        </div>
                     </div>
-                    ${getDiffHtmlForMetric('utilizationRate', utilizationRate, prevUtilization)}
-                    <div class="text-xs text-gray-400 mt-1">표준 가용시간 대비 실제 근무</div>
                 </div>
 
-                <div class="p-4 rounded-lg border bg-gray-50 text-center">
-                    <div class="text-sm text-gray-500 mb-1">⚡ 업무 효율성 (Efficiency)</div>
-                    <div class="text-2xl font-bold ${efficiencyRatio >= 110 ? 'text-blue-600' : (efficiencyRatio <= 90 ? 'text-red-600' : 'text-gray-800')}">
-                        ${efficiencyRatio.toFixed(0)}%
+                <div class="space-y-4">
+                    <h4 class="font-bold text-gray-700 border-b pb-2">3️⃣ 인건비 손실 분석</h4>
+                    <div class="bg-red-50 p-4 rounded-lg border border-red-100 text-center">
+                        <div class="text-sm text-red-700 mb-1">총 추정 손실액</div>
+                        <div class="text-2xl font-extrabold text-red-600 mb-1">${Math.round(totalLossCost).toLocaleString()} 원</div>
+                        <div class="text-xs text-red-400">전체 인건비의 ${(totalLossCost / tMetrics.kpis.totalCost * 100).toFixed(1)}%</div>
                     </div>
-                     ${getDiffHtmlForMetric('efficiencyRatio', efficiencyRatio, prevEfficiency)}
-                     <div class="text-xs text-gray-400 mt-1">표준 속도 대비 실제 속도</div>
-                </div>
-            </div>
-
-            <div class="p-4 rounded-lg border ${diagnosis.bg} flex flex-col md:flex-row items-center md:justify-between gap-4">
-                <div class="flex items-center gap-3">
-                    <span class="text-4xl">${diagnosis.icon}</span>
-                    <div>
-                        <h4 class="text-lg font-bold ${diagnosis.color}">${diagnosis.title}</h4>
-                        <p class="text-sm ${diagnosis.color} opacity-90">${diagnosis.desc}</p>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">• 대기 시간 손실</span>
+                            <span>${Math.round(availabilityLossCost).toLocaleString()} 원</span>
+                        </div>
+                         <div class="flex justify-between">
+                            <span class="text-gray-600">• 속도 저하 손실</span>
+                            <span>${Math.round(performanceLossCost).toLocaleString()} 원</span>
+                        </div>
+                         <div class="flex justify-between">
+                            <span class="text-gray-600">• 품질(COQ) 손실</span>
+                            <span>${Math.round(qualityLossCost).toLocaleString()} 원</span>
+                        </div>
                     </div>
-                </div>
-                <div class="text-xs text-gray-500 text-right hidden md:block">
-                    * <strong>시간 활용률</strong>: 총 표준 가용시간(${formatDuration(totalStandardAvailableMinutes)}) 중 실제 근무(${formatDuration(totalActualWorkedMinutes)}) 비율<br>
-                    * <strong>업무 효율성</strong>: 총 표준 필요시간(${formatDuration(totalStandardMinutesNeeded)}) 대비 실제 소요시간(${formatDuration(tMetrics.kpis.totalDuration)}) 비율
                 </div>
             </div>
         </div>

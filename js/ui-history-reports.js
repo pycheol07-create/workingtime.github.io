@@ -6,10 +6,10 @@ import {
     calculateReportAggregations,
     aggregateDaysToSingleData,
     calculateStandardThroughputs,
-    analyzeStaffingEfficiency,
     analyzeRevenueBasedStaffing,
-    calculateUtilization,
-    analyzeRevenueWorkloadTrend
+    analyzeRevenueWorkloadTrend,
+    // ✨ [신규] 고급 통합 분석 함수 import
+    calculateAdvancedProductivity
 } from './ui-history-reports-logic.js';
 
 import {
@@ -118,13 +118,9 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
 
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
-    const todayEfficiency = analyzeStaffingEfficiency(todayAggr, standardThroughputs, todayKPIs.totalDuration, todayKPIs.activeMembersCount);
-    const todayUtilization = calculateUtilization(currentWeekDays, appConfig, wageMap);
-    const todayStaffing = { ...todayEfficiency, ...todayUtilization };
-
-    const prevEfficiency = analyzeStaffingEfficiency(prevAggr, standardThroughputs, prevKPIs.totalDuration, prevKPIs.activeMembersCount);
-    const prevUtilization = calculateUtilization(prevWeekDays, appConfig, wageMap);
-    const prevStaffing = { ...prevEfficiency, ...prevUtilization };
+    // ✨ [수정] 고급 생산성 분석 함수 호출
+    const todayStaffing = calculateAdvancedProductivity(currentWeekDays, todayAggr, standardThroughputs, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevWeekDays, prevAggr, standardThroughputs, appConfig, wageMap);
 
     const sortState = context.reportSortState || {};
 
@@ -169,13 +165,9 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
 
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
-    const todayEfficiency = analyzeStaffingEfficiency(todayAggr, standardThroughputs, todayKPIs.totalDuration, todayKPIs.activeMembersCount);
-    const todayUtilization = calculateUtilization(currentMonthDays, appConfig, wageMap);
-    const todayStaffing = { ...todayEfficiency, ...todayUtilization };
-
-    const prevEfficiency = analyzeStaffingEfficiency(prevAggr, standardThroughputs, prevKPIs.totalDuration, prevKPIs.activeMembersCount);
-    const prevUtilization = calculateUtilization(prevMonthDays, appConfig, wageMap);
-    const prevStaffing = { ...prevEfficiency, ...prevUtilization };
+    // ✨ [수정] 고급 생산성 분석 함수 호출
+    const todayStaffing = calculateAdvancedProductivity(currentMonthDays, todayAggr, standardThroughputs, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevMonthDays, prevAggr, standardThroughputs, appConfig, wageMap);
 
     context.monthlyRevenues = context.monthlyRevenues || {};
     const currentRevenue = context.monthlyRevenues[monthKey] || 0;
@@ -240,13 +232,9 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
 
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
-    const todayEfficiency = analyzeStaffingEfficiency(todayAggr, standardThroughputs, todayKPIs.totalDuration, todayKPIs.activeMembersCount);
-    const todayUtilization = calculateUtilization(currentYearDays, appConfig, wageMap);
-    const todayStaffing = { ...todayEfficiency, ...todayUtilization };
-
-    const prevEfficiency = analyzeStaffingEfficiency(prevAggr, standardThroughputs, prevKPIs.totalDuration, prevKPIs.activeMembersCount);
-    const prevUtilization = calculateUtilization(prevYearDays, appConfig, wageMap);
-    const prevStaffing = { ...prevEfficiency, ...prevUtilization };
+    // ✨ [수정] 고급 생산성 분석 함수 호출
+    const todayStaffing = calculateAdvancedProductivity(currentYearDays, todayAggr, standardThroughputs, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevYearDays, prevAggr, standardThroughputs, appConfig, wageMap);
 
     const sortState = context.reportSortState || {};
 

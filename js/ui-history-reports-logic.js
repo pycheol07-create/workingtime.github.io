@@ -20,10 +20,11 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
 
     let colorClass = 'text-gray-500';
-    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate'].includes(metric)) {
+    // ✅ [수정] utilizationRate 등 새로운 지표 추가
+    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     }
-    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage', 'theoreticalRequiredStaff'].includes(metric)) {
+    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage', 'theoreticalRequiredStaff', 'totalLossCost'].includes(metric)) {
         colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
     }
 
@@ -32,7 +33,7 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration' || metric === 'nonWorkTime') {
         diffStr = formatDuration(Math.abs(diff));
         prevStr = formatDuration(prevValue);
-    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem') {
+    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem' || metric === 'totalLossCost') {
         diffStr = Math.round(Math.abs(diff)).toLocaleString();
         prevStr = Math.round(prevValue).toLocaleString();
     } else {
@@ -237,7 +238,7 @@ export const aggregateDaysToSingleData = (daysData, id) => {
     return aggregated;
 };
 
-// ================== [ 3. ✨ 신규 분석 로직 ] ==================
+// ================== [ 3. ✨ 고급 분석 로직 ] ==================
 
 export const calculateStandardThroughputs = (allHistoryData) => {
     const totals = {};
@@ -271,63 +272,6 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     return standards;
 };
 
-export const analyzeStaffingEfficiency = (currentDataAggr, standardThroughputs, actualTotalDuration, actualActiveStaff) => {
-    let totalStandardMinutesNeeded = 0;
-
-    Object.entries(currentDataAggr.taskSummary).forEach(([task, summary]) => {
-        const actualQty = summary.quantity || 0;
-        const stdSpeed = standardThroughputs[task];
-
-        if (actualQty > 0 && stdSpeed > 0) {
-            const standardMinutes = actualQty / stdSpeed;
-            totalStandardMinutesNeeded += standardMinutes;
-        } else if (summary.duration > 0) {
-            totalStandardMinutesNeeded += summary.duration;
-        }
-    });
-
-    const efficiencyRatio = actualTotalDuration > 0 ? (totalStandardMinutesNeeded / actualTotalDuration) * 100 : 0;
-    const theoreticalRequiredStaff = actualActiveStaff * (efficiencyRatio / 100);
-
-    return {
-        totalStandardMinutesNeeded,
-        theoreticalRequiredStaff,
-        efficiencyRatio
-    };
-};
-
-export const calculateUtilization = (daysData, appConfig, wageMap) => {
-    let totalStandardAvailableMinutes = 0;
-    let totalActualWorkedMinutes = 0;
-
-    daysData.forEach(day => {
-        if (day.workRecords && day.workRecords.length > 0) {
-            const kpis = calculateReportKPIs(day, appConfig, wageMap);
-            const activeStaff = kpis.activeMembersCount;
-
-            if (activeStaff > 0) {
-                totalActualWorkedMinutes += kpis.totalDuration;
-                const standardHours = appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
-                const hoursPerPerson = isWeekday(day.id) ? (standardHours.weekday || 8) : (standardHours.weekend || 4);
-                totalStandardAvailableMinutes += (activeStaff * hoursPerPerson * 60);
-            }
-        }
-    });
-
-    const utilizationRate = totalStandardAvailableMinutes > 0
-        ? (totalActualWorkedMinutes / totalStandardAvailableMinutes) * 100
-        : 0;
-
-    return {
-        utilizationRate,
-        totalStandardAvailableMinutes,
-        totalActualWorkedMinutes
-    };
-};
-
-/**
- * ✨ [수정] 매출액 기반 적정 인원 예측 (실제 근무 데이터 기반)
- */
 export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded, activeMembersCount, actualTotalDuration, appConfig) => {
     if (!revenue || revenue <= 0 || !totalStandardMinutesNeeded || totalStandardMinutesNeeded <= 0 || !actualTotalDuration || actualTotalDuration <= 0 || !activeMembersCount || activeMembersCount <= 0) {
         return null;
@@ -348,9 +292,6 @@ export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded,
     };
 };
 
-/**
- * ✨ [신규] 매출액 vs 업무량 트렌드 비교 분석
- */
 export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, currentWorkload, prevWorkload) => {
     if (!currentRevenue || !prevRevenue || !currentWorkload || !prevWorkload) return null;
 
@@ -384,5 +325,109 @@ export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, current
         gap,
         diagnosis,
         colorClass
+    };
+};
+
+/**
+ * ✨ [신규] 3단계 통합 고급 생산성 분석 함수
+ * FTE, 손실 비용, 3단계 효율(OEE 개념)을 모두 계산합니다.
+ */
+export const calculateAdvancedProductivity = (daysData, currentDataAggr, standardThroughputs, appConfig, wageMap) => {
+    let totalStandardAvailableMinutes = 0;
+    let totalActualWorkedMinutes = 0;
+    let totalStandardMinutesNeeded = 0;
+    let totalQualityCost = 0;
+    let totalActualCost = 0;
+
+    // 1. 가용 시간 및 실제 근무 시간 집계
+    daysData.forEach(day => {
+        if (day.workRecords && day.workRecords.length > 0) {
+            const kpis = calculateReportKPIs(day, appConfig, wageMap);
+            const activeStaff = kpis.activeMembersCount;
+
+            if (activeStaff > 0) {
+                totalActualWorkedMinutes += kpis.totalDuration;
+                totalActualCost += kpis.totalCost;
+                totalQualityCost += kpis.totalQualityCost;
+
+                const standardHours = appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
+                const hoursPerPerson = isWeekday(day.id) ? (standardHours.weekday || 8) : (standardHours.weekend || 4);
+                totalStandardAvailableMinutes += (activeStaff * hoursPerPerson * 60);
+            }
+        }
+    });
+
+    // 2. 표준 필요 시간(공수) 집계
+    Object.entries(currentDataAggr.taskSummary).forEach(([task, summary]) => {
+        const actualQty = summary.quantity || 0;
+        const stdSpeed = standardThroughputs[task];
+        if (actualQty > 0 && stdSpeed > 0) {
+            totalStandardMinutesNeeded += (actualQty / stdSpeed);
+        } else if (summary.duration > 0) {
+            totalStandardMinutesNeeded += summary.duration;
+        }
+    });
+
+    // --- 3단계 효율 지표 계산 ---
+    // Stage 1: Availability (시간 활용률)
+    const utilizationRate = totalStandardAvailableMinutes > 0 ? (totalActualWorkedMinutes / totalStandardAvailableMinutes) * 100 : 0;
+    
+    // Stage 2: Performance (업무 효율성)
+    const efficiencyRatio = totalActualWorkedMinutes > 0 ? (totalStandardMinutesNeeded / totalActualWorkedMinutes) * 100 : 0;
+    
+    // Stage 3: Quality (품질 효율)
+    const qualityRatio = totalActualCost > 0 ? ((totalActualCost - totalQualityCost) / totalActualCost) * 100 : 100;
+
+    // 종합 효율 (OEE 개념) = Availability * Performance * Quality
+    const oee = (utilizationRate / 100) * (efficiencyRatio / 100) * (qualityRatio / 100) * 100;
+
+
+    // --- FTE(인력) 분석 계산 ---
+    // 기준 FTE 시간 (기간 내 1인당 평균 표준 가용 시간)
+    const kpis = calculateReportKPIs(daysData[0], appConfig, wageMap); // 임시로 첫날 데이터 사용해 인원 파악
+    const avgActiveStaff = kpis.activeMembersCount || 1; 
+    const standardMinutesPerFTE = totalStandardAvailableMinutes / avgActiveStaff;
+
+    const availableFTE = avgActiveStaff; // 실제 투입된 인력 규모
+    const workedFTE = standardMinutesPerFTE > 0 ? totalActualWorkedMinutes / standardMinutesPerFTE : 0; // 실제 일한 시간 기준 인력
+    const requiredFTE = standardMinutesPerFTE > 0 ? totalStandardMinutesNeeded / standardMinutesPerFTE : 0; // 표준 공수 기준 필요 인력
+    const qualityFTE = requiredFTE * (qualityRatio / 100); // 품질 손실을 제외한 최종 유효 인력
+
+    // --- 손실 비용(Opportunity Cost) 계산 ---
+    const avgCostPerMinute = totalActualWorkedMinutes > 0 ? totalActualCost / totalActualWorkedMinutes : 0;
+    
+    const availabilityLossMinutes = Math.max(0, totalStandardAvailableMinutes - totalActualWorkedMinutes);
+    const performanceLossMinutes = Math.max(0, totalActualWorkedMinutes - totalStandardMinutesNeeded);
+    // 품질 손실 시간은 별도로 정확히 추산하기 어려우므로, 품질비용을 분당 비용으로 나누어 역산하거나 단순화함.
+    // 여기서는 COQ(품질비용) 자체를 품질 손실액으로 사용.
+
+    const availabilityLossCost = availabilityLossMinutes * avgCostPerMinute;
+    const performanceLossCost = performanceLossMinutes * avgCostPerMinute;
+    const qualityLossCost = totalQualityCost;
+    const totalLossCost = availabilityLossCost + performanceLossCost + qualityLossCost;
+
+    return {
+        // 3단계 효율
+        utilizationRate,   // Stage 1
+        efficiencyRatio,   // Stage 2
+        qualityRatio,      // Stage 3
+        oee,               // 종합 효율
+
+        // FTE 분석
+        availableFTE,
+        workedFTE,
+        requiredFTE,
+        qualityFTE,
+
+        // 손실 비용
+        totalLossCost,
+        availabilityLossCost,
+        performanceLossCost,
+        qualityLossCost,
+        
+        // 원천 데이터 (렌더링 시 필요할 수 있음)
+        totalStandardAvailableMinutes,
+        totalActualWorkedMinutes,
+        totalStandardMinutesNeeded
     };
 };
