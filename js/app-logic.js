@@ -1,6 +1,8 @@
 import {
     appState, db, auth,
     render, generateId,
+    saveStateToFirestore, // ✅ [추가] 진짜 저장 함수 가져오기
+    markDataAsDirty,      // ✅ [추가] 진짜 데이터 변경 플래그 함수 가져오기
     AUTO_SAVE_INTERVAL
 } from './app.js';
 
@@ -8,43 +10,12 @@ import { debounce, calcElapsedMinutes, getCurrentTime, showToast, getTodayDateSt
 
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-export const markDataAsDirty = () => {
-};
+// ⛔️ [삭제] 중복되고 비어있던 가짜 함수들 제거
+// export const markDataAsDirty = () => { };
+// async function saveProgress(isAutoSave = false) { }
+// export async function saveStateToFirestore() { ... }
 
-async function saveProgress(isAutoSave = false) {
-}
-
-export async function saveStateToFirestore() {
-    if (!auth || !auth.currentUser) {
-        console.warn('Cannot save state: User not authenticated.');
-        return;
-    }
-    try {
-        const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-
-        const stateToSave = JSON.stringify({
-            workRecords: appState.workRecords || [],
-            taskQuantities: appState.taskQuantities || {},
-            onLeaveMembers: appState.dailyOnLeaveMembers || [],
-            partTimers: appState.partTimers || [],
-            hiddenGroupIds: appState.hiddenGroupIds || [],
-            lunchPauseExecuted: appState.lunchPauseExecuted || false,
-            lunchResumeExecuted: appState.lunchResumeExecuted || false
-        }, (k, v) => (typeof v === 'function' ? undefined : v));
-
-        if (stateToSave.length > 900000) {
-            showToast('저장 데이터가 큽니다. 오래된 기록을 이력으로 옮기거나 정리하세요.', true);
-            return;
-        }
-
-        await setDoc(docRef, { state: stateToSave });
-
-    } catch (error) {
-        console.error('Error saving state to Firestore:', error);
-        showToast('데이터 동기화 중 오류 발생.', true);
-    }
-}
-
+// ✅ [수정] app.js에서 가져온 진짜 saveStateToFirestore를 사용하도록 연결
 export const debouncedSaveState = debounce(saveStateToFirestore, 1000);
 
 export const startWorkGroup = (members, task) => {

@@ -183,6 +183,8 @@ export let unsubscribeToday;
 export let unsubscribeLeaveSchedule;
 export let unsubscribeConfig;
 export let elapsedTimeTimer = null;
+// ✅ [추가] 주기적 새로고침 타이머 변수
+export let periodicRefreshTimer = null;
 
 export let isDataDirty = false;
 export let autoSaveTimer = null;
@@ -490,6 +492,13 @@ async function startAppAfterLogin(user) {
     if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
     elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
 
+    // ✅ [추가] 30초마다 '오늘의 업무 기록' 및 '업무 분석' 화면 새로고침 (실시간 반영)
+    if (periodicRefreshTimer) clearInterval(periodicRefreshTimer);
+    periodicRefreshTimer = setInterval(() => {
+        renderCompletedWorkLog(appState);
+        renderTaskAnalysis(appState, appConfig);
+    }, 30000);
+
     if (autoSaveTimer) clearInterval(autoSaveTimer);
     autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
 
@@ -649,6 +658,8 @@ async function main() {
             if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
             if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; }
             if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = undefined; }
+            if (elapsedTimeTimer) { clearInterval(elapsedTimeTimer); elapsedTimeTimer = null; }
+            if (periodicRefreshTimer) { clearInterval(periodicRefreshTimer); periodicRefreshTimer = null; }
 
             appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user' };
 

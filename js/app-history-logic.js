@@ -35,13 +35,24 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
-// '오늘'의 실시간 데이터(appState)를 이력 데이터 배열(allHistoryData)에 동기화
+// ✅ [수정] '오늘'의 실시간 데이터를 이력 데이터로 동기화 (진행 중 업무 시간 포함)
 const _syncTodayToHistory = () => {
     const todayKey = getTodayDateString();
+    const now = getCurrentTime();
+
+    // 실시간 workRecords를 복사한 후, 진행 중인 업무의 duration을 현재 기준으로 계산하여 보여줌
+    const liveWorkRecords = (appState.workRecords || []).map(record => {
+        const snapshot = JSON.parse(JSON.stringify(record));
+        if (snapshot.status !== 'completed') {
+            snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
+            snapshot.endTime = now; // 현재 시점까지로 임시 마감
+        }
+        return snapshot;
+    });
 
     const liveTodayData = {
         id: todayKey,
-        workRecords: JSON.parse(JSON.stringify(appState.workRecords || [])),
+        workRecords: liveWorkRecords,
         taskQuantities: JSON.parse(JSON.stringify(appState.taskQuantities || {})),
         onLeaveMembers: [
             ...(JSON.parse(JSON.stringify(appState.dailyOnLeaveMembers || []))),
@@ -89,6 +100,7 @@ export const checkMissingQuantities = (dayData) => {
     return missingTasks;
 };
 
+// ✅ [수정] 중간 저장 함수도 진행 중인 업무를 포함하도록 확실하게 처리
 export async function saveProgress(isAutoSave = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
@@ -103,8 +115,10 @@ export async function saveProgress(isAutoSave = false) {
         const docSnap = await getDoc(historyDocRef);
         const existingData = docSnap.exists() ? (docSnap.data() || { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] }) : { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
 
+        // 현재 진행 중인 업무도 포함하여 스냅샷 생성
         const allRecordsSnapshot = (appState.workRecords || []).map(record => {
             const snapshot = JSON.parse(JSON.stringify(record));
+            // 완료되지 않은 업무는 현재 시간까지의 경과 시간을 계산하여 저장
             if (snapshot.status !== 'completed') {
                 snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
                 snapshot.endTime = now;
@@ -126,16 +140,19 @@ export async function saveProgress(isAutoSave = false) {
         ];
         const currentPartTimers = appState.partTimers || [];
 
+        // 저장할 데이터가 아예 없는 경우 체크 (진행 중인 업무가 있으면 allRecordsSnapshot.length > 0 이므로 통과됨)
         if (allRecordsSnapshot.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0 && !(existingData.workRecords?.length > 0)) {
             if (!isAutoSave) showToast('저장할 데이터가 없습니다.', true);
             return;
         }
 
+        // 기존 이력 데이터와 병합 (ID 기준)
         const mergedRecordsMap = new Map();
         (existingData.workRecords || []).forEach(r => mergedRecordsMap.set(r.id, r));
         allRecordsSnapshot.forEach(r => mergedRecordsMap.set(r.id, r));
 
         const dataToSave = {
+            id: dateStr, // ID 명시적 포함
             workRecords: Array.from(mergedRecordsMap.values()),
             taskQuantities: currentQuantities,
             onLeaveMembers: currentLeaveMembersCombined,
@@ -143,6 +160,9 @@ export async function saveProgress(isAutoSave = false) {
         };
 
         await setDoc(historyDocRef, dataToSave);
+
+        // 저장 후 로컬 이력 데이터도 즉시 갱신
+        _syncTodayToHistory();
 
         if (isAutoSave) {
             console.log(`Auto-save to history completed at ${now}`);
@@ -157,6 +177,7 @@ export async function saveProgress(isAutoSave = false) {
 }
 
 export async function saveDayDataToHistory(shouldReset) {
+    // 업무 마감 시에는 진행 중인 업무를 모두 '완료' 처리
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     if (ongoingRecords.length > 0) {
         const endTime = getCurrentTime();
@@ -173,15 +194,14 @@ export async function saveDayDataToHistory(shouldReset) {
 
     await saveProgress(false);
 
-    appState.workRecords = [];
-
     if (shouldReset) {
+        appState.workRecords = [];
         Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
         appState.partTimers = [];
         appState.hiddenGroupIds = [];
 
         const now = getCurrentTime();
-
+        // 17:30 이전이면 조퇴자는 남겨둠
         if (now < "17:30") {
             appState.dailyOnLeaveMembers = (appState.dailyOnLeaveMembers || []).filter(entry => entry.type === '조퇴');
         } else {
@@ -202,7 +222,8 @@ export async function fetchAllHistoryData() {
         const data = [];
         querySnapshot.forEach((doc) => {
             const docData = doc.data();
-            if (docData && ((docData.workRecords && docData.workRecords.length > 0) || (docData.onLeaveMembers && docData.onLeaveMembers.length > 0) || (docData.partTimers && docData.partTimers.length > 0))) {
+            // 유효한 데이터가 있는 경우만 포함
+            if (docData && ((docData.workRecords && docData.workRecords.length > 0) || (docData.onLeaveMembers && docData.onLeaveMembers.length > 0) || (docData.partTimers && docData.partTimers.length > 0) || (docData.taskQuantities && Object.keys(docData.taskQuantities).length > 0))) {
                 data.push({ id: doc.id, ...docData });
             }
         });
@@ -225,10 +246,11 @@ export const loadAndRenderHistoryList = async () => {
     historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
 
     await fetchAllHistoryData();
-    _syncTodayToHistory();
+    _syncTodayToHistory(); // 로드 후 오늘 데이터 즉시 동기화
 
     if (allHistoryData.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
+        // ... (화면 초기화 로직)
         const viewsToClear = [
             'history-daily-view', 'history-weekly-view', 'history-monthly-view',
             'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
@@ -241,6 +263,7 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
+    // ... (탭 스타일 초기화 로직은 그대로 유지)
     document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
         btn.classList.remove('font-medium', 'text-gray-500');
@@ -286,6 +309,7 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
     if (!historyDateList) return;
     historyDateList.innerHTML = '';
 
+    // 렌더링 전 항상 최신 상태 동기화
     _syncTodayToHistory();
 
     const filteredData = (context.historyStartDate || context.historyEndDate)
@@ -317,6 +341,7 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
 
     if (keys.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
+        // ... (뷰 초기화 로직)
         const viewsToClear = [
             'history-daily-view', 'history-weekly-view', 'history-monthly-view',
             'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
@@ -349,6 +374,7 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
         historyDateList.appendChild(li);
     });
 
+    // 첫 번째 항목 자동 선택 및 렌더링
     const firstButton = historyDateList.firstChild?.querySelector('button');
     if (firstButton) {
         firstButton.classList.add('bg-blue-100', 'font-bold');
@@ -369,7 +395,7 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
                 renderMonthlyHistory(key, filteredData, appConfig);
             }
         } else if (context.activeMainHistoryTab === 'attendance') {
-            if (mode === 'day') {
+             if (mode === 'day') {
                 renderAttendanceDailyHistory(key, filteredData);
             } else if (mode === 'week') {
                 renderAttendanceWeeklyHistory(key, filteredData);
@@ -391,6 +417,7 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
     }
 };
 
+// ... (나머지 openHistoryQuantityModal, renderHistoryDetail 함수 등은 기존과 동일하게 유지)
 export const openHistoryQuantityModal = (dateKey) => {
     const todayDateString = getTodayDateString();
 
