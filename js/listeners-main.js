@@ -1,3 +1,4 @@
+// === js/listeners-main.js ===
 import {
     appState, appConfig, db, auth,
     persistentLeaveSchedule, allHistoryData,
@@ -64,6 +65,7 @@ export function setupMainScreenListeners() {
 
     if (teamStatusBoard) {
         teamStatusBoard.addEventListener('click', (e) => {
+            // ... (이전 코드 생략: toggleMobileBtn, toggleMemberBtn, stopGroupButton 등)
 
             const toggleMobileBtn = e.target.closest('#toggle-all-tasks-mobile');
             if (toggleMobileBtn) {
@@ -122,6 +124,7 @@ export function setupMainScreenListeners() {
 
             const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
             if (groupTimeDisplay) {
+                // ... (이전 코드 생략)
                 const groupId = Number(groupTimeDisplay.dataset.groupId);
                 const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
                 if (!groupId || !currentStartTime) return;
@@ -141,6 +144,7 @@ export function setupMainScreenListeners() {
 
             const individualEditTimeBtn = e.target.closest('button[data-action="edit-individual-start-time"]');
             if (individualEditTimeBtn) {
+                // ... (이전 코드 생략)
                 const recordId = individualEditTimeBtn.dataset.recordId;
                 const currentStartTime = individualEditTimeBtn.dataset.currentStartTime;
                 const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
@@ -161,7 +165,8 @@ export function setupMainScreenListeners() {
 
             const editLeaveCard = e.target.closest('[data-action="edit-leave-record"]');
             if (editLeaveCard) {
-                const memberName = editLeaveCard.dataset.memberName;
+                // ... (이전 코드 생략: 근태 수정 모달 열기 로직)
+                 const memberName = editLeaveCard.dataset.memberName;
                 const currentType = editLeaveCard.dataset.leaveType;
                 const currentStartTime = editLeaveCard.dataset.startTime;
                 const currentStartDate = editLeaveCard.dataset.startDate;
@@ -253,19 +258,35 @@ export function setupMainScreenListeners() {
 
                 context.memberToSetLeave = memberName;
                 if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
-                renderLeaveTypeModalOptions(LEAVE_TYPES);
+
+                // ✨ [수정] 관리자일 경우 '강제 출근', '강제 퇴근' 옵션 추가
+                let optionsToShow = [...LEAVE_TYPES];
+                if (role === 'admin' && memberName !== selfName) {
+                    const commute = appState.commuteRecords?.[memberName] || {};
+                    // 현재 상태에 따라 적절한 옵션만 추가 (선택 사항)
+                    // 여기서는 항상 둘 다 보여주거나, 상태에 따라 하나만 보여줄 수도 있음.
+                    // 편의상 둘 다 보여줍니다.
+                    optionsToShow.push('강제 출근', '강제 퇴근');
+                }
+                
+                renderLeaveTypeModalOptions(optionsToShow);
+
                 if (leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
                 if (leaveEndDateInput) leaveEndDateInput.value = '';
+                
                 const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
                 if (firstRadio) {
-                    const initialType = firstRadio.value;
-                    if (leaveDateInputsDiv) leaveDateInputsDiv.classList.toggle('hidden', !(initialType === '연차' || initialType === '출장' || initialType === '결근'));
-                } else if (leaveDateInputsDiv) { leaveDateInputsDiv.classList.add('hidden'); }
-                if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
+                    // 첫 번째 라디오 버튼 선택 및 날짜 입력 필드 표시 여부 초기화
+                    firstRadio.checked = true;
+                     if (leaveDateInputsDiv) leaveDateInputsDiv.classList.toggle('hidden', !['연차', '출장', '결근'].includes(firstRadio.value));
+                } else if (leaveDateInputsDiv) {
+                    leaveDateInputsDiv.classList.add('hidden');
+                }
 
+                if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
                 return;
             }
-
+            // ... (이후 코드 생략)
             if (e.target.closest('.members-list, .card-actions, .group-time-display')) {
                 e.stopPropagation();
                 return;
@@ -304,7 +325,8 @@ export function setupMainScreenListeners() {
 
         });
     }
-
+    
+    // ... (나머지 리스너들 생략)
     if (workLogBody) {
         workLogBody.addEventListener('click', (e) => {
             const deleteBtn = e.target.closest('button[data-action="delete"]');

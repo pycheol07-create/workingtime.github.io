@@ -48,7 +48,9 @@ import {
 
 import {
     startWorkGroup, addMembersToWorkGroup, finalizeStopGroup,
-    stopWorkIndividual
+    stopWorkIndividual,
+    // ✨ [추가] 출퇴근 함수 임포트
+    clockIn, clockOut
 } from './app-logic.js';
 
 import {
@@ -233,16 +235,14 @@ export function setupGeneralModalListeners() {
                 if (quantity > 0) newQuantities[task] = quantity;
             });
 
-            // ✨ [추가] 체크된 '0건 확인' 목록 수집
             const confirmedZeroCheckboxes = quantityModal.querySelectorAll('.confirm-zero-checkbox:checked');
             const confirmedZeroTasks = Array.from(confirmedZeroCheckboxes).map(cb => cb.dataset.task);
 
             if (context.quantityModalContext.onConfirm) {
                 if (context.quantityModalContext.mode === 'today') {
-                    // ✨ [수정] confirmedZeroTasks 파라미터 전달
                     const onConfirmToday = async (newQuantities, confirmedZeroTasks) => {
                         appState.taskQuantities = newQuantities;
-                        appState.confirmedZeroTasks = confirmedZeroTasks; // 앱 상태 업데이트
+                        appState.confirmedZeroTasks = confirmedZeroTasks;
 
                         debouncedSaveState();
                         showToast('오늘의 처리량이 저장되었습니다.');
@@ -279,7 +279,7 @@ export function setupGeneralModalListeners() {
                             const updatedHistoryData = {
                                 ...todayHistoryData,
                                 taskQuantities: newQuantities,
-                                confirmedZeroTasks: confirmedZeroTasks // 이력 데이터 업데이트
+                                confirmedZeroTasks: confirmedZeroTasks
                             };
                             allHistoryData[todayHistoryIndex] = updatedHistoryData;
                             const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
@@ -287,14 +287,12 @@ export function setupGeneralModalListeners() {
                                 await setDoc(historyDocRef, updatedHistoryData);
                             } catch (e) {
                                 console.error('오늘 날짜 이력(history) 처리량 업데이트 실패:', e);
-                                // allHistoryData[todayHistoryIndex] = todayHistoryData; // 롤백 필요시
                             }
                         }
                     };
                     onConfirmToday(newQuantities, confirmedZeroTasks);
 
                 } else if (context.quantityModalContext.mode === 'history') {
-                    // ✨ [수정] confirmedZeroTasks 파라미터 전달
                     const onConfirmHistory = async (newQuantities, confirmedZeroTasks) => {
                         const dateKey = context.quantityModalContext.dateKey;
                         if (!dateKey) return;
@@ -309,7 +307,7 @@ export function setupGeneralModalListeners() {
                             allHistoryData[idx] = {
                                 ...allHistoryData[idx],
                                 taskQuantities: newQuantities,
-                                confirmedZeroTasks: confirmedZeroTasks // 이력 데이터 업데이트
+                                confirmedZeroTasks: confirmedZeroTasks
                             };
                         }
 
@@ -320,7 +318,7 @@ export function setupGeneralModalListeners() {
                                 : {
                                     id: dateKey,
                                     taskQuantities: newQuantities,
-                                    confirmedZeroTasks: confirmedZeroTasks, // 새 데이터 생성 시 포함
+                                    confirmedZeroTasks: confirmedZeroTasks,
                                     workRecords: [], onLeaveMembers: [], partTimers: []
                                 };
 
@@ -330,7 +328,7 @@ export function setupGeneralModalListeners() {
 
                             if (dateKey === getTodayDateString()) {
                                 appState.taskQuantities = newQuantities;
-                                appState.confirmedZeroTasks = confirmedZeroTasks; // 오늘 날짜면 앱 상태도 업데이트
+                                appState.confirmedZeroTasks = confirmedZeroTasks;
                                 render();
                             }
 
@@ -466,6 +464,20 @@ export function setupGeneralModalListeners() {
                 return;
             }
             const leaveType = selectedTypeInput.value;
+
+            // ✨ [추가] 관리자 전용 강제 출/퇴근 처리
+            if (leaveType === '강제 출근') {
+                clockIn(context.memberToSetLeave);
+                if (leaveTypeModal) leaveTypeModal.classList.add('hidden');
+                context.memberToSetLeave = null;
+                return;
+            } else if (leaveType === '강제 퇴근') {
+                clockOut(context.memberToSetLeave);
+                if (leaveTypeModal) leaveTypeModal.classList.add('hidden');
+                context.memberToSetLeave = null;
+                return;
+            }
+
             const leaveData = { member: context.memberToSetLeave, type: leaveType };
 
             if (leaveType === '외출' || leaveType === '조퇴') {
