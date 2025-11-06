@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
@@ -253,30 +253,69 @@ export async function saveStateToFirestore() {
         console.warn('Cannot save state: User not authenticated.');
         return;
     }
+
     try {
         const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
 
-        const stateToSave = JSON.stringify({
-            workRecords: appState.workRecords || [],
-            taskQuantities: appState.taskQuantities || {},
-            onLeaveMembers: appState.dailyOnLeaveMembers || [],
-            partTimers: appState.partTimers || [],
-            hiddenGroupIds: appState.hiddenGroupIds || [],
-            lunchPauseExecuted: appState.lunchPauseExecuted || false,
-            lunchResumeExecuted: appState.lunchResumeExecuted || false
-        }, (k, v) => (typeof v === 'function' ? undefined : v));
+        await runTransaction(db, async (transaction) => {
+            const sfDoc = await transaction.get(docRef);
 
-        if (stateToSave.length > 900000) {
-            showToast('저장 데이터가 큽니다. 오래된 기록을 이력으로 옮기거나 정리하세요.', true);
-            return;
-        }
+            let serverData = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
+            if (sfDoc.exists()) {
+                try {
+                    serverData = JSON.parse(sfDoc.data().state || '{}');
+                } catch (e) {
+                    // 서버 데이터 파싱 실패 시 기본값 사용
+                }
+            }
 
-        await setDoc(docRef, { state: stateToSave });
+            // [스마트 병합 로직]
+            // 1. 업무 기록 병합 (ID 기준)
+            // 서버 기록을 기본으로 하고, 현재 앱의 로컬 기록으로 덮어씁니다.
+            // 주의: 이 방식은 '삭제'된 기록이 서버에 남아있으면 되살아날 수 있는 한계가 있지만, 덮어쓰기보다는 안전합니다.
+            const mergedRecordsMap = new Map();
+            if (Array.isArray(serverData.workRecords)) {
+                serverData.workRecords.forEach(r => mergedRecordsMap.set(r.id, r));
+            }
+            appState.workRecords.forEach(r => mergedRecordsMap.set(r.id, r));
+            const mergedRecords = Array.from(mergedRecordsMap.values());
+
+            // 2. 처리량 병합 (더 큰 값 유지 또는 로컬 값 우선 - 여기서는 로컬 우선 적용)
+            // 여러 명이 동시에 같은 업무 처리량을 수정하는 경우는 드물다고 가정하고 로컬 값을 우선합니다.
+            const mergedQuantities = { ...serverData.taskQuantities, ...appState.taskQuantities };
+
+            // 3. 근태 및 기타 데이터는 로컬 상태를 최신으로 간주 (필요시 병합 로직 추가 가능)
+            const mergedOnLeave = [...appState.dailyOnLeaveMembers]; // 근태는 보통 관리자가 관리하므로 로컬 우선
+
+            // 병합된 상태로 저장할 데이터 생성
+            const stateToSave = JSON.stringify({
+                workRecords: mergedRecords,
+                taskQuantities: mergedQuantities,
+                onLeaveMembers: mergedOnLeave,
+                partTimers: appState.partTimers || [],
+                hiddenGroupIds: appState.hiddenGroupIds || [],
+                lunchPauseExecuted: appState.lunchPauseExecuted || false,
+                lunchResumeExecuted: appState.lunchResumeExecuted || false
+            });
+
+             if (stateToSave.length > 900000) {
+                throw new Error("저장 데이터 용량 초과");
+            }
+
+            transaction.set(docRef, { state: stateToSave });
+        });
+
         markDataAsDirty();
+        // console.log("Transaction successfully committed!");
 
     } catch (error) {
-        console.error('Error saving state to Firestore:', error);
-        showToast('데이터 동기화 중 오류 발생.', true);
+        console.error('Error saving state via transaction:', error);
+        if (error.message === "저장 데이터 용량 초과") {
+             showToast('저장 데이터가 너무 큽니다. 이력을 정리해주세요.', true);
+        } else {
+             showToast('데이터 동기화 중 충돌이 발생했습니다. 잠시 후 다시 시도됩니다.', true);
+             // 트랜잭션 충돌 시 재시도 로직이 자동 동작하거나, 다음 주기적 저장 때 해결될 수 있습니다.
+        }
     }
 }
 
