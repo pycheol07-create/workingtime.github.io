@@ -1,4 +1,4 @@
-// === ui-history-reports-logic.js (리포트 계산/집계 로직) ===
+// === js/ui-history-reports-logic.js ===
 
 import { formatDuration, isWeekday, getWeekOfYear } from './utils.js';
 
@@ -13,32 +13,32 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
 
     if (prevValue === 0) {
         if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
-        return ''; 
+        return '';
     }
-    
+
     const diff = currValue - prevValue;
     if (Math.abs(diff) < 0.001) return `<span class="text-xs text-gray-400 ml-1">(-)</span>`;
-    
+
     const percent = (diff / prevValue) * 100;
     const sign = diff > 0 ? '↑' : '↓';
-    
+
     let colorClass = 'text-gray-500';
-    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity'].includes(metric)) {
+    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio'].includes(metric)) { // ✅ efficiencyRatio 추가
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
-    } 
-    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage'].includes(metric)) {
+    }
+    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage', 'theoreticalRequiredStaff'].includes(metric)) { // ✅ theoreticalRequiredStaff 추가
         colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
     }
-    
+
     let diffStr = '';
     let prevStr = '';
     if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration' || metric === 'nonWorkTime') {
         diffStr = formatDuration(Math.abs(diff));
         prevStr = formatDuration(prevValue);
-    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem') { // ✅ activeMembersCount 제거
+    } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity' || metric === 'totalQuantity' || metric === 'totalCost' || metric === 'overallAvgCostPerItem') {
         diffStr = Math.round(Math.abs(diff)).toLocaleString();
         prevStr = Math.round(prevValue).toLocaleString();
-    } else {  // ✅ activeMembersCount는 여기서 소수점 1자리로 처리됨 (기본값)
+    } else {
         diffStr = Math.abs(diff).toFixed(1);
         prevStr = prevValue.toFixed(1);
     }
@@ -54,7 +54,7 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
 export const createTableRow = (columns, isHeader = false, sortState = null) => {
     const cellTag = isHeader ? 'th' : 'td';
     const rowClass = isHeader ? 'text-xs text-gray-700 uppercase bg-gray-100 sticky top-0' : 'bg-white border-b hover:bg-gray-50';
-    
+
     let cellsHtml = columns.map((col, index) => {
         if (!isHeader) {
             const alignClass = (index > 0) ? 'text-right' : 'text-left';
@@ -71,30 +71,30 @@ export const createTableRow = (columns, isHeader = false, sortState = null) => {
         const sortable = col.sortKey ? 'sortable-header' : '';
         const dataSortKey = col.sortKey ? `data-sort-key="${col.sortKey}"` : '';
         const title = col.title ? `title="${col.title}"` : '';
-        
+
         let sortIcon = '';
         if (col.sortKey) {
             let iconChar = '↕';
             let iconClass = 'sort-icon';
-            if (sortState && col.sortKey === sortState.key) { 
-                if (sortState.dir === 'asc') { 
+            if (sortState && col.sortKey === sortState.key) {
+                if (sortState.dir === 'asc') {
                     iconChar = '▲';
                     iconClass += ' sorted-asc';
-                } else if (sortState.dir === 'desc') { 
+                } else if (sortState.dir === 'desc') {
                     iconChar = '▼';
                     iconClass += ' sorted-desc';
                 }
             }
             sortIcon = `<span class="${iconClass}">${iconChar}</span>`;
         }
-        
+
         return `<${cellTag} scope="col" class="px-4 py-2 ${alignClass} ${sortable}" ${dataSortKey} ${title}>
                     ${col.content}
                     ${sortIcon}
                 </${cellTag}>`;
 
     }).join('');
-    
+
     return `<tr class="${rowClass}">${cellsHtml}</tr>`;
 };
 
@@ -110,10 +110,10 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
             totalDuration: 0, totalCost: 0, totalQuantity: 0,
             overallAvgThroughput: 0, overallAvgCostPerItem: 0,
             activeMembersCount: 0, nonWorkMinutes: 0, totalQualityCost: 0,
-            coqPercentage: 0 
+            coqPercentage: 0
         };
     }
-    
+
     const records = data.workRecords || [];
     const quantities = data.taskQuantities || {};
     const onLeaveMemberEntries = data.onLeaveMembers || [];
@@ -123,14 +123,14 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
     let totalDuration = 0;
     let totalCost = 0;
     let totalQualityCost = 0;
-    
+
     records.forEach(r => {
         const duration = r.duration || 0;
         const cost = (duration / 60) * (wageMap[r.member] || 0);
-        
+
         totalDuration += duration;
         totalCost += cost;
-        
+
         if (qualityCostTasks.has(r.task)) {
             totalQualityCost += cost;
         }
@@ -149,16 +149,16 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
 
     let nonWorkMinutes = 0;
     // (일별 데이터일 때만 비업무 시간 계산)
-    if (data.id && data.id.length === 10 && isWeekday(data.id)) { 
-        const totalPotentialMinutes = activeMembersCount * 8 * 60; 
+    if (data.id && data.id.length === 10 && isWeekday(data.id)) {
+        const totalPotentialMinutes = activeMembersCount * 8 * 60;
         nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalDuration);
     }
-    
+
     return {
         totalDuration, totalCost, totalQuantity,
         overallAvgThroughput, overallAvgCostPerItem,
         activeMembersCount, nonWorkMinutes, totalQualityCost,
-        coqPercentage 
+        coqPercentage
     };
 };
 
@@ -168,7 +168,7 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
 export const calculateReportAggregations = (data, appConfig, wageMap, memberToPartMap) => {
     const records = data?.workRecords || [];
     const quantities = data?.taskQuantities || {};
-    
+
     const partSummary = {};
     const memberSummary = {};
     const taskSummary = {};
@@ -204,7 +204,7 @@ export const calculateReportAggregations = (data, appConfig, wageMap, memberToPa
         }
         const summary = taskSummary[task];
         const qty = Number(quantities[task]) || 0;
-        
+
         summary.quantity = qty;
         summary.avgThroughput = summary.duration > 0 ? (qty / summary.duration) : 0;
         summary.avgCostPerItem = qty > 0 ? (summary.cost / qty) : 0;
@@ -212,7 +212,7 @@ export const calculateReportAggregations = (data, appConfig, wageMap, memberToPa
         summary.avgTime = (summary.recordCount > 0) ? (summary.duration / summary.recordCount) : 0;
         summary.efficiency = summary.avgStaff > 0 ? (summary.avgThroughput / summary.avgStaff) : 0;
     });
-    
+
     return { partSummary, memberSummary, taskSummary };
 };
 
@@ -224,27 +224,104 @@ export const aggregateDaysToSingleData = (daysData, id) => {
         id: id,
         workRecords: [],
         taskQuantities: {},
-        onLeaveMembers: [], 
-        partTimers: [] 
+        onLeaveMembers: [],
+        partTimers: []
     };
 
     const partTimerNames = new Set();
-    
+
     daysData.forEach(day => {
         (day.workRecords || []).forEach(r => aggregated.workRecords.push(r));
-        (day.onLeaveMembers || []).forEach(o => aggregated.onLeaveMembers.push(o)); 
-        
+        (day.onLeaveMembers || []).forEach(o => aggregated.onLeaveMembers.push(o));
+
         (day.partTimers || []).forEach(p => {
             if (p && p.name && !partTimerNames.has(p.name)) {
                 aggregated.partTimers.push(p);
                 partTimerNames.add(p.name);
             }
         });
-        
+
         Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
             aggregated.taskQuantities[task] = (aggregated.taskQuantities[task] || 0) + (Number(qty) || 0);
         });
     });
-    
+
     return aggregated;
+};
+
+// ================== [ 3. ✨ 신규 분석 로직 ] ==================
+
+/**
+ * ✨ 헬퍼: 전체 이력 기반 표준 처리속도 계산
+ * (데이터가 많아지면 최근 N일 데이터만 사용하도록 최적화 가능)
+ */
+export const calculateStandardThroughputs = (allHistoryData) => {
+    const totals = {};
+    allHistoryData.forEach(day => {
+        const records = day.workRecords || [];
+        const quantities = day.taskQuantities || {};
+
+        // Duration 합산
+        records.forEach(r => {
+            if (r.task && r.duration > 0) {
+                if (!totals[r.task]) totals[r.task] = { duration: 0, quantity: 0 };
+                totals[r.task].duration += r.duration;
+            }
+        });
+
+        // Quantity 합산
+        Object.entries(quantities).forEach(([task, qty]) => {
+            const q = Number(qty) || 0;
+            if (q > 0) {
+                if (!totals[task]) totals[task] = { duration: 0, quantity: 0 };
+                totals[task].quantity += q;
+            }
+        });
+    });
+
+    const standards = {};
+    Object.keys(totals).forEach(task => {
+        const t = totals[task];
+        // 유의미한 데이터가 있는 경우만 표준으로 설정 (예: 누적 60분 이상)
+        if (t.duration > 60 && t.quantity > 0) {
+            standards[task] = t.quantity / t.duration; // (개/분)
+        }
+    });
+    return standards;
+};
+
+/**
+ * ✨ 헬퍼: 적정 인원 분석 (표준 공수 기반)
+ */
+export const analyzeStaffingEfficiency = (currentDataAggr, standardThroughputs, actualTotalDuration, actualActiveStaff) => {
+    let totalStandardMinutesNeeded = 0;
+    const taskDetails = [];
+
+    // 현재 기간의 각 업무별 실제 처리량을 '표준 속도'로 나누어 '표준 필요 시간' 계산
+    Object.entries(currentDataAggr.taskSummary).forEach(([task, summary]) => {
+        const actualQty = summary.quantity || 0;
+        const stdSpeed = standardThroughputs[task];
+
+        if (actualQty > 0 && stdSpeed > 0) {
+            const standardMinutes = actualQty / stdSpeed;
+            totalStandardMinutesNeeded += standardMinutes;
+        } else if (summary.duration > 0) {
+            // 표준 속도가 없는 업무(시간만 기록되는 업무 등)는 실제 투입 시간을 그대로 필요 시간으로 인정
+            totalStandardMinutesNeeded += summary.duration;
+        }
+    });
+
+    // 효율성 비율 = (표준 필요 시간 / 실제 투입 시간) * 100
+    // 100% 미만이면 표준보다 시간이 더 걸림(비효율), 100% 초과면 표준보다 빠름(고효율)
+    const efficiencyRatio = actualTotalDuration > 0 ? (totalStandardMinutesNeeded / actualTotalDuration) * 100 : 0;
+
+    // 이론적 적정 인원 = 실제 평균 인원 * (효율성 비율)
+    // 예: 실제 10명 * 효율 80% = 적정 8명 (2명 과다 투입)
+    const theoreticalRequiredStaff = actualActiveStaff * (efficiencyRatio / 100);
+
+    return {
+        totalStandardMinutesNeeded,
+        theoreticalRequiredStaff,
+        efficiencyRatio
+    };
 };

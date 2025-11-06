@@ -1,4 +1,4 @@
-// === ui-history-reports-renderer.js ===
+// === js/ui-history-reports-renderer.js ===
 
 import { formatDuration } from './utils.js';
 import { getDiffHtmlForMetric, createTableRow } from './ui-history-reports-logic.js';
@@ -7,6 +7,7 @@ import { getDiffHtmlForMetric, createTableRow } from './ui-history-reports-logic
  * [내부 헬퍼] KPI 섹션 HTML 생성
  */
 const _generateKPIHTML = (tKPIs, pKPIs) => {
+    // ... (기존 코드 유지)
     return `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -35,7 +36,9 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
                 ${getDiffHtmlForMetric('overallAvgCostPerItem', tKPIs.overallAvgCostPerItem, pKPIs.overallAvgCostPerItem)}
             </div>
             <div class="bg-white p-3 rounded-lg shadow-sm">
-                <div class="text-xs text-gray-500">평균 근무 인원</div> <div class="text-xl font-bold">${Number(tKPIs.activeMembersCount).toFixed(1).replace(/\.0$/, '')} 명</div> ${getDiffHtmlForMetric('activeMembersCount', tKPIs.activeMembersCount, pKPIs.activeMembersCount)}
+                <div class="text-xs text-gray-500">평균 근무 인원</div>
+                <div class="text-xl font-bold">${Number(tKPIs.activeMembersCount).toFixed(1).replace(/\.0$/, '')} 명</div>
+                ${getDiffHtmlForMetric('activeMembersCount', tKPIs.activeMembersCount, pKPIs.activeMembersCount)}
             </div>
             <div class="bg-white p-3 rounded-lg shadow-sm">
                 <div class="text-xs text-gray-500">비업무 시간</div>
@@ -52,9 +55,86 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
 };
 
 /**
+ * ✨ [신규] 인력 효율성 분석 HTML 생성
+ */
+const _generateStaffingEfficiencyHTML = (tMetrics, pMetrics, periodText) => {
+    // 주간/월간/연간 리포트에서만 표시 (데이터가 충분할 때)
+    if (!tMetrics.staffing || ['기록'].includes(periodText)) return '';
+
+    const { theoreticalRequiredStaff, efficiencyRatio, totalStandardMinutesNeeded } = tMetrics.staffing;
+    const actualStaff = tMetrics.kpis.activeMembersCount;
+    
+    // 이전 기간 데이터
+    const prevRequired = pMetrics?.staffing?.theoreticalRequiredStaff || 0;
+    const prevEfficiency = pMetrics?.staffing?.efficiencyRatio || 0;
+
+    if (theoreticalRequiredStaff <= 0) return '';
+
+    let statusHtml = '';
+    let textColor = '';
+    let bgColor = '';
+    let message = '';
+
+    // 효율성 평가 기준 (90% ~ 110%를 적정 구간으로 가정)
+    if (efficiencyRatio >= 110) {
+        statusHtml = '🔥 고효율 (과부하 주의)';
+        textColor = 'text-red-600';
+        bgColor = 'bg-red-50 border-red-100';
+        message = `팀원들이 표준 속도보다 약 <strong>${(efficiencyRatio - 100).toFixed(0)}% 더 빠르게</strong> 일했습니다. 지속될 경우 피로도 관리가 필요할 수 있습니다.`;
+    } else if (efficiencyRatio <= 90) {
+        statusHtml = '📉 효율 저하 (여유 인력)';
+        textColor = 'text-yellow-600';
+        bgColor = 'bg-yellow-50 border-yellow-100';
+        message = `표준 속도 대비 약 <strong>${(100 - efficiencyRatio).toFixed(0)}% 더 많은 시간</strong>이 소요되었습니다. 업무 프로세스 점검이나 인원 재배치가 필요할 수 있습니다.`;
+    } else {
+        statusHtml = '✅ 적정 효율 유지';
+        textColor = 'text-green-600';
+        bgColor = 'bg-green-50 border-green-100';
+        message = `현재 업무량 대비 인원 투입이 <strong>매우 적절</strong>하게 이루어지고 있습니다. (표준 대비 ${efficiencyRatio.toFixed(0)}% 수준)`;
+    }
+
+    return `
+        <div class="bg-white p-5 rounded-lg shadow-sm">
+            <h3 class="text-lg font-bold mb-4 text-gray-800 flex items-center">
+                👥 인력 효율성 분석 (Beta)
+                <span class="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">과거 평균 데이터 기반</span>
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div class="p-4 rounded-lg border bg-gray-50 text-center">
+                    <div class="text-sm text-gray-500 mb-1">실제 투입 인원 (평균)</div>
+                    <div class="text-2xl font-bold text-gray-800">${actualStaff.toFixed(1)} 명</div>
+                    ${getDiffHtmlForMetric('activeMembersCount', actualStaff, pMetrics.kpis.activeMembersCount)}
+                </div>
+                <div class="p-4 rounded-lg border bg-blue-50 border-blue-100 text-center">
+                    <div class="text-sm text-blue-700 mb-1">이론적 적정 인원</div>
+                    <div class="text-2xl font-bold text-blue-600">${theoreticalRequiredStaff.toFixed(1)} 명</div>
+                    ${getDiffHtmlForMetric('theoreticalRequiredStaff', theoreticalRequiredStaff, prevRequired)}
+                </div>
+                <div class="p-4 rounded-lg border ${bgColor} text-center">
+                    <div class="text-sm ${textColor} mb-1">업무 효율성 지수</div>
+                    <div class="text-2xl font-bold ${textColor}">${efficiencyRatio.toFixed(0)}%</div>
+                     ${getDiffHtmlForMetric('efficiencyRatio', efficiencyRatio, prevEfficiency)}
+                </div>
+                 <div class="p-4 rounded-lg border bg-gray-50 text-center flex flex-col justify-center">
+                    <div class="text-sm text-gray-500 mb-1">분석 결과</div>
+                    <div class="text-lg font-bold ${textColor}">${statusHtml}</div>
+                </div>
+            </div>
+            <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded border">
+                💡 <strong>분석 코멘트:</strong> ${message}<br>
+                <span class="text-xs text-gray-500 mt-1 block">(산출 근거: 이 기간의 총 업무량을 우리 팀의 과거 평균 속도로 처리했을 때 약 ${formatDuration(totalStandardMinutesNeeded)}이 필요함)</span>
+            </div>
+        </div>
+    `;
+};
+
+// ... (_generateInsightsHTML 유지) ...
+/**
  * [내부 헬퍼] AI Insights 섹션 HTML 생성
  */
 const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
+     // ... (기존 코드 그대로 유지)
+     // ...
     let html = `
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 분석 (Beta)</h3>
@@ -168,10 +248,9 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
     return html;
 };
 
-/**
- * [내부 헬퍼] 모든 테이블 섹션 HTML 생성
- */
+// ... (_generateTablesHTML 유지) ...
 const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMap, attendanceData) => {
+    // ... (기존 코드 그대로 유지)
     let html = '';
 
     // 1. 파트별 요약 테이블
@@ -261,6 +340,10 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
 
     let html = `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800">${title}</h2>`;
     html += _generateKPIHTML(tMetrics.kpis, pMetrics.kpis);
+
+    // ✨ [신규] 인력 효율성 분석 섹션 삽입
+    html += _generateStaffingEfficiencyHTML(tMetrics, pMetrics, periodText);
+
     html += _generateInsightsHTML(tMetrics.aggr, pMetrics.aggr, appConfig, periodText);
     html += _generateTablesHTML(tMetrics.aggr, pMetrics.aggr, periodText, sortState, tData.memberToPartMap, tData.raw.onLeaveMembers);
     html += `</div>`;
