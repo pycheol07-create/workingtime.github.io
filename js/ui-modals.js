@@ -1,50 +1,88 @@
-// === ui-modals.js (모달 렌더링 담당) ===
+// === js/ui-modals.js ===
 
-// ✅ [수정] renderQuantityModalInputs (ui.js -> ui-modals.js)
-// ✨ [수정] missingTasksList 파라미터를 추가합니다.
-export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = []) => {
+// ✅ [수정] renderQuantityModalInputs
+// ✨ [수정] confirmedZeroTasks 파라미터를 추가하고, 각 업무별 '0건 확인' 체크박스 UI를 생성합니다.
+export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
     container.innerHTML = '';
 
-    // ✨ [추가] 빠른 조회를 위해 Set으로 변환
     const missingTaskSet = new Set(missingTasksList);
+    // ✨ [추가] 확인된 목록을 Set으로 변환하여 빠른 조회
+    const confirmedZeroSet = new Set(confirmedZeroTasks);
 
     quantityTaskTypes.forEach(task => {
         const div = document.createElement('div');
-        
-        // ✨ [추가] 이 업무가 누락 목록에 있는지 확인
-        const isMissing = missingTaskSet.has(task);
-        // ✨ [추가] 경고 클래스 (isMissing이 true일 때만 적용)
+
+        // ✨ [추가] 누락 여부 및 확인 여부 판단
+        const isConfirmed = confirmedZeroSet.has(task);
+        // 로직상 이미 걸러지지만, UI 렌더링 시 이중 확인
+        const isMissing = missingTaskSet.has(task) && !isConfirmed;
         const warningClass = isMissing ? 'warning-missing-quantity' : '';
 
+        // ✨ [수정] 레이아웃 변경: 라벨 옆에 체크박스 배치
         div.innerHTML = `
-            <label for="modal-quantity-${task}" class="block text-sm font-medium text-gray-700 ${isMissing ? 'text-yellow-700 font-bold' : ''}">${task} ${isMissing ? '(누락됨)' : ''}</label>
-            <input type="number" id="modal-quantity-${task}" data-task="${task}" value="${sourceQuantities[task] || 0}" min="0" 
+            <div class="flex justify-between items-end mb-1">
+                <label for="modal-quantity-${task}" class="block text-sm font-medium text-gray-700 ${isMissing ? 'text-yellow-700 font-bold' : ''}">
+                    ${task} ${isMissing ? '(누락됨)' : ''}
+                </label>
+                 <div class="flex items-center">
+                    <input type="checkbox" id="modal-confirm-zero-${task}" data-task="${task}"
+                           class="confirm-zero-checkbox w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 transition"
+                           ${isConfirmed ? 'checked' : ''}>
+                    <label for="modal-confirm-zero-${task}" class="ml-1 text-xs text-gray-500 cursor-pointer select-none">0건 확인</label>
+                </div>
+            </div>
+            <input type="number" id="modal-quantity-${task}" data-task="${task}" value="${sourceQuantities[task] || 0}" min="0"
                    class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition ${warningClass}">
         `;
         container.appendChild(div);
     });
+
+    // ✨ [추가] UX 개선: 체크박스 클릭 시 즉시 경고 스타일 토글 (저장 전 시각적 피드백)
+    container.querySelectorAll('.confirm-zero-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+            const task = e.target.dataset.task;
+            const input = container.querySelector(`#modal-quantity-${task}`);
+            const label = container.querySelector(`label[for="modal-quantity-${task}"]`);
+
+            if (e.target.checked) {
+                // 확인 체크 시 경고 제거
+                input.classList.remove('warning-missing-quantity');
+                label.classList.remove('text-yellow-700', 'font-bold');
+                label.textContent = task;
+            } else {
+                // 체크 해제 시, 값이 0이면 다시 경고 표시
+                if (Number(input.value) <= 0) {
+                     input.classList.add('warning-missing-quantity');
+                     label.classList.add('text-yellow-700', 'font-bold');
+                     // 이미 텍스트에 (누락됨)이 없을 때만 추가
+                     if (!label.textContent.includes('(누락됨)')) {
+                         label.textContent = `${task} (누락됨)`;
+                     }
+                }
+            }
+        });
+    });
 };
 
-// ✅ [수정] renderTaskSelectionModal (객체 -> 배열 순회로 변경)
-export const renderTaskSelectionModal = (taskGroups = []) => { // ✅ 기본값을 {}에서 []로 변경
+// ... (renderTaskSelectionModal, renderTeamSelectionModalContent 등 기존 함수들은 그대로 유지)
+export const renderTaskSelectionModal = (taskGroups = []) => {
     const container = document.getElementById('task-modal-content');
     if (!container) return;
     container.innerHTML = '';
-    
-    // ✅ [수정] Object.entries(taskGroups).forEach... -> taskGroups.forEach...
+
     taskGroups.forEach((group) => {
         const groupName = group.name;
         const tasks = group.tasks || [];
-        
+
         const groupDiv = document.createElement('div');
         groupDiv.className = 'flex-1';
-        
+
         let tasksHtml = tasks.map(task => `<button type="button" data-task="${task}" class="task-select-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:ring-2 focus:ring-blue-300">${task}</button>`).join('');
-        
+
         groupDiv.innerHTML = `
-            <div class="bg-gray-50 rounded-lg border"> 
+            <div class="bg-gray-50 rounded-lg border">
                 <h3 class="text-lg font-bold text-gray-800 mb-0 p-3 border-b bg-gray-100 rounded-t-lg">${groupName}</h3>
                 <div class="p-3 grid grid-cols-1 gap-2">${tasksHtml}</div>
             </div>
@@ -53,7 +91,6 @@ export const renderTaskSelectionModal = (taskGroups = []) => { // ✅ 기본값�
     });
 };
 
-// ✅ [수정] renderTeamSelectionModalContent (ui.js -> ui-modals.js)
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -62,7 +99,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     titleEl.textContent = `'${task || '기타 업무'}' 팀원 선택`;
     container.innerHTML = '';
 
-    // ✅ [수정] '업무 중'과 '휴식 중'을 구분하기 위해 Set 분리
     const ongoingMembers = new Set(
         (appState.workRecords || []).filter(r => r.status === 'ongoing').map(r => r.member)
     );
@@ -74,10 +110,10 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         ...(appState.dailyOnLeaveMembers || []),
         ...(appState.dateBasedOnLeaveMembers || [])
     ];
-    
+
     const onLeaveMemberMap = new Map(
         combinedOnLeaveMembers
-            .filter(item => !(item.type === '외출' && item.endTime)) 
+            .filter(item => !(item.type === '외출' && item.endTime))
             .map(item => [item.member, item])
     );
 
@@ -103,7 +139,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 
         const uniqueMembersInGroup = [...new Set(group.members)];
         uniqueMembersInGroup.forEach(member => {
-            // ✅ [수정] isWorking 대신 isOngoing, isPaused로 확인
             const isOngoing = ongoingMembers.has(member);
             const isPaused = pausedMembers.has(member);
             const leaveEntry = onLeaveMemberMap.get(member);
@@ -111,14 +146,12 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             const card = document.createElement('button');
             card.type = 'button';
             card.dataset.memberName = member;
-            
-            // ✅ [수정] 비활성화 조건
+
             card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
             if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
             let statusLabel = '';
-            // ✅ [수정] 상태 라벨 분기
             if (isOngoing) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
             else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; }
             else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
@@ -144,7 +177,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     albaMemberList.dataset.groupName = '알바';
 
     (appState.partTimers || []).forEach(pt => {
-        // ✅ [수정] isWorking 대신 isOngoing, isPaused로 확인
         const isOngoing = ongoingMembers.has(pt.name);
         const isPaused = pausedMembers.has(pt.name);
         const leaveEntry = onLeaveMemberMap.get(pt.name);
@@ -155,14 +187,12 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const card = document.createElement('button');
         card.type = 'button';
         card.dataset.memberName = pt.name;
-        
-        // ✅ [수정] 비활성화 조건
+
         card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
         if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
         let statusLabel = '';
-        // ✅ [수정] 상태 라벨 분기
         if (isOngoing) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
         else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; }
         else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
@@ -189,7 +219,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     container.appendChild(albaGroupContainer);
 };
 
-// ✅ [수정] renderLeaveTypeModalOptions (ui.js -> ui-modals.js)
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs');
@@ -228,29 +257,25 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     }
 };
 
-// ✅ [수정] renderManualAddModalDatalists (배열 구조 반영)
 export const renderManualAddModalDatalists = (appState, appConfig) => {
     const memberDatalist = document.getElementById('manual-add-member-list');
     const taskDatalist = document.getElementById('manual-add-task-list');
 
     if (!memberDatalist || !taskDatalist) return;
 
-    // 1. 직원 목록 채우기 (변경 없음)
     memberDatalist.innerHTML = '';
     const staffMembers = (appConfig.teamGroups || []).flatMap(g => g.members);
     const partTimerMembers = (appState.partTimers || []).map(p => p.name);
-    
+
     const allMembers = [...new Set([...staffMembers, ...partTimerMembers])].sort();
-    
+
     allMembers.forEach(member => {
         const option = document.createElement('option');
         option.value = member;
         memberDatalist.appendChild(option);
     });
 
-    // 2. ✅ [수정] 업무 목록 채우기 (배열 구조 반영)
     taskDatalist.innerHTML = '';
-    // Object.values(appConfig.taskGroups || {}).flat() -> appConfig.taskGroups.flatMap(group => group.tasks)
     const allTasks = [...new Set((appConfig.taskGroups || []).flatMap(group => group.tasks))].sort();
 
     allTasks.forEach(task => {

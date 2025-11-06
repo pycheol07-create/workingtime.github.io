@@ -1,3 +1,4 @@
+// === js/app-history-logic.js ===
 import {
     appState, appConfig, db, auth,
     allHistoryData,
@@ -31,21 +32,28 @@ import {
 } from './utils.js';
 
 import {
-    doc, setDoc, getDoc, collection, getDocs, deleteDoc, runTransaction // ✅ runTransaction 추가
+    doc, setDoc, getDoc, collection, getDocs, deleteDoc, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
-// ✅ [수정] '오늘'의 실시간 데이터를 이력 데이터로 동기화 (진행 중 업무 시간 포함)
+// ✅ [수정] '오늘'의 실시간 데이터를 이력 데이터로 동기화 (확인된 0건 목록 포함)
 const _syncTodayToHistory = () => {
     const todayKey = getTodayDateString();
     const now = getCurrentTime();
 
-    // 실시간 workRecords를 복사한 후, 진행 중인 업무의 duration을 현재 기준으로 계산하여 보여줌
     const liveWorkRecords = (appState.workRecords || []).map(record => {
         const snapshot = JSON.parse(JSON.stringify(record));
-        if (snapshot.status !== 'completed') {
-            snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
-            snapshot.endTime = now; // 현재 시점까지로 임시 마감
+        if (snapshot.status !== 'ongoing' && snapshot.status !== 'paused' && snapshot.status !== 'completed') {
+             // 혹시 모를 예외 상태 처리
+        }
+        if (snapshot.status === 'ongoing' || snapshot.status === 'paused') {
+             snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
+             // 진행 중인 상태 그대로 이력에 보여주기 위해 endTime은 설정하지 않거나,
+             // 현재 시점까지의 계산을 위해 임시로 사용할 수 있습니다.
+             // 여기서는 이력 조회 시 혼동을 줄이기 위해 endTime은 null로 두되 duration만 갱신하거나,
+             // 혹은 기존 로직대로 현재 시간으로 마감된 것처럼 보여줄 수도 있습니다.
+             // 기존 로직 유지:
+             snapshot.endTime = now;
         }
         return snapshot;
     });
@@ -54,6 +62,8 @@ const _syncTodayToHistory = () => {
         id: todayKey,
         workRecords: liveWorkRecords,
         taskQuantities: JSON.parse(JSON.stringify(appState.taskQuantities || {})),
+        // ✨ [추가] 확인된 0건 업무 목록 동기화
+        confirmedZeroTasks: JSON.parse(JSON.stringify(appState.confirmedZeroTasks || [])),
         onLeaveMembers: [
             ...(JSON.parse(JSON.stringify(appState.dailyOnLeaveMembers || []))),
             ...(JSON.parse(JSON.stringify(appState.dateBasedOnLeaveMembers || [])))
@@ -70,11 +80,14 @@ const _syncTodayToHistory = () => {
     }
 };
 
+// ✅ [수정] 누락된 처리량 확인 로직 (확인된 항목 제외)
 export const checkMissingQuantities = (dayData) => {
     if (!dayData || !dayData.workRecords) return [];
 
     const records = dayData.workRecords;
     const quantities = dayData.taskQuantities || {};
+    // ✨ [추가] 확인된 0건 업무 목록 가져오기
+    const confirmedZeroTasks = dayData.confirmedZeroTasks || [];
 
     const durationByTask = records.reduce((acc, r) => {
         if (r.task && r.duration > 0) {
@@ -91,7 +104,9 @@ export const checkMissingQuantities = (dayData) => {
 
     for (const task of tasksWithDuration) {
         if (quantityTaskTypes.includes(task)) {
-            if (!quantities[task] || Number(quantities[task]) <= 0) {
+            // ✨ [수정] 수량이 0이면서 '확인됨' 목록에도 없는 경우에만 누락으로 간주
+            const quantity = Number(quantities[task]) || 0;
+            if (quantity <= 0 && !confirmedZeroTasks.includes(task)) {
                 missingTasks.push(task);
             }
         }
@@ -100,7 +115,7 @@ export const checkMissingQuantities = (dayData) => {
     return missingTasks;
 };
 
-// 2. saveProgress 함수 전체를 아래 코드로 교체
+// ✅ [수정] 이력 저장 로직 (확인된 0건 목록 저장 포함)
 export async function saveProgress(isAutoSave = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
@@ -113,14 +128,12 @@ export async function saveProgress(isAutoSave = false) {
 
     try {
         await runTransaction(db, async (transaction) => {
-            // 1. 트랜잭션 내에서 최신 서버 데이터 읽기
             const docSnap = await transaction.get(historyDocRef);
-            const existingData = docSnap.exists() ? (docSnap.data() || { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] }) : { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
+            const existingData = docSnap.exists() ? (docSnap.data() || {}) : {};
 
-            // 2. 현재 앱 상태 스냅샷 생성 (진행 중 업무 시간 계산 포함)
             const allRecordsSnapshot = (appState.workRecords || []).map(record => {
                 const snapshot = JSON.parse(JSON.stringify(record));
-                if (snapshot.status !== 'completed') {
+                if (snapshot.status === 'ongoing' || snapshot.status === 'paused') {
                     snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
                     snapshot.endTime = now;
                 }
@@ -135,40 +148,38 @@ export async function saveProgress(isAutoSave = false) {
                 }
             }
 
+            // ✨ [추가] 현재 확인된 0건 목록 스냅샷
+            const currentConfirmedZero = appState.confirmedZeroTasks || [];
+
             const currentLeaveMembersCombined = [
                 ...(appState.dailyOnLeaveMembers || []),
                 ...(appState.dateBasedOnLeaveMembers || [])
             ];
             const currentPartTimers = appState.partTimers || [];
 
-            // 저장할 데이터가 없는 경우 체크
             if (allRecordsSnapshot.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0 && !(existingData.workRecords?.length > 0)) {
-                // 트랜잭션 내에서는 리턴으로 종료하면 아무 작업도 안 함
                 return;
             }
 
-            // 3. 데이터 병합 (서버 데이터 + 로컬 데이터)
             const mergedRecordsMap = new Map();
             (existingData.workRecords || []).forEach(r => mergedRecordsMap.set(r.id, r));
             allRecordsSnapshot.forEach(r => mergedRecordsMap.set(r.id, r));
 
-            // 처리량은 로컬 값이 있으면 덮어쓰거나, 더 큰 값을 유지하는 등의 전략 선택 가능
-            // 여기서는 로컬 최신값으로 병합 (동시 수정이 드물다고 가정)
             const mergedQuantities = { ...existingData.taskQuantities, ...currentQuantities };
 
             const dataToSave = {
                 id: dateStr,
                 workRecords: Array.from(mergedRecordsMap.values()),
                 taskQuantities: mergedQuantities,
-                onLeaveMembers: currentLeaveMembersCombined, // 근태는 로컬(오늘자) 기준 덮어쓰기
+                // ✨ [추가] 확인된 0건 목록 저장 (로컬 상태 덮어쓰기)
+                confirmedZeroTasks: currentConfirmedZero,
+                onLeaveMembers: currentLeaveMembersCombined,
                 partTimers: currentPartTimers
             };
 
-            // 4. 트랜잭션으로 저장
             transaction.set(historyDocRef, dataToSave);
         });
 
-        // 저장 성공 후 로컬 이력 목록 갱신
         _syncTodayToHistory();
 
         if (isAutoSave) {
@@ -186,7 +197,6 @@ export async function saveProgress(isAutoSave = false) {
 }
 
 export async function saveDayDataToHistory(shouldReset) {
-    // 업무 마감 시에는 진행 중인 업무를 모두 '완료' 처리
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     if (ongoingRecords.length > 0) {
         const endTime = getCurrentTime();
@@ -206,11 +216,12 @@ export async function saveDayDataToHistory(shouldReset) {
     if (shouldReset) {
         appState.workRecords = [];
         Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
+        // ✨ [추가] 초기화 시 확인 목록도 초기화
+        appState.confirmedZeroTasks = [];
         appState.partTimers = [];
         appState.hiddenGroupIds = [];
 
         const now = getCurrentTime();
-        // 17:30 이전이면 조퇴자는 남겨둠
         if (now < "17:30") {
             appState.dailyOnLeaveMembers = (appState.dailyOnLeaveMembers || []).filter(entry => entry.type === '조퇴');
         } else {
@@ -231,9 +242,8 @@ export async function fetchAllHistoryData() {
         const data = [];
         querySnapshot.forEach((doc) => {
             const docData = doc.data();
-            // 유효한 데이터가 있는 경우만 포함
-            if (docData && ((docData.workRecords && docData.workRecords.length > 0) || (docData.onLeaveMembers && docData.onLeaveMembers.length > 0) || (docData.partTimers && docData.partTimers.length > 0) || (docData.taskQuantities && Object.keys(docData.taskQuantities).length > 0))) {
-                data.push({ id: doc.id, ...docData });
+            if (docData) {
+                 data.push({ id: doc.id, ...docData });
             }
         });
         data.sort((a, b) => b.id.localeCompare(a.id));
@@ -255,11 +265,10 @@ export const loadAndRenderHistoryList = async () => {
     historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
 
     await fetchAllHistoryData();
-    _syncTodayToHistory(); // 로드 후 오늘 데이터 즉시 동기화
+    _syncTodayToHistory();
 
     if (allHistoryData.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
-        // ... (화면 초기화 로직)
         const viewsToClear = [
             'history-daily-view', 'history-weekly-view', 'history-monthly-view',
             'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
@@ -272,7 +281,6 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
-    // ... (탭 스타일 초기화 로직은 그대로 유지)
     document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
         btn.classList.remove('font-medium', 'text-gray-500');
@@ -318,7 +326,6 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
     if (!historyDateList) return;
     historyDateList.innerHTML = '';
 
-    // 렌더링 전 항상 최신 상태 동기화
     _syncTodayToHistory();
 
     const filteredData = (context.historyStartDate || context.historyEndDate)
@@ -350,7 +357,6 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
 
     if (keys.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
-        // ... (뷰 초기화 로직)
         const viewsToClear = [
             'history-daily-view', 'history-weekly-view', 'history-monthly-view',
             'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
@@ -383,7 +389,6 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
         historyDateList.appendChild(li);
     });
 
-    // 첫 번째 항목 자동 선택 및 렌더링
     const firstButton = historyDateList.firstChild?.querySelector('button');
     if (firstButton) {
         firstButton.classList.add('bg-blue-100', 'font-bold');
@@ -426,7 +431,6 @@ export const renderHistoryDateListByMode = (mode = 'day') => {
     }
 };
 
-// ... (나머지 openHistoryQuantityModal, renderHistoryDetail 함수 등은 기존과 동일하게 유지)
 export const openHistoryQuantityModal = (dateKey) => {
     const todayDateString = getTodayDateString();
 
@@ -435,16 +439,20 @@ export const openHistoryQuantityModal = (dateKey) => {
             id: todayDateString,
             workRecords: appState.workRecords || [],
             taskQuantities: appState.taskQuantities || {},
+            // ✨ [추가] 오늘 데이터에도 확인 목록 전달
+            confirmedZeroTasks: appState.confirmedZeroTasks || []
         };
         const missingTasksList = checkMissingQuantities(todayData);
-        renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList);
+        // ✨ [수정] renderQuantityModalInputs에 확인 목록 전달
+        renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList, appState.confirmedZeroTasks || []);
     } else {
         const dayData = allHistoryData.find(d => d.id === dateKey);
         if (!dayData) {
             return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
         }
         const missingTasksList = checkMissingQuantities(dayData);
-        renderQuantityModalInputs(dayData.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList);
+        // ✨ [수정] renderQuantityModalInputs에 확인 목록 전달
+        renderQuantityModalInputs(dayData.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList, dayData.confirmedZeroTasks || []);
     }
 
     const title = document.getElementById('quantity-modal-title');
@@ -488,7 +496,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     const activeMembersCount = allRegularMembers.size - onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length
         + partTimersFromHistory.length - onLeaveMemberNames.filter(name => partTimersFromHistory.some(pt => pt.name === name)).length;
 
-    // 현재일(Current) 데이터 계산
     const totalSumDuration = records.reduce((sum, r) => sum + (Number(r.duration) || 0), 0);
     const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
 
@@ -517,7 +524,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         };
     });
 
-    // 전일(Previous) 데이터 계산
     let prevTaskMetrics = {};
     let prevDay = previousDayData;
     if (!prevDay) {
