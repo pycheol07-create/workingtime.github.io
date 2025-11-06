@@ -243,7 +243,7 @@ export let allHistoryData = [];
 export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // Core Helpers
-export const generateId = () => `${Date.now()}-${++context.recordCounter}`;
+export const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
 
@@ -586,6 +586,12 @@ async function startAppAfterLogin(user) {
     if (unsubscribeToday) unsubscribeToday();
 
     unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
+        // ✅ [추가] 내가 로컬에서 작업 중인 내용(저장 대기 중)이 있다면,
+        // 다른 사람의 데이터가 들어와도 잠시 무시하여 내 작업이 덮어씌워지는 것을 방지합니다.
+        if (isDataDirty) {
+            console.log("로컬 작업(저장 중)이 있어 외부 데이터 동기화를 건너뜁니다.");
+            return;
+        }
         try {
             const taskTypes = (appConfig.taskGroups || []).flatMap(group => group.tasks);
             const defaultQuantities = {};

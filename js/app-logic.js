@@ -1,25 +1,17 @@
 import {
     appState, db, auth,
     render, generateId,
-    saveStateToFirestore, // ✅ [추가] 진짜 저장 함수 가져오기
-    markDataAsDirty,      // ✅ [추가] 진짜 데이터 변경 플래그 함수 가져오기
+    saveStateToFirestore, // 진짜 저장 함수
+    debouncedSaveState,   // 덜 중요한 저장용 (필요시)
     AUTO_SAVE_INTERVAL
 } from './app.js';
 
-import { debounce, calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
+import { calcElapsedMinutes, getCurrentTime, showToast } from './utils.js';
 
-import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-// ⛔️ [삭제] 중복되고 비어있던 가짜 함수들 제거
-// export const markDataAsDirty = () => { };
-// async function saveProgress(isAutoSave = false) { }
-// export async function saveStateToFirestore() { ... }
-
-// ✅ [수정] app.js에서 가져온 진짜 saveStateToFirestore를 사용하도록 연결
-export const debouncedSaveState = debounce(saveStateToFirestore, 1000);
+// 업무 시작/종료 등 중요한 액션은 즉시 저장하여 데이터 충돌 최소화
 
 export const startWorkGroup = (members, task) => {
-    const groupId = Date.now();
+    const groupId = generateId(); // 문자열 기반의 더 안전한 ID 사용
     const startTime = getCurrentTime();
     const newRecords = members.map(member => ({
         id: generateId(),
@@ -35,7 +27,7 @@ export const startWorkGroup = (members, task) => {
     appState.workRecords = appState.workRecords || [];
     appState.workRecords.push(...newRecords);
     render();
-    debouncedSaveState();
+    saveStateToFirestore(); // ✅ 즉시 저장
 };
 
 export const addMembersToWorkGroup = (members, task, groupId) => {
@@ -54,11 +46,12 @@ export const addMembersToWorkGroup = (members, task, groupId) => {
     appState.workRecords = appState.workRecords || [];
     appState.workRecords.push(...newRecords);
     render();
-    debouncedSaveState();
+    saveStateToFirestore(); // ✅ 즉시 저장
 };
 
 export const stopWorkGroup = (groupId) => {
-    const recordsToStop = (appState.workRecords || []).filter(r => r.groupId == groupId && (r.status === 'ongoing' || r.status === 'paused'));
+    // groupId 비교 시 타입 불일치 방지를 위해 문자열로 변환하여 비교
+    const recordsToStop = (appState.workRecords || []).filter(r => String(r.groupId) === String(groupId) && (r.status === 'ongoing' || r.status === 'paused'));
     if (recordsToStop.length === 0) return;
 
     finalizeStopGroup(groupId, null);
@@ -69,7 +62,7 @@ export const finalizeStopGroup = (groupId, quantity) => {
     let taskName = '';
     let changed = false;
     (appState.workRecords || []).forEach(record => {
-        if (record.groupId == groupId && (record.status === 'ongoing' || record.status === 'paused')) {
+        if (String(record.groupId) === String(groupId) && (record.status === 'ongoing' || record.status === 'paused')) {
             taskName = record.task;
             if (record.status === 'paused') {
                 const lastPause = record.pauses?.[record.pauses.length - 1];
@@ -89,13 +82,13 @@ export const finalizeStopGroup = (groupId, quantity) => {
 
     if (changed) {
         render();
-        debouncedSaveState();
+        saveStateToFirestore(); // ✅ 즉시 저장
     }
 };
 
 export const stopWorkIndividual = (recordId) => {
     const endTime = getCurrentTime();
-    const record = (appState.workRecords || []).find(r => r.id === recordId);
+    const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
     if (record && (record.status === 'ongoing' || record.status === 'paused')) {
         if (record.status === 'paused') {
             const lastPause = record.pauses?.[record.pauses.length - 1];
@@ -105,7 +98,7 @@ export const stopWorkIndividual = (recordId) => {
         record.endTime = endTime;
         record.duration = calcElapsedMinutes(record.startTime, endTime, record.pauses);
         render();
-        debouncedSaveState();
+        saveStateToFirestore(); // ✅ 즉시 저장
         showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
     } else {
         showToast('이미 완료되었거나 찾을 수 없는 기록입니다.', true);
@@ -116,7 +109,7 @@ export const pauseWorkGroup = (groupId) => {
     const currentTime = getCurrentTime();
     let changed = false;
     (appState.workRecords || []).forEach(record => {
-        if (record.groupId == groupId && record.status === 'ongoing') {
+        if (String(record.groupId) === String(groupId) && record.status === 'ongoing') {
             record.status = 'paused';
             record.pauses = record.pauses || [];
             record.pauses.push({ start: currentTime, end: null, type: 'break' });
@@ -125,7 +118,7 @@ export const pauseWorkGroup = (groupId) => {
     });
     if (changed) {
         render();
-        debouncedSaveState();
+        saveStateToFirestore(); // ✅ 즉시 저장
         showToast('그룹 업무가 일시정지 되었습니다.');
     }
 };
@@ -134,7 +127,7 @@ export const resumeWorkGroup = (groupId) => {
     const currentTime = getCurrentTime();
     let changed = false;
     (appState.workRecords || []).forEach(record => {
-        if (record.groupId == groupId && record.status === 'paused') {
+        if (String(record.groupId) === String(groupId) && record.status === 'paused') {
             record.status = 'ongoing';
             const lastPause = record.pauses?.[record.pauses.length - 1];
             if (lastPause && lastPause.end === null) lastPause.end = currentTime;
@@ -143,7 +136,7 @@ export const resumeWorkGroup = (groupId) => {
     });
     if (changed) {
         render();
-        debouncedSaveState();
+        saveStateToFirestore(); // ✅ 즉시 저장
         showToast('그룹 업무를 다시 시작합니다.');
     }
 };
@@ -156,7 +149,7 @@ export const pauseWorkIndividual = (recordId) => {
         record.pauses = record.pauses || [];
         record.pauses.push({ start: currentTime, end: null, type: 'break' });
         render();
-        debouncedSaveState();
+        saveStateToFirestore(); // ✅ 즉시 저장
         showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
     }
 };
@@ -171,7 +164,7 @@ export const resumeWorkIndividual = (recordId) => {
             lastPause.end = currentTime;
         }
         render();
-        debouncedSaveState();
+        saveStateToFirestore(); // ✅ 즉시 저장
         showToast(`${record.member}님 ${record.task} 업무 재개.`);
     }
 };
