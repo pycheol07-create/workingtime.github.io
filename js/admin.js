@@ -88,6 +88,16 @@ function renderAdminUI(config) {
         wageInput.value = config.defaultPartTimerWage || 10000;
     }
 
+    // ✨ [신규] 매출 분석 기준 렌더링
+    const revenueUnitInput = document.getElementById('revenue-increment-unit');
+    if (revenueUnitInput) {
+        revenueUnitInput.value = config.revenueIncrementUnit || 10000000;
+    }
+    const workHoursInput = document.getElementById('standard-monthly-work-hours');
+    if (workHoursInput) {
+        workHoursInput.value = config.standardMonthlyWorkHours || 209;
+    }
+
     renderTeamGroups(config.teamGroups || [], config.memberWages || {}, config.memberEmails || {});
     renderDashboardItemsConfig(config.dashboardItems || [], config.dashboardQuantities || {});
     renderKeyTasks(config.keyTasks || []);
@@ -764,7 +774,10 @@ async function handleSaveAll() {
             keyTasks: [],
             taskGroups: [],
             quantityTaskTypes: [],
-            defaultPartTimerWage: 10000
+            defaultPartTimerWage: 10000,
+            // ✨ [신규] 매출 분석 기준 초기화
+            revenueIncrementUnit: 10000000,
+            standardMonthlyWorkHours: 209
         };
 
         const emailCheck = new Map();
@@ -852,6 +865,16 @@ async function handleSaveAll() {
         const wageInput = document.getElementById('default-part-timer-wage');
         if (wageInput) {
             newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
+        }
+
+        // ✨ [신규] 매출 분석 기준 수집
+        const revenueUnitInput = document.getElementById('revenue-increment-unit');
+        if (revenueUnitInput) {
+            newConfig.revenueIncrementUnit = Number(revenueUnitInput.value) || 10000000;
+        }
+        const workHoursInput = document.getElementById('standard-monthly-work-hours');
+        if (workHoursInput) {
+            newConfig.standardMonthlyWorkHours = Number(workHoursInput.value) || 209;
         }
 
         document.querySelectorAll('#quantity-mapping-container .mapping-row').forEach(row => {

@@ -6,9 +6,10 @@ import {
     calculateReportKPIs,
     calculateReportAggregations,
     aggregateDaysToSingleData,
-    // ✨ [추가] 새로운 분석 로직 import
     calculateStandardThroughputs,
-    analyzeStaffingEfficiency
+    analyzeStaffingEfficiency,
+    // ✨ [신규] 매출 분석 함수 import
+    analyzeRevenueBasedStaffing
 } from './ui-history-reports-logic.js';
 
 // 2. HTML 렌더링 로직 import
@@ -17,6 +18,7 @@ import {
 } from './ui-history-reports-renderer.js';
 
 
+// ... (_prepareReportData, _calculateAverageActiveMembers 유지) ...
 /**
  * [공통] 리포트 데이터 준비 헬퍼
  */
@@ -41,12 +43,10 @@ const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
 };
 
 /**
- * ✨ [신규] 기간 내 평균 근무 인원 계산 헬퍼
- * (실제 업무가 있었던 날들의 평균 투입 인원을 계산합니다)
+ * [공통] 기간 내 평균 근무 인원 계산 헬퍼
  */
 const _calculateAverageActiveMembers = (daysData, appConfig, wageMap) => {
     if (!daysData || daysData.length === 0) return 0;
-    // 업무 기록이 있는 날만 고려 (휴일 제외 등)
     const workingDays = daysData.filter(d => d.workRecords && d.workRecords.length > 0);
     if (workingDays.length === 0) return 0;
 
@@ -56,7 +56,7 @@ const _calculateAverageActiveMembers = (daysData, appConfig, wageMap) => {
     return totalActive / workingDays.length;
 };
 
-
+// ... (renderReportDaily, renderReportWeekly 유지) ...
 /**
  * 일별 리포트 렌더링
  */
@@ -86,7 +86,6 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     const prevKPIs = calculateReportKPIs(previousDayData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(previousDayData, appConfig, wageMap, memberToPartMap);
 
-    // 일별은 데이터가 충분치 않아 표준 분석 생략 (필요시 추가 가능)
     const sortState = context.reportSortState || {};
 
     renderGenericReport(
@@ -128,7 +127,6 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     const prevKPIs = calculateReportKPIs(prevData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(prevData, appConfig, wageMap, memberToPartMap);
 
-    // ✨ 평균 인원 재계산 및 적정 인원 분석 수행
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentWeekDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevWeekDays, appConfig, wageMap);
 
@@ -142,8 +140,8 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         'report-weekly-view',
         `${weekKey} 주별 업무 리포트 (이전 주 대비)`,
         { raw: todayData, memberToPartMap: memberToPartMap },
-        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing }, // ✨ staffing 데이터 전달
-        { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },   // ✨ staffing 데이터 전달
+        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
+        { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
         appConfig,
         sortState,
         '주'
@@ -177,7 +175,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     const prevKPIs = calculateReportKPIs(prevData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(prevData, appConfig, wageMap, memberToPartMap);
 
-    // ✨ 평균 인원 재계산 및 적정 인원 분석 수행
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentMonthDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevMonthDays, appConfig, wageMap);
 
@@ -185,14 +182,21 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     const todayStaffing = analyzeStaffingEfficiency(todayAggr, standardThroughputs, todayKPIs.totalDuration, todayKPIs.activeMembersCount);
     const prevStaffing = analyzeStaffingEfficiency(prevAggr, standardThroughputs, prevKPIs.totalDuration, prevKPIs.activeMembersCount);
 
+    // ✨ [신규] 매출액 연동 분석 수행
+    context.monthlyRevenues = context.monthlyRevenues || {};
+    const currentRevenue = context.monthlyRevenues[monthKey] || 0;
+    const revenueAnalysis = analyzeRevenueBasedStaffing(currentRevenue, todayStaffing.totalStandardMinutesNeeded, appConfig);
+
     const sortState = context.reportSortState || {};
 
     renderGenericReport(
         'report-monthly-view',
         `${monthKey} 월별 업무 리포트 (이전 월 대비)`,
-        { raw: todayData, memberToPartMap: memberToPartMap },
-        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing }, // ✨ staffing 데이터 전달
-        { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },   // ✨ staffing 데이터 전달
+        // ✨ 렌더러에 현재 매출액 정보 전달
+        { raw: todayData, memberToPartMap: memberToPartMap, revenue: currentRevenue },
+        // ✨ 렌더러에 매출 분석 결과 전달
+        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing, revenueAnalysis: revenueAnalysis },
+        { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
         appConfig,
         sortState,
         '월'
@@ -226,7 +230,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     const prevKPIs = calculateReportKPIs(prevData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(prevData, appConfig, wageMap, memberToPartMap);
 
-    // ✨ 평균 인원 재계산 및 적정 인원 분석 수행
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentYearDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevYearDays, appConfig, wageMap);
 
@@ -240,8 +243,8 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         'report-yearly-view',
         `${yearKey} 연간 업무 리포트 (이전 연도 대비)`,
         { raw: todayData, memberToPartMap: memberToPartMap },
-        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing }, // ✨ staffing 데이터 전달
-        { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },   // ✨ staffing 데이터 전달
+        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
+        { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
         appConfig,
         sortState,
         '연도'

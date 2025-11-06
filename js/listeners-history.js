@@ -1,3 +1,4 @@
+// === js/listeners-history.js ===
 import {
     appState, appConfig, db, auth,
     allHistoryData,
@@ -513,6 +514,23 @@ export function setupHistoryModalListeners() {
                 exitFullscreenIfActive();
                 if (coqExplanationModal) {
                     coqExplanationModal.classList.remove('hidden');
+                }
+                return;
+            }
+
+            // ✨ [신규] 매출액 분석 적용 버튼 이벤트
+            const applyRevenueBtn = e.target.closest('#report-apply-revenue-btn');
+            if (applyRevenueBtn) {
+                const revenueInput = document.getElementById('report-monthly-revenue-input');
+                if (revenueInput && context.currentReportParams && context.currentReportParams.monthKey) {
+                    const revenue = Number(revenueInput.value) || 0;
+                    const monthKey = context.currentReportParams.monthKey;
+
+                    context.monthlyRevenues = context.monthlyRevenues || {};
+                    context.monthlyRevenues[monthKey] = revenue;
+
+                    renderReportMonthly(monthKey, allHistoryData, appConfig, context);
+                    showToast('매출액 분석이 적용되었습니다.');
                 }
                 return;
             }

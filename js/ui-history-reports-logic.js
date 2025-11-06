@@ -23,10 +23,10 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
 
     let colorClass = 'text-gray-500';
-    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio'].includes(metric)) { // ✅ efficiencyRatio 추가
+    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     }
-    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage', 'theoreticalRequiredStaff'].includes(metric)) { // ✅ theoreticalRequiredStaff 추가
+    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage', 'theoreticalRequiredStaff'].includes(metric)) {
         colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
     }
 
@@ -253,7 +253,6 @@ export const aggregateDaysToSingleData = (daysData, id) => {
 
 /**
  * ✨ 헬퍼: 전체 이력 기반 표준 처리속도 계산
- * (데이터가 많아지면 최근 N일 데이터만 사용하도록 최적화 가능)
  */
 export const calculateStandardThroughputs = (allHistoryData) => {
     const totals = {};
@@ -295,7 +294,6 @@ export const calculateStandardThroughputs = (allHistoryData) => {
  */
 export const analyzeStaffingEfficiency = (currentDataAggr, standardThroughputs, actualTotalDuration, actualActiveStaff) => {
     let totalStandardMinutesNeeded = 0;
-    const taskDetails = [];
 
     // 현재 기간의 각 업무별 실제 처리량을 '표준 속도'로 나누어 '표준 필요 시간' 계산
     Object.entries(currentDataAggr.taskSummary).forEach(([task, summary]) => {
@@ -311,17 +309,44 @@ export const analyzeStaffingEfficiency = (currentDataAggr, standardThroughputs, 
         }
     });
 
-    // 효율성 비율 = (표준 필요 시간 / 실제 투입 시간) * 100
-    // 100% 미만이면 표준보다 시간이 더 걸림(비효율), 100% 초과면 표준보다 빠름(고효율)
     const efficiencyRatio = actualTotalDuration > 0 ? (totalStandardMinutesNeeded / actualTotalDuration) * 100 : 0;
-
-    // 이론적 적정 인원 = 실제 평균 인원 * (효율성 비율)
-    // 예: 실제 10명 * 효율 80% = 적정 8명 (2명 과다 투입)
     const theoreticalRequiredStaff = actualActiveStaff * (efficiencyRatio / 100);
 
     return {
         totalStandardMinutesNeeded,
         theoreticalRequiredStaff,
         efficiencyRatio
+    };
+};
+
+/**
+ * ✨ 헬퍼: 매출액 기반 업무량 및 적정 인원 예측 분석
+ * @param {number} revenue 입력된 월 매출액
+ * @param {number} totalStandardMinutesNeeded 해당 월의 총 표준 필요 업무 시간 (분)
+ * @param {object} appConfig 앱 설정 (기준 단위, 표준 근무시간 등)
+ */
+export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded, appConfig) => {
+    if (!revenue || revenue <= 0 || !totalStandardMinutesNeeded || totalStandardMinutesNeeded <= 0) {
+        return null;
+    }
+
+    const revenueUnit = appConfig.revenueIncrementUnit || 10000000; // 예: 1,000만원
+    const monthlyWorkMinutes = (appConfig.standardMonthlyWorkHours || 209) * 60; // 월 표준 근무 분
+
+    // 1. 매출 1원당 필요한 표준 업무 시간 (분/원)
+    const minutesPerRevenue = totalStandardMinutesNeeded / revenue;
+
+    // 2. 기준 단위(예: 1천만원) 매출 증가 시 필요한 추가 업무 시간 (분)
+    const minutesPerUnitIncrease = minutesPerRevenue * revenueUnit;
+
+    // 3. 기준 단위 매출 증가 시 필요한 추가 인원 (명)
+    // = (추가 필요한 분) / (1명이 한 달에 일하는 분)
+    const staffNeededPerUnitIncrease = minutesPerUnitIncrease / monthlyWorkMinutes;
+
+    return {
+        minutesPerRevenue,
+        staffNeededPerUnitIncrease,
+        revenueUnit,
+        formattedUnit: (revenueUnit / 10000000 >= 1) ? `${revenueUnit / 10000000}천만원` : `${revenueUnit.toLocaleString()}원`
     };
 };

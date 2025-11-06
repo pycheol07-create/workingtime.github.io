@@ -53,6 +53,8 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             mergedConfig.qualityCostTasks = loadedData.qualityCostTasks || defaultData.qualityCostTasks;
+            // 시스템 계정 초기화 보장
+            mergedConfig.systemAccounts = loadedData.systemAccounts || defaultData.systemAccounts;
 
             // taskGroups 마이그레이션 로직
             if (Array.isArray(loadedData.taskGroups)) {
@@ -134,6 +136,8 @@ function getDefaultConfig() {
             { name: '담당파트', members: ['송다진', '정미혜', '진희주'] },
             { name: '제작파트', members: ['이승운'] },
         ],
+        // 시스템 계정 (실제 근무 인원에서 제외)
+        systemAccounts: ['관리자', '시스템'],
         memberWages: {
             '유아라': 14114, '박호진': 14354, '송다진': 11722, '정미혜': 11483,
             '김수은': 11253, '이미숙': 11253, '이승운': 14593, '진희주': 10526,
@@ -166,6 +170,10 @@ function getDefaultConfig() {
 
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
 
-        defaultPartTimerWage: 10000
+        defaultPartTimerWage: 10000,
+
+        // ✨ [신규] 매출액 분석 기준 설정
+        revenueIncrementUnit: 10000000, // 매출 증가 단위 (기본 1,000만원)
+        standardMonthlyWorkHours: 209   // 1인당 월 표준 근무시간 (기본 209시간)
     };
 }
