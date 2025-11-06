@@ -1,3 +1,4 @@
+// === js/app-logic.js ===
 import {
     appState, db, auth,
     render, generateId,
@@ -174,9 +175,6 @@ export const clockIn = (memberName) => {
     const now = getCurrentTime();
     if (!appState.commuteRecords) appState.commuteRecords = {};
     
-    // 기존 출근 기록이 있으면 inTime 유지 (관리자 강제 출근 시에는 덮어쓸 수도 있지만, 일단 안전하게 유지하거나 덮어쓰기 정책 결정 필요. 여기선 강제 출근의 의미로 덮어씀)
-    // 만약 유지하고 싶다면: if (!appState.commuteRecords[memberName]?.inTime) ...
-    
     appState.commuteRecords[memberName] = {
         status: 'in',
         inTime: now,
@@ -192,7 +190,6 @@ export const clockIn = (memberName) => {
 export const clockOut = (memberName) => {
     const now = getCurrentTime();
     if (!appState.commuteRecords || !appState.commuteRecords[memberName]) {
-        // 출근 기록이 없으면 새로 생성해서 퇴근 처리 (예외 상황 대비)
         appState.commuteRecords = appState.commuteRecords || {};
         appState.commuteRecords[memberName] = { status: 'in', inTime: null, outTime: null };
     }
@@ -212,7 +209,7 @@ export const clockOut = (memberName) => {
     showToast(`${memberName}님 퇴근 처리되었습니다.`);
 };
 
-// ✨ [추가] 퇴근 취소 함수
+// ✨ [신규] 퇴근 취소 함수 (상태를 'in'으로 되돌림)
 export const cancelClockOut = (memberName) => {
     if (!appState.commuteRecords || !appState.commuteRecords[memberName]) {
          showToast(`${memberName}님의 출퇴근 기록이 없습니다.`, true);

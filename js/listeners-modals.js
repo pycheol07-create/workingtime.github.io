@@ -49,8 +49,8 @@ import {
 import {
     startWorkGroup, addMembersToWorkGroup, finalizeStopGroup,
     stopWorkIndividual,
-    // ✨ [추가] 출퇴근 함수 임포트
-    clockIn, clockOut
+    // ✨ [수정] 출퇴근 관련 함수 임포트 (cancelClockOut 추가)
+    clockIn, clockOut, cancelClockOut
 } from './app-logic.js';
 
 import {
@@ -465,7 +465,7 @@ export function setupGeneralModalListeners() {
             }
             const leaveType = selectedTypeInput.value;
 
-            // ✨ [추가] 관리자 전용 강제 출/퇴근 처리
+            // ✨ [수정] 관리자 전용 강제 출/퇴근 및 취소 처리
             if (leaveType === '강제 출근') {
                 clockIn(context.memberToSetLeave);
                 if (leaveTypeModal) leaveTypeModal.classList.add('hidden');
@@ -473,6 +473,11 @@ export function setupGeneralModalListeners() {
                 return;
             } else if (leaveType === '강제 퇴근') {
                 clockOut(context.memberToSetLeave);
+                if (leaveTypeModal) leaveTypeModal.classList.add('hidden');
+                context.memberToSetLeave = null;
+                return;
+            } else if (leaveType === '퇴근 취소') { // ✨ 추가됨
+                cancelClockOut(context.memberToSetLeave);
                 if (leaveTypeModal) leaveTypeModal.classList.add('hidden');
                 context.memberToSetLeave = null;
                 return;
