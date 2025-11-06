@@ -4,9 +4,6 @@ import { formatDuration, isWeekday, getWeekOfYear } from './utils.js';
 
 // ================== [ 1. 헬퍼 함수 ] ==================
 
-/**
- * 헬퍼: 증감율 HTML 생성
- */
 export const getDiffHtmlForMetric = (metric, current, previous) => {
     const currValue = current || 0;
     const prevValue = previous || 0;
@@ -23,7 +20,6 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
 
     let colorClass = 'text-gray-500';
-    // ✅ [수정] utilizationRate 추가 (높을수록 좋은 지표인지, 낮을수록 좋은 지표인지에 따라 색상 결정. 여기선 일단 중립 또는 높으면 초록색으로 가정하되 과부하 고려 필요. 일단 초록색 그룹에 추가)
     if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     }
@@ -49,9 +45,6 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
             </span>`;
 };
 
-/**
- * 헬퍼: 테이블 행 생성 (증감율 표시 + 정렬 기능 지원)
- */
 export const createTableRow = (columns, isHeader = false, sortState = null) => {
     const cellTag = isHeader ? 'th' : 'td';
     const rowClass = isHeader ? 'text-xs text-gray-700 uppercase bg-gray-100 sticky top-0' : 'bg-white border-b hover:bg-gray-50';
@@ -102,9 +95,6 @@ export const createTableRow = (columns, isHeader = false, sortState = null) => {
 
 // ================== [ 2. 계산/집계 로직 ] ==================
 
-/**
- * 헬퍼: 일별 리포트용 KPI 계산
- */
 export const calculateReportKPIs = (data, appConfig, wageMap) => {
     if (!data) {
         return {
@@ -143,21 +133,16 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
     const coqPercentage = (totalCost > 0) ? (totalQualityCost / totalCost) * 100 : 0;
 
     const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
-    // ✨ [수정] 시스템 계정 제외 로직 추가
     const systemAccounts = new Set(appConfig.systemAccounts || []);
     const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
 
-    // 정직원 중 휴무자 제외하고, 시스템 계정도 제외
     const activeRegularMembers = [...allRegularMembers].filter(name => !onLeaveMemberNames.includes(name) && !systemAccounts.has(name)).length;
-    // 알바 중 휴무자 제외
     const activePartTimers = partTimersFromHistory.filter(pt => !onLeaveMemberNames.includes(pt.name)).length;
 
     const activeMembersCount = activeRegularMembers + activePartTimers;
 
     let nonWorkMinutes = 0;
-    // (일별 데이터일 때만 비업무 시간 계산)
     if (data.id && data.id.length === 10 && isWeekday(data.id)) {
-        // ✨ [수정] 표준 근무 시간 설정값 연동
         const standardHours = (appConfig.standardDailyWorkHours?.weekday || 8);
         const totalPotentialMinutes = activeMembersCount * standardHours * 60;
         nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalDuration);
@@ -171,9 +156,6 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
     };
 };
 
-/**
- * 헬퍼: 일별 리포트용 상세 집계 계산
- */
 export const calculateReportAggregations = (data, appConfig, wageMap, memberToPartMap) => {
     const records = data?.workRecords || [];
     const quantities = data?.taskQuantities || {};
@@ -225,9 +207,6 @@ export const calculateReportAggregations = (data, appConfig, wageMap, memberToPa
     return { partSummary, memberSummary, taskSummary };
 };
 
-/**
- * 헬퍼: 여러 날의 데이터를 하나로 집계 (주/월/연간용)
- */
 export const aggregateDaysToSingleData = (daysData, id) => {
     const aggregated = {
         id: id,
@@ -260,16 +239,12 @@ export const aggregateDaysToSingleData = (daysData, id) => {
 
 // ================== [ 3. ✨ 신규 분석 로직 ] ==================
 
-/**
- * ✨ 헬퍼: 전체 이력 기반 표준 처리속도 계산
- */
 export const calculateStandardThroughputs = (allHistoryData) => {
     const totals = {};
     allHistoryData.forEach(day => {
         const records = day.workRecords || [];
         const quantities = day.taskQuantities || {};
 
-        // Duration 합산
         records.forEach(r => {
             if (r.task && r.duration > 0) {
                 if (!totals[r.task]) totals[r.task] = { duration: 0, quantity: 0 };
@@ -277,7 +252,6 @@ export const calculateStandardThroughputs = (allHistoryData) => {
             }
         });
 
-        // Quantity 합산
         Object.entries(quantities).forEach(([task, qty]) => {
             const q = Number(qty) || 0;
             if (q > 0) {
@@ -297,9 +271,6 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     return standards;
 };
 
-/**
- * ✨ 헬퍼: 적정 인원 분석 (표준 공수 기반 - 업무 효율성)
- */
 export const analyzeStaffingEfficiency = (currentDataAggr, standardThroughputs, actualTotalDuration, actualActiveStaff) => {
     let totalStandardMinutesNeeded = 0;
 
@@ -325,53 +296,19 @@ export const analyzeStaffingEfficiency = (currentDataAggr, standardThroughputs, 
     };
 };
 
-/**
- * ✨ 헬퍼: 매출액 기반 업무량 및 적정 인원 예측 분석
- */
-export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded, appConfig) => {
-    if (!revenue || revenue <= 0 || !totalStandardMinutesNeeded || totalStandardMinutesNeeded <= 0) {
-        return null;
-    }
-
-    const revenueUnit = appConfig.revenueIncrementUnit || 10000000;
-    const monthlyWorkMinutes = (appConfig.standardMonthlyWorkHours || 209) * 60;
-
-    const minutesPerRevenue = totalStandardMinutesNeeded / revenue;
-    const minutesPerUnitIncrease = minutesPerRevenue * revenueUnit;
-    const staffNeededPerUnitIncrease = minutesPerUnitIncrease / monthlyWorkMinutes;
-
-    return {
-        minutesPerRevenue,
-        staffNeededPerUnitIncrease,
-        revenueUnit,
-        formattedUnit: (revenueUnit / 10000000 >= 1) ? `${revenueUnit / 10000000}천만원` : `${revenueUnit.toLocaleString()}원`
-    };
-};
-
-/**
- * ✨ [신규] 헬퍼: 업무 활용률(Utilization Rate) 계산
- * 기간 내 모든 날짜에 대해 (실제 투입 인원 * 표준 근무 시간)을 합산하여 '총 표준 가용 시간'을 구하고,
- * 이를 실제 총 업무 시간과 비교합니다.
- */
 export const calculateUtilization = (daysData, appConfig, wageMap) => {
     let totalStandardAvailableMinutes = 0;
     let totalActualWorkedMinutes = 0;
 
     daysData.forEach(day => {
-        // 실제 업무 기록이 있는 날만 계산에 포함
         if (day.workRecords && day.workRecords.length > 0) {
-             // 해당 일자의 KPI 계산 (근무 인원 파악용)
             const kpis = calculateReportKPIs(day, appConfig, wageMap);
             const activeStaff = kpis.activeMembersCount;
 
             if (activeStaff > 0) {
                 totalActualWorkedMinutes += kpis.totalDuration;
-
-                // 표준 가용 시간 계산 (설정값 사용, 없으면 기본값 적용)
                 const standardHours = appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
-                // isWeekday 유틸리티 함수 활용
                 const hoursPerPerson = isWeekday(day.id) ? (standardHours.weekday || 8) : (standardHours.weekend || 4);
-
                 totalStandardAvailableMinutes += (activeStaff * hoursPerPerson * 60);
             }
         }
@@ -385,5 +322,67 @@ export const calculateUtilization = (daysData, appConfig, wageMap) => {
         utilizationRate,
         totalStandardAvailableMinutes,
         totalActualWorkedMinutes
+    };
+};
+
+/**
+ * ✨ [수정] 매출액 기반 적정 인원 예측 (실제 근무 데이터 기반)
+ */
+export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded, activeMembersCount, actualTotalDuration, appConfig) => {
+    if (!revenue || revenue <= 0 || !totalStandardMinutesNeeded || totalStandardMinutesNeeded <= 0 || !actualTotalDuration || actualTotalDuration <= 0 || !activeMembersCount || activeMembersCount <= 0) {
+        return null;
+    }
+
+    const revenueUnit = appConfig.revenueIncrementUnit || 10000000;
+    const actualMinutesPerPerson = actualTotalDuration / activeMembersCount;
+    const minutesPerRevenue = totalStandardMinutesNeeded / revenue;
+    const minutesPerUnitIncrease = minutesPerRevenue * revenueUnit;
+    const staffNeededPerUnitIncrease = minutesPerUnitIncrease / actualMinutesPerPerson;
+
+    return {
+        minutesPerRevenue,
+        staffNeededPerUnitIncrease,
+        actualMinutesPerPerson,
+        revenueUnit,
+        formattedUnit: (revenueUnit / 10000000 >= 1) ? `${revenueUnit / 10000000}천만원` : `${revenueUnit.toLocaleString()}원`
+    };
+};
+
+/**
+ * ✨ [신규] 매출액 vs 업무량 트렌드 비교 분석
+ */
+export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, currentWorkload, prevWorkload) => {
+    if (!currentRevenue || !prevRevenue || !currentWorkload || !prevWorkload) return null;
+
+    const revenueChangeRate = ((currentRevenue - prevRevenue) / prevRevenue) * 100;
+    const workloadChangeRate = ((currentWorkload - prevWorkload) / prevWorkload) * 100;
+    const gap = workloadChangeRate - revenueChangeRate;
+
+    let diagnosis = '';
+    let colorClass = '';
+
+    if (gap > 10) {
+        diagnosis = '⚠️ 수익성 경고: 매출 대비 업무량 급증';
+        colorClass = 'text-red-600';
+    } else if (gap > 5) {
+        diagnosis = '📉 효율 저하: 업무량이 매출보다 더 빠르게 증가 중';
+        colorClass = 'text-orange-600';
+    } else if (gap < -10) {
+        diagnosis = '🚀 수익성 대폭 개선: 매출 급증에도 업무량은 안정적';
+        colorClass = 'text-blue-600';
+    } else if (gap < -5) {
+        diagnosis = '📈 효율 개선: 매출 증가폭이 업무량 증가폭을 상회';
+        colorClass = 'text-green-600';
+    } else {
+        diagnosis = '✅ 균형 성장: 매출과 업무량이 비례하여 증가';
+        colorClass = 'text-gray-800';
+    }
+
+    return {
+        revenueChangeRate,
+        workloadChangeRate,
+        gap,
+        diagnosis,
+        colorClass
     };
 };

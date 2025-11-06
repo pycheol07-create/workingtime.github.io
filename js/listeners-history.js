@@ -518,7 +518,7 @@ export function setupHistoryModalListeners() {
                 return;
             }
 
-            // ✨ [신규] 매출액 분석 적용 버튼 이벤트
+            // ✨ 매출액 분석 적용 버튼 이벤트 (콤마 제거 로직 추가)
             const applyRevenueBtn = e.target.closest('#report-apply-revenue-btn');
             if (applyRevenueBtn) {
                 const revenueInput = document.getElementById('report-monthly-revenue-input');

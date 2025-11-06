@@ -3,9 +3,6 @@
 import { formatDuration } from './utils.js';
 import { getDiffHtmlForMetric, createTableRow } from './ui-history-reports-logic.js';
 
-/**
- * [내부 헬퍼] KPI 섹션 HTML 생성
- */
 const _generateKPIHTML = (tKPIs, pKPIs) => {
     return `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
@@ -53,34 +50,27 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
     `;
 };
 
-/**
- * ✨ [신규] 생산성 및 인력 운용 종합 분석 HTML 생성 (매트릭스 진단 포함)
- */
 const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
-    // 주간/월간/연간 리포트에서만 표시
     if (!tMetrics.staffing || ['기록'].includes(periodText)) return '';
 
     const {
-        theoreticalRequiredStaff, efficiencyRatio, totalStandardMinutesNeeded, // 기존 효율성 지표
-        utilizationRate, totalStandardAvailableMinutes, totalActualWorkedMinutes // 신규 활용률 지표
+        theoreticalRequiredStaff, efficiencyRatio, totalStandardMinutesNeeded,
+        utilizationRate, totalStandardAvailableMinutes, totalActualWorkedMinutes
     } = tMetrics.staffing;
 
     const actualStaff = tMetrics.kpis.activeMembersCount;
-
-    // 이전 기간 데이터 (증감 표시용)
     const prevRequired = pMetrics?.staffing?.theoreticalRequiredStaff || 0;
     const prevEfficiency = pMetrics?.staffing?.efficiencyRatio || 0;
     const prevUtilization = pMetrics?.staffing?.utilizationRate || 0;
 
     if (theoreticalRequiredStaff <= 0 && utilizationRate <= 0) return '';
 
-    // --- 종합 진단 로직 (매트릭스) ---
     let diagnosis = { icon: '✅', title: '최적 상태 유지', desc: '업무 시간과 속도 모두 적절한 균형을 유지하고 있습니다.', color: 'text-green-700', bg: 'bg-green-50 border-green-200' };
 
-    const isOverloaded = utilizationRate >= 100;     // 시간 부족 (야근 등)
-    const isUnderloaded = utilizationRate <= 80;     // 시간 남음 (유휴)
-    const isFast = efficiencyRatio >= 110;           // 속도 빠름
-    const isSlow = efficiencyRatio <= 90;            // 속도 느림
+    const isOverloaded = utilizationRate >= 100;
+    const isUnderloaded = utilizationRate <= 80;
+    const isFast = efficiencyRatio >= 110;
+    const isSlow = efficiencyRatio <= 90;
 
     if (isOverloaded && isFast) {
         diagnosis = { icon: '🔥', title: '극한 과부하 (Burnout 위험)', desc: '절대적인 시간이 부족한 와중에도 매우 빠르게 일하고 있습니다. 인원 충원이 시급합니다.', color: 'text-red-700', bg: 'bg-red-50 border-red-200' };
@@ -148,39 +138,70 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
                 </div>
                 <div class="text-xs text-gray-500 text-right hidden md:block">
                     * <strong>시간 활용률</strong>: 총 표준 가용시간(${formatDuration(totalStandardAvailableMinutes)}) 중 실제 근무(${formatDuration(totalActualWorkedMinutes)}) 비율<br>
-                    * <strong>업무 효율성</strong>: 총 표준 필요시간(${formatDuration(totalStandardMinutesNeeded)}) 대비 실제 소요시간 비율
+                    * <strong>업무 효율성</strong>: 총 표준 필요시간(${formatDuration(totalStandardMinutesNeeded)}) 대비 실제 소요시간(${formatDuration(tMetrics.kpis.totalDuration)}) 비율
                 </div>
             </div>
         </div>
     `;
 };
 
-/**
- * [내부 헬퍼] 매출액 연동 분석 HTML 생성
- */
-const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, currentRevenue) => {
+const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, trendAnalysisData, currentRevenue, prevRevenue) => {
     if (periodText !== '월') return '';
 
     let analysisResultHtml = '';
+
+    if (trendAnalysisData) {
+        const { revenueChangeRate, workloadChangeRate, diagnosis, colorClass } = trendAnalysisData;
+        const revSign = revenueChangeRate > 0 ? '+' : '';
+        const workSign = workloadChangeRate > 0 ? '+' : '';
+
+        analysisResultHtml += `
+            <div class="mb-4 p-4 bg-gray-50 border rounded-lg">
+                <h4 class="font-semibold text-gray-700 mb-3">📉 전월 대비 트렌드 분석</h4>
+                <div class="flex items-center justify-around text-center mb-3">
+                    <div>
+                        <div class="text-xs text-gray-500">매출액 변화</div>
+                        <div class="text-lg font-bold ${revenueChangeRate >= 0 ? 'text-blue-600' : 'text-red-600'}">
+                            ${revSign}${revenueChangeRate.toFixed(1)}%
+                        </div>
+                        <div class="text-xs text-gray-400">${Number(prevRevenue).toLocaleString()}원 →</div>
+                    </div>
+                    <div class="text-gray-300 font-light text-2xl">vs</div>
+                    <div>
+                        <div class="text-xs text-gray-500">업무량(공수) 변화</div>
+                         <div class="text-lg font-bold ${workloadChangeRate <= revenueChangeRate ? 'text-green-600' : 'text-orange-600'}">
+                            ${workSign}${workloadChangeRate.toFixed(1)}%
+                        </div>
+                    </div>
+                </div>
+                <div class="pt-3 border-t text-center font-bold ${colorClass}">
+                    ${diagnosis}
+                </div>
+            </div>
+        `;
+    }
+
     if (revenueAnalysisData) {
-        const { staffNeededPerUnitIncrease, formattedUnit } = revenueAnalysisData;
-        analysisResultHtml = `
-            <div class="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-lg animate-fade-in">
+        const { staffNeededPerUnitIncrease, formattedUnit, actualMinutesPerPerson } = revenueAnalysisData;
+        const actualHoursPerPerson = (actualMinutesPerPerson / 60).toFixed(0);
+
+        analysisResultHtml += `
+            <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
                 <h4 class="font-semibold text-indigo-800 mb-2 flex items-center">
-                    📊 매출 기반 인원 예측 모델
+                    📊 실적 기반 인원 예측 모델
                 </h4>
                 <p class="text-gray-700 text-sm leading-relaxed">
-                    이 달의 업무 데이터로 분석했을 때,<br>
+                    이번 달의 실제 업무 패턴을 유지한다고 가정할 때,<br>
                     매출액이 <strong>${formattedUnit} 증가</strong>할 때마다
-                    약 <strong class="text-indigo-600 text-lg">${staffNeededPerUnitIncrease.toFixed(1)}명</strong>의 추가 인원 투입이 필요했습니다.
+                    약 <strong class="text-indigo-600 text-lg">${staffNeededPerUnitIncrease.toFixed(1)}명</strong>의 추가 인원 투입이 필요할 것으로 예상됩니다.
                 </p>
-                 <p class="text-xs text-gray-500 mt-2">
-                    * 실제 수행한 업무량(표준 공수)을 기반으로 역산한 예측치입니다.
+                 <p class="text-xs text-indigo-400 mt-2">
+                    * 산출 근거: 이번 달 우리 팀 실질 평균 근무시간 (약 <strong>${actualHoursPerPerson}시간</strong>/인) 기준
                 </p>
             </div>
         `;
-    } else if (currentRevenue > 0) {
-         analysisResultHtml = `<div class="mt-4 text-sm text-gray-500">⚠️ 분석을 위한 업무 데이터가 충분하지 않습니다.</div>`;
+    } else if (currentRevenue > 0 && !revenueAnalysisData) {
+         analysisResultHtml += `<div class="mt-4 text-sm text-gray-500">⚠️ 예측 분석을 위한 업무 데이터가 충분하지 않습니다.</div>`;
     }
 
     return `
@@ -188,17 +209,17 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, currentRe
             <h3 class="text-lg font-bold mb-4 text-gray-800 flex items-center">
                 💰 매출액 연동 분석 (Beta)
             </h3>
-            <div class="flex flex-wrap items-end gap-4 mb-4">
+            <div class="flex flex-wrap items-end gap-4 mb-6">
                 <div>
                     <label for="report-monthly-revenue-input" class="block text-sm font-medium text-gray-700 mb-1">이 달의 확정 매출액</label>
                     <div class="flex items-center">
-                        <input type="text" id="report-monthly-revenue-input" value="${currentRevenue ? currentRevenue.toLocaleString() : ''}" placeholder="예: 150,000,000"
-                               class="p-2 border border-gray-300 rounded-l-md focus:ring-indigo-500 focus:border-indigo-500 w-40 text-right"
+                        <input type="text" id="report-monthly-revenue-input" value="${currentRevenue ? Number(currentRevenue).toLocaleString() : ''}" placeholder="예: 150,000,000"
+                               class="p-2 border border-gray-300 rounded-l-md focus:ring-indigo-500 focus:border-indigo-500 w-40 text-right font-bold text-gray-700"
                                onkeyup="this.value=this.value.replace(/[^0-9]/g,'').replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');">
                         <span class="p-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500">원</span>
                     </div>
                 </div>
-                <button id="report-apply-revenue-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium transition h-[42px]">
+                <button id="report-apply-revenue-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-md font-medium transition h-[42px] shadow-sm">
                     분석 적용
                 </button>
             </div>
@@ -207,10 +228,6 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, currentRe
     `;
 };
 
-
-/**
- * [내부 헬퍼] AI Insights 섹션 HTML 생성
- */
 const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
     let html = `
         <div class="bg-white p-4 rounded-lg shadow-sm">
@@ -220,7 +237,6 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
 
     const allTaskNames = new Set([...Object.keys(tAggr.taskSummary), ...Object.keys(pAggr.taskSummary)]);
 
-    // --- A. 투입 인원 효율성 (수확 체감) ---
     let insightsA = '';
     allTaskNames.forEach(taskName => {
         const d = tAggr.taskSummary[taskName];
@@ -230,7 +246,6 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
             const effDiff = d.efficiency - p.efficiency;
             const staffDiff = d.avgStaff - p.avgStaff;
 
-            // 인원이 늘었는데 효율이 떨어진 경우 (수확 체감)
             if (staffDiff > 0 && effDiff < -0.1) {
                 let coqHtml = '';
                 (appConfig.qualityCostTasks || []).forEach(coqTask => {
@@ -256,7 +271,6 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
                         ${coqHtml}
                     </div>`;
             }
-            // 인원이 늘었는데 효율도 함께 오른 경우 (시너지)
             else if (staffDiff > 0 && effDiff > 0.1) {
                  insightsA += `
                     <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -274,11 +288,10 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
     if (!insightsA) insightsA = `<p class="text-sm text-gray-500">인원 변동에 따른 유의미한 효율 변화가 감지되지 않았습니다.</p>`;
     html += `<div><h5 class="font-semibold mb-2 text-gray-600 text-sm">A. 인원 투입 효과 분석</h5>${insightsA}</div>`;
 
-    // --- B. 업무 난이도 비교 ---
     let insightsB = '';
     const effTasks = Object.keys(tAggr.taskSummary)
         .map(n => ({ name: n, ...tAggr.taskSummary[n] }))
-        .filter(d => d && d.efficiency > 0 && d.duration > 60) // 1시간 이상 수행한 업무만
+        .filter(d => d && d.efficiency > 0 && d.duration > 60)
         .sort((a, b) => b.efficiency - a.efficiency);
 
     if (effTasks.length >= 2) {
@@ -307,13 +320,9 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
     return html;
 };
 
-/**
- * [내부 헬퍼] 모든 테이블 섹션 HTML 생성
- */
 const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMap, attendanceData) => {
     let html = '';
 
-    // 1. 파트별 요약 테이블
     const partSort = sortState.partSummary || { key: 'partName', dir: 'asc' };
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">파트별 요약</h3><div class="overflow-x-auto max-h-[60vh]"><table class="w-full text-sm text-left text-gray-600" id="report-table-part"><thead>${createTableRow([
         { content: '파트', sortKey: 'partName' }, { content: '총 업무시간', sortKey: 'duration' }, { content: '총 인건비', sortKey: 'cost' }, { content: '참여 인원 (명)', sortKey: 'members' }
@@ -332,7 +341,6 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     });
     html += `</tbody></table></div></div>`;
 
-    // 2. 인원별 상세 테이블
     const memberSort = sortState.memberSummary || { key: 'memberName', dir: 'asc' };
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">인원별 상세</h3><div class="overflow-x-auto max-h-[60vh]"><table class="w-full text-sm text-left text-gray-600" id="report-table-member"><thead>${createTableRow([
         { content: '이름', sortKey: 'memberName' }, { content: '파트', sortKey: 'part' }, { content: '총 업무시간', sortKey: 'duration' }, { content: '총 인건비', sortKey: 'cost' }, { content: '수행 업무 수', sortKey: 'taskCount' }, { content: '수행 업무', sortKey: null }
@@ -351,7 +359,6 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     });
     html += `</tbody></table></div></div>`;
 
-    // 3. 업무별 상세 테이블
     const taskSort = sortState.taskSummary || { key: 'taskName', dir: 'asc' };
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 이전 ${periodText} 대비)</h3><div class="overflow-x-auto max-h-[70vh]"><table class="w-full text-sm text-left text-gray-600" id="report-table-task"><thead>${createTableRow([
         { content: '업무', sortKey: 'taskName' }, { content: '총 시간', sortKey: 'duration' }, { content: '총 인건비', sortKey: 'cost' }, { content: '총 처리량', sortKey: 'quantity' }, { content: '분당 처리량(Avg)', sortKey: 'avgThroughput' }, { content: '개당 처리비용(Avg)', sortKey: 'avgCostPerItem' }, { content: '총 참여인원', sortKey: 'avgStaff' }, { content: '평균 처리시간(건)', sortKey: 'avgTime' }, { content: '인당 분당 처리량(효율)', sortKey: 'efficiency', title: '계산: (분당 처리량) / (총 참여인원)' }
@@ -371,7 +378,6 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     });
     html += `</tbody></table></div></div>`;
 
-    // 4. 근태 현황
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3><div class="space-y-3 max-h-[60vh] overflow-y-auto">`;
     const attSummary = (attendanceData || []).reduce((acc, e) => {
         if (!acc[e.member]) acc[e.member] = { member: e.member, counts: {} };
@@ -391,28 +397,17 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     return html;
 };
 
-/**
- * [메인] 공통 리포트 렌더러
- */
-export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, appConfig, sortState, periodText) => {
+export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, appConfig, sortState, periodText, prevRevenue = 0) => {
     const view = document.getElementById(targetId);
     if (!view) return;
 
-    // 렌더링 시점에 context에서 매출액 정보 가져오기
     const currentRevenue = tData.revenue || 0;
 
     let html = `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800">${title}</h2>`;
     html += _generateKPIHTML(tMetrics.kpis, pMetrics.kpis);
-
-    // ✨ 인력 효율성 분석 섹션 (매트릭스 진단 포함)
     html += _generateProductivityAnalysisHTML(tMetrics, pMetrics, periodText);
-
-    // ✨ 매출액 연동 분석 섹션
-    html += _generateRevenueAnalysisHTML(periodText, tMetrics.revenueAnalysis, currentRevenue);
-
-    // 기존 AI Insights (내용 보강됨)
+    html += _generateRevenueAnalysisHTML(periodText, tMetrics.revenueAnalysis, tMetrics.revenueTrend, currentRevenue, prevRevenue);
     html += _generateInsightsHTML(tMetrics.aggr, pMetrics.aggr, appConfig, periodText);
-
     html += _generateTablesHTML(tMetrics.aggr, pMetrics.aggr, periodText, sortState, tData.memberToPartMap, tData.raw.onLeaveMembers);
     html += `</div>`;
 
