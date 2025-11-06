@@ -1,5 +1,4 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-// ✅ [중요] runTransaction이 포함된 올바른 import 문
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -213,7 +212,8 @@ export let context = {
     historyStartDate: null,
     historyEndDate: null,
     reportSortState: {},
-    currentReportParams: null
+    currentReportParams: null,
+    monthlyRevenues: {}
 };
 
 export let appState = {
@@ -224,14 +224,17 @@ export let appState = {
     partTimers: [],
     hiddenGroupIds: [],
     currentUser: null,
-    currentUserRole: 'user'
+    currentUserRole: 'user',
+    confirmedZeroTasks: [],
+    // ✅ [신규] 일일 출퇴근 상태 (key: memberName, value: { inTime, outTime, status })
+    dailyAttendance: {}
 };
 export let persistentLeaveSchedule = {
     onLeaveMembers: []
 };
 export let appConfig = {
     teamGroups: [],
-    systemAccounts: [], // 시스템 계정 초기값
+    systemAccounts: [],
     memberWages: {},
     taskGroups: {},
     quantityTaskTypes: [],
@@ -244,12 +247,11 @@ export let allHistoryData = [];
 export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // Core Helpers
-export const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; // 더 강력한 ID 생성
+export const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
 
 // Core Functions
-// ✅ [수정] 트랜잭션을 사용한 안전한 저장 함수
 export async function saveStateToFirestore() {
     if (!auth || !auth.currentUser) {
         console.warn('Cannot save state: User not authenticated.');
@@ -260,23 +262,7 @@ export async function saveStateToFirestore() {
         const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
 
         await runTransaction(db, async (transaction) => {
-            const sfDoc = await transaction.get(docRef);
-
-            let serverData = { workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
-            if (sfDoc.exists()) {
-                try {
-                    serverData = JSON.parse(sfDoc.data().state || '{}');
-                } catch (e) {
-                    // 서버 데이터 파싱 실패 시 기본값 사용
-                }
-            }
-
-            // [스마트 병합 로직]
-            // 로컬 데이터를 우선하되, 서버에만 있는 중요 데이터가 있다면 보존하는 방식 고려 가능.
-            // 현재는 동시성 문제 해결을 위해 로컬 상태를 최신으로 간주하고 덮어쓰되,
-            // 트랜잭션 내에서 수행하므로 다른 사람의 저장을 덮어쓰기 직전에 최신 상태를 확인하게 됨.
-            // 더 정교한 병합이 필요하다면 이곳에 로직 추가.
-            // 여기서는 간단히 로컬 상태를 신뢰하고 저장합니다. (트랜잭션으로 동시 시도 시 순차 처리됨)
+            // const sfDoc = await transaction.get(docRef); // 읽기가 필요 없다면 생략 가능
 
             const stateToSave = JSON.stringify({
                 workRecords: appState.workRecords || [],
@@ -285,8 +271,11 @@ export async function saveStateToFirestore() {
                 partTimers: appState.partTimers || [],
                 hiddenGroupIds: appState.hiddenGroupIds || [],
                 lunchPauseExecuted: appState.lunchPauseExecuted || false,
-                lunchResumeExecuted: appState.lunchResumeExecuted || false
-            }, (k, v) => (typeof v === 'function' ? undefined : v));
+                lunchResumeExecuted: appState.lunchResumeExecuted || false,
+                confirmedZeroTasks: appState.confirmedZeroTasks || [],
+                // ✅ [신규] 출퇴근 상태 저장
+                dailyAttendance: appState.dailyAttendance || {}
+            });
 
             if (stateToSave.length > 900000) {
                 throw new Error("저장 데이터 용량 초과");
@@ -295,9 +284,7 @@ export async function saveStateToFirestore() {
             transaction.set(docRef, { state: stateToSave });
         });
 
-        // ✅ [중요] 저장 성공 시 더 이상 '변경 사항 있음' 상태가 아님
         isDataDirty = false;
-        // console.log("Transaction successfully committed!");
 
     } catch (error) {
         console.error('Error saving state via transaction:', error);
@@ -404,7 +391,7 @@ export const render = () => {
         renderTaskAnalysis(appState, appConfig);
     } catch (e) {
         console.error('Render error:', e);
-        showToast('화면 렌더링 오류 발생.', true);
+        // showToast('화면 렌더링 오류 발생.', true); // 너무 빈번하면 주석 처리
     }
 };
 
@@ -473,6 +460,22 @@ async function startAppAfterLogin(user) {
         }
         if (logoutBtn) logoutBtn.classList.remove('hidden');
         if (logoutBtnMobile) logoutBtnMobile.classList.remove('hidden');
+
+        // ✅ [신규] PC 버전 출퇴근 토글 보이기 및 라벨 설정
+        const pcAttendanceToggle = document.getElementById('personal-attendance-toggle-pc');
+        const pcAttendanceLabel = document.getElementById('pc-attendance-label');
+        if (pcAttendanceToggle && pcAttendanceLabel) {
+            pcAttendanceLabel.textContent = `${currentUserName}님 근태:`;
+            pcAttendanceToggle.classList.remove('hidden');
+            pcAttendanceToggle.classList.add('flex');
+        }
+        // ✅ [신규] 모바일 버전 출퇴근 토글 보이기
+        const mobileAttendanceToggle = document.getElementById('personal-attendance-toggle-mobile');
+        if (mobileAttendanceToggle) {
+             mobileAttendanceToggle.classList.remove('hidden');
+             mobileAttendanceToggle.classList.add('flex');
+        }
+
 
         const adminLinkBtn = document.getElementById('admin-link-btn');
         const resetAppBtn = document.getElementById('reset-app-btn');
@@ -567,13 +570,11 @@ async function startAppAfterLogin(user) {
             mergedConfig.dashboardCustomItems = { ...(loadedConfig.dashboardCustomItems || {}) };
             mergedConfig.quantityTaskTypes = loadedConfig.quantityTaskTypes || appConfig.quantityTaskTypes;
             mergedConfig.qualityCostTasks = loadedConfig.qualityCostTasks || appConfig.qualityCostTasks;
-            // ✅ [추가] 시스템 계정 동기화
             mergedConfig.systemAccounts = loadedConfig.systemAccounts || appConfig.systemAccounts || [];
 
             if (Array.isArray(loadedConfig.taskGroups)) {
                 mergedConfig.taskGroups = loadedConfig.taskGroups;
             } else if (typeof loadedConfig.taskGroups === 'object' && loadedConfig.taskGroups !== null && !Array.isArray(loadedConfig.taskGroups)) {
-                console.warn("실시간 감지: 'taskGroups' (객체)를 (배열) 형식으로 마이그레이션합니다.");
                 mergedConfig.taskGroups = Object.entries(loadedConfig.taskGroups).map(([groupName, tasks]) => {
                     return { name: groupName, tasks: Array.isArray(tasks) ? tasks : [] };
                 });
@@ -616,7 +617,6 @@ async function startAppAfterLogin(user) {
     if (unsubscribeToday) unsubscribeToday();
 
     unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
-        // ✅ [수정] isDataDirty 체크 제거. 트랜잭션을 사용하므로 항상 최신 서버 데이터를 반영하는 것이 안전합니다.
         try {
             const taskTypes = (appConfig.taskGroups || []).flatMap(group => group.tasks);
             const defaultQuantities = {};
@@ -629,11 +629,13 @@ async function startAppAfterLogin(user) {
             appState.partTimers = loadedState.partTimers || [];
             appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
             appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
-
             appState.lunchPauseExecuted = loadedState.lunchPauseExecuted || false;
             appState.lunchResumeExecuted = loadedState.lunchResumeExecuted || false;
+            appState.confirmedZeroTasks = loadedState.confirmedZeroTasks || [];
+            // ✅ [신규] 출퇴근 상태 로드
+            appState.dailyAttendance = loadedState.dailyAttendance || {};
 
-            isDataDirty = false; // 서버 데이터와 동기화되었으므로 clean 상태로 변경
+            isDataDirty = false;
 
             render();
             if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
@@ -641,7 +643,6 @@ async function startAppAfterLogin(user) {
         } catch (parseError) {
             console.error('Error parsing state from Firestore:', parseError);
             showToast('데이터 로딩 중 오류 발생 (파싱 실패).', true);
-            // 파싱 에러 시 초기화는 위험할 수 있으므로 기존 상태 유지하거나 신중하게 결정
             if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
             if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
         }
@@ -687,7 +688,7 @@ async function main() {
             if (elapsedTimeTimer) { clearInterval(elapsedTimeTimer); elapsedTimeTimer = null; }
             if (periodicRefreshTimer) { clearInterval(periodicRefreshTimer); periodicRefreshTimer = null; }
 
-            appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user' };
+            appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user', confirmedZeroTasks: [], dailyAttendance: {} };
 
             if (navContent) navContent.classList.add('hidden');
             if (userGreeting) userGreeting.classList.add('hidden');
@@ -703,25 +704,21 @@ async function main() {
                 }
             });
 
+            // ✅ [신규] 로그아웃 시 토글 숨김
+            document.getElementById('personal-attendance-toggle-pc')?.classList.add('hidden');
+            document.getElementById('personal-attendance-toggle-mobile')?.classList.add('hidden');
+
             const adminLinkBtn = document.getElementById('admin-link-btn');
             const resetAppBtn = document.getElementById('reset-app-btn');
             const openHistoryBtn = document.getElementById('open-history-btn');
             const adminLinkBtnMobile = document.getElementById('admin-link-btn-mobile');
             const resetAppBtnMobile = document.getElementById('reset-app-btn-mobile');
 
-            if (currentUserRole === 'admin') {
-                if (adminLinkBtn) adminLinkBtn.style.display = 'flex';
-                if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'flex';
-                if (resetAppBtn) resetAppBtn.style.display = 'flex';
-                if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'flex';
-                if (openHistoryBtn) openHistoryBtn.style.display = 'inline-block';
-            } else {
-                if (adminLinkBtn) adminLinkBtn.style.display = 'none';
-                if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'none';
-                if (resetAppBtn) resetAppBtn.style.display = 'none';
-                if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'none';
-                if (openHistoryBtn) openHistoryBtn.style.display = 'none';
-            }
+            if (adminLinkBtn) adminLinkBtn.style.display = 'none';
+            if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'none';
+            if (resetAppBtn) resetAppBtn.style.display = 'none';
+            if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'none';
+            if (openHistoryBtn) openHistoryBtn.style.display = 'none';
 
             if (loginModal) loginModal.classList.remove('hidden');
             if (loadingSpinner) loadingSpinner.style.display = 'none';

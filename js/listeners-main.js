@@ -1,4 +1,3 @@
-// === js/listeners-main.js ===
 import {
     appState, appConfig, db, auth,
     persistentLeaveSchedule, allHistoryData,
@@ -46,7 +45,9 @@ import {
 
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
-    pauseWorkIndividual, resumeWorkIndividual
+    pauseWorkIndividual, resumeWorkIndividual,
+    // ✅ [신규] 출퇴근 처리 함수 임포트
+    processClockIn, processClockOut
 } from './app-logic.js';
 
 import {
@@ -58,6 +59,43 @@ import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/fir
 import { doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 export function setupMainScreenListeners() {
+
+    // ✅ [신규] PC 개인 출퇴근 토글 리스너
+    const pcAttendanceCheckbox = document.getElementById('pc-attendance-checkbox');
+    if (pcAttendanceCheckbox) {
+        pcAttendanceCheckbox.addEventListener('change', (e) => {
+            const currentUser = appState.currentUser;
+            if (!currentUser) return;
+
+            if (e.target.checked) {
+                processClockIn(currentUser);
+            } else {
+                // 퇴근 처리는 조건(진행중 업무 여부) 체크가 있으므로, 실패 시 다시 체크박스를 되돌려야 함
+                const success = processClockOut(currentUser);
+                if (!success) {
+                    e.target.checked = true; // 퇴근 실패 시 다시 '출근' 상태로 유지
+                }
+            }
+        });
+    }
+
+    // ✅ [신규] 모바일 개인 출퇴근 토글 리스너
+    const mobileAttendanceCheckbox = document.getElementById('mobile-attendance-checkbox');
+    if (mobileAttendanceCheckbox) {
+        mobileAttendanceCheckbox.addEventListener('change', (e) => {
+            const currentUser = appState.currentUser;
+            if (!currentUser) return;
+
+            if (e.target.checked) {
+                processClockIn(currentUser);
+            } else {
+                 const success = processClockOut(currentUser);
+                if (!success) {
+                    e.target.checked = true;
+                }
+            }
+        });
+    }
 
     if (teamStatusBoard) {
         teamStatusBoard.addEventListener('click', (e) => {
@@ -239,6 +277,14 @@ export function setupMainScreenListeners() {
                 const memberName = memberCard.dataset.memberName;
                 const role = appState.currentUserRole || 'user';
                 const selfName = appState.currentUser || null;
+
+                // ✅ [수정] 출근하지 않은 상태면 클릭 무시 (단, 본인이나 관리자는 가능하게 할 수도 있음 - 현재는 모두 차단)
+                if (memberCard.classList.contains('cursor-not-allowed')) {
+                     // 이미 ui-main.js에서 미출근자는 cursor-not-allowed 처리됨.
+                     // 필요하다면 여기서 토스트 메시지를 띄울 수 있음.
+                     // showToast('출근 전입니다.', true);
+                     return;
+                }
 
                 if (role !== 'admin' && memberName !== selfName) {
                     showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
@@ -435,7 +481,6 @@ export function setupMainScreenListeners() {
             const todayData = {
                 workRecords: appState.workRecords || [],
                 taskQuantities: appState.taskQuantities || {},
-                // ✨ 현재 상태의 confirmedZeroTasks도 전달
                 confirmedZeroTasks: appState.confirmedZeroTasks || []
             };
             const missingTasksList = checkMissingQuantities(todayData);
@@ -450,16 +495,12 @@ export function setupMainScreenListeners() {
 
             // ✨ [중요] 저장 콜백 함수 정의 (confirmedZeroTasks 포함)
             context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
-                // 1. 앱 상태 업데이트
                 appState.taskQuantities = newQuantities;
                 appState.confirmedZeroTasks = confirmedZeroTasks;
-
-                // 2. 로컬 저장 및 화면 갱신
                 debouncedSaveState();
                 render();
                 showToast('오늘의 처리량이 저장되었습니다.');
 
-                // 3. 상단 현황판(Dashboard) 수치 즉시 동기화
                 try {
                     const allDefinitions = getAllDashboardDefinitions(appConfig);
                     const dashboardItemIds = appConfig.dashboardItems || [];
@@ -478,33 +519,28 @@ export function setupMainScreenListeners() {
                     console.error("Error during dashboard sync:", syncError);
                 }
 
-                // 4. 이력 데이터(Firestore History)도 함께 업데이트 (트랜잭션 권장)
                 const todayDateKey = getTodayDateString();
                 const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
                 try {
                     await runTransaction(db, async (transaction) => {
                         const docSnap = await transaction.get(historyDocRef);
-                        if (!docSnap.exists()) return; // 아직 이력이 없으면 패스
-
+                        if (!docSnap.exists()) return;
                         transaction.update(historyDocRef, {
                             taskQuantities: newQuantities,
                             confirmedZeroTasks: confirmedZeroTasks
                         });
                     });
-
-                    // 전역 이력 데이터도 동기화
                     const idx = allHistoryData.findIndex(d => d.id === todayDateKey);
                     if (idx > -1) {
                         allHistoryData[idx].taskQuantities = newQuantities;
                         allHistoryData[idx].confirmedZeroTasks = confirmedZeroTasks;
                     }
-
                 } catch (e) {
                     console.error('오늘자 이력 동기화 실패:', e);
                 }
             };
 
-            context.quantityModalContext.onCancel = () => { };
+            context.quantityModalContext.onCancel = () => {};
 
             const cBtn = document.getElementById('confirm-quantity-btn');
             const xBtn = document.getElementById('cancel-quantity-btn');
@@ -541,7 +577,6 @@ export function setupMainScreenListeners() {
             context.quantityModalContext.mode = 'today';
             context.quantityModalContext.dateKey = null;
 
-            // ✨ [중요] 저장 콜백 함수 정의 (confirmedZeroTasks 포함, PC 버전과 동일)
             context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
                 appState.taskQuantities = newQuantities;
                 appState.confirmedZeroTasks = confirmedZeroTasks;
@@ -549,11 +584,9 @@ export function setupMainScreenListeners() {
                 saveProgress(true);
                 showToast('오늘의 처리량이 저장되었습니다.');
                 render();
-
-                // 대시보드 동기화 등 추가 로직도 필요시 여기에 포함 (PC 버전 참조)
             };
 
-            context.quantityModalContext.onCancel = () => { };
+            context.quantityModalContext.onCancel = () => {};
 
             const cBtn = document.getElementById('confirm-quantity-btn');
             const xBtn = document.getElementById('cancel-quantity-btn');
