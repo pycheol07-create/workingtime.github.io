@@ -136,7 +136,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
                     </div>
                     <p class="text-xs text-gray-500">
                         표준 속도 기준 ${formatDuration(totalStandardMinutesNeeded)} 분량을<br>
-                        실제 ${formatDuration(tKPIs.totalDuration)} 만에 처리함
+                        실제 ${formatDuration(tMetrics.kpis.totalDuration)} 만에 처리함
                     </p>
                 </div>
 
