@@ -182,6 +182,10 @@ export const myCommuteControls = document.getElementById('my-commute-controls');
 export const myCommuteStatus = document.getElementById('my-commute-status');
 export const btnClockIn = document.getElementById('btn-clock-in');
 export const btnClockOut = document.getElementById('btn-clock-out');
+export const mobileMyCommuteStatus = document.getElementById('mobile-my-commute-status');
+export const btnClockInMobile = document.getElementById('btn-clock-in-mobile');
+export const btnClockOutMobile = document.getElementById('btn-clock-out-mobile');
+export const summarySectionContainer = document.getElementById('summary-section-container');
 
 
 // Firebase/App State
@@ -231,7 +235,7 @@ export let appState = {
     hiddenGroupIds: [],
     currentUser: null,
     currentUserRole: 'user',
-    commuteRecords: {} // ✨ [신규] 출퇴근 기록 저장소 추가
+    commuteRecords: {} // ✨ [신규] 출퇴근 기록 저장소 추가 ({ '이름': { status: 'in'|'out', inTime: '09:00', outTime: null } })
 };
 export let persistentLeaveSchedule = {
     onLeaveMembers: []
@@ -506,6 +510,10 @@ async function startAppAfterLogin(user) {
         document.getElementById('top-right-controls')?.classList.remove('hidden');
         document.querySelector('.bg-gray-800.shadow-lg')?.classList.remove('hidden');
         document.getElementById('main-content-area')?.classList.remove('hidden');
+        
+        // ✨ [신규] Summary 섹션도 보이게 처리
+        if (summarySectionContainer) summarySectionContainer.classList.remove('hidden');
+
         document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => {
             if (el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
                 el.classList.remove('hidden');
@@ -708,6 +716,10 @@ async function main() {
             document.getElementById('top-right-controls')?.classList.add('hidden');
             document.querySelector('.bg-gray-800.shadow-lg')?.classList.add('hidden');
             document.getElementById('main-content-area')?.classList.add('hidden');
+            
+            // ✨ [신규] Summary 섹션 숨김 처리
+            if (summarySectionContainer) summarySectionContainer.classList.add('hidden');
+
             document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => {
                 if (el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
                     el.classList.remove('hidden');

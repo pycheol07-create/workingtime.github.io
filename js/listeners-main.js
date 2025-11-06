@@ -30,7 +30,10 @@ import {
 
     loginModal, loginForm, loginEmailInput, loginPasswordInput, loginSubmitBtn,
     loginErrorMsg, loginButtonText, loginButtonSpinner, logoutBtn, logoutBtnMobile,
-    btnClockIn, btnClockOut
+
+    // ✨ [신규] 추가된 DOM 요소 임포트
+    btnClockIn, btnClockOut,
+    btnClockInMobile, btnClockOutMobile
 
 } from './app.js';
 
@@ -47,7 +50,7 @@ import {
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
-    clockIn, clockOut
+    clockIn, clockOut // ✨ [신규] app-logic.js에서 출퇴근 함수 임포트
 } from './app-logic.js';
 
 import {
@@ -636,6 +639,26 @@ export function setupMainScreenListeners() {
     // ✨ [신규] 퇴근 버튼 리스너
     if (btnClockOut) {
         btnClockOut.addEventListener('click', () => {
+            if (appState.currentUser) {
+                clockOut(appState.currentUser);
+            }
+        });
+    }
+
+    // ✨ [신규] 모바일 출근 버튼
+    if (btnClockInMobile) {
+        btnClockInMobile.addEventListener('click', (e) => {
+            e.stopPropagation(); // 아코디언 토글 방지
+            if (appState.currentUser) {
+                clockIn(appState.currentUser);
+            }
+        });
+    }
+
+    // ✨ [신규] 모바일 퇴근 버튼
+    if (btnClockOutMobile) {
+        btnClockOutMobile.addEventListener('click', (e) => {
+            e.stopPropagation(); // 아코디언 토글 방지
             if (appState.currentUser) {
                 clockOut(appState.currentUser);
             }

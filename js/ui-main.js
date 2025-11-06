@@ -322,34 +322,45 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 };
 
 /**
- * ✨ [신규] 내 출퇴근 상태 UI 업데이트 함수
+ * ✨ [수정] 내 출퇴근 상태 UI 업데이트 함수 (모바일 지원 추가)
  */
 export const renderMyCommuteStatus = (appState) => {
     const myName = appState.currentUser;
     if (!myName) return;
 
     const commute = appState.commuteRecords?.[myName] || { status: 'before' };
+    
+    // PC Elements
     const statusEl = document.getElementById('my-commute-status');
     const btnIn = document.getElementById('btn-clock-in');
     const btnOut = document.getElementById('btn-clock-out');
 
-    if (statusEl && btnIn && btnOut) {
-        if (commute.status === 'in') {
-            statusEl.textContent = '출근 중';
-            statusEl.className = 'text-sm font-bold text-green-600 min-w-[50px] text-center';
-            btnIn.classList.add('hidden');
-            btnOut.classList.remove('hidden');
-        } else if (commute.status === 'out') {
-            statusEl.textContent = '퇴근 완료';
-            statusEl.className = 'text-sm font-bold text-gray-500 min-w-[50px] text-center';
-            btnIn.classList.add('hidden'); // 퇴근 후 재출근 불가 정책 (필요시 변경)
-            btnOut.classList.add('hidden');
-        } else {
-            statusEl.textContent = '출근 전';
-            statusEl.className = 'text-sm font-bold text-gray-400 min-w-[50px] text-center';
-            btnIn.classList.remove('hidden');
-            btnOut.classList.add('hidden');
-        }
+    // Mobile Elements
+    const mobStatusEl = document.getElementById('mobile-my-commute-status');
+    const mobBtnIn = document.getElementById('btn-clock-in-mobile');
+    const mobBtnOut = document.getElementById('btn-clock-out-mobile');
+
+    const updateUI = (statusText, statusClass, showIn, showOut) => {
+        // PC 업데이트
+        if (statusEl) { statusEl.textContent = statusText; statusEl.className = `text-sm font-bold min-w-[50px] text-center ${statusClass}`; }
+        if (btnIn) btnIn.classList.toggle('hidden', !showIn);
+        if (btnOut) btnOut.classList.toggle('hidden', !showOut);
+
+        // Mobile 업데이트
+        if (mobStatusEl) { mobStatusEl.textContent = statusText; mobStatusEl.className = `text-xs font-bold min-w-[40px] text-center px-1 ${statusClass}`; }
+        if (mobBtnIn) mobBtnIn.classList.toggle('hidden', !showIn);
+        if (mobBtnOut) mobBtnOut.classList.toggle('hidden', !showOut);
+    };
+
+    if (commute.status === 'in') {
+        updateUI('출근 중', 'text-green-600', false, true);
+        if (mobStatusEl) mobStatusEl.classList.replace('text-green-600', 'text-green-400'); // 모바일은 어두운 배경이므로 더 밝은색으로 조정
+    } else if (commute.status === 'out') {
+        updateUI('퇴근 완료', 'text-gray-500', false, false);
+        if (mobStatusEl) mobStatusEl.classList.replace('text-gray-500', 'text-gray-400');
+    } else {
+        updateUI('출근 전', 'text-gray-400', true, false);
+        if (mobStatusEl) mobStatusEl.classList.replace('text-gray-400', 'text-gray-500');
     }
 };
 
