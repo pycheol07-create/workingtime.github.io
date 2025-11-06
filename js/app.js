@@ -177,6 +177,12 @@ export const historyClearFilterBtn = document.getElementById('history-clear-filt
 export const historyDownloadPeriodExcelBtn = document.getElementById('history-download-period-excel-btn');
 export const coqExplanationModal = document.getElementById('coq-explanation-modal');
 
+// ✨ [신규] 출퇴근 관련 DOM Elements
+export const myCommuteControls = document.getElementById('my-commute-controls');
+export const myCommuteStatus = document.getElementById('my-commute-status');
+export const btnClockIn = document.getElementById('btn-clock-in');
+export const btnClockOut = document.getElementById('btn-clock-out');
+
 
 // Firebase/App State
 export let db, auth;
@@ -224,7 +230,8 @@ export let appState = {
     partTimers: [],
     hiddenGroupIds: [],
     currentUser: null,
-    currentUserRole: 'user'
+    currentUserRole: 'user',
+    commuteRecords: {} // ✨ [신규] 출퇴근 기록 저장소 추가
 };
 export let persistentLeaveSchedule = {
     onLeaveMembers: []
@@ -285,7 +292,8 @@ export async function saveStateToFirestore() {
                 partTimers: appState.partTimers || [],
                 hiddenGroupIds: appState.hiddenGroupIds || [],
                 lunchPauseExecuted: appState.lunchPauseExecuted || false,
-                lunchResumeExecuted: appState.lunchResumeExecuted || false
+                lunchResumeExecuted: appState.lunchResumeExecuted || false,
+                commuteRecords: appState.commuteRecords || {} // ✨ [신규] 추가됨
             }, (k, v) => (typeof v === 'function' ? undefined : v));
 
             if (stateToSave.length > 900000) {
@@ -629,6 +637,9 @@ async function startAppAfterLogin(user) {
             appState.partTimers = loadedState.partTimers || [];
             appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
             appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
+            
+            // ✨ [신규] 로드된 데이터에서 commuteRecords 반영
+            appState.commuteRecords = loadedState.commuteRecords || {};
 
             appState.lunchPauseExecuted = loadedState.lunchPauseExecuted || false;
             appState.lunchResumeExecuted = loadedState.lunchResumeExecuted || false;
@@ -687,7 +698,7 @@ async function main() {
             if (elapsedTimeTimer) { clearInterval(elapsedTimeTimer); elapsedTimeTimer = null; }
             if (periodicRefreshTimer) { clearInterval(periodicRefreshTimer); periodicRefreshTimer = null; }
 
-            appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user' };
+            appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user', commuteRecords: {} };
 
             if (navContent) navContent.classList.add('hidden');
             if (userGreeting) userGreeting.classList.add('hidden');

@@ -30,6 +30,7 @@ import {
 
     loginModal, loginForm, loginEmailInput, loginPasswordInput, loginSubmitBtn,
     loginErrorMsg, loginButtonText, loginButtonSpinner, logoutBtn, logoutBtnMobile,
+    btnClockIn, btnClockOut
 
 } from './app.js';
 
@@ -45,7 +46,8 @@ import {
 
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
-    pauseWorkIndividual, resumeWorkIndividual
+    pauseWorkIndividual, resumeWorkIndividual,
+    clockIn, clockOut
 } from './app-logic.js';
 
 import {
@@ -618,6 +620,24 @@ export function setupMainScreenListeners() {
             } catch (error) {
                 console.error('Logout error:', error);
                 showToast('로그아웃 중 오류가 발생했습니다.', true);
+            }
+        });
+    }
+
+    // ✨ [신규] 출근 버튼 리스너
+    if (btnClockIn) {
+        btnClockIn.addEventListener('click', () => {
+            if (appState.currentUser) {
+                clockIn(appState.currentUser);
+            }
+        });
+    }
+
+    // ✨ [신규] 퇴근 버튼 리스너
+    if (btnClockOut) {
+        btnClockOut.addEventListener('click', () => {
+            if (appState.currentUser) {
+                clockOut(appState.currentUser);
             }
         });
     }

@@ -168,3 +168,43 @@ export const resumeWorkIndividual = (recordId) => {
         showToast(`${record.member}님 ${record.task} 업무 재개.`);
     }
 };
+
+// ✨ [신규] 출근 처리 함수
+export const clockIn = (memberName) => {
+    const now = getCurrentTime();
+    if (!appState.commuteRecords) appState.commuteRecords = {};
+    
+    appState.commuteRecords[memberName] = {
+        status: 'in',
+        inTime: now,
+        outTime: null
+    };
+    
+    saveStateToFirestore();
+    render();
+    showToast(`${memberName}님 출근 처리되었습니다.`);
+};
+
+// ✨ [신규] 퇴근 처리 함수
+export const clockOut = (memberName) => {
+    const now = getCurrentTime();
+    if (!appState.commuteRecords || !appState.commuteRecords[memberName]) {
+        // 출근 기록이 없으면 새로 생성해서 퇴근 처리 (예외 상황 대비)
+        appState.commuteRecords = appState.commuteRecords || {};
+        appState.commuteRecords[memberName] = { status: 'in', inTime: null, outTime: null };
+    }
+
+    // ⛔️ 진행 중인 업무가 있는지 확인
+    const hasOngoingWork = (appState.workRecords || []).some(r => r.member === memberName && r.status !== 'completed');
+    if (hasOngoingWork) {
+        showToast(`${memberName}님의 진행 중인 업무를 먼저 종료해주세요.`, true);
+        return;
+    }
+
+    appState.commuteRecords[memberName].status = 'out';
+    appState.commuteRecords[memberName].outTime = now;
+
+    saveStateToFirestore();
+    render();
+    showToast(`${memberName}님 퇴근 처리되었습니다.`);
+};
