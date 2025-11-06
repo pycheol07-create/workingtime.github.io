@@ -3,6 +3,7 @@ import {
     appState, appConfig, db, auth,
     allHistoryData,
     context,
+    historyModal, // 👈 여기에 추가해주세요
     historyDateList, historyTabs, attendanceHistoryTabs,
     workHistoryPanel, attendanceHistoryPanel, trendAnalysisPanel,
     reportPanel, reportTabs,

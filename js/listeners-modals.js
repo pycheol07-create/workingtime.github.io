@@ -25,6 +25,7 @@ import {
     editRecordModal, confirmEditBtn, cancelEditBtn,
     quantityOnStopModal, confirmQuantityOnStopBtn, cancelQuantityOnStopBtn,
     resetAppBtn, resetAppModal, confirmResetAppBtn, cancelResetAppBtn, taskSelectModal,
+    teamSelectModal,
     stopIndividualConfirmModal, confirmStopIndividualBtn, cancelStopIndividualBtn,
     editPartTimerModal, confirmEditPartTimerBtn,
     cancelEditPartTimerBtn, partTimerNewNameInput, partTimerEditIdInput, cancelTeamSelectBtn,
