@@ -346,21 +346,18 @@ export const renderMyCommuteStatus = (appState) => {
         if (btnIn) btnIn.classList.toggle('hidden', !showIn);
         if (btnOut) btnOut.classList.toggle('hidden', !showOut);
 
-        // Mobile 업데이트
-        if (mobStatusEl) { mobStatusEl.textContent = statusText; mobStatusEl.className = `text-xs font-bold min-w-[40px] text-center px-1 ${statusClass}`; }
+        // Mobile 업데이트 (Mobile status class는 별도로 지정 가능하지만 여기선 일단 동일하게)
+        if (mobStatusEl) { mobStatusEl.textContent = statusText; mobStatusEl.className = `text-base font-bold min-w-[50px] text-center px-1 ${statusClass === 'text-green-600' ? 'text-green-400' : (statusClass === 'text-gray-500' ? 'text-gray-400' : 'text-gray-300')}`; }
         if (mobBtnIn) mobBtnIn.classList.toggle('hidden', !showIn);
         if (mobBtnOut) mobBtnOut.classList.toggle('hidden', !showOut);
     };
 
     if (commute.status === 'in') {
         updateUI('출근 중', 'text-green-600', false, true);
-        if (mobStatusEl) mobStatusEl.classList.replace('text-green-600', 'text-green-400'); // 모바일은 어두운 배경이므로 더 밝은색으로 조정
     } else if (commute.status === 'out') {
         updateUI('퇴근 완료', 'text-gray-500', false, false);
-        if (mobStatusEl) mobStatusEl.classList.replace('text-gray-500', 'text-gray-400');
     } else {
         updateUI('출근 전', 'text-gray-400', true, false);
-        if (mobStatusEl) mobStatusEl.classList.replace('text-gray-400', 'text-gray-500');
     }
 };
 

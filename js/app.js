@@ -235,7 +235,7 @@ export let appState = {
     hiddenGroupIds: [],
     currentUser: null,
     currentUserRole: 'user',
-    commuteRecords: {} // ✨ [신규] 출퇴근 기록 저장소 추가 ({ '이름': { status: 'in'|'out', inTime: '09:00', outTime: null } })
+    commuteRecords: {} // ✨ [신규] 출퇴근 기록 저장소 추가
 };
 export let persistentLeaveSchedule = {
     onLeaveMembers: []
@@ -511,8 +511,11 @@ async function startAppAfterLogin(user) {
         document.querySelector('.bg-gray-800.shadow-lg')?.classList.remove('hidden');
         document.getElementById('main-content-area')?.classList.remove('hidden');
         
-        // ✨ [신규] Summary 섹션도 보이게 처리
+        // ✨ [신규] Summary 섹션도 보이게 처리 (또는 PC 전용이므로 놔둘 수 있음, 하지만 명시적 제어 권장)
         if (summarySectionContainer) summarySectionContainer.classList.remove('hidden');
+        // ✨ [신규] 모바일 출퇴근 섹션 보이게 처리
+        const mobileCommute = document.getElementById('mobile-commute-standalone');
+        if (mobileCommute) mobileCommute.classList.remove('hidden'); // md:hidden 클래스가 있어 PC에서는 자동 숨김
 
         document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => {
             if (el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
@@ -716,9 +719,11 @@ async function main() {
             document.getElementById('top-right-controls')?.classList.add('hidden');
             document.querySelector('.bg-gray-800.shadow-lg')?.classList.add('hidden');
             document.getElementById('main-content-area')?.classList.add('hidden');
-            
-            // ✨ [신규] Summary 섹션 숨김 처리
+
+            // ✨ [신규] 모바일/PC 섹션들 모두 숨김
             if (summarySectionContainer) summarySectionContainer.classList.add('hidden');
+            const mobileCommute = document.getElementById('mobile-commute-standalone');
+            if (mobileCommute) mobileCommute.classList.add('hidden');
 
             document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => {
                 if (el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
