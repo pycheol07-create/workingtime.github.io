@@ -78,8 +78,8 @@ import {
 } from './app-logic.js';
 
 import { saveLeaveSchedule } from './config.js';
-import { renderAttendanceDailyHistory, switchHistoryView } from './ui-history.js'; // switchHistoryView 추가
-import { saveDayDataToHistory } from './app-history-logic.js';
+import { renderAttendanceDailyHistory } from './ui-history.js'; // ✅ switchHistoryView 제거
+import { saveDayDataToHistory, switchHistoryView } from './app-history-logic.js'; // ✅ switchHistoryView 추가
 
 import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -131,11 +131,11 @@ export function setupGeneralModalListeners() {
             const memberButton = target.closest('.member-select-btn');
 
             if (memberButton) {
-                const memberName = memberButton.dataset.memberName; // dataset.member -> dataset.memberName 로 통일
+                const memberName = memberButton.dataset.memberName;
                 if (!memberName) return;
                 
                 const isSelected = memberButton.classList.toggle('bg-blue-600');
-                memberButton.classList.toggle('bg-white'); // 기존 bg-white 제거 토글
+                memberButton.classList.toggle('bg-white');
                 memberButton.classList.toggle('text-white');
 
                 if (isSelected) {
@@ -196,17 +196,12 @@ export function setupGeneralModalListeners() {
 
     if (confirmDeleteBtn) {
         confirmDeleteBtn.addEventListener('click', async () => {
-            // 1. 그룹 삭제 (현재는 개별 삭제만 UI에서 제공하지만, 추후 확장성 고려)
             if (context.deleteMode === 'group') {
-                // (그룹 삭제 로직은 현재 UI에서 호출하는 곳이 없음. 필요시 구현)
-            } 
-            // 2. 단일 업무 기록 삭제
-            else if (context.deleteMode === 'single') { 
+                // (그룹 삭제 로직은 현재 UI에서 호출하는 곳이 없음)
+            } else if (context.deleteMode === 'single') { 
                 await deleteWorkRecordDocument(context.recordToDeleteId);
                 showToast('업무 기록이 삭제되었습니다.');
-            } 
-            // 3. 완료된 업무 일괄 삭제
-            else if (context.deleteMode === 'all-completed') { 
+            } else if (context.deleteMode === 'all-completed') { 
                  const completedIds = (appState.workRecords || [])
                     .filter(r => r.status === 'completed')
                     .map(r => r.id);
@@ -216,40 +211,29 @@ export function setupGeneralModalListeners() {
                 } else {
                     showToast('삭제할 완료된 업무가 없습니다.');
                 }
-            } 
-            // 4. 근태 이력 삭제
-            else if (context.deleteMode === 'attendance') {
+            } else if (context.deleteMode === 'attendance') {
                 const { dateKey, index } = context.attendanceRecordToDelete;
                 const dayData = allHistoryData.find(d => d.id === dateKey);
-                
                 if (dayData && dayData.onLeaveMembers && dayData.onLeaveMembers[index]) {
-                    // 배열에서 해당 인덱스 요소 제거
                     const deletedRecord = dayData.onLeaveMembers.splice(index, 1)[0];
                     try {
                         const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                        // 변경된 배열을 Firestore에 덮어쓰기 (merge: true로 해당 필드만 업데이트)
                         await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true }); 
-                        
                         showToast(`${deletedRecord.member}님의 '${deletedRecord.type}' 기록이 삭제되었습니다.`);
-                        
-                        // 현재 보고 있는 뷰 갱신
                         const activeAttendanceTab = document.querySelector('#attendance-history-tabs button.font-semibold');
                         const view = activeAttendanceTab ? activeAttendanceTab.dataset.view : 'attendance-daily';
                         await switchHistoryView(view); 
-
                     } catch (e) {
                          console.error('Error deleting attendance record:', e);
                          showToast('근태 기록 삭제 중 오류 발생', true);
-                         // 실패 시 로컬 데이터 복구
                          dayData.onLeaveMembers.splice(index, 0, deletedRecord);
                     }
                 }
                 context.attendanceRecordToDelete = null;
             }
-
             deleteConfirmModal.classList.add('hidden');
             context.recordToDeleteId = null;
-            context.deleteMode = 'single'; // 기본 모드로 초기화
+            context.deleteMode = 'single';
         });
     }
 
@@ -327,7 +311,6 @@ export function setupGeneralModalListeners() {
             if (context.groupsToStopIds && Array.isArray(context.groupsToStopIds)) {
                 for (let i = 0; i < context.groupsToStopIds.length; i++) {
                     const groupId = context.groupsToStopIds[i];
-                    // 첫 번째 그룹에만 수량을 입력하고, 나머지는 null로 처리하여 중복 합산 방지
                     const qtyToApply = (i === 0) ? quantity : null;
                     await finalizeStopGroup(groupId, qtyToApply);
                 }
@@ -399,7 +382,7 @@ export function setupGeneralModalListeners() {
             } catch (e) {
                 console.error("알바 이름 변경 중 Firestore 업데이트 실패: ", e);
                 showToast("알바 이름 변경 중 Firestore DB 업데이트에 실패했습니다.", true);
-                partTimer.name = oldName; // 롤백
+                partTimer.name = oldName; 
                 render(); 
             }
         });
@@ -439,20 +422,17 @@ export function setupGeneralModalListeners() {
             let dailyChanged = false;
             let persistentChanged = false;
 
-            // 일일 근태에서 제거
             const originalLength = appState.dailyOnLeaveMembers.length;
             appState.dailyOnLeaveMembers = appState.dailyOnLeaveMembers.filter(entry => entry.member !== memberName);
             if (appState.dailyOnLeaveMembers.length !== originalLength) dailyChanged = true;
 
-            // 장기 근태에서 오늘 날짜가 포함된 기록 제거 (또는 조정 필요하나 여기선 단순 제거)
             const today = getTodayDateString();
             const originalPersistentLength = persistentLeaveSchedule.onLeaveMembers.length;
             persistentLeaveSchedule.onLeaveMembers = (persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
                 if (entry.member === memberName) {
                     const endDate = entry.endDate || entry.startDate;
                     if (today >= entry.startDate && today <= (endDate || entry.startDate)) {
-                        // 오늘이 포함된 장기 근태 기록을 찾음
-                        return false; // 삭제
+                        return false; 
                     }
                 }
                 return true; 
@@ -476,28 +456,14 @@ export function setupGeneralModalListeners() {
             const task = document.getElementById('manual-add-task').value; 
             const startTime = document.getElementById('manual-add-start-time').value; 
             const endTime = document.getElementById('manual-add-end-time').value; 
-            
             if (!member || !task || !startTime || !endTime) { showToast('모든 필드를 입력해야 합니다.', true); return; }
             if (startTime >= endTime) { showToast('시작 시간이 종료 시간보다 늦거나 같을 수 없습니다.', true); return; }
-            
             try {
                 const recordId = `manual-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
                 const duration = calcElapsedMinutes(startTime, endTime, []);
-                const newRecordData = { 
-                    id: recordId, 
-                    member, 
-                    task, 
-                    startTime, 
-                    endTime, 
-                    duration, 
-                    status: 'completed', 
-                    groupId: `manual-group-${Date.now()}`, 
-                    pauses: [] 
-                };
-                
+                const newRecordData = { id: recordId, member, task, startTime, endTime, duration, status: 'completed', groupId: `manual-group-${Date.now()}`, pauses: [] };
                 const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords', recordId);
                 await setDoc(docRef, newRecordData); 
-                
                 showToast('수동 기록이 추가되었습니다.');
                 manualAddRecordModal.classList.add('hidden');
                 manualAddForm.reset();
@@ -510,7 +476,7 @@ export function setupGeneralModalListeners() {
 
     if (confirmEndShiftBtn) {
         confirmEndShiftBtn.addEventListener('click', async () => {
-            await saveDayDataToHistory(true); // true = shouldReset
+            await saveDayDataToHistory(true);
             endShiftConfirmModal.classList.add('hidden');
         });
     }
@@ -519,7 +485,6 @@ export function setupGeneralModalListeners() {
         confirmResetAppBtn.addEventListener('click', async () => {
             const today = getTodayDateString();
             try {
-                // 1. 하위 컬렉션 문서 모두 삭제
                 const workRecordsColRef = collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
                 const q = query(workRecordsColRef);
                 const querySnapshot = await getDocs(q);
@@ -528,12 +493,9 @@ export function setupGeneralModalListeners() {
                     querySnapshot.forEach(doc => { batch.delete(doc.ref); });
                     await batch.commit();
                 }
-
-                // 2. 메인 문서 초기화
                 const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
-                await setDoc(docRef, { state: '{}' }); // 빈 상태로 덮어쓰기
-
-                // 3. 로컬 상태 초기화
+                await setDoc(docRef, { state: '{}' });
+                
                 appState.workRecords = [];
                 appState.taskQuantities = {};
                 appState.partTimers = [];
@@ -558,18 +520,14 @@ export function setupGeneralModalListeners() {
             const contextId = document.getElementById('edit-start-time-context-id').value;
             const contextType = document.getElementById('edit-start-time-context-type').value;
             const newStartTime = document.getElementById('edit-start-time-input').value;
-            
             if (!contextId || !contextType || !newStartTime) { showToast('정보가 누락되었습니다.', true); return; }
-            
             try {
                 const today = getTodayDateString();
                 const workRecordsColRef = collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
-                
                 if (contextType === 'individual') {
                     const docRef = doc(workRecordsColRef, contextId);
                     await updateDoc(docRef, { startTime: newStartTime });
                 } else if (contextType === 'group') {
-                    // 그룹의 경우, 현재 진행/일시정지 중인 모든 팀원의 시작 시간을 변경
                     const q = query(workRecordsColRef, where("groupId", "==", contextId), where("status", "in", ["ongoing", "paused"]));
                     const querySnapshot = await getDocs(q);
                     if (!querySnapshot.empty) {
@@ -591,12 +549,10 @@ export function setupGeneralModalListeners() {
         confirmEditAttendanceBtn.addEventListener('click', async () => {
             const dateKey = editAttendanceDateKeyInput?.value;
             const indexStr = editAttendanceRecordIndexInput?.value;
-            
             if (!dateKey || indexStr === '') { showToast('수정할 기록 정보를 찾을 수 없습니다.', true); return; }
             
             const index = parseInt(indexStr, 10);
             const dayData = allHistoryData.find(d => d.id === dateKey);
-            
             if (!dayData || !dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) { 
                 showToast('수정할 근태 기록을 찾을 수 없습니다.', true); return; 
             }
@@ -616,11 +572,9 @@ export function setupGeneralModalListeners() {
                 delete updatedRecord.startTime;
                 delete updatedRecord.endTime;
             }
-
             if (isTimeBased && !updatedRecord.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
             if (!isTimeBased && !updatedRecord.startDate) { showToast('시작일을 입력해주세요.', true); return; }
 
-            // 로컬 데이터 임시 업데이트 (낙관적 업데이트)
             dayData.onLeaveMembers[index] = updatedRecord;
 
             try {
@@ -630,7 +584,6 @@ export function setupGeneralModalListeners() {
                 showToast('근태 기록이 수정되었습니다.');
                 if (editAttendanceRecordModal) editAttendanceRecordModal.classList.add('hidden');
                 
-                // 현재 뷰 갱신
                 const activeAttendanceTab = document.querySelector('#attendance-history-tabs button.font-semibold');
                 const view = activeAttendanceTab ? activeAttendanceTab.dataset.view : 'attendance-daily';
                 await switchHistoryView(view);
@@ -646,15 +599,12 @@ export function setupGeneralModalListeners() {
         confirmAddAttendanceBtn.addEventListener('click', async () => {
             const dateKey = addAttendanceDateKeyInput?.value;
             if (!dateKey) { showToast('날짜 정보를 찾을 수 없습니다.', true); return; }
-            
             const memberName = addAttendanceMemberNameInput?.value.trim();
             const type = addAttendanceTypeSelect?.value;
-            
             if (!memberName || !type) { showToast('이름과 유형을 모두 입력해주세요.', true); return; }
             
             const isTimeBased = (type === '외출' || type === '조퇴');
             const newRecord = { member: memberName, type: type };
-            
             if (isTimeBased) {
                 newRecord.startTime = addAttendanceStartTimeInput?.value || null;
                 newRecord.endTime = addAttendanceEndTimeInput?.value || null;
@@ -666,14 +616,12 @@ export function setupGeneralModalListeners() {
             }
 
             let dayData = allHistoryData.find(d => d.id === dateKey);
-            // 해당 날짜 데이터가 없으면 새로 생성
             if (!dayData) {
                 dayData = { id: dateKey, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
                 allHistoryData.push(dayData);
                 allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
             }
             if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
-            
             dayData.onLeaveMembers.push(newRecord);
 
             try {
@@ -682,13 +630,12 @@ export function setupGeneralModalListeners() {
                 
                 showToast(`${memberName}님의 근태 기록이 추가되었습니다.`);
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.add('hidden');
-                
                 renderAttendanceDailyHistory(dateKey, allHistoryData);
 
             } catch (e) {
                 console.error('Error adding attendance history:', e);
                 showToast('근태 기록 추가 중 오류가 발생했습니다.', true);
-                dayData.onLeaveMembers.pop(); // 실패 시 롤백
+                dayData.onLeaveMembers.pop();
             }
         });
     }
