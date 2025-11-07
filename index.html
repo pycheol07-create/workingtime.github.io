@@ -2,15 +2,14 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" href="data:,">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>물류팀 업무현황</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
-    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 </head>
 <body class="bg-gray-100 text-gray-800">
     <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2 w-full max-w-xs"></div>
@@ -43,16 +42,6 @@
                     </div>
                     
                     <div class="flex items-center gap-3">
-                        <div id="personal-attendance-toggle-pc" class="hidden items-center gap-2 mr-2">
-                            <span class="text-sm font-semibold text-gray-700" id="pc-attendance-label">내 근태:</span>
-                            <label class="attendance-toggle">
-                                <input type="checkbox" id="pc-attendance-checkbox" class="sr-only peer">
-                                <span class="attendance-toggle-text text-in">출근</span>
-                                <span class="attendance-toggle-text text-out">퇴근</span>
-                                <span class="attendance-toggle-knob"></span>
-                            </label>
-                        </div>
-
                         <div id="personal-attendance-toggle-pc" class="hidden items-center gap-2 mr-2">
                             <span class="text-sm font-semibold text-gray-700" id="pc-attendance-label">내 근태:</span>
                             <label class="attendance-toggle">
@@ -107,6 +96,26 @@
                     </div>
 
                     <div class="flex flex-col items-start gap-2 md:hidden">
+                        <div id="personal-attendance-toggle-mobile" class="flex justify-between items-center w-full p-3 bg-white rounded-lg border shadow-sm">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-gray-800 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    내 출퇴근
+                                </span>
+                                <button id="mobile-clock-out-cancel-btn" class="hidden text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium px-2 py-1 rounded-md transition" title="퇴근 취소">
+                                    취소
+                                </button>
+                            </div>
+                            <label class="attendance-toggle">
+                                <input type="checkbox" id="mobile-attendance-checkbox" class="sr-only peer">
+                                <span class="attendance-toggle-text text-in">출근</span>
+                                <span class="attendance-toggle-text text-out">퇴근</span>
+                                <span class="attendance-toggle-knob"></span>
+                            </label>
+                        </div>
+
                         <button id="open-quantity-modal-today-mobile" class="flex items-center gap-2 bg-purple-100 hover:bg-purple-200 text-purple-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-6m-3 3h.01M9 17h6A2 2 0 0017 15V9A2 2 0 0015 7H9A2 2 0 007 9v6a2 2 0 002 2z" />
@@ -157,38 +166,6 @@
         </div>
 
         <div id="main-content-area" class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 flex-grow flex flex-col hidden">
-            <div id="personal-attendance-toggle-mobile" class="md:hidden flex justify-between items-center mb-4 p-3 bg-white rounded-lg border shadow-sm hidden">
-                <span class="font-bold text-gray-800 flex items-center gap-2">
-                    내 출퇴근 현황
-                </span>
-                <label class="attendance-toggle">
-                    <input type="checkbox" id="mobile-attendance-checkbox" class="sr-only peer">
-                    <span class="attendance-toggle-text text-in">출근</span>
-                    <span class="attendance-toggle-text text-out">퇴근</span>
-                    <span class="attendance-toggle-knob"></span>
-                </label>
-            </div>
-
-            <div id="personal-attendance-toggle-mobile" class="md:hidden flex justify-between items-center mb-4 p-3 bg-white rounded-lg border shadow-sm hidden">
-                <div class="flex items-center gap-2">
-                    <span class="font-bold text-gray-800 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        내 출퇴근
-                    </span>
-                    <button id="mobile-clock-out-cancel-btn" class="hidden text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium px-2 py-1 rounded-md transition" title="퇴근 취소">
-                        취소
-                    </button>
-                </div>
-                <label class="attendance-toggle">
-                    <input type="checkbox" id="mobile-attendance-checkbox" class="sr-only peer">
-                    <span class="attendance-toggle-text text-in">출근</span>
-                    <span class="attendance-toggle-text text-out">퇴근</span>
-                    <span class="attendance-toggle-knob"></span>
-                </label>
-            </div>
-
             <h2 class="text-xl font-bold text-gray-900 mb-4">업무 진행</h2>
             <div id="loading-spinner" class="text-center py-10">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
@@ -443,54 +420,54 @@
         </div>
 
         <div id="member-action-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[110] p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative overflow-hidden">
-        <div class="p-5 border-b border-gray-200 bg-gray-50">
-            <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
-                👤 <span id="action-member-name"></span> 관리
-            </h2>
-            <button class="modal-close-btn" data-modal-id="member-action-modal">&times;</button>
-        </div>
-        <div class="p-6 space-y-6">
-            <div class="text-center">
-                <p class="text-sm text-gray-500 mb-1">현재 상태</p>
-                <div id="action-member-status-badge" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-800">
-                    -
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative overflow-hidden">
+                <div class="p-5 border-b border-gray-200 bg-gray-50">
+                    <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        👤 <span id="action-member-name"></span> 관리
+                    </h2>
+                    <button class="modal-close-btn" data-modal-id="member-action-modal">&times;</button>
                 </div>
-                <p id="action-member-time-info" class="text-xs text-gray-400 mt-2 h-4"></p>
-            </div>
+                <div class="p-6 space-y-6">
+                    <div class="text-center">
+                        <p class="text-sm text-gray-500 mb-1">현재 상태</p>
+                        <div id="action-member-status-badge" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-800">
+                            -
+                        </div>
+                        <p id="action-member-time-info" class="text-xs text-gray-400 mt-2 h-4"></p>
+                    </div>
 
-            <div class="grid grid-cols-1 gap-3">
-                <button id="admin-clock-in-btn" class="hidden w-full bg-green-50 hover:bg-green-100 text-green-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-green-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                    </svg>
-                    출근 처리
-                </button>
-                <button id="admin-clock-out-btn" class="hidden w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-gray-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    퇴근 처리
-                </button>
-                <button id="admin-cancel-clock-out-btn" class="hidden w-full bg-yellow-50 hover:bg-yellow-100 text-yellow-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-yellow-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                    </svg>
-                    퇴근 취소 (복귀)
-                </button>
-                
-                <div class="border-t border-gray-100 my-2"></div>
+                    <div class="grid grid-cols-1 gap-3">
+                        <button id="admin-clock-in-btn" class="hidden w-full bg-green-50 hover:bg-green-100 text-green-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-green-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                            </svg>
+                            출근 처리
+                        </button>
+                        <button id="admin-clock-out-btn" class="hidden w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-gray-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            퇴근 처리
+                        </button>
+                        <button id="admin-cancel-clock-out-btn" class="hidden w-full bg-yellow-50 hover:bg-yellow-100 text-yellow-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-yellow-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                            퇴근 취소 (복귀)
+                        </button>
+                        
+                        <div class="border-t border-gray-100 my-2"></div>
 
-                <button id="open-leave-modal-btn" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-blue-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    근태(연차/외출 등) 설정
-                </button>
+                        <button id="open-leave-modal-btn" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-blue-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            근태(연차/외출 등) 설정
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-</div>
 
         <div id="cancel-leave-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
