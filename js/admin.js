@@ -1,11 +1,10 @@
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-// ✅ [수정] Firestore 함수 추가
 import { doc, getDoc, collection, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let db, auth;
 let appConfig = {};
-const APP_ID = 'team-work-logger-v2'; // ✅ [신규] 앱 ID 상수 추가
+const APP_ID = 'team-work-logger-v2';
 
 // ✅ [복원] 누락되었던 상수 정의
 const DASHBOARD_ITEM_DEFINITIONS = {
@@ -614,7 +613,7 @@ function handleNewTaskNameBlur(e) {
     if (msgEl) {
         msgEl.textContent = `방금 추가한 '${newTaskName}' 업무를 처리량 집계 목록에도 추가하시겠습니까?`;
     }
-    document.getElementById('confirm-add-to-quantity-modal').classList.remove('hidden');
+    document.getElementById('confirm-add-to-quantity-modal').classList.add('hidden');
 }
 
 function openDashboardItemModal() {
