@@ -709,8 +709,19 @@ async function main() {
             
             if (unsubscribeWorkRecords) { unsubscribeWorkRecords(); unsubscribeWorkRecords = undefined; }
 
-
-            appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user', confirmedZeroTasks: [], dailyAttendance: {} };
+            // ✅ [수정] appState 변수 자체를 재할당하지 않고 내부 속성만 초기화
+            appState.workRecords = [];
+            appState.taskQuantities = {};
+            appState.dailyOnLeaveMembers = [];
+            appState.dateBasedOnLeaveMembers = [];
+            appState.partTimers = [];
+            appState.hiddenGroupIds = [];
+            appState.currentUser = null;
+            appState.currentUserRole = 'user';
+            appState.confirmedZeroTasks = [];
+            appState.dailyAttendance = {};
+            appState.lunchPauseExecuted = false;
+            appState.lunchResumeExecuted = false;
 
             if (navContent) navContent.classList.add('hidden');
             if (userGreeting) userGreeting.classList.add('hidden');
