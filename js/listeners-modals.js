@@ -81,7 +81,7 @@ import {
     renderTeamSelectionModal,
     updateQuantityModal,
     renderLeaveTypeModal,
-    populateManualAddForm,
+    // ✅ [수정] populateManualAddForm 임포트 제거 (오류 발생)
     renderEditLeaveModal,
     renderAddAttendanceModal,
     renderEditAttendanceModal,
@@ -95,7 +95,7 @@ import {
     processClockOut, // ✨ [신규] 퇴근 처리
     cancelClockOut // ✨ [신규] 퇴근 취소
 } from './app-logic.js';
-// ✅ [수정] 오류를 일으킨 deleteHistoryEntry 임포트 제거
+// ✅ [수정] 오류를 일으킨 deleteHistoryEntry, deleteAttendanceRecord 임포트 제거
 import { saveProgress, saveDayDataToHistory, saveAttendanceRecord } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
