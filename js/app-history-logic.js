@@ -3,7 +3,7 @@ import {
     appState, appConfig, db, auth,
     allHistoryData,
     context,
-    historyModal,
+    historyModal, // 👈 여기에 추가해주세요
     historyDateList, historyTabs, attendanceHistoryTabs,
     workHistoryPanel, attendanceHistoryPanel, trendAnalysisPanel,
     reportPanel, reportTabs,
@@ -29,9 +29,10 @@ import {
 
 import {
     formatDuration, isWeekday, getWeekOfYear,
-    getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast, formatTimeTo24H
+    getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast
 } from './utils.js';
 
+// ✅ [수정] Firestore 함수 임포트
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc, runTransaction,
     query, where, writeBatch
@@ -45,23 +46,24 @@ const getWorkRecordsCollectionRef = () => {
 };
 
 
-// ✅ [중요] Firestore에서 직접 데이터를 읽어와 로컬 이력과 동기화하는 함수
+// ✅ [수정] Firestore에서 직접 데이터를 읽어와 동기화 (async 추가)
 const _syncTodayToHistory = async () => {
     const todayKey = getTodayDateString();
     const now = getCurrentTime();
 
-    // 1. Firestore의 'daily_data/{today}/workRecords' 컬렉션에서 직접 최신 데이터를 가져옵니다.
+    // 1. Firestore의 'daily_data/{today}/workRecords' 컬렉션에서 직접 데이터를 가져옵니다.
+    const workRecordsColRef = getWorkRecordsCollectionRef();
     let liveWorkRecordsDocs = [];
     try {
-        const workRecordsColRef = getWorkRecordsCollectionRef();
         const querySnapshot = await getDocs(workRecordsColRef);
         liveWorkRecordsDocs = querySnapshot.docs.map(doc => doc.data());
     } catch (e) {
         console.error("Error fetching live work records for sync: ", e);
+        // appState.workRecords (로컬 캐시)를 대신 사용 (차선책)
         liveWorkRecordsDocs = appState.workRecords || [];
     }
 
-    // 2. 진행 중인 업무의 시간(duration, endTime)을 현재 기준으로 최신화합니다.
+    // 2. 로컬 appState (메인 문서)에서 메타데이터를 가져옵니다.
     const liveWorkRecords = (liveWorkRecordsDocs || []).map(record => {
         const snapshot = JSON.parse(JSON.stringify(record));
         if (snapshot.status === 'ongoing' || snapshot.status === 'paused') {
@@ -71,10 +73,9 @@ const _syncTodayToHistory = async () => {
         return snapshot;
     });
 
-    // 3. 메타데이터(수량, 근태 등)는 로컬 상태를 사용합니다.
     const liveTodayData = {
         id: todayKey,
-        workRecords: liveWorkRecords,
+        workRecords: liveWorkRecords, // ✅ Firestore 스냅샷 사용
         taskQuantities: JSON.parse(JSON.stringify(appState.taskQuantities || {})),
         confirmedZeroTasks: JSON.parse(JSON.stringify(appState.confirmedZeroTasks || [])),
         onLeaveMembers: [
@@ -84,21 +85,23 @@ const _syncTodayToHistory = async () => {
         partTimers: JSON.parse(JSON.stringify(appState.partTimers || []))
     };
 
-    // 4. 전역 allHistoryData 배열에 오늘자 데이터를 덮어씌웁니다.
+    // 3. 전역 allHistoryData 배열(이력 보기 모달용)에 최신 데이터를 반영합니다.
     const idx = allHistoryData.findIndex(d => d.id === todayKey);
     if (idx > -1) {
         allHistoryData[idx] = liveTodayData;
     } else {
-        allHistoryData.push(liveTodayData);
-        allHistoryData.sort((a, b) => b.id.localeCompare(a.id)); // 날짜 내림차순 정렬 유지
+        allHistoryData.unshift(liveTodayData);
+        allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
     }
 };
 
+// ... (checkMissingQuantities 함수는 변경 없음) ...
 export const checkMissingQuantities = (dayData) => {
     if (!dayData || !dayData.workRecords) return [];
 
     const records = dayData.workRecords;
     const quantities = dayData.taskQuantities || {};
+    // ✨ 확인된 0건 업무 목록 가져오기
     const confirmedZeroTasks = dayData.confirmedZeroTasks || [];
 
     const durationByTask = records.reduce((acc, r) => {
@@ -116,6 +119,7 @@ export const checkMissingQuantities = (dayData) => {
 
     for (const task of tasksWithDuration) {
         if (quantityTaskTypes.includes(task)) {
+            // ✨ 수량이 0이면서 '확인됨' 목록에도 없는 경우에만 누락으로 간주
             const quantity = Number(quantities[task]) || 0;
             if (quantity <= 0 && !confirmedZeroTasks.includes(task)) {
                 missingTasks.push(task);
@@ -127,7 +131,7 @@ export const checkMissingQuantities = (dayData) => {
 };
 
 
-// ✅ [수정] 현재 상태를 이력에 저장 (Firestore에서 최신 데이터 읽기 포함)
+// ✅ [수정] Firestore에서 workRecords를 읽어와 history에 저장 (async 추가)
 export async function saveProgress(isAutoSave = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
@@ -139,7 +143,7 @@ export async function saveProgress(isAutoSave = false) {
     const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
 
     try {
-        // 1. 저장 직전, Firestore에서 최신 workRecords를 다시 읽어옵니다.
+        // 1. Firestore 'daily_data'에서 최신 workRecords 스냅샷을 가져옵니다.
         const workRecordsColRef = getWorkRecordsCollectionRef();
         const querySnapshot = await getDocs(workRecordsColRef);
         const liveWorkRecordsDocs = querySnapshot.docs.map(doc => doc.data());
@@ -153,7 +157,7 @@ export async function saveProgress(isAutoSave = false) {
             return snapshot;
         });
 
-        // 2. 저장할 데이터 구성
+        // 2. 로컬 appState에서 메타데이터를 가져옵니다.
         const currentQuantities = {};
         for (const task in (appState.taskQuantities || {})) {
             const q = Number(appState.taskQuantities[task]);
@@ -161,32 +165,46 @@ export async function saveProgress(isAutoSave = false) {
                 currentQuantities[task] = q;
             }
         }
-        
-        const dataToSave = {
-            id: dateStr,
-            workRecords: allRecordsSnapshot,
-            taskQuantities: currentQuantities,
-            confirmedZeroTasks: appState.confirmedZeroTasks || [],
-            onLeaveMembers: [
-                ...(appState.dailyOnLeaveMembers || []),
-                ...(appState.dateBasedOnLeaveMembers || [])
-            ],
-            partTimers: appState.partTimers || []
-        };
+        const currentConfirmedZero = appState.confirmedZeroTasks || [];
+        const currentLeaveMembersCombined = [
+            ...(appState.dailyOnLeaveMembers || []),
+            ...(appState.dateBasedOnLeaveMembers || [])
+        ];
+        const currentPartTimers = appState.partTimers || [];
 
-        // 3. 데이터가 비어있으면 문서 삭제, 아니면 덮어쓰기
-        if (allRecordsSnapshot.length === 0 && Object.keys(currentQuantities).length === 0 && dataToSave.onLeaveMembers.length === 0 && dataToSave.partTimers.length === 0) {
+        // 3. 저장할 데이터가 없으면 중단
+        if (allRecordsSnapshot.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0) {
+            // history에 기존 문서가 있는지 확인 (삭제 로직)
             const docSnap = await getDoc(historyDocRef);
             if(docSnap.exists()) {
                 await deleteDoc(historyDocRef);
+                console.log(`History doc ${dateStr} deleted as it's empty.`);
             }
-        } else {
-            await runTransaction(db, async (transaction) => {
-                transaction.set(historyDocRef, dataToSave); 
-            });
+            return;
         }
+        
+        // 4. 트랜잭션으로 'history' 문서에 *덮어쓰기*
+        await runTransaction(db, async (transaction) => {
+            
+            // ⛔️ [제거] 기존 history 데이터와 병합하는 로직 제거
+            // const docSnap = await transaction.get(historyDocRef);
+            // const existingData = docSnap.exists() ? (docSnap.data() || {}) : {};
+            // const mergedRecordsMap = new Map(); ...
 
-        // 4. 로컬 이력 데이터도 동기화
+            // ✅ [수정] 스냅샷 데이터로 완전히 덮어씁니다.
+            const dataToSave = {
+                id: dateStr,
+                workRecords: allRecordsSnapshot,
+                taskQuantities: currentQuantities,
+                confirmedZeroTasks: currentConfirmedZero,
+                onLeaveMembers: currentLeaveMembersCombined,
+                partTimers: currentPartTimers
+            };
+
+            transaction.set(historyDocRef, dataToSave); // 덮어쓰기 (merge: false)
+        });
+
+        // 5. 로컬 'allHistoryData' 캐시도 동기화
         await _syncTodayToHistory();
 
         if (isAutoSave) {
@@ -196,22 +214,23 @@ export async function saveProgress(isAutoSave = false) {
         }
 
     } catch (e) {
-        console.error('Error in saveProgress: ', e);
+        console.error('Error in saveProgress via transaction: ', e);
         if (!isAutoSave) {
-             showToast(`이력 저장 실패: ${e.message}`, true);
+             showToast(`이력 저장 중 오류가 발생했습니다: ${e.message}`, true);
         }
     }
 }
 
+// ✅ [수정] Firestore 문서 일괄 업데이트 및 삭제 로직 추가 (async 추가)
 export async function saveDayDataToHistory(shouldReset) {
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
     
-    // 1. 진행 중인 업무 일괄 마감 처리
+    // 1. 진행 중인 업무가 있으면 Firestore 문서를 'completed'로 일괄 업데이트
     if (ongoingRecords.length > 0) {
         try {
+            const workRecordsColRef = getWorkRecordsCollectionRef();
             const batch = writeBatch(db);
             const endTime = getCurrentTime();
-            const workRecordsColRef = getWorkRecordsCollectionRef();
             
             ongoingRecords.forEach(rec => {
                 const docRef = doc(workRecordsColRef, rec.id);
@@ -232,59 +251,70 @@ export async function saveDayDataToHistory(shouldReset) {
                 });
             });
             await batch.commit();
+            // onSnapshot이 이 변경을 감지하고 로컬 appState.workRecords를 업데이트할 것입니다.
+            // 잠시 기다려주는 것이 좋을 수 있으나, 일단 바로 진행합니다.
         } catch (e) {
              console.error("Error finalizing ongoing tasks: ", e);
-             showToast("진행 중인 업무 마감 처리 중 일부 오류 발생.", true);
+             showToast("진행 중인 업무 마감 처리 중 오류 발생.", true);
+             // 멈추지 않고 저장을 시도합니다.
         }
     }
 
-    // 2. 이력 저장
+    // 2. 'history' 컬렉션에 최종 스냅샷 저장
     await saveProgress(false);
 
-    // 3. 초기화 (업무 마감 시)
+    // 3. 초기화 (shouldReset === true)
     if (shouldReset) {
+        // 3a. 'daily_data/{date}/workRecords' 하위 컬렉션 비우기
         try {
             const workRecordsColRef = getWorkRecordsCollectionRef();
             const q = query(workRecordsColRef);
             const querySnapshot = await getDocs(q);
+            
             if (!querySnapshot.empty) {
                 const deleteBatch = writeBatch(db);
-                querySnapshot.forEach(doc => { deleteBatch.delete(doc.ref); });
+                querySnapshot.forEach(doc => {
+                    deleteBatch.delete(doc.ref);
+                });
                 await deleteBatch.commit();
             }
-
-            appState.workRecords = [];
-            Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
-            appState.confirmedZeroTasks = [];
-            appState.partTimers = [];
-            appState.hiddenGroupIds = [];
-
-            const now = getCurrentTime();
-            if (now < "17:30") {
-                appState.dailyOnLeaveMembers = (appState.dailyOnLeaveMembers || []).filter(entry => entry.type === '조퇴');
-            } else {
-                appState.dailyOnLeaveMembers = [];
-            }
-
-            await saveStateToFirestore();
-            
-            showToast('오늘의 업무 기록을 이력에 저장하고 초기화했습니다.');
-
         } catch (e) {
-             console.error("Error during day reset: ", e);
-             showToast("초기화 중 오류가 발생했습니다.", true);
+             console.error("Error clearing workRecords subcollection: ", e);
+             showToast("일일 업무 기록 삭제 중 오류 발생.", true);
         }
+
+        // 3b. 로컬 appState 및 메인 문서 상태 초기화
+        appState.workRecords = []; // 로컬 캐시 즉시 비우기
+        Object.keys(appState.taskQuantities || {}).forEach(task => { appState.taskQuantities[task] = 0; });
+        appState.confirmedZeroTasks = [];
+        appState.partTimers = [];
+        appState.hiddenGroupIds = [];
+
+        const now = getCurrentTime();
+        if (now < "17:30") {
+            appState.dailyOnLeaveMembers = (appState.dailyOnLeaveMembers || []).filter(entry => entry.type === '조퇴');
+        } else {
+            appState.dailyOnLeaveMembers = [];
+        }
+
+        showToast('오늘의 업무 기록을 초기화했습니다.');
     }
+    
+    // 4. 메인 문서 상태 저장 (초기화된 메타데이터 저장)
+    await saveStateToFirestore(); 
+    // ⛔️ render(); // 제거 (onSnapshot이 처리)
 }
 
+// ... (fetchAllHistoryData 함수는 변경 없음) ...
 export async function fetchAllHistoryData() {
     const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
     try {
         const querySnapshot = await getDocs(historyCollectionRef);
         const data = [];
         querySnapshot.forEach((doc) => {
-            if (doc.data()) {
-                 data.push({ id: doc.id, ...doc.data() });
+            const docData = doc.data();
+            if (docData) {
+                 data.push({ id: doc.id, ...docData });
             }
         });
         data.sort((a, b) => b.id.localeCompare(a.id));
@@ -296,47 +326,120 @@ export async function fetchAllHistoryData() {
     } catch (error) {
         console.error('Error fetching all history data:', error);
         showToast('전체 이력 로딩 실패', true);
+        allHistoryData.length = 0;
         return [];
     }
 }
 
+// ✅ [수정] async 추가, await _syncTodayToHistory() 호출
 export const loadAndRenderHistoryList = async () => {
     if (!historyDateList) return;
     historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
 
     await fetchAllHistoryData();
-    await _syncTodayToHistory();
+    await _syncTodayToHistory(); // ✅ [수정] await 추가
 
     if (allHistoryData.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
-        clearAllHistoryViews();
+        const viewsToClear = [
+            'history-daily-view', 'history-weekly-view', 'history-monthly-view',
+            'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
+            'report-daily-view', 'report-weekly-view', 'report-monthly-view', 'report-yearly-view'
+        ];
+        viewsToClear.forEach(viewId => {
+            const viewEl = document.getElementById(viewId);
+            if (viewEl) viewEl.innerHTML = '';
+        });
         return;
     }
 
-    resetHistoryTabs();
+    document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
+        btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
+        btn.classList.remove('font-medium', 'text-gray-500');
+    });
+    document.querySelectorAll('.history-main-tab-btn:not([data-main-tab="work"])').forEach(btn => {
+        btn.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
+        btn.classList.add('font-medium', 'text-gray-500');
+    });
+
+    document.querySelectorAll('#history-tabs button[data-view="daily"]').forEach(btn => {
+        btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+        btn.classList.remove('text-gray-500');
+    });
+    document.querySelectorAll('#history-tabs button:not([data-view="daily"])').forEach(btn => {
+        btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+        btn.classList.add('text-gray-500');
+    });
 
     if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
-    hideOtherPanels('work');
+    if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
+    if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
+    if (reportPanel) reportPanel.classList.add('hidden');
+
+    document.getElementById('history-daily-view')?.classList.remove('hidden');
+    document.getElementById('history-weekly-view')?.classList.add('hidden');
+    document.getElementById('history-monthly-view')?.classList.add('hidden');
+    document.getElementById('history-attendance-daily-view')?.classList.add('hidden');
+    document.getElementById('history-attendance-weekly-view')?.classList.add('hidden');
+    document.getElementById('history-attendance-monthly-view')?.classList.add('hidden');
+    document.getElementById('report-daily-view')?.classList.add('hidden');
+    document.getElementById('report-weekly-view')?.classList.add('hidden');
+    document.getElementById('report-monthly-view')?.classList.add('hidden');
+    document.getElementById('report-yearly-view')?.classList.add('hidden');
 
     context.activeMainHistoryTab = 'work';
     context.reportSortState = {};
     context.currentReportParams = null;
 
+    // ✅ [수정] await 추가
     await renderHistoryDateListByMode('day');
 };
 
+// ✅ [수정] async 추가, await _syncTodayToHistory() 호출
 export const renderHistoryDateListByMode = async (mode = 'day') => {
     if (!historyDateList) return;
     historyDateList.innerHTML = '';
 
-    await _syncTodayToHistory();
+    await _syncTodayToHistory(); // ✅ [수정] await 추가
 
-    const filteredData = filterHistoryData();
-    let keys = getKeysByMode(filteredData, mode);
+    const filteredData = (context.historyStartDate || context.historyEndDate)
+        ? allHistoryData.filter(d => {
+            const date = d.id;
+            const start = context.historyStartDate;
+            const end = context.historyEndDate;
+            if (start && end) return date >= start && date <= end;
+            if (start) return date >= start;
+            if (end) return date <= end;
+            return true;
+        })
+        : allHistoryData;
+
+    let keys = [];
+
+    if (mode === 'day') {
+        keys = filteredData.map(d => d.id);
+    } else if (mode === 'week') {
+        const weekSet = new Set(filteredData.map(d => getWeekOfYear(new Date(d.id + "T00:00:00"))));
+        keys = Array.from(weekSet).sort((a, b) => b.localeCompare(a));
+    } else if (mode === 'month') {
+        const monthSet = new Set(filteredData.map(d => d.id.substring(0, 7)));
+        keys = Array.from(monthSet).sort((a, b) => b.localeCompare(a));
+    } else if (mode === 'year') {
+        const yearSet = new Set(filteredData.map(d => d.id.substring(0, 4)));
+        keys = Array.from(yearSet).sort((a, b) => b.localeCompare(a));
+    }
 
     if (keys.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
-        clearAllHistoryViews();
+        const viewsToClear = [
+            'history-daily-view', 'history-weekly-view', 'history-monthly-view',
+            'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
+            'report-daily-view', 'report-weekly-view', 'report-monthly-view', 'report-yearly-view'
+        ];
+        viewsToClear.forEach(viewId => {
+            const viewEl = document.getElementById(viewId);
+            if (viewEl) viewEl.innerHTML = '';
+        });
         return;
     }
 
@@ -348,10 +451,10 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
         if (mode === 'day') {
             const dayData = filteredData.find(d => d.id === key);
             if (dayData) {
-                const missingTasks = checkMissingQuantities(dayData);
-                hasWarning = missingTasks.length > 0;
+                const missingTasksList = checkMissingQuantities(dayData);
+                hasWarning = missingTasksList.length > 0;
                 if (hasWarning) {
-                    titleAttr = ` title="처리량 누락: ${missingTasks.join(', ')}"`;
+                    titleAttr = ` title="처리량 누락: ${missingTasksList.join(', ')}"`;
                 }
             }
         }
@@ -362,88 +465,56 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
 
     const firstButton = historyDateList.firstChild?.querySelector('button');
     if (firstButton) {
-        firstButton.click();
+        firstButton.classList.add('bg-blue-100', 'font-bold');
+        const key = firstButton.dataset.key;
+
+        context.reportSortState = {};
+
+        if (context.activeMainHistoryTab === 'work') {
+            if (mode === 'day') {
+                const currentIndex = filteredData.findIndex(d => d.id === key);
+                const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length)
+                    ? filteredData[currentIndex + 1]
+                    : null;
+                renderHistoryDetail(key, previousDayData);
+            } else if (mode === 'week') {
+                renderWeeklyHistory(key, filteredData, appConfig);
+            } else if (mode === 'month') {
+                renderMonthlyHistory(key, filteredData, appConfig);
+            }
+        } else if (context.activeMainHistoryTab === 'attendance') {
+             if (mode === 'day') {
+                renderAttendanceDailyHistory(key, filteredData);
+            } else if (mode === 'week') {
+                renderAttendanceWeeklyHistory(key, filteredData);
+            } else if (mode === 'month') {
+                renderAttendanceMonthlyHistory(key, filteredData);
+            }
+        }
+        else if (context.activeMainHistoryTab === 'report') {
+            if (mode === 'day') {
+                renderReportDaily(key, filteredData, appConfig, context);
+            } else if (mode === 'week') {
+                renderReportWeekly(key, filteredData, appConfig, context);
+            } else if (mode === 'month') {
+                renderReportMonthly(key, filteredData, appConfig, context);
+            } else if (mode === 'year') {
+                renderReportYearly(key, filteredData, appConfig, context);
+            }
+        }
     }
 };
 
-// --- 내부 헬퍼 함수들 ---
-
-function clearAllHistoryViews() {
-    const viewIds = [
-        'history-daily-view', 'history-weekly-view', 'history-monthly-view',
-        'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
-        'report-daily-view', 'report-weekly-view', 'report-monthly-view', 'report-yearly-view'
-    ];
-    viewIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = '';
-    });
-}
-
-function resetHistoryTabs() {
-    document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
-        btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-        btn.classList.remove('font-medium', 'text-gray-500');
-    });
-    document.querySelectorAll('.history-main-tab-btn:not([data-main-tab="work"])').forEach(btn => {
-        btn.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-        btn.classList.add('text-gray-500');
-    });
-    document.querySelectorAll('#history-tabs button[data-view="daily"]').forEach(btn => {
-        btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-        btn.classList.remove('text-gray-500');
-    });
-    document.querySelectorAll('#history-tabs button:not([data-view="daily"])').forEach(btn => {
-        btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-        btn.classList.add('text-gray-500');
-    });
-}
-
-function hideOtherPanels(activePanel) {
-    if (activePanel !== 'work') workHistoryPanel?.classList.add('hidden');
-    if (activePanel !== 'attendance') attendanceHistoryPanel?.classList.add('hidden');
-    if (activePanel !== 'trends') trendAnalysisPanel?.classList.add('hidden');
-    if (activePanel !== 'report') reportPanel?.classList.add('hidden');
-}
-
-function filterHistoryData() {
-    if (!context.historyStartDate && !context.historyEndDate) {
-        return allHistoryData;
-    }
-    return allHistoryData.filter(d => {
-        const date = d.id;
-        const start = context.historyStartDate;
-        const end = context.historyEndDate;
-        if (start && end) return date >= start && date <= end;
-        if (start) return date >= start;
-        if (end) return date <= end;
-        return true;
-    });
-}
-
-function getKeysByMode(data, mode) {
-    if (mode === 'day') {
-        return data.map(d => d.id);
-    }
-    const set = new Set();
-    data.forEach(d => {
-        const dateObj = new Date(d.id + "T00:00:00");
-        if (mode === 'week') set.add(getWeekOfYear(dateObj));
-        else if (mode === 'month') set.add(d.id.substring(0, 7));
-        else if (mode === 'year') set.add(d.id.substring(0, 4));
-    });
-    return Array.from(set).sort((a, b) => b.localeCompare(a));
-}
-
-// ✅ [완전한 구현] 이력 처리량 수정 모달 열기
+// ... (openHistoryQuantityModal, renderHistoryDetail, requestHistoryDeletion 함수는 변경 없음) ...
 export const openHistoryQuantityModal = (dateKey) => {
     const todayDateString = getTodayDateString();
 
     if (dateKey === todayDateString) {
         const todayData = {
             id: todayDateString,
-            workRecords: appState.workRecords || [],
+            workRecords: appState.workRecords || [], // ✅ 로컬 캐시 사용
             taskQuantities: appState.taskQuantities || {},
+            // ✨ 오늘 데이터에도 확인 목록 전달
             confirmedZeroTasks: appState.confirmedZeroTasks || []
         };
         const missingTasksList = checkMissingQuantities(todayData);
@@ -463,9 +534,11 @@ export const openHistoryQuantityModal = (dateKey) => {
     context.quantityModalContext.mode = 'history';
     context.quantityModalContext.dateKey = dateKey;
 
+    // ✨ [중요] 이력 저장 콜백 함수 정의
     context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
         if (!dateKey) return;
 
+        // 1. 전역 이력 데이터 업데이트
         const idx = allHistoryData.findIndex(d => d.id === dateKey);
         if (idx > -1) {
             allHistoryData[idx] = {
@@ -475,8 +548,10 @@ export const openHistoryQuantityModal = (dateKey) => {
             };
         }
 
+        // 2. Firestore 'history' 컬렉션 저장
         const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
         try {
+            // 기존 데이터가 있으면 병합, 없으면 새로 생성
             await setDoc(historyDocRef, {
                 taskQuantities: newQuantities,
                 confirmedZeroTasks: confirmedZeroTasks
@@ -484,17 +559,23 @@ export const openHistoryQuantityModal = (dateKey) => {
 
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
 
+            // 3. 만약 오늘 날짜라면 메인 앱 'daily_data' 문서도 즉시 동기화
             if (dateKey === getTodayDateString()) {
                 appState.taskQuantities = newQuantities;
                 appState.confirmedZeroTasks = confirmedZeroTasks;
-                await saveStateToFirestore();
+                // ✅ 메인 문서 저장
+                await saveStateToFirestore(); 
+                // ⛔️ render(); // 제거 (onSnapshot이 처리)
             }
 
+            // 4. 이력 보기 화면 갱신
             if (historyModal && !historyModal.classList.contains('hidden')) {
+                // 현재 보고 있는 탭(일/주/월 등) 유지
                 const activeSubTabBtn = document.querySelector('#history-tabs button.font-semibold') 
                                      || document.querySelector('#report-tabs button.font-semibold');
                 const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-                await switchHistoryView(currentView);
+                
+                await switchHistoryView(currentView); // ✅ [수정] await 추가
             }
 
         } catch (e) {
@@ -510,7 +591,6 @@ export const openHistoryQuantityModal = (dateKey) => {
     if (quantityModal) quantityModal.classList.remove('hidden');
 };
 
-// ✅ [완전한 구현] 이력 상세 렌더링
 export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     const view = document.getElementById('history-daily-view');
     if (!view) return;
@@ -602,8 +682,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         });
     }
 
-    // 내부 헬퍼 (metrics diff)
-    const getDiffHtml = (metric, current, previousMetric) => {
+    const getDiffHtmlForMetric = (metric, current, previousMetric) => {
         const currValue = current || 0;
         let prevValue = 0;
         let prevDate = previousMetric?.date || '이전';
@@ -630,18 +709,18 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         const sign = diff > 0 ? '↑' : '↓';
 
         let colorClass = 'text-gray-500';
-        if (metric === 'avgThroughput' || metric === 'quantity') {
+        if (metric === 'avgThroughput' || metric === 'avgStaff' || metric === 'quantity') {
             colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
-        } else if (metric === 'avgCostPerItem' || metric === 'duration') {
+        } else if (metric === 'avgCostPerItem' || metric === 'avgTime' || metric === 'duration') {
             colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
         }
 
         let diffStr = '';
         let prevStr = '';
-        if (metric === 'duration') {
+        if (metric === 'avgTime' || metric === 'duration') {
             diffStr = formatDuration(Math.abs(diff));
             prevStr = formatDuration(prevValue);
-        } else if (metric === 'avgCostPerItem' || metric === 'quantity') {
+        } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity') {
             diffStr = Math.abs(diff).toFixed(0);
             prevStr = prevValue.toFixed(0);
         } else {
@@ -698,7 +777,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasQuantities = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            const diffHtml = getDiffHtml('quantity', metrics.quantity, prevMetric);
+            const diffHtml = getDiffHtmlForMetric('quantity', metrics.quantity, prevMetric);
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
                  <span>${metrics.quantity} 개 ${diffHtml}</span>
@@ -715,7 +794,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasThroughput = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            const diffHtml = getDiffHtml('avgThroughput', metrics.avgThroughput, prevMetric);
+            const diffHtml = getDiffHtmlForMetric('avgThroughput', metrics.avgThroughput, prevMetric);
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
                  <span>${metrics.avgThroughput.toFixed(2)} 개/분 ${diffHtml}</span>
@@ -732,7 +811,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasCostPerItem = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            const diffHtml = getDiffHtml('avgCostPerItem', metrics.avgCostPerItem, prevMetric);
+            const diffHtml = getDiffHtmlForMetric('avgCostPerItem', metrics.avgCostPerItem, prevMetric);
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
                  <span>${metrics.avgCostPerItem.toFixed(0)} 원/개 ${diffHtml}</span>
@@ -749,7 +828,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             const percentage = totalSumDuration > 0 ? (metrics.duration / totalSumDuration * 100).toFixed(1) : 0;
             const prevMetric = prevTaskMetrics[task] || null;
-            const diffHtml = getDiffHtml('duration', metrics.duration, prevMetric);
+            const diffHtml = getDiffHtmlForMetric('duration', metrics.duration, prevMetric);
 
             html += `
         <div>
@@ -768,12 +847,13 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     view.innerHTML = html;
 };
 
+// ... (requestHistoryDeletion 함수는 변경 없음) ...
 export const requestHistoryDeletion = (dateKey) => {
     context.historyKeyToDelete = dateKey;
     if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
 };
 
-// ✅ [수정] async 적용
+// ✅ [수정] async 추가, await renderHistoryDateListByMode() 호출
 export const switchHistoryView = async (view) => {
     const allViews = [
         document.getElementById('history-daily-view'),
@@ -870,6 +950,7 @@ export const switchHistoryView = async (view) => {
             break;
     }
 
+    // ✅ [수정] await 추가
     await renderHistoryDateListByMode(listMode);
 
     if (viewToShow) viewToShow.classList.remove('hidden');
