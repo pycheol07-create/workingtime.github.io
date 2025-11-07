@@ -76,16 +76,14 @@ import {
 } from './app.js';
 
 import { getTodayDateString, getCurrentTime, formatTimeTo24H, showToast } from './utils.js';
+
+// ✅ [수정] import 문을 ui-modals.js가 실제로 export하는 함수 기준으로 수정
 import {
     renderTaskSelectionModal,
-    renderTeamSelectionModal,
-    updateQuantityModal,
-    renderLeaveTypeModal,
-    // ✅ [수정] populateManualAddForm 임포트 제거 (오류 발생)
-    renderEditLeaveModal,
-    // ✅ [수정] renderAddAttendanceModal, renderEditAttendanceModal 임포트 제거 (오류 발생)
-    renderMemberActionModal
+    renderTeamSelectionModalContent, // 👈 renderTeamSelectionModal -> renderTeamSelectionModalContent
+    // ⛔️ updateQuantityModal, renderLeaveTypeModal 등 존재하지 않는 함수 제거
 } from './ui-modals.js';
+
 import {
     startWorkGroup,
     addMembersToWorkGroup,
@@ -95,7 +93,9 @@ import {
     cancelClockOut // ✨ [신규] 퇴근 취소
 } from './app-logic.js';
 // ✅ [수정] 오류를 일으킨 deleteHistoryEntry, deleteAttendanceRecord 임포트 제거
-import { saveProgress, saveDayDataToHistory, saveAttendanceRecord } from './app-history-logic.js';
+import { saveProgress, saveDayDataToHistory } from './app-history-logic.js';
+// ⛔️ [수정] saveAttendanceRecord는 app-history-logic.js에 없으므로 제거
+// import { saveProgress, saveDayDataToHistory, saveAttendanceRecord } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -143,12 +143,12 @@ const deleteWorkRecordDocuments = async (recordIds) => {
 };
 
 // 모든 모달의 이벤트 리스너를 설정
-export function setupModalListeners() {
+export function setupGeneralModalListeners() { // 👈 함수명 수정 (setupModalListeners -> setupGeneralModalListeners)
 
     // 모달 닫기 버튼 (공통)
     document.querySelectorAll('.modal-close-btn, .modal-cancel-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            const modal = btn.closest('.modal-overlay');
+            const modal = btn.closest('.modal-overlay, .fixed.inset-0'); // 👈 모달 선택자 보강
             if (modal) {
                 modal.classList.add('hidden');
             }
@@ -160,8 +160,9 @@ export function setupModalListeners() {
         teamSelectModal.addEventListener('click', async (e) => {
             const target = e.target;
             const memberButton = target.closest('.member-select-btn');
-            const startGroupBtn = target.closest('#start-work-group-btn');
-            const addMemberBtn = target.closest('#add-to-work-group-btn');
+            // ⛔️ [삭제] startGroupBtn, addMemberBtn (listeners-main.js로 이동했거나 app.js에 있음)
+            // const startGroupBtn = target.closest('#start-work-group-btn');
+            // const addMemberBtn = target.closest('#add-to-work-group-btn');
 
             if (memberButton) {
                 const memberName = memberButton.dataset.member;
@@ -176,7 +177,10 @@ export function setupModalListeners() {
                 } else {
                     context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
                 }
-            } else if (startGroupBtn) {
+            } 
+            // ⛔️ [삭제] startGroupBtn, addMemberBtn 로직 제거
+            /*
+            else if (startGroupBtn) {
                 // ✅ [수정] startWorkGroup은 이제 async
                 await startWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart);
                 teamSelectModal.classList.add('hidden');
@@ -185,8 +189,25 @@ export function setupModalListeners() {
                 await addMembersToWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart, context.selectedGroupForAdd);
                 teamSelectModal.classList.add('hidden');
             }
+            */
         });
+
+        // ✅ [추가] 확인/취소 버튼 리스너 (teamSelectModal 리스너 밖으로 이동)
+        const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
+        if (confirmTeamSelectBtn) {
+             confirmTeamSelectBtn.addEventListener('click', async () => {
+                if (context.selectedGroupForAdd) {
+                     // 인원 추가 모드
+                    await addMembersToWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart, context.selectedGroupForAdd);
+                } else {
+                    // 새 업무 시작 모드
+                    await startWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart);
+                }
+                teamSelectModal.classList.add('hidden');
+             });
+        }
     }
+
 
     if (cancelTeamSelectBtn) {
         cancelTeamSelectBtn.addEventListener('click', () => {
@@ -201,8 +222,19 @@ export function setupModalListeners() {
             if (taskButton) {
                 const taskName = taskButton.dataset.task;
                 context.selectedTaskForStart = taskName;
+                context.selectedGroupForAdd = null; // ✅ [추가] 새 업무 시작이므로 그룹 ID 초기화
+                context.tempSelectedMembers = []; // ✅ [추가] 선택 멤버 초기화
                 taskSelectModal.classList.add('hidden');
-                renderTeamSelectionModal(appState, appConfig.teamGroups, 'start');
+                // ✅ [수정] renderTeamSelectionModal -> renderTeamSelectionModalContent
+                renderTeamSelectionModalContent(taskName, appState, appConfig.teamGroups);
+                
+                // ✅ [추가] 모달 상태 변경 (인원 추가 -> 업무 시작)
+                const titleEl = document.getElementById('team-select-modal-title');
+                const confirmBtn = document.getElementById('confirm-team-select-btn');
+                if (titleEl) titleEl.textContent = `'${taskName}' 업무 시작`;
+                if (confirmBtn) confirmBtn.textContent = '선택 완료 및 업무 시작';
+                
+                if (teamSelectModal) teamSelectModal.classList.remove('hidden');
             }
         });
     }
@@ -216,9 +248,10 @@ export function setupModalListeners() {
                     .filter(r => String(r.groupId) === String(context.recordToDeleteId) && (r.status === 'ongoing' || r.status === 'paused'))
                     .map(r => r.id);
                 
-                await deleteWorkRecordDocuments(groupMembers);
-                
-                showToast('그룹 업무가 삭제되었습니다.');
+                if (groupMembers.length > 0) { // ✅ [추가] 삭제할 대상이 있을 때만
+                    await deleteWorkRecordDocuments(groupMembers);
+                    showToast('그룹 업무가 삭제되었습니다.');
+                }
             } else if (context.deleteMode === 'single') { // ✅ 'single' 명시
                 await deleteWorkRecordDocument(context.recordToDeleteId);
                 showToast('업무 기록이 삭제되었습니다.');
@@ -234,6 +267,28 @@ export function setupModalListeners() {
                     showToast('삭제할 완료된 업무가 없습니다.');
                 }
             }
+            // ✅ [추가] 근태 기록 삭제 로직 (listeners-history.js에서 이동)
+            else if (context.deleteMode === 'attendance') {
+                const { dateKey, index } = context.attendanceRecordToDelete;
+                const dayData = allHistoryData.find(d => d.id === dateKey);
+                if (dayData && dayData.onLeaveMembers && dayData.onLeaveMembers[index]) {
+                    const deletedRecord = dayData.onLeaveMembers.splice(index, 1)[0];
+                    try {
+                        const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+                        await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
+                        showToast(`${deletedRecord.member}님의 '${deletedRecord.type}' 기록이 삭제되었습니다.`);
+                        // 뷰 갱신
+                        const activeAttendanceTab = document.querySelector('#attendance-history-tabs button.font-semibold');
+                        const view = activeAttendanceTab ? activeAttendanceTab.dataset.view : 'attendance-daily';
+                        switchHistoryView(view); // 👈 이 함수는 listeners-history.js에 있으므로, 이 파일도 수정 필요
+                    } catch (e) {
+                         console.error('Error deleting attendance record:', e);
+                         showToast('근태 기록 삭제 중 오류 발생', true);
+                         dayData.onLeaveMembers.splice(index, 0, deletedRecord); // 롤백
+                    }
+                }
+                context.attendanceRecordToDelete = null;
+            }
             
             // ⛔️ appState.workRecords = ... (제거)
             // ⛔️ render() (제거)
@@ -245,38 +300,16 @@ export function setupModalListeners() {
         });
     }
 
-    // 완료 기록 전체 삭제 버튼
-    const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
-    if (deleteAllCompletedBtn) {
-        deleteAllCompletedBtn.addEventListener('click', () => {
-            // ✅ [수정] Firestore 문서 일괄 삭제
-            const completedIds = (appState.workRecords || [])
-                .filter(r => r.status === 'completed')
-                .map(r => r.id);
-            
-            if (completedIds.length === 0) {
-                showToast('삭제할 완료된 작업이 없습니다.');
-                return;
-            }
-
-            // 모달을 띄워 최종 확인
-            context.recordToDeleteId = null; // 특정 ID가 아님
-            context.deleteMode = 'all-completed';
-            
-            const deleteMessage = document.getElementById('delete-confirm-message');
-            if(deleteMessage) {
-                 deleteMessage.textContent = `완료된 업무 ${completedIds.length}건을 모두 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`;
-            }
-            deleteConfirmModal.classList.remove('hidden');
-        });
-    }
+    // ⛔️ [삭제] deleteAllCompletedBtn 리스너 (listeners-main.js로 이동)
 
     // 기록 수정 모달
     if (confirmEditBtn) {
         // ✅ [수정] Firestore 문서 업데이트 (async 추가)
         confirmEditBtn.addEventListener('click', async () => {
-            const recordId = document.getElementById('edit-record-id').value;
-            const task = document.getElementById('edit-task-name').value;
+            // ⛔️ [수정] edit-record-id는 존재하지 않음. context 사용
+            // const recordId = document.getElementById('edit-record-id').value;
+            const recordId = context.recordToEditId; 
+            const task = document.getElementById('edit-task-type').value; // 👈 ID 수정
             const member = document.getElementById('edit-member-name').value;
             const startTime = document.getElementById('edit-start-time').value;
             const endTime = document.getElementById('edit-end-time').value;
@@ -284,6 +317,11 @@ export function setupModalListeners() {
             const record = (appState.workRecords || []).find(r => r.id === recordId);
             if (!record) {
                 showToast('수정할 기록을 찾을 수 없습니다.', true);
+                return;
+            }
+            
+            if (startTime && endTime && startTime >= endTime) {
+                showToast('시작 시간이 종료 시간보다 늦거나 같을 수 없습니다.', true);
                 return;
             }
 
@@ -346,6 +384,8 @@ export function setupModalListeners() {
             context.groupToStopId = null;
         });
     }
+    
+    // ⛔️ [삭제] stop-group-confirm-modal 리스너 (listeners-main.js로 이동)
 
     // 개별 작업 중지 확인 모달
     if (confirmStopIndividualBtn) {
@@ -474,10 +514,18 @@ export function setupModalListeners() {
                 saveLeaveSchedule(db, persistentLeaveSchedule); // Firestore에 저장
             } else {
                 // 오늘 하루 (Daily)
-                if (!appState.dailyOnLeaveMembers.includes(memberName)) {
-                    appState.dailyOnLeaveMembers.push(memberName);
-                    debouncedSaveState(); // 오늘자 문서에 저장
-                }
+                // ⛔️ [수정] dailyOnLeaveMembers는 이제 객체 배열임
+                // if (!appState.dailyOnLeaveMembers.includes(memberName)) {
+                //     appState.dailyOnLeaveMembers.push(memberName);
+                // }
+                const newDailyEntry = {
+                    member: memberName,
+                    type: type,
+                    startTime: (type === '외출' || type === '조퇴') ? getCurrentTime() : null,
+                    endTime: null
+                };
+                appState.dailyOnLeaveMembers.push(newDailyEntry);
+                debouncedSaveState(); // 오늘자 문서에 저장
             }
 
             showToast(`${memberName}님 ${type} 처리 완료.`);
@@ -496,11 +544,14 @@ export function setupModalListeners() {
             let persistentChanged = false;
 
             // 1. Daily(오늘) 근태 목록에서 제거
-            const dailyIndex = appState.dailyOnLeaveMembers.indexOf(memberName);
-            if (dailyIndex > -1) {
-                appState.dailyOnLeaveMembers.splice(dailyIndex, 1);
+            // ⛔️ [수정] dailyOnLeaveMembers는 이제 객체 배열임
+            // const dailyIndex = appState.dailyOnLeaveMembers.indexOf(memberName);
+            const originalLength = appState.dailyOnLeaveMembers.length;
+            appState.dailyOnLeaveMembers = appState.dailyOnLeaveMembers.filter(entry => entry.member !== memberName);
+            if (appState.dailyOnLeaveMembers.length !== originalLength) {
                 dailyChanged = true;
             }
+
 
             // 2. Persistent(기간) 근태 목록에서 오늘 날짜가 포함된 항목 제거
             const today = getTodayDateString();
@@ -537,10 +588,10 @@ export function setupModalListeners() {
     // 수동 기록 추가 모달
     if (confirmManualAddBtn) {
         confirmManualAddBtn.addEventListener('click', async () => {
-            const member = document.getElementById('manual-member-name').value;
-            const task = document.getElementById('manual-task-name').value;
-            const startTime = document.getElementById('manual-start-time').value;
-            const endTime = document.getElementById('manual-end-time').value;
+            const member = document.getElementById('manual-add-member').value; // 👈 ID 수정
+            const task = document.getElementById('manual-add-task').value; // 👈 ID 수정
+            const startTime = document.getElementById('manual-add-start-time').value; // 👈 ID 수정
+            const endTime = document.getElementById('manual-add-end-time').value; // 👈 ID 수정
             const pauses = []; // (단순화를 위해 수동 추가는 휴게시간 없음)
 
             if (!member || !task || !startTime || !endTime) {
@@ -591,7 +642,9 @@ export function setupModalListeners() {
     if (confirmEndShiftBtn) {
         confirmEndShiftBtn.addEventListener('click', async () => {
             // ✅ [수정] saveProgress는 이제 async
-            await saveProgress(false); // isAuto=false (수동 저장)
+            // ⛔️ [수정] 마감은 saveProgress(중간저장)가 아니라 saveDayDataToHistory(마감저장)이어야 함
+            // await saveProgress(false); // isAuto=false (수동 저장)
+            await saveDayDataToHistory(false); // 👈 false: 초기화 안 함
             endShiftConfirmModal.classList.add('hidden');
         });
     }
@@ -617,7 +670,9 @@ export function setupModalListeners() {
 
                 // 2. 메인 문서(state blob) 삭제
                 const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
-                await deleteDoc(docRef);
+                // ⛔️ [수정] 삭제 대신 초기화된 상태로 덮어쓰기 (onSnapshot 오류 방지)
+                // await deleteDoc(docRef); 
+                await setDoc(docRef, { state: '{}' });
 
                 // 3. 로컬 상태 초기화
                 appState.workRecords = [];
@@ -640,33 +695,7 @@ export function setupModalListeners() {
         });
     }
 
-    // 로그인 모달
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = loginEmailInput.value;
-            const password = loginPasswordInput.value;
-
-            if (loginButtonText) loginButtonText.classList.add('hidden');
-            if (loginButtonSpinner) loginButtonSpinner.classList.remove('hidden');
-            if (loginSubmitBtn) loginSubmitBtn.disabled = true;
-            if (loginErrorMsg) loginErrorMsg.classList.add('hidden');
-
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                // onAuthStateChanged가 나머지를 처리
-            } catch (error) {
-                console.error("Login failed:", error.code, error.message);
-                if (loginErrorMsg) {
-                    loginErrorMsg.textContent = '로그인 실패. 이메일 또는 비밀번호를 확인하세요.';
-                    loginErrorMsg.classList.remove('hidden');
-                }
-                if (loginButtonText) loginButtonText.classList.remove('hidden');
-                if (loginButtonSpinner) loginButtonSpinner.classList.add('hidden');
-                if (loginSubmitBtn) loginSubmitBtn.disabled = false;
-            }
-        });
-    }
+    // ⛔️ [삭제] 로그인 모달 리스너 (listeners-main.js로 이동)
     
     // 시작 시간 수정 모달
     if (confirmEditStartTimeBtn) {
@@ -716,62 +745,11 @@ export function setupModalListeners() {
         });
     }
     
-    // 근태 기록 수정 모달 (History)
-    if (confirmEditAttendanceBtn) {
-        confirmEditAttendanceBtn.addEventListener('click', () => {
-            // (이 로직은 app-history-logic.js로 이동하는 것이 좋음)
-            // (saveAttendanceRecord가 수정도 겸함)
-            saveAttendanceRecord(); 
-        });
-    }
-
-    // 근태 기록 추가 모달 (History)
-    if (confirmAddAttendanceBtn) {
-        confirmAddAttendanceBtn.addEventListener('click', () => {
-            // (이 로직은 app-history-logic.js로 이동하는 것이 좋음)
-            saveAttendanceRecord();
-        });
-    }
+    // ⛔️ [삭제] 근태 기록 수정/추가 모달 (listeners-history.js로 이동)
     
-    // ✨ [신규] 퇴근 취소 버튼 (PC/모바일)
-    if (pcClockOutCancelBtn) {
-        pcClockOutCancelBtn.addEventListener('click', () => {
-            if (appState.currentUser) {
-                cancelClockOut(appState.currentUser, false);
-            }
-        });
-    }
-    if (mobileClockOutCancelBtn) {
-         mobileClockOutCancelBtn.addEventListener('click', () => {
-            if (appState.currentUser) {
-                cancelClockOut(appState.currentUser, false);
-            }
-        });
-    }
+    // ⛔️ [삭제] 퇴근 취소 버튼 (listeners-main.js로 이동)
     
-    // ✨ [신규] 관리자용 팀원 액션 모달
-    if (memberActionModal) {
-        memberActionModal.addEventListener('click', (e) => {
-            const memberName = context.memberToAction;
-            if (!memberName) return;
-
-            const target = e.target.closest('button');
-            if (!target) return;
-
-            if (target.id === 'admin-clock-in-btn') {
-                processClockIn(memberName, true); // (app-logic.js)
-            } else if (target.id === 'admin-clock-out-btn') {
-                processClockOut(memberName, true); // (app-logic.js)
-            } else if (target.id === 'admin-cancel-clock-out-btn') {
-                cancelClockOut(memberName, true); // (app-logic.js)
-            } else if (target.id === 'open-leave-modal-btn') {
-                renderLeaveTypeModal(memberName); // (ui-modals.js)
-            }
-            
-            // 액션 후 모달을 닫음 (근태 유형 선택 모달은 스스로 열림)
-            if (target.id !== 'open-leave-modal-btn') {
-                memberActionModal.classList.add('hidden');
-            }
-        });
-    }
+    // ⛔️ [삭제] 관리자용 팀원 액션 모달 (listeners-main.js로 이동)
 }
+
+// ⛔️ [삭제] switchHistoryView (listeners-history.js에 있어야 함)
