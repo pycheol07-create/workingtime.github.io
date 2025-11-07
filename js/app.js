@@ -685,42 +685,23 @@ async function startAppAfterLogin(user) {
     const workRecordsCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
     if (unsubscribeWorkRecords) unsubscribeWorkRecords();
 
+    // 🔥 [수정 핵심] 데이터 동기화 방식 변경 (부분 변경 -> 전체 교체)
     unsubscribeWorkRecords = onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
-        console.log("Work records snapshot received:", querySnapshot.docChanges().length, "changes.");
-        
-        // ⛔️ [구 방식] 매번 전체를 새로고침 (간단하지만 비효율적)
-        // appState.workRecords = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        // ✅ [신 방식] 변경 사항만 로컬 캐시에 적용 (효율적)
-        querySnapshot.docChanges().forEach((change) => {
-            const docData = { id: change.doc.id, ...change.doc.data() };
-            const index = appState.workRecords.findIndex(r => r.id === change.doc.id);
+        // 1. 로컬 데이터를 완전히 비웁니다.
+        appState.workRecords = [];
 
-            if (change.type === "added") {
-                if (index === -1) { // 중복 추가 방지
-                    appState.workRecords.push(docData);
-                }
-            }
-            if (change.type === "modified") {
-                if (index > -1) {
-                    appState.workRecords[index] = docData; // 수정
-                } else {
-                    appState.workRecords.push(docData); // 혹시 모를 누락 방지
-                }
-            }
-            if (change.type === "removed") {
-                if (index > -1) {
-                    appState.workRecords.splice(index, 1); // 삭제
-                }
-            }
+        // 2. 서버의 최신 상태를 그대로 복사해옵니다.
+        querySnapshot.forEach((doc) => {
+            appState.workRecords.push(doc.data());
         });
 
-        // 로컬 캐시 정렬 (시작 시간 순)
+        // 3. 시간순으로 정렬하여 일관된 화면을 유지합니다.
         appState.workRecords.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 
-        // 로컬 캐시가 변경되었으므로 렌더링
-        render(); 
+        // 4. 화면을 갱신합니다.
+        render();
         
+        // 5. 연결 상태 표시 업데이트
         if (connectionStatusEl) connectionStatusEl.textContent = '동기화 (업무)';
         if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
 
