@@ -176,6 +176,18 @@ export const historyClearFilterBtn = document.getElementById('history-clear-filt
 export const historyDownloadPeriodExcelBtn = document.getElementById('history-download-period-excel-btn');
 export const coqExplanationModal = document.getElementById('coq-explanation-modal');
 
+// ✨ [신규] 퇴근 취소 및 관리자 액션 관련 DOM 요소 추가
+export const pcClockOutCancelBtn = document.getElementById('pc-clock-out-cancel-btn');
+export const mobileClockOutCancelBtn = document.getElementById('mobile-clock-out-cancel-btn');
+export const memberActionModal = document.getElementById('member-action-modal');
+export const actionMemberName = document.getElementById('action-member-name');
+export const actionMemberStatusBadge = document.getElementById('action-member-status-badge');
+export const actionMemberTimeInfo = document.getElementById('action-member-time-info');
+export const adminClockInBtn = document.getElementById('admin-clock-in-btn');
+export const adminClockOutBtn = document.getElementById('admin-clock-out-btn');
+export const adminCancelClockOutBtn = document.getElementById('admin-cancel-clock-out-btn');
+export const openLeaveModalBtn = document.getElementById('open-leave-modal-btn');
+
 
 // Firebase/App State
 export let db, auth;
@@ -213,7 +225,8 @@ export let context = {
     historyEndDate: null,
     reportSortState: {},
     currentReportParams: null,
-    monthlyRevenues: {}
+    monthlyRevenues: {},
+    memberToAction: null // ✨ [신규] 관리자가 현재 조작 중인 팀원 이름 저장
 };
 
 export let appState = {
@@ -226,7 +239,6 @@ export let appState = {
     currentUser: null,
     currentUserRole: 'user',
     confirmedZeroTasks: [],
-    // ✅ [신규] 일일 출퇴근 상태 (key: memberName, value: { inTime, outTime, status })
     dailyAttendance: {}
 };
 export let persistentLeaveSchedule = {
@@ -273,7 +285,6 @@ export async function saveStateToFirestore() {
                 lunchPauseExecuted: appState.lunchPauseExecuted || false,
                 lunchResumeExecuted: appState.lunchResumeExecuted || false,
                 confirmedZeroTasks: appState.confirmedZeroTasks || [],
-                // ✅ [신규] 출퇴근 상태 저장
                 dailyAttendance: appState.dailyAttendance || {}
             });
 
@@ -391,7 +402,6 @@ export const render = () => {
         renderTaskAnalysis(appState, appConfig);
     } catch (e) {
         console.error('Render error:', e);
-        // showToast('화면 렌더링 오류 발생.', true); // 너무 빈번하면 주석 처리
     }
 };
 
@@ -461,7 +471,7 @@ async function startAppAfterLogin(user) {
         if (logoutBtn) logoutBtn.classList.remove('hidden');
         if (logoutBtnMobile) logoutBtnMobile.classList.remove('hidden');
 
-        // ✅ [신규] PC 버전 출퇴근 토글 보이기 및 라벨 설정
+        // PC 버전 출퇴근 토글 보이기 및 라벨 설정
         const pcAttendanceToggle = document.getElementById('personal-attendance-toggle-pc');
         const pcAttendanceLabel = document.getElementById('pc-attendance-label');
         if (pcAttendanceToggle && pcAttendanceLabel) {
@@ -469,7 +479,7 @@ async function startAppAfterLogin(user) {
             pcAttendanceToggle.classList.remove('hidden');
             pcAttendanceToggle.classList.add('flex');
         }
-        // ✅ [신규] 모바일 버전 출퇴근 토글 보이기
+        // 모바일 버전 출퇴근 토글 보이기
         const mobileAttendanceToggle = document.getElementById('personal-attendance-toggle-mobile');
         if (mobileAttendanceToggle) {
              mobileAttendanceToggle.classList.remove('hidden');
@@ -632,7 +642,6 @@ async function startAppAfterLogin(user) {
             appState.lunchPauseExecuted = loadedState.lunchPauseExecuted || false;
             appState.lunchResumeExecuted = loadedState.lunchResumeExecuted || false;
             appState.confirmedZeroTasks = loadedState.confirmedZeroTasks || [];
-            // ✅ [신규] 출퇴근 상태 로드
             appState.dailyAttendance = loadedState.dailyAttendance || {};
 
             isDataDirty = false;
@@ -704,7 +713,6 @@ async function main() {
                 }
             });
 
-            // ✅ [신규] 로그아웃 시 토글 숨김
             document.getElementById('personal-attendance-toggle-pc')?.classList.add('hidden');
             document.getElementById('personal-attendance-toggle-mobile')?.classList.add('hidden');
 

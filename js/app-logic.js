@@ -1,3 +1,4 @@
+// === js/app-logic.js ===
 import {
     appState, db, auth,
     render, generateId,
@@ -8,10 +9,16 @@ import {
 
 import { calcElapsedMinutes, getCurrentTime, showToast } from './utils.js';
 
-// ✅ [신규] 출근 처리
-export const processClockIn = (memberName) => {
+// ✅ [신규] 출근 처리 (관리자 대리 실행 가능)
+export const processClockIn = (memberName, isAdminAction = false) => {
     const now = getCurrentTime();
     if (!appState.dailyAttendance) appState.dailyAttendance = {};
+
+    const currentStatus = appState.dailyAttendance[memberName]?.status;
+    if (currentStatus === 'active') {
+        showToast(`${memberName}님은 이미 출근(Active) 상태입니다.`, true);
+        return false;
+    }
 
     appState.dailyAttendance[memberName] = {
         ...appState.dailyAttendance[memberName],
@@ -22,13 +29,14 @@ export const processClockIn = (memberName) => {
 
     saveStateToFirestore();
     render();
-    showToast(`${memberName}님 출근 처리되었습니다. (${now})`);
+    showToast(`${memberName}님 ${isAdminAction ? '관리자에 의해 ' : ''}출근 처리되었습니다. (${now})`);
+    return true;
 };
 
-// ✅ [신규] 퇴근 처리
-export const processClockOut = (memberName) => {
+// ✅ [신규] 퇴근 처리 (관리자 대리 실행 가능)
+export const processClockOut = (memberName, isAdminAction = false) => {
     // 진행 중인 업무가 있는지 확인
-    const isWorking = (appState.workRecords || []).some(r => 
+    const isWorking = (appState.workRecords || []).some(r =>
         r.member === memberName && (r.status === 'ongoing' || r.status === 'paused')
     );
 
@@ -39,10 +47,16 @@ export const processClockOut = (memberName) => {
 
     const now = getCurrentTime();
     if (!appState.dailyAttendance) appState.dailyAttendance = {};
-    
+
     // 기존 출근 기록이 없으면 출근 시간을 현재로 채워줌 (예외 처리)
     if (!appState.dailyAttendance[memberName]) {
          appState.dailyAttendance[memberName] = { inTime: now };
+    }
+
+    // 이미 퇴근 상태인지 확인
+    if (appState.dailyAttendance[memberName].status === 'returned') {
+         showToast(`${memberName}님은 이미 퇴근 처리되었습니다.`, true);
+         return false;
     }
 
     appState.dailyAttendance[memberName].outTime = now;
@@ -50,14 +64,41 @@ export const processClockOut = (memberName) => {
 
     saveStateToFirestore();
     render();
-    showToast(`${memberName}님 퇴근 처리되었습니다. (${now})`);
+    showToast(`${memberName}님 ${isAdminAction ? '관리자에 의해 ' : ''}퇴근 처리되었습니다. (${now})`);
+    return true;
+};
+
+// ✨ [신규] 퇴근 취소 처리 (퇴근 상태를 다시 출근 상태로 되돌림)
+export const cancelClockOut = (memberName, isAdminAction = false) => {
+    if (!appState.dailyAttendance || !appState.dailyAttendance[memberName]) {
+        showToast(`${memberName}님의 출퇴근 기록이 없습니다.`, true);
+        return false;
+    }
+
+    const record = appState.dailyAttendance[memberName];
+    if (record.status !== 'returned') {
+         showToast(`${memberName}님은 현재 퇴근 상태가 아닙니다.`, true);
+         return false;
+    }
+
+    // 상태 복구 (active로 변경하고 퇴근 시간 제거)
+    appState.dailyAttendance[memberName] = {
+        ...record,
+        outTime: null,
+        status: 'active'
+    };
+
+    saveStateToFirestore();
+    render();
+    showToast(`${memberName}님의 퇴근이 ${isAdminAction ? '관리자에 의해 ' : ''}취소되었습니다. (다시 근무 상태)`);
     return true;
 };
 
 
 export const startWorkGroup = (members, task) => {
+    // ... (기존 코드와 동일)
     // ✅ [수정] 출근하지 않은 인원 체크
-    const notClockedInMembers = members.filter(member => 
+    const notClockedInMembers = members.filter(member =>
         !appState.dailyAttendance?.[member] || appState.dailyAttendance[member].status !== 'active'
     );
 
@@ -86,8 +127,9 @@ export const startWorkGroup = (members, task) => {
 };
 
 export const addMembersToWorkGroup = (members, task, groupId) => {
+    // ... (기존 코드와 동일)
     // ✅ [수정] 출근하지 않은 인원 체크
-    const notClockedInMembers = members.filter(member => 
+    const notClockedInMembers = members.filter(member =>
         !appState.dailyAttendance?.[member] || appState.dailyAttendance[member].status !== 'active'
     );
 
@@ -115,6 +157,7 @@ export const addMembersToWorkGroup = (members, task, groupId) => {
 };
 
 export const stopWorkGroup = (groupId) => {
+    // ... (기존 코드 그대로 유지)
     const recordsToStop = (appState.workRecords || []).filter(r => String(r.groupId) === String(groupId) && (r.status === 'ongoing' || r.status === 'paused'));
     if (recordsToStop.length === 0) return;
 
@@ -122,6 +165,7 @@ export const stopWorkGroup = (groupId) => {
 };
 
 export const finalizeStopGroup = (groupId, quantity) => {
+    // ... (기존 코드 그대로 유지)
     const endTime = getCurrentTime();
     let taskName = '';
     let changed = false;
@@ -151,6 +195,7 @@ export const finalizeStopGroup = (groupId, quantity) => {
 };
 
 export const stopWorkIndividual = (recordId) => {
+    // ... (기존 코드 그대로 유지)
     const endTime = getCurrentTime();
     const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
     if (record && (record.status === 'ongoing' || record.status === 'paused')) {
@@ -170,6 +215,7 @@ export const stopWorkIndividual = (recordId) => {
 };
 
 export const pauseWorkGroup = (groupId) => {
+    // ... (기존 코드 그대로 유지)
     const currentTime = getCurrentTime();
     let changed = false;
     (appState.workRecords || []).forEach(record => {
@@ -188,6 +234,7 @@ export const pauseWorkGroup = (groupId) => {
 };
 
 export const resumeWorkGroup = (groupId) => {
+    // ... (기존 코드 그대로 유지)
     const currentTime = getCurrentTime();
     let changed = false;
     (appState.workRecords || []).forEach(record => {
@@ -206,6 +253,7 @@ export const resumeWorkGroup = (groupId) => {
 };
 
 export const pauseWorkIndividual = (recordId) => {
+    // ... (기존 코드 그대로 유지)
     const currentTime = getCurrentTime();
     const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
     if (record && record.status === 'ongoing') {
@@ -219,6 +267,7 @@ export const pauseWorkIndividual = (recordId) => {
 };
 
 export const resumeWorkIndividual = (recordId) => {
+    // ... (기존 코드 그대로 유지)
     const currentTime = getCurrentTime();
     const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
     if (record && record.status === 'paused') {
