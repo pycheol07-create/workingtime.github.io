@@ -83,8 +83,7 @@ import {
     renderLeaveTypeModal,
     // ✅ [수정] populateManualAddForm 임포트 제거 (오류 발생)
     renderEditLeaveModal,
-    renderAddAttendanceModal,
-    renderEditAttendanceModal,
+    // ✅ [수정] renderAddAttendanceModal, renderEditAttendanceModal 임포트 제거 (오류 발생)
     renderMemberActionModal
 } from './ui-modals.js';
 import {
