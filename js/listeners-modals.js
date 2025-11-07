@@ -95,12 +95,12 @@ import {
     processClockOut, // ✨ [신규] 퇴근 처리
     cancelClockOut // ✨ [신규] 퇴근 취소
 } from './app-logic.js';
-// ✅ [수정] 오류를 일으킨 deleteAttendanceRecord 임포트 제거
-import { saveProgress, deleteHistoryEntry, saveDayDataToHistory, saveAttendanceRecord } from './app-history-logic.js';
+// ✅ [수정] 오류를 일으킨 deleteHistoryEntry 임포트 제거
+import { saveProgress, saveDayDataToHistory, saveAttendanceRecord } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-// ✅ [수정] Firestore 함수 임포트 추가 (collection, query, where, getDocs)
+// ✅ [수정] Firestore 함수 임포트 추가 (collection, query, where, getDocs, setDoc)
 import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
