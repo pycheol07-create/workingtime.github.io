@@ -1,6 +1,6 @@
 // === js/ui-modals.js ===
 
-// ✅ [수정] renderQuantityModalInputs (기존 유지)
+// ... (renderQuantityModalInputs, renderTaskSelectionModal 함수는 기존과 동일하므로 생략) ...
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
@@ -80,7 +80,7 @@ export const renderTaskSelectionModal = (taskGroups = []) => {
     });
 };
 
-// ✅ [수정] 버튼 스타일 표준화 적용
+// ✅ [수정] 표준 스타일 적용
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -107,11 +107,11 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             .map(item => [item.member, item])
     );
 
-    // 🔥 [핵심] 표준 스타일 정의
+    // 🔥 [핵심] 표준 스타일 정의 (listeners-main.js 와 동일하게 유지)
     const baseClasses = "member-select-btn w-full p-2 rounded-lg border-2 text-center transition-all duration-200 min-h-[50px] flex flex-col justify-center";
     const disabledClasses = "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed";
-    // 선택 안됨: 흰 배경, 회색 테두리, 검은 글씨, 호버 시 연한 파랑
-    const unselectedClasses = "bg-white border-gray-300 text-gray-900 hover:bg-blue-50 hover:border-blue-300";
+    const unselectedClasses = "bg-white border-gray-300 text-gray-900 hover:bg-blue-50 hover:border-blue-300"; // 선택 안됨
+    // (참고: selectedClasses는 초기 렌더링엔 안 쓰이지만 listeners-main.js 에서 사용됨: bg-blue-600 border-blue-600 text-white)
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -142,7 +142,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             card.type = 'button';
             card.dataset.memberName = member;
 
-            // 🔥 표준 스타일 적용
+            // 🔥 초기 상태 클래스 적용
             card.className = `${baseClasses} ${isOngoing || isPaused || isOnLeave ? disabledClasses : unselectedClasses}`;
 
             if (isOngoing || isPaused || isOnLeave) card.disabled = true;
@@ -185,7 +185,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         card.type = 'button';
         card.dataset.memberName = pt.name;
 
-        // 🔥 표준 스타일 적용 (알바)
+        // 🔥 초기 상태 클래스 적용 (알바)
         card.className = `${baseClasses} ${isOngoing || isPaused || isOnLeave ? disabledClasses : unselectedClasses}`;
 
         if (isOngoing || isPaused || isOnLeave) card.disabled = true;
