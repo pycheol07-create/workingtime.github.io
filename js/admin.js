@@ -1,21 +1,27 @@
+// ✅ [수정] Firestore 함수 및 getAuth 임포트 경로 수정, 추가
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDoc, collection, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ⛔️ utils.js를 import하지 않으므로, getTodayDateString 함수를 여기에 직접 추가합니다.
 
 let db, auth;
 let appConfig = {};
+const APP_ID = 'team-work-logger-v2'; // ✅ [신규] 앱 ID 상수 추가
 
-const DASHBOARD_ITEM_DEFINITIONS = {
-    'total-staff': { title: '총원 (직원/알바)' },
-    'leave-staff': { title: '휴무' },
-    'active-staff': { title: '근무 (직원/알바)' },
-    'working-staff': { title: '업무중' },
-    'idle-staff': { title: '대기' },
-    'ongoing-tasks': { title: '진행업무' },
-    'total-work-time': { title: '업무진행시간' },
-    'domestic-invoice': { title: '국내송장(예상)', isQuantity: true },
-    'china-production': { title: '중국제작', isQuantity: true },
-    'direct-delivery': { title: '직진배송', isQuantity: true }
+let draggedItem = null;
+let currentModalTarget = null;
+let taskJustAdded = null;
+
+// ✅ [신규] utils.js의 getTodayDateString 함수 복사
+const getTodayDateString = () => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    const localDate = new Date(now - offset);
+    return localDate.toISOString().slice(0, 10);
 };
+
+// ... (getAllDashboardDefinitions, getDragAfterElement, ... , renderQuantityToDashboardMapping 함수까지 기존 코드 동일) ...
+// (getAllDashboardDefinitions 부터 renderQuantityToDashboardMapping 까지의 모든 함수가 여기에 위치)
 
 function getAllDashboardDefinitions(config) {
     return {
@@ -305,11 +311,18 @@ function renderQuantityToDashboardMapping(config) {
     });
 }
 
+// ✅ [수정] 마이그레이션 버튼 리스너 추가
 function setupEventListeners() {
     document.getElementById('save-all-btn').addEventListener('click', handleSaveAll);
     document.getElementById('add-team-group-btn').addEventListener('click', addTeamGroup);
     document.getElementById('add-dashboard-item-btn').addEventListener('click', openDashboardItemModal);
     document.getElementById('add-custom-dashboard-item-btn').addEventListener('click', addCustomDashboardItem);
+
+    // ✅ [신규] 마이그레이션 버튼 리스너
+    const migrateBtn = document.getElementById('migrate-today-data-btn');
+    if (migrateBtn) {
+        migrateBtn.addEventListener('click', handleDataMigration);
+    }
 
     document.getElementById('add-key-task-btn').addEventListener('click', () => {
         currentModalTarget = 'key';
@@ -376,6 +389,84 @@ function setupEventListeners() {
     setupDragDropListeners('.tasks-container', '.task-item');
     setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item');
 }
+
+// ✅ [신규] 마이그레이션 로직
+async function handleDataMigration() {
+    const btn = document.getElementById('migrate-today-data-btn');
+    const statusEl = document.getElementById('migration-status');
+    if (!db) {
+        statusEl.textContent = '오류: DB에 연결되지 않았습니다. 로그인 상태를 확인하세요.';
+        statusEl.className = 'text-sm text-red-600 mt-2';
+        return;
+    }
+
+    if (!confirm("데이터 마이그레이션을 실행합니다. 이 작업은 오늘 날짜의 데이터에 대해 딱 한 번만 실행해야 합니다.\n(실수로 여러 번 실행해도 데이터가 덮어쓰기되므로 문제는 없으나, 불필요한 작업입니다.)\n\n계속하시겠습니까?")) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '이전 중...';
+    statusEl.textContent = '이전 작업을 시작합니다... (오늘 날짜의 기존 문서를 읽는 중)';
+    statusEl.className = 'text-sm text-gray-600 mt-2';
+
+    try {
+        const todayKey = getTodayDateString();
+        
+        // 1. 기존 메인 문서 경로
+        const oldDocRef = doc(db, 'artifacts', APP_ID, 'daily_data', todayKey);
+        // 2. 새 하위 컬렉션 경로
+        const newColRef = collection(db, 'artifacts', APP_ID, 'daily_data', todayKey, 'workRecords');
+
+        // 3. 기존 데이터 읽기
+        const docSnap = await getDoc(oldDocRef);
+        if (!docSnap.exists() || !docSnap.data().state) {
+            statusEl.textContent = '성공: 이전할 기존 데이터(state)가 없습니다. (오늘 처음 앱을 사용한 경우)';
+            statusEl.className = 'text-sm text-green-600 mt-2';
+            btn.textContent = '이전 완료 (데이터 없음)';
+            return;
+        }
+
+        const oldState = JSON.parse(docSnap.data().state);
+        const oldWorkRecords = oldState.workRecords;
+
+        if (!oldWorkRecords || oldWorkRecords.length === 0) {
+            statusEl.textContent = '성공: 기존 데이터에 이전할 업무 기록(workRecords)이 없습니다.';
+            statusEl.className = 'text-sm text-green-600 mt-2';
+            btn.textContent = '이전 완료 (기록 없음)';
+            return;
+        }
+
+        statusEl.textContent = `기존 기록 ${oldWorkRecords.length}건을 발견했습니다. 새 위치로 복사를 시작합니다...`;
+
+        // 4. 새 하위 컬렉션에 일괄 쓰기
+        const batch = writeBatch(db);
+        let migratedCount = 0;
+        oldWorkRecords.forEach(record => {
+            if (!record.id) {
+                console.warn("Skipping record with no ID: ", record);
+                return; // ID가 없는 비정상 데이터는 스킵
+            }
+            // ✅ [수정] setDoc 대신 batch.set 사용
+            const newDocRef = doc(newColRef, record.id);
+            batch.set(newDocRef, record);
+            migratedCount++;
+        });
+
+        await batch.commit();
+
+        statusEl.textContent = `✅ 성공: 총 ${migratedCount}개의 업무 기록을 새 구조로 이전했습니다. 메인 앱을 새로고침하세요.`;
+        statusEl.className = 'text-sm text-green-600 mt-2 font-bold';
+        btn.textContent = '이전 완료';
+
+    } catch (e) {
+        console.error("Data migration failed: ", e);
+        statusEl.textContent = `❌ 실패: 데이터 이전 중 오류가 발생했습니다. (콘솔 확인) ${e.message}`;
+        statusEl.className = 'text-sm text-red-600 mt-2';
+        btn.disabled = false;
+        btn.textContent = '이전 재시도';
+    }
+}
+
 
 function addTeamGroup() {
     const container = document.getElementById('team-groups-container');
@@ -519,7 +610,7 @@ function handleNewTaskNameBlur(e) {
     if (msgEl) {
         msgEl.textContent = `방금 추가한 '${newTaskName}' 업무를 처리량 집계 목록에도 추가하시겠습니까?`;
     }
-    document.getElementById('confirm-add-to-quantity-modal').classList.remove('hidden');
+    document.getElementById('confirm-add-to-quantity-modal').classList.add('hidden');
 }
 
 function openDashboardItemModal() {
@@ -916,6 +1007,7 @@ async function handleSaveAll() {
     }
 }
 
+// ✅ [수정] DOMContentLoaded 리스너 수정
 document.addEventListener('DOMContentLoaded', () => {
     const adminContent = document.getElementById('admin-content');
 
@@ -949,7 +1041,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (currentUserRole === 'admin') {
                     renderAdminUI(appConfig);
-                    setupEventListeners();
+                    setupEventListeners(); // ✅ [수정] 마이그레이션 버튼 리스너가 여기서 등록됨
                     adminContent.classList.remove('hidden');
                 } else {
                     adminContent.innerHTML = `<h2 class="text-2xl font-bold text-yellow-600 p-8 text-center">접근 거부: 관리자 계정이 아닙니다.</h2>`;
