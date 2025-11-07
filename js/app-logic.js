@@ -69,7 +69,7 @@ export const processClockOut = (memberName, isAdminAction = false) => {
     }
 
     appState.dailyAttendance[memberName].outTime = now;
-    appState.dailyAttendance[memberName].status = 'returned'; 
+    appState.dailyAttendance[memberName].status = 'returned';
 
     saveStateToFirestore(); // ✅ dailyAttendance는 메인 문서에 저장
     // ⛔️ render(); // 제거
@@ -162,7 +162,7 @@ export const addMembersToWorkGroup = async (members, task, groupId) => {
         const workRecordsColRef = getWorkRecordsCollectionRef();
         const batch = writeBatch(db);
         const startTime = getCurrentTime();
-        
+
         members.forEach(member => {
             const recordId = generateId();
             const newRecordRef = doc(workRecordsColRef, recordId);
@@ -179,7 +179,7 @@ export const addMembersToWorkGroup = async (members, task, groupId) => {
             };
             batch.set(newRecordRef, newRecordData);
         });
-        
+
         await batch.commit();
         // ⛔️ appState.workRecords.push(...) 제거
         // ⛔️ render() 제거
@@ -192,60 +192,62 @@ export const addMembersToWorkGroup = async (members, task, groupId) => {
 
 // ✅ [수정] 이 함수는 로컬 캐시를 읽기만 하므로 변경 없음
 export const stopWorkGroup = (groupId) => {
-    const recordsToStop = (appState.workRecords || []).filter(r => String(r.groupId) === String(groupId) && (r.status === 'ongoing' || r.status === 'paused'));
-    if (recordsToStop.length === 0) return;
-
+    // 이 함수는 이제 직접 호출되지 않고 confirmStopGroupBtn 리스너에서 finalizeStopGroup을 바로 호출합니다.
+    // 호환성을 위해 남겨둘 수 있습니다.
     finalizeStopGroup(groupId, null);
 };
 
-// ✅ [수정] Firestore 문서를 일괄 업데이트 (async 추가)
+// ✅ [수정] Firestore 직접 조회 방식으로 변경하여 그룹 종료 기능 강화
 export const finalizeStopGroup = async (groupId, quantity) => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
+        // 1. 화면 상태(appState) 대신 Firestore에서 직접 '진행 중' 또는 '일시정지'인 그룹 데이터를 찾습니다.
+        const q = query(workRecordsColRef, where("groupId", "==", String(groupId)), where("status", "in", ["ongoing", "paused"]));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            console.warn(`Finalize stop: Group ${groupId} not found or already completed.`);
+            return;
+        }
+
         const batch = writeBatch(db);
         const endTime = getCurrentTime();
         let taskName = '';
-        let changed = false;
 
-        // ⛔️ [주의] 로컬 캐시(appState)를 기준으로 업데이트할 문서를 찾습니다.
-        (appState.workRecords || []).forEach(record => {
-            if (String(record.groupId) === String(groupId) && (record.status === 'ongoing' || record.status === 'paused')) {
-                taskName = record.task;
-                const recordRef = doc(workRecordsColRef, record.id);
-                
-                let pauses = record.pauses || [];
-                if (record.status === 'paused') {
-                    const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
-                    if (lastPause && lastPause.end === null) {
-                        lastPause.end = endTime;
-                    }
+        // 2. 찾아낸 모든 문서를 'completed'로 일괄 업데이트합니다.
+        querySnapshot.forEach(docSnap => {
+            const record = docSnap.data();
+            taskName = record.task; // 처리량 저장을 위해 업무명 확보
+
+            let pauses = record.pauses || [];
+            if (record.status === 'paused') {
+                const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
+                if (lastPause && lastPause.end === null) {
+                    lastPause.end = endTime;
                 }
-                const duration = calcElapsedMinutes(record.startTime, endTime, pauses);
-                
-                batch.update(recordRef, {
-                    status: 'completed',
-                    endTime: endTime,
-                    duration: duration,
-                    pauses: pauses
-                });
-                changed = true;
             }
+            const duration = calcElapsedMinutes(record.startTime, endTime, pauses);
+
+            batch.update(docSnap.ref, {
+                status: 'completed',
+                endTime: endTime,
+                duration: duration,
+                pauses: pauses
+            });
         });
 
+        // 3. (선택사항) 처리량이 입력되었다면 메타데이터에 업데이트합니다.
         if (quantity !== null && taskName) {
             appState.taskQuantities = appState.taskQuantities || {};
             appState.taskQuantities[taskName] = (appState.taskQuantities[taskName] || 0) + (Number(quantity) || 0);
         }
 
-        if (changed) {
-            await batch.commit();
-            // ⛔️ render() 제거
-            
-            // ✅ taskQuantities가 변경되었을 수 있으므로 메인 문서 저장
-            if (quantity !== null) {
-                saveStateToFirestore();
-            }
+        await batch.commit();
+
+        if (quantity !== null) {
+            saveStateToFirestore();
         }
+
     } catch (e) {
          console.error("Error finalizing work group: ", e);
          showToast("그룹 업무 종료 중 오류가 발생했습니다.", true);
@@ -260,7 +262,7 @@ export const stopWorkIndividual = async (recordId) => {
             const workRecordsColRef = getWorkRecordsCollectionRef();
             const recordRef = doc(workRecordsColRef, recordId);
             const endTime = getCurrentTime();
-            
+
             let pauses = record.pauses || [];
             if (record.status === 'paused') {
                 const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
@@ -302,7 +304,7 @@ export const pauseWorkGroup = async (groupId) => {
                 const recordRef = doc(workRecordsColRef, record.id);
                 const newPauses = record.pauses || [];
                 newPauses.push({ start: currentTime, end: null, type: 'break' });
-                
+
                 batch.update(recordRef, {
                     status: 'paused',
                     pauses: newPauses
@@ -336,11 +338,11 @@ export const resumeWorkGroup = async (groupId) => {
                 const recordRef = doc(workRecordsColRef, record.id);
                 const pauses = record.pauses || [];
                 const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
-                
+
                 if (lastPause && lastPause.end === null) {
                     lastPause.end = currentTime;
                 }
-                
+
                 batch.update(recordRef, {
                     status: 'ongoing',
                     pauses: pauses
@@ -348,7 +350,7 @@ export const resumeWorkGroup = async (groupId) => {
                 changed = true;
             }
         });
-        
+
         if (changed) {
             await batch.commit();
             // ⛔️ render() 제거
@@ -369,15 +371,15 @@ export const pauseWorkIndividual = async (recordId) => {
             const workRecordsColRef = getWorkRecordsCollectionRef();
             const recordRef = doc(workRecordsColRef, recordId);
             const currentTime = getCurrentTime();
-            
+
             const newPauses = record.pauses || [];
             newPauses.push({ start: currentTime, end: null, type: 'break' });
-            
+
             await updateDoc(recordRef, {
                 status: 'paused',
                 pauses: newPauses
             });
-            
+
             // ⛔️ render() 제거
             // ⛔️ saveStateToFirestore() 제거
             showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
@@ -396,18 +398,18 @@ export const resumeWorkIndividual = async (recordId) => {
             const workRecordsColRef = getWorkRecordsCollectionRef();
             const recordRef = doc(workRecordsColRef, recordId);
             const currentTime = getCurrentTime();
-            
+
             const pauses = record.pauses || [];
             const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
             if (lastPause && lastPause.end === null) {
                 lastPause.end = currentTime;
             }
-            
+
             await updateDoc(recordRef, {
                 status: 'ongoing',
                 pauses: pauses
             });
-            
+
             // ⛔️ render() 제거
             // ⛔️ saveStateToFirestore() 제거
             showToast(`${record.member}님 ${record.task} 업무 재개.`);
@@ -441,7 +443,7 @@ export const autoPauseForLunch = async () => {
             const record = doc.data();
             const newPauses = record.pauses || [];
             newPauses.push({ start: currentTime, end: null, type: 'lunch' });
-            
+
             batch.update(doc.ref, {
                 status: 'paused',
                 pauses: newPauses
@@ -488,7 +490,7 @@ export const autoResumeFromLunch = async () => {
             // 마지막 pause가 'lunch' 타입이고, 아직 안 끝났는지 확인
             if (lastPause && lastPause.type === 'lunch' && lastPause.end === null) {
                 lastPause.end = currentTime;
-                
+
                 batch.update(doc.ref, {
                     status: 'ongoing',
                     pauses: pauses
