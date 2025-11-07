@@ -1,16 +1,25 @@
-// ✅ [수정] Firestore 함수 및 getAuth 임포트 경로 수정, 추가
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+// ✅ [수정] Firestore 함수 추가
 import { doc, getDoc, collection, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// ⛔️ utils.js를 import하지 않으므로, getTodayDateString 함수를 여기에 직접 추가합니다.
 
 let db, auth;
 let appConfig = {};
 const APP_ID = 'team-work-logger-v2'; // ✅ [신규] 앱 ID 상수 추가
 
-let draggedItem = null;
-let currentModalTarget = null;
-let taskJustAdded = null;
+// ✅ [복원] 누락되었던 상수 정의
+const DASHBOARD_ITEM_DEFINITIONS = {
+    'total-staff': { title: '총원 (직원/알바)' },
+    'leave-staff': { title: '휴무' },
+    'active-staff': { title: '근무 (직원/알바)' },
+    'working-staff': { title: '업무중' },
+    'idle-staff': { title: '대기' },
+    'ongoing-tasks': { title: '진행업무' },
+    'total-work-time': { title: '업무진행시간' },
+    'domestic-invoice': { title: '국내송장(예상)', isQuantity: true },
+    'china-production': { title: '중국제작', isQuantity: true },
+    'direct-delivery': { title: '직진배송', isQuantity: true }
+};
 
 // ✅ [신규] utils.js의 getTodayDateString 함수 복사
 const getTodayDateString = () => {
@@ -19,9 +28,6 @@ const getTodayDateString = () => {
     const localDate = new Date(now - offset);
     return localDate.toISOString().slice(0, 10);
 };
-
-// ... (getAllDashboardDefinitions, getDragAfterElement, ... , renderQuantityToDashboardMapping 함수까지 기존 코드 동일) ...
-// (getAllDashboardDefinitions 부터 renderQuantityToDashboardMapping 까지의 모든 함수가 여기에 위치)
 
 function getAllDashboardDefinitions(config) {
     return {
@@ -311,7 +317,6 @@ function renderQuantityToDashboardMapping(config) {
     });
 }
 
-// ✅ [수정] 마이그레이션 버튼 리스너 추가
 function setupEventListeners() {
     document.getElementById('save-all-btn').addEventListener('click', handleSaveAll);
     document.getElementById('add-team-group-btn').addEventListener('click', addTeamGroup);
@@ -446,7 +451,6 @@ async function handleDataMigration() {
                 console.warn("Skipping record with no ID: ", record);
                 return; // ID가 없는 비정상 데이터는 스킵
             }
-            // ✅ [수정] setDoc 대신 batch.set 사용
             const newDocRef = doc(newColRef, record.id);
             batch.set(newDocRef, record);
             migratedCount++;
@@ -610,7 +614,7 @@ function handleNewTaskNameBlur(e) {
     if (msgEl) {
         msgEl.textContent = `방금 추가한 '${newTaskName}' 업무를 처리량 집계 목록에도 추가하시겠습니까?`;
     }
-    document.getElementById('confirm-add-to-quantity-modal').classList.add('hidden');
+    document.getElementById('confirm-add-to-quantity-modal').classList.remove('hidden');
 }
 
 function openDashboardItemModal() {
@@ -1007,7 +1011,6 @@ async function handleSaveAll() {
     }
 }
 
-// ✅ [수정] DOMContentLoaded 리스너 수정
 document.addEventListener('DOMContentLoaded', () => {
     const adminContent = document.getElementById('admin-content');
 
@@ -1041,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (currentUserRole === 'admin') {
                     renderAdminUI(appConfig);
-                    setupEventListeners(); // ✅ [수정] 마이그레이션 버튼 리스너가 여기서 등록됨
+                    setupEventListeners();
                     adminContent.classList.remove('hidden');
                 } else {
                     adminContent.innerHTML = `<h2 class="text-2xl font-bold text-yellow-600 p-8 text-center">접근 거부: 관리자 계정이 아닙니다.</h2>`;
