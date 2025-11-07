@@ -1,6 +1,6 @@
 // === js/ui-modals.js ===
 
-// ✅ [수정] renderQuantityModalInputs
+// ✅ [수정] renderQuantityModalInputs (기존 유지)
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
@@ -80,6 +80,7 @@ export const renderTaskSelectionModal = (taskGroups = []) => {
     });
 };
 
+// ✅ [수정] 버튼 스타일 표준화 적용
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -106,6 +107,12 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             .map(item => [item.member, item])
     );
 
+    // 🔥 [핵심] 표준 스타일 정의
+    const baseClasses = "member-select-btn w-full p-2 rounded-lg border-2 text-center transition-all duration-200 min-h-[50px] flex flex-col justify-center";
+    const disabledClasses = "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed";
+    // 선택 안됨: 흰 배경, 회색 테두리, 검은 글씨, 호버 시 연한 파랑
+    const unselectedClasses = "bg-white border-gray-300 text-gray-900 hover:bg-blue-50 hover:border-blue-300";
+
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
         teamGroups.find(g => g.name === '공통파트'),
@@ -119,15 +126,14 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         groupContainer.innerHTML = `
             <div class="flex justify-between items-center p-2 border-b border-gray-200">
                 <h4 class="text-md font-bold text-gray-800">${group.name}</h4>
-                <button type="button" class="group-select-all-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded" data-group-name="${group.name}">전체</button>
+                <button type="button" class="group-select-all-btn text-xs bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 px-2 py-1 rounded shadow-sm transition-all" data-group-name="${group.name}">전체</button>
             </div>`;
 
         const memberList = document.createElement('div');
         memberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
         memberList.dataset.groupName = group.name;
 
-        const uniqueMembersInGroup = [...new Set(group.members)];
-        uniqueMembersInGroup.forEach(member => {
+        [...new Set(group.members)].forEach(member => {
             const isOngoing = ongoingMembers.has(member);
             const isPaused = pausedMembers.has(member);
             const leaveEntry = onLeaveMemberMap.get(member);
@@ -136,16 +142,16 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             card.type = 'button';
             card.dataset.memberName = member;
 
-            // 🔥 [수정 핵심] member-select-btn 클래스 추가
-            card.className = `member-select-btn w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+            // 🔥 표준 스타일 적용
+            card.className = `${baseClasses} ${isOngoing || isPaused || isOnLeave ? disabledClasses : unselectedClasses}`;
 
             if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
             let statusLabel = '';
-            if (isOngoing) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
-            else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; }
-            else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
-            card.innerHTML = `<div class="font-semibold">${member}</div>${statusLabel}`;
+            if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
+            else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
+            else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
+            card.innerHTML = `<div class="font-bold">${member}</div>${statusLabel}`;
 
             memberList.appendChild(card);
         });
@@ -153,13 +159,14 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         container.appendChild(groupContainer);
     });
 
+    // 알바 그룹
     const albaGroupContainer = document.createElement('div');
     albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
     albaGroupContainer.innerHTML = `<div class="flex justify-between items-center p-2 border-b border-gray-200">
                                          <h4 class="text-md font-bold text-gray-800">알바</h4>
                                          <div>
-                                             <button type="button" class="group-select-all-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded" data-group-name="알바">전체</button>
-                                             <button id="add-part-timer-modal-btn" class="text-xs bg-blue-200 hover:bg-blue-300 text-blue-800 px-2 py-0.5 rounded ml-1">+ 추가</button>
+                                             <button type="button" class="group-select-all-btn text-xs bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 px-2 py-1 rounded shadow-sm transition-all" data-group-name="알바">전체</button>
+                                             <button id="add-part-timer-modal-btn" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded ml-1 transition-all">+ 추가</button>
                                          </div>
                                     </div>`;
     const albaMemberList = document.createElement('div');
@@ -178,29 +185,29 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         card.type = 'button';
         card.dataset.memberName = pt.name;
 
-        // 🔥 [수정 핵심] member-select-btn 클래스 추가 (알바)
-        card.className = `member-select-btn w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+        // 🔥 표준 스타일 적용 (알바)
+        card.className = `${baseClasses} ${isOngoing || isPaused || isOnLeave ? disabledClasses : unselectedClasses}`;
 
         if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
         let statusLabel = '';
-        if (isOngoing) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
-        else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; }
-        else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
-        card.innerHTML = `<div class="font-semibold">${pt.name}</div>${statusLabel}`;
+        if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
+        else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
+        else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
+        card.innerHTML = `<div class="font-bold">${pt.name}</div>${statusLabel}`;
 
         cardWrapper.appendChild(card);
 
         const editBtn = document.createElement('button');
         editBtn.dataset.partTimerId = pt.id;
-        editBtn.className = 'edit-part-timer-btn absolute top-1 right-5 p-1 text-gray-400 hover:text-blue-600';
-        editBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L13.196 5.2z" /></svg>`;
+        editBtn.className = 'edit-part-timer-btn absolute top-1 right-6 p-1 text-gray-400 hover:text-blue-600 transition-colors';
+        editBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L13.196 5.2z" /></svg>`;
         cardWrapper.appendChild(editBtn);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.dataset.partTimerId = pt.id;
-        deleteBtn.className = 'delete-part-timer-btn absolute top-1 right-1 p-1 text-gray-400 hover:text-red-600';
-        deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
+        deleteBtn.className = 'delete-part-timer-btn absolute top-1 right-1 p-1 text-gray-400 hover:text-red-600 transition-colors';
+        deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
         cardWrapper.appendChild(deleteBtn);
 
         albaMemberList.appendChild(cardWrapper);

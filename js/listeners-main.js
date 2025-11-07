@@ -1,4 +1,5 @@
 // === js/listeners-main.js ===
+// ... (상단 import문들은 기존과 동일하므로 생략, 아래 setupMainScreenListeners 함수 전체를 교체하세요) ...
 import {
     appState, appConfig, db, auth,
     persistentLeaveSchedule, allHistoryData,
@@ -65,23 +66,38 @@ import {
 } from './app-history-logic.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, runTransaction, updateDoc, collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, runTransaction, updateDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 export function setupMainScreenListeners() {
+
+    // 🔥 [핵심] 선택/미선택 상태 클래스 정의 (ui-modals.js와 완벽 일치)
+    // 선택됨: 파란 배경, 파란 테두리, 흰색 글씨, 호버 시 더 진한 파랑
+    const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
+    // 선택 안됨: 흰 배경, 회색 테두리, 검은 글씨, 호버 시 연한 파랑 배경/테두리
+    const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
+
+    // 헬퍼: 버튼을 선택 상태로 만듦
+    const selectMemberBtn = (btn) => {
+        btn.classList.remove(...UNSELECTED_CLASSES);
+        btn.classList.add(...SELECTED_CLASSES);
+    };
+    // 헬퍼: 버튼을 선택 해제 상태로 만듦
+    const deselectMemberBtn = (btn) => {
+        btn.classList.remove(...SELECTED_CLASSES);
+        btn.classList.add(...UNSELECTED_CLASSES);
+    };
+
 
     const pcAttendanceCheckbox = document.getElementById('pc-attendance-checkbox');
     if (pcAttendanceCheckbox) {
         pcAttendanceCheckbox.addEventListener('change', (e) => {
             const currentUser = appState.currentUser;
             if (!currentUser) return;
-
             if (e.target.checked) {
                 processClockIn(currentUser);
             } else {
                 const success = processClockOut(currentUser);
-                if (!success) {
-                    e.target.checked = true;
-                }
+                if (!success) e.target.checked = true;
             }
         });
     }
@@ -91,14 +107,11 @@ export function setupMainScreenListeners() {
         mobileAttendanceCheckbox.addEventListener('change', (e) => {
             const currentUser = appState.currentUser;
             if (!currentUser) return;
-
             if (e.target.checked) {
                 processClockIn(currentUser);
             } else {
                  const success = processClockOut(currentUser);
-                if (!success) {
-                    e.target.checked = true;
-                }
+                if (!success) e.target.checked = true;
             }
         });
     }
@@ -138,7 +151,7 @@ export function setupMainScreenListeners() {
 
             const stopGroupButton = e.target.closest('.stop-work-group-btn');
             if (stopGroupButton) {
-                context.groupToStopId = stopGroupButton.dataset.groupId; // 문자열 ID 유지
+                context.groupToStopId = stopGroupButton.dataset.groupId;
                 if (stopGroupConfirmModal) {
                     stopGroupConfirmModal.classList.remove('hidden');
                 }
@@ -730,23 +743,21 @@ export function setupMainScreenListeners() {
     if (teamSelectModal) {
         teamSelectModal.addEventListener('click', async (e) => {
             const target = e.target;
-            
+
             const memberButton = target.closest('.member-select-btn');
             if (memberButton && !memberButton.disabled) {
                 const memberName = memberButton.dataset.memberName;
 
-                // ✅ [수정] toggle 대신 명시적 add/remove 사용으로 전체 선택과 로직 통일
+                // 🔥 [핵심] 헬퍼 함수 사용하여 토글 로직 통일
                 const willBeSelected = !memberButton.classList.contains('bg-blue-600');
 
                 if (willBeSelected) {
-                    memberButton.classList.add('bg-blue-600', 'text-white');
-                    memberButton.classList.remove('bg-white', 'hover:bg-blue-50');
+                    selectMemberBtn(memberButton);
                     if (!context.tempSelectedMembers.includes(memberName)) {
                         context.tempSelectedMembers.push(memberName);
                     }
                 } else {
-                    memberButton.classList.remove('bg-blue-600', 'text-white');
-                    memberButton.classList.add('bg-white', 'hover:bg-blue-50');
+                    deselectMemberBtn(memberButton);
                     context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
                 }
             }
@@ -762,13 +773,11 @@ export function setupMainScreenListeners() {
                     availableButtons.forEach(btn => {
                         const memberName = btn.dataset.memberName;
                         if (allSelected) { // 전체 해제
-                            btn.classList.remove('bg-blue-600', 'text-white');
-                            btn.classList.add('bg-white', 'hover:bg-blue-50');
+                            deselectMemberBtn(btn);
                             context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
                         } else { // 전체 선택
                              if (!btn.classList.contains('bg-blue-600')) {
-                                btn.classList.add('bg-blue-600', 'text-white');
-                                btn.classList.remove('bg-white', 'hover:bg-blue-50');
+                                selectMemberBtn(btn);
                                 if (!context.tempSelectedMembers.includes(memberName)) {
                                     context.tempSelectedMembers.push(memberName);
                                 }
@@ -786,7 +795,7 @@ export function setupMainScreenListeners() {
                     showToast('최소 1명 이상의 팀원을 선택해주세요.', true);
                     return;
                 }
-                
+
                 if (context.selectedGroupForAdd) {
                     await addMembersToWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart, context.selectedGroupForAdd);
                 } else {
