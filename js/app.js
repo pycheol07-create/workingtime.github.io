@@ -1,5 +1,4 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-// ✅ [수정] collection, query, where, onSnapshot (문서 변경 감지용) 추가
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -177,7 +176,6 @@ export const historyClearFilterBtn = document.getElementById('history-clear-filt
 export const historyDownloadPeriodExcelBtn = document.getElementById('history-download-period-excel-btn');
 export const coqExplanationModal = document.getElementById('coq-explanation-modal');
 
-// ✨ [신규] 퇴근 취소 및 관리자 액션 관련 DOM 요소 추가
 export const pcClockOutCancelBtn = document.getElementById('pc-clock-out-cancel-btn');
 export const mobileClockOutCancelBtn = document.getElementById('mobile-clock-out-cancel-btn');
 export const memberActionModal = document.getElementById('member-action-modal');
@@ -197,7 +195,6 @@ export let unsubscribeLeaveSchedule;
 export let unsubscribeConfig;
 export let elapsedTimeTimer = null;
 export let periodicRefreshTimer = null;
-// ✅ [신규] workRecords 리스너 변수
 export let unsubscribeWorkRecords;
 
 export let isDataDirty = false;
@@ -229,13 +226,13 @@ export let context = {
     reportSortState: {},
     currentReportParams: null,
     monthlyRevenues: {},
-    memberToAction: null, // ✨ [신규] 관리자가 현재 조작 중인 팀원 이름 저장
-    autoPauseForLunch: null, // ✅ [신규] 점심시간 함수 주입용
-    autoResumeFromLunch: null // ✅ [신규] 점심시간 함수 주입용
+    memberToAction: null,
+    autoPauseForLunch: null,
+    autoResumeFromLunch: null
 };
 
 export let appState = {
-    workRecords: [], // ✅ [수정] workRecords는 이제 실시간 리스너가 채워주는 '로컬 캐시'입니다.
+    workRecords: [],
     taskQuantities: {},
     dailyOnLeaveMembers: [],
     dateBasedOnLeaveMembers: [],
@@ -269,7 +266,7 @@ export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase()
 
 
 // Core Functions
-// ✅ [수정] saveStateToFirestore - workRecords 저장 로직 제거
+// ✅ [수정] 동시성 문제를 해결하기 위해 트랜잭션 내에서 읽기(get) 후 병합(merge)하도록 수정했습니다.
 export async function saveStateToFirestore() {
     if (!auth || !auth.currentUser) {
         console.warn('Cannot save state: User not authenticated.');
@@ -280,10 +277,20 @@ export async function saveStateToFirestore() {
         const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
 
         await runTransaction(db, async (transaction) => {
-            // const sfDoc = await transaction.get(docRef); // 읽기가 필요 없다면 생략 가능
+            // 1. 최신 상태 읽기
+            const docSnap = await transaction.get(docRef);
+            let currentState = {};
+            if (docSnap.exists() && docSnap.data().state) {
+                 try {
+                     currentState = JSON.parse(docSnap.data().state);
+                 } catch (e) {
+                     console.warn("Existing state parse error", e);
+                 }
+            }
 
-            const stateToSave = JSON.stringify({
-                // ⛔️ [제거] workRecords: appState.workRecords || [],
+            // 2. 로컬 변경사항 병합
+            const stateToSaveObj = {
+                ...currentState, // 기존 DB 상태 유지
                 taskQuantities: appState.taskQuantities || {},
                 onLeaveMembers: appState.dailyOnLeaveMembers || [],
                 partTimers: appState.partTimers || [],
@@ -292,16 +299,16 @@ export async function saveStateToFirestore() {
                 lunchResumeExecuted: appState.lunchResumeExecuted || false,
                 confirmedZeroTasks: appState.confirmedZeroTasks || [],
                 dailyAttendance: appState.dailyAttendance || {}
-            });
+                // workRecords는 제외됨 (별도 컬렉션 사용)
+            };
+
+            const stateToSave = JSON.stringify(stateToSaveObj);
 
             if (stateToSave.length > 900000) {
                 throw new Error("저장 데이터 용량 초과");
             }
 
-            // ✅ [수정] set이 아닌 merge: true를 사용하는 것이 더 안전합니다.
-            // (혹은 transaction.update를 사용)
-            // 여기서는 set을 유지하되, workRecords가 빠진 blob을 저장합니다.
-            transaction.set(docRef, { state: stateToSave }, { merge: true }); // merge: true 추가
+            transaction.set(docRef, { state: stateToSave }, { merge: true });
         });
 
         isDataDirty = false;
@@ -318,37 +325,29 @@ export async function saveStateToFirestore() {
 
 export const debouncedSaveState = debounce(saveStateToFirestore, 1000);
 
-// ✅ [수정] async 추가, 점심시간 자동화 로직 변경
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     
-    // ⛔️ [수정] 12:30 자동 일시정지 로직
     if (now === '12:30' && !appState.lunchPauseExecuted) {
-        appState.lunchPauseExecuted = true; // 1. 플래그 즉시 설정
-
-        if (context.autoPauseForLunch) { // 2. app-logic.js에서 주입된 함수가 있는지 확인
+        appState.lunchPauseExecuted = true;
+        if (context.autoPauseForLunch) {
             try {
-                const tasksPaused = await context.autoPauseForLunch(); // 3. Firestore 직접 업데이트
+                const tasksPaused = await context.autoPauseForLunch();
                 if (tasksPaused > 0) {
                     showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
                 }
             } catch (e) {
                 console.error("Error during auto-pause: ", e);
-                // 오류가 나도 플래그는 저장되어야 재시도를 안함 (다음날까지)
             }
         }
-        
-        // 4. 플래그(lunchPauseExecuted) 저장을 위해 메인 문서 저장
         saveStateToFirestore(); 
     }
 
-    // ⛔️ [수정] 13:30 자동 재개 로직
     if (now === '13:30' && !appState.lunchResumeExecuted) {
-        appState.lunchResumeExecuted = true; // 1. 플래그 즉시 설정
-
-        if (context.autoResumeFromLunch) { // 2. 주입된 함수 확인
+        appState.lunchResumeExecuted = true;
+        if (context.autoResumeFromLunch) {
             try {
-                const tasksResumed = await context.autoResumeFromLunch(); // 3. Firestore 직접 업데이트
+                const tasksResumed = await context.autoResumeFromLunch();
                 if (tasksResumed > 0) {
                     showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
                 }
@@ -356,12 +355,9 @@ export const updateElapsedTimes = async () => {
                  console.error("Error during auto-resume: ", e);
             }
         }
-        
-        // 4. 플래그(lunchResumeExecuted) 저장을 위해 메인 문서 저장
         saveStateToFirestore();
     }
 
-    // (이하 updateElapsedTimes 로직은 로컬 appState.workRecords를 읽기만 하므로 그대로 둡니다)
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
             const startTime = el.dataset.startTime;
@@ -415,16 +411,12 @@ export const markDataAsDirty = () => {
 
 export const autoSaveProgress = () => {
     const hasOngoing = (appState.workRecords || []).some(r => r.status === 'ongoing');
-
     if (isDataDirty || hasOngoing) {
-        // ✅ [수정] saveProgress는 이제 workRecords를 Firestore에서 읽어옵니다.
-        // ✅ isDataDirty는 workRecords가 아닌 다른 상태(e.g., 근태)가 변경되었을 때 true가 됩니다.
         saveProgress(true); 
         isDataDirty = false;
     }
 };
 
-// 앱 초기화
 async function startAppAfterLogin(user) {
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) loadingSpinner.style.display = 'block';
@@ -435,9 +427,7 @@ async function startAppAfterLogin(user) {
         appConfig = await loadAppConfig(db);
         persistentLeaveSchedule = await loadLeaveSchedule(db);
 
-        // ... (사용자 인증 및 역할 설정 로직은 동일) ...
         const userEmail = user.email;
-
         if (!userEmail) {
             showToast('로그인 사용자의 이메일 정보를 가져올 수 없습니다. 다시 로그인해주세요.', true);
             if (loadingSpinner) loadingSpinner.style.display = 'none';
@@ -478,7 +468,6 @@ async function startAppAfterLogin(user) {
         if (logoutBtn) logoutBtn.classList.remove('hidden');
         if (logoutBtnMobile) logoutBtnMobile.classList.remove('hidden');
 
-        // PC 버전 출퇴근 토글 보이기 및 라벨 설정
         const pcAttendanceToggle = document.getElementById('personal-attendance-toggle-pc');
         const pcAttendanceLabel = document.getElementById('pc-attendance-label');
         if (pcAttendanceToggle && pcAttendanceLabel) {
@@ -486,13 +475,11 @@ async function startAppAfterLogin(user) {
             pcAttendanceToggle.classList.remove('hidden');
             pcAttendanceToggle.classList.add('flex');
         }
-        // 모바일 버전 출퇴근 토글 보이기
         const mobileAttendanceToggle = document.getElementById('personal-attendance-toggle-mobile');
         if (mobileAttendanceToggle) {
              mobileAttendanceToggle.classList.remove('hidden');
              mobileAttendanceToggle.classList.add('flex');
         }
-
 
         const adminLinkBtn = document.getElementById('admin-link-btn');
         const resetAppBtn = document.getElementById('reset-app-btn');
@@ -524,8 +511,6 @@ async function startAppAfterLogin(user) {
             }
         });
 
-
-        // ... (설정 로드 실패 시 로직은 동일) ...
         if (loadingSpinner) loadingSpinner.style.display = 'none';
         renderDashboardLayout(appConfig);
         renderTaskSelectionModal(appConfig.taskGroups);
@@ -541,13 +526,10 @@ async function startAppAfterLogin(user) {
 
     displayCurrentDate();
     if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
-    elapsedTimeTimer = setInterval(updateElapsedTimes, 1000); // ✅ 1초마다 updateElapsedTimes 호출
+    elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
 
     if (periodicRefreshTimer) clearInterval(periodicRefreshTimer);
     periodicRefreshTimer = setInterval(() => {
-        // ✅ [수정] 이 함수들은 로컬 appState를 읽으므로,
-        // ✅ workRecords 스냅샷 리스너가 appState.workRecords를 잘 채워주면
-        // ✅ 이 함수들은 수정 없이 그대로 동작합니다.
         renderCompletedWorkLog(appState);
         renderTaskAnalysis(appState, appConfig);
     }, 30000);
@@ -555,7 +537,6 @@ async function startAppAfterLogin(user) {
     if (autoSaveTimer) clearInterval(autoSaveTimer);
     autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
 
-    // ... (leaveScheduleDocRef, configDocRef 리스너는 동일) ...
     const leaveScheduleDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
     if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule();
     unsubscribeLeaveSchedule = onSnapshot(leaveScheduleDocRef, (docSnap) => {
@@ -636,8 +617,6 @@ async function startAppAfterLogin(user) {
         showToast("앱 설정 연결에 실패했습니다.", true);
     });
 
-    
-    // ✅ [수정] 오늘 날짜의 '메인' 문서 스냅샷
     const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
     if (unsubscribeToday) unsubscribeToday();
 
@@ -649,10 +628,6 @@ async function startAppAfterLogin(user) {
 
             const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
 
-            // ⛔️ [제거] workRecords 로드 로직 제거
-            // appState.workRecords = loadedState.workRecords || []; 
-            
-            // ✅ [수정] workRecords를 제외한 나머지 상태만 로드합니다.
             appState.taskQuantities = { ...defaultQuantities, ...(loadedState.taskQuantities || {}) };
             appState.partTimers = loadedState.partTimers || [];
             appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
@@ -663,8 +638,6 @@ async function startAppAfterLogin(user) {
             appState.dailyAttendance = loadedState.dailyAttendance || {};
 
             isDataDirty = false;
-
-            // ✅ [수정] render()는 로컬 appState.workRecords 캐시를 기반으로 렌더링합니다.
             render();
             if (connectionStatusEl) connectionStatusEl.textContent = '동기화 (메타)';
             if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
@@ -681,27 +654,38 @@ async function startAppAfterLogin(user) {
         if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
     });
     
-    // ✅ [신규] 오늘 날짜의 'workRecords 하위 컬렉션' 스냅샷
     const workRecordsCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
     if (unsubscribeWorkRecords) unsubscribeWorkRecords();
 
-    // 🔥 [수정 핵심] 데이터 동기화 방식 변경 (부분 변경 -> 전체 교체)
     unsubscribeWorkRecords = onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
-        // 1. 로컬 데이터를 완전히 비웁니다.
-        appState.workRecords = [];
+        console.log("Work records snapshot received:", querySnapshot.docChanges().length, "changes.");
+        
+        querySnapshot.docChanges().forEach((change) => {
+            const docData = { id: change.doc.id, ...change.doc.data() };
+            const index = appState.workRecords.findIndex(r => r.id === change.doc.id);
 
-        // 2. 서버의 최신 상태를 그대로 복사해옵니다.
-        querySnapshot.forEach((doc) => {
-            appState.workRecords.push(doc.data());
+            if (change.type === "added") {
+                if (index === -1) {
+                    appState.workRecords.push(docData);
+                }
+            }
+            if (change.type === "modified") {
+                if (index > -1) {
+                    appState.workRecords[index] = docData;
+                } else {
+                    appState.workRecords.push(docData);
+                }
+            }
+            if (change.type === "removed") {
+                if (index > -1) {
+                    appState.workRecords.splice(index, 1);
+                }
+            }
         });
 
-        // 3. 시간순으로 정렬하여 일관된 화면을 유지합니다.
         appState.workRecords.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
-
-        // 4. 화면을 갱신합니다.
-        render();
+        render(); 
         
-        // 5. 연결 상태 표시 업데이트
         if (connectionStatusEl) connectionStatusEl.textContent = '동기화 (업무)';
         if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
 
@@ -746,10 +730,7 @@ async function main() {
             if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = undefined; }
             if (elapsedTimeTimer) { clearInterval(elapsedTimeTimer); elapsedTimeTimer = null; }
             if (periodicRefreshTimer) { clearInterval(periodicRefreshTimer); periodicRefreshTimer = null; }
-            
-            // ✅ [신규] workRecords 리스너 구독 취소
             if (unsubscribeWorkRecords) { unsubscribeWorkRecords(); unsubscribeWorkRecords = undefined; }
-
 
             appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user', confirmedZeroTasks: [], dailyAttendance: {} };
 

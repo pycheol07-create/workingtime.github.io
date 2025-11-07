@@ -1,6 +1,6 @@
 // === js/ui-modals.js ===
 
-// ✅ [수정] renderQuantityModalInputs
+// ... (renderQuantityModalInputs, renderTaskSelectionModal 함수는 기존과 동일) ...
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
@@ -136,8 +136,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             card.type = 'button';
             card.dataset.memberName = member;
 
-            // 🔥 [수정 핵심] member-select-btn 클래스 추가
-            card.className = `member-select-btn w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+            // ✅ [수정] 선택 가능한 상태일 때 'member-select-btn' 클래스 추가
+            card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'member-select-btn bg-white hover:bg-blue-50'}`;
 
             if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
@@ -178,8 +178,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         card.type = 'button';
         card.dataset.memberName = pt.name;
 
-        // 🔥 [수정 핵심] member-select-btn 클래스 추가 (알바)
-        card.className = `member-select-btn w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+        // ✅ [수정] 알바에게도 선택 가능한 상태일 때 'member-select-btn' 클래스 추가
+        card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'member-select-btn bg-white hover:bg-blue-50'}`;
 
         if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
