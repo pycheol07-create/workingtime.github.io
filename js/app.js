@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction, query, where, writeBatch, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
@@ -109,7 +109,7 @@ export const confirmStopIndividualBtn = document.getElementById('confirm-stop-in
 export const cancelStopIndividualBtn = document.getElementById('cancel-stop-individual-btn');
 export const stopIndividualConfirmMessage = document.getElementById('stop-individual-confirm-message');
 
-// ✅ [신규] 그룹 종료 모달 관련 요소 추가
+// ✅ 그룹 종료 모달 관련 요소
 export const stopGroupConfirmModal = document.getElementById('stop-group-confirm-modal');
 export const confirmStopGroupBtn = document.getElementById('confirm-stop-group-btn');
 export const cancelStopGroupBtn = document.getElementById('cancel-stop-group-btn');
