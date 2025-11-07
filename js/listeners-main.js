@@ -25,8 +25,8 @@ import {
     analysisMemberSelect,
     openManualAddBtn, manualAddRecordModal,
 
-    // ✅ [신규] 그룹 종료 모달 관련 요소 import
-    stopGroupConfirmModal, confirmStopGroupBtn, cancelStopGroupBtn,
+    stopGroupConfirmModal, 
+    // ✅ [삭제] confirmStopGroupBtn, cancelStopGroupBtn (modals.js로 이동)
 
     render, debouncedSaveState,
     generateId,
@@ -55,9 +55,7 @@ import {
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
-    processClockIn, processClockOut, cancelClockOut,
-    // ✅ [신규] 그룹 종료 함수 import
-    finalizeStopGroup
+    processClockIn, processClockOut, cancelClockOut
 } from './app-logic.js';
 
 import {
@@ -737,7 +735,7 @@ export function setupMainScreenListeners() {
             if (memberButton && !memberButton.disabled) {
                 const memberName = memberButton.dataset.memberName;
                 
-                // 🔥 [수정 핵심] 색상 토글 로직 통일
+                // ✅ [수정] 색상 토글 로직 통일
                 const isSelected = memberButton.classList.toggle('bg-blue-600');
                 memberButton.classList.toggle('text-white');
                 memberButton.classList.toggle('bg-white');
@@ -762,7 +760,7 @@ export function setupMainScreenListeners() {
 
                     availableButtons.forEach(btn => {
                         const memberName = btn.dataset.memberName;
-                        // 🔥 [수정 핵심] 전체 선택/해제 시에도 동일한 클래스 토글 적용
+                        // ✅ [수정] 전체 선택/해제 시에도 동일한 클래스 토글 적용
                         if (allSelected) { // 전체 해제
                             btn.classList.remove('bg-blue-600', 'text-white');
                             btn.classList.add('bg-white', 'hover:bg-blue-50');
@@ -798,69 +796,4 @@ export function setupMainScreenListeners() {
              });
         }
     }
-
-    // ✅ [신규] 그룹 종료 확인 모달 버튼 리스너 추가
-    if (confirmStopGroupBtn) {
-        confirmStopGroupBtn.addEventListener('click', async () => {
-            if (context.groupToStopId) {
-                await finalizeStopGroup(context.groupToStopId, null);
-                if (stopGroupConfirmModal) stopGroupConfirmModal.classList.add('hidden');
-                context.groupToStopId = null;
-            }
-        });
-    }
-
-    if (cancelStopGroupBtn) {
-        cancelStopGroupBtn.addEventListener('click', () => {
-            if (stopGroupConfirmModal) stopGroupConfirmModal.classList.add('hidden');
-            context.groupToStopId = null;
-        });
-    }
-}
-
-function openLeaveModal(memberName) {
-    context.memberToSetLeave = memberName;
-    if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
-    renderLeaveTypeModalOptions(LEAVE_TYPES);
-    if (leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
-    if (leaveEndDateInput) leaveEndDateInput.value = '';
-    const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
-    if (firstRadio) {
-        firstRadio.checked = true;
-        const initialType = firstRadio.value;
-        if (leaveDateInputsDiv) leaveDateInputsDiv.classList.toggle('hidden', !(initialType === '연차' || initialType === '출장' || initialType === '결근'));
-    } else if (leaveDateInputsDiv) { leaveDateInputsDiv.classList.add('hidden'); }
-    if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
-}
-
-function openAdminMemberActionModal(memberName) {
-    context.memberToAction = memberName;
-    if (actionMemberName) actionMemberName.textContent = memberName;
-
-    const attendance = appState.dailyAttendance?.[memberName];
-    const status = attendance?.status;
-    const inTime = attendance?.inTime;
-    const outTime = attendance?.outTime;
-
-    if (actionMemberStatusBadge && actionMemberTimeInfo) {
-        if (status === 'active') {
-            actionMemberStatusBadge.textContent = '근무 중 (대기)';
-            actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800';
-            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(inTime)}`;
-        } else if (status === 'returned') {
-            actionMemberStatusBadge.textContent = '퇴근 완료';
-            actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-600';
-            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(inTime)} / 퇴근: ${formatTimeTo24H(outTime)}`;
-        } else {
-             actionMemberStatusBadge.textContent = '출근 전';
-             actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-400';
-             actionMemberTimeInfo.textContent = '-';
-        }
-    }
-
-    if (adminClockInBtn) adminClockInBtn.classList.toggle('hidden', status === 'active' || status === 'returned');
-    if (adminClockOutBtn) adminClockOutBtn.classList.toggle('hidden', status !== 'active');
-    if (adminCancelClockOutBtn) adminCancelClockOutBtn.classList.toggle('hidden', status !== 'returned');
-
-    if (memberActionModal) memberActionModal.classList.remove('hidden');
 }
