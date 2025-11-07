@@ -23,7 +23,6 @@ import {
     openQuantityModalTodayBtn, openQuantityModalTodayBtnMobile,
     hamburgerBtn, navContent,
     analysisMemberSelect,
-    // ✅ [추가] 누락되었던 DOM 요소 가져오기
     openManualAddBtn, manualAddRecordModal,
 
     render, debouncedSaveState,
@@ -47,7 +46,6 @@ import {
     renderLeaveTypeModalOptions,
     renderPersonalAnalysis,
     renderQuantityModalInputs,
-    // ✅ [추가] 매뉴얼 추가 모달 렌더링 함수 가져오기
     renderManualAddModalDatalists
 } from './ui.js';
 
@@ -341,7 +339,6 @@ export function setupMainScreenListeners() {
 
                 } else if (groupId && task) {
                     context.selectedTaskForStart = task;
-                    // ⛔️ [수정] Number() 제거하여 문자열 ID 지원
                     context.selectedGroupForAdd = groupId;
                     renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
                     const titleEl = document.getElementById('team-select-modal-title');
@@ -425,7 +422,6 @@ export function setupMainScreenListeners() {
         saveProgressBtn.addEventListener('click', () => saveProgress(false));
     }
 
-    // ✅ [복구] 수동 추가 버튼 리스너
     if (openManualAddBtn) {
         openManualAddBtn.addEventListener('click', () => {
             document.getElementById('manual-add-start-time').value = getCurrentTime();
@@ -537,7 +533,6 @@ export function setupMainScreenListeners() {
                 const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
                 try {
                     await runTransaction(db, async (transaction) => {
-                        // const docSnap = await transaction.get(historyDocRef); // 불필요한 읽기 제거
                         transaction.set(historyDocRef, {
                             taskQuantities: newQuantities,
                             confirmedZeroTasks: confirmedZeroTasks
@@ -593,10 +588,7 @@ export function setupMainScreenListeners() {
                 appState.taskQuantities = newQuantities;
                 appState.confirmedZeroTasks = confirmedZeroTasks;
                 debouncedSaveState();
-                
-                // 모바일에서는 중간 저장도 함께 수행하여 안정성 확보
-                saveProgress(true); 
-                
+                saveProgress(true);
                 showToast('오늘의 처리량이 저장되었습니다.');
                 render();
             };
@@ -729,6 +721,76 @@ export function setupMainScreenListeners() {
                 setTimeout(() => openLeaveModal(context.memberToAction), 100);
             }
         });
+    }
+
+    // 팀 선택 모달
+    if (teamSelectModal) {
+        teamSelectModal.addEventListener('click', async (e) => {
+            const target = e.target;
+            
+            // 1. 개별 멤버 선택
+            const memberButton = target.closest('.member-select-btn');
+            if (memberButton && !memberButton.disabled) {
+                const memberName = memberButton.dataset.memberName;
+                const isSelected = memberButton.classList.toggle('bg-blue-600');
+                memberButton.classList.toggle('bg-white');
+                memberButton.classList.toggle('hover:bg-blue-50');
+                memberButton.classList.toggle('text-white');
+
+                if (isSelected) {
+                    if (!context.tempSelectedMembers.includes(memberName)) {
+                        context.tempSelectedMembers.push(memberName);
+                    }
+                } else {
+                    context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
+                }
+            }
+
+            // 2. ✅ [신규] 그룹 전체 선택
+            const selectAllBtn = target.closest('.group-select-all-btn');
+            if (selectAllBtn) {
+                const groupName = selectAllBtn.dataset.groupName;
+                const memberListDiv = teamSelectModal.querySelector(`.space-y-2[data-group-name="${groupName}"]`);
+                if (memberListDiv) {
+                    const availableButtons = Array.from(memberListDiv.querySelectorAll('.member-select-btn:not(:disabled)'));
+                    const allSelected = availableButtons.every(btn => btn.classList.contains('bg-blue-600'));
+
+                    availableButtons.forEach(btn => {
+                        const memberName = btn.dataset.memberName;
+                        if (allSelected) { // 모두 선택되어 있으면 -> 전체 해제
+                            btn.classList.remove('bg-blue-600', 'text-white');
+                            btn.classList.add('bg-white', 'hover:bg-blue-50');
+                            context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
+                        } else { // 하나라도 선택 안 되어 있으면 -> 전체 선택
+                             if (!btn.classList.contains('bg-blue-600')) {
+                                btn.classList.add('bg-blue-600', 'text-white');
+                                btn.classList.remove('bg-white', 'hover:bg-blue-50');
+                                if (!context.tempSelectedMembers.includes(memberName)) {
+                                    context.tempSelectedMembers.push(memberName);
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        });
+
+        const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
+        if (confirmTeamSelectBtn) {
+             confirmTeamSelectBtn.addEventListener('click', async () => {
+                if (context.tempSelectedMembers.length === 0) {
+                    showToast('최소 1명 이상의 팀원을 선택해주세요.', true);
+                    return;
+                }
+                
+                if (context.selectedGroupForAdd) {
+                    await addMembersToWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart, context.selectedGroupForAdd);
+                } else {
+                    await startWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart);
+                }
+                teamSelectModal.classList.add('hidden');
+             });
+        }
     }
 }
 

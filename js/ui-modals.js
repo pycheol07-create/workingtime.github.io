@@ -1,26 +1,20 @@
 // === js/ui-modals.js ===
 
 // ✅ [수정] renderQuantityModalInputs
-// ✨ [수정] confirmedZeroTasks 파라미터를 추가하고, 각 업무별 '0건 확인' 체크박스 UI를 생성합니다.
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
     container.innerHTML = '';
 
     const missingTaskSet = new Set(missingTasksList);
-    // ✨ [추가] 확인된 목록을 Set으로 변환하여 빠른 조회
     const confirmedZeroSet = new Set(confirmedZeroTasks);
 
     quantityTaskTypes.forEach(task => {
         const div = document.createElement('div');
-
-        // ✨ [추가] 누락 여부 및 확인 여부 판단
         const isConfirmed = confirmedZeroSet.has(task);
-        // 로직상 이미 걸러지지만, UI 렌더링 시 이중 확인
         const isMissing = missingTaskSet.has(task) && !isConfirmed;
         const warningClass = isMissing ? 'warning-missing-quantity' : '';
 
-        // ✨ [수정] 레이아웃 변경: 라벨 옆에 체크박스 배치
         div.innerHTML = `
             <div class="flex justify-between items-end mb-1">
                 <label for="modal-quantity-${task}" class="block text-sm font-medium text-gray-700 ${isMissing ? 'text-yellow-700 font-bold' : ''}">
@@ -39,7 +33,6 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
         container.appendChild(div);
     });
 
-    // ✨ [추가] UX 개선: 체크박스 클릭 시 즉시 경고 스타일 토글 (저장 전 시각적 피드백)
     container.querySelectorAll('.confirm-zero-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
             const task = e.target.dataset.task;
@@ -47,16 +40,13 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
             const label = container.querySelector(`label[for="modal-quantity-${task}"]`);
 
             if (e.target.checked) {
-                // 확인 체크 시 경고 제거
                 input.classList.remove('warning-missing-quantity');
                 label.classList.remove('text-yellow-700', 'font-bold');
                 label.textContent = task;
             } else {
-                // 체크 해제 시, 값이 0이면 다시 경고 표시
                 if (Number(input.value) <= 0) {
                      input.classList.add('warning-missing-quantity');
                      label.classList.add('text-yellow-700', 'font-bold');
-                     // 이미 텍스트에 (누락됨)이 없을 때만 추가
                      if (!label.textContent.includes('(누락됨)')) {
                          label.textContent = `${task} (누락됨)`;
                      }
@@ -66,7 +56,6 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
     });
 };
 
-// ... (renderTaskSelectionModal, renderTeamSelectionModalContent 등 기존 함수들은 그대로 유지)
 export const renderTaskSelectionModal = (taskGroups = []) => {
     const container = document.getElementById('task-modal-content');
     if (!container) return;
@@ -147,7 +136,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             card.type = 'button';
             card.dataset.memberName = member;
 
-            card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+            // 🔥 [수정 핵심] member-select-btn 클래스 추가
+            card.className = `member-select-btn w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
             if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
@@ -188,7 +178,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         card.type = 'button';
         card.dataset.memberName = pt.name;
 
-        card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+        // 🔥 [수정 핵심] member-select-btn 클래스 추가 (알바)
+        card.className = `member-select-btn w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
 
         if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
