@@ -27,7 +27,6 @@ import {
     openManualAddBtn, manualAddRecordModal,
 
     stopGroupConfirmModal,
-    // ✅ confirmStopGroupBtn, cancelStopGroupBtn (modals.js로 이동되었으나 여기서도 import 필요할 수 있음, 확인 후 유지)
     confirmStopGroupBtn, cancelStopGroupBtn,
 
     render, debouncedSaveState,
@@ -139,8 +138,7 @@ export function setupMainScreenListeners() {
 
             const stopGroupButton = e.target.closest('.stop-work-group-btn');
             if (stopGroupButton) {
-                // 💥 [중요 수정] Number() 제거하여 문자열 ID 유지
-                context.groupToStopId = stopGroupButton.dataset.groupId;
+                context.groupToStopId = stopGroupButton.dataset.groupId; // 문자열 ID 유지
                 if (stopGroupConfirmModal) {
                     stopGroupConfirmModal.classList.remove('hidden');
                 }
@@ -148,13 +146,11 @@ export function setupMainScreenListeners() {
             }
             const pauseGroupButton = e.target.closest('.pause-work-group-btn');
             if (pauseGroupButton) {
-                // 💥 [중요 수정] Number() 제거
                 pauseWorkGroup(pauseGroupButton.dataset.groupId);
                 return;
             }
             const resumeGroupButton = e.target.closest('.resume-work-group-btn');
             if (resumeGroupButton) {
-                // 💥 [중요 수정] Number() 제거
                 resumeWorkGroup(resumeGroupButton.dataset.groupId);
                 return;
             }
@@ -181,7 +177,6 @@ export function setupMainScreenListeners() {
 
             const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
             if (groupTimeDisplay) {
-                // 💥 [중요 수정] Number() 제거
                 const groupId = groupTimeDisplay.dataset.groupId;
                 const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
                 if (!groupId || !currentStartTime) return;
@@ -421,7 +416,7 @@ export function setupMainScreenListeners() {
                 if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = `총 ${ongoingRecords.length}명이 참여 중인 ${ongoingTaskCount}종의 업무가 있습니다. 모두 종료하고 마감하시겠습니까?`;
                 if (endShiftConfirmModal) endShiftConfirmModal.classList.remove('hidden');
             } else {
-                saveDayDataToHistory(true); // ✨ [수정] 마감 시 reset=true로 호출
+                saveDayDataToHistory(true); // 마감 시 reset=true
             }
         });
     }
@@ -735,21 +730,23 @@ export function setupMainScreenListeners() {
     if (teamSelectModal) {
         teamSelectModal.addEventListener('click', async (e) => {
             const target = e.target;
-
+            
             const memberButton = target.closest('.member-select-btn');
             if (memberButton && !memberButton.disabled) {
                 const memberName = memberButton.dataset.memberName;
 
-                const isSelected = memberButton.classList.toggle('bg-blue-600');
-                memberButton.classList.toggle('text-white');
-                memberButton.classList.toggle('bg-white');
-                memberButton.classList.toggle('hover:bg-blue-50');
+                // ✅ [수정] toggle 대신 명시적 add/remove 사용으로 전체 선택과 로직 통일
+                const willBeSelected = !memberButton.classList.contains('bg-blue-600');
 
-                if (isSelected) {
+                if (willBeSelected) {
+                    memberButton.classList.add('bg-blue-600', 'text-white');
+                    memberButton.classList.remove('bg-white', 'hover:bg-blue-50');
                     if (!context.tempSelectedMembers.includes(memberName)) {
                         context.tempSelectedMembers.push(memberName);
                     }
                 } else {
+                    memberButton.classList.remove('bg-blue-600', 'text-white');
+                    memberButton.classList.add('bg-white', 'hover:bg-blue-50');
                     context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
                 }
             }
@@ -789,7 +786,7 @@ export function setupMainScreenListeners() {
                     showToast('최소 1명 이상의 팀원을 선택해주세요.', true);
                     return;
                 }
-
+                
                 if (context.selectedGroupForAdd) {
                     await addMembersToWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart, context.selectedGroupForAdd);
                 } else {
