@@ -1,3 +1,4 @@
+// === js/listeners-main.js ===
 import {
     appState, appConfig, db, auth,
     persistentLeaveSchedule, allHistoryData,
@@ -25,8 +26,9 @@ import {
     analysisMemberSelect,
     openManualAddBtn, manualAddRecordModal,
 
-    stopGroupConfirmModal, 
-    // ✅ [삭제] confirmStopGroupBtn, cancelStopGroupBtn (modals.js로 이동)
+    stopGroupConfirmModal,
+    // ✅ confirmStopGroupBtn, cancelStopGroupBtn (modals.js로 이동되었으나 여기서도 import 필요할 수 있음, 확인 후 유지)
+    confirmStopGroupBtn, cancelStopGroupBtn,
 
     render, debouncedSaveState,
     generateId,
@@ -64,7 +66,7 @@ import {
 } from './app-history-logic.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, runTransaction, updateDoc, collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 export function setupMainScreenListeners() {
 
@@ -137,7 +139,8 @@ export function setupMainScreenListeners() {
 
             const stopGroupButton = e.target.closest('.stop-work-group-btn');
             if (stopGroupButton) {
-                context.groupToStopId = Number(stopGroupButton.dataset.groupId);
+                // 💥 [중요 수정] Number() 제거하여 문자열 ID 유지
+                context.groupToStopId = stopGroupButton.dataset.groupId;
                 if (stopGroupConfirmModal) {
                     stopGroupConfirmModal.classList.remove('hidden');
                 }
@@ -145,12 +148,14 @@ export function setupMainScreenListeners() {
             }
             const pauseGroupButton = e.target.closest('.pause-work-group-btn');
             if (pauseGroupButton) {
-                pauseWorkGroup(Number(pauseGroupButton.dataset.groupId));
+                // 💥 [중요 수정] Number() 제거
+                pauseWorkGroup(pauseGroupButton.dataset.groupId);
                 return;
             }
             const resumeGroupButton = e.target.closest('.resume-work-group-btn');
             if (resumeGroupButton) {
-                resumeWorkGroup(Number(resumeGroupButton.dataset.groupId));
+                // 💥 [중요 수정] Number() 제거
+                resumeWorkGroup(resumeGroupButton.dataset.groupId);
                 return;
             }
             const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
@@ -176,7 +181,8 @@ export function setupMainScreenListeners() {
 
             const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
             if (groupTimeDisplay) {
-                const groupId = Number(groupTimeDisplay.dataset.groupId);
+                // 💥 [중요 수정] Number() 제거
+                const groupId = groupTimeDisplay.dataset.groupId;
                 const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
                 if (!groupId || !currentStartTime) return;
 
@@ -415,8 +421,7 @@ export function setupMainScreenListeners() {
                 if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = `총 ${ongoingRecords.length}명이 참여 중인 ${ongoingTaskCount}종의 업무가 있습니다. 모두 종료하고 마감하시겠습니까?`;
                 if (endShiftConfirmModal) endShiftConfirmModal.classList.remove('hidden');
             } else {
-                saveDayDataToHistory(false);
-                showToast('업무 마감 처리 완료. 오늘의 기록을 이력에 저장하고 초기화했습니다.');
+                saveDayDataToHistory(true); // ✨ [수정] 마감 시 reset=true로 호출
             }
         });
     }
@@ -730,12 +735,11 @@ export function setupMainScreenListeners() {
     if (teamSelectModal) {
         teamSelectModal.addEventListener('click', async (e) => {
             const target = e.target;
-            
+
             const memberButton = target.closest('.member-select-btn');
             if (memberButton && !memberButton.disabled) {
                 const memberName = memberButton.dataset.memberName;
-                
-                // ✅ [수정] 색상 토글 로직 통일
+
                 const isSelected = memberButton.classList.toggle('bg-blue-600');
                 memberButton.classList.toggle('text-white');
                 memberButton.classList.toggle('bg-white');
@@ -760,7 +764,6 @@ export function setupMainScreenListeners() {
 
                     availableButtons.forEach(btn => {
                         const memberName = btn.dataset.memberName;
-                        // ✅ [수정] 전체 선택/해제 시에도 동일한 클래스 토글 적용
                         if (allSelected) { // 전체 해제
                             btn.classList.remove('bg-blue-600', 'text-white');
                             btn.classList.add('bg-white', 'hover:bg-blue-50');
@@ -786,7 +789,7 @@ export function setupMainScreenListeners() {
                     showToast('최소 1명 이상의 팀원을 선택해주세요.', true);
                     return;
                 }
-                
+
                 if (context.selectedGroupForAdd) {
                     await addMembersToWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart, context.selectedGroupForAdd);
                 } else {
