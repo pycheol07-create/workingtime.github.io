@@ -82,14 +82,14 @@ export const updateSummary = (appState, appConfig) => {
 
     const totalWorkingCount = ongoingMembers.size;
     
-    // const pausedStaffCount = [...pausedMembers].filter(member => allStaffMembers.has(member)).length;
     const pausedStaffCount = [...pausedMembers].filter(member => allStaffMembers.has(member)).length;
+    const pausedPartTimerCount = [...pausedMembers].filter(member => allPartTimers.has(member)).length;
     
     const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
-    // const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
+    const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
 
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount - pausedStaffCount);
-    const idlePartTimerCount = Math.max(0, availablePartTimerCount - [...ongoingMembers].filter(member => allPartTimers.has(member)).length - [...pausedMembers].filter(member => allPartTimers.has(member)).length);
+    const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount - pausedPartTimerCount);
     
     const totalIdleCount = idleStaffCount + idlePartTimerCount;
 
@@ -122,7 +122,7 @@ export const updateSummary = (appState, appConfig) => {
 export const renderTaskAnalysis = (appState, appConfig) => {
     const analysisContainer = document.getElementById('analysis-task-summary-panel'); 
     if (!analysisContainer) return;
-    // analysisContainer.innerHTML = ''; // 렌더링 전 초기화는 아래에서 처리
+    analysisContainer.innerHTML = ''; 
     
     const now = getCurrentTime();
 
@@ -343,10 +343,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const currentUserName = appState.currentUser || null;
     const teamStatusBoard = document.getElementById('team-status-board');
     if (!teamStatusBoard) return;
-
-    // [추가] 스크롤 위치 저장 (화면 튐 방지)
-    const previousScrollTop = teamStatusBoard.scrollTop;
-
     teamStatusBoard.innerHTML = '';
 
     const presetTaskContainer = document.createElement('div');
@@ -372,16 +368,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
-            
-            // ✅ [치명적 오류 수정] 해당 업무를 수행 중인 모든 고유 groupId 수집
-            const allGroupIds = [...new Set(groupRecords.map(r => r.groupId))];
-            const allGroupIdsJson = JSON.stringify(allGroupIds); // 배열을 문자열로 변환하여 data 속성에 저장
-
-            // 카드에는 대표로 첫 번째 groupId를 할당 (기존 로직 호환성 위해 유지하되, 실제 제어는 allGroupIds로 해야 함)
+            card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover} cursor-pointer`;
             card.dataset.groupId = firstRecord.groupId;
             card.dataset.task = firstRecord.task;
-
-            card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover} cursor-pointer`;
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-64 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
@@ -405,24 +394,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
             const pausesJson = JSON.stringify(representativeRecord.pauses || []);
 
-            // ✅ [수정] 버튼에 data-all-group-ids 속성 추가 (merged task 제어용)
-            card.innerHTML = `
-                <div class="flex flex-col h-full">
-                    <div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div>
-                    <div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}">
-                        시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>
-                    </div>
-                    <div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div>
-                    <div class="flex-grow">${membersHtml}</div>
-                    <div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions">
-                        <button data-all-group-ids='${allGroupIdsJson}' class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">
-                            ${isPaused ? '전체 재개' : '전체 정지'}
-                        </button>
-                        <button data-all-group-ids='${allGroupIdsJson}' class="stop-work-group-btn bg-red-600 hover:bg-red-700 flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">
-                            전체 종료
-                        </button>
-                    </div>
-                </div>`;
+            card.innerHTML = `<div class="flex flex-col h-full"><div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div><div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span></div><div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div><div class="flex-grow">${membersHtml}</div><div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions"><button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">${isPaused ? '전체 재개' : '전체 정지'}</button><button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">전체 종료</button></div></div>`;
         } else {
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
             card.dataset.action = 'start-task';
@@ -494,6 +466,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.classList.add('bg-green-50', 'border-green-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
             } else if (isReturned) {
+                // ✨ 퇴근 완료 상태 표시 추가
                 card.dataset.action = 'member-toggle-leave';
                 if (currentUserRole === 'admin' || isSelf) card.classList.add('cursor-pointer', 'hover:shadow-sm'); else card.classList.add('cursor-not-allowed', 'opacity-60');
                 card.classList.add('bg-gray-100', 'border-gray-300', 'text-gray-500');
@@ -560,11 +533,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     teamStatusBoard.appendChild(allMembersContainer);
 
     renderAttendanceToggle(appState);
-
-    // [추가] 렌더링 후 스크롤 위치 복원
-    if (previousScrollTop > 0) {
-        teamStatusBoard.scrollTop = previousScrollTop;
-    }
 };
 
 /**

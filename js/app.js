@@ -108,6 +108,12 @@ export const stopIndividualConfirmModal = document.getElementById('stop-individu
 export const confirmStopIndividualBtn = document.getElementById('confirm-stop-individual-btn');
 export const cancelStopIndividualBtn = document.getElementById('cancel-stop-individual-btn');
 export const stopIndividualConfirmMessage = document.getElementById('stop-individual-confirm-message');
+
+// ✅ [신규] 그룹 종료 모달 관련 요소 추가
+export const stopGroupConfirmModal = document.getElementById('stop-group-confirm-modal');
+export const confirmStopGroupBtn = document.getElementById('confirm-stop-group-btn');
+export const cancelStopGroupBtn = document.getElementById('cancel-stop-group-btn');
+
 export const editPartTimerModal = document.getElementById('edit-part-timer-modal');
 export const confirmEditPartTimerBtn = document.getElementById('confirm-edit-part-timer-btn');
 export const cancelEditPartTimerBtn = document.getElementById('cancel-edit-part-timer-btn');
@@ -195,6 +201,7 @@ export let unsubscribeLeaveSchedule;
 export let unsubscribeConfig;
 export let elapsedTimeTimer = null;
 export let periodicRefreshTimer = null;
+// ✅ workRecords 리스너 변수
 export let unsubscribeWorkRecords;
 
 export let isDataDirty = false;
@@ -232,7 +239,7 @@ export let context = {
 };
 
 export let appState = {
-    workRecords: [],
+    workRecords: [], // 로컬 캐시
     taskQuantities: {},
     dailyOnLeaveMembers: [],
     dateBasedOnLeaveMembers: [],
@@ -266,7 +273,6 @@ export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase()
 
 
 // Core Functions
-// ✅ [수정] 동시성 문제를 해결하기 위해 트랜잭션 내에서 읽기(get) 후 병합(merge)하도록 수정했습니다.
 export async function saveStateToFirestore() {
     if (!auth || !auth.currentUser) {
         console.warn('Cannot save state: User not authenticated.');
@@ -277,20 +283,7 @@ export async function saveStateToFirestore() {
         const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
 
         await runTransaction(db, async (transaction) => {
-            // 1. 최신 상태 읽기
-            const docSnap = await transaction.get(docRef);
-            let currentState = {};
-            if (docSnap.exists() && docSnap.data().state) {
-                 try {
-                     currentState = JSON.parse(docSnap.data().state);
-                 } catch (e) {
-                     console.warn("Existing state parse error", e);
-                 }
-            }
-
-            // 2. 로컬 변경사항 병합
-            const stateToSaveObj = {
-                ...currentState, // 기존 DB 상태 유지
+            const stateToSave = JSON.stringify({
                 taskQuantities: appState.taskQuantities || {},
                 onLeaveMembers: appState.dailyOnLeaveMembers || [],
                 partTimers: appState.partTimers || [],
@@ -299,10 +292,7 @@ export async function saveStateToFirestore() {
                 lunchResumeExecuted: appState.lunchResumeExecuted || false,
                 confirmedZeroTasks: appState.confirmedZeroTasks || [],
                 dailyAttendance: appState.dailyAttendance || {}
-                // workRecords는 제외됨 (별도 컬렉션 사용)
-            };
-
-            const stateToSave = JSON.stringify(stateToSaveObj);
+            });
 
             if (stateToSave.length > 900000) {
                 throw new Error("저장 데이터 용량 초과");
@@ -411,12 +401,14 @@ export const markDataAsDirty = () => {
 
 export const autoSaveProgress = () => {
     const hasOngoing = (appState.workRecords || []).some(r => r.status === 'ongoing');
+
     if (isDataDirty || hasOngoing) {
         saveProgress(true); 
         isDataDirty = false;
     }
 };
 
+// 앱 초기화
 async function startAppAfterLogin(user) {
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) loadingSpinner.style.display = 'block';
@@ -428,6 +420,7 @@ async function startAppAfterLogin(user) {
         persistentLeaveSchedule = await loadLeaveSchedule(db);
 
         const userEmail = user.email;
+
         if (!userEmail) {
             showToast('로그인 사용자의 이메일 정보를 가져올 수 없습니다. 다시 로그인해주세요.', true);
             if (loadingSpinner) loadingSpinner.style.display = 'none';
@@ -480,6 +473,7 @@ async function startAppAfterLogin(user) {
              mobileAttendanceToggle.classList.remove('hidden');
              mobileAttendanceToggle.classList.add('flex');
         }
+
 
         const adminLinkBtn = document.getElementById('admin-link-btn');
         const resetAppBtn = document.getElementById('reset-app-btn');
@@ -638,6 +632,7 @@ async function startAppAfterLogin(user) {
             appState.dailyAttendance = loadedState.dailyAttendance || {};
 
             isDataDirty = false;
+
             render();
             if (connectionStatusEl) connectionStatusEl.textContent = '동기화 (메타)';
             if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
@@ -658,33 +653,14 @@ async function startAppAfterLogin(user) {
     if (unsubscribeWorkRecords) unsubscribeWorkRecords();
 
     unsubscribeWorkRecords = onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
-        console.log("Work records snapshot received:", querySnapshot.docChanges().length, "changes.");
-        
-        querySnapshot.docChanges().forEach((change) => {
-            const docData = { id: change.doc.id, ...change.doc.data() };
-            const index = appState.workRecords.findIndex(r => r.id === change.doc.id);
-
-            if (change.type === "added") {
-                if (index === -1) {
-                    appState.workRecords.push(docData);
-                }
-            }
-            if (change.type === "modified") {
-                if (index > -1) {
-                    appState.workRecords[index] = docData;
-                } else {
-                    appState.workRecords.push(docData);
-                }
-            }
-            if (change.type === "removed") {
-                if (index > -1) {
-                    appState.workRecords.splice(index, 1);
-                }
-            }
+        appState.workRecords = [];
+        querySnapshot.forEach((doc) => {
+            appState.workRecords.push(doc.data());
         });
 
         appState.workRecords.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
-        render(); 
+
+        render();
         
         if (connectionStatusEl) connectionStatusEl.textContent = '동기화 (업무)';
         if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
@@ -730,7 +706,9 @@ async function main() {
             if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = undefined; }
             if (elapsedTimeTimer) { clearInterval(elapsedTimeTimer); elapsedTimeTimer = null; }
             if (periodicRefreshTimer) { clearInterval(periodicRefreshTimer); periodicRefreshTimer = null; }
+            
             if (unsubscribeWorkRecords) { unsubscribeWorkRecords(); unsubscribeWorkRecords = undefined; }
+
 
             appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user', confirmedZeroTasks: [], dailyAttendance: {} };
 
