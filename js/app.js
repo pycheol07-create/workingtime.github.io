@@ -229,7 +229,9 @@ export let context = {
     reportSortState: {},
     currentReportParams: null,
     monthlyRevenues: {},
-    memberToAction: null // ✨ [신규] 관리자가 현재 조작 중인 팀원 이름 저장
+    memberToAction: null, // ✨ [신규] 관리자가 현재 조작 중인 팀원 이름 저장
+    autoPauseForLunch: null, // ✅ [신규] 점심시간 함수 주입용
+    autoResumeFromLunch: null // ✅ [신규] 점심시간 함수 주입용
 };
 
 export let appState = {
@@ -316,68 +318,49 @@ export async function saveStateToFirestore() {
 
 export const debouncedSaveState = debounce(saveStateToFirestore, 1000);
 
-export const updateElapsedTimes = () => {
+// ✅ [수정] async 추가, 점심시간 자동화 로직 변경
+export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     
-    // ✅ [주석] 이 로직은 workRecords를 수정하므로, app-logic.js로 옮겨서
-    // 개별 문서를 업데이트하도록 변경하는 것이 좋습니다.
-    // 여기서는 일단 유지하지만, 동시성 문제가 발생할 수 있습니다.
-    // (이후 app-logic.js 수정 시 이 부분도 이전 고려)
+    // ⛔️ [수정] 12:30 자동 일시정지 로직
     if (now === '12:30' && !appState.lunchPauseExecuted) {
-        appState.lunchPauseExecuted = true;
-        let tasksPaused = 0;
-        const currentTime = getCurrentTime();
+        appState.lunchPauseExecuted = true; // 1. 플래그 즉시 설정
 
-        (appState.workRecords || []).forEach(record => {
-            if (record.status === 'ongoing') {
-                // ⛔️ [수정 필요] 이 로직은 로컬 appState만 수정합니다.
-                // ⛔️ Firestore 문서를 직접 수정해야 합니다. (app-logic.js에서)
-                // ⛔️ 지금 당장은 이 기능을 비활성화하거나, app-logic.js에 별도 함수로 구현해야 합니다.
-                // ⛔️ 여기서는 일단 로컬 수정 로직을 유지합니다. (다음 스텝에서 수정 필요)
-                record.status = 'paused';
-                record.pauses = record.pauses || [];
-                record.pauses.push({ start: currentTime, end: null, type: 'lunch' });
-                tasksPaused++;
+        if (context.autoPauseForLunch) { // 2. app-logic.js에서 주입된 함수가 있는지 확인
+            try {
+                const tasksPaused = await context.autoPauseForLunch(); // 3. Firestore 직접 업데이트
+                if (tasksPaused > 0) {
+                    showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
+                }
+            } catch (e) {
+                console.error("Error during auto-pause: ", e);
+                // 오류가 나도 플래그는 저장되어야 재시도를 안함 (다음날까지)
             }
-        });
-
-        if (tasksPaused > 0) {
-            showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
-            // ⛔️ debouncedSaveState(); // 이것은 workRecords를 저장하지 않습니다.
-            // ⛔️ (app-logic.js에서 batch update 로직 필요)
-        } else {
-            // debouncedSaveState(); // 상태 저장 (lunchPauseExecuted 플래그)
         }
-        // ✅ [임시] 상태 플래그 저장을 위해 호출
+        
+        // 4. 플래그(lunchPauseExecuted) 저장을 위해 메인 문서 저장
         saveStateToFirestore(); 
     }
 
+    // ⛔️ [수정] 13:30 자동 재개 로직
     if (now === '13:30' && !appState.lunchResumeExecuted) {
-        appState.lunchResumeExecuted = true;
-        let tasksResumed = 0;
-        const currentTime = getCurrentTime();
+        appState.lunchResumeExecuted = true; // 1. 플래그 즉시 설정
 
-        (appState.workRecords || []).forEach(record => {
-            if (record.status === 'paused') {
-                const lastPause = record.pauses?.[record.pauses.length - 1];
-                if (lastPause && lastPause.type === 'lunch' && lastPause.end === null) {
-                    // ⛔️ [수정 필요] 여기도 Firestore 문서를 직접 수정해야 합니다.
-                    record.status = 'ongoing';
-                    lastPause.end = currentTime;
-                    tasksResumed++;
+        if (context.autoResumeFromLunch) { // 2. 주입된 함수 확인
+            try {
+                const tasksResumed = await context.autoResumeFromLunch(); // 3. Firestore 직접 업데이트
+                if (tasksResumed > 0) {
+                    showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
                 }
+            } catch (e) {
+                 console.error("Error during auto-resume: ", e);
             }
-        });
-
-        if (tasksResumed > 0) {
-            showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
-            // ⛔️ debouncedSaveState(); // (app-logic.js에서 batch update 로직 필요)
-        } else {
-            // debouncedSaveState();
         }
-        // ✅ [임시] 상태 플래그 저장을 위해 호출
+        
+        // 4. 플래그(lunchResumeExecuted) 저장을 위해 메인 문서 저장
         saveStateToFirestore();
     }
+
     // (이하 updateElapsedTimes 로직은 로컬 appState.workRecords를 읽기만 하므로 그대로 둡니다)
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
@@ -558,7 +541,7 @@ async function startAppAfterLogin(user) {
 
     displayCurrentDate();
     if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
-    elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
+    elapsedTimeTimer = setInterval(updateElapsedTimes, 1000); // ✅ 1초마다 updateElapsedTimes 호출
 
     if (periodicRefreshTimer) clearInterval(periodicRefreshTimer);
     periodicRefreshTimer = setInterval(() => {

@@ -9,7 +9,8 @@ import {
 
 // ✅ [수정] Firestore 함수 및 getTodayDateString 임포트
 import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
-import { doc, collection, setDoc, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ✅ [수정] query, where, getDocs 추가
+import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
 // ✅ [신규] workRecords 컬렉션 참조를 반환하는 헬퍼 함수
@@ -414,5 +415,96 @@ export const resumeWorkIndividual = async (recordId) => {
     } catch (e) {
          console.error("Error resuming individual work: ", e);
          showToast("개별 업무 재개 중 오류가 발생했습니다.", true);
+    }
+};
+
+/**
+ * ✅ [신규] 12:30 점심시간 자동 일시정지
+ * app.js의 updateElapsedTimes에서 호출됨
+ */
+export const autoPauseForLunch = async () => {
+    try {
+        const workRecordsColRef = getWorkRecordsCollectionRef();
+        const q = query(workRecordsColRef, where("status", "==", "ongoing"));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            console.log("Auto-pause: No ongoing tasks to pause.");
+            return 0; // 0건 처리
+        }
+
+        const batch = writeBatch(db);
+        const currentTime = getCurrentTime();
+        let tasksPaused = 0;
+
+        querySnapshot.forEach(doc => {
+            const record = doc.data();
+            const newPauses = record.pauses || [];
+            newPauses.push({ start: currentTime, end: null, type: 'lunch' });
+            
+            batch.update(doc.ref, {
+                status: 'paused',
+                pauses: newPauses
+            });
+            tasksPaused++;
+        });
+
+        await batch.commit();
+        return tasksPaused; // 처리한 건수 반환
+
+    } catch (e) {
+        console.error("Error during auto-pause for lunch: ", e);
+        showToast("점심시간 자동 정지 중 오류 발생", true);
+        return 0;
+    }
+};
+
+/**
+ * ✅ [신규] 13:30 점심시간 자동 재개
+ * app.js의 updateElapsedTimes에서 호출됨
+ */
+export const autoResumeFromLunch = async () => {
+    try {
+        const workRecordsColRef = getWorkRecordsCollectionRef();
+        // 'lunch' 타입의 pause가 있는지 확인하는 쿼리는 Firestore에서 복잡함.
+        // 우선 'paused' 상태인 것만 가져와서 클라이언트에서 필터링.
+        const q = query(workRecordsColRef, where("status", "==", "paused"));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            console.log("Auto-resume: No paused tasks to resume.");
+            return 0;
+        }
+
+        const batch = writeBatch(db);
+        const currentTime = getCurrentTime();
+        let tasksResumed = 0;
+
+        querySnapshot.forEach(doc => {
+            const record = doc.data();
+            const pauses = record.pauses || [];
+            const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
+
+            // 마지막 pause가 'lunch' 타입이고, 아직 안 끝났는지 확인
+            if (lastPause && lastPause.type === 'lunch' && lastPause.end === null) {
+                lastPause.end = currentTime;
+                
+                batch.update(doc.ref, {
+                    status: 'ongoing',
+                    pauses: pauses
+                });
+                tasksResumed++;
+            }
+        });
+
+        if (tasksResumed > 0) {
+            await batch.commit();
+        }
+        return tasksResumed; // 처리한 건수 반환
+
+    } catch (e) {
+        console.error("Error during auto-resume from lunch: ", e);
+        showToast("점심시간 자동 재개 중 오류 발생", true);
+        return 0;
     }
 };
