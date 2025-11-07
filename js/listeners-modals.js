@@ -95,12 +95,13 @@ import {
     processClockOut, // ✨ [신규] 퇴근 처리
     cancelClockOut // ✨ [신규] 퇴근 취소
 } from './app-logic.js';
-import { saveProgress, deleteHistoryEntry, saveDayDataToHistory, saveAttendanceRecord, deleteAttendanceRecord } from './app-history-logic.js';
+// ✅ [수정] 오류를 일으킨 deleteAttendanceRecord 임포트 제거
+import { saveProgress, deleteHistoryEntry, saveDayDataToHistory, saveAttendanceRecord } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // ✅ [수정] Firestore 함수 임포트 추가 (collection, query, where, getDocs)
-import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
 /**
@@ -219,9 +220,20 @@ export function setupModalListeners() {
                 await deleteWorkRecordDocuments(groupMembers);
                 
                 showToast('그룹 업무가 삭제되었습니다.');
-            } else {
+            } else if (context.deleteMode === 'single') { // ✅ 'single' 명시
                 await deleteWorkRecordDocument(context.recordToDeleteId);
                 showToast('업무 기록이 삭제되었습니다.');
+            } else if (context.deleteMode === 'all-completed') { // ✅ 'all-completed' 처리 추가
+                 const completedIds = (appState.workRecords || [])
+                    .filter(r => r.status === 'completed')
+                    .map(r => r.id);
+                
+                if (completedIds.length > 0) {
+                    await deleteWorkRecordDocuments(completedIds);
+                    showToast(`완료된 업무 ${completedIds.length}건이 삭제되었습니다.`);
+                } else {
+                    showToast('삭제할 완료된 업무가 없습니다.');
+                }
             }
             
             // ⛔️ appState.workRecords = ... (제거)
@@ -248,8 +260,7 @@ export function setupModalListeners() {
                 return;
             }
 
-            // 모달을 띄워 최종 확인을 받는 것이 좋습니다 (현재는 확인 없이 바로 삭제)
-            // 확인 모달을 띄운다고 가정하고, deleteConfirmModal을 재활용
+            // 모달을 띄워 최종 확인
             context.recordToDeleteId = null; // 특정 ID가 아님
             context.deleteMode = 'all-completed';
             
@@ -258,68 +269,8 @@ export function setupModalListeners() {
                  deleteMessage.textContent = `완료된 업무 ${completedIds.length}건을 모두 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`;
             }
             deleteConfirmModal.classList.remove('hidden');
-
-            // 'all-completed' 모드를 위한 리스너가 별도로 필요하지만,
-            // 여기서는 confirmDeleteBtn 리스너를 수정하여 처리
-            
-            // (임시) confirmDeleteBtn 리스너를 재정의하거나 분기해야 함
-            // -> 여기서는 기존 confirmDeleteBtn 리스너를 수정하여 이 케이스를 처리해야 함.
-            // -> 하지만 이 파일에서는 리스너가 이미 등록됨.
-            
-            // ‼️ [수정 권고]
-            // '모두 삭제'용 확인 모달(예: #delete-all-confirm-modal)을 별도로 만들거나,
-            // confirmDeleteBtn 리스너가 'context.deleteMode'를 확인하도록 수정해야 합니다.
-            // 
-            // 일단 '모두 삭제' 버튼 클릭 시, 'context.deleteMode'를 'all-completed'로 설정하고
-            // 기존 삭제 모달을 띄우는 것으로 가정하고 코드를 수정합니다.
-            // (confirmDeleteBtn 리스너가 'all-completed'를 처리한다는 가정 하에)
-            
-            // ... 위 confirmDeleteBtn 리스너에 'all-completed' 처리 로직이 없으므로 추가가 필요합니다 ...
-            // ... (실제로는 'all-completed'를 위한 별도 버튼/로직이 필요함) ...
-
-            // ‼️ [임시 해결책]
-            // 사용자가 "완료 기록 전체 삭제"를 누르면, confirmDeleteBtn 리스너가 아닌
-            // 이 리스너에서 직접 'all-completed'를 처리하도록 로직을 수정합니다.
-            // (confirmDeleteBtn 리스너는 'single'과 'group'만 처리하게 둠)
-            
-            // ‼️ [위의 주석은 잘못됨] - deleteConfirmModal을 띄우는 것이 맞음.
-            // confirmDeleteBtn 리스너에 'all-completed' 케이스를 추가해야 함.
-            
-            // (수정된 confirmDeleteBtn 리스너가 필요)
-            // (여기서의 코드는 단지 모달만 띄우는 것이 맞음)
         });
     }
-    
-    // (위의 'delete-all-completed-btn' 리스너에 대한 'confirmDeleteBtn' 리스너 수정)
-    // -> ‼️ [수정 권고] 'confirmDeleteBtn' 리스너에 'all-completed' 모드 처리를 추가해야 합니다.
-    // 예시:
-    /*
-    if (confirmDeleteBtn) {
-        confirmDeleteBtn.addEventListener('click', async () => {
-            if (context.deleteMode === 'group') {
-                // ... (기존 그룹 삭제 로직) ...
-            } else if (context.deleteMode === 'single') {
-                // ... (기존 단일 삭제 로직) ...
-            } else if (context.deleteMode === 'all-completed') {
-                const completedIds = (appState.workRecords || [])
-                    .filter(r => r.status === 'completed')
-                    .map(r => r.id);
-                
-                if (completedIds.length > 0) {
-                    await deleteWorkRecordDocuments(completedIds);
-                    showToast(`완료된 업무 ${completedIds.length}건이 삭제되었습니다.`);
-                } else {
-                    showToast('삭제할 완료된 업무가 없습니다.');
-                }
-            }
-            
-            deleteConfirmModal.classList.add('hidden');
-            context.recordToDeleteId = null;
-            context.deleteMode = 'single';
-        });
-    }
-    */
-    // (단, 이 파일은 'listeners-modals.js'이므로 위 코드를 'confirmDeleteBtn' 리스너에 병합해야 함)
 
     // 기록 수정 모달
     if (confirmEditBtn) {
@@ -355,14 +306,11 @@ export function setupModalListeners() {
                     updates.endTime = null;
                     // 상태는 기존 상태(ongoing 또는 paused)를 유지해야 함.
                     // (만약 endTime을 삭제했다면 상태를 'ongoing'이나 'paused'로 되돌리는 로직 필요)
-                    // (여기서는 endTime이 있는 경우만 'completed'로 간주)
                     
-                    // ‼️ [수정 권고]
                     // endTime이 비워졌을 때, 이전 상태가 'completed'였다면
-                    // 'ongoing'으로 되돌릴지, 아니면 수정을 막을지 정책이 필요합니다.
-                    // 현재: endTime이 없으면 duration/status는 변경 안 함 (하지만 endTime은 null로)
+                    // 'ongoing'으로 되돌림
                     updates.endTime = null;
-                    updates.status = record.status === 'completed' ? 'ongoing' : record.status; // 완료된걸 수정하면 'ongoing'으로
+                    updates.status = record.status === 'completed' ? 'ongoing' : record.status; 
                     updates.duration = null;
                 }
                 
@@ -435,7 +383,7 @@ export function setupModalListeners() {
                 return;
             }
             
-            // 중복 이름 체크 (선택 사항 - 현재 로직에는 없음)
+            // 중복 이름 체크 
             const isNameTaken = (appConfig.teamGroups || []).flatMap(g => g.members).includes(newName) ||
                                 (appState.partTimers || []).some(p => p.name === newName && p.id !== partTimerId);
             
@@ -448,21 +396,11 @@ export function setupModalListeners() {
             partTimer.name = newName;
 
             // 2. 로컬 appState.workRecords 캐시 업데이트 (실시간 UI 반영용)
-            // ‼️ [중요] 이 작업은 onSnapshot이 Firestore 변경을 감지하고
-            //    app.js에서 어차피 다시 수행하므로, 여기서 미리 수행하면 UI가 즉시 바뀜.
             (appState.workRecords || []).forEach(record => {
                 if (record.member === oldName) {
                     record.member = newName;
                 }
             });
-            // ‼️ [수정 권고] 
-            // 알바 이름 변경 시, 'appConfig'의 'memberWages'도 업데이트해야 할 수 있음.
-            // 현재 로직: partTimers 배열만 수정함.
-            // -> admin.js에서 저장할 때 memberWages도 같이 저장함. (여기서는 partTimers만 수정)
-            
-            // ‼️ [수정 권고] - 주석 내용 확인
-            // appState.partTimers가 수정되었으므로, 메인 문서(state blob)를 저장해야 함.
-            // 그리고 Firestore의 workRecords 컬렉션도 수정해야 함.
 
             // ✅ [신규] 3. Firestore 'workRecords' 하위 컬렉션 업데이트
             try {
@@ -479,12 +417,9 @@ export function setupModalListeners() {
                     });
                     await batch.commit();
                     showToast(`'${oldName}'님의 당일 업무 ${querySnapshot.size}건의 이름도 '${newName}'으로 변경했습니다.`);
-                } else {
-                     // showToast("당일 업무 기록에서 변경할 내역은 없습니다."); (토스트가 너무 많아질 수 있으니 생략)
-                }
-
+                } 
+                
                 // 4. 메인 문서 'state' blob 저장 (partTimers 변경 사항)
-                // ✅ onSnapshot이 UI를 갱신하므로 render()는 필요 없음
                 debouncedSaveState(); 
 
                 // 5. 모달 닫기
@@ -636,7 +571,7 @@ export function setupModalListeners() {
                 };
                 
                 const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords', recordId);
-                await setDoc(docRef, newRecordData);
+                await setDoc(docRef, newRecordData); // ✅ setDoc 임포트 확인 (맨 위에)
 
                 // ⛔️ appState.workRecords.push(...) (제거)
                 // ⛔️ render() (제거)
@@ -698,9 +633,6 @@ export function setupModalListeners() {
 
                 showToast('오늘 데이터가 모두 초기화되었습니다.');
                 resetAppModal.classList.add('hidden');
-                
-                // (참고) onSnapshot이 문서를 찾을 수 없다는 응답을 보내고
-                // app.js의 onSnapshot 콜백이 로컬 상태를 다시 초기화할 것입니다.
                 
             } catch (e) {
                 console.error("오늘 데이터 초기화 실패: ", e);
@@ -790,7 +722,7 @@ export function setupModalListeners() {
         confirmEditAttendanceBtn.addEventListener('click', () => {
             // (이 로직은 app-history-logic.js로 이동하는 것이 좋음)
             // (saveAttendanceRecord가 수정도 겸함)
-            saveAttendanceRecord(); // ui-modals.js에서 임포트 필요
+            saveAttendanceRecord(); 
         });
     }
 
