@@ -23,6 +23,8 @@ import {
     openQuantityModalTodayBtn, openQuantityModalTodayBtnMobile,
     hamburgerBtn, navContent,
     analysisMemberSelect,
+    // ✅ [추가] 누락되었던 DOM 요소 가져오기
+    openManualAddBtn, manualAddRecordModal,
 
     render, debouncedSaveState,
     generateId,
@@ -44,7 +46,9 @@ import {
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderPersonalAnalysis,
-    renderQuantityModalInputs
+    renderQuantityModalInputs,
+    // ✅ [추가] 매뉴얼 추가 모달 렌더링 함수 가져오기
+    renderManualAddModalDatalists
 } from './ui.js';
 
 import {
@@ -337,7 +341,8 @@ export function setupMainScreenListeners() {
 
                 } else if (groupId && task) {
                     context.selectedTaskForStart = task;
-                    context.selectedGroupForAdd = Number(groupId);
+                    // ⛔️ [수정] Number() 제거하여 문자열 ID 지원
+                    context.selectedGroupForAdd = groupId;
                     renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
                     const titleEl = document.getElementById('team-select-modal-title');
                     if (titleEl) titleEl.textContent = `'${task}' 인원 추가`;
@@ -392,7 +397,7 @@ export function setupMainScreenListeners() {
     const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
     if (deleteAllCompletedBtn) {
         deleteAllCompletedBtn.addEventListener('click', () => {
-            context.deleteMode = 'all';
+            context.deleteMode = 'all-completed';
             const msgEl = document.getElementById('delete-confirm-message');
             if (msgEl) msgEl.textContent = '오늘 완료된 모든 업무 기록을 삭제하시겠습니까?';
             if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
@@ -418,6 +423,16 @@ export function setupMainScreenListeners() {
 
     if (saveProgressBtn) {
         saveProgressBtn.addEventListener('click', () => saveProgress(false));
+    }
+
+    // ✅ [복구] 수동 추가 버튼 리스너
+    if (openManualAddBtn) {
+        openManualAddBtn.addEventListener('click', () => {
+            document.getElementById('manual-add-start-time').value = getCurrentTime();
+            document.getElementById('manual-add-end-time').value = '';
+            renderManualAddModalDatalists(appState, appConfig);
+            if (manualAddRecordModal) manualAddRecordModal.classList.remove('hidden');
+        });
     }
 
     [toggleCompletedLog, toggleAnalysis, toggleSummary].forEach(toggle => {
@@ -522,12 +537,11 @@ export function setupMainScreenListeners() {
                 const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
                 try {
                     await runTransaction(db, async (transaction) => {
-                        const docSnap = await transaction.get(historyDocRef);
-                        if (!docSnap.exists()) return;
-                        transaction.update(historyDocRef, {
+                        // const docSnap = await transaction.get(historyDocRef); // 불필요한 읽기 제거
+                        transaction.set(historyDocRef, {
                             taskQuantities: newQuantities,
                             confirmedZeroTasks: confirmedZeroTasks
-                        });
+                        }, { merge: true });
                     });
                     const idx = allHistoryData.findIndex(d => d.id === todayDateKey);
                     if (idx > -1) {
@@ -579,7 +593,10 @@ export function setupMainScreenListeners() {
                 appState.taskQuantities = newQuantities;
                 appState.confirmedZeroTasks = confirmedZeroTasks;
                 debouncedSaveState();
-                saveProgress(true);
+                
+                // 모바일에서는 중간 저장도 함께 수행하여 안정성 확보
+                saveProgress(true); 
+                
                 showToast('오늘의 처리량이 저장되었습니다.');
                 render();
             };
