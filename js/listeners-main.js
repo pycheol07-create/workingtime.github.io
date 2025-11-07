@@ -31,9 +31,13 @@ import {
     loginModal, loginForm, loginEmailInput, loginPasswordInput, loginSubmitBtn,
     loginErrorMsg, loginButtonText, loginButtonSpinner, logoutBtn, logoutBtnMobile,
 
+    pcClockOutCancelBtn, mobileClockOutCancelBtn,
+    memberActionModal, actionMemberName, actionMemberStatusBadge, actionMemberTimeInfo,
+    adminClockInBtn, adminClockOutBtn, adminCancelClockOutBtn, openLeaveModalBtn
+
 } from './app.js';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime } from './utils.js';
+import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js';
 
 import {
     getAllDashboardDefinitions,
@@ -46,8 +50,7 @@ import {
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
-    // ✅ [신규] 출퇴근 처리 함수 임포트
-    processClockIn, processClockOut
+    processClockIn, processClockOut, cancelClockOut
 } from './app-logic.js';
 
 import {
@@ -60,7 +63,6 @@ import { doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/
 
 export function setupMainScreenListeners() {
 
-    // ✅ [신규] PC 개인 출퇴근 토글 리스너
     const pcAttendanceCheckbox = document.getElementById('pc-attendance-checkbox');
     if (pcAttendanceCheckbox) {
         pcAttendanceCheckbox.addEventListener('change', (e) => {
@@ -70,16 +72,14 @@ export function setupMainScreenListeners() {
             if (e.target.checked) {
                 processClockIn(currentUser);
             } else {
-                // 퇴근 처리는 조건(진행중 업무 여부) 체크가 있으므로, 실패 시 다시 체크박스를 되돌려야 함
                 const success = processClockOut(currentUser);
                 if (!success) {
-                    e.target.checked = true; // 퇴근 실패 시 다시 '출근' 상태로 유지
+                    e.target.checked = true;
                 }
             }
         });
     }
 
-    // ✅ [신규] 모바일 개인 출퇴근 토글 리스너
     const mobileAttendanceCheckbox = document.getElementById('mobile-attendance-checkbox');
     if (mobileAttendanceCheckbox) {
         mobileAttendanceCheckbox.addEventListener('change', (e) => {
@@ -94,6 +94,20 @@ export function setupMainScreenListeners() {
                     e.target.checked = true;
                 }
             }
+        });
+    }
+
+    if (pcClockOutCancelBtn) {
+        pcClockOutCancelBtn.addEventListener('click', () => {
+            const currentUser = appState.currentUser;
+            if (currentUser) cancelClockOut(currentUser);
+        });
+    }
+
+    if (mobileClockOutCancelBtn) {
+        mobileClockOutCancelBtn.addEventListener('click', () => {
+            const currentUser = appState.currentUser;
+            if (currentUser) cancelClockOut(currentUser);
         });
     }
 
@@ -147,7 +161,7 @@ export function setupMainScreenListeners() {
             const individualStopBtn = e.target.closest('button[data-action="stop-individual"]');
             if (individualStopBtn) {
                 context.recordToStopId = individualStopBtn.dataset.recordId;
-                const record = (appState.workRecords || []).find(r => r.id === context.recordToStopId);
+                const record = (appState.workRecords || []).find(r => String(r.id) === String(context.recordToStopId));
                 if (stopIndividualConfirmMessage && record) {
                     stopIndividualConfirmMessage.textContent = `${record.member}님의 '${record.task}' 업무를 종료하시겠습니까?`;
                 }
@@ -278,34 +292,21 @@ export function setupMainScreenListeners() {
                 const role = appState.currentUserRole || 'user';
                 const selfName = appState.currentUser || null;
 
-                // ✅ [수정] 출근하지 않은 상태면 클릭 무시 (단, 본인이나 관리자는 가능하게 할 수도 있음 - 현재는 모두 차단)
-                if (memberCard.classList.contains('cursor-not-allowed')) {
-                     // 이미 ui-main.js에서 미출근자는 cursor-not-allowed 처리됨.
-                     // 필요하다면 여기서 토스트 메시지를 띄울 수 있음.
-                     // showToast('출근 전입니다.', true);
-                     return;
-                }
-
                 if (role !== 'admin' && memberName !== selfName) {
                     showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
                 }
+
+                if (role === 'admin' && memberName !== selfName) {
+                     openAdminMemberActionModal(memberName);
+                     return;
+                }
+
                 const isWorking = (appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
                 if (isWorking) {
                     return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
                 }
 
-                context.memberToSetLeave = memberName;
-                if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
-                renderLeaveTypeModalOptions(LEAVE_TYPES);
-                if (leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
-                if (leaveEndDateInput) leaveEndDateInput.value = '';
-                const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
-                if (firstRadio) {
-                    const initialType = firstRadio.value;
-                    if (leaveDateInputsDiv) leaveDateInputsDiv.classList.toggle('hidden', !(initialType === '연차' || initialType === '출장' || initialType === '결근'));
-                } else if (leaveDateInputsDiv) { leaveDateInputsDiv.classList.add('hidden'); }
-                if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
-
+                openLeaveModal(memberName);
                 return;
             }
 
@@ -467,7 +468,6 @@ export function setupMainScreenListeners() {
         }
     });
 
-    // ✅ [수정] '오늘의 처리량 입력' 버튼 리스너 (PC)
     if (openQuantityModalTodayBtn) {
         openQuantityModalTodayBtn.addEventListener('click', () => {
             if (!auth || !auth.currentUser) {
@@ -493,7 +493,6 @@ export function setupMainScreenListeners() {
             context.quantityModalContext.mode = 'today';
             context.quantityModalContext.dateKey = null;
 
-            // ✨ [중요] 저장 콜백 함수 정의 (confirmedZeroTasks 포함)
             context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
                 appState.taskQuantities = newQuantities;
                 appState.confirmedZeroTasks = confirmedZeroTasks;
@@ -551,7 +550,6 @@ export function setupMainScreenListeners() {
         });
     }
 
-    // ✅ [수정] '오늘의 처리량 입력' 버튼 리스너 (모바일)
     if (openQuantityModalTodayBtnMobile) {
         openQuantityModalTodayBtnMobile.addEventListener('click', () => {
             if (!auth || !auth.currentUser) {
@@ -682,4 +680,84 @@ export function setupMainScreenListeners() {
             }
         });
     }
+
+    if (adminClockInBtn) {
+        adminClockInBtn.addEventListener('click', () => {
+            if (context.memberToAction) {
+                processClockIn(context.memberToAction, true);
+                if (memberActionModal) memberActionModal.classList.add('hidden');
+            }
+        });
+    }
+    if (adminClockOutBtn) {
+        adminClockOutBtn.addEventListener('click', () => {
+             if (context.memberToAction) {
+                processClockOut(context.memberToAction, true);
+                if (memberActionModal) memberActionModal.classList.add('hidden');
+            }
+        });
+    }
+    if (adminCancelClockOutBtn) {
+        adminCancelClockOutBtn.addEventListener('click', () => {
+             if (context.memberToAction) {
+                cancelClockOut(context.memberToAction, true);
+                if (memberActionModal) memberActionModal.classList.add('hidden');
+            }
+        });
+    }
+    if (openLeaveModalBtn) {
+        openLeaveModalBtn.addEventListener('click', () => {
+            if (context.memberToAction) {
+                if (memberActionModal) memberActionModal.classList.add('hidden');
+                setTimeout(() => openLeaveModal(context.memberToAction), 100);
+            }
+        });
+    }
+}
+
+function openLeaveModal(memberName) {
+    context.memberToSetLeave = memberName;
+    if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
+    renderLeaveTypeModalOptions(LEAVE_TYPES);
+    if (leaveStartDateInput) leaveStartDateInput.value = getTodayDateString();
+    if (leaveEndDateInput) leaveEndDateInput.value = '';
+    const firstRadio = leaveTypeOptionsContainer?.querySelector('input[type="radio"]');
+    if (firstRadio) {
+        firstRadio.checked = true;
+        const initialType = firstRadio.value;
+        if (leaveDateInputsDiv) leaveDateInputsDiv.classList.toggle('hidden', !(initialType === '연차' || initialType === '출장' || initialType === '결근'));
+    } else if (leaveDateInputsDiv) { leaveDateInputsDiv.classList.add('hidden'); }
+    if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
+}
+
+function openAdminMemberActionModal(memberName) {
+    context.memberToAction = memberName;
+    if (actionMemberName) actionMemberName.textContent = memberName;
+
+    const attendance = appState.dailyAttendance?.[memberName];
+    const status = attendance?.status;
+    const inTime = attendance?.inTime;
+    const outTime = attendance?.outTime;
+
+    if (actionMemberStatusBadge && actionMemberTimeInfo) {
+        if (status === 'active') {
+            actionMemberStatusBadge.textContent = '근무 중 (대기)';
+            actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800';
+            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(inTime)}`;
+        } else if (status === 'returned') {
+            actionMemberStatusBadge.textContent = '퇴근 완료';
+            actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-600';
+            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(inTime)} / 퇴근: ${formatTimeTo24H(outTime)}`;
+        } else {
+             actionMemberStatusBadge.textContent = '출근 전';
+             actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-400';
+             actionMemberTimeInfo.textContent = '-';
+        }
+    }
+
+    if (adminClockInBtn) adminClockInBtn.classList.toggle('hidden', status === 'active' || status === 'returned');
+    if (adminClockOutBtn) adminClockOutBtn.classList.toggle('hidden', status !== 'active');
+    if (adminCancelClockOutBtn) adminCancelClockOutBtn.classList.toggle('hidden', status !== 'returned');
+
+    if (memberActionModal) memberActionModal.classList.remove('hidden');
 }
