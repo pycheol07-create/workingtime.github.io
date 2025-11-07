@@ -1,6 +1,7 @@
+// === js/listeners-main.js ===
 import {
     appState, appConfig, db, auth,
-    persistentLeaveSchedule, allHistoryData,
+    allHistoryData,
     context,
     LEAVE_TYPES,
 
@@ -33,14 +34,23 @@ import {
 
     pcClockOutCancelBtn, mobileClockOutCancelBtn,
     memberActionModal, actionMemberName, actionMemberStatusBadge, actionMemberTimeInfo,
-    adminClockInBtn, adminClockOutBtn, adminCancelClockOutBtn, openLeaveModalBtn
+    adminClockInBtn, adminClockOutBtn, adminCancelClockOutBtn, openLeaveModalBtn,
+
+    // 모달 관련 DOM 요소 (app.js에서 전달됨)
+    quantityModal, confirmQuantityBtn, cancelQuantityBtn,
+    quantityOnStopModal, confirmQuantityOnStopBtn, cancelQuantityOnStopBtn,
+    confirmDeleteBtn, confirmStopIndividualBtn, confirmEditBtn,
+    manualAddRecordModal, confirmManualAddBtn, cancelManualAddBtn,
+    resetAppModal, confirmResetAppBtn,
+    editPartTimerModal, confirmEditPartTimerBtn,
+    addAttendanceRecordModal, confirmAddAttendanceBtn,
+    editAttendanceRecordModal, confirmEditAttendanceBtn
 
 } from './app.js';
 
 import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js';
 
 import {
-    getAllDashboardDefinitions,
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderPersonalAnalysis,
@@ -50,7 +60,8 @@ import {
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
-    processClockIn, processClockOut, cancelClockOut
+    processClockIn, processClockOut, cancelClockOut,
+    startWorkGroup, addMembersToWorkGroup, finalizeStopGroup
 } from './app-logic.js';
 
 import {
@@ -112,7 +123,7 @@ export function setupMainScreenListeners() {
     }
 
     if (teamStatusBoard) {
-        teamStatusBoard.addEventListener('click', (e) => {
+        teamStatusBoard.addEventListener('click', async (e) => {
 
             const toggleMobileBtn = e.target.closest('#toggle-all-tasks-mobile');
             if (toggleMobileBtn) {
@@ -130,24 +141,76 @@ export function setupMainScreenListeners() {
                 return;
             }
 
+            // ✅ [수정] 전체 정지 (다중 그룹 지원)
             const stopGroupButton = e.target.closest('.stop-work-group-btn');
             if (stopGroupButton) {
-                context.groupToStopId = Number(stopGroupButton.dataset.groupId);
+                const allGroupIdsJson = stopGroupButton.dataset.allGroupIds;
+                if (allGroupIdsJson) {
+                    try {
+                         context.groupsToStopIds = JSON.parse(allGroupIdsJson);
+                         context.groupToStopId = null;
+                    } catch (e) {
+                         console.error("Error parsing allGroupIds:", e);
+                         context.groupsToStopIds = null;
+                         context.groupToStopId = stopGroupButton.dataset.groupId;
+                    }
+                } else {
+                     context.groupsToStopIds = null;
+                     context.groupToStopId = stopGroupButton.dataset.groupId;
+                }
+                
                 if (document.getElementById('stop-group-confirm-modal')) {
+                    const msgEl = document.getElementById('stop-group-confirm-message');
+                    if (msgEl) {
+                         const count = context.groupsToStopIds ? context.groupsToStopIds.length : 1;
+                         msgEl.textContent = `${count}개 그룹의 업무를 모두 종료하시겠습니까?`;
+                    }
                     document.getElementById('stop-group-confirm-modal').classList.remove('hidden');
                 }
                 return;
             }
+
+            // ✅ [수정] 전체 일시정지 (다중 그룹 지원)
             const pauseGroupButton = e.target.closest('.pause-work-group-btn');
             if (pauseGroupButton) {
-                pauseWorkGroup(Number(pauseGroupButton.dataset.groupId));
+                const allGroupIdsJson = pauseGroupButton.dataset.allGroupIds;
+                if (allGroupIdsJson) {
+                    try {
+                        const allGroupIds = JSON.parse(allGroupIdsJson);
+                        for (const groupId of allGroupIds) {
+                            await pauseWorkGroup(groupId);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse allGroupIds for pause:", e);
+                         // Fallback
+                         await pauseWorkGroup(pauseGroupButton.dataset.groupId);
+                    }
+                } else {
+                    await pauseWorkGroup(pauseGroupButton.dataset.groupId);
+                }
                 return;
             }
+
+            // ✅ [수정] 전체 재개 (다중 그룹 지원)
             const resumeGroupButton = e.target.closest('.resume-work-group-btn');
             if (resumeGroupButton) {
-                resumeWorkGroup(Number(resumeGroupButton.dataset.groupId));
+                 const allGroupIdsJson = resumeGroupButton.dataset.allGroupIds;
+                if (allGroupIdsJson) {
+                    try {
+                        const allGroupIds = JSON.parse(allGroupIdsJson);
+                        for (const groupId of allGroupIds) {
+                            await resumeWorkGroup(groupId);
+                        }
+                    } catch (e) {
+                         console.error("Failed to parse allGroupIds for resume:", e);
+                         await resumeWorkGroup(resumeGroupButton.dataset.groupId);
+                    }
+                } else {
+                    await resumeWorkGroup(resumeGroupButton.dataset.groupId);
+                }
                 return;
             }
+
             const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
             if (individualPauseBtn) {
                 pauseWorkIndividual(individualPauseBtn.dataset.recordId);
@@ -171,16 +234,18 @@ export function setupMainScreenListeners() {
 
             const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
             if (groupTimeDisplay) {
-                const groupId = Number(groupTimeDisplay.dataset.groupId);
+                // 그룹 시간 변경은 여전히 '대표 그룹 ID' 하나만 기준으로 동작합니다.
+                // (여러 그룹이 섞여 있을 때 시작 시간이 다를 수 있기 때문입니다. 이는 추후 개선 과제로 남겨둡니다.)
+                const groupId = groupTimeDisplay.dataset.groupId;
                 const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
-                if (!groupId || !currentStartTime) return;
+                if (!groupId) return;
 
                 context.recordIdOrGroupIdToEdit = groupId;
                 context.editType = 'group';
 
                 if (editStartTimeModalTitle) editStartTimeModalTitle.textContent = '그룹 시작 시간 변경';
                 if (editStartTimeModalMessage) editStartTimeModalMessage.textContent = '이 그룹의 모든 팀원의 시작 시간이 변경됩니다.';
-                if (editStartTimeInput) editStartTimeInput.value = currentStartTime;
+                if (editStartTimeInput) editStartTimeInput.value = currentStartTime || '';
                 if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = groupId;
                 if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = 'group';
 
@@ -200,7 +265,7 @@ export function setupMainScreenListeners() {
 
                 if (editStartTimeModalTitle) editStartTimeModalTitle.textContent = '개별 시작 시간 변경';
                 if (editStartTimeModalMessage) editStartTimeModalMessage.textContent = `${record.member}님의 시작 시간을 변경합니다.`;
-                if (editStartTimeInput) editStartTimeInput.value = currentStartTime;
+                if (editStartTimeInput) editStartTimeInput.value = currentStartTime || '';
                 if (editStartTimeContextIdInput) editStartTimeContextIdInput.value = recordId;
                 if (editStartTimeContextTypeInput) editStartTimeContextTypeInput.value = 'individual';
 
@@ -337,7 +402,7 @@ export function setupMainScreenListeners() {
 
                 } else if (groupId && task) {
                     context.selectedTaskForStart = task;
-                    context.selectedGroupForAdd = Number(groupId);
+                    context.selectedGroupForAdd = groupId; // String 유지
                     renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
                     const titleEl = document.getElementById('team-select-modal-title');
                     if (titleEl) titleEl.textContent = `'${task}' 인원 추가`;
@@ -392,7 +457,7 @@ export function setupMainScreenListeners() {
     const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
     if (deleteAllCompletedBtn) {
         deleteAllCompletedBtn.addEventListener('click', () => {
-            context.deleteMode = 'all';
+            context.deleteMode = 'all-completed';
             const msgEl = document.getElementById('delete-confirm-message');
             if (msgEl) msgEl.textContent = '오늘 완료된 모든 업무 기록을 삭제하시겠습니까?';
             if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
@@ -410,8 +475,7 @@ export function setupMainScreenListeners() {
                 if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = `총 ${ongoingRecords.length}명이 참여 중인 ${ongoingTaskCount}종의 업무가 있습니다. 모두 종료하고 마감하시겠습니까?`;
                 if (endShiftConfirmModal) endShiftConfirmModal.classList.remove('hidden');
             } else {
-                saveDayDataToHistory(false);
-                showToast('업무 마감 처리 완료. 오늘의 기록을 이력에 저장하고 초기화했습니다.');
+                saveDayDataToHistory(true);
             }
         });
     }
@@ -475,123 +539,20 @@ export function setupMainScreenListeners() {
                 if (loginModal) loginModal.classList.remove('hidden');
                 return;
             }
-
-            const quantityModal = document.getElementById('quantity-modal');
-
-            const todayData = {
-                workRecords: appState.workRecords || [],
-                taskQuantities: appState.taskQuantities || {},
-                confirmedZeroTasks: appState.confirmedZeroTasks || []
-            };
-            const missingTasksList = checkMissingQuantities(todayData);
-
-            renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList, appState.confirmedZeroTasks || []);
-
-            const title = document.getElementById('quantity-modal-title');
-            if (title) title.textContent = '오늘의 처리량 입력';
-
-            context.quantityModalContext.mode = 'today';
-            context.quantityModalContext.dateKey = null;
-
-            context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
-                appState.taskQuantities = newQuantities;
-                appState.confirmedZeroTasks = confirmedZeroTasks;
-                debouncedSaveState();
-                render();
-                showToast('오늘의 처리량이 저장되었습니다.');
-
-                try {
-                    const allDefinitions = getAllDashboardDefinitions(appConfig);
-                    const dashboardItemIds = appConfig.dashboardItems || [];
-                    const quantityToDashboardMap = appConfig.quantityToDashboardMap || {};
-
-                    for (const task in newQuantities) {
-                        const targetId = quantityToDashboardMap[task];
-                        if (targetId && dashboardItemIds.includes(targetId) && allDefinitions[targetId]) {
-                            const element = document.getElementById(allDefinitions[targetId].valueId);
-                            if (element) {
-                                element.textContent = newQuantities[task];
-                            }
-                        }
-                    }
-                } catch (syncError) {
-                    console.error("Error during dashboard sync:", syncError);
-                }
-
-                const todayDateKey = getTodayDateString();
-                const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
-                try {
-                    await runTransaction(db, async (transaction) => {
-                        const docSnap = await transaction.get(historyDocRef);
-                        if (!docSnap.exists()) return;
-                        transaction.update(historyDocRef, {
-                            taskQuantities: newQuantities,
-                            confirmedZeroTasks: confirmedZeroTasks
-                        });
-                    });
-                    const idx = allHistoryData.findIndex(d => d.id === todayDateKey);
-                    if (idx > -1) {
-                        allHistoryData[idx].taskQuantities = newQuantities;
-                        allHistoryData[idx].confirmedZeroTasks = confirmedZeroTasks;
-                    }
-                } catch (e) {
-                    console.error('오늘자 이력 동기화 실패:', e);
-                }
-            };
-
-            context.quantityModalContext.onCancel = () => {};
-
-            const cBtn = document.getElementById('confirm-quantity-btn');
-            const xBtn = document.getElementById('cancel-quantity-btn');
-            if (cBtn) cBtn.textContent = '저장';
-            if (xBtn) xBtn.textContent = '취소';
-            if (quantityModal) quantityModal.classList.remove('hidden');
+            openTodayQuantityModal();
             if (menuDropdown) menuDropdown.classList.add('hidden');
         });
     }
 
     if (openQuantityModalTodayBtnMobile) {
         openQuantityModalTodayBtnMobile.addEventListener('click', () => {
-            if (!auth || !auth.currentUser) {
+             if (!auth || !auth.currentUser) {
                 showToast('로그인이 필요합니다.', true);
                 if (loginModal) loginModal.classList.remove('hidden');
                 return;
             }
-
-            const quantityModal = document.getElementById('quantity-modal');
-
-            const todayData = {
-                workRecords: appState.workRecords || [],
-                taskQuantities: appState.taskQuantities || {},
-                confirmedZeroTasks: appState.confirmedZeroTasks || []
-            };
-            const missingTasksList = checkMissingQuantities(todayData);
-
-            renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList, appState.confirmedZeroTasks || []);
-
-            const title = document.getElementById('quantity-modal-title');
-            if (title) title.textContent = '오늘의 처리량 입력';
-
-            context.quantityModalContext.mode = 'today';
-            context.quantityModalContext.dateKey = null;
-
-            context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
-                appState.taskQuantities = newQuantities;
-                appState.confirmedZeroTasks = confirmedZeroTasks;
-                debouncedSaveState();
-                saveProgress(true);
-                showToast('오늘의 처리량이 저장되었습니다.');
-                render();
-            };
-
-            context.quantityModalContext.onCancel = () => {};
-
-            const cBtn = document.getElementById('confirm-quantity-btn');
-            const xBtn = document.getElementById('cancel-quantity-btn');
-            if (cBtn) cBtn.textContent = '저장';
-            if (xBtn) xBtn.textContent = '취소';
-            if (quantityModal) quantityModal.classList.remove('hidden');
-            if (navContent) navContent.classList.add('hidden');
+            openTodayQuantityModal();
+             if (navContent) navContent.classList.add('hidden');
         });
     }
 
@@ -760,4 +721,58 @@ function openAdminMemberActionModal(memberName) {
     if (adminCancelClockOutBtn) adminCancelClockOutBtn.classList.toggle('hidden', status !== 'returned');
 
     if (memberActionModal) memberActionModal.classList.remove('hidden');
+}
+
+function openTodayQuantityModal() {
+    const quantityModal = document.getElementById('quantity-modal');
+    const todayData = {
+        workRecords: appState.workRecords || [],
+        taskQuantities: appState.taskQuantities || {},
+        confirmedZeroTasks: appState.confirmedZeroTasks || []
+    };
+    const missingTasksList = checkMissingQuantities(todayData);
+
+    renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes || [], missingTasksList, appState.confirmedZeroTasks || []);
+
+    const title = document.getElementById('quantity-modal-title');
+    if (title) title.textContent = '오늘의 처리량 입력';
+
+    context.quantityModalContext.mode = 'today';
+    context.quantityModalContext.dateKey = null;
+
+    context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
+        appState.taskQuantities = newQuantities;
+        appState.confirmedZeroTasks = confirmedZeroTasks;
+        debouncedSaveState();
+        showToast('오늘의 처리량이 저장되었습니다.');
+
+        const todayDateKey = getTodayDateString();
+        const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
+        try {
+            await runTransaction(db, async (transaction) => {
+                // 이력 문서가 없어도 생성되도록 set(merge: true) 사용
+                transaction.set(historyDocRef, {
+                    taskQuantities: newQuantities,
+                    confirmedZeroTasks: confirmedZeroTasks
+                }, { merge: true });
+            });
+            // 로컬 이력 캐시 업데이트
+            const idx = allHistoryData.findIndex(d => d.id === todayDateKey);
+            if (idx > -1) {
+                allHistoryData[idx].taskQuantities = newQuantities;
+                allHistoryData[idx].confirmedZeroTasks = confirmedZeroTasks;
+            }
+        } catch (e) {
+            console.error('오늘자 이력 동기화 실패:', e);
+        }
+        render();
+    };
+
+    context.quantityModalContext.onCancel = () => {};
+
+    const cBtn = document.getElementById('confirm-quantity-btn');
+    const xBtn = document.getElementById('cancel-quantity-btn');
+    if (cBtn) cBtn.textContent = '저장';
+    if (xBtn) xBtn.textContent = '취소';
+    if (quantityModal) quantityModal.classList.remove('hidden');
 }

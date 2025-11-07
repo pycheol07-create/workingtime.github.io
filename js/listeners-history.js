@@ -5,18 +5,6 @@ import {
     context,
     LEAVE_TYPES,
 
-    // ⛔️ [삭제] 근태 추가/수정 모달 관련 DOM 요소 import 제거
-    // addAttendanceRecordModal, addAttendanceForm, confirmAddAttendanceBtn, cancelAddAttendanceBtn,
-    // addAttendanceMemberNameInput, addAttendanceMemberDatalist, addAttendanceTypeSelect,
-    // addAttendanceStartTimeInput, addAttendanceEndTimeInput, addAttendanceStartDateInput,
-    // addAttendanceEndDateInput, addAttendanceDateKeyInput, addAttendanceTimeFields,
-    // addAttendanceDateFields,
-    // editAttendanceRecordModal, confirmEditAttendanceBtn, cancelEditAttendanceBtn,
-    // editAttendanceMemberName, editAttendanceTypeSelect,
-    // editAttendanceStartTimeInput, editAttendanceEndTimeInput, editAttendanceStartDateInput,
-    // editAttendanceEndDateInput, editAttendanceDateKeyInput, editAttendanceRecordIndexInput,
-    // editAttendanceTimeFields, editAttendanceDateFields,
-
     deleteConfirmModal, historyModal,
     historyModalContentBox,
     openHistoryBtn, closeHistoryBtn, historyDateList, historyViewContainer, historyTabs,
@@ -33,7 +21,7 @@ import {
 
     loginModal,
 
-    // ✅ [추가] 근태 모달을 열기 위해 DOM 요소 import 유지 (app.js에서)
+    // 근태 모달 관련 DOM 요소 (app.js에서 import)
     addAttendanceRecordModal, addAttendanceMemberDatalist, addAttendanceTypeSelect,
     addAttendanceTimeFields, addAttendanceDateFields, addAttendanceForm, 
     addAttendanceDateKeyInput, addAttendanceStartDateInput, addAttendanceEndDateInput,
@@ -41,7 +29,6 @@ import {
     editAttendanceTimeFields, editAttendanceStartTimeInput, editAttendanceEndTimeInput,
     editAttendanceDateFields, editAttendanceStartDateInput, editAttendanceEndDateInput,
     editAttendanceDateKeyInput, editAttendanceRecordIndexInput
-
 
 } from './app.js';
 
@@ -78,7 +65,6 @@ import {
     renderReportYearly
 } from './ui-history.js';
 
-// ⛔️ [삭제] setDoc import 제거
 import { doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 export function setupHistoryModalListeners() {
@@ -108,7 +94,7 @@ export function setupHistoryModalListeners() {
     };
 
     if (historyFilterBtn) {
-        historyFilterBtn.addEventListener('click', () => {
+        historyFilterBtn.addEventListener('click', async () => {
             const startDate = historyStartDateInput.value;
             const endDate = historyEndDateInput.value;
 
@@ -121,20 +107,20 @@ export function setupHistoryModalListeners() {
             context.historyEndDate = endDate || null;
 
             context.reportSortState = {};
-            renderHistoryDateListByMode(getCurrentHistoryListMode());
+            await renderHistoryDateListByMode(getCurrentHistoryListMode());
             showToast('이력 목록을 필터링했습니다.');
         });
     }
 
     if (historyClearFilterBtn) {
-        historyClearFilterBtn.addEventListener('click', () => {
+        historyClearFilterBtn.addEventListener('click', async () => {
             historyStartDateInput.value = '';
             historyEndDateInput.value = '';
             context.historyStartDate = null;
             context.historyEndDate = null;
 
             context.reportSortState = {};
-            renderHistoryDateListByMode(getCurrentHistoryListMode());
+            await renderHistoryDateListByMode(getCurrentHistoryListMode());
             showToast('필터를 초기화했습니다.');
         });
     }
@@ -271,10 +257,10 @@ export function setupHistoryModalListeners() {
     }
 
     if (historyTabs) {
-        historyTabs.addEventListener('click', (e) => {
+        historyTabs.addEventListener('click', async (e) => {
             const btn = e.target.closest('button[data-view]');
             if (btn) {
-                switchHistoryView(btn.dataset.view);
+                await switchHistoryView(btn.dataset.view);
             }
         });
     }
@@ -286,7 +272,7 @@ export function setupHistoryModalListeners() {
                 try {
                     await deleteDoc(historyDocRef);
                     showToast(`${context.historyKeyToDelete} 이력이 삭제되었습니다.`);
-                    await loadAndRenderHistoryList();
+                    await loadAndRenderHistoryList(); // 삭제 후 목록 갱신
                 } catch (e) {
                     console.error('Error deleting history:', e);
                     showToast('이력 삭제 중 오류 발생.', true);
@@ -298,7 +284,7 @@ export function setupHistoryModalListeners() {
     }
 
     if (historyMainTabs) {
-        historyMainTabs.addEventListener('click', (e) => {
+        historyMainTabs.addEventListener('click', async (e) => {
             const btn = e.target.closest('button[data-main-tab]');
             if (btn) {
                 const tabName = btn.dataset.mainTab;
@@ -325,7 +311,7 @@ export function setupHistoryModalListeners() {
 
                     const activeSubTabBtn = historyTabs?.querySelector('button.font-semibold');
                     const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-                    switchHistoryView(view);
+                    await switchHistoryView(view);
 
                 } else if (tabName === 'attendance') {
                     if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
@@ -336,7 +322,7 @@ export function setupHistoryModalListeners() {
 
                     const activeSubTabBtn = attendanceHistoryTabs?.querySelector('button.font-semibold');
                     const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
-                    switchHistoryView(view);
+                    await switchHistoryView(view);
 
                 } else if (tabName === 'trends') {
                     if (workHistoryPanel) workHistoryPanel.classList.add('hidden');
@@ -355,28 +341,28 @@ export function setupHistoryModalListeners() {
 
                     const activeSubTabBtn = reportTabs?.querySelector('button.font-semibold');
                     const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'report-daily';
-                    switchHistoryView(view);
+                    await switchHistoryView(view);
                 }
             }
         });
     }
 
     if (attendanceHistoryTabs) {
-        attendanceHistoryTabs.addEventListener('click', (e) => {
+        attendanceHistoryTabs.addEventListener('click', async (e) => {
             const btn = e.target.closest('button[data-view]');
             if (btn) {
-                switchHistoryView(btn.dataset.view);
+                await switchHistoryView(btn.dataset.view);
             }
         });
     }
 
     if (reportTabs) {
-        reportTabs.addEventListener('click', (e) => {
+        reportTabs.addEventListener('click', async (e) => {
             const btn = e.target.closest('button[data-view]');
             if (btn) {
                 context.reportSortState = {};
                 context.currentReportParams = null;
-                switchHistoryView(btn.dataset.view);
+                await switchHistoryView(btn.dataset.view);
             }
         });
     }
@@ -419,7 +405,6 @@ export function setupHistoryModalListeners() {
                 }
                 const record = dayData.onLeaveMembers[index];
 
-                // ⛔️ [삭제] DOM 요소 직접 제어 로직 (listeners-modals.js로 이동)
                 if (editAttendanceMemberName) editAttendanceMemberName.value = record.member;
                 if (editAttendanceTypeSelect) {
                     editAttendanceTypeSelect.innerHTML = '';
@@ -479,7 +464,6 @@ export function setupHistoryModalListeners() {
                 const dateKey = addBtn.dataset.dateKey;
                 if (!dateKey) { showToast('날짜 정보를 찾을 수 없습니다.', true); return; }
                 
-                // ⛔️ [삭제] DOM 요소 직접 제어 로직 (listeners-modals.js로 이동)
                 if (addAttendanceForm) addAttendanceForm.reset();
                 if (addAttendanceDateKeyInput) addAttendanceDateKeyInput.value = dateKey;
                 if (addAttendanceStartDateInput) addAttendanceStartDateInput.value = dateKey;
@@ -532,12 +516,10 @@ export function setupHistoryModalListeners() {
                 return;
             }
 
-            // ✨ 매출액 분석 적용 버튼 이벤트 (콤마 제거 로직 추가)
             const applyRevenueBtn = e.target.closest('#report-apply-revenue-btn');
             if (applyRevenueBtn) {
                 const revenueInput = document.getElementById('report-monthly-revenue-input');
                 if (revenueInput && context.currentReportParams && context.currentReportParams.monthKey) {
-                    // 콤마 제거 후 숫자로 변환
                     const rawRevenue = revenueInput.value.replace(/,/g, '');
                     const revenue = Number(rawRevenue) || 0;
                     const monthKey = context.currentReportParams.monthKey;
@@ -651,15 +633,6 @@ export function setupHistoryModalListeners() {
             icon.innerHTML = iconMaximize;
         }
     }
-
-    // ⛔️ [삭제] 근태 추가/수정 모달의 '저장/취소' 버튼 리스너 제거
-    // if (confirmEditAttendanceBtn) { ... }
-    // if (cancelEditAttendanceBtn) { ... }
-    // if (confirmAddAttendanceBtn) { ... }
-    // if (cancelAddAttendanceBtn) { ... }
-    // if (addAttendanceTypeSelect) { ... }
-    // if (editAttendanceTypeSelect) { ... }
-
 }
 
 function makeDraggable(modalOverlay, header, contentBox) {
