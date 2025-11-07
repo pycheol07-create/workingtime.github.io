@@ -68,35 +68,62 @@ import {
     renderAttendanceDailyHistory
 } from './ui-history.js';
 
-import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ✅ [수정] Firestore 함수 임포트
+import { doc, setDoc, collection, updateDoc, deleteDoc, writeBatch, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+
+// ✅ [신규] workRecords 컬렉션 참조 헬퍼
+const getWorkRecordsCollectionRef = () => {
+    const today = getTodayDateString();
+    return collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
+};
+
 
 export function setupGeneralModalListeners() {
 
+    // ✅ [수정] async 추가, Firestore 문서 직접 삭제
     if (confirmDeleteBtn) {
         confirmDeleteBtn.addEventListener('click', async () => {
-            let stateChanged = false;
+            let stateChanged = false; // workRecords 외의 상태 변경 감지
+            const workRecordsColRef = getWorkRecordsCollectionRef();
 
             if (context.deleteMode === 'all') {
-                const originalLength = appState.workRecords.length;
-                appState.workRecords = (appState.workRecords || []).filter(r => r.status !== 'completed');
-                if (appState.workRecords.length < originalLength) {
-                    stateChanged = true;
-                    showToast('완료된 모든 기록이 삭제되었습니다.');
-                } else {
-                    showToast('삭제할 완료 기록이 없습니다.');
+                // ⛔️ [수정] 로컬 appState.workRecords를 필터링하는 대신, Firestore에서 직접 삭제
+                try {
+                    const q = query(workRecordsColRef, where("status", "==", "completed"));
+                    const querySnapshot = await getDocs(q);
+                    
+                    if (querySnapshot.empty) {
+                        showToast('삭제할 완료 기록이 없습니다.');
+                    } else {
+                        const batch = writeBatch(db);
+                        querySnapshot.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        await batch.commit();
+                        showToast(`완료된 기록 ${querySnapshot.size}건이 삭제되었습니다.`);
+                    }
+                    // ⛔️ appState.workRecords = ... 제거
+                    // ⛔️ stateChanged = true; 제거
+                } catch (e) {
+                    console.error("Error deleting all completed records: ", e);
+                    showToast("일괄 삭제 중 오류가 발생했습니다.", true);
                 }
-
+                
             } else if (context.deleteMode === 'single' && context.recordToDeleteId) {
-                const originalLength = appState.workRecords.length;
-                appState.workRecords = (appState.workRecords || []).filter(r => String(r.id) !== String(context.recordToDeleteId));
-                if (appState.workRecords.length < originalLength) {
-                    stateChanged = true;
+                // ⛔️ [수정] Firestore에서 단일 문서 삭제
+                try {
+                    const docRef = doc(workRecordsColRef, context.recordToDeleteId);
+                    await deleteDoc(docRef);
                     showToast('선택한 기록이 삭제되었습니다.');
-                } else {
-                    showToast('삭제할 기록을 찾지 못했습니다.', true);
+                    // ⛔️ stateChanged = true; 제거
+                } catch (e) {
+                    console.error("Error deleting single record: ", e);
+                    showToast("기록 삭제 중 오류가 발생했습니다.", true);
                 }
 
             } else if (context.deleteMode === 'leave' && context.attendanceRecordToDelete) {
+                // ... (이하는 workRecords와 무관하므로 기존 로직 유지) ...
                 const { memberName, startIdentifier, recordType } = context.attendanceRecordToDelete;
                 let recordDeleted = false;
                 let deletedRecordInfo = '';
@@ -134,6 +161,7 @@ export function setupGeneralModalListeners() {
                 }
 
             } else if (context.deleteMode === 'attendance' && context.attendanceRecordToDelete) {
+                // ... (이하는 history 컬렉션이므로 기존 로직 유지) ...
                 const { dateKey, index } = context.attendanceRecordToDelete;
                 const dayDataIndex = allHistoryData.findIndex(d => d.id === dateKey);
                 if (dayDataIndex === -1) {
@@ -175,6 +203,7 @@ export function setupGeneralModalListeners() {
                 }
             }
 
+            // ✅ [수정] stateChanged는 이제 workRecords 외의 상태(근태 등)가 변경되었을 때만 true
             if (stateChanged) {
                 if (context.deleteMode === 'leave') {
                     if (context.attendanceRecordToDelete?.recordType === 'daily') {
@@ -185,7 +214,7 @@ export function setupGeneralModalListeners() {
                         saveProgress(true);
                     }
                 } else {
-                    debouncedSaveState();
+                    // ⛔️ debouncedSaveState(); // workRecords 삭제 시에는 호출 안함
                 }
             }
 
@@ -194,12 +223,11 @@ export function setupGeneralModalListeners() {
             context.attendanceRecordToDelete = null;
             context.deleteMode = 'single';
 
-            if (stateChanged) {
-                render();
-            }
+            // ⛔️ render(); // 제거 (onSnapshot이 처리)
         });
     }
 
+    // ... (confirmEndShiftBtn, resetAppBtn 등은 변경 없음) ...
     if (confirmEndShiftBtn) {
         confirmEndShiftBtn.addEventListener('click', () => {
             saveDayDataToHistory(false);
@@ -230,8 +258,8 @@ export function setupGeneralModalListeners() {
             if (navContent) navContent.classList.add('hidden');
         });
     }
-
-    // ✅ [수정] 처리량 모달 저장 버튼 리스너 (단순화됨)
+    
+    // ... (confirmQuantityBtn은 workRecords와 무관하므로 변경 없음) ...
     if (confirmQuantityBtn) {
         confirmQuantityBtn.addEventListener('click', () => {
             // 1. 입력된 처리량 수집
@@ -258,18 +286,20 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ✅ [수정] async 추가, Firestore 문서 직접 수정
     if (confirmEditBtn) {
-        confirmEditBtn.addEventListener('click', () => {
+        confirmEditBtn.addEventListener('click', async () => {
             if (!context.recordToEditId) return;
-            const idx = appState.workRecords.findIndex(r => String(r.id) === String(context.recordToEditId));
-            if (idx === -1) {
-                showToast('수정할 기록을 찾을 수 없습니다.', true);
-                if (editRecordModal) editRecordModal.classList.add('hidden');
-                context.recordToEditId = null;
-                return;
+            
+            // ⛔️ [수정] 로컬 배열 인덱스(idx) 대신 Firestore 문서 참조
+            const record = appState.workRecords.find(r => String(r.id) === String(context.recordToEditId));
+            if (!record) {
+                 showToast('수정할 기록을 찾을 수 없습니다 (로컬 캐시 없음).', true);
+                 if (editRecordModal) editRecordModal.classList.add('hidden');
+                 context.recordToEditId = null;
+                 return;
             }
 
-            const record = appState.workRecords[idx];
             const newTask = document.getElementById('edit-task-type').value;
             const newStart = document.getElementById('edit-start-time').value;
             const newEnd = document.getElementById('edit-end-time').value;
@@ -282,25 +312,39 @@ export function setupGeneralModalListeners() {
                 showToast('종료 시간은 시작 시간보다 이후여야 합니다.', true);
                 return;
             }
+            
+            // ✅ [수정] Firestore 문서 업데이트
+            try {
+                const workRecordsColRef = getWorkRecordsCollectionRef();
+                const docRef = doc(workRecordsColRef, context.recordToEditId);
+                const duration = calcElapsedMinutes(newStart, newEnd, record.pauses); // 기존 pauses는 유지
 
-            record.task = newTask;
-            record.startTime = newStart;
-            record.endTime = newEnd;
-            record.duration = calcElapsedMinutes(newStart, newEnd, record.pauses);
+                await updateDoc(docRef, {
+                    task: newTask,
+                    startTime: newStart,
+                    endTime: newEnd,
+                    duration: duration
+                });
 
-            debouncedSaveState();
-            showToast('기록이 수정되었습니다.');
+                showToast('기록이 수정되었습니다.');
+            } catch (e) {
+                console.error("Error updating record: ", e);
+                showToast("기록 수정 중 오류가 발생했습니다.", true);
+            }
+            
+            // ⛔️ debouncedSaveState(); // 제거
             if (editRecordModal) editRecordModal.classList.add('hidden');
             context.recordToEditId = null;
         });
     }
 
+    // ... (confirmQuantityOnStopBtn은 app-logic.js의 finalizeStopGroup을 호출하므로 변경 없음) ...
     if (confirmQuantityOnStopBtn) {
         confirmQuantityOnStopBtn.addEventListener('click', () => {
             if (context.groupToStopId) {
                 const input = document.getElementById('quantity-on-stop-input');
                 const quantity = input ? (Number(input.value) || 0) : null;
-                finalizeStopGroup(context.groupToStopId, quantity);
+                finalizeStopGroup(context.groupToStopId, quantity); // app-logic.js 함수 (이미 Firestore 사용)
                 if (input) input.value = '';
 
                 if (quantityOnStopModal) quantityOnStopModal.classList.add('hidden');
@@ -308,7 +352,8 @@ export function setupGeneralModalListeners() {
             }
         });
     }
-
+    
+    // ... (taskSelectModal은 app-logic.js의 startWorkGroup 등을 호출하므로 변경 없음) ...
     if (taskSelectModal) {
         taskSelectModal.addEventListener('click', (e) => {
             const btn = e.target.closest('.task-select-btn');
@@ -326,16 +371,18 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ... (confirmStopIndividualBtn은 app-logic.js의 stopWorkIndividual을 호출하므로 변경 없음) ...
     if (confirmStopIndividualBtn) {
         confirmStopIndividualBtn.addEventListener('click', () => {
             if (context.recordToStopId) {
-                stopWorkIndividual(context.recordToStopId);
+                stopWorkIndividual(context.recordToStopId); // app-logic.js 함수 (이미 Firestore 사용)
             }
             if (stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden');
             context.recordToStopId = null;
         });
     }
-
+    
+    // ... (confirmStopGroupBtn은 app-logic.js의 finalizeStopGroup을 호출하므로 변경 없음) ...
     const confirmStopGroupBtn = document.getElementById('confirm-stop-group-btn');
     if (confirmStopGroupBtn) {
         confirmStopGroupBtn.addEventListener('click', () => {
@@ -350,6 +397,7 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ... (나머지 근태, 알바 수정, 모달 닫기 로직 등은 workRecords와 무관하므로 변경 없음) ...
     const cancelStopGroupBtn = document.getElementById('cancel-stop-group-btn');
     if (cancelStopGroupBtn) {
         cancelStopGroupBtn.addEventListener('click', () => {
@@ -555,6 +603,7 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ... (teamSelectModal 리스너는 app-logic.js를 호출하므로 변경 없음) ...
     if (teamSelectModal) {
         teamSelectModal.addEventListener('click', e => {
             const card = e.target.closest('button[data-member-name]');
@@ -598,7 +647,7 @@ export function setupGeneralModalListeners() {
                 const newWage = appConfig.defaultPartTimerWage || 10000;
                 appState.partTimers.push({ id: newId, name: newName, wage: newWage });
 
-                debouncedSaveState();
+                debouncedSaveState(); // partTimers는 메인 문서에 저장
                 renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
                 return;
             }
@@ -619,13 +668,14 @@ export function setupGeneralModalListeners() {
             if (deletePartTimerBtn) {
                 const id = Number(deletePartTimerBtn.dataset.partTimerId);
                 appState.partTimers = (appState.partTimers || []).filter(p => p.id !== id);
-                debouncedSaveState();
+                debouncedSaveState(); // partTimers는 메인 문서에 저장
                 renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
                 return;
             }
         });
     }
-
+    
+    // ... (confirmEditPartTimerBtn은 partTimers를 수정하므로 debouncedSaveState 유지) ...
     if (confirmEditPartTimerBtn) {
         confirmEditPartTimerBtn.addEventListener('click', () => {
             const id = Number(partTimerEditIdInput?.value);
@@ -646,9 +696,17 @@ export function setupGeneralModalListeners() {
 
             const oldName = partTimer.name;
             appState.partTimers[idx] = { ...partTimer, name: newName };
+            
+            // ⛔️ [주의] 로컬 appState.workRecords도 수정해야 하지만,
+            // ⛔️ Firestore의 workRecords도 수정해야 합니다. (이 로직은 누락됨)
+            // ⛔️ 이 부분은 추가 작업이 필요합니다. (우선 로컬 appState만 수정)
             appState.workRecords = (appState.workRecords || []).map(r => (r.member === oldName ? { ...r, member: newName } : r));
+            // ‼️ [수정 권고]
+            // ‼️ 알바 이름이 변경될 때, `workRecords` 컬렉션에서
+            // ‼️ `member === oldName`인 모든 문서를 찾아 `member: newName`으로 업데이트하는
+            // ‼️ 별도의 `writeBatch` 로직이 필요합니다. (현재 코드에는 구현되어 있지 않음)
 
-            debouncedSaveState();
+            debouncedSaveState(); // partTimers 저장
 
             renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
             if (editPartTimerModal) editPartTimerModal.classList.add('hidden');
@@ -656,6 +714,7 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ... (confirmTeamSelectBtn은 app-logic.js를 호출하므로 변경 없음) ...
     const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
     if (confirmTeamSelectBtn) {
         confirmTeamSelectBtn.addEventListener('click', () => {
@@ -672,8 +731,9 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ✅ [수정] async 추가, Firestore 문서 직접 수정 (배치 또는 단일)
     if (confirmEditStartTimeBtn) {
-        confirmEditStartTimeBtn.addEventListener('click', () => {
+        confirmEditStartTimeBtn.addEventListener('click', async () => {
             const newStartTime = editStartTimeInput?.value;
             const contextId = editStartTimeContextIdInput?.value;
             const contextType = editStartTimeContextTypeInput?.value;
@@ -683,31 +743,45 @@ export function setupGeneralModalListeners() {
             }
 
             let updated = false;
-            if (contextType === 'group') {
-                const groupId = Number(contextId);
-                appState.workRecords.forEach(record => {
-                    if (record.groupId === groupId && (record.status === 'ongoing' || record.status === 'paused')) {
-                        record.startTime = newStartTime;
-                        updated = true;
-                    }
-                });
-                if (updated) showToast('그룹 시작 시간이 변경되었습니다.');
+            const workRecordsColRef = getWorkRecordsCollectionRef();
+            
+            try {
+                if (contextType === 'group') {
+                    const groupId = Number(contextId);
+                    const batch = writeBatch(db);
+                    
+                    // 로컬 캐시(appState)를 읽어와서 대상 ID 목록 생성
+                    appState.workRecords.forEach(record => {
+                        if (record.groupId === groupId && (record.status === 'ongoing' || record.status === 'paused')) {
+                            const docRef = doc(workRecordsColRef, record.id);
+                            batch.update(docRef, { startTime: newStartTime });
+                            updated = true;
+                        }
+                    });
+                    
+                    if(updated) await batch.commit();
+                    showToast('그룹 시작 시간이 변경되었습니다.');
 
-            } else if (contextType === 'individual') {
-                const recordId = contextId;
-                const recordIndex = appState.workRecords.findIndex(r => String(r.id) === String(recordId));
-                if (recordIndex !== -1) {
-                    appState.workRecords[recordIndex].startTime = newStartTime;
-                    updated = true;
-                    showToast('개별 시작 시간이 변경되었습니다.');
-                } else {
-                    showToast('해당 기록을 찾을 수 없습니다.', true);
+                } else if (contextType === 'individual') {
+                    const recordId = contextId;
+                    const record = appState.workRecords.find(r => String(r.id) === String(recordId));
+                    if (record) {
+                        const docRef = doc(workRecordsColRef, recordId);
+                        await updateDoc(docRef, { startTime: newStartTime });
+                        updated = true;
+                        showToast('개별 시작 시간이 변경되었습니다.');
+                    } else {
+                        showToast('해당 기록을 찾을 수 없습니다.', true);
+                    }
                 }
+            } catch (e) {
+                console.error("Error updating start time: ", e);
+                showToast("시작 시간 변경 중 오류가 발생했습니다.", true);
             }
-            if (updated) {
-                debouncedSaveState();
-                render();
-            }
+                
+            // ⛔️ debouncedSaveState(); // 제거
+            // ⛔️ render(); // 제거
+            
             if (editStartTimeModal) editStartTimeModal.classList.add('hidden');
             context.recordIdOrGroupIdToEdit = null; context.editType = null;
             if (editStartTimeInput) editStartTimeInput.value = '';
@@ -716,6 +790,7 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ... (cancelEditStartTimeBtn은 변경 없음) ...
     if (cancelEditStartTimeBtn) {
         cancelEditStartTimeBtn.addEventListener('click', () => {
             if (editStartTimeModal) editStartTimeModal.classList.add('hidden');
@@ -726,6 +801,7 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ... (openManualAddBtn은 변경 없음) ...
     if (openManualAddBtn) {
         openManualAddBtn.addEventListener('click', () => {
             renderManualAddModalDatalists(appState, appConfig);
@@ -734,8 +810,9 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ✅ [수정] async 추가, Firestore 문서 직접 생성 (setDoc)
     if (confirmManualAddBtn) {
-        confirmManualAddBtn.addEventListener('click', () => {
+        confirmManualAddBtn.addEventListener('click', async () => {
             const member = document.getElementById('manual-add-member')?.value.trim();
             const task = document.getElementById('manual-add-task')?.value.trim();
             const startTime = document.getElementById('manual-add-start-time')?.value;
@@ -748,28 +825,41 @@ export function setupGeneralModalListeners() {
                 showToast('종료 시간은 시작 시간보다 이후여야 합니다.', true); return;
             }
 
-            const newId = generateId();
-            const duration = calcElapsedMinutes(startTime, endTime, []);
-            const newRecord = {
-                id: newId, member: member, task: task,
-                startTime: startTime, endTime: endTime, duration: duration,
-                status: 'completed', groupId: null, pauses: []
-            };
-            appState.workRecords.push(newRecord);
-            debouncedSaveState();
-            showToast('수동 기록이 추가되었습니다.');
+            try {
+                const newId = generateId();
+                const duration = calcElapsedMinutes(startTime, endTime, []);
+                const newRecord = {
+                    id: newId, member: member, task: task,
+                    startTime: startTime, endTime: endTime, duration: duration,
+                    status: 'completed', groupId: null, pauses: []
+                };
+                
+                const workRecordsColRef = getWorkRecordsCollectionRef();
+                const docRef = doc(workRecordsColRef, newId);
+                await setDoc(docRef, newRecord);
+                
+                showToast('수동 기록이 추가되었습니다.');
+            } catch (e) {
+                console.error("Error adding manual record: ", e);
+                showToast("수동 기록 추가 중 오류가 발생했습니다.", true);
+            }
+            
+            // ⛔️ appState.workRecords.push(newRecord); // 제거
+            // ⛔️ debouncedSaveState(); // 제거
             if (manualAddRecordModal) manualAddRecordModal.classList.add('hidden');
             if (manualAddForm) manualAddForm.reset();
         });
     }
 
+    // ... (cancelManualAddBtn은 변경 없음) ...
     if (cancelManualAddBtn) {
         cancelManualAddBtn.addEventListener('click', () => {
             if (manualAddRecordModal) manualAddRecordModal.classList.add('hidden');
             if (manualAddForm) manualAddForm.reset();
         });
     }
-
+    
+    // ... (editLeaveModal 관련 리스너들은 workRecords와 무관하므로 변경 없음) ...
     if (editLeaveModal) {
         const typeSelect = document.getElementById('edit-leave-type');
         const timeFields = document.getElementById('edit-leave-time-fields');

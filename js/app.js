@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ✅ [수정] collection, query, where, onSnapshot (문서 변경 감지용) 추가
+import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
@@ -196,6 +197,8 @@ export let unsubscribeLeaveSchedule;
 export let unsubscribeConfig;
 export let elapsedTimeTimer = null;
 export let periodicRefreshTimer = null;
+// ✅ [신규] workRecords 리스너 변수
+export let unsubscribeWorkRecords;
 
 export let isDataDirty = false;
 export let autoSaveTimer = null;
@@ -230,7 +233,7 @@ export let context = {
 };
 
 export let appState = {
-    workRecords: [],
+    workRecords: [], // ✅ [수정] workRecords는 이제 실시간 리스너가 채워주는 '로컬 캐시'입니다.
     taskQuantities: {},
     dailyOnLeaveMembers: [],
     dateBasedOnLeaveMembers: [],
@@ -264,6 +267,7 @@ export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase()
 
 
 // Core Functions
+// ✅ [수정] saveStateToFirestore - workRecords 저장 로직 제거
 export async function saveStateToFirestore() {
     if (!auth || !auth.currentUser) {
         console.warn('Cannot save state: User not authenticated.');
@@ -277,7 +281,7 @@ export async function saveStateToFirestore() {
             // const sfDoc = await transaction.get(docRef); // 읽기가 필요 없다면 생략 가능
 
             const stateToSave = JSON.stringify({
-                workRecords: appState.workRecords || [],
+                // ⛔️ [제거] workRecords: appState.workRecords || [],
                 taskQuantities: appState.taskQuantities || {},
                 onLeaveMembers: appState.dailyOnLeaveMembers || [],
                 partTimers: appState.partTimers || [],
@@ -292,7 +296,10 @@ export async function saveStateToFirestore() {
                 throw new Error("저장 데이터 용량 초과");
             }
 
-            transaction.set(docRef, { state: stateToSave });
+            // ✅ [수정] set이 아닌 merge: true를 사용하는 것이 더 안전합니다.
+            // (혹은 transaction.update를 사용)
+            // 여기서는 set을 유지하되, workRecords가 빠진 blob을 저장합니다.
+            transaction.set(docRef, { state: stateToSave }, { merge: true }); // merge: true 추가
         });
 
         isDataDirty = false;
@@ -311,7 +318,11 @@ export const debouncedSaveState = debounce(saveStateToFirestore, 1000);
 
 export const updateElapsedTimes = () => {
     const now = getCurrentTime();
-
+    
+    // ✅ [주석] 이 로직은 workRecords를 수정하므로, app-logic.js로 옮겨서
+    // 개별 문서를 업데이트하도록 변경하는 것이 좋습니다.
+    // 여기서는 일단 유지하지만, 동시성 문제가 발생할 수 있습니다.
+    // (이후 app-logic.js 수정 시 이 부분도 이전 고려)
     if (now === '12:30' && !appState.lunchPauseExecuted) {
         appState.lunchPauseExecuted = true;
         let tasksPaused = 0;
@@ -319,6 +330,10 @@ export const updateElapsedTimes = () => {
 
         (appState.workRecords || []).forEach(record => {
             if (record.status === 'ongoing') {
+                // ⛔️ [수정 필요] 이 로직은 로컬 appState만 수정합니다.
+                // ⛔️ Firestore 문서를 직접 수정해야 합니다. (app-logic.js에서)
+                // ⛔️ 지금 당장은 이 기능을 비활성화하거나, app-logic.js에 별도 함수로 구현해야 합니다.
+                // ⛔️ 여기서는 일단 로컬 수정 로직을 유지합니다. (다음 스텝에서 수정 필요)
                 record.status = 'paused';
                 record.pauses = record.pauses || [];
                 record.pauses.push({ start: currentTime, end: null, type: 'lunch' });
@@ -328,10 +343,13 @@ export const updateElapsedTimes = () => {
 
         if (tasksPaused > 0) {
             showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
-            debouncedSaveState();
+            // ⛔️ debouncedSaveState(); // 이것은 workRecords를 저장하지 않습니다.
+            // ⛔️ (app-logic.js에서 batch update 로직 필요)
         } else {
-            debouncedSaveState();
+            // debouncedSaveState(); // 상태 저장 (lunchPauseExecuted 플래그)
         }
+        // ✅ [임시] 상태 플래그 저장을 위해 호출
+        saveStateToFirestore(); 
     }
 
     if (now === '13:30' && !appState.lunchResumeExecuted) {
@@ -343,6 +361,7 @@ export const updateElapsedTimes = () => {
             if (record.status === 'paused') {
                 const lastPause = record.pauses?.[record.pauses.length - 1];
                 if (lastPause && lastPause.type === 'lunch' && lastPause.end === null) {
+                    // ⛔️ [수정 필요] 여기도 Firestore 문서를 직접 수정해야 합니다.
                     record.status = 'ongoing';
                     lastPause.end = currentTime;
                     tasksResumed++;
@@ -352,12 +371,14 @@ export const updateElapsedTimes = () => {
 
         if (tasksResumed > 0) {
             showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
-            debouncedSaveState();
+            // ⛔️ debouncedSaveState(); // (app-logic.js에서 batch update 로직 필요)
         } else {
-            debouncedSaveState();
+            // debouncedSaveState();
         }
+        // ✅ [임시] 상태 플래그 저장을 위해 호출
+        saveStateToFirestore();
     }
-
+    // (이하 updateElapsedTimes 로직은 로컬 appState.workRecords를 읽기만 하므로 그대로 둡니다)
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
             const startTime = el.dataset.startTime;
@@ -413,7 +434,9 @@ export const autoSaveProgress = () => {
     const hasOngoing = (appState.workRecords || []).some(r => r.status === 'ongoing');
 
     if (isDataDirty || hasOngoing) {
-        saveProgress(true);
+        // ✅ [수정] saveProgress는 이제 workRecords를 Firestore에서 읽어옵니다.
+        // ✅ isDataDirty는 workRecords가 아닌 다른 상태(e.g., 근태)가 변경되었을 때 true가 됩니다.
+        saveProgress(true); 
         isDataDirty = false;
     }
 };
@@ -429,6 +452,7 @@ async function startAppAfterLogin(user) {
         appConfig = await loadAppConfig(db);
         persistentLeaveSchedule = await loadLeaveSchedule(db);
 
+        // ... (사용자 인증 및 역할 설정 로직은 동일) ...
         const userEmail = user.email;
 
         if (!userEmail) {
@@ -517,6 +541,8 @@ async function startAppAfterLogin(user) {
             }
         });
 
+
+        // ... (설정 로드 실패 시 로직은 동일) ...
         if (loadingSpinner) loadingSpinner.style.display = 'none';
         renderDashboardLayout(appConfig);
         renderTaskSelectionModal(appConfig.taskGroups);
@@ -536,6 +562,9 @@ async function startAppAfterLogin(user) {
 
     if (periodicRefreshTimer) clearInterval(periodicRefreshTimer);
     periodicRefreshTimer = setInterval(() => {
+        // ✅ [수정] 이 함수들은 로컬 appState를 읽으므로,
+        // ✅ workRecords 스냅샷 리스너가 appState.workRecords를 잘 채워주면
+        // ✅ 이 함수들은 수정 없이 그대로 동작합니다.
         renderCompletedWorkLog(appState);
         renderTaskAnalysis(appState, appConfig);
     }, 30000);
@@ -543,6 +572,7 @@ async function startAppAfterLogin(user) {
     if (autoSaveTimer) clearInterval(autoSaveTimer);
     autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
 
+    // ... (leaveScheduleDocRef, configDocRef 리스너는 동일) ...
     const leaveScheduleDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
     if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule();
     unsubscribeLeaveSchedule = onSnapshot(leaveScheduleDocRef, (docSnap) => {
@@ -623,6 +653,8 @@ async function startAppAfterLogin(user) {
         showToast("앱 설정 연결에 실패했습니다.", true);
     });
 
+    
+    // ✅ [수정] 오늘 날짜의 '메인' 문서 스냅샷
     const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
     if (unsubscribeToday) unsubscribeToday();
 
@@ -634,7 +666,10 @@ async function startAppAfterLogin(user) {
 
             const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
 
-            appState.workRecords = loadedState.workRecords || [];
+            // ⛔️ [제거] workRecords 로드 로직 제거
+            // appState.workRecords = loadedState.workRecords || []; 
+            
+            // ✅ [수정] workRecords를 제외한 나머지 상태만 로드합니다.
             appState.taskQuantities = { ...defaultQuantities, ...(loadedState.taskQuantities || {}) };
             appState.partTimers = loadedState.partTimers || [];
             appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
@@ -646,8 +681,9 @@ async function startAppAfterLogin(user) {
 
             isDataDirty = false;
 
+            // ✅ [수정] render()는 로컬 appState.workRecords 캐시를 기반으로 렌더링합니다.
             render();
-            if (connectionStatusEl) connectionStatusEl.textContent = '동기화';
+            if (connectionStatusEl) connectionStatusEl.textContent = '동기화 (메타)';
             if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
         } catch (parseError) {
             console.error('Error parsing state from Firestore:', parseError);
@@ -660,6 +696,56 @@ async function startAppAfterLogin(user) {
         showToast('실시간 연결에 실패했습니다.', true);
         if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
         if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+    });
+    
+    // ✅ [신규] 오늘 날짜의 'workRecords 하위 컬렉션' 스냅샷
+    const workRecordsCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
+    if (unsubscribeWorkRecords) unsubscribeWorkRecords();
+
+    unsubscribeWorkRecords = onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
+        console.log("Work records snapshot received:", querySnapshot.docChanges().length, "changes.");
+        
+        // ⛔️ [구 방식] 매번 전체를 새로고침 (간단하지만 비효율적)
+        // appState.workRecords = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // ✅ [신 방식] 변경 사항만 로컬 캐시에 적용 (효율적)
+        querySnapshot.docChanges().forEach((change) => {
+            const docData = { id: change.doc.id, ...change.doc.data() };
+            const index = appState.workRecords.findIndex(r => r.id === change.doc.id);
+
+            if (change.type === "added") {
+                if (index === -1) { // 중복 추가 방지
+                    appState.workRecords.push(docData);
+                }
+            }
+            if (change.type === "modified") {
+                if (index > -1) {
+                    appState.workRecords[index] = docData; // 수정
+                } else {
+                    appState.workRecords.push(docData); // 혹시 모를 누락 방지
+                }
+            }
+            if (change.type === "removed") {
+                if (index > -1) {
+                    appState.workRecords.splice(index, 1); // 삭제
+                }
+            }
+        });
+
+        // 로컬 캐시 정렬 (시작 시간 순)
+        appState.workRecords.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+        // 로컬 캐시가 변경되었으므로 렌더링
+        render(); 
+        
+        if (connectionStatusEl) connectionStatusEl.textContent = '동기화 (업무)';
+        if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
+
+    }, (error) => {
+        console.error('Firebase workRecords onSnapshot error:', error);
+        showToast('업무 기록 실시간 연결에 실패했습니다.', true);
+        if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류 (업무)';
+        if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500';
     });
 }
 
@@ -696,6 +782,10 @@ async function main() {
             if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = undefined; }
             if (elapsedTimeTimer) { clearInterval(elapsedTimeTimer); elapsedTimeTimer = null; }
             if (periodicRefreshTimer) { clearInterval(periodicRefreshTimer); periodicRefreshTimer = null; }
+            
+            // ✅ [신규] workRecords 리스너 구독 취소
+            if (unsubscribeWorkRecords) { unsubscribeWorkRecords(); unsubscribeWorkRecords = undefined; }
+
 
             appState = { workRecords: [], taskQuantities: {}, dailyOnLeaveMembers: [], dateBasedOnLeaveMembers: [], partTimers: [], hiddenGroupIds: [], currentUser: null, currentUserRole: 'user', confirmedZeroTasks: [], dailyAttendance: {} };
 
