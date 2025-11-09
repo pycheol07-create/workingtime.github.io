@@ -68,6 +68,16 @@ import {
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, runTransaction, updateDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ✅ [신규] 근태 설정 모달 열기 헬퍼 함수
+const openLeaveModal = (memberName) => {
+    if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
+    context.memberToSetLeave = memberName;
+    // LEAVE_TYPES를 사용하여 옵션 렌더링
+    renderLeaveTypeModalOptions(LEAVE_TYPES);
+    // 모달 표시
+    if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
+};
+
 export function setupMainScreenListeners() {
 
     // 🔥 [핵심] 선택/미선택 상태 클래스 정의 (ui-modals.js와 완벽하게 일치시킴)
