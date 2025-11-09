@@ -143,44 +143,11 @@ export function setupGeneralModalListeners() {
         });
     });
 
-    if (teamSelectModal) {
-        teamSelectModal.addEventListener('click', async (e) => {
-            const target = e.target;
-            const memberButton = target.closest('.member-select-btn');
-
-            if (memberButton) {
-                const memberName = memberButton.dataset.member;
-                const isSelected = memberButton.classList.toggle('bg-blue-600');
-                memberButton.classList.toggle('bg-gray-200');
-                memberButton.classList.toggle('text-white');
-
-                if (isSelected) {
-                    if (!context.tempSelectedMembers.includes(memberName)) {
-                        context.tempSelectedMembers.push(memberName);
-                    }
-                } else {
-                    context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
-                }
-            } 
-        });
-
-        const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
-        if (confirmTeamSelectBtn) {
-             confirmTeamSelectBtn.addEventListener('click', async () => {
-                if (context.selectedGroupForAdd) {
-                    await addMembersToWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart, context.selectedGroupForAdd);
-                } else {
-                    await startWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart);
-                }
-                teamSelectModal.classList.add('hidden');
-             });
-        }
-    }
-
+    // ⛔️ [삭제됨] 중복된 teamSelectModal 리스너 제거 (listeners-main.js에서 통합 관리)
 
     if (cancelTeamSelectBtn) {
         cancelTeamSelectBtn.addEventListener('click', () => {
-            teamSelectModal.classList.add('hidden');
+            if (teamSelectModal) teamSelectModal.classList.add('hidden');
         });
     }
 

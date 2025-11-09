@@ -1,6 +1,3 @@
-// === js/listeners-main.js ===
-
-// ... (상단 import문들은 기존과 동일하므로 생략. setupMainScreenListeners 함수 내부만 변경) ...
 import {
     appState, appConfig, db, auth,
     persistentLeaveSchedule, allHistoryData,
@@ -58,7 +55,9 @@ import {
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
-    processClockIn, processClockOut, cancelClockOut
+    processClockIn, processClockOut, cancelClockOut,
+    startWorkGroup,
+    addMembersToWorkGroup,
 } from './app-logic.js';
 
 import {
@@ -738,43 +737,49 @@ export function setupMainScreenListeners() {
         });
     }
 
-    // 팀 선택 모달
+    // ✅ 팀 선택 모달 리스너 (이 부분이 유일한 핸들러가 됨)
     if (teamSelectModal) {
         teamSelectModal.addEventListener('click', async (e) => {
             const target = e.target;
 
+            // 1. 개별 멤버 버튼 클릭
             const memberButton = target.closest('.member-select-btn');
             if (memberButton && !memberButton.disabled) {
                 const memberName = memberButton.dataset.memberName;
+                // 현재 선택된 상태인지 확인 (bg-blue-600 클래스 유무로 판단)
+                const isCurrentlySelected = memberButton.classList.contains('bg-blue-600');
 
-                // 🔥 [핵심] 헬퍼 함수 사용하여 토글 로직 통일
-                const willBeSelected = !memberButton.classList.contains('bg-blue-600');
-
-                if (willBeSelected) {
+                if (!isCurrentlySelected) {
+                    // 선택되지 않은 상태 -> 선택 상태로 변경
                     selectMemberBtn(memberButton);
                     if (!context.tempSelectedMembers.includes(memberName)) {
                         context.tempSelectedMembers.push(memberName);
                     }
                 } else {
+                    // 이미 선택된 상태 -> 선택 해제
                     deselectMemberBtn(memberButton);
                     context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
                 }
             }
 
+            // 2. 전체 선택/해제 버튼 클릭
             const selectAllBtn = target.closest('.group-select-all-btn');
             if (selectAllBtn) {
                 const groupName = selectAllBtn.dataset.groupName;
                 const memberListDiv = teamSelectModal.querySelector(`.space-y-2[data-group-name="${groupName}"]`);
                 if (memberListDiv) {
                     const availableButtons = Array.from(memberListDiv.querySelectorAll('.member-select-btn:not(:disabled)'));
-                    const allSelected = availableButtons.every(btn => btn.classList.contains('bg-blue-600'));
+                    // 모든 버튼이 이미 선택되어 있는지 확인
+                    const allSelected = availableButtons.length > 0 && availableButtons.every(btn => btn.classList.contains('bg-blue-600'));
 
                     availableButtons.forEach(btn => {
                         const memberName = btn.dataset.memberName;
-                        if (allSelected) { // 전체 해제
+                        if (allSelected) { 
+                            // 이미 모두 선택됨 -> 전체 해제
                             deselectMemberBtn(btn);
                             context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
-                        } else { // 전체 선택
+                        } else { 
+                            // 일부만 선택되었거나 아무것도 선택 안 됨 -> 전체 선택
                              if (!btn.classList.contains('bg-blue-600')) {
                                 selectMemberBtn(btn);
                                 if (!context.tempSelectedMembers.includes(memberName)) {
@@ -785,8 +790,16 @@ export function setupMainScreenListeners() {
                     });
                 }
             }
+            
+            // 3. 알바 추가 모달 열기 버튼
+             if (target.closest('#add-part-timer-modal-btn')) {
+                document.getElementById('part-timer-new-name').value = '';
+                document.getElementById('edit-part-timer-modal').classList.remove('hidden');
+                 // (알바 추가는 별도 모달에서 처리되므로 여기선 열기만 함)
+            }
         });
 
+        // 확인 버튼 (업무 시작)
         const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
         if (confirmTeamSelectBtn) {
              confirmTeamSelectBtn.addEventListener('click', async () => {
