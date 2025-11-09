@@ -26,7 +26,6 @@ import {
     openManualAddBtn, manualAddRecordModal,
 
     stopGroupConfirmModal,
-    confirmStopGroupBtn, cancelStopGroupBtn,
 
     render, debouncedSaveState,
     generateId,
@@ -76,7 +75,7 @@ const openLeaveModal = (memberName) => {
     if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
 };
 
-// ✅ [수정] 관리자 액션 모달 열기 헬퍼 함수 (정확한 상태 표시 로직 추가)
+// ✅ [신규] 관리자 액션 모달 열기 헬퍼 함수 (누락된 기능 복구)
 const openAdminMemberActionModal = (memberName) => {
     context.memberToAction = memberName;
     if (actionMemberName) actionMemberName.textContent = memberName;
@@ -121,13 +120,16 @@ const openAdminMemberActionModal = (memberName) => {
 
 export function setupMainScreenListeners() {
 
+    // 🔥 [핵심] 선택/미선택 상태 클래스 정의 (ui-modals.js와 완벽하게 일치시킴)
     const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
     const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
 
+    // 헬퍼: 버튼을 선택 상태로 만듦 (모든 동작에서 공통 사용)
     const selectMemberBtn = (btn) => {
         btn.classList.remove(...UNSELECTED_CLASSES);
         btn.classList.add(...SELECTED_CLASSES);
     };
+    // 헬퍼: 버튼을 선택 해제 상태로 만듦 (모든 동작에서 공통 사용)
     const deselectMemberBtn = (btn) => {
         btn.classList.remove(...SELECTED_CLASSES);
         btn.classList.add(...UNSELECTED_CLASSES);
@@ -455,16 +457,6 @@ export function setupMainScreenListeners() {
         });
     }
 
-    const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
-    if (deleteAllCompletedBtn) {
-        deleteAllCompletedBtn.addEventListener('click', () => {
-            context.deleteMode = 'all-completed';
-            const msgEl = document.getElementById('delete-confirm-message');
-            if (msgEl) msgEl.textContent = '오늘 완료된 모든 업무 기록을 삭제하시겠습니까?';
-            if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
-        });
-    }
-
     if (endShiftBtn) {
         endShiftBtn.addEventListener('click', () => {
             const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
@@ -613,11 +605,8 @@ export function setupMainScreenListeners() {
 
             context.quantityModalContext.onCancel = () => {};
 
-            const cBtn = document.getElementById('confirm-quantity-btn');
-            const xBtn = document.getElementById('cancel-quantity-btn');
-            if (cBtn) cBtn.textContent = '저장';
-            if (xBtn) xBtn.textContent = '취소';
-            if (quantityModal) quantityModal.classList.remove('hidden');
+            const quantityModalEl = document.getElementById('quantity-modal');
+            if (quantityModalEl) quantityModalEl.classList.remove('hidden');
             if (menuDropdown) menuDropdown.classList.add('hidden');
         });
     }
@@ -658,11 +647,8 @@ export function setupMainScreenListeners() {
 
             context.quantityModalContext.onCancel = () => {};
 
-            const cBtn = document.getElementById('confirm-quantity-btn');
-            const xBtn = document.getElementById('cancel-quantity-btn');
-            if (cBtn) cBtn.textContent = '저장';
-            if (xBtn) xBtn.textContent = '취소';
-            if (quantityModal) quantityModal.classList.remove('hidden');
+            const quantityModalEl = document.getElementById('quantity-modal');
+            if (quantityModalEl) quantityModalEl.classList.remove('hidden');
             if (navContent) navContent.classList.add('hidden');
         });
     }
