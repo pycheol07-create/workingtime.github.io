@@ -76,18 +76,28 @@ const openLeaveModal = (memberName) => {
     if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
 };
 
-// ✅ [신규] 관리자 액션 모달 열기 헬퍼 함수 (누락되었던 부분 추가)
+// ✅ [수정] 관리자 액션 모달 열기 헬퍼 함수 (정확한 상태 표시 로직 추가)
 const openAdminMemberActionModal = (memberName) => {
     context.memberToAction = memberName;
     if (actionMemberName) actionMemberName.textContent = memberName;
 
+    const ongoingRecord = (appState.workRecords || []).find(r => r.member === memberName && r.status === 'ongoing');
+    const pausedRecord = (appState.workRecords || []).find(r => r.member === memberName && r.status === 'paused');
     const attendance = appState.dailyAttendance?.[memberName];
     const status = attendance?.status || 'none';
 
     // 상태 배지 & 시간 정보 업데이트
     if (actionMemberStatusBadge && actionMemberTimeInfo) {
-         if (status === 'active') {
-            actionMemberStatusBadge.textContent = '근무 중 (대기)';
+         if (ongoingRecord) {
+            actionMemberStatusBadge.textContent = `업무 중 (${ongoingRecord.task})`;
+            actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-800';
+            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance?.inTime)} | 업무시작: ${formatTimeTo24H(ongoingRecord.startTime)}`;
+        } else if (pausedRecord) {
+            actionMemberStatusBadge.textContent = '휴식 중';
+            actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-800';
+            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance?.inTime)}`;
+        } else if (status === 'active') {
+            actionMemberStatusBadge.textContent = '대기 중';
             actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800';
             actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance.inTime)}`;
         } else if (status === 'returned') {
@@ -122,6 +132,7 @@ export function setupMainScreenListeners() {
         btn.classList.remove(...SELECTED_CLASSES);
         btn.classList.add(...UNSELECTED_CLASSES);
     };
+
 
     const pcAttendanceCheckbox = document.getElementById('pc-attendance-checkbox');
     if (pcAttendanceCheckbox) {
@@ -833,7 +844,6 @@ export function setupMainScreenListeners() {
              if (target.closest('#add-part-timer-modal-btn')) {
                 document.getElementById('part-timer-new-name').value = '';
                 document.getElementById('edit-part-timer-modal').classList.remove('hidden');
-                 // (알바 추가는 별도 모달에서 처리되므로 여기선 열기만 함)
             }
         });
 
