@@ -72,29 +72,56 @@ import { doc, runTransaction, updateDoc, collection, query, where, getDocs, writ
 const openLeaveModal = (memberName) => {
     if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
     context.memberToSetLeave = memberName;
-    // LEAVE_TYPES를 사용하여 옵션 렌더링
     renderLeaveTypeModalOptions(LEAVE_TYPES);
-    // 모달 표시
     if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
+};
+
+// ✅ [신규] 관리자 액션 모달 열기 헬퍼 함수 (누락되었던 부분 추가)
+const openAdminMemberActionModal = (memberName) => {
+    context.memberToAction = memberName;
+    if (actionMemberName) actionMemberName.textContent = memberName;
+
+    const attendance = appState.dailyAttendance?.[memberName];
+    const status = attendance?.status || 'none';
+
+    // 상태 배지 & 시간 정보 업데이트
+    if (actionMemberStatusBadge && actionMemberTimeInfo) {
+         if (status === 'active') {
+            actionMemberStatusBadge.textContent = '근무 중 (대기)';
+            actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800';
+            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance.inTime)}`;
+        } else if (status === 'returned') {
+            actionMemberStatusBadge.textContent = '퇴근 완료';
+            actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-600';
+            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance.inTime)} / 퇴근: ${formatTimeTo24H(attendance.outTime)}`;
+        } else {
+            actionMemberStatusBadge.textContent = '출근 전';
+            actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-400';
+            actionMemberTimeInfo.textContent = '';
+        }
+    }
+
+    // 버튼 표시 여부 제어
+    if (adminClockInBtn) adminClockInBtn.classList.toggle('hidden', status === 'active' || status === 'returned');
+    if (adminClockOutBtn) adminClockOutBtn.classList.toggle('hidden', status !== 'active');
+    if (adminCancelClockOutBtn) adminCancelClockOutBtn.classList.toggle('hidden', status !== 'returned');
+
+    if (memberActionModal) memberActionModal.classList.remove('hidden');
 };
 
 export function setupMainScreenListeners() {
 
-    // 🔥 [핵심] 선택/미선택 상태 클래스 정의 (ui-modals.js와 완벽하게 일치시킴)
     const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
     const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
 
-    // 헬퍼: 버튼을 선택 상태로 만듦 (모든 동작에서 공통 사용)
     const selectMemberBtn = (btn) => {
         btn.classList.remove(...UNSELECTED_CLASSES);
         btn.classList.add(...SELECTED_CLASSES);
     };
-    // 헬퍼: 버튼을 선택 해제 상태로 만듦 (모든 동작에서 공통 사용)
     const deselectMemberBtn = (btn) => {
         btn.classList.remove(...SELECTED_CLASSES);
         btn.classList.add(...UNSELECTED_CLASSES);
     };
-
 
     const pcAttendanceCheckbox = document.getElementById('pc-attendance-checkbox');
     if (pcAttendanceCheckbox) {
@@ -323,6 +350,7 @@ export function setupMainScreenListeners() {
                     showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
                 }
 
+                // ✅ 관리자일 경우 관리자 전용 모달 열기
                 if (role === 'admin' && memberName !== selfName) {
                      openAdminMemberActionModal(memberName);
                      return;
