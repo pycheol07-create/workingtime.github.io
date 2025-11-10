@@ -38,7 +38,7 @@ import {
     query, where, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 표준 속도 계산 함수 임포트
+// 표준 속도 계산 함수 임포트 (시뮬레이션 및 병목 분석용)
 import { calculateStandardThroughputs } from './ui-history-reports-logic.js';
 
 
@@ -64,6 +64,7 @@ const _syncTodayToHistory = async () => {
         const recordsSnapshot = await getDocs(workRecordsColRef);
         const liveWorkRecords = recordsSnapshot.docs.map(doc => {
             const data = doc.data();
+            // 진행 중인 업무의 시간 실시간 계산
             if (data.status === 'ongoing' || data.status === 'paused') {
                 data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
                 data.endTime = now;
@@ -130,7 +131,7 @@ export const checkMissingQuantities = (dayData) => {
 };
 
 
-// 이력 저장 (서버 권위 방식)
+// 이력 저장 (서버 권위 방식 - appState 의존성 제거)
 export async function saveProgress(isAutoSave = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
@@ -142,13 +143,16 @@ export async function saveProgress(isAutoSave = false) {
     const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
 
     try {
+        // 1. [Firestore Read] 'daily_data/{today}' 메인 문서 읽기
         const dailyDocSnap = await getDoc(getDailyDocRef());
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
 
+        // 2. [Firestore Read] 'daily_data/{today}/workRecords' 컬렉션 읽기
         const workRecordsColRef = getWorkRecordsCollectionRef();
         const recordsSnapshot = await getDocs(workRecordsColRef);
         const liveWorkRecords = recordsSnapshot.docs.map(doc => {
             const data = doc.data();
+            // 진행 중인 업무는 현재 시간 기준으로 duration 계산하여 스냅샷 저장
             if (data.status === 'ongoing' || data.status === 'paused') {
                 data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
                 data.endTime = now;
@@ -160,6 +164,7 @@ export async function saveProgress(isAutoSave = false) {
              return;
         }
 
+        // 3. [Firestore Write] 읽어온 최신 데이터로 이력 문서 덮어쓰기
         const historyData = {
             id: dateStr,
             workRecords: liveWorkRecords,
@@ -172,6 +177,8 @@ export async function saveProgress(isAutoSave = false) {
         };
 
         await setDoc(historyDocRef, historyData);
+
+        // 4. 로컬 캐시 동기화
         await _syncTodayToHistory();
 
         if (isAutoSave) {
@@ -194,6 +201,7 @@ export async function saveDayDataToHistory(shouldReset) {
     const endTime = getCurrentTime();
 
     try {
+        // 1. '진행 중' 또는 '일시정지'인 업무를 Firestore에서 직접 찾아서 강제 종료
         const q = query(workRecordsColRef, where('status', 'in', ['ongoing', 'paused']));
         const querySnapshot = await getDocs(q);
 
@@ -225,9 +233,11 @@ export async function saveDayDataToHistory(shouldReset) {
          showToast("업무 마감 중 진행 업무 종료 실패. (이력 저장은 계속 진행합니다)", true);
     }
 
+    // 3. (약간의 딜레이 후) 최신 상태를 이력에 저장
     await new Promise(resolve => setTimeout(resolve, 500));
     await saveProgress(false);
 
+    // 4. 초기화 (필요 시)
     if (shouldReset) {
          try {
             const qAll = query(workRecordsColRef);
@@ -237,11 +247,13 @@ export async function saveDayDataToHistory(shouldReset) {
                 snapshotAll.forEach(doc => deleteBatch.delete(doc.ref));
                 await deleteBatch.commit();
             }
+             // 메인 데일리 문서 초기화
              await setDoc(getDailyDocRef(), { state: '{}' });
         } catch (e) {
              console.error("Error clearing daily data: ", e);
         }
         
+        // 로컬 상태 초기화는 app.js의 onSnapshot이 처리하므로 최소화
         appState.workRecords = [];
         showToast('오늘의 업무 기록을 초기화했습니다.');
     }
@@ -731,6 +743,111 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 export const requestHistoryDeletion = (dateKey) => {
     context.historyKeyToDelete = dateKey;
     if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
+};
+
+export const switchHistoryView = async (view) => {
+    const allViews = [
+        document.getElementById('history-daily-view'),
+        document.getElementById('history-weekly-view'),
+        document.getElementById('history-monthly-view'),
+        document.getElementById('history-attendance-daily-view'),
+        document.getElementById('history-attendance-weekly-view'),
+        document.getElementById('history-attendance-monthly-view'),
+        document.getElementById('report-daily-view'),
+        document.getElementById('report-weekly-view'),
+        document.getElementById('report-monthly-view'),
+        document.getElementById('report-yearly-view')
+    ];
+    allViews.forEach(v => v && v.classList.add('hidden'));
+
+    if (historyTabs) {
+        historyTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+            btn.classList.add('text-gray-500');
+        });
+    }
+    if (attendanceHistoryTabs) {
+        attendanceHistoryTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+            btn.classList.add('text-gray-500');
+        });
+    }
+    if (reportTabs) {
+        reportTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+            btn.classList.add('text-gray-500');
+        });
+    }
+
+    const dateListContainer = document.getElementById('history-date-list-container');
+    if (dateListContainer) {
+        dateListContainer.style.display = 'block';
+    }
+
+    let viewToShow = null;
+    let tabToActivate = null;
+    let listMode = 'day';
+
+    switch (view) {
+        case 'daily':
+            listMode = 'day';
+            viewToShow = document.getElementById('history-daily-view');
+            tabToActivate = historyTabs?.querySelector('button[data-view="daily"]');
+            break;
+        case 'weekly':
+            listMode = 'week';
+            viewToShow = document.getElementById('history-weekly-view');
+            tabToActivate = historyTabs?.querySelector('button[data-view="weekly"]');
+            break;
+        case 'monthly':
+            listMode = 'month';
+            viewToShow = document.getElementById('history-monthly-view');
+            tabToActivate = historyTabs?.querySelector('button[data-view="monthly"]');
+            break;
+        case 'attendance-daily':
+            listMode = 'day';
+            viewToShow = document.getElementById('history-attendance-daily-view');
+            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-daily"]');
+            break;
+        case 'attendance-weekly':
+            listMode = 'week';
+            viewToShow = document.getElementById('history-attendance-weekly-view');
+            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
+            break;
+        case 'attendance-monthly':
+            listMode = 'month';
+            viewToShow = document.getElementById('history-attendance-monthly-view');
+            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
+            break;
+        case 'report-daily':
+            listMode = 'day';
+            viewToShow = document.getElementById('report-daily-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-daily"]');
+            break;
+        case 'report-weekly':
+            listMode = 'week';
+            viewToShow = document.getElementById('report-weekly-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-weekly"]');
+            break;
+        case 'report-monthly':
+            listMode = 'month';
+            viewToShow = document.getElementById('report-monthly-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-monthly"]');
+            break;
+        case 'report-yearly':
+            listMode = 'year';
+            viewToShow = document.getElementById('report-yearly-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-yearly"]');
+            break;
+    }
+
+    await renderHistoryDateListByMode(listMode);
+
+    if (viewToShow) viewToShow.classList.remove('hidden');
+    if (tabToActivate) {
+        tabToActivate.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+        tabToActivate.classList.remove('text-gray-500');
+    }
 };
 
 // ✅ [수정] 인건비 시뮬레이션 계산 로직 (휴게시간 및 모드 지원)
