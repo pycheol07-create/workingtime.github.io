@@ -70,15 +70,43 @@ import {
 
 import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✨ [신규] 이력 창 최대화 상태 추적 변수
+// ✨ 이력 창 최대화 상태 추적 변수
 let isHistoryMaximized = false;
 
 export function setupHistoryModalListeners() {
 
-    // ✨ [수정] 전체화면 대신 최대화 상태 해제로 변경
-    const exitMaximizedIfActive = () => {
-        if (isHistoryMaximized && toggleFullscreenBtn) {
-            toggleFullscreenBtn.click(); // 토글 버튼을 클릭하여 원래대로 복구
+    const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
+    const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
+
+    // ✨ [신규] 최대화/복구 공통 함수
+    const setHistoryMaximized = (maximized) => {
+        isHistoryMaximized = maximized;
+        const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
+        const icon = toggleBtn?.querySelector('svg');
+
+        if (maximized) {
+            // ▶️ 최대화 모드 진입 (Fixed로 화면 가득 채움)
+            historyModalContentBox.classList.add('fixed', 'inset-0', 'z-[60]', 'w-screen', 'h-screen', 'rounded-none');
+            historyModalContentBox.classList.remove('relative', 'max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl');
+
+            // 드래그로 이동된 위치 초기화
+            historyModalContentBox.style.top = '';
+            historyModalContentBox.style.left = '';
+            historyModalContentBox.style.transform = '';
+
+            if (toggleBtn) toggleBtn.title = "기본 크기로";
+            if (icon) icon.innerHTML = iconMinimize;
+
+        } else {
+            // ◀️ 일반 모드 복귀
+            historyModalContentBox.classList.remove('fixed', 'inset-0', 'z-[60]', 'w-screen', 'h-screen', 'rounded-none');
+            historyModalContentBox.classList.add('relative', 'max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl');
+
+            // 드래그 상태 플래그 초기화
+            historyModalContentBox.dataset.hasBeenUncentered = 'false';
+
+            if (toggleBtn) toggleBtn.title = "전체화면";
+            if (icon) icon.innerHTML = iconMaximize;
         }
     };
 
@@ -159,6 +187,9 @@ export function setupHistoryModalListeners() {
             if (historyModal) {
                 historyModal.classList.remove('hidden');
 
+                // ✨ [수정] 열 때 항상 기본 크기로 시작
+                setHistoryMaximized(false);
+
                 if (historyStartDateInput) historyStartDateInput.value = '';
                 if (historyEndDateInput) historyEndDateInput.value = '';
                 context.historyStartDate = null;
@@ -167,12 +198,14 @@ export function setupHistoryModalListeners() {
                 const contentBox = document.getElementById('history-modal-content-box');
                 const overlay = document.getElementById('history-modal');
 
-                if (contentBox && overlay && contentBox.dataset.hasBeenUncentered === 'true') {
-                    overlay.classList.add('flex', 'items-center', 'justify-center');
+                if (contentBox && overlay) {
+                    // 혹시 모를 잔여 스타일 초기화
                     contentBox.style.position = '';
                     contentBox.style.top = '';
                     contentBox.style.left = '';
                     contentBox.dataset.hasBeenUncentered = 'false';
+                    // 부모 오버레이도 혹시 모르니 Flex 복구
+                    overlay.classList.add('flex', 'items-center', 'justify-center');
                 }
 
                 try {
@@ -189,6 +222,8 @@ export function setupHistoryModalListeners() {
         closeHistoryBtn.addEventListener('click', () => {
             if (historyModal) {
                 historyModal.classList.add('hidden');
+                // ✨ [수정] 닫을 때 최대화 상태 해제
+                setHistoryMaximized(false);
             }
         });
     }
@@ -385,12 +420,12 @@ export function setupHistoryModalListeners() {
             if (!dateKey) { return; }
 
             if (action === 'open-history-quantity-modal') {
-                exitMaximizedIfActive();
+                setHistoryMaximized(false); // ✨ 모달 열릴 땐 최대화 해제
                 openHistoryQuantityModal(dateKey);
             } else if (action === 'download-history-excel') {
                 downloadHistoryAsExcel(dateKey);
             } else if (action === 'request-history-deletion') {
-                exitMaximizedIfActive();
+                setHistoryMaximized(false); // ✨ 모달 열릴 땐 최대화 해제
                 requestHistoryDeletion(dateKey);
             }
         });
@@ -439,7 +474,7 @@ export function setupHistoryModalListeners() {
                 if (editAttendanceDateKeyInput) editAttendanceDateKeyInput.value = dateKey;
                 if (editAttendanceRecordIndexInput) editAttendanceRecordIndexInput.value = index;
 
-                exitMaximizedIfActive();
+                setHistoryMaximized(false); // ✨ 최대화 해제
                 if (editAttendanceRecordModal) editAttendanceRecordModal.classList.remove('hidden');
                 return;
             }
@@ -461,7 +496,7 @@ export function setupHistoryModalListeners() {
                 const msgEl = document.getElementById('delete-confirm-message');
                 if (msgEl) msgEl.textContent = `${record.member}님의 '${record.type}' 기록을 삭제하시겠습니까?`;
 
-                exitMaximizedIfActive();
+                setHistoryMaximized(false); // ✨ 최대화 해제
                 if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
                 return;
             }
@@ -503,7 +538,7 @@ export function setupHistoryModalListeners() {
                 if (addAttendanceTimeFields) addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
                 if (addAttendanceDateFields) addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
 
-                exitMaximizedIfActive();
+                setHistoryMaximized(false); // ✨ 최대화 해제
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.remove('hidden');
                 return;
             }
@@ -515,13 +550,14 @@ export function setupHistoryModalListeners() {
             const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
             if (coqButton) {
                 e.stopPropagation();
-                exitMaximizedIfActive();
+                setHistoryMaximized(false); // ✨ 최대화 해제
                 if (coqExplanationModal) {
                     coqExplanationModal.classList.remove('hidden');
                 }
                 return;
             }
 
+            // ... (매출액 분석 및 정렬 버튼 핸들러는 기존과 동일) ...
             const applyRevenueBtn = e.target.closest('#report-apply-revenue-btn');
             if (applyRevenueBtn) {
                 const revenueInput = document.getElementById('report-monthly-revenue-input');
@@ -529,53 +565,37 @@ export function setupHistoryModalListeners() {
                     const rawRevenue = revenueInput.value.replace(/,/g, '');
                     const revenue = Number(rawRevenue) || 0;
                     const monthKey = context.currentReportParams.monthKey;
-
                     context.monthlyRevenues = context.monthlyRevenues || {};
                     context.monthlyRevenues[monthKey] = revenue;
-
                     renderReportMonthly(monthKey, allHistoryData, appConfig, context);
                     showToast('매출액 분석이 적용되었습니다.');
                 }
                 return;
             }
-
             const header = e.target.closest('.sortable-header');
             if (header) {
                 e.stopPropagation();
                 const sortKey = header.dataset.sortKey;
                 if (!sortKey) return;
-
                 const tableId = header.closest('table')?.id;
                 let tableKey;
                 if (tableId === 'report-table-part') tableKey = 'partSummary';
                 else if (tableId === 'report-table-member') tableKey = 'memberSummary';
                 else if (tableId === 'report-table-task') tableKey = 'taskSummary';
                 else return;
-
                 const currentSort = context.reportSortState[tableKey] || { key: null, dir: 'asc' };
                 let newDir = 'desc';
                 if (currentSort.key === sortKey) {
                     newDir = (currentSort.dir === 'desc') ? 'asc' : 'desc';
                 }
                 context.reportSortState[tableKey] = { key: sortKey, dir: newDir };
-
-                if (!context.currentReportParams) {
-                    console.warn("정렬 재실행 오류: currentReportParams가 없습니다.");
-                    return;
-                }
-
+                if (!context.currentReportParams) return;
                 const { dateKey, weekKey, monthKey, yearKey, allHistoryData, appConfig } = context.currentReportParams;
                 const activeView = reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
-
-                if (activeView === 'report-daily') {
-                    renderReportDaily(dateKey, allHistoryData, appConfig, context);
-                } else if (activeView === 'report-weekly') {
-                    renderReportWeekly(weekKey, allHistoryData, appConfig, context);
-                } else if (activeView === 'report-monthly') {
-                    renderReportMonthly(monthKey, allHistoryData, appConfig, context);
-                } else if (activeView === 'report-yearly') {
-                    renderReportYearly(yearKey, allHistoryData, appConfig, context);
-                }
+                if (activeView === 'report-daily') renderReportDaily(dateKey, allHistoryData, appConfig, context);
+                else if (activeView === 'report-weekly') renderReportWeekly(weekKey, allHistoryData, appConfig, context);
+                else if (activeView === 'report-monthly') renderReportMonthly(monthKey, allHistoryData, appConfig, context);
+                else if (activeView === 'report-yearly') renderReportYearly(yearKey, allHistoryData, appConfig, context);
                 return;
             }
         });
@@ -586,137 +606,72 @@ export function setupHistoryModalListeners() {
         makeDraggable(historyModal, historyHeader, historyModalContentBox);
     }
 
-    // ✨ [수정] CSS 기반 '최대화(Maximize)' 토글 로직 적용
     const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
     if (toggleFullscreenBtn && historyModal && historyModalContentBox) {
-        const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
-        const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
+        // 초기 아이콘 설정
+        const icon = toggleFullscreenBtn.querySelector('svg');
+        if (icon) icon.innerHTML = iconMaximize;
 
         toggleFullscreenBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            isHistoryMaximized = !isHistoryMaximized;
-
-            const icon = toggleFullscreenBtn.querySelector('svg');
-
-            if (isHistoryMaximized) {
-                // ▶️ 최대화 모드 진입
-                historyModal.classList.remove('p-4', 'flex', 'items-center', 'justify-center'); // 여백 및 중앙 정렬 제거
-                historyModalContentBox.classList.remove('max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl'); // 크기 제한 제거
-                historyModalContentBox.classList.add('w-full', 'h-full', 'rounded-none'); // 전체 크기로 확장
-
-                // 드래그로 이동된 위치 초기화
-                historyModalContentBox.style.position = '';
-                historyModalContentBox.style.top = '';
-                historyModalContentBox.style.left = '';
-                historyModalContentBox.style.transform = '';
-
-                if (icon) icon.innerHTML = iconMinimize;
-                toggleFullscreenBtn.title = "기본 크기로";
-
-            } else {
-                // ◀️ 일반 모드 복귀
-                historyModal.classList.add('p-4', 'flex', 'items-center', 'justify-center'); // 여백 및 중앙 정렬 복구
-                historyModalContentBox.classList.add('max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl'); // 크기 제한 복구
-                historyModalContentBox.classList.remove('w-full', 'h-full', 'rounded-none');
-
-                // 드래그 상태 플래그 초기화 (다시 중앙 정렬되었으므로)
-                historyModalContentBox.dataset.hasBeenUncentered = 'false';
-
-                if (icon) icon.innerHTML = iconMaximize;
-                toggleFullscreenBtn.title = "전체화면";
-            }
+            setHistoryMaximized(!isHistoryMaximized); // 토글 실행
         });
-
-        // 초기 아이콘 설정
-        const icon = toggleFullscreenBtn.querySelector('svg');
-        if (icon) {
-            icon.innerHTML = iconMaximize;
-        }
     }
 
+    // ... (기타 모달 확인 버튼 리스너들 기존과 동일) ...
     if (confirmEditAttendanceBtn) {
         confirmEditAttendanceBtn.addEventListener('click', async () => {
+            // ... (기존 로직 유지) ...
             const dateKey = editAttendanceDateKeyInput?.value;
             const indexStr = editAttendanceRecordIndexInput?.value;
-
-            if (!dateKey || indexStr === '') {
-                showToast('수정할 기록 정보를 찾을 수 없습니다.', true); return;
-            }
+            if (!dateKey || indexStr === '') { showToast('수정할 기록 정보를 찾을 수 없습니다.', true); return; }
             const index = parseInt(indexStr, 10);
-
             const dayDataIndex = allHistoryData.findIndex(d => d.id === dateKey);
-            if (dayDataIndex === -1) {
-                showToast('해당 날짜의 이력 데이터를 찾을 수 없습니다.', true); return;
-            }
+            if (dayDataIndex === -1) { showToast('해당 날짜의 이력 데이터를 찾을 수 없습니다.', true); return; }
             const dayData = allHistoryData[dayDataIndex];
-            if (!dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
-                showToast('수정할 근태 기록을 찾을 수 없습니다.', true); return;
-            }
-
+            if (!dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) { showToast('수정할 근태 기록을 찾을 수 없습니다.', true); return; }
             const newType = editAttendanceTypeSelect?.value;
             const isTimeBased = (newType === '외출' || newType === '조퇴');
-
             const updatedRecord = { ...dayData.onLeaveMembers[index], type: newType };
-
             if (isTimeBased) {
                 updatedRecord.startTime = editAttendanceStartTimeInput?.value || null;
                 updatedRecord.endTime = editAttendanceEndTimeInput?.value || null;
-                delete updatedRecord.startDate;
-                delete updatedRecord.endDate;
+                delete updatedRecord.startDate; delete updatedRecord.endDate;
             } else {
                 updatedRecord.startDate = editAttendanceStartDateInput?.value || null;
                 updatedRecord.endDate = editAttendanceEndDateInput?.value || null;
-                delete updatedRecord.startTime;
-                delete updatedRecord.endTime;
+                delete updatedRecord.startTime; delete updatedRecord.endTime;
             }
-
-            if (isTimeBased && !updatedRecord.startTime) {
-                showToast('시작 시간을 입력해주세요.', true); return;
-            }
-            if (!isTimeBased && !updatedRecord.startDate) {
-                showToast('시작일을 입력해주세요.', true); return;
-            }
-
+            if (isTimeBased && !updatedRecord.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
+            if (!isTimeBased && !updatedRecord.startDate) { showToast('시작일을 입력해주세요.', true); return; }
             dayData.onLeaveMembers[index] = updatedRecord;
-
             try {
                 const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                 await setDoc(historyDocRef, dayData);
-
                 showToast('근태 기록이 수정되었습니다.');
                 if (editAttendanceRecordModal) editAttendanceRecordModal.classList.add('hidden');
-
                 renderAttendanceDailyHistory(dateKey, allHistoryData);
-
             } catch (e) {
                 console.error('Error updating attendance history:', e);
                 showToast('근태 기록 저장 중 오류가 발생했습니다.', true);
             }
         });
     }
-
     if (cancelEditAttendanceBtn) {
         cancelEditAttendanceBtn.addEventListener('click', () => {
             if (editAttendanceRecordModal) editAttendanceRecordModal.classList.add('hidden');
         });
     }
-
     if (confirmAddAttendanceBtn) {
         confirmAddAttendanceBtn.addEventListener('click', async () => {
+            // ... (기존 로직 유지) ...
             const dateKey = addAttendanceDateKeyInput?.value;
-            if (!dateKey) {
-                showToast('날짜 정보를 찾을 수 없습니다.', true); return;
-            }
-
+            if (!dateKey) { showToast('날짜 정보를 찾을 수 없습니다.', true); return; }
             const memberName = addAttendanceMemberNameInput?.value.trim();
             const type = addAttendanceTypeSelect?.value;
-            if (!memberName || !type) {
-                showToast('이름과 유형을 모두 입력해주세요.', true); return;
-            }
-
+            if (!memberName || !type) { showToast('이름과 유형을 모두 입력해주세요.', true); return; }
             const isTimeBased = (type === '외출' || type === '조퇴');
             const newRecord = { member: memberName, type: type };
-
             if (isTimeBased) {
                 newRecord.startTime = addAttendanceStartTimeInput?.value || null;
                 newRecord.endTime = addAttendanceEndTimeInput?.value || null;
@@ -726,26 +681,20 @@ export function setupHistoryModalListeners() {
                 newRecord.endDate = addAttendanceEndDateInput?.value || null;
                 if (!newRecord.startDate) { showToast('시작일을 입력해주세요.', true); return; }
             }
-
             let dayData = allHistoryData.find(d => d.id === dateKey);
             if (!dayData) {
                 dayData = { id: dateKey, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
                 allHistoryData.push(dayData);
                 allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
             }
-
             if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
             dayData.onLeaveMembers.push(newRecord);
-
             try {
                 const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                 await setDoc(historyDocRef, dayData);
-
                 showToast(`${memberName}님의 근태 기록이 추가되었습니다.`);
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.add('hidden');
-
                 renderAttendanceDailyHistory(dateKey, allHistoryData);
-
             } catch (e) {
                 console.error('Error adding attendance history:', e);
                 showToast('근태 기록 추가 중 오류가 발생했습니다.', true);
@@ -753,13 +702,11 @@ export function setupHistoryModalListeners() {
             }
         });
     }
-
     if (cancelAddAttendanceBtn) {
         cancelAddAttendanceBtn.addEventListener('click', () => {
             if (addAttendanceRecordModal) addAttendanceRecordModal.classList.add('hidden');
         });
     }
-
     if (addAttendanceTypeSelect) {
         addAttendanceTypeSelect.addEventListener('change', (e) => {
             const isTimeBased = (e.target.value === '외출' || e.target.value === '조퇴');
