@@ -78,38 +78,39 @@ export function setupHistoryModalListeners() {
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
 
-    // ✨ [재수정] 가장 안정적인 전체화면 전환 로직 (Flexbox 레이아웃 유지)
+    // ✨ [최종 수정] 가장 강력한 전체화면 전환 로직 (뷰포트 강제 고정)
     const setHistoryMaximized = (maximized) => {
         isHistoryMaximized = maximized;
         const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
         const icon = toggleBtn?.querySelector('svg');
 
-        // 1. 드래그로 인한 인라인 스타일 강제 초기화 (중요)
-        historyModalContentBox.style.removeProperty('top');
-        historyModalContentBox.style.removeProperty('left');
-        historyModalContentBox.style.removeProperty('transform');
-        historyModalContentBox.style.removeProperty('position');
+        // 1. 드래그 등으로 오염된 인라인 스타일을 완전히 제거합니다.
+        historyModalContentBox.removeAttribute('style');
         historyModalContentBox.dataset.hasBeenUncentered = 'false';
-
-        // 2. 부모(오버레이)가 항상 Flex 중앙 정렬 상태인지 확인
-        if (!historyModal.classList.contains('flex')) {
-             historyModal.classList.add('flex', 'items-center', 'justify-center');
-        }
 
         if (maximized) {
             // ▶️ 최대화 모드
-            historyModal.classList.remove('p-4'); // 부모 패딩 제거 -> 자식이 끝까지 커질 수 있음
-            historyModalContentBox.classList.remove('max-w-7xl', 'h-[90vh]', 'rounded-2xl'); // 크기 제한 제거
-            historyModalContentBox.classList.add('w-full', 'h-full', 'rounded-none'); // 꽉 채우기
+            // 기존의 상대적 위치 및 크기 제한 클래스를 모두 제거합니다.
+            historyModalContentBox.classList.remove('relative', 'max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl');
+            
+            // 화면 전체를 덮도록 'fixed' 포지션과 최상위 z-index를 부여합니다.
+            historyModalContentBox.classList.add('fixed', 'inset-0', 'w-screen', 'h-screen', 'z-[100]', 'rounded-none');
 
             if (toggleBtn) toggleBtn.title = "기본 크기로";
             if (icon) icon.innerHTML = iconMinimize;
 
         } else {
             // ◀️ 일반 모드 복귀
-            historyModal.classList.add('p-4'); // 부모 패딩 복구
-            historyModalContentBox.classList.remove('w-full', 'h-full', 'rounded-none'); // 꽉 채우기 제거
-            historyModalContentBox.classList.add('max-w-7xl', 'h-[90vh]', 'rounded-2xl'); // 원래 크기 제한 복구
+            // 전체화면 강제 클래스를 제거합니다.
+            historyModalContentBox.classList.remove('fixed', 'inset-0', 'w-screen', 'h-screen', 'z-[100]', 'rounded-none');
+            
+            // 원래의 모달 스타일 클래스를 복구합니다.
+            historyModalContentBox.classList.add('relative', 'max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl');
+
+            // 부모 오버레이의 Flex 중앙 정렬을 확실하게 복구합니다.
+            if (!historyModal.classList.contains('flex')) {
+                 historyModal.classList.add('flex', 'items-center', 'justify-center');
+            }
 
             if (toggleBtn) toggleBtn.title = "전체화면";
             if (icon) icon.innerHTML = iconMaximize;
@@ -193,7 +194,7 @@ export function setupHistoryModalListeners() {
             if (historyModal) {
                 historyModal.classList.remove('hidden');
                 
-                // ✨ 항상 기본 크기로 열기 및 레이아웃 안전장치
+                // ✨ 항상 기본 크기로 열기
                 setHistoryMaximized(false);
 
                 if (historyStartDateInput) historyStartDateInput.value = '';
