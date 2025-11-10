@@ -837,26 +837,24 @@ export function setupMainScreenListeners() {
                 return;
             }
 
-            // ✨ [신규] 알바 삭제 버튼 클릭 핸들러 (🗑️ 아이콘)
+            // ✨ [수정] 알바 삭제 버튼 클릭 핸들러 (🗑️ 아이콘) - 즉시 삭제
             const deletePartTimerBtn = target.closest('.delete-part-timer-btn');
             if (deletePartTimerBtn) {
                 const partTimerId = deletePartTimerBtn.dataset.partTimerId;
                 const partTimer = (appState.partTimers || []).find(p => p.id === partTimerId);
 
                 if (partTimer) {
-                     if (confirm(`${partTimer.name}님을 알바 목록에서 삭제하시겠습니까?`)) {
-                        // 1. 로컬 상태에서 알바 제거
-                        appState.partTimers = appState.partTimers.filter(p => p.id !== partTimerId);
-                        
-                        // 2. 금일 출근 기록이 있다면 함께 제거 (정리)
-                        if (appState.dailyAttendance && appState.dailyAttendance[partTimer.name]) {
-                            delete appState.dailyAttendance[partTimer.name];
-                        }
-
-                        debouncedSaveState();
-                        renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
-                        showToast(`${partTimer.name}님이 삭제되었습니다.`);
+                    // 1. 로컬 상태에서 알바 제거
+                    appState.partTimers = appState.partTimers.filter(p => p.id !== partTimerId);
+                    
+                    // 2. 금일 출근 기록이 있다면 함께 제거 (정리)
+                    if (appState.dailyAttendance && appState.dailyAttendance[partTimer.name]) {
+                        delete appState.dailyAttendance[partTimer.name];
                     }
+
+                    debouncedSaveState();
+                    renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
+                    showToast(`${partTimer.name}님이 삭제되었습니다.`);
                 }
                 return;
             }
