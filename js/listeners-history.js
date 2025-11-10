@@ -78,39 +78,38 @@ export function setupHistoryModalListeners() {
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
 
-    // ✨ [수정] 더 안정적인 전체화면 전환 로직 (부모 레이아웃 제어 방식)
+    // ✨ [재수정] 가장 안정적인 전체화면 전환 로직 (Flexbox 레이아웃 유지)
     const setHistoryMaximized = (maximized) => {
         isHistoryMaximized = maximized;
         const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
         const icon = toggleBtn?.querySelector('svg');
 
-        // 1. 드래그로 인한 위치 스타일 강제 초기화 (중요)
+        // 1. 드래그로 인한 인라인 스타일 강제 초기화 (중요)
         historyModalContentBox.style.removeProperty('top');
         historyModalContentBox.style.removeProperty('left');
         historyModalContentBox.style.removeProperty('transform');
         historyModalContentBox.style.removeProperty('position');
         historyModalContentBox.dataset.hasBeenUncentered = 'false';
 
+        // 2. 부모(오버레이)가 항상 Flex 중앙 정렬 상태인지 확인
+        if (!historyModal.classList.contains('flex')) {
+             historyModal.classList.add('flex', 'items-center', 'justify-center');
+        }
+
         if (maximized) {
             // ▶️ 최대화 모드
-            // 오버레이(부모)의 Flex 중앙 정렬 및 패딩 해제 -> 자식이 꽉 찰 수 있게 함
-            historyModal.classList.remove('p-4', 'flex', 'items-center', 'justify-center');
-            
-            // 컨텐츠 박스(자식)를 꽉 채움
-            historyModalContentBox.classList.remove('max-w-7xl', 'h-[90vh]', 'rounded-2xl');
-            historyModalContentBox.classList.add('w-full', 'h-full', 'rounded-none');
+            historyModal.classList.remove('p-4'); // 부모 패딩 제거 -> 자식이 끝까지 커질 수 있음
+            historyModalContentBox.classList.remove('max-w-7xl', 'h-[90vh]', 'rounded-2xl'); // 크기 제한 제거
+            historyModalContentBox.classList.add('w-full', 'h-full', 'rounded-none'); // 꽉 채우기
 
             if (toggleBtn) toggleBtn.title = "기본 크기로";
             if (icon) icon.innerHTML = iconMinimize;
 
         } else {
             // ◀️ 일반 모드 복귀
-            // 오버레이 원래대로 복구
-            historyModal.classList.add('p-4', 'flex', 'items-center', 'justify-center');
-            
-            // 컨텐츠 박스 원래대로 복구
-            historyModalContentBox.classList.remove('w-full', 'h-full', 'rounded-none');
-            historyModalContentBox.classList.add('max-w-7xl', 'h-[90vh]', 'rounded-2xl');
+            historyModal.classList.add('p-4'); // 부모 패딩 복구
+            historyModalContentBox.classList.remove('w-full', 'h-full', 'rounded-none'); // 꽉 채우기 제거
+            historyModalContentBox.classList.add('max-w-7xl', 'h-[90vh]', 'rounded-2xl'); // 원래 크기 제한 복구
 
             if (toggleBtn) toggleBtn.title = "전체화면";
             if (icon) icon.innerHTML = iconMaximize;
@@ -194,7 +193,7 @@ export function setupHistoryModalListeners() {
             if (historyModal) {
                 historyModal.classList.remove('hidden');
                 
-                // ✨ 항상 기본 크기로 열기
+                // ✨ 항상 기본 크기로 열기 및 레이아웃 안전장치
                 setHistoryMaximized(false);
 
                 if (historyStartDateInput) historyStartDateInput.value = '';
