@@ -105,12 +105,24 @@ export const cancelClockOut = (memberName, isAdminAction = false) => {
 
 // ✅ [수정] Firestore에 직접 문서를 생성 (async 추가)
 export const startWorkGroup = async (members, task) => {
+    // 1. 출근 여부 체크
     const notClockedInMembers = members.filter(member =>
         !appState.dailyAttendance?.[member] || appState.dailyAttendance[member].status !== 'active'
     );
 
     if (notClockedInMembers.length > 0) {
         showToast(`아직 출근하지 않은 팀원이 있어 업무를 시작할 수 없습니다: ${notClockedInMembers.join(', ')}`, true);
+        return;
+    }
+
+    // ✨ 2. [신규 추가] 이미 업무 중인지 체크
+    const alreadyWorkingMembers = members.filter(member =>
+        (appState.workRecords || []).some(r =>
+            r.member === member && (r.status === 'ongoing' || r.status === 'paused')
+        )
+    );
+    if (alreadyWorkingMembers.length > 0) {
+        showToast(`이미 업무를 진행 중인 팀원이 있습니다: ${alreadyWorkingMembers.join(', ')}`, true);
         return;
     }
 
@@ -149,12 +161,24 @@ export const startWorkGroup = async (members, task) => {
 
 // ✅ [수정] Firestore에 직접 문서를 생성 (async 추가)
 export const addMembersToWorkGroup = async (members, task, groupId) => {
+    // 1. 출근 여부 체크
     const notClockedInMembers = members.filter(member =>
         !appState.dailyAttendance?.[member] || appState.dailyAttendance[member].status !== 'active'
     );
 
     if (notClockedInMembers.length > 0) {
         showToast(`출근하지 않은 팀원은 추가할 수 없습니다: ${notClockedInMembers.join(', ')}`, true);
+        return;
+    }
+
+    // ✨ 2. [신규 추가] 이미 업무 중인지 체크
+    const alreadyWorkingMembers = members.filter(member =>
+        (appState.workRecords || []).some(r =>
+            r.member === member && (r.status === 'ongoing' || r.status === 'paused')
+        )
+    );
+    if (alreadyWorkingMembers.length > 0) {
+        showToast(`이미 업무를 진행 중인 팀원이 있습니다: ${alreadyWorkingMembers.join(', ')}`, true);
         return;
     }
 
