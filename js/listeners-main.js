@@ -837,7 +837,7 @@ export function setupMainScreenListeners() {
                 return;
             }
 
-            // ✨ [수정] 알바 추가 버튼 핸들러: 즉시 자동 추가로 변경
+            // ✨ [수정] 알바 추가 버튼 핸들러: 즉시 자동 추가 및 출근 처리
              if (target.closest('#add-part-timer-modal-btn')) {
                 if (!appState.partTimers) appState.partTimers = [];
 
@@ -856,13 +856,20 @@ export function setupMainScreenListeners() {
                     wage: appConfig.defaultPartTimerWage || 10000
                 };
 
-                // 3. 상태 추가 및 저장
+                // 3. 상태 추가 (알바 정보 + 즉시 출근 처리)
+                if (!appState.dailyAttendance) appState.dailyAttendance = {};
+                appState.dailyAttendance[newName] = {
+                    inTime: getCurrentTime(),
+                    outTime: null,
+                    status: 'active'
+                };
                 appState.partTimers.push(newPartTimer);
+                
                 debouncedSaveState();
 
                 // 4. 모달 컨텐츠 리렌더링
                 renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
-                showToast(`'${newName}'이(가) 추가되었습니다.`);
+                showToast(`'${newName}'이(가) 추가되고 출근 처리되었습니다.`);
                 return;
             }
         });
