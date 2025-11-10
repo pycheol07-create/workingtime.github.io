@@ -70,11 +70,15 @@ import {
 
 import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ✨ [신규] 이력 창 최대화 상태 추적 변수
+let isHistoryMaximized = false;
+
 export function setupHistoryModalListeners() {
 
-    const exitFullscreenIfActive = () => {
-        if (document.fullscreenElement === historyModalContentBox) {
-            document.exitFullscreen();
+    // ✨ [수정] 전체화면 대신 최대화 상태 해제로 변경
+    const exitMaximizedIfActive = () => {
+        if (isHistoryMaximized && toggleFullscreenBtn) {
+            toggleFullscreenBtn.click(); // 토글 버튼을 클릭하여 원래대로 복구
         }
     };
 
@@ -381,12 +385,12 @@ export function setupHistoryModalListeners() {
             if (!dateKey) { return; }
 
             if (action === 'open-history-quantity-modal') {
-                exitFullscreenIfActive();
+                exitMaximizedIfActive();
                 openHistoryQuantityModal(dateKey);
             } else if (action === 'download-history-excel') {
                 downloadHistoryAsExcel(dateKey);
             } else if (action === 'request-history-deletion') {
-                exitFullscreenIfActive();
+                exitMaximizedIfActive();
                 requestHistoryDeletion(dateKey);
             }
         });
@@ -435,7 +439,7 @@ export function setupHistoryModalListeners() {
                 if (editAttendanceDateKeyInput) editAttendanceDateKeyInput.value = dateKey;
                 if (editAttendanceRecordIndexInput) editAttendanceRecordIndexInput.value = index;
 
-                exitFullscreenIfActive();
+                exitMaximizedIfActive();
                 if (editAttendanceRecordModal) editAttendanceRecordModal.classList.remove('hidden');
                 return;
             }
@@ -457,7 +461,7 @@ export function setupHistoryModalListeners() {
                 const msgEl = document.getElementById('delete-confirm-message');
                 if (msgEl) msgEl.textContent = `${record.member}님의 '${record.type}' 기록을 삭제하시겠습니까?`;
 
-                exitFullscreenIfActive();
+                exitMaximizedIfActive();
                 if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
                 return;
             }
@@ -499,7 +503,7 @@ export function setupHistoryModalListeners() {
                 if (addAttendanceTimeFields) addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
                 if (addAttendanceDateFields) addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
 
-                exitFullscreenIfActive();
+                exitMaximizedIfActive();
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.remove('hidden');
                 return;
             }
@@ -511,19 +515,17 @@ export function setupHistoryModalListeners() {
             const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
             if (coqButton) {
                 e.stopPropagation();
-                exitFullscreenIfActive();
+                exitMaximizedIfActive();
                 if (coqExplanationModal) {
                     coqExplanationModal.classList.remove('hidden');
                 }
                 return;
             }
 
-            // ✨ 매출액 분석 적용 버튼 이벤트 (콤마 제거 로직 추가)
             const applyRevenueBtn = e.target.closest('#report-apply-revenue-btn');
             if (applyRevenueBtn) {
                 const revenueInput = document.getElementById('report-monthly-revenue-input');
                 if (revenueInput && context.currentReportParams && context.currentReportParams.monthKey) {
-                    // 콤마 제거 후 숫자로 변환
                     const rawRevenue = revenueInput.value.replace(/,/g, '');
                     const revenue = Number(rawRevenue) || 0;
                     const monthKey = context.currentReportParams.monthKey;
@@ -584,6 +586,7 @@ export function setupHistoryModalListeners() {
         makeDraggable(historyModal, historyHeader, historyModalContentBox);
     }
 
+    // ✨ [수정] CSS 기반 '최대화(Maximize)' 토글 로직 적용
     const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
     if (toggleFullscreenBtn && historyModal && historyModalContentBox) {
         const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
@@ -591,47 +594,40 @@ export function setupHistoryModalListeners() {
 
         toggleFullscreenBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (!document.fullscreenElement) {
-                historyModalContentBox.requestFullscreen().catch(err => {
-                    alert(`전체화면 모드를 시작할 수 없습니다: ${err.message} (${err.name})`);
-                });
-            } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
-            }
-        });
+            isHistoryMaximized = !isHistoryMaximized;
 
-        const handleFullscreenChange = () => {
             const icon = toggleFullscreenBtn.querySelector('svg');
-            if (!icon) return;
 
-            if (document.fullscreenElement === historyModalContentBox) {
+            if (isHistoryMaximized) {
+                // ▶️ 최대화 모드 진입
+                historyModal.classList.remove('p-4', 'flex', 'items-center', 'justify-center'); // 여백 및 중앙 정렬 제거
+                historyModalContentBox.classList.remove('max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl'); // 크기 제한 제거
+                historyModalContentBox.classList.add('w-full', 'h-full', 'rounded-none'); // 전체 크기로 확장
+
+                // 드래그로 이동된 위치 초기화
                 historyModalContentBox.style.position = '';
                 historyModalContentBox.style.top = '';
                 historyModalContentBox.style.left = '';
                 historyModalContentBox.style.transform = '';
-                historyModalContentBox.dataset.hasBeenUncentered = 'false';
-                historyModal.classList.remove('flex', 'items-center', 'justify-center');
-                historyModalContentBox.classList.remove('max-w-7xl', 'h-[90vh]');
-                historyModalContentBox.classList.add('w-screen', 'h-screen', 'max-w-none');
-                icon.innerHTML = iconMinimize;
+
+                if (icon) icon.innerHTML = iconMinimize;
                 toggleFullscreenBtn.title = "기본 크기로";
 
-            } else if (document.fullscreenElement === null) {
-                historyModal.classList.add('flex', 'items-center', 'justify-center');
-                historyModalContentBox.classList.add('max-w-7xl', 'h-[90vh]');
-                historyModalContentBox.classList.remove('w-screen', 'h-screen', 'max-w-none');
-                icon.innerHTML = iconMaximize;
+            } else {
+                // ◀️ 일반 모드 복귀
+                historyModal.classList.add('p-4', 'flex', 'items-center', 'justify-center'); // 여백 및 중앙 정렬 복구
+                historyModalContentBox.classList.add('max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl'); // 크기 제한 복구
+                historyModalContentBox.classList.remove('w-full', 'h-full', 'rounded-none');
+
+                // 드래그 상태 플래그 초기화 (다시 중앙 정렬되었으므로)
+                historyModalContentBox.dataset.hasBeenUncentered = 'false';
+
+                if (icon) icon.innerHTML = iconMaximize;
                 toggleFullscreenBtn.title = "전체화면";
             }
-        };
+        });
 
-        if (!document.fullscreenListenerAdded) {
-            document.addEventListener('fullscreenchange', handleFullscreenChange);
-            document.fullscreenListenerAdded = true;
-        }
-
+        // 초기 아이콘 설정
         const icon = toggleFullscreenBtn.querySelector('svg');
         if (icon) {
             icon.innerHTML = iconMaximize;
@@ -786,7 +782,8 @@ function makeDraggable(modalOverlay, header, contentBox) {
     let offsetX, offsetY;
 
     header.addEventListener('mousedown', (e) => {
-        if (e.target.closest('button')) {
+        // ✨ [수정] 최대화 상태에서는 드래그 방지
+        if (isHistoryMaximized || e.target.closest('button')) {
             return;
         }
         isDragging = true;
