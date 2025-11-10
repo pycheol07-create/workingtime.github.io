@@ -32,29 +32,29 @@ import {
     getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast
 } from './utils.js';
 
-// ✅ [수정] Firestore 함수 임포트
+// Firestore 함수 임포트
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc, runTransaction,
     query, where, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ [신규] 표준 속도 계산 함수 임포트 (시뮬레이션용)
+// 표준 속도 계산 함수 임포트 (시뮬레이션용)
 import { calculateStandardThroughputs } from './ui-history-reports-logic.js';
 
 
-// ✅ [신규] workRecords 컬렉션 참조 헬퍼
+// workRecords 컬렉션 참조 헬퍼
 const getWorkRecordsCollectionRef = () => {
     const today = getTodayDateString();
     return collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
 };
 
-// ✅ [신규] 메인 데일리 문서 참조 헬퍼
+// 메인 데일리 문서 참조 헬퍼
 const getDailyDocRef = () => {
     return doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
 };
 
 
-// ✅ [수정] Firestore에서 직접 데이터를 읽어와 동기화 (async 추가)
+// Firestore에서 직접 데이터를 읽어와 로컬 이력 리스트와 동기화
 const _syncTodayToHistory = async () => {
     const todayKey = getTodayDateString();
     const now = getCurrentTime();
@@ -135,7 +135,7 @@ export const checkMissingQuantities = (dayData) => {
 };
 
 
-// ✅ [핵심 수정] appState 의존성 완전 제거: 모든 데이터를 Firestore에서 직접 읽어 저장
+// 이력 저장 (서버 권위 방식 - appState 의존성 제거)
 export async function saveProgress(isAutoSave = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
@@ -147,16 +147,15 @@ export async function saveProgress(isAutoSave = false) {
     const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
 
     try {
-        // 1. [Firestore Read] 'daily_data/{today}' 메인 문서 읽기 (메타 데이터)
+        // 1. [Firestore Read] 'daily_data/{today}' 메인 문서 읽기
         const dailyDocSnap = await getDoc(getDailyDocRef());
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
 
-        // 2. [Firestore Read] 'daily_data/{today}/workRecords' 컬렉션 읽기 (업무 기록)
+        // 2. [Firestore Read] 'daily_data/{today}/workRecords' 컬렉션 읽기
         const workRecordsColRef = getWorkRecordsCollectionRef();
         const recordsSnapshot = await getDocs(workRecordsColRef);
         const liveWorkRecords = recordsSnapshot.docs.map(doc => {
             const data = doc.data();
-            // 진행 중인 업무는 현재 시간 기준으로 duration 계산하여 스냅샷 저장
             if (data.status === 'ongoing' || data.status === 'paused') {
                 data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
                 data.endTime = now;
@@ -164,9 +163,7 @@ export async function saveProgress(isAutoSave = false) {
             return data;
         });
 
-        // 데이터가 아예 없으면 빈 이력 생성 방지
         if (liveWorkRecords.length === 0 && Object.keys(dailyData.taskQuantities || {}).length === 0) {
-             // 필요 시 빈 문서 삭제 로직 추가 가능
              return;
         }
 
@@ -179,7 +176,7 @@ export async function saveProgress(isAutoSave = false) {
             onLeaveMembers: dailyData.onLeaveMembers || [],
             partTimers: dailyData.partTimers || [],
             dailyAttendance: dailyData.dailyAttendance || {},
-            savedAt: now // 저장 시각 기록
+            savedAt: now
         };
 
         await setDoc(historyDocRef, historyData);
@@ -201,7 +198,7 @@ export async function saveProgress(isAutoSave = false) {
     }
 }
 
-// ✅ [수정] Firestore 직접 조회 방식으로 변경하여 마감 시 전체 종료 기능 강화
+// 업무 마감 (전체 강제 종료 포함)
 export async function saveDayDataToHistory(shouldReset) {
     const workRecordsColRef = getWorkRecordsCollectionRef();
     const endTime = getCurrentTime();
@@ -259,6 +256,7 @@ export async function saveDayDataToHistory(shouldReset) {
              console.error("Error clearing daily data: ", e);
         }
         
+        // 로컬 상태 초기화는 app.js의 onSnapshot이 처리하므로 최소화
         appState.workRecords = [];
         showToast('오늘의 업무 기록을 초기화했습니다.');
     }
@@ -386,15 +384,6 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
 
     if (keys.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
-        const viewsToClear = [
-            'history-daily-view', 'history-weekly-view', 'history-monthly-view',
-            'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
-            'report-daily-view', 'report-weekly-view', 'report-monthly-view', 'report-yearly-view'
-        ];
-        viewsToClear.forEach(viewId => {
-            const viewEl = document.getElementById(viewId);
-            if (viewEl) viewEl.innerHTML = '';
-        });
         return;
     }
 
@@ -430,9 +419,8 @@ export const openHistoryQuantityModal = (dateKey) => {
     if (dateKey === todayDateString) {
         const todayData = {
             id: todayDateString,
-            workRecords: appState.workRecords || [], // ✅ 로컬 캐시 사용
+            workRecords: appState.workRecords || [],
             taskQuantities: appState.taskQuantities || {},
-            // ✨ 오늘 데이터에도 확인 목록 전달
             confirmedZeroTasks: appState.confirmedZeroTasks || []
         };
         const missingTasksList = checkMissingQuantities(todayData);
@@ -452,11 +440,9 @@ export const openHistoryQuantityModal = (dateKey) => {
     context.quantityModalContext.mode = 'history';
     context.quantityModalContext.dateKey = dateKey;
 
-    // ✨ [중요] 이력 저장 콜백 함수 정의
     context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
         if (!dateKey) return;
 
-        // 1. 전역 이력 데이터 업데이트
         const idx = allHistoryData.findIndex(d => d.id === dateKey);
         if (idx > -1) {
             allHistoryData[idx] = {
@@ -466,10 +452,8 @@ export const openHistoryQuantityModal = (dateKey) => {
             };
         }
 
-        // 2. Firestore 'history' 컬렉션 저장
         const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
         try {
-            // 기존 데이터가 있으면 병합, 없으면 새로 생성
             await setDoc(historyDocRef, {
                 taskQuantities: newQuantities,
                 confirmedZeroTasks: confirmedZeroTasks
@@ -477,7 +461,6 @@ export const openHistoryQuantityModal = (dateKey) => {
 
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
 
-            // 3. 만약 오늘 날짜라면 메인 앱 'daily_data' 문서도 즉시 동기화
             if (dateKey === getTodayDateString()) {
                  const dailyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
                  await setDoc(dailyDocRef, { taskQuantities: newQuantities, confirmedZeroTasks: confirmedZeroTasks }, { merge: true });
@@ -870,34 +853,57 @@ export const switchHistoryView = async (view) => {
     }
 };
 
-// ✅ [신규] 인건비 시뮬레이션 계산 로직 (export 필수)
-export const calculateSimulation = (task, targetQty, workerCount, appConfig, historyData) => {
-    if (!task || targetQty <= 0 || workerCount <= 0) {
+// ✅ [수정] 인건비 시뮬레이션 계산 로직 (모드 지원)
+export const calculateSimulation = (mode, task, targetQty, inputValue, appConfig, historyData) => {
+    if (!task || targetQty <= 0 || inputValue <= 0) {
         return { error: "모든 값을 올바르게 입력해주세요." };
     }
 
-    // 1. 과거 이력 기반 표준 속도(인당 분당 처리량) 계산
     const standards = calculateStandardThroughputs(historyData);
-    const speedPerPerson = standards[task] || 0; // (개/분/인)
+    const speedPerPerson = standards[task] || 0;
 
     if (speedPerPerson <= 0) {
         return { error: "해당 업무의 과거 이력 데이터가 부족하여 예측할 수 없습니다." };
     }
 
-    // 2. 예상 소요 시간 계산 (분)
-    // 총 필요 인력분 = 목표수량 / 인당속도
-    // 실제 소요시간 = 총 필요 인력분 / 투입인원
-    const totalManMinutes = targetQty / speedPerPerson;
-    const durationMinutes = totalManMinutes / workerCount;
-
-    // 3. 예상 총 인건비 계산 (원)
-    // 총 인건비 = 총 필요 인력분 * (분당 평균 임금)
     const avgWagePerMinute = (appConfig.defaultPartTimerWage || 10000) / 60;
-    const totalCost = totalManMinutes * avgWagePerMinute;
+    const totalManMinutesNeeded = targetQty / speedPerPerson;
 
-    return {
-        durationMinutes,
-        totalCost,
-        speed: speedPerPerson
+    let result = {
+        speed: speedPerPerson,
+        totalCost: totalManMinutesNeeded * avgWagePerMinute
     };
+
+    if (mode === 'fixed-workers') {
+        result.workerCount = inputValue;
+        result.durationMinutes = totalManMinutesNeeded / inputValue;
+        result.label1 = '예상 소요 시간';
+        result.value1 = formatDuration(result.durationMinutes);
+
+    } else if (mode === 'target-time') {
+        result.durationMinutes = inputValue;
+        result.workerCount = totalManMinutesNeeded / inputValue;
+        result.label1 = '필요 인원';
+        result.value1 = `${Math.ceil(result.workerCount * 10) / 10} 명`;
+    }
+
+    return result;
+};
+
+// ✅ [신규] 효율 곡선 차트 데이터 생성
+export const generateEfficiencyChartData = (task, targetQty, historyData) => {
+    const standards = calculateStandardThroughputs(historyData);
+    const speedPerPerson = standards[task] || 0;
+    if (speedPerPerson <= 0) return null;
+
+    const totalManMinutes = targetQty / speedPerPerson;
+    const labels = [];
+    const data = [];
+
+    for (let workers = 1; workers <= 15; workers++) {
+        labels.push(`${workers}명`);
+        data.push(Math.round(totalManMinutes / workers));
+    }
+
+    return { labels, data, taskName: task };
 };

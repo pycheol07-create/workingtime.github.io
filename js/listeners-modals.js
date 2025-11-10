@@ -40,6 +40,7 @@ import {
     cancelLeaveConfirmModal,
     confirmCancelLeaveBtn,
     cancelCancelLeaveBtn,
+    cancelLeaveConfirmMessage,
     manualAddRecordModal,
     confirmManualAddBtn,
     cancelManualAddBtn,
@@ -75,12 +76,16 @@ import {
     debouncedSaveState,
     render,
     persistentLeaveSchedule,
-    allHistoryData, // 이력 데이터 필요
+    allHistoryData,
 
-    // ✅ [신규] 시뮬레이션 관련 DOM 요소 import
+    // ✅ [신규] 시뮬레이션 관련 DOM 요소 import (확장됨)
     costSimulationModal, openCostSimulationBtn, simTaskSelect,
     simTargetQuantityInput, simWorkerCountInput, simCalculateBtn,
-    simResultContainer, simResultDuration, simResultCost, simResultSpeed
+    simResultContainer, simResultCost, simResultSpeed,
+    simModeRadios, simInputWorkerGroup, simInputDurationGroup, simTargetDurationInput,
+    simEfficiencyChartCanvas, simAddComparisonBtn, simComparisonContainer,
+    simComparisonTbody, simClearComparisonBtn, simResultLabel1, simResultValue1
+
 } from './app.js';
 
 import { getTodayDateString, getCurrentTime, formatTimeTo24H, showToast, calcElapsedMinutes, formatDuration } from './utils.js';
@@ -101,7 +106,7 @@ import {
     cancelClockOut
 } from './app-logic.js';
 
-import { saveProgress, saveDayDataToHistory, switchHistoryView, calculateSimulation } from './app-history-logic.js';
+import { saveProgress, saveDayDataToHistory, switchHistoryView, calculateSimulation, generateEfficiencyChartData } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -139,6 +144,9 @@ const deleteWorkRecordDocuments = async (recordIds) => {
     }
 };
 
+// 차트 인스턴스 보관용 변수
+let simChartInstance = null;
+
 export function setupGeneralModalListeners() {
 
     document.querySelectorAll('.modal-close-btn, .modal-cancel-btn').forEach(btn => {
@@ -153,12 +161,28 @@ export function setupGeneralModalListeners() {
     // ✅ [신규] 인건비 시뮬레이션 모달 열기
     if (openCostSimulationBtn) {
         openCostSimulationBtn.addEventListener('click', () => {
-            // 1. 모달 초기화
+            // 1. UI 초기화
             if (simResultContainer) simResultContainer.classList.add('hidden');
-            if (simTargetQuantityInput) simTargetQuantityInput.value = '';
-            if (simWorkerCountInput) simWorkerCountInput.value = '';
+            if (simComparisonContainer) simComparisonContainer.classList.add('hidden');
+            if (simComparisonTbody) simComparisonTbody.innerHTML = '';
+            if (simAddComparisonBtn) {
+                simAddComparisonBtn.disabled = true;
+                simAddComparisonBtn.classList.add('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+                simAddComparisonBtn.classList.remove('bg-indigo-100', 'text-indigo-700', 'hover:bg-indigo-200');
+            }
 
-            // 2. 업무 선택 드롭다운 채우기 (처리량 집계 대상 업무만)
+            // 입력 필드 초기화
+            if (simTargetQuantityInput) simTargetQuantityInput.value = '';
+            if (simWorkerCountInput) simWorkerCountInput.value = '3'; // 기본값
+            if (simTargetDurationInput) simTargetDurationInput.value = '60'; // 기본값
+
+            // 모드 초기화 (기본: 소요 시간 예측)
+            if (simModeRadios && simModeRadios.length > 0) {
+                simModeRadios[0].checked = true;
+                simModeRadios[0].dispatchEvent(new Event('change'));
+            }
+
+            // 2. 업무 선택 드롭다운 채우기
             if (simTaskSelect) {
                 simTaskSelect.innerHTML = '<option value="">업무 선택</option>';
                 (appConfig.quantityTaskTypes || []).sort().forEach(task => {
@@ -169,34 +193,134 @@ export function setupGeneralModalListeners() {
                 });
             }
 
-            // 3. 모달 표시
             if (costSimulationModal) costSimulationModal.classList.remove('hidden');
-            // 메뉴 닫기
-            const menuDropdown = document.getElementById('menu-dropdown');
-            if (menuDropdown) menuDropdown.classList.add('hidden');
+            document.getElementById('menu-dropdown')?.classList.add('hidden');
+        });
+    }
+
+    // ✅ [신규] 시뮬레이션 모드 변경 라디오 버튼
+    if (simModeRadios) {
+        Array.from(simModeRadios).forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    const mode = e.target.value;
+                    if (mode === 'fixed-workers') {
+                        simInputWorkerGroup.classList.remove('hidden');
+                        simInputDurationGroup.classList.add('hidden');
+                        simCalculateBtn.textContent = '소요 시간 계산하기';
+                    } else {
+                        simInputWorkerGroup.classList.add('hidden');
+                        simInputDurationGroup.classList.remove('hidden');
+                        simCalculateBtn.textContent = '필요 인원 계산하기';
+                    }
+                }
+            });
         });
     }
 
     // ✅ [신규] 시뮬레이션 계산 실행
     if (simCalculateBtn) {
         simCalculateBtn.addEventListener('click', () => {
+            const mode = document.querySelector('input[name="sim-mode"]:checked').value;
             const task = simTaskSelect.value;
             const qty = Number(simTargetQuantityInput.value);
-            const workers = Number(simWorkerCountInput.value);
+            
+            // 모드에 따라 입력값 선택
+            const inputValue = (mode === 'fixed-workers') 
+                                ? Number(simWorkerCountInput.value) 
+                                : Number(simTargetDurationInput.value);
 
             // 1. 계산 실행
-            const result = calculateSimulation(task, qty, workers, appConfig, allHistoryData);
+            const result = calculateSimulation(mode, task, qty, inputValue, appConfig, allHistoryData);
 
-            // 2. 결과 표시
             if (result.error) {
                 showToast(result.error, true);
                 if (simResultContainer) simResultContainer.classList.add('hidden');
-            } else {
-                if (simResultDuration) simResultDuration.textContent = formatDuration(result.durationMinutes);
-                if (simResultCost) simResultCost.textContent = `약 ${Math.round(result.totalCost).toLocaleString()}원`;
-                if (simResultSpeed) simResultSpeed.textContent = result.speed.toFixed(2);
-                if (simResultContainer) simResultContainer.classList.remove('hidden');
+                return;
             }
+
+            // 2. 결과 텍스트 표시
+            if (simResultLabel1) simResultLabel1.textContent = result.label1;
+            if (simResultValue1) simResultValue1.textContent = result.value1;
+            if (simResultCost) simResultCost.textContent = `약 ${Math.round(result.totalCost).toLocaleString()}원`;
+            if (simResultSpeed) simResultSpeed.textContent = result.speed.toFixed(2);
+            if (simResultContainer) simResultContainer.classList.remove('hidden');
+
+            // 3. 효율 곡선 차트 렌더링
+            const chartData = generateEfficiencyChartData(task, qty, allHistoryData);
+            if (chartData && simEfficiencyChartCanvas) {
+                if (simChartInstance) simChartInstance.destroy();
+
+                const ctx = simEfficiencyChartCanvas.getContext('2d');
+                simChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: chartData.labels,
+                        datasets: [{
+                            label: '예상 소요 시간 (분)',
+                            data: chartData.data,
+                            borderColor: 'rgb(79, 70, 229)', // Indigo-600
+                            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                            tension: 0.3,
+                            fill: true,
+                            pointBackgroundColor: 'rgb(79, 70, 229)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: '시간 (분)' } },
+                            x: { title: { display: true, text: '투입 인원' } }
+                        }
+                    }
+                });
+            }
+
+            // 4. '비교함에 추가' 버튼 활성화
+            if (simAddComparisonBtn) {
+                simAddComparisonBtn.disabled = false;
+                simAddComparisonBtn.classList.remove('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+                simAddComparisonBtn.classList.add('bg-indigo-100', 'text-indigo-700', 'hover:bg-indigo-200', 'cursor-pointer');
+                // 현재 계산 결과 저장 (클로저 대신 데이터 속성 활용)
+                simAddComparisonBtn.dataset.lastResult = JSON.stringify({
+                    task, qty, 
+                    workers: (mode === 'fixed-workers') ? inputValue : result.workerCount,
+                    duration: (mode === 'fixed-workers') ? result.durationMinutes : inputValue,
+                    cost: result.totalCost
+                });
+            }
+        });
+    }
+
+    // ✅ [신규] 비교함에 추가 버튼
+    if (simAddComparisonBtn) {
+        simAddComparisonBtn.addEventListener('click', () => {
+            const dataStr = simAddComparisonBtn.dataset.lastResult;
+            if (!dataStr) return;
+            const data = JSON.parse(dataStr);
+
+            if (simComparisonContainer) simComparisonContainer.classList.remove('hidden');
+
+            const row = document.createElement('tr');
+            row.className = 'bg-white border-b hover:bg-gray-50 transition';
+            row.innerHTML = `
+                <td class="px-3 py-2 font-medium text-gray-900">${data.task}</td>
+                <td class="px-3 py-2 text-right">${data.qty.toLocaleString()}</td>
+                <td class="px-3 py-2 text-right">${Number(data.workers).toFixed(1)}명</td>
+                <td class="px-3 py-2 text-right">${formatDuration(data.duration)}</td>
+                <td class="px-3 py-2 text-right font-semibold text-gray-700">${Math.round(data.cost).toLocaleString()}원</td>
+            `;
+            if (simComparisonTbody) simComparisonTbody.appendChild(row);
+        });
+    }
+
+    // ✅ [신규] 비교함 비우기 버튼
+    if (simClearComparisonBtn) {
+        simClearComparisonBtn.addEventListener('click', () => {
+            if (simComparisonTbody) simComparisonTbody.innerHTML = '';
+            if (simComparisonContainer) simComparisonContainer.classList.add('hidden');
         });
     }
 

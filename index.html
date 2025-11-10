@@ -81,7 +81,7 @@
                                 <a href="admin.html" id="admin-link-btn" target="admin_window"
                                     class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100" style="display: none;">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                     </svg>
                                     <span class="font-medium">관리자 페이지</span>
@@ -906,55 +906,109 @@
         </div>
         
         <div id="cost-simulation-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[100] p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md relative">
-                <div class="p-6 border-b border-gray-200">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
                     <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
                         💰 인건비 시뮬레이션
                     </h2>
                     <button class="modal-close-btn" data-modal-id="cost-simulation-modal">&times;</button>
                 </div>
-                <div class="p-6 space-y-5">
-                    <p class="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                        과거 데이터를 기반으로 예상 소요 시간과 비용을 예측합니다.
-                    </p>
-
-                    <div>
-                        <label for="sim-task-select" class="block text-sm font-medium text-gray-700 mb-1">예상 업무</label>
-                        <select id="sim-task-select" class="w-full p-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
-                            </select>
+                <div class="p-6 space-y-6">
+                    
+                    <div class="flex justify-center bg-gray-100 p-1 rounded-lg">
+                        <label class="flex-1 text-center cursor-pointer">
+                            <input type="radio" name="sim-mode" value="fixed-workers" class="peer sr-only" checked>
+                            <span class="block py-2 px-4 rounded-md text-sm font-medium text-gray-500 peer-checked:bg-white peer-checked:text-indigo-600 peer-checked:shadow-sm transition-all">
+                                🕒 소요 시간 예측 (기본)
+                            </span>
+                        </label>
+                        <label class="flex-1 text-center cursor-pointer">
+                            <input type="radio" name="sim-mode" value="target-time" class="peer sr-only">
+                            <span class="block py-2 px-4 rounded-md text-sm font-medium text-gray-500 peer-checked:bg-white peer-checked:text-indigo-600 peer-checked:shadow-sm transition-all">
+                                👥 필요 인원 예측 (역산)
+                            </span>
+                        </label>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-4">
                         <div>
-                            <label for="sim-target-quantity" class="block text-sm font-medium text-gray-700 mb-1">목표 수량 (개)</label>
-                            <input type="number" id="sim-target-quantity" class="w-full p-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="예: 1000" min="1">
+                            <label for="sim-task-select" class="block text-sm font-medium text-gray-700 mb-1">예상 업무</label>
+                            <select id="sim-task-select" class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"></select>
                         </div>
-                        <div>
-                            <label for="sim-worker-count" class="block text-sm font-medium text-gray-700 mb-1">투입 인원 (명)</label>
-                            <input type="number" id="sim-worker-count" class="w-full p-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="예: 3" min="1">
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="sim-target-quantity" class="block text-sm font-medium text-gray-700 mb-1">목표 수량 (개)</label>
+                                <input type="number" id="sim-target-quantity" class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="예: 1000" min="1">
+                            </div>
+                            
+                            <div id="sim-input-worker-group">
+                                <label for="sim-worker-count" class="block text-sm font-medium text-gray-700 mb-1">투입 인원 (명)</label>
+                                <input type="number" id="sim-worker-count" class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="예: 5" min="1">
+                            </div>
+                            <div id="sim-input-duration-group" class="hidden">
+                                <label for="sim-target-duration" class="block text-sm font-medium text-gray-700 mb-1">목표 소요 시간 (분)</label>
+                                <input type="number" id="sim-target-duration" class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="예: 60 (1시간)" min="1">
+                            </div>
                         </div>
                     </div>
 
-                    <button id="sim-calculate-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition shadow-md active:scale-[0.98]">
-                        예측 결과 보기
-                    </button>
+                    <div class="flex gap-3">
+                        <button id="sim-calculate-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition shadow-md active:scale-[0.98]">
+                            계산하기
+                        </button>
+                         <button id="sim-add-to-compare-btn" class="flex-none bg-gray-100 text-gray-400 font-bold py-3 px-4 rounded-xl transition cursor-not-allowed" disabled>
+                            비교함에 추가 📥
+                        </button>
+                    </div>
 
-                    <div id="sim-result-container" class="hidden pt-4 border-t border-gray-100">
-                        <h4 class="text-md font-semibold text-gray-800 mb-3">📊 예측 결과</h4>
-                        <div class="grid grid-cols-2 gap-4 text-center">
-                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                <div class="text-xs text-gray-500 mb-1">예상 소요 시간</div>
-                                <div id="sim-result-duration" class="text-lg font-bold text-blue-600">-</div>
+                    <div id="sim-result-container" class="hidden pt-6 border-t border-gray-100">
+                        <h4 class="text-lg font-bold text-gray-800 mb-4">📊 예측 결과</h4>
+                        <div class="grid grid-cols-2 gap-4 text-center mb-6">
+                            <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                <div class="text-sm text-blue-600 mb-1 font-medium" id="sim-result-label-1">예상 소요 시간</div>
+                                <div id="sim-result-value-1" class="text-2xl font-extrabold text-blue-800">-</div>
                             </div>
-                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                <div class="text-xs text-gray-500 mb-1">예상 총 인건비</div>
-                                <div id="sim-result-cost" class="text-lg font-bold text-red-600">-</div>
+                            <div class="bg-red-50 p-4 rounded-xl border border-red-100">
+                                <div class="text-sm text-red-600 mb-1 font-medium">예상 총 인건비</div>
+                                <div id="sim-result-cost" class="text-2xl font-extrabold text-red-800">-</div>
                             </div>
                         </div>
-                         <p class="text-xs text-gray-400 mt-3 text-center">
-                            * 과거 평균 속도(<span id="sim-result-speed"></span>개/분/인) 기준 추정치입니다.
+
+                        <div class="mb-6">
+                             <h5 class="text-sm font-semibold text-gray-700 mb-3">📉 인원 투입 대비 효율 곡선</h5>
+                             <div class="h-48 bg-gray-50 rounded-lg border p-2">
+                                 <canvas id="sim-efficiency-chart"></canvas>
+                             </div>
+                        </div>
+
+                        <p class="text-xs text-gray-500 text-center">
+                            * 과거 평균 속도(<span id="sim-result-speed" class="font-medium"></span>개/분/인) 및 기본 시급(10,000원) 기준 추정치입니다.
                         </p>
                     </div>
+
+                    <div id="sim-comparison-container" class="hidden pt-6 border-t border-gray-100">
+                        <div class="flex justify-between items-center mb-3">
+                             <h4 class="text-lg font-bold text-gray-800">📋 시나리오 비교</h4>
+                             <button id="sim-clear-comparison-btn" class="text-xs text-gray-500 hover:text-red-500 underline">비교함 비우기</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left text-gray-600">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                                    <tr>
+                                        <th class="px-3 py-2">업무</th>
+                                        <th class="px-3 py-2 text-right">수량</th>
+                                        <th class="px-3 py-2 text-right">인원</th>
+                                        <th class="px-3 py-2 text-right">시간</th>
+                                        <th class="px-3 py-2 text-right">비용</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sim-comparison-tbody">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
