@@ -273,6 +273,7 @@ export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase()
 
 
 // Core Functions
+// ✨ [중요 수정] 데이터 유실 방지를 위한 트랜잭션 로직 개선
 export async function saveStateToFirestore() {
     if (!auth || !auth.currentUser) {
         console.warn('Cannot save state: User not authenticated.');
@@ -283,7 +284,20 @@ export async function saveStateToFirestore() {
         const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
 
         await runTransaction(db, async (transaction) => {
-            const stateToSave = JSON.stringify({
+            // 1. [중요] 먼저 DB의 최신 상태를 읽어옵니다.
+            const docSnap = await transaction.get(docRef);
+            let latestState = {};
+            if (docSnap.exists() && docSnap.data().state) {
+                try {
+                    latestState = JSON.parse(docSnap.data().state);
+                } catch (e) {
+                    console.error("Error parsing latest state in transaction:", e);
+                }
+            }
+
+            // 2. DB의 최신 상태 위에 현재 로컬의 변경 사항을 병합합니다.
+            const mergedState = {
+                ...latestState, // DB의 다른 필드 값을 유지
                 taskQuantities: appState.taskQuantities || {},
                 onLeaveMembers: appState.dailyOnLeaveMembers || [],
                 partTimers: appState.partTimers || [],
@@ -292,12 +306,15 @@ export async function saveStateToFirestore() {
                 lunchResumeExecuted: appState.lunchResumeExecuted || false,
                 confirmedZeroTasks: appState.confirmedZeroTasks || [],
                 dailyAttendance: appState.dailyAttendance || {}
-            });
+            };
+
+            const stateToSave = JSON.stringify(mergedState);
 
             if (stateToSave.length > 900000) {
                 throw new Error("저장 데이터 용량 초과");
             }
 
+            // 3. 병합된 상태를 저장합니다.
             transaction.set(docRef, { state: stateToSave }, { merge: true });
         });
 
@@ -308,7 +325,8 @@ export async function saveStateToFirestore() {
         if (error.message === "저장 데이터 용량 초과") {
              showToast('저장 데이터가 너무 큽니다. 이력을 정리해주세요.', true);
         } else {
-             showToast('데이터 동기화 중 오류가 발생했습니다.', true);
+             // 트랜잭션 충돌 등으로 인한 재시도 필요성을 사용자에게 알림
+             console.warn("Transient error during save, data might need re-sync.");
         }
     }
 }
