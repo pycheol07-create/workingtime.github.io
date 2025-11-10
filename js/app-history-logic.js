@@ -39,7 +39,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 표준 속도 계산 함수 임포트
-import { calculateStandardThroughputs } from './ui-history-reports-logic.js';
+import { calculateStandardThroughputs, PRODUCTIVITY_METRIC_DESCRIPTIONS, getDiffHtmlForMetric, createTableRow } from './ui-history-reports-logic.js';
 
 
 // workRecords 컬렉션 참조 헬퍼
@@ -369,15 +369,6 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
 
     if (keys.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
-        const viewsToClear = [
-            'history-daily-view', 'history-weekly-view', 'history-monthly-view',
-            'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
-            'report-daily-view', 'report-weekly-view', 'report-monthly-view', 'report-yearly-view'
-        ];
-        viewsToClear.forEach(viewId => {
-            const viewEl = document.getElementById(viewId);
-            if (viewEl) viewEl.innerHTML = '';
-        });
         return;
     }
 
@@ -413,9 +404,8 @@ export const openHistoryQuantityModal = (dateKey) => {
     if (dateKey === todayDateString) {
         const todayData = {
             id: todayDateString,
-            workRecords: appState.workRecords || [], // ✅ 로컬 캐시 사용
+            workRecords: appState.workRecords || [],
             taskQuantities: appState.taskQuantities || {},
-            // ✨ 오늘 데이터에도 확인 목록 전달
             confirmedZeroTasks: appState.confirmedZeroTasks || []
         };
         const missingTasksList = checkMissingQuantities(todayData);
@@ -435,11 +425,9 @@ export const openHistoryQuantityModal = (dateKey) => {
     context.quantityModalContext.mode = 'history';
     context.quantityModalContext.dateKey = dateKey;
 
-    // ✨ [중요] 이력 저장 콜백 함수 정의
     context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
         if (!dateKey) return;
 
-        // 1. 전역 이력 데이터 업데이트
         const idx = allHistoryData.findIndex(d => d.id === dateKey);
         if (idx > -1) {
             allHistoryData[idx] = {
@@ -449,10 +437,8 @@ export const openHistoryQuantityModal = (dateKey) => {
             };
         }
 
-        // 2. Firestore 'history' 컬렉션 저장
         const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
         try {
-            // 기존 데이터가 있으면 병합, 없으면 새로 생성
             await setDoc(historyDocRef, {
                 taskQuantities: newQuantities,
                 confirmedZeroTasks: confirmedZeroTasks
@@ -460,15 +446,12 @@ export const openHistoryQuantityModal = (dateKey) => {
 
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
 
-            // 3. 만약 오늘 날짜라면 메인 앱 'daily_data' 문서도 즉시 동기화
             if (dateKey === getTodayDateString()) {
                  const dailyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
                  await setDoc(dailyDocRef, { taskQuantities: newQuantities, confirmedZeroTasks: confirmedZeroTasks }, { merge: true });
             }
 
-            // 4. 이력 보기 화면 갱신
             if (historyModal && !historyModal.classList.contains('hidden')) {
-                // 현재 보고 있는 탭(일/주/월 등) 유지
                 const activeSubTabBtn = document.querySelector('#history-tabs button.font-semibold')
                                      || document.querySelector('#report-tabs button.font-semibold');
                 const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
@@ -579,58 +562,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
             }
         });
     }
-
-    const getDiffHtmlForMetric = (metric, current, previousMetric) => {
-        const currValue = current || 0;
-        let prevValue = 0;
-        let prevDate = previousMetric?.date || '이전';
-
-        if (!previousMetric) {
-            if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
-            return '';
-        }
-
-        if (metric === 'quantity') prevValue = previousMetric.quantity || 0;
-        else if (metric === 'avgThroughput') prevValue = previousMetric.avgThroughput || 0;
-        else if (metric === 'avgCostPerItem') prevValue = previousMetric.avgCostPerItem || 0;
-        else if (metric === 'duration') prevValue = previousMetric.duration || 0;
-
-        if (prevValue === 0) {
-            if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
-            return '';
-        }
-
-        const diff = currValue - prevValue;
-        if (Math.abs(diff) < 0.001) return `<span class="text-xs text-gray-400 ml-1">(-)</span>`;
-
-        const percent = (diff / prevValue) * 100;
-        const sign = diff > 0 ? '↑' : '↓';
-
-        let colorClass = 'text-gray-500';
-        if (metric === 'avgThroughput' || metric === 'avgStaff' || metric === 'quantity') {
-            colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
-        } else if (metric === 'avgCostPerItem' || metric === 'avgTime' || metric === 'duration') {
-            colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
-        }
-
-        let diffStr = '';
-        let prevStr = '';
-        if (metric === 'avgTime' || metric === 'duration') {
-            diffStr = formatDuration(Math.abs(diff));
-            prevStr = formatDuration(prevValue);
-        } else if (metric === 'avgStaff' || metric === 'avgCostPerItem' || metric === 'quantity') {
-            diffStr = Math.abs(diff).toFixed(0);
-            prevStr = prevValue.toFixed(0);
-        } else {
-            diffStr = Math.abs(diff).toFixed(2);
-            prevStr = prevValue.toFixed(2);
-        }
-
-        return `<span class="text-xs ${colorClass} ml-1 font-mono" title="${prevDate}: ${prevStr}">
-                  ${sign} ${diffStr} (${percent.toFixed(0)}%)
-              </span>`;
-    };
-
 
     const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
 
@@ -750,6 +681,111 @@ export const requestHistoryDeletion = (dateKey) => {
     if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
 };
 
+export const switchHistoryView = async (view) => {
+    const allViews = [
+        document.getElementById('history-daily-view'),
+        document.getElementById('history-weekly-view'),
+        document.getElementById('history-monthly-view'),
+        document.getElementById('history-attendance-daily-view'),
+        document.getElementById('history-attendance-weekly-view'),
+        document.getElementById('history-attendance-monthly-view'),
+        document.getElementById('report-daily-view'),
+        document.getElementById('report-weekly-view'),
+        document.getElementById('report-monthly-view'),
+        document.getElementById('report-yearly-view')
+    ];
+    allViews.forEach(v => v && v.classList.add('hidden'));
+
+    if (historyTabs) {
+        historyTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+            btn.classList.add('text-gray-500');
+        });
+    }
+    if (attendanceHistoryTabs) {
+        attendanceHistoryTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+            btn.classList.add('text-gray-500');
+        });
+    }
+    if (reportTabs) {
+        reportTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+            btn.classList.add('text-gray-500');
+        });
+    }
+
+    const dateListContainer = document.getElementById('history-date-list-container');
+    if (dateListContainer) {
+        dateListContainer.style.display = 'block';
+    }
+
+    let viewToShow = null;
+    let tabToActivate = null;
+    let listMode = 'day';
+
+    switch (view) {
+        case 'daily':
+            listMode = 'day';
+            viewToShow = document.getElementById('history-daily-view');
+            tabToActivate = historyTabs?.querySelector('button[data-view="daily"]');
+            break;
+        case 'weekly':
+            listMode = 'week';
+            viewToShow = document.getElementById('history-weekly-view');
+            tabToActivate = historyTabs?.querySelector('button[data-view="weekly"]');
+            break;
+        case 'monthly':
+            listMode = 'month';
+            viewToShow = document.getElementById('history-monthly-view');
+            tabToActivate = historyTabs?.querySelector('button[data-view="monthly"]');
+            break;
+        case 'attendance-daily':
+            listMode = 'day';
+            viewToShow = document.getElementById('history-attendance-daily-view');
+            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-daily"]');
+            break;
+        case 'attendance-weekly':
+            listMode = 'week';
+            viewToShow = document.getElementById('history-attendance-weekly-view');
+            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
+            break;
+        case 'attendance-monthly':
+            listMode = 'month';
+            viewToShow = document.getElementById('history-attendance-monthly-view');
+            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
+            break;
+        case 'report-daily':
+            listMode = 'day';
+            viewToShow = document.getElementById('report-daily-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-daily"]');
+            break;
+        case 'report-weekly':
+            listMode = 'week';
+            viewToShow = document.getElementById('report-weekly-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-weekly"]');
+            break;
+        case 'report-monthly':
+            listMode = 'month';
+            viewToShow = document.getElementById('report-monthly-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-monthly"]');
+            break;
+        case 'report-yearly':
+            listMode = 'year';
+            viewToShow = document.getElementById('report-yearly-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-yearly"]');
+            break;
+    }
+
+    await renderHistoryDateListByMode(listMode);
+
+    if (viewToShow) viewToShow.classList.remove('hidden');
+    if (tabToActivate) {
+        tabToActivate.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+        tabToActivate.classList.remove('text-gray-500');
+    }
+};
+
 // ✅ [수정] 인건비 시뮬레이션 계산 로직 (휴게시간 및 모드 지원)
 export const calculateSimulation = (mode, task, targetQty, inputValue, appConfig, historyData, startTimeStr = "09:00") => {
     // mode: 'fixed-workers' | 'target-time'
@@ -773,6 +809,7 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, appConfig
     };
 
     if (mode === 'fixed-workers') {
+        // 입력값 = 인원 수 -> 결과값 = 소요 시간
         result.workerCount = inputValue;
         result.durationMinutes = totalManMinutesNeeded / inputValue;
         result.label1 = '예상 소요 시간';
