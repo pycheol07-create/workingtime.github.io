@@ -78,10 +78,14 @@ import {
     persistentLeaveSchedule,
     allHistoryData,
 
-    // ✅ [신규] 시뮬레이션 관련 DOM 요소 import
-    costSimulationModal, openCostSimulationBtn, simCalculateBtn,
-    simResultContainer, simModeRadios, simBottleneckContainer, 
-    simBottleneckTbody, simInputArea
+    // 시뮬레이션 관련 DOM 요소
+    costSimulationModal, openCostSimulationBtn, simTaskSelect,
+    simTargetQuantityInput, simWorkerCountInput, simCalculateBtn,
+    simResultContainer, simResultCost, simResultSpeed,
+    simModeRadios, simInputWorkerGroup, simInputDurationGroup, simTargetDurationInput,
+    simEfficiencyChartCanvas, simAddComparisonBtn, simComparisonContainer,
+    simComparisonTbody, simClearComparisonBtn, simResultLabel1, simResultValue1,
+    simBottleneckContainer, simBottleneckTbody, simChartContainer, simInputArea
 
 } from './app.js';
 
@@ -103,7 +107,7 @@ import {
     cancelClockOut
 } from './app-logic.js';
 
-import { saveProgress, saveDayDataToHistory, switchHistoryView, calculateSimulation, analyzeBottlenecks } from './app-history-logic.js';
+import { saveProgress, saveDayDataToHistory, switchHistoryView, calculateSimulation, generateEfficiencyChartData, analyzeBottlenecks } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -141,7 +145,10 @@ const deleteWorkRecordDocuments = async (recordIds) => {
     }
 };
 
-// ✅ [신규] 시뮬레이션 테이블 행 추가 헬퍼 함수
+// 차트 인스턴스 보관용 변수
+let simChartInstance = null;
+
+// 시뮬레이션 테이블 행 추가 헬퍼 함수
 const renderSimulationTaskRow = (tbody) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
@@ -185,7 +192,7 @@ export function setupGeneralModalListeners() {
         });
     });
 
-    // ✅ [신규] 인건비 시뮬레이션 모달 관련 리스너
+    // 인건비 시뮬레이션 모달 열기
     const simAddTaskRowBtn = document.getElementById('sim-add-task-row-btn');
     const simTaskTableBody = document.getElementById('sim-task-table-body');
     const simTableHeaderWorker = document.getElementById('sim-table-header-worker');
@@ -201,7 +208,7 @@ export function setupGeneralModalListeners() {
                 simTaskTableBody.innerHTML = '';
                 renderSimulationTaskRow(simTaskTableBody); // 기본 1줄 추가
             }
-            if (simStartTimeInput) simStartTimeInput.value = "09:00"; // 기본 시작 시간
+            if (simStartTimeInput) simStartTimeInput.value = "08:30"; // 기본 시작 시간
 
             // 모드 초기화 (기본: 소요 시간 예측)
             if (simModeRadios && simModeRadios.length > 0) {
@@ -281,13 +288,13 @@ export function setupGeneralModalListeners() {
                 return;
             }
 
-            // --- 모드 1 & 2: 다중 업무 시뮬레이션 ---
-            const startTimeStr = simStartTimeInput ? simStartTimeInput.value : "09:00";
+            // --- 모드 1 & 2: 다중 업무 시뮬레이션 (순차적 계산) ---
+            let currentStartTimeStr = simStartTimeInput ? simStartTimeInput.value : "09:00";
             const rows = document.querySelectorAll('.sim-task-row');
             const results = [];
-            let maxDuration = 0;
+            let totalDuration = 0;
             let totalCost = 0;
-            let lastEndTimeStr = startTimeStr;
+            let finalEndTimeStr = currentStartTimeStr;
 
             rows.forEach(row => {
                 const task = row.querySelector('.sim-row-task').value;
@@ -295,13 +302,17 @@ export function setupGeneralModalListeners() {
                 const inputVal = Number(row.querySelector('.sim-row-worker-or-time').value);
 
                 if (task && qty > 0 && inputVal > 0) {
-                    const res = calculateSimulation(mode, task, qty, inputVal, appConfig, allHistoryData, startTimeStr);
+                    // ✨ 순차적 계산: 현재 업무의 예상 종료 시간을 다음 업무의 시작 시간으로 전달
+                    const res = calculateSimulation(mode, task, qty, inputVal, appConfig, allHistoryData, currentStartTimeStr);
+                    
                     if (!res.error) {
+                        res.startTime = currentStartTimeStr; // 결과 표시용 시작 시간 저장
                         results.push({ task, ...res });
-                        if (res.durationMinutes > maxDuration) {
-                            maxDuration = res.durationMinutes;
-                            lastEndTimeStr = res.expectedEndTime; // 가장 늦게 끝나는 시간
-                        }
+                        
+                        // 다음 업무를 위해 시작 시간 및 누적 값 업데이트
+                        currentStartTimeStr = res.expectedEndTime;
+                        finalEndTimeStr = res.expectedEndTime;
+                        totalDuration += res.durationMinutes;
                         totalCost += res.totalCost;
                     }
                 }
@@ -313,22 +324,28 @@ export function setupGeneralModalListeners() {
             }
 
             // 결과 렌더링
-            const simTotalDuration = document.getElementById('sim-total-duration');
-            const simExpectedEndTime = document.getElementById('sim-expected-end-time');
+            const simTotalDurationEl = document.getElementById('sim-total-duration');
+            const simExpectedEndTimeEl = document.getElementById('sim-expected-end-time');
             const simTotalCostEl = document.getElementById('sim-total-cost');
             const simResultTbody = document.getElementById('sim-result-tbody');
 
-            if (simTotalDuration) simTotalDuration.textContent = formatDuration(maxDuration);
-            if (simExpectedEndTime) simExpectedEndTime.textContent = lastEndTimeStr;
+            if (simTotalDurationEl) simTotalDurationEl.textContent = formatDuration(totalDuration);
+            if (simExpectedEndTimeEl) simExpectedEndTimeEl.textContent = finalEndTimeStr;
             if (simTotalCostEl) simTotalCostEl.textContent = `${Math.round(totalCost).toLocaleString()}원`;
 
             if (simResultTbody) {
                 simResultTbody.innerHTML = results.map(res => `
                     <tr class="bg-white">
-                        <td class="px-4 py-3 font-medium text-gray-900">${res.task}</td>
-                        <td class="px-4 py-3 text-right">${formatDuration(res.durationMinutes)}</td>
+                        <td class="px-4 py-3 font-medium text-gray-900">
+                            ${res.task}
+                            <div class="text-xs text-gray-400 font-normal">${res.startTime} 시작</div>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            ${formatDuration(res.durationMinutes)}
+                            ${res.includesLunch ? '<span class="text-xs text-orange-500 block">(점심포함)</span>' : ''}
+                        </td>
                         <td class="px-4 py-3 text-right">${Math.round(res.totalCost).toLocaleString()}원</td>
-                        <td class="px-4 py-3 text-right text-gray-500">${res.expectedEndTime}</td>
+                        <td class="px-4 py-3 text-right font-bold text-indigo-600">${res.expectedEndTime}</td>
                     </tr>
                 `).join('');
             }
