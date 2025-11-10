@@ -78,29 +78,33 @@ export function setupHistoryModalListeners() {
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
 
-    // ✨ [신규] 최대화/복구 공통 함수
+    // ✨ [수정] 더 안정적인 최대화 방식 적용
     const setHistoryMaximized = (maximized) => {
         isHistoryMaximized = maximized;
         const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
         const icon = toggleBtn?.querySelector('svg');
 
         if (maximized) {
-            // ▶️ 최대화 모드 진입 (Fixed로 화면 가득 채움)
-            historyModalContentBox.classList.add('fixed', 'inset-0', 'z-[60]', 'w-screen', 'h-screen', 'rounded-none');
-            historyModalContentBox.classList.remove('relative', 'max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl');
+            // ▶️ 최대화 모드: 오버레이의 패딩을 제거하고, 컨텐츠 박스를 꽉 채움
+            historyModal.classList.remove('p-4'); 
+            historyModalContentBox.classList.remove('max-w-7xl', 'h-[90vh]', 'rounded-2xl');
+            historyModalContentBox.classList.add('w-full', 'h-full', 'rounded-none');
 
-            // 드래그로 이동된 위치 초기화
+            // 드래그로 이동된 위치 초기화 및 중앙 정렬 복구
+            historyModalContentBox.style.position = '';
             historyModalContentBox.style.top = '';
             historyModalContentBox.style.left = '';
             historyModalContentBox.style.transform = '';
+            historyModal.classList.add('flex', 'items-center', 'justify-center');
 
             if (toggleBtn) toggleBtn.title = "기본 크기로";
             if (icon) icon.innerHTML = iconMinimize;
 
         } else {
             // ◀️ 일반 모드 복귀
-            historyModalContentBox.classList.remove('fixed', 'inset-0', 'z-[60]', 'w-screen', 'h-screen', 'rounded-none');
-            historyModalContentBox.classList.add('relative', 'max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl');
+            historyModal.classList.add('p-4', 'flex', 'items-center', 'justify-center');
+            historyModalContentBox.classList.add('max-w-7xl', 'h-[90vh]', 'rounded-2xl');
+            historyModalContentBox.classList.remove('w-full', 'h-full', 'rounded-none');
 
             // 드래그 상태 플래그 초기화
             historyModalContentBox.dataset.hasBeenUncentered = 'false';
@@ -109,6 +113,8 @@ export function setupHistoryModalListeners() {
             if (icon) icon.innerHTML = iconMaximize;
         }
     };
+
+    // ... (이하 기존 리스너 코드들은 동일하며, setHistoryMaximized(false) 호출 부분만 유지) ...
 
     const getCurrentHistoryListMode = () => {
         let activeSubTabBtn;
@@ -186,27 +192,14 @@ export function setupHistoryModalListeners() {
 
             if (historyModal) {
                 historyModal.classList.remove('hidden');
-
-                // ✨ [수정] 열 때 항상 기본 크기로 시작
+                
+                // ✨ 항상 기본 크기로 열기
                 setHistoryMaximized(false);
 
                 if (historyStartDateInput) historyStartDateInput.value = '';
                 if (historyEndDateInput) historyEndDateInput.value = '';
                 context.historyStartDate = null;
                 context.historyEndDate = null;
-
-                const contentBox = document.getElementById('history-modal-content-box');
-                const overlay = document.getElementById('history-modal');
-
-                if (contentBox && overlay) {
-                    // 혹시 모를 잔여 스타일 초기화
-                    contentBox.style.position = '';
-                    contentBox.style.top = '';
-                    contentBox.style.left = '';
-                    contentBox.dataset.hasBeenUncentered = 'false';
-                    // 부모 오버레이도 혹시 모르니 Flex 복구
-                    overlay.classList.add('flex', 'items-center', 'justify-center');
-                }
 
                 try {
                     await loadAndRenderHistoryList();
@@ -222,8 +215,7 @@ export function setupHistoryModalListeners() {
         closeHistoryBtn.addEventListener('click', () => {
             if (historyModal) {
                 historyModal.classList.add('hidden');
-                // ✨ [수정] 닫을 때 최대화 상태 해제
-                setHistoryMaximized(false);
+                setHistoryMaximized(false); // 닫을 때 초기화
             }
         });
     }
@@ -420,12 +412,12 @@ export function setupHistoryModalListeners() {
             if (!dateKey) { return; }
 
             if (action === 'open-history-quantity-modal') {
-                setHistoryMaximized(false); // ✨ 모달 열릴 땐 최대화 해제
+                setHistoryMaximized(false); 
                 openHistoryQuantityModal(dateKey);
             } else if (action === 'download-history-excel') {
                 downloadHistoryAsExcel(dateKey);
             } else if (action === 'request-history-deletion') {
-                setHistoryMaximized(false); // ✨ 모달 열릴 땐 최대화 해제
+                setHistoryMaximized(false); 
                 requestHistoryDeletion(dateKey);
             }
         });
@@ -474,7 +466,7 @@ export function setupHistoryModalListeners() {
                 if (editAttendanceDateKeyInput) editAttendanceDateKeyInput.value = dateKey;
                 if (editAttendanceRecordIndexInput) editAttendanceRecordIndexInput.value = index;
 
-                setHistoryMaximized(false); // ✨ 최대화 해제
+                setHistoryMaximized(false); 
                 if (editAttendanceRecordModal) editAttendanceRecordModal.classList.remove('hidden');
                 return;
             }
@@ -496,7 +488,7 @@ export function setupHistoryModalListeners() {
                 const msgEl = document.getElementById('delete-confirm-message');
                 if (msgEl) msgEl.textContent = `${record.member}님의 '${record.type}' 기록을 삭제하시겠습니까?`;
 
-                setHistoryMaximized(false); // ✨ 최대화 해제
+                setHistoryMaximized(false);
                 if (deleteConfirmModal) deleteConfirmModal.classList.remove('hidden');
                 return;
             }
@@ -538,7 +530,7 @@ export function setupHistoryModalListeners() {
                 if (addAttendanceTimeFields) addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
                 if (addAttendanceDateFields) addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
 
-                setHistoryMaximized(false); // ✨ 최대화 해제
+                setHistoryMaximized(false);
                 if (addAttendanceRecordModal) addAttendanceRecordModal.classList.remove('hidden');
                 return;
             }
@@ -550,14 +542,13 @@ export function setupHistoryModalListeners() {
             const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
             if (coqButton) {
                 e.stopPropagation();
-                setHistoryMaximized(false); // ✨ 최대화 해제
+                setHistoryMaximized(false);
                 if (coqExplanationModal) {
                     coqExplanationModal.classList.remove('hidden');
                 }
                 return;
             }
 
-            // ... (매출액 분석 및 정렬 버튼 핸들러는 기존과 동일) ...
             const applyRevenueBtn = e.target.closest('#report-apply-revenue-btn');
             if (applyRevenueBtn) {
                 const revenueInput = document.getElementById('report-monthly-revenue-input');
@@ -614,14 +605,12 @@ export function setupHistoryModalListeners() {
 
         toggleFullscreenBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            setHistoryMaximized(!isHistoryMaximized); // 토글 실행
+            setHistoryMaximized(!isHistoryMaximized);
         });
     }
 
-    // ... (기타 모달 확인 버튼 리스너들 기존과 동일) ...
     if (confirmEditAttendanceBtn) {
         confirmEditAttendanceBtn.addEventListener('click', async () => {
-            // ... (기존 로직 유지) ...
             const dateKey = editAttendanceDateKeyInput?.value;
             const indexStr = editAttendanceRecordIndexInput?.value;
             if (!dateKey || indexStr === '') { showToast('수정할 기록 정보를 찾을 수 없습니다.', true); return; }
@@ -664,7 +653,6 @@ export function setupHistoryModalListeners() {
     }
     if (confirmAddAttendanceBtn) {
         confirmAddAttendanceBtn.addEventListener('click', async () => {
-            // ... (기존 로직 유지) ...
             const dateKey = addAttendanceDateKeyInput?.value;
             if (!dateKey) { showToast('날짜 정보를 찾을 수 없습니다.', true); return; }
             const memberName = addAttendanceMemberNameInput?.value.trim();
@@ -729,7 +717,6 @@ function makeDraggable(modalOverlay, header, contentBox) {
     let offsetX, offsetY;
 
     header.addEventListener('mousedown', (e) => {
-        // ✨ [수정] 최대화 상태에서는 드래그 방지
         if (isHistoryMaximized || e.target.closest('button')) {
             return;
         }
