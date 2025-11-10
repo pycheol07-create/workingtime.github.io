@@ -1,9 +1,12 @@
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDoc, collection, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let db, auth;
 let appConfig = {};
+const APP_ID = 'team-work-logger-v2';
 
+// ✅ [복원] 누락되었던 상수 정의
 const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
     'leave-staff': { title: '휴무' },
@@ -16,6 +19,8 @@ const DASHBOARD_ITEM_DEFINITIONS = {
     'china-production': { title: '중국제작', isQuantity: true },
     'direct-delivery': { title: '직진배송', isQuantity: true }
 };
+
+// ⛔️ [삭제] getTodayDateString 함수 제거
 
 function getAllDashboardDefinitions(config) {
     return {
@@ -311,6 +316,12 @@ function setupEventListeners() {
     document.getElementById('add-dashboard-item-btn').addEventListener('click', openDashboardItemModal);
     document.getElementById('add-custom-dashboard-item-btn').addEventListener('click', addCustomDashboardItem);
 
+    // ⛔️ [삭제] 마이그레이션 버튼 리스너 제거
+    // const migrateBtn = document.getElementById('migrate-today-data-btn');
+    // if (migrateBtn) {
+    //     migrateBtn.addEventListener('click', handleDataMigration);
+    // }
+
     document.getElementById('add-key-task-btn').addEventListener('click', () => {
         currentModalTarget = 'key';
         populateTaskSelectModal();
@@ -376,6 +387,10 @@ function setupEventListeners() {
     setupDragDropListeners('.tasks-container', '.task-item');
     setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item');
 }
+
+// ⛔️ [삭제] handleDataMigration 함수 전체 제거
+// async function handleDataMigration() { ... }
+
 
 function addTeamGroup() {
     const container = document.getElementById('team-groups-container');
@@ -519,7 +534,7 @@ function handleNewTaskNameBlur(e) {
     if (msgEl) {
         msgEl.textContent = `방금 추가한 '${newTaskName}' 업무를 처리량 집계 목록에도 추가하시겠습니까?`;
     }
-    document.getElementById('confirm-add-to-quantity-modal').classList.remove('hidden');
+    document.getElementById('confirm-add-to-quantity-modal').classList.add('hidden');
 }
 
 function openDashboardItemModal() {

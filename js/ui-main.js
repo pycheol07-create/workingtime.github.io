@@ -1,4 +1,4 @@
-// === ui-main.js (메인 화면 렌더링 담당 - 최종 수정본) ===
+// === js/ui-main.js ===
 
 import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday } from './utils.js';
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
@@ -65,23 +65,29 @@ export const updateSummary = (appState, appConfig) => {
     );
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
+    // '근무(Active)' 인원은 실제 '출근(active)' 상태인 사람만 집계
+    const attendanceMap = appState.dailyAttendance || {};
+    const currentlyClockedIn = new Set(
+        Object.keys(attendanceMap).filter(member => attendanceMap[member].status === 'active')
+    );
+
+    const availableStaffCount = [...currentlyClockedIn].filter(member => allStaffMembers.has(member)).length;
+    const availablePartTimerCount = [...currentlyClockedIn].filter(member => allPartTimers.has(member)).length;
+
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
     const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
     
     const ongoingMembers = new Set(ongoingRecords.map(r => r.member));
     const pausedMembers = new Set(pausedRecords.map(r => r.member));
 
-    const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
-    // ✅ [수정] 주석 해제됨
-    const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
     const totalWorkingCount = ongoingMembers.size;
-
-    const availableStaffCount = totalStaffCount - [...onLeaveMemberNames].filter(member => allStaffMembers.has(member)).length;
-    const availablePartTimerCount = totalPartTimerCount - [...onLeaveMemberNames].filter(member => allPartTimers.has(member)).length;
     
     const pausedStaffCount = [...pausedMembers].filter(member => allStaffMembers.has(member)).length;
     const pausedPartTimerCount = [...pausedMembers].filter(member => allPartTimers.has(member)).length;
     
+    const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
+    const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
+
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount - pausedStaffCount);
     const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount - pausedPartTimerCount);
     
@@ -217,11 +223,9 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     }
 
     const memberRecords = (appState.workRecords || []).filter(r => r.member === selectedMember);
-    if (memberRecords.length === 0) {
-        container.innerHTML = `<p class="text-center text-gray-500">${selectedMember} 님은 오늘 업무 기록이 없습니다.</p>`;
-        return;
-    }
-
+    
+    // 기록이 없어도 출근 상태는 표시
+    const attendance = appState.dailyAttendance?.[selectedMember];
     const now = getCurrentTime();
     const ongoingRecord = memberRecords.find(r => r.status === 'ongoing');
     const pausedRecord = memberRecords.find(r => r.status === 'paused');
@@ -237,8 +241,26 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         if (leaveInfo) {
              currentStatusHtml = `<span class="text-sm font-semibold text-gray-600">${leaveInfo.type} 중</span>`;
         } else {
-             currentStatusHtml = `<span class="text-sm font-semibold text-green-600">대기 중</span>`;
+             if (attendance && attendance.status === 'active') {
+                 currentStatusHtml = `<span class="text-sm font-semibold text-green-600">대기 중</span>`;
+             } else if (attendance && attendance.status === 'returned') {
+                 currentStatusHtml = `<span class="text-sm font-semibold text-gray-500">퇴근 완료</span>`;
+             } else {
+                 currentStatusHtml = `<span class="text-sm font-semibold text-gray-400">출근 전</span>`;
+             }
         }
+    }
+
+    if (memberRecords.length === 0) {
+         // 기록은 없지만 상태는 보여줌
+         container.innerHTML = `
+            <h4 class="text-lg font-bold text-gray-800 mb-3">${selectedMember} 님 요약</h4>
+            <div class="bg-gray-50 p-4 rounded-lg text-center mb-4">
+                <div class="text-xs text-gray-500 mb-1">현재 상태</div>
+                <div>${currentStatusHtml}</div>
+            </div>
+            <p class="text-center text-gray-500">오늘 업무 기록이 없습니다.</p>`;
+        return;
     }
 
     const taskTimes = memberRecords.reduce((acc, r) => {
@@ -254,19 +276,29 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     const sortedTasks = Object.entries(taskTimes).sort(([, a], [, b]) => b - a);
     const totalLiveMinutes = sortedTasks.reduce((sum, [, minutes]) => sum + minutes, 0);
 
-    let firstStartTime = null;
+    let baseStartTime = null;
+    if (attendance && attendance.inTime) {
+        baseStartTime = attendance.inTime;
+    } else {
+        memberRecords.forEach(r => {
+            if (r.startTime && (!baseStartTime || r.startTime < baseStartTime)) baseStartTime = r.startTime;
+        });
+    }
+
     let lastEffectiveEndTime = null;
     memberRecords.forEach(r => {
-        if (r.startTime && (!firstStartTime || r.startTime < firstStartTime)) firstStartTime = r.startTime;
         if (r.status === 'completed' && r.endTime) {
             if (!lastEffectiveEndTime || r.endTime > lastEffectiveEndTime) lastEffectiveEndTime = r.endTime;
         }
     });
     if (ongoingRecord || pausedRecord) lastEffectiveEndTime = now;
+    if (attendance && attendance.outTime && attendance.status === 'returned') {
+         if (!lastEffectiveEndTime || attendance.outTime > lastEffectiveEndTime) lastEffectiveEndTime = attendance.outTime;
+    }
 
     let totalTimeSpanMinutes = 0;
-    if (firstStartTime && lastEffectiveEndTime) {
-        totalTimeSpanMinutes = calcElapsedMinutes(firstStartTime, lastEffectiveEndTime, []); 
+    if (baseStartTime && lastEffectiveEndTime) {
+        totalTimeSpanMinutes = calcElapsedMinutes(baseStartTime, lastEffectiveEndTime, []); 
     }
     const totalNonWorkMinutes = Math.max(0, totalTimeSpanMinutes - totalLiveMinutes);
 
@@ -409,25 +441,41 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const leaveInfo = onLeaveStatusMap.get(member);
             const isOnLeave = !!leaveInfo;
             const isWorking = ongoingMembers.has(member) || pausedMembers.has(member);
+            
+            const attendance = appState.dailyAttendance?.[member];
+            const isClockedIn = attendance && attendance.status === 'active';
+            const isReturned = attendance && attendance.status === 'returned';
+            
             const isSelf = (member === currentUserName);
             const visibilityClass = (isSelf || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
             card.className = `p-1 rounded-lg border text-center transition-shadow min-h-[72px] ${visibilityClass} ${isSelf ? 'w-full md:w-28' : 'w-28'} flex-col justify-center`;
             card.dataset.memberName = member;
+
             if (isOnLeave) {
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = leaveInfo.type; card.dataset.startTime = leaveInfo.startTime || ''; card.dataset.startDate = leaveInfo.startDate || ''; card.dataset.endTime = leaveInfo.endTime || ''; card.dataset.endDate = leaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 let detailText = leaveInfo.startTime ? formatTimeTo24H(leaveInfo.startTime) + (leaveInfo.endTime ? ` - ${formatTimeTo24H(leaveInfo.endTime)}` : (leaveInfo.type === '외출' ? ' ~' : '')) : (leaveInfo.startDate ? leaveInfo.startDate.substring(5) + (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate ? ` ~ ${leaveInfo.endDate.substring(5)}` : '') : '');
                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">${leaveInfo.type}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
+            } else if (isWorking) {
+                card.dataset.action = 'member-toggle-leave';
+                card.classList.add('opacity-70', 'cursor-not-allowed', ongoingMembers.has(member) ? 'bg-red-50' : 'bg-yellow-50', ongoingMembers.has(member) ? 'border-red-200' : 'border-yellow-200');
+                card.innerHTML = `<div class="font-semibold text-sm ${ongoingMembers.has(member) ? 'text-red-800' : 'text-yellow-800'} break-keep">${member}</div><div class="text-xs ${ongoingMembers.has(member) ? 'text-gray-600' : 'text-yellow-600'} truncate" title="${workingMembersMap.get(member)}">${ongoingMembers.has(member) ? workingMembersMap.get(member) : '휴식 중'}</div>`;
+            } else if (isClockedIn) {
+                card.dataset.action = 'member-toggle-leave';
+                if (currentUserRole === 'admin' || isSelf) card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400'); else card.classList.add('cursor-not-allowed', 'opacity-70');
+                card.classList.add('bg-green-50', 'border-green-200');
+                card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
+            } else if (isReturned) {
+                // ✨ 퇴근 완료 상태 표시 추가
+                card.dataset.action = 'member-toggle-leave';
+                if (currentUserRole === 'admin' || isSelf) card.classList.add('cursor-pointer', 'hover:shadow-sm'); else card.classList.add('cursor-not-allowed', 'opacity-60');
+                card.classList.add('bg-gray-100', 'border-gray-300', 'text-gray-500');
+                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">퇴근 완료</div>`;
             } else {
                 card.dataset.action = 'member-toggle-leave';
-                if (isWorking) {
-                    card.classList.add('opacity-70', 'cursor-not-allowed', ongoingMembers.has(member) ? 'bg-red-50' : 'bg-yellow-50', ongoingMembers.has(member) ? 'border-red-200' : 'border-yellow-200');
-                    card.innerHTML = `<div class="font-semibold text-sm ${ongoingMembers.has(member) ? 'text-red-800' : 'text-yellow-800'} break-keep">${member}</div><div class="text-xs ${ongoingMembers.has(member) ? 'text-gray-600' : 'text-yellow-600'} truncate" title="${workingMembersMap.get(member)}">${ongoingMembers.has(member) ? workingMembersMap.get(member) : '휴식 중'}</div>`;
-                } else {
-                    if (currentUserRole === 'admin' || isSelf) card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400'); else card.classList.add('cursor-not-allowed', 'opacity-70');
-                    card.classList.add('bg-green-50', 'border-green-200');
-                    card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
-                }
+                card.classList.add('bg-gray-100', 'border-gray-200', 'text-gray-400', 'opacity-60');
+                 if (currentUserRole === 'admin' || isSelf) card.classList.add('cursor-pointer', 'hover:shadow-sm'); else card.classList.add('cursor-not-allowed');
+                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">출근 전</div>`;
             }
             groupGrid.appendChild(card);
         });
@@ -435,8 +483,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         allMembersContainer.appendChild(groupContainer);
     });
 
-    const workingAlbaMembers = new Set(ongoingRecords.map(r => r.member));
-    const activePartTimers = (appState.partTimers || []).filter(pt => workingAlbaMembers.has(pt.name) || onLeaveStatusMap.has(pt.name));
+    const activePartTimers = (appState.partTimers || []).filter(pt => ongoingMembers.has(pt.name) || onLeaveStatusMap.has(pt.name) || appState.dailyAttendance?.[pt.name]); // 알바는 출근 기록 있으면 표시
     if (activePartTimers.length > 0) {
         const albaContainer = document.createElement('div'); albaContainer.className = 'mb-4'; albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2 hidden md:block">알바</h4>`;
         const albaGrid = document.createElement('div'); albaGrid.className = 'flex flex-wrap gap-2';
@@ -448,28 +495,68 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
              const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = workingMembersMap.has(pt.name) || pausedMembers.has(pt.name);
+             
+             const albaAttendance = appState.dailyAttendance?.[pt.name];
+             const isAlbaClockedIn = albaAttendance && albaAttendance.status === 'active';
+             const isAlbaReturned = albaAttendance && albaAttendance.status === 'returned';
+
             card.dataset.memberName = pt.name;
             if (isAlbaOnLeave) {
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? ' ~' : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">${albaLeaveInfo.type}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
-            } else {
+            } else if (isAlbaWorking) {
                 card.dataset.action = 'member-toggle-leave';
-                if (isAlbaWorking) {
-                    card.classList.add('opacity-70', 'cursor-not-allowed', ongoingMembers.has(pt.name) ? 'bg-red-50' : 'bg-yellow-50', ongoingMembers.has(pt.name) ? 'border-red-200' : 'border-yellow-200');
-                    card.innerHTML = `<div class="font-semibold text-sm ${ongoingMembers.has(pt.name) ? 'text-red-800' : 'text-yellow-800'}">${pt.name}</div><div class="text-xs ${ongoingMembers.has(pt.name) ? 'text-gray-600' : 'text-yellow-600'} truncate" title="${workingMembersMap.get(pt.name)}">${ongoingMembers.has(pt.name) ? workingMembersMap.get(pt.name) : '휴식 중'}</div>`;
-                } else {
-                    if (currentUserRole === 'admin' || isSelfAlba) card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400'); else card.classList.add('cursor-not-allowed', 'opacity-70');
-                    card.classList.add('bg-green-50', 'border-green-200');
-                    card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${pt.name}</div><div class="text-xs text-green-600">대기 중</div>`;
-                }
+                card.classList.add('opacity-70', 'cursor-not-allowed', ongoingMembers.has(pt.name) ? 'bg-red-50' : 'bg-yellow-50', ongoingMembers.has(pt.name) ? 'border-red-200' : 'border-yellow-200');
+                card.innerHTML = `<div class="font-semibold text-sm ${ongoingMembers.has(pt.name) ? 'text-red-800' : 'text-yellow-800'}">${pt.name}</div><div class="text-xs ${ongoingMembers.has(pt.name) ? 'text-gray-600' : 'text-yellow-600'} truncate" title="${workingMembersMap.get(pt.name)}">${ongoingMembers.has(pt.name) ? workingMembersMap.get(pt.name) : '휴식 중'}</div>`;
+            } else if (isAlbaClockedIn) {
+                 card.dataset.action = 'member-toggle-leave';
+                 if (currentUserRole === 'admin' || isSelfAlba) card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400'); else card.classList.add('cursor-not-allowed', 'opacity-70');
+                 card.classList.add('bg-green-50', 'border-green-200');
+                 card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${pt.name}</div><div class="text-xs text-green-600">대기 중</div>`;
+            } else if (isAlbaReturned) {
+                 card.dataset.action = 'member-toggle-leave';
+                 if (currentUserRole === 'admin' || isSelfAlba) card.classList.add('cursor-pointer', 'hover:shadow-sm'); else card.classList.add('cursor-not-allowed', 'opacity-60');
+                 card.classList.add('bg-gray-100', 'border-gray-300', 'text-gray-500');
+                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">퇴근 완료</div>`;
+            } else {
+                 card.dataset.action = 'member-toggle-leave';
+                 card.classList.add('bg-gray-100', 'border-gray-200', 'text-gray-400', 'opacity-60');
+                 if (currentUserRole === 'admin' || isSelfAlba) card.classList.add('cursor-pointer', 'hover:shadow-sm'); else card.classList.add('cursor-not-allowed');
+                 card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">출근 전</div>`;
             }
              albaGrid.appendChild(card);
         });
         albaContainer.appendChild(albaGrid); allMembersContainer.appendChild(albaContainer);
     }
     teamStatusBoard.appendChild(allMembersContainer);
+
+    renderAttendanceToggle(appState);
+};
+
+/**
+ * ✅ [신규] 개인 출퇴근 토글 스위치 상태 렌더링 함수
+ */
+export const renderAttendanceToggle = (appState) => {
+    const currentUser = appState.currentUser;
+    if (!currentUser) return;
+
+    const attendance = appState.dailyAttendance?.[currentUser];
+    const status = attendance?.status;
+    const isClockedIn = status === 'active';
+    const isReturned = status === 'returned';
+
+    const pcToggle = document.getElementById('pc-attendance-checkbox');
+    const mobileToggle = document.getElementById('mobile-attendance-checkbox');
+    const pcCancelBtn = document.getElementById('pc-clock-out-cancel-btn');
+    const mobileCancelBtn = document.getElementById('mobile-clock-out-cancel-btn');
+
+    if (pcToggle) pcToggle.checked = isClockedIn;
+    if (mobileToggle) mobileToggle.checked = isClockedIn;
+
+    if (pcCancelBtn) pcCancelBtn.classList.toggle('hidden', !isReturned);
+    if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
 /**

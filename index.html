@@ -2,15 +2,14 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" href="data:,">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>물류팀 업무현황</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
-    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 </head>
 <body class="bg-gray-100 text-gray-800">
     <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2 w-full max-w-xs"></div>
@@ -41,46 +40,82 @@
                         <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
                         <span id="connection-status" class="text-xs font-medium text-gray-500"></span>
                     </div>
-                    <div class="relative hidden md:block">
-                        <button id="menu-toggle-btn" class="flex items-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                            </svg>
-                            <span>메뉴</span>
-                        </button>
-                        <div id="menu-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
-                            <button id="open-quantity-modal-today" class="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-6m-3 3h.01M9 17h6A2 2 0 0017 15V9A2 2 0 0015 7H9A2 2 0 007 9v6a2 2 0 002 2z" />
-                                </svg>
-                                <span>처리량 입력</span>
+                    
+                    <div class="hidden md:flex items-center gap-3">
+                        <div id="personal-attendance-toggle-pc" class="hidden items-center gap-2 mr-2">
+                            <span class="text-sm font-semibold text-gray-700" id="pc-attendance-label">내 근태:</span>
+                            <label class="attendance-toggle">
+                                <input type="checkbox" id="pc-attendance-checkbox" class="sr-only peer">
+                                <span class="attendance-toggle-text text-in">출근</span>
+                                <span class="attendance-toggle-text text-out">퇴근</span>
+                                <span class="attendance-toggle-knob"></span>
+                            </label>
+                            <button id="pc-clock-out-cancel-btn" class="hidden text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium px-2 py-1 rounded-md transition animate-pulse" title="방금 한 퇴근을 취소하고 다시 근무 상태로 되돌립니다.">
+                                퇴근 취소
                             </button>
-                            
-                            <a href="admin.html" id="admin-link-btn" target="admin_window"
-                                class="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" style="display: none;">
+                        </div>
+
+                        <div class="relative hidden md:block">
+                            <button id="menu-toggle-btn" class="flex items-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                                 </svg>
-                                <span>관리</span>
-                            </a>
-                            <button id="reset-app-btn"
-                                class="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" style="display: none;">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15" />
-                                </svg>
-                                <span>초기화</span>
+                                <span>메뉴</span>
                             </button>
-                            <button id="logout-btn" class="hidden w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                                <span>로그아웃</span>
-                            </button>
+                            <div id="menu-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                                <button id="open-quantity-modal-today" class="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-6m-3 3h.01M9 17h6A2 2 0 0017 15V9A2 2 0 0015 7H9A2 2 0 007 9v6a2 2 0 002 2z" />
+                                    </svg>
+                                    <span>처리량 입력</span>
+                                </button>
+                                
+                                <a href="admin.html" id="admin-link-btn" target="admin_window"
+                                    class="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" style="display: none;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    <span>관리</span>
+                                </a>
+                                <button id="reset-app-btn"
+                                    class="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" style="display: none;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15" />
+                                    </svg>
+                                    <span>초기화</span>
+                                </button>
+                                <button id="logout-btn" class="hidden w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                      <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                    <span>로그아웃</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <div class="flex flex-col items-start gap-2 md:hidden">
+                        <div id="personal-attendance-toggle-mobile" class="flex justify-between items-center w-full p-3 bg-white rounded-lg border shadow-sm">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-gray-800 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    내 출퇴근
+                                </span>
+                                <button id="mobile-clock-out-cancel-btn" class="hidden text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium px-2 py-1 rounded-md transition" title="퇴근 취소">
+                                    취소
+                                </button>
+                            </div>
+                            <label class="attendance-toggle">
+                                <input type="checkbox" id="mobile-attendance-checkbox" class="sr-only peer">
+                                <span class="attendance-toggle-text text-in">출근</span>
+                                <span class="attendance-toggle-text text-out">퇴근</span>
+                                <span class="attendance-toggle-knob"></span>
+                            </label>
+                        </div>
+
                         <button id="open-quantity-modal-today-mobile" class="flex items-center gap-2 bg-purple-100 hover:bg-purple-200 text-purple-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-6m-3 3h.01M9 17h6A2 2 0 0017 15V9A2 2 0 0015 7H9A2 2 0 007 9v6a2 2 0 002 2z" />
@@ -91,7 +126,7 @@
                         <a href="admin.html" id="admin-link-btn-mobile" target="admin_window"
                             class="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]" style="display: none;">
                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
                             <span>관리</span>
@@ -220,598 +255,647 @@
         </div>
 
         <div id="team-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col relative">
-            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-                <h2 id="team-select-modal-title" class="text-xl font-bold text-gray-900">팀원 선택</h2>
-                <button class="modal-close-btn">&times;</button>
-            </div>
-            <div id="team-select-modal-content" class="flex-grow p-6 overflow-x-auto flex space-x-4">
+             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col relative">
+                <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                    <h2 id="team-select-modal-title" class="text-xl font-bold text-gray-900">팀원 선택</h2>
+                    <button class="modal-close-btn">&times;</button>
                 </div>
-            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-                <button type="button" id="cancel-team-select-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-                <button type="button" id="confirm-team-select-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">선택 완료 및 업무 시작</button>
-            </div>
-        </div>
-     </div>
-
-     <div id="stop-individual-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
-           <button class="modal-close-btn">&times;</button>
-           <div class="p-6 text-center">
-               <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-               <h3 id="stop-individual-confirm-message" class="mb-5 text-lg font-normal text-gray-700"></h3>
-               <button type="button" id="confirm-stop-individual-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 종료합니다</button>
-               <button type="button" id="cancel-stop-individual-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
-           </div>
-       </div>
-    </div>
-
-    <div id="stop-group-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
-           <button class="modal-close-btn" data-modal-id="stop-group-confirm-modal">&times;</button>
-           <div class="p-6 text-center">
-               <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-               <h3 id="stop-group-confirm-message" class="mb-5 text-lg font-normal text-gray-700">이 그룹의 업무를 전체 종료하시겠습니까?</h3>
-               <button type="button" id="confirm-stop-group-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 종료합니다</button>
-               <button type="button" id="cancel-stop-group-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
-           </div>
-       </div>
-    </div>
-
-    <div id="reset-app-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
-            <div class="p-6 text-center">
-                <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                <h3 class="mb-5 text-lg font-normal text-gray-700">오늘의 모든 현황을 초기화하시겠습니까?</h3>
-                <p class="mb-6 text-sm text-gray-500">진행중인 업무와 완료된 업무 기록이 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.</p>
-                <button type="button" id="confirm-reset-app-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 초기화합니다</button>
-                <button type="button" id="cancel-reset-app-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="end-shift-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
-            <div class="p-6 text-center">
-                <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                <h3 id="end-shift-confirm-title" class="mb-5 text-lg font-normal text-gray-700">진행 중인 업무가 있습니다</h3>
-                <p id="end-shift-confirm-message" class="mb-6 text-sm text-gray-500">모든 진행 중인 업무를 종료하고 마감하시겠습니까?</p>
-                <div class="flex justify-center gap-3">
-                    <button type="button" id="confirm-end-shift-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center">종료 후 마감</button>
-                    <button type="button" id="cancel-end-shift-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">취소</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="quantity-on-stop-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
-           <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
-           <div class="p-6 space-y-4">
-               <p>업무 <span id="quantity-on-stop-task-name" class="font-bold"></span>의 처리량을 입력하세요.</p>
-               <div>
-                   <label for="quantity-on-stop-input" class="block text-sm font-medium text-gray-700">처리량 (개)</label>
-                   <input type="number" id="quantity-on-stop-input" min="0" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-               </div>
-           </div>
-           <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-               <button type="button" id="cancel-quantity-on-stop" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">나중에 입력</button>
-               <button type="button" id="confirm-quantity-on-stop" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인</button>
-           </div>
-       </div>
-    </div>
-
-    <div id="edit-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
-            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">업무 기록 수정</h2><button class="modal-close-btn">&times;</button></div>
-            <div class="p-6 space-y-4">
-                <div>
-                    <label for="edit-member-name" class="block text-sm font-medium text-gray-700">이름</label>
-                    <input type="text" id="edit-member-name" class="mt-1 w-full bg-gray-50 border border-gray-300 rounded-lg p-2" readonly>
-                </div>
-                 <div>
-                    <label for="edit-task-type" class="block text-sm font-medium text-gray-700">업무</label>
-                    <select id="edit-task-type" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2"></select>
-                </div>
-                 <div>
-                    <label for="edit-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
-                    <input type="time" id="edit-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                </div>
-                 <div>
-                    <label for="edit-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM)</label>
-                    <input type="time" id="edit-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                </div>
-            </div>
-            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-                <button type="button" id="cancel-edit-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-                <button type="button" id="confirm-edit-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="task-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl relative">
-            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-                <h2 class="text-xl font-bold text-gray-900">업무 종류 선택</h2>
-                <button class="modal-close-btn">&times;</button>
-            </div>
-            <div id="task-modal-content" class="p-6 max-h-[70vh] overflow-y-auto flex flex-col md:flex-row gap-6">
-                </div>
-        </div>
-    </div>
-
-    <div id="edit-part-timer-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
-            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">알바 이름 수정</h2><button class="modal-close-btn">&times;</button></div>
-            <div class="p-6 space-y-4">
-                <div>
-                    <label for="part-timer-new-name" class="block text-sm font-medium text-gray-700">새 이름</label>
-                    <input type="text" id="part-timer-new-name" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                    <input type="hidden" id="part-timer-edit-id">
-                </div>
-            </div>
-            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-                <button type="button" id="cancel-edit-part-timer-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-                <button type="button" id="confirm-edit-part-timer-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="leave-type-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
-            <div class="p-6 border-b border-gray-200">
-                <h2 id="leave-modal-title" class="text-xl font-bold text-gray-900">근태 설정</h2>
-                <button class="modal-close-btn">&times;</button>
-            </div>
-            <div class="p-6 space-y-4">
-                <p><span id="leave-member-name" class="font-bold"></span> 님의 근태 유형을 선택하세요.</p>
-                <div id="leave-type-options" class="grid grid-cols-2 gap-3">
+                <div id="team-select-modal-content" class="flex-grow p-6 overflow-x-auto flex space-x-4">
                     </div>
-                 <div id="leave-date-inputs" class="hidden space-y-2 mt-4">
+                <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                    <button type="button" id="cancel-team-select-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                    <button type="button" id="confirm-team-select-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">선택 완료 및 업무 시작</button>
+                </div>
+            </div>
+         </div>
+         <div id="stop-individual-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+            <button class="modal-close-btn">&times;</button>
+            <div class="p-6 text-center">
+                <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                <h3 id="stop-individual-confirm-message" class="mb-5 text-lg font-normal text-gray-700"></h3>
+                <button type="button" id="confirm-stop-individual-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 종료합니다</button>
+                <button type="button" id="cancel-stop-individual-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
+            </div>
+        </div>
+        </div>
+
+        <div id="stop-group-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+            <button class="modal-close-btn" data-modal-id="stop-group-confirm-modal">&times;</button>
+            <div class="p-6 text-center">
+                <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                <h3 id="stop-group-confirm-message" class="mb-5 text-lg font-normal text-gray-700">이 그룹의 업무를 전체 종료하시겠습니까?</h3>
+                <button type="button" id="confirm-stop-group-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 종료합니다</button>
+                <button type="button" id="cancel-stop-group-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
+            </div>
+        </div>
+        </div>
+
+        <div id="reset-app-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
+                <div class="p-6 text-center">
+                    <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                    <h3 class="mb-5 text-lg font-normal text-gray-700">오늘의 모든 현황을 초기화하시겠습니까?</h3>
+                    <p class="mb-6 text-sm text-gray-500">진행중인 업무와 완료된 업무 기록이 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.</p>
+                    <button type="button" id="confirm-reset-app-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 초기화합니다</button>
+                    <button type="button" id="cancel-reset-app-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="end-shift-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
+                <div class="p-6 text-center">
+                    <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                    <h3 id="end-shift-confirm-title" class="mb-5 text-lg font-normal text-gray-700">진행 중인 업무가 있습니다</h3>
+                    <p id="end-shift-confirm-message" class="mb-6 text-sm text-gray-500">모든 진행 중인 업무를 종료하고 마감하시겠습니까?</p>
+                    <div class="flex justify-center gap-3">
+                        <button type="button" id="confirm-end-shift-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center">종료 후 마감</button>
+                        <button type="button" id="cancel-end-shift-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">취소</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="quantity-on-stop-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
+            <div class="p-6 space-y-4">
+                <p>업무 <span id="quantity-on-stop-task-name" class="font-bold"></span>의 처리량을 입력하세요.</p>
+                <div>
+                    <label for="quantity-on-stop-input" class="block text-sm font-medium text-gray-700">처리량 (개)</label>
+                    <input type="number" id="quantity-on-stop-input" min="0" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                </div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                <button type="button" id="cancel-quantity-on-stop" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">나중에 입력</button>
+                <button type="button" id="confirm-quantity-on-stop" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인</button>
+            </div>
+        </div>
+        </div>
+
+        <div id="edit-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+                <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">업무 기록 수정</h2><button class="modal-close-btn">&times;</button></div>
+                <div class="p-6 space-y-4">
                     <div>
-                        <label for="leave-start-date-input" class="block text-sm font-medium text-gray-700">시작일</label>
-                        <input type="date" id="leave-start-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                        <label for="edit-member-name" class="block text-sm font-medium text-gray-700">이름</label>
+                        <input type="text" id="edit-member-name" class="mt-1 w-full bg-gray-50 border border-gray-300 rounded-lg p-2" readonly>
                     </div>
                     <div>
-                        <label for="leave-end-date-input" class="block text-sm font-medium text-gray-700">종료일 (선택)</label>
-                        <input type="date" id="leave-end-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                        <label for="edit-task-type" class="block text-sm font-medium text-gray-700">업무</label>
+                        <select id="edit-task-type" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2"></select>
+                    </div>
+                    <div>
+                        <label for="edit-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
+                        <input type="time" id="edit-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    </div>
+                    <div>
+                        <label for="edit-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM)</label>
+                        <input type="time" id="edit-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                    <button type="button" id="cancel-edit-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                    <button type="button" id="confirm-edit-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="task-select-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl relative">
+                <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-gray-900">업무 종류 선택</h2>
+                    <button class="modal-close-btn">&times;</button>
+                </div>
+                <div id="task-modal-content" class="p-6 max-h-[70vh] overflow-y-auto flex flex-col md:flex-row gap-6">
+                    </div>
+            </div>
+        </div>
+
+        <div id="edit-part-timer-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+                <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">알바 이름 수정</h2><button class="modal-close-btn">&times;</button></div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label for="part-timer-new-name" class="block text-sm font-medium text-gray-700">새 이름</label>
+                        <input type="text" id="part-timer-new-name" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                        <input type="hidden" id="part-timer-edit-id">
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                    <button type="button" id="cancel-edit-part-timer-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                    <button type="button" id="confirm-edit-part-timer-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="leave-type-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
+                <div class="p-6 border-b border-gray-200">
+                    <h2 id="leave-modal-title" class="text-xl font-bold text-gray-900">근태 설정</h2>
+                    <button class="modal-close-btn">&times;</button>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p><span id="leave-member-name" class="font-bold"></span> 님의 근태 유형을 선택하세요.</p>
+                    <div id="leave-type-options" class="grid grid-cols-2 gap-3">
+                        </div>
+                    <div id="leave-date-inputs" class="hidden space-y-2 mt-4">
+                        <div>
+                            <label for="leave-start-date-input" class="block text-sm font-medium text-gray-700">시작일</label>
+                            <input type="date" id="leave-start-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                        </div>
+                        <div>
+                            <label for="leave-end-date-input" class="block text-sm font-medium text-gray-700">종료일 (선택)</label>
+                            <input type="date" id="leave-end-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                    <button type="button" id="cancel-leave-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                    <button type="button" id="confirm-leave-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">설정 완료</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="member-action-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[110] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative overflow-hidden">
+                <div class="p-5 border-b border-gray-200 bg-gray-50">
+                    <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        👤 <span id="action-member-name"></span> 관리
+                    </h2>
+                    <button class="modal-close-btn" data-modal-id="member-action-modal">&times;</button>
+                </div>
+                <div class="p-6 space-y-6">
+                    <div class="text-center">
+                        <p class="text-sm text-gray-500 mb-1">현재 상태</p>
+                        <div id="action-member-status-badge" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-800">
+                            -
+                        </div>
+                        <p id="action-member-time-info" class="text-xs text-gray-400 mt-2 h-4"></p>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3">
+                        <button id="admin-clock-in-btn" class="hidden w-full bg-green-50 hover:bg-green-100 text-green-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-green-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                            </svg>
+                            출근 처리
+                        </button>
+                        <button id="admin-clock-out-btn" class="hidden w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-gray-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            퇴근 처리
+                        </button>
+                        <button id="admin-cancel-clock-out-btn" class="hidden w-full bg-yellow-50 hover:bg-yellow-100 text-yellow-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-yellow-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                            퇴근 취소 (복귀)
+                        </button>
+                        
+                        <div class="border-t border-gray-100 my-2"></div>
+
+                        <button id="open-leave-modal-btn" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-blue-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            근태(연차/외출 등) 설정
+                        </button>
                     </div>
                 </div>
             </div>
-            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-                <button type="button" id="cancel-leave-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-                <button type="button" id="confirm-leave-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">설정 완료</button>
+        </div>
+
+        <div id="cancel-leave-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
+                <div class="p-6 text-center">
+                    <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                    <h3 id="cancel-leave-confirm-message" class="mb-5 text-lg font-normal text-gray-700">이 직원을 복귀 처리하시겠습니까?</h3>
+                    <button type="button" id="confirm-cancel-leave-btn" class="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 복귀합니다</button>
+                    <button type="button" id="cancel-cancel-leave-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div id="cancel-leave-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
-            <div class="p-6 text-center">
-                <svg class="mx-auto mb-4 text-yellow-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                <h3 id="cancel-leave-confirm-message" class="mb-5 text-lg font-normal text-gray-700">이 직원을 복귀 처리하시겠습니까?</h3>
-                <button type="button" id="confirm-cancel-leave-btn" class="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 복귀합니다</button>
-                <button type="button" id="cancel-cancel-leave-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요</button>
-            </div>
-        </div>
-    </div>
+        <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div id="history-modal-content-box" class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[90vh] flex flex-col relative">
 
-    <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div id="history-modal-content-box" class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[90vh] flex flex-col relative">
-
-            <div id="history-modal-header" class="p-6 border-b border-gray-200 flex justify-between items-center cursor-move">
-                <h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2>
-                
-                <button id="toggle-history-fullscreen-btn" class="modal-close-btn mr-10" title="전체화면">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />
-                    </svg>
-                </button>
-                <button id="close-history-btn" class="modal-close-btn">&times;</button>
-            </div>
-
-            <div class="p-4 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center gap-2">
-                <label for="history-start-date" class="text-sm font-medium text-gray-700">시작일:</label>
-                <input type="date" id="history-start-date" class="p-1.5 border border-gray-300 rounded-md shadow-sm text-sm">
-                
-                <label for="history-end-date" class="text-sm font-medium text-gray-700 ml-2">종료일:</label>
-                <input type="date" id="history-end-date" class="p-1.5 border border-gray-300 rounded-md shadow-sm text-sm">
-                
-                <button id="history-filter-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-3 rounded-md text-sm ml-2">
-                    조회
-                </button>
-                <button id="history-clear-filter-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1.5 px-3 rounded-md text-sm ml-1">
-                    초기화
-                </button>
-
-                <div class="flex-grow text-right">
-                    <button id="history-download-period-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1.5 px-3 rounded-md text-sm">
-                        선택기간 엑셀다운
+                <div id="history-modal-header" class="p-6 border-b border-gray-200 flex justify-between items-center cursor-move">
+                    <h2 class="text-xl font-bold text-gray-900">업무 이력 보기</h2>
+                    
+                    <button id="toggle-history-fullscreen-btn" class="modal-close-btn mr-10" title="전체화면">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />
+                        </svg>
                     </button>
+                    <button id="close-history-btn" class="modal-close-btn">&times;</button>
                 </div>
-            </div>
-            <div class="px-6 pt-4 border-b border-gray-200 bg-gray-50">
-                <div id="history-main-tabs" class="flex gap-6">
-                    <button data-main-tab="work" class="history-main-tab-btn py-3 font-semibold text-blue-600 border-b-2 border-blue-600">업무 이력</button>
-                    <button data-main-tab="attendance" class="history-main-tab-btn py-3 font-medium text-gray-500">근태 이력</button>
-                    <button data-main-tab="trends" class="history-main-tab-btn py-3 font-medium text-gray-500">📈 트렌드 분석</button>
-                    <button data-main-tab="report" class="history-main-tab-btn py-3 font-medium text-gray-500">📊 업무 리포트</button>
-                </div>
-            </div>
-            <div class="flex-grow flex overflow-hidden">
-                <div id="history-date-list-container" class="w-1/4 border-r border-gray-200 overflow-y-auto bg-gray-50">
-                    <ul id="history-date-list" class="p-2"></ul>
-                </div>
-                <div class="w-3/4 flex flex-col overflow-hidden">
-                    <div id="work-history-panel" class="flex flex-col h-full">
-                        <div class="p-4 border-b border-gray-200 flex-shrink-0">
-                            <div id="history-tabs" class="flex gap-4">
-                                <button data-view="daily" class="history-tab-btn pb-2">일별 상세</button>
-                                <button data-view="weekly" class="history-tab-btn pb-2">주별 요약</button>
-                                <button data-view="monthly" class="history-tab-btn pb-2">월별 요약</button>
-                            </div>
-                        </div>
-                        <div id="history-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
-                            <div id="history-daily-view" class="hidden"></div>
-                            <div id="history-weekly-view" class="hidden space-y-6"></div>
-                            <div id="history-monthly-view" class="hidden space-y-6"></div>
-                        </div>
-                    </div>
-                    <div id="attendance-history-panel" class="hidden flex flex-col h-full">
-                        <div class="p-4 border-b border-gray-200 flex-shrink-0">
-                            <div id="attendance-history-tabs" class="flex gap-4">
-                                <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2">일별 상세</button>
-                                <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2">주별 요약</button>
-                                <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2">월별 요약</button>
-                            </div>
-                        </div>
-                        <div id="attendance-history-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
-                            <div id="history-attendance-daily-view" class="hidden space-y-4"></div>
-                            <div id="history-attendance-weekly-view" class="hidden space-y-4"></div>
-                            <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
-                        </div>
-                    </div>
 
-                    <div id="trend-analysis-panel" class="hidden flex flex-col h-full p-6 overflow-y-auto bg-gray-50 space-y-8">
-                        <div>
-                            <h3 class="text-xl font-bold mb-4 text-gray-800">주요 지표 트렌드 (최근 30일)</h3>
-                            
-                            <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-                                <h4 class="text-lg font-semibold text-gray-700 mb-2">📊 분당 평균 처리량 (개/분)</h4>
-                                <div class="h-64"><canvas id="kpi-chart-throughput"></canvas></div>
-                            </div>
-
-                            <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-                                <h4 class="text-lg font-semibold text-gray-700 mb-2">💰 개당 평균 처리비용 (원/개)</h4>
-                                <div class="h-64"><canvas id="kpi-chart-cost"></canvas></div>
-                            </div>
-
-                            <div class="bg-white p-4 rounded-lg shadow-sm">
-                                <h4 class="text-lg font-semibold text-gray-700 mb-2">⏳ 총 비업무시간 (분)</h4>
-                                <div class="h-64"><canvas id="kpi-chart-nonwork"></canvas></div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="p-4 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center gap-2">
+                    <label for="history-start-date" class="text-sm font-medium text-gray-700">시작일:</label>
+                    <input type="date" id="history-start-date" class="p-1.5 border border-gray-300 rounded-md shadow-sm text-sm">
                     
-                    <div id="report-panel" class="hidden flex flex-col h-full">
-                        <div class="p-4 border-b border-gray-200 flex-shrink-0">
-                            <div id="report-tabs" class="flex gap-4">
-                                <button data-view="report-daily" class="report-tab-btn pb-2 font-semibold text-blue-600 border-blue-600 border-b-2">일별 리포트</button>
-                                <button data-view="report-weekly" class="report-tab-btn pb-2 text-gray-500">주별 리포트</button>
-                                <button data-view="report-monthly" class="report-tab-btn pb-2 text-gray-500">월별 리포트</button>
-                                <button data-view="report-yearly" class="report-tab-btn pb-2 text-gray-500">연간 리포트</button>
+                    <label for="history-end-date" class="text-sm font-medium text-gray-700 ml-2">종료일:</label>
+                    <input type="date" id="history-end-date" class="p-1.5 border border-gray-300 rounded-md shadow-sm text-sm">
+                    
+                    <button id="history-filter-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-3 rounded-md text-sm ml-2">
+                        조회
+                    </button>
+                    <button id="history-clear-filter-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1.5 px-3 rounded-md text-sm ml-1">
+                        초기화
+                    </button>
+
+                    <div class="flex-grow text-right">
+                        <button id="history-download-period-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1.5 px-3 rounded-md text-sm">
+                            선택기간 엑셀다운
+                        </button>
+                    </div>
+                </div>
+                <div class="px-6 pt-4 border-b border-gray-200 bg-gray-50">
+                    <div id="history-main-tabs" class="flex gap-6">
+                        <button data-main-tab="work" class="history-main-tab-btn py-3 font-semibold text-blue-600 border-b-2 border-blue-600">업무 이력</button>
+                        <button data-main-tab="attendance" class="history-main-tab-btn py-3 font-medium text-gray-500">근태 이력</button>
+                        <button data-main-tab="trends" class="history-main-tab-btn py-3 font-medium text-gray-500">📈 트렌드 분석</button>
+                        <button data-main-tab="report" class="history-main-tab-btn py-3 font-medium text-gray-500">📊 업무 리포트</button>
+                    </div>
+                </div>
+                <div class="flex-grow flex overflow-hidden">
+                    <div id="history-date-list-container" class="w-1/4 border-r border-gray-200 overflow-y-auto bg-gray-50">
+                        <ul id="history-date-list" class="p-2"></ul>
+                    </div>
+                    <div class="w-3/4 flex flex-col overflow-hidden">
+                        <div id="work-history-panel" class="flex flex-col h-full">
+                            <div class="p-4 border-b border-gray-200 flex-shrink-0">
+                                <div id="history-tabs" class="flex gap-4">
+                                    <button data-view="daily" class="history-tab-btn pb-2">일별 상세</button>
+                                    <button data-view="weekly" class="history-tab-btn pb-2">주별 요약</button>
+                                    <button data-view="monthly" class="history-tab-btn pb-2">월별 요약</button>
+                                </div>
+                            </div>
+                            <div id="history-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                                <div id="history-daily-view" class="hidden"></div>
+                                <div id="history-weekly-view" class="hidden space-y-6"></div>
+                                <div id="history-monthly-view" class="hidden space-y-6"></div>
                             </div>
                         </div>
-                        <div id="report-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
-                            <div id="report-daily-view" class="">
+                        <div id="attendance-history-panel" class="hidden flex flex-col h-full">
+                            <div class="p-4 border-b border-gray-200 flex-shrink-0">
+                                <div id="attendance-history-tabs" class="flex gap-4">
+                                    <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2">일별 상세</button>
+                                    <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2">주별 요약</button>
+                                    <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2">월별 요약</button>
                                 </div>
-                            <div id="report-weekly-view" class="hidden space-y-6">
+                            </div>
+                            <div id="attendance-history-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                                <div id="history-attendance-daily-view" class="hidden space-y-4"></div>
+                                <div id="history-attendance-weekly-view" class="hidden space-y-4"></div>
+                                <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
+                            </div>
+                        </div>
+
+                        <div id="trend-analysis-panel" class="hidden flex flex-col h-full p-6 overflow-y-auto bg-gray-50 space-y-8">
+                            <div>
+                                <h3 class="text-xl font-bold mb-4 text-gray-800">주요 지표 트렌드 (최근 30일)</h3>
+                                
+                                <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                                    <h4 class="text-lg font-semibold text-gray-700 mb-2">📊 분당 평균 처리량 (개/분)</h4>
+                                    <div class="h-64"><canvas id="kpi-chart-throughput"></canvas></div>
                                 </div>
-                            <div id="report-monthly-view" class="hidden space-y-6">
+
+                                <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                                    <h4 class="text-lg font-semibold text-gray-700 mb-2">💰 개당 평균 처리비용 (원/개)</h4>
+                                    <div class="h-64"><canvas id="kpi-chart-cost"></canvas></div>
                                 </div>
-                            <div id="report-yearly-view" class="hidden space-y-6">
+
+                                <div class="bg-white p-4 rounded-lg shadow-sm">
+                                    <h4 class="text-lg font-semibold text-gray-700 mb-2">⏳ 총 비업무시간 (분)</h4>
+                                    <div class="h-64"><canvas id="kpi-chart-nonwork"></canvas></div>
                                 </div>
+                            </div>
+                        </div>
+                        
+                        <div id="report-panel" class="hidden flex flex-col h-full">
+                            <div class="p-4 border-b border-gray-200 flex-shrink-0">
+                                <div id="report-tabs" class="flex gap-4">
+                                    <button data-view="report-daily" class="report-tab-btn pb-2 font-semibold text-blue-600 border-blue-600 border-b-2">일별 리포트</button>
+                                    <button data-view="report-weekly" class="report-tab-btn pb-2 text-gray-500">주별 리포트</button>
+                                    <button data-view="report-monthly" class="report-tab-btn pb-2 text-gray-500">월별 리포트</button>
+                                    <button data-view="report-yearly" class="report-tab-btn pb-2 text-gray-500">연간 리포트</button>
+                                </div>
+                            </div>
+                            <div id="report-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                                <div id="report-daily-view" class="">
+                                    </div>
+                                <div id="report-weekly-view" class="hidden space-y-6">
+                                    </div>
+                                <div id="report-monthly-view" class="hidden space-y-6">
+                                    </div>
+                                <div id="report-yearly-view" class="hidden space-y-6">
+                                    </div>
+                            </div>
+                        </div>
+                        </div>
+                </div>
+
+                <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
+                        <div class="p-6 text-center">
+                            <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                            <h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 날짜의 모든 기록을 삭제하시겠습니까?</h3>
+                            <p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p>
+                            <button type="button" id="confirm-history-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button>
+                            <button type="button" id="cancel-history-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
                         </div>
                     </div>
-                    </div>
-            </div>
+                </div>
 
-            <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
-                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
-                    <div class="p-6 text-center">
-                        <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                        <h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 날짜의 모든 기록을 삭제하시겠습니까?</h3>
-                        <p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p>
-                        <button type="button" id="confirm-history-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button>
-                        <button type="button" id="cancel-history-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
+                
+            </div>
+        </div>
+        
+        <div id="delete-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 id="delete-confirm-message" class="mb-5 text-lg font-normal text-gray-700"></h3><p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p><button type="button" id="confirm-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button><button type="button" id="cancel-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
+        </div>
+        <div id="manual-add-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+                <div class="p-6 border-b border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-900">수동 업무 기록 추가</h2>
+                    <button class="modal-close-btn" data-modal-id="manual-add-record-modal">&times;</button>
+                </div>
+                <form id="manual-add-form">
+                    <div class="p-6 space-y-4">
+                        <div>
+                            <label for="manual-add-member" class="block text-sm font-medium text-gray-700">이름 (선택 또는 입력)</label>
+                            <input type="text" id="manual-add-member" list="manual-add-member-list" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" autocomplete="off" placeholder="이름 검색 또는 입력...">
+                            <datalist id="manual-add-member-list"></datalist>
+                        </div>
+                        <div>
+                            <label for="manual-add-task" class="block text-sm font-medium text-gray-700">업무 (선택 또는 입력)</label>
+                            <input type="text" id="manual-add-task" list="manual-add-task-list" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" autocomplete="off" placeholder="업무 검색 또는 입력...">
+                            <datalist id="manual-add-task-list"></datalist>
+                        </div>
+                        <div>
+                            <label for="manual-add-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
+                            <input type="time" id="manual-add-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                        </div>
+                        <div>
+                            <label for="manual-add-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM)</label>
+                            <input type="time" id="manual-add-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                        </div>
+                    </div>
+                </form>
+                <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                    <button type="button" id="cancel-manual-add-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                    <button type="button" id="confirm-manual-add-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="login-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-[99] p-4 hidden">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+                <h2 class="text-xl font-bold mb-4">로그인</h2>
+                <p class="mb-4 text-sm text-gray-600">관리자 페이지에서 등록한 이메일과<br>Firebase 콘솔에서 생성한 비밀번호를 입력하세요.</p>
+
+                <form id="login-form">
+                    <div class="mb-3">
+                        <label for="login-email" class="block text-sm font-medium text-gray-700">이메일</label>
+                        <input type="email" id="login-email" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="login-password" class="block text-sm font-medium text-gray-700">비밀번호</label>
+                        <input type="password" id="login-password" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+
+                    <p id="login-error-message" class="text-sm text-red-500 mb-3 hidden"></p>
+
+                    <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">
+                        <span id="login-button-text">로그인</span>
+                        <span id="login-button-spinner" class="hidden animate-spin">⌛</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="quantity-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[50] p-4">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+                    <div class="p-6 border-b border-gray-200"><h2 id="quantity-modal-title" class="text-xl font-bold text-gray-900">업무별 처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
+                    <div id="modal-task-quantity-inputs" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[60vh] overflow-y-auto">
+                        </div>
+                    <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                        <button type="button" id="cancel-quantity-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                        <button type="button" id="confirm-quantity-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인 및 저장</button>
                     </div>
                 </div>
             </div>
 
-            
-           </div>
-    </div>
-    
-    <div id="delete-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button><div class="p-6 text-center"><svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><h3 id="delete-confirm-message" class="mb-5 text-lg font-normal text-gray-700"></h3><p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p><button type="button" id="confirm-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button><button type="button" id="cancel-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button></div></div>
-    </div>
-    <div id="manual-add-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+        <div id="edit-start-time-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
             <div class="p-6 border-b border-gray-200">
-                <h2 class="text-xl font-bold text-gray-900">수동 업무 기록 추가</h2>
-                <button class="modal-close-btn" data-modal-id="manual-add-record-modal">&times;</button>
+                <h2 id="edit-start-time-modal-title" class="text-xl font-bold text-gray-900">시작 시간 변경</h2>
+                <button class="modal-close-btn" data-modal-id="edit-start-time-modal">&times;</button>
             </div>
-            <form id="manual-add-form">
-                <div class="p-6 space-y-4">
-                    <div>
-                        <label for="manual-add-member" class="block text-sm font-medium text-gray-700">이름 (선택 또는 입력)</label>
-                        <input type="text" id="manual-add-member" list="manual-add-member-list" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" autocomplete="off" placeholder="이름 검색 또는 입력...">
-                        <datalist id="manual-add-member-list"></datalist>
-                    </div>
-                    <div>
-                        <label for="manual-add-task" class="block text-sm font-medium text-gray-700">업무 (선택 또는 입력)</label>
-                        <input type="text" id="manual-add-task" list="manual-add-task-list" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" autocomplete="off" placeholder="업무 검색 또는 입력...">
-                        <datalist id="manual-add-task-list"></datalist>
-                    </div>
-                    <div>
-                        <label for="manual-add-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
-                        <input type="time" id="manual-add-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                    </div>
-                    <div>
-                        <label for="manual-add-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM)</label>
-                        <input type="time" id="manual-add-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                    </div>
-                </div>
-            </form>
-            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-                <button type="button" id="cancel-manual-add-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-                <button type="button" id="confirm-manual-add-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="login-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-[99] p-4 hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
-            <h2 class="text-xl font-bold mb-4">로그인</h2>
-            <p class="mb-4 text-sm text-gray-600">관리자 페이지에서 등록한 이메일과<br>Firebase 콘솔에서 생성한 비밀번호를 입력하세요.</p>
-
-            <form id="login-form">
-                <div class="mb-3">
-                    <label for="login-email" class="block text-sm font-medium text-gray-700">이메일</label>
-                    <input type="email" id="login-email" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
-                </div>
-                <div class="mb-4">
-                    <label for="login-password" class="block text-sm font-medium text-gray-700">비밀번호</label>
-                    <input type="password" id="login-password" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
-                </div>
-
-                <p id="login-error-message" class="text-sm text-red-500 mb-3 hidden"></p>
-
-                <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">
-                    <span id="login-button-text">로그인</span>
-                    <span id="login-button-spinner" class="hidden animate-spin">⌛</span>
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <div id="quantity-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[50] p-4">
-                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
-                   <div class="p-6 border-b border-gray-200"><h2 id="quantity-modal-title" class="text-xl font-bold text-gray-900">업무별 처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
-                   <div id="modal-task-quantity-inputs" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[60vh] overflow-y-auto">
-                       </div>
-                   <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-                       <button type="button" id="cancel-quantity-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-                       <button type="button" id="confirm-quantity-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인 및 저장</button>
-                   </div>
-               </div>
-           </div>
-
-    <div id="edit-start-time-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
-           <div class="p-6 border-b border-gray-200">
-               <h2 id="edit-start-time-modal-title" class="text-xl font-bold text-gray-900">시작 시간 변경</h2>
-               <button class="modal-close-btn" data-modal-id="edit-start-time-modal">&times;</button>
-           </div>
-           <div class="p-6 space-y-4">
-               <p id="edit-start-time-modal-message" class="text-sm text-gray-600"></p>
-               <div>
-                   <label for="edit-start-time-input" class="block text-sm font-medium text-gray-700">새 시작 시간 (HH:MM)</label>
-                   <input type="time" id="edit-start-time-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                   <input type="hidden" id="edit-start-time-context-id">
-                   <input type="hidden" id="edit-start-time-context-type"> </div>
-           </div>
-           <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-               <button type="button" id="cancel-edit-start-time-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-               <button type="button" id="confirm-edit-start-time-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
-           </div>
-       </div>
-    </div>
-
-    <div id="edit-attendance-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
-            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">근태 기록 수정</h2><button class="modal-close-btn" data-modal-id="edit-attendance-record-modal">&times;</button></div>
             <div class="p-6 space-y-4">
+                <p id="edit-start-time-modal-message" class="text-sm text-gray-600"></p>
                 <div>
-                    <label for="edit-attendance-member-name" class="block text-sm font-medium text-gray-700">이름</label>
-                    <input type="text" id="edit-attendance-member-name" class="mt-1 w-full bg-gray-50 border border-gray-300 rounded-lg p-2" readonly>
-                </div>
-                 <div>
-                    <label for="edit-attendance-type" class="block text-sm font-medium text-gray-700">유형</label>
-                    <select id="edit-attendance-type" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2"></select>
-                </div>
-
-                <div id="edit-attendance-time-fields" class="space-y-4 hidden">
-                     <div>
-                        <label for="edit-attendance-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
-                        <input type="time" id="edit-attendance-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                    </div>
-                     <div>
-                        <label for="edit-attendance-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM) (비워두면 '진행 중')</label>
-                        <input type="time" id="edit-attendance-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                    </div>
-                </div>
-                
-                <div id="edit-attendance-date-fields" class="space-y-4 hidden">
-                    <div>
-                        <label for="edit-attendance-start-date" class="block text-sm font-medium text-gray-700">시작일</label>
-                        <input type="date" id="edit-attendance-start-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                    </div>
-                    <div>
-                        <label for="edit-attendance-end-date" class="block text-sm font-medium text-gray-700">종료일 (비워두면 시작일과 동일)</label>
-                        <input type="date" id="edit-attendance-end-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                    </div>
-                </div>
-                
-                <input type="hidden" id="edit-attendance-date-key">
-                <input type="hidden" id="edit-attendance-record-index">
-
+                    <label for="edit-start-time-input" class="block text-sm font-medium text-gray-700">새 시작 시간 (HH:MM)</label>
+                    <input type="time" id="edit-start-time-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    <input type="hidden" id="edit-start-time-context-id">
+                    <input type="hidden" id="edit-start-time-context-type"> </div>
             </div>
             <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-                <button type="button" id="cancel-edit-attendance-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-                <button type="button" id="confirm-edit-attendance-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
+                <button type="button" id="cancel-edit-start-time-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                <button type="button" id="confirm-edit-start-time-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
             </div>
         </div>
-    </div>
+        </div>
 
-    <div id="add-attendance-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
-         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
-            <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">근태 기록 수동 추가</h2><button class="modal-close-btn" data-modal-id="add-attendance-record-modal">&times;</button></div>
-            <form id="add-attendance-form">
+        <div id="edit-attendance-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+                <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">근태 기록 수정</h2><button class="modal-close-btn" data-modal-id="edit-attendance-record-modal">&times;</button></div>
                 <div class="p-6 space-y-4">
                     <div>
-                        <label for="add-attendance-member-name" class="block text-sm font-medium text-gray-700">이름</label>
-                        <input type="text" id="add-attendance-member-name" list="add-attendance-member-datalist" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" autocomplete="off" placeholder="이름 검색 또는 입력...">
-                        <datalist id="add-attendance-member-datalist"></datalist>
+                        <label for="edit-attendance-member-name" class="block text-sm font-medium text-gray-700">이름</label>
+                        <input type="text" id="edit-attendance-member-name" class="mt-1 w-full bg-gray-50 border border-gray-300 rounded-lg p-2" readonly>
                     </div>
-                     <div>
-                        <label for="add-attendance-type" class="block text-sm font-medium text-gray-700">유형</label>
-                        <select id="add-attendance-type" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2"></select>
+                    <div>
+                        <label for="edit-attendance-type" class="block text-sm font-medium text-gray-700">유형</label>
+                        <select id="edit-attendance-type" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2"></select>
                     </div>
 
-                    <div id="add-attendance-time-fields" class="space-y-4 hidden">
-                         <div>
-                            <label for="add-attendance-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
-                            <input type="time" id="add-attendance-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    <div id="edit-attendance-time-fields" class="space-y-4 hidden">
+                        <div>
+                            <label for="edit-attendance-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
+                            <input type="time" id="edit-attendance-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                         </div>
-                         <div>
-                            <label for="add-attendance-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM) (비워두면 '진행 중')</label>
-                            <input type="time" id="add-attendance-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                        <div>
+                            <label for="edit-attendance-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM) (비워두면 '진행 중')</label>
+                            <input type="time" id="edit-attendance-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                         </div>
                     </div>
                     
-                    <div id="add-attendance-date-fields" class="space-y-4 hidden">
+                    <div id="edit-attendance-date-fields" class="space-y-4 hidden">
                         <div>
-                            <label for="add-attendance-start-date" class="block text-sm font-medium text-gray-700">시작일</label>
-                            <input type="date" id="add-attendance-start-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                            <label for="edit-attendance-start-date" class="block text-sm font-medium text-gray-700">시작일</label>
+                            <input type="date" id="edit-attendance-start-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                         </div>
                         <div>
-                            <label for="add-attendance-end-date" class="block text-sm font-medium text-gray-700">종료일 (비워두면 시작일과 동일)</label>
-                            <input type="date" id="add-attendance-end-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                            <label for="edit-attendance-end-date" class="block text-sm font-medium text-gray-700">종료일 (비워두면 시작일과 동일)</label>
+                            <input type="date" id="edit-attendance-end-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                         </div>
                     </div>
                     
-                    <input type="hidden" id="add-attendance-date-key">
+                    <input type="hidden" id="edit-attendance-date-key">
+                    <input type="hidden" id="edit-attendance-record-index">
 
                 </div>
-            </form>
-            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-                <button type="button" id="cancel-add-attendance-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-                <button type="button" id="confirm-add-attendance-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
+                <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                    <button type="button" id="cancel-edit-attendance-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                    <button type="button" id="confirm-edit-attendance-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div id="edit-leave-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
-           <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-               <h2 id="edit-leave-modal-title" class="text-xl font-bold text-gray-900">근태 기록 수정</h2>
-               <button class="modal-close-btn" data-modal-id="edit-leave-record-modal">&times;</button>
-           </div>
-           <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-               <div>
-                   <label class="block text-sm font-medium text-gray-700">이름</label>
-                   <p id="edit-leave-member-name" class="mt-1 text-lg font-semibold text-gray-800"></p>
-               </div>
+        <div id="add-attendance-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+                <div class="p-6 border-b border-gray-200"><h2 class="text-xl font-bold text-gray-900">근태 기록 수동 추가</h2><button class="modal-close-btn" data-modal-id="add-attendance-record-modal">&times;</button></div>
+                <form id="add-attendance-form">
+                    <div class="p-6 space-y-4">
+                        <div>
+                            <label for="add-attendance-member-name" class="block text-sm font-medium text-gray-700">이름</label>
+                            <input type="text" id="add-attendance-member-name" list="add-attendance-member-datalist" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" autocomplete="off" placeholder="이름 검색 또는 입력...">
+                            <datalist id="add-attendance-member-datalist"></datalist>
+                        </div>
+                        <div>
+                            <label for="add-attendance-type" class="block text-sm font-medium text-gray-700">유형</label>
+                            <select id="add-attendance-type" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2"></select>
+                        </div>
+
+                        <div id="add-attendance-time-fields" class="space-y-4 hidden">
+                            <div>
+                                <label for="add-attendance-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
+                                <input type="time" id="add-attendance-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                            </div>
+                            <div>
+                                <label for="add-attendance-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM) (비워두면 '진행 중')</label>
+                                <input type="time" id="add-attendance-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                            </div>
+                        </div>
+                        
+                        <div id="add-attendance-date-fields" class="space-y-4 hidden">
+                            <div>
+                                <label for="add-attendance-start-date" class="block text-sm font-medium text-gray-700">시작일</label>
+                                <input type="date" id="add-attendance-start-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                            </div>
+                            <div>
+                                <label for="add-attendance-end-date" class="block text-sm font-medium text-gray-700">종료일 (비워두면 시작일과 동일)</label>
+                                <input type="date" id="add-attendance-end-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                            </div>
+                        </div>
+                        
+                        <input type="hidden" id="add-attendance-date-key">
+
+                    </div>
+                </form>
+                <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
+                    <button type="button" id="cancel-add-attendance-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+                    <button type="button" id="confirm-add-attendance-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="edit-leave-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                <h2 id="edit-leave-modal-title" class="text-xl font-bold text-gray-900">근태 기록 수정</h2>
+                <button class="modal-close-btn" data-modal-id="edit-leave-record-modal">&times;</button>
+            </div>
+            <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                 <div>
-                   <label for="edit-leave-type" class="block text-sm font-medium text-gray-700">유형</label>
-                   <select id="edit-leave-type" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                       </select>
-               </div>
-
-               <div id="edit-leave-time-fields" class="space-y-4 hidden">
-                    <div>
-                       <label for="edit-leave-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
-                       <input type="time" id="edit-leave-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                   </div>
-                    <div>
-                       <label for="edit-leave-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM) (외출 복귀 시 입력)</label>
-                       <input type="time" id="edit-leave-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                   </div>
-               </div>
-
-               <div id="edit-leave-date-fields" class="space-y-4 hidden">
-                   <div>
-                       <label for="edit-leave-start-date" class="block text-sm font-medium text-gray-700">시작일</label>
-                       <input type="date" id="edit-leave-start-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                   </div>
-                   <div>
-                       <label for="edit-leave-end-date" class="block text-sm font-medium text-gray-700">종료일 (비워두면 시작일과 동일)</label>
-                       <input type="date" id="edit-leave-end-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
-                   </div>
-               </div>
-
-               <input type="hidden" id="edit-leave-original-member-name">
-               <input type="hidden" id="edit-leave-original-start-identifier"> <input type="hidden" id="edit-leave-original-type"> </div>
-           <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-between gap-4">
-               <button type="button" id="delete-leave-record-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition">삭제</button>
-               <div>
-                   <button type="button" id="cancel-edit-leave-record-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition mr-2">취소</button>
-                   <button type="button" id="confirm-edit-leave-record-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
-               </div>
-           </div>
-       </div>
-    </div>
-    
-    <div id="coq-explanation-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
-           <div class="p-6 border-b border-gray-200">
-               <h2 class="text-xl font-bold text-gray-900">
-                   <span class="text-red-600">총 품질 비용 (COQ)</span> 이란?
-               </h2>
-               <button class="modal-close-btn" data-modal-id="coq-explanation-modal">&times;</button>
-           </div>
-           <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                <div>
-                    <h3 class="font-semibold text-gray-800">개념</h3>
-                    <p class="text-sm text-gray-600 mt-1">
-                        COQ (Cost of Quality)는 원하는 품질 수준을 달성하지 못했을 때 발생하는 모든 비용을 의미합니다.
-                        여기서는 "오류", "상품재작업", "재고찾는시간" 등, 정상적인 생산 활동 외에 추가로 투입된 노동력(인건비)을 의미합니다.
-                        이 비용이 낮을수록 업무 프로세스가 효율적이고 정확하게 운영되고 있음을 나타냅니다.
-                    </p>
+                    <label class="block text-sm font-medium text-gray-700">이름</label>
+                    <p id="edit-leave-member-name" class="mt-1 text-lg font-semibold text-gray-800"></p>
                 </div>
                 <div>
-                    <h3 class="font-semibold text-gray-800">계산 방식</h3>
-                    <p class="text-sm text-gray-600 mt-1">
-                        관리자 페이지의 `config.js` 파일에 정의된 '품질 비용 업무' 목록(기본값: '오류', '상품재작업', '재고찾는시간')을 기준으로,
-                        해당 업무들에 투입된 모든 인원의 총 인건비를 합산합니다.
-                    </p>
-                    <p class="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded border">
-                        <span class="font-mono text-xs">
-                           (각 인원의 '오류' 업무 시간 * 시급) + <br>
-                           (각 인원의 '상품재작업' 업무 시간 * 시급) + <br>
-                           (...)
-                        </span>
-                    </p>
+                    <label for="edit-leave-type" class="block text-sm font-medium text-gray-700">유형</label>
+                    <select id="edit-leave-type" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                        </select>
                 </div>
-           </div>
-           <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end">
-                <button type="button" class="modal-close-btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition" data-modal-id="coq-explanation-modal">
-                    닫기
-                </button>
-           </div>
-       </div>
-    </div>
+
+                <div id="edit-leave-time-fields" class="space-y-4 hidden">
+                    <div>
+                        <label for="edit-leave-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
+                        <input type="time" id="edit-leave-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    </div>
+                    <div>
+                        <label for="edit-leave-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM) (외출 복귀 시 입력)</label>
+                        <input type="time" id="edit-leave-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    </div>
+                </div>
+
+                <div id="edit-leave-date-fields" class="space-y-4 hidden">
+                    <div>
+                        <label for="edit-leave-start-date" class="block text-sm font-medium text-gray-700">시작일</label>
+                        <input type="date" id="edit-leave-start-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    </div>
+                    <div>
+                        <label for="edit-leave-end-date" class="block text-sm font-medium text-gray-700">종료일 (비워두면 시작일과 동일)</label>
+                        <input type="date" id="edit-leave-end-date" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                    </div>
+                </div>
+
+                <input type="hidden" id="edit-leave-original-member-name">
+                <input type="hidden" id="edit-leave-original-start-identifier"> <input type="hidden" id="edit-leave-original-type"> </div>
+            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-between gap-4">
+                <button type="button" id="delete-leave-record-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition">삭제</button>
+                <div>
+                    <button type="button" id="cancel-edit-leave-record-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition mr-2">취소</button>
+                    <button type="button" id="confirm-edit-leave-record-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">저장</button>
+                </div>
+            </div>
+        </div>
+        </div>
+        
+        <div id="coq-explanation-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[101] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">
+                    <span class="text-red-600">총 품질 비용 (COQ)</span> 이란?
+                </h2>
+                <button class="modal-close-btn" data-modal-id="coq-explanation-modal">&times;</button>
+            </div>
+            <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                    <div>
+                        <h3 class="font-semibold text-gray-800">개념</h3>
+                        <p class="text-sm text-gray-600 mt-1">
+                            COQ (Cost of Quality)는 원하는 품질 수준을 달성하지 못했을 때 발생하는 모든 비용을 의미합니다.
+                            여기서는 "오류", "상품재작업", "재고찾는시간" 등, 정상적인 생산 활동 외에 추가로 투입된 노동력(인건비)을 의미합니다.
+                            이 비용이 낮을수록 업무 프로세스가 효율적이고 정확하게 운영되고 있음을 나타냅니다.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-gray-800">계산 방식</h3>
+                        <p class="text-sm text-gray-600 mt-1">
+                            관리자 페이지의 `config.js` 파일에 정의된 '품질 비용 업무' 목록(기본값: '오류', '상품재작업', '재고찾는시간')을 기준으로,
+                            해당 업무들에 투입된 모든 인원의 총 인건비를 합산합니다.
+                        </p>
+                        <p class="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded border">
+                            <span class="font-mono text-xs">
+                            (각 인원의 '오류' 업무 시간 * 시급) + <br>
+                            (각 인원의 '상품재작업' 업무 시간 * 시급) + <br>
+                            (...)
+                            </span>
+                        </p>
+                    </div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end">
+                    <button type="button" class="modal-close-btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition" data-modal-id="coq-explanation-modal">
+                        닫기
+                    </button>
+            </div>
+        </div>
+        </div>
     
     </div> <script type="module" src="js/app.js"></script>
 </body>

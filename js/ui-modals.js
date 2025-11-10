@@ -1,26 +1,20 @@
 // === js/ui-modals.js ===
 
-// ✅ [수정] renderQuantityModalInputs
-// ✨ [수정] confirmedZeroTasks 파라미터를 추가하고, 각 업무별 '0건 확인' 체크박스 UI를 생성합니다.
+// ... (renderQuantityModalInputs, renderTaskSelectionModal 함수는 기존과 동일하므로 생략) ...
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
     container.innerHTML = '';
 
     const missingTaskSet = new Set(missingTasksList);
-    // ✨ [추가] 확인된 목록을 Set으로 변환하여 빠른 조회
     const confirmedZeroSet = new Set(confirmedZeroTasks);
 
     quantityTaskTypes.forEach(task => {
         const div = document.createElement('div');
-
-        // ✨ [추가] 누락 여부 및 확인 여부 판단
         const isConfirmed = confirmedZeroSet.has(task);
-        // 로직상 이미 걸러지지만, UI 렌더링 시 이중 확인
         const isMissing = missingTaskSet.has(task) && !isConfirmed;
         const warningClass = isMissing ? 'warning-missing-quantity' : '';
 
-        // ✨ [수정] 레이아웃 변경: 라벨 옆에 체크박스 배치
         div.innerHTML = `
             <div class="flex justify-between items-end mb-1">
                 <label for="modal-quantity-${task}" class="block text-sm font-medium text-gray-700 ${isMissing ? 'text-yellow-700 font-bold' : ''}">
@@ -39,7 +33,6 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
         container.appendChild(div);
     });
 
-    // ✨ [추가] UX 개선: 체크박스 클릭 시 즉시 경고 스타일 토글 (저장 전 시각적 피드백)
     container.querySelectorAll('.confirm-zero-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
             const task = e.target.dataset.task;
@@ -47,16 +40,13 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
             const label = container.querySelector(`label[for="modal-quantity-${task}"]`);
 
             if (e.target.checked) {
-                // 확인 체크 시 경고 제거
                 input.classList.remove('warning-missing-quantity');
                 label.classList.remove('text-yellow-700', 'font-bold');
                 label.textContent = task;
             } else {
-                // 체크 해제 시, 값이 0이면 다시 경고 표시
                 if (Number(input.value) <= 0) {
                      input.classList.add('warning-missing-quantity');
                      label.classList.add('text-yellow-700', 'font-bold');
-                     // 이미 텍스트에 (누락됨)이 없을 때만 추가
                      if (!label.textContent.includes('(누락됨)')) {
                          label.textContent = `${task} (누락됨)`;
                      }
@@ -66,7 +56,6 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
     });
 };
 
-// ... (renderTaskSelectionModal, renderTeamSelectionModalContent 등 기존 함수들은 그대로 유지)
 export const renderTaskSelectionModal = (taskGroups = []) => {
     const container = document.getElementById('task-modal-content');
     if (!container) return;
@@ -91,6 +80,7 @@ export const renderTaskSelectionModal = (taskGroups = []) => {
     });
 };
 
+// ✅ [수정] 표준 스타일 적용
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -117,6 +107,12 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             .map(item => [item.member, item])
     );
 
+    // 🔥 [핵심] 표준 스타일 정의 (listeners-main.js 와 동일하게 유지)
+    const baseClasses = "member-select-btn w-full p-2 rounded-lg border-2 text-center transition-all duration-200 min-h-[50px] flex flex-col justify-center";
+    const disabledClasses = "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed";
+    const unselectedClasses = "bg-white border-gray-300 text-gray-900 hover:bg-blue-50 hover:border-blue-300"; // 선택 안됨
+    // (참고: selectedClasses는 초기 렌더링엔 안 쓰이지만 listeners-main.js 에서 사용됨: bg-blue-600 border-blue-600 text-white)
+
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
         teamGroups.find(g => g.name === '공통파트'),
@@ -130,15 +126,14 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         groupContainer.innerHTML = `
             <div class="flex justify-between items-center p-2 border-b border-gray-200">
                 <h4 class="text-md font-bold text-gray-800">${group.name}</h4>
-                <button type="button" class="group-select-all-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded" data-group-name="${group.name}">전체</button>
+                <button type="button" class="group-select-all-btn text-xs bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 px-2 py-1 rounded shadow-sm transition-all" data-group-name="${group.name}">전체</button>
             </div>`;
 
         const memberList = document.createElement('div');
         memberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
         memberList.dataset.groupName = group.name;
 
-        const uniqueMembersInGroup = [...new Set(group.members)];
-        uniqueMembersInGroup.forEach(member => {
+        [...new Set(group.members)].forEach(member => {
             const isOngoing = ongoingMembers.has(member);
             const isPaused = pausedMembers.has(member);
             const leaveEntry = onLeaveMemberMap.get(member);
@@ -147,15 +142,16 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             card.type = 'button';
             card.dataset.memberName = member;
 
-            card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+            // 🔥 초기 상태 클래스 적용
+            card.className = `${baseClasses} ${isOngoing || isPaused || isOnLeave ? disabledClasses : unselectedClasses}`;
 
             if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
             let statusLabel = '';
-            if (isOngoing) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
-            else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; }
-            else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
-            card.innerHTML = `<div class="font-semibold">${member}</div>${statusLabel}`;
+            if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
+            else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
+            else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
+            card.innerHTML = `<div class="font-bold">${member}</div>${statusLabel}`;
 
             memberList.appendChild(card);
         });
@@ -163,13 +159,14 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         container.appendChild(groupContainer);
     });
 
+    // 알바 그룹
     const albaGroupContainer = document.createElement('div');
     albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
     albaGroupContainer.innerHTML = `<div class="flex justify-between items-center p-2 border-b border-gray-200">
                                          <h4 class="text-md font-bold text-gray-800">알바</h4>
                                          <div>
-                                             <button type="button" class="group-select-all-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded" data-group-name="알바">전체</button>
-                                             <button id="add-part-timer-modal-btn" class="text-xs bg-blue-200 hover:bg-blue-300 text-blue-800 px-2 py-0.5 rounded ml-1">+ 추가</button>
+                                             <button type="button" class="group-select-all-btn text-xs bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 px-2 py-1 rounded shadow-sm transition-all" data-group-name="알바">전체</button>
+                                             <button id="add-part-timer-modal-btn" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded ml-1 transition-all">+ 추가</button>
                                          </div>
                                     </div>`;
     const albaMemberList = document.createElement('div');
@@ -188,28 +185,29 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         card.type = 'button';
         card.dataset.memberName = pt.name;
 
-        card.className = `w-full p-2 rounded-lg border text-center transition-shadow min-h-[50px] flex flex-col justify-center ${isOngoing || isPaused || isOnLeave ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-blue-50'}`;
+        // 🔥 초기 상태 클래스 적용 (알바)
+        card.className = `${baseClasses} ${isOngoing || isPaused || isOnLeave ? disabledClasses : unselectedClasses}`;
 
         if (isOngoing || isPaused || isOnLeave) card.disabled = true;
 
         let statusLabel = '';
-        if (isOngoing) { statusLabel = '<div class="text-xs text-red-500">업무 중</div>'; }
-        else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600">휴식 중</div>'; }
-        else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500">${leaveEntry.type} 중</div>`; }
-        card.innerHTML = `<div class="font-semibold">${pt.name}</div>${statusLabel}`;
+        if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
+        else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
+        else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
+        card.innerHTML = `<div class="font-bold">${pt.name}</div>${statusLabel}`;
 
         cardWrapper.appendChild(card);
 
         const editBtn = document.createElement('button');
         editBtn.dataset.partTimerId = pt.id;
-        editBtn.className = 'edit-part-timer-btn absolute top-1 right-5 p-1 text-gray-400 hover:text-blue-600';
-        editBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L13.196 5.2z" /></svg>`;
+        editBtn.className = 'edit-part-timer-btn absolute top-1 right-6 p-1 text-gray-400 hover:text-blue-600 transition-colors';
+        editBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L13.196 5.2z" /></svg>`;
         cardWrapper.appendChild(editBtn);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.dataset.partTimerId = pt.id;
-        deleteBtn.className = 'delete-part-timer-btn absolute top-1 right-1 p-1 text-gray-400 hover:text-red-600';
-        deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
+        deleteBtn.className = 'delete-part-timer-btn absolute top-1 right-1 p-1 text-gray-400 hover:text-red-600 transition-colors';
+        deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
         cardWrapper.appendChild(deleteBtn);
 
         albaMemberList.appendChild(cardWrapper);
