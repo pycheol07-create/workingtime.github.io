@@ -67,7 +67,6 @@ import {
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, runTransaction, updateDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ [신규] 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
     if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
     context.memberToSetLeave = memberName;
@@ -75,7 +74,6 @@ const openLeaveModal = (memberName) => {
     if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
 };
 
-// ✅ [신규] 관리자 액션 모달 열기 헬퍼 함수 (누락된 기능 복구)
 const openAdminMemberActionModal = (memberName) => {
     context.memberToAction = memberName;
     if (actionMemberName) actionMemberName.textContent = memberName;
@@ -85,7 +83,6 @@ const openAdminMemberActionModal = (memberName) => {
     const attendance = appState.dailyAttendance?.[memberName];
     const status = attendance?.status || 'none';
 
-    // 상태 배지 & 시간 정보 업데이트
     if (actionMemberStatusBadge && actionMemberTimeInfo) {
          if (ongoingRecord) {
             actionMemberStatusBadge.textContent = `업무 중 (${ongoingRecord.task})`;
@@ -110,7 +107,6 @@ const openAdminMemberActionModal = (memberName) => {
         }
     }
 
-    // 버튼 표시 여부 제어
     if (adminClockInBtn) adminClockInBtn.classList.toggle('hidden', status === 'active' || status === 'returned');
     if (adminClockOutBtn) adminClockOutBtn.classList.toggle('hidden', status !== 'active');
     if (adminCancelClockOutBtn) adminCancelClockOutBtn.classList.toggle('hidden', status !== 'returned');
@@ -120,21 +116,17 @@ const openAdminMemberActionModal = (memberName) => {
 
 export function setupMainScreenListeners() {
 
-    // 🔥 [핵심] 선택/미선택 상태 클래스 정의 (ui-modals.js와 완벽하게 일치시킴)
     const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
     const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
 
-    // 헬퍼: 버튼을 선택 상태로 만듦 (모든 동작에서 공통 사용)
     const selectMemberBtn = (btn) => {
         btn.classList.remove(...UNSELECTED_CLASSES);
         btn.classList.add(...SELECTED_CLASSES);
     };
-    // 헬퍼: 버튼을 선택 해제 상태로 만듦 (모든 동작에서 공통 사용)
     const deselectMemberBtn = (btn) => {
         btn.classList.remove(...SELECTED_CLASSES);
         btn.classList.add(...UNSELECTED_CLASSES);
     };
-
 
     const pcAttendanceCheckbox = document.getElementById('pc-attendance-checkbox');
     if (pcAttendanceCheckbox) {
@@ -363,7 +355,6 @@ export function setupMainScreenListeners() {
                     showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
                 }
 
-                // ✅ 관리자일 경우 관리자 전용 모달 열기
                 if (role === 'admin' && memberName !== selfName) {
                      openAdminMemberActionModal(memberName);
                      return;
@@ -393,7 +384,7 @@ export function setupMainScreenListeners() {
                 if (action === 'start-task') {
                     context.selectedTaskForStart = task;
                     context.selectedGroupForAdd = null;
-                    context.tempSelectedMembers = []; // ✨ [수정] 선택 인원 초기화 추가
+                    context.tempSelectedMembers = [];
                     renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
                     const titleEl = document.getElementById('team-select-modal-title');
                     if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
@@ -407,7 +398,7 @@ export function setupMainScreenListeners() {
                 } else if (groupId && task) {
                     context.selectedTaskForStart = task;
                     context.selectedGroupForAdd = groupId;
-                    context.tempSelectedMembers = []; // ✨ [수정] 선택 인원 초기화 추가
+                    context.tempSelectedMembers = [];
                     renderTeamSelectionModalContent(task, appState, appConfig.teamGroups);
                     const titleEl = document.getElementById('team-select-modal-title');
                     if (titleEl) titleEl.textContent = `'${task}' 인원 추가`;
@@ -470,7 +461,7 @@ export function setupMainScreenListeners() {
                 if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = `총 ${ongoingRecords.length}명이 참여 중인 ${ongoingTaskCount}종의 업무가 있습니다. 모두 종료하고 마감하시겠습니까?`;
                 if (endShiftConfirmModal) endShiftConfirmModal.classList.remove('hidden');
             } else {
-                saveDayDataToHistory(true); // 마감 시 reset=true
+                saveDayDataToHistory(true);
             }
         });
     }
@@ -774,49 +765,40 @@ export function setupMainScreenListeners() {
         });
     }
 
-    // ✅ 팀 선택 모달 리스너 (이 부분이 유일한 핸들러가 됨)
     if (teamSelectModal) {
         teamSelectModal.addEventListener('click', async (e) => {
             const target = e.target;
 
-            // 1. 개별 멤버 버튼 클릭
             const memberButton = target.closest('.member-select-btn');
             if (memberButton && !memberButton.disabled) {
                 const memberName = memberButton.dataset.memberName;
-                // 현재 선택된 상태인지 확인 (bg-blue-600 클래스 유무로 판단)
                 const isCurrentlySelected = memberButton.classList.contains('bg-blue-600');
 
                 if (!isCurrentlySelected) {
-                    // 선택되지 않은 상태 -> 선택 상태로 변경
                     selectMemberBtn(memberButton);
                     if (!context.tempSelectedMembers.includes(memberName)) {
                         context.tempSelectedMembers.push(memberName);
                     }
                 } else {
-                    // 이미 선택된 상태 -> 선택 해제
                     deselectMemberBtn(memberButton);
                     context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
                 }
             }
 
-            // 2. 전체 선택/해제 버튼 클릭
             const selectAllBtn = target.closest('.group-select-all-btn');
             if (selectAllBtn) {
                 const groupName = selectAllBtn.dataset.groupName;
                 const memberListDiv = teamSelectModal.querySelector(`.space-y-2[data-group-name="${groupName}"]`);
                 if (memberListDiv) {
                     const availableButtons = Array.from(memberListDiv.querySelectorAll('.member-select-btn:not(:disabled)'));
-                    // 모든 버튼이 이미 선택되어 있는지 확인
                     const allSelected = availableButtons.length > 0 && availableButtons.every(btn => btn.classList.contains('bg-blue-600'));
 
                     availableButtons.forEach(btn => {
                         const memberName = btn.dataset.memberName;
-                        if (allSelected) { 
-                            // 이미 모두 선택됨 -> 전체 해제
+                        if (allSelected) {
                             deselectMemberBtn(btn);
                             context.tempSelectedMembers = context.tempSelectedMembers.filter(m => m !== memberName);
-                        } else { 
-                            // 일부만 선택되었거나 아무것도 선택 안 됨 -> 전체 선택
+                        } else {
                              if (!btn.classList.contains('bg-blue-600')) {
                                 selectMemberBtn(btn);
                                 if (!context.tempSelectedMembers.includes(memberName)) {
@@ -827,15 +809,31 @@ export function setupMainScreenListeners() {
                     });
                 }
             }
-            
-            // 3. 알바 추가 모달 열기 버튼
+
+            // ✨ [신규] 알바 수정 버튼 클릭 핸들러 추가 (✏️ 아이콘)
+            const editPartTimerBtn = target.closest('.edit-part-timer-btn');
+            if (editPartTimerBtn) {
+                const partTimerId = editPartTimerBtn.dataset.partTimerId;
+                const partTimer = (appState.partTimers || []).find(p => p.id === partTimerId);
+                if (partTimer) {
+                    document.querySelector('#edit-part-timer-modal h2').textContent = '알바 이름 수정';
+                    document.getElementById('part-timer-edit-id').value = partTimer.id;
+                    document.getElementById('part-timer-new-name').value = partTimer.name;
+                    document.getElementById('edit-part-timer-modal').classList.remove('hidden');
+                }
+                return;
+            }
+
+            // ✨ [수정] 알바 추가 모달 열기 버튼 핸들러 수정
              if (target.closest('#add-part-timer-modal-btn')) {
+                document.querySelector('#edit-part-timer-modal h2').textContent = '알바 인원 추가';
+                document.getElementById('part-timer-edit-id').value = '';
                 document.getElementById('part-timer-new-name').value = '';
                 document.getElementById('edit-part-timer-modal').classList.remove('hidden');
+                return;
             }
         });
 
-        // 확인 버튼 (업무 시작)
         const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
         if (confirmTeamSelectBtn) {
              confirmTeamSelectBtn.addEventListener('click', async () => {

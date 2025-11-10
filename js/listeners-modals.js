@@ -67,7 +67,6 @@ import {
     mobileClockOutCancelBtn,
     memberActionModal,
 
-    // ✅ [신규] 그룹 종료 모달 요소 추가
     stopGroupConfirmModal, confirmStopGroupBtn, cancelStopGroupBtn,
 
     generateId,
@@ -134,7 +133,6 @@ const deleteWorkRecordDocuments = async (recordIds) => {
 
 export function setupGeneralModalListeners() {
 
-    // 공통 닫기 버튼 리스너
     document.querySelectorAll('.modal-close-btn, .modal-cancel-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const modal = btn.closest('.modal-overlay, .fixed.inset-0');
@@ -144,13 +142,11 @@ export function setupGeneralModalListeners() {
         });
     });
 
-    // ✅ [복구] 처리량 입력 모달 확인(저장) 버튼
     if (confirmQuantityBtn) {
         confirmQuantityBtn.addEventListener('click', async () => {
             const newQuantities = {};
             const confirmedZeroTasks = [];
 
-            // 입력 필드에서 값 수집
             document.querySelectorAll('#modal-task-quantity-inputs input[type="number"]').forEach(input => {
                 const taskName = input.dataset.task;
                 if (taskName) {
@@ -158,14 +154,12 @@ export function setupGeneralModalListeners() {
                 }
             });
 
-            // '0건 확인' 체크박스 상태 수집
             document.querySelectorAll('#modal-task-quantity-inputs .confirm-zero-checkbox').forEach(checkbox => {
                 if (checkbox.checked) {
                     confirmedZeroTasks.push(checkbox.dataset.task);
                 }
             });
 
-            // 설정된 콜백 실행 (Main 또는 History 로직)
             if (context.quantityModalContext && typeof context.quantityModalContext.onConfirm === 'function') {
                 await context.quantityModalContext.onConfirm(newQuantities, confirmedZeroTasks);
             }
@@ -174,7 +168,6 @@ export function setupGeneralModalListeners() {
         });
     }
 
-    // ✅ [복구] 처리량 입력 모달 취소 버튼
     if (cancelQuantityBtn) {
         cancelQuantityBtn.addEventListener('click', () => {
             if (context.quantityModalContext && typeof context.quantityModalContext.onCancel === 'function') {
@@ -360,76 +353,79 @@ export function setupGeneralModalListeners() {
         });
     }
 
+    // ✨ [수정] 알바 추가/수정 통합 처리 로직
     if (confirmEditPartTimerBtn) {
         confirmEditPartTimerBtn.addEventListener('click', async () => {
             const partTimerId = document.getElementById('part-timer-edit-id').value;
             const newName = document.getElementById('part-timer-new-name').value.trim();
 
-            if (!partTimerId || !newName) {
-                showToast('정보가 누락되었습니다.', true);
-                return;
-            }
-
-            const partTimer = (appState.partTimers || []).find(p => p.id === partTimerId);
-            if (!partTimer) {
-                showToast('수정할 알바 정보를 찾을 수 없습니다.', true);
-                return;
-            }
-
-            const oldName = partTimer.name;
-            if (oldName === newName) {
-                showToast('이름이 변경되지 않았습니다.');
-                document.getElementById('edit-part-timer-modal').classList.add('hidden');
-                return;
+            if (!newName) {
+                showToast('이름을 입력해주세요.', true); return;
             }
 
             const isNameTaken = (appConfig.teamGroups || []).flatMap(g => g.members).includes(newName) ||
                                 (appState.partTimers || []).some(p => p.name === newName && p.id !== partTimerId);
 
             if (isNameTaken) {
-                showToast(`'${newName}'(이)라는 이름은 이미 사용 중입니다.`, true);
-                return;
+                showToast(`'${newName}'(이)라는 이름은 이미 사용 중입니다.`, true); return;
             }
 
-            partTimer.name = newName;
-
-            (appState.workRecords || []).forEach(record => {
-                if (record.member === oldName) {
-                    record.member = newName;
-                }
-            });
-
-            try {
-                const today = getTodayDateString();
-                const workRecordsColRef = collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
-                const q = query(workRecordsColRef, where("member", "==", oldName));
-
-                const querySnapshot = await getDocs(q);
-
-                if (!querySnapshot.empty) {
-                    const batch = writeBatch(db);
-                    querySnapshot.forEach(doc => {
-                        batch.update(doc.ref, { member: newName });
-                    });
-                    await batch.commit();
-                    showToast(`'${oldName}'님의 당일 업무 ${querySnapshot.size}건의 이름도 '${newName}'으로 변경했습니다.`);
-                }
-
+            // 1. 신규 추가 모드 (ID가 비어있음)
+            if (!partTimerId) {
+                const newPartTimer = {
+                    id: generateId(),
+                    name: newName,
+                    wage: appConfig.defaultPartTimerWage || 10000
+                };
+                if (!appState.partTimers) appState.partTimers = [];
+                appState.partTimers.push(newPartTimer);
+                
                 debouncedSaveState();
-                document.getElementById('edit-part-timer-modal').classList.add('hidden');
-                render();
+                renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
+                showToast(`알바 '${newName}'님이 추가되었습니다.`);
+            } 
+            // 2. 기존 수정 모드 (ID가 있음)
+            else {
+                const partTimer = (appState.partTimers || []).find(p => p.id === partTimerId);
+                if (!partTimer) {
+                    showToast('수정할 알바 정보를 찾을 수 없습니다.', true); return;
+                }
+                const oldName = partTimer.name;
+                if (oldName === newName) { // 변경사항 없음
+                     document.getElementById('edit-part-timer-modal').classList.add('hidden'); return;
+                }
 
-            } catch (e) {
-                console.error("알바 이름 변경 중 Firestore 업데이트 실패: ", e);
-                showToast("알바 이름 변경 중 Firestore DB 업데이트에 실패했습니다.", true);
-                partTimer.name = oldName;
+                partTimer.name = newName; // 로컬 상태 업데이트
+
+                // 로컬 업무 기록 이름 변경
                 (appState.workRecords || []).forEach(record => {
-                    if (record.member === newName) {
-                        record.member = oldName;
-                    }
+                    if (record.member === oldName) record.member = newName;
                 });
-                render();
+
+                // Firestore DB 업데이트 (당일 업무 기록)
+                try {
+                    const today = getTodayDateString();
+                    const workRecordsColRef = collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
+                    const q = query(workRecordsColRef, where("member", "==", oldName));
+                    const querySnapshot = await getDocs(q);
+                    if (!querySnapshot.empty) {
+                        const batch = writeBatch(db);
+                        querySnapshot.forEach(doc => batch.update(doc.ref, { member: newName }));
+                        await batch.commit();
+                    }
+                    debouncedSaveState();
+                    showToast(`'${oldName}'님을 '${newName}'(으)로 수정했습니다.`);
+                } catch (e) {
+                    console.error("알바 이름 변경 중 DB 오류: ", e);
+                    showToast("이름 변경 중 DB 저장에 실패했습니다.", true);
+                    // 롤백
+                    partTimer.name = oldName;
+                }
             }
+            
+            // 공통 마무리
+            document.getElementById('edit-part-timer-modal').classList.add('hidden');
+            renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
         });
     }
 
