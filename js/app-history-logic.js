@@ -38,6 +38,9 @@ import {
     query, where, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ✅ [신규] 표준 속도 계산 함수 임포트 (시뮬레이션용)
+import { calculateStandardThroughputs } from './ui-history-reports-logic.js';
+
 
 // ✅ [신규] workRecords 컬렉션 참조 헬퍼
 const getWorkRecordsCollectionRef = () => {
@@ -56,47 +59,46 @@ const _syncTodayToHistory = async () => {
     const todayKey = getTodayDateString();
     const now = getCurrentTime();
 
-    // 1. Firestore의 'daily_data/{today}/workRecords' 컬렉션에서 직접 데이터를 가져옵니다.
-    const workRecordsColRef = getWorkRecordsCollectionRef();
-    let liveWorkRecordsDocs = [];
     try {
-        const querySnapshot = await getDocs(workRecordsColRef);
-        liveWorkRecordsDocs = querySnapshot.docs.map(doc => doc.data());
-    } catch (e) {
-        console.error("Error fetching live work records for sync: ", e);
-        // appState.workRecords (로컬 캐시)를 대신 사용 (차선책)
-        liveWorkRecordsDocs = appState.workRecords || [];
-    }
+        // 1. Firestore에서 최신 workRecords 가져오기
+        const workRecordsColRef = getWorkRecordsCollectionRef();
+        const recordsSnapshot = await getDocs(workRecordsColRef);
+        const liveWorkRecords = recordsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            // 진행 중인 업무의 시간 실시간 계산
+            if (data.status === 'ongoing' || data.status === 'paused') {
+                data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
+                data.endTime = now;
+            }
+            return data;
+        });
 
-    // 2. 로컬 appState (메인 문서)에서 메타데이터를 가져옵니다.
-    const liveWorkRecords = (liveWorkRecordsDocs || []).map(record => {
-        const snapshot = JSON.parse(JSON.stringify(record));
-        if (snapshot.status === 'ongoing' || snapshot.status === 'paused') {
-             snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
-             snapshot.endTime = now;
+        // 2. Firestore에서 최신 메타 데이터(처리량, 근태 등) 가져오기
+        const dailyDocSnap = await getDoc(getDailyDocRef());
+        const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
+
+        // 3. 로컬 캐시용 데이터 구성
+        const liveTodayData = {
+            id: todayKey,
+            workRecords: liveWorkRecords,
+            taskQuantities: dailyData.taskQuantities || {},
+            confirmedZeroTasks: dailyData.confirmedZeroTasks || [],
+            onLeaveMembers: dailyData.onLeaveMembers || [],
+            partTimers: dailyData.partTimers || [],
+            dailyAttendance: dailyData.dailyAttendance || {}
+        };
+
+        // 4. 전역 allHistoryData 배열 갱신
+        const idx = allHistoryData.findIndex(d => d.id === todayKey);
+        if (idx > -1) {
+            allHistoryData[idx] = liveTodayData;
+        } else {
+            allHistoryData.unshift(liveTodayData);
+            allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
         }
-        return snapshot;
-    });
 
-    const liveTodayData = {
-        id: todayKey,
-        workRecords: liveWorkRecords, // ✅ Firestore 스냅샷 사용
-        taskQuantities: JSON.parse(JSON.stringify(appState.taskQuantities || {})),
-        confirmedZeroTasks: JSON.parse(JSON.stringify(appState.confirmedZeroTasks || [])),
-        onLeaveMembers: [
-            ...(JSON.parse(JSON.stringify(appState.dailyOnLeaveMembers || []))),
-            ...(JSON.parse(JSON.stringify(appState.dateBasedOnLeaveMembers || [])))
-        ],
-        partTimers: JSON.parse(JSON.stringify(appState.partTimers || []))
-    };
-
-    // 3. 전역 allHistoryData 배열(이력 보기 모달용)에 최신 데이터를 반영합니다.
-    const idx = allHistoryData.findIndex(d => d.id === todayKey);
-    if (idx > -1) {
-        allHistoryData[idx] = liveTodayData;
-    } else {
-        allHistoryData.unshift(liveTodayData);
-        allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
+    } catch (e) {
+        console.error("Error syncing today to history cache: ", e);
     }
 };
 
@@ -133,80 +135,66 @@ export const checkMissingQuantities = (dayData) => {
 };
 
 
-// ✅ [수정] Firestore에서 workRecords를 읽어와 history에 저장 (async 추가)
+// ✅ [핵심 수정] appState 의존성 완전 제거: 모든 데이터를 Firestore에서 직접 읽어 저장
 export async function saveProgress(isAutoSave = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
 
     if (!isAutoSave) {
-        showToast('현재 상태를 이력에 저장합니다...');
+        showToast('서버의 최신 상태를 이력에 저장합니다...');
     }
 
     const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
 
     try {
-        // 1. Firestore 'daily_data'에서 최신 workRecords 스냅샷을 가져옵니다.
+        // 1. [Firestore Read] 'daily_data/{today}' 메인 문서 읽기 (메타 데이터)
+        const dailyDocSnap = await getDoc(getDailyDocRef());
+        const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
+
+        // 2. [Firestore Read] 'daily_data/{today}/workRecords' 컬렉션 읽기 (업무 기록)
         const workRecordsColRef = getWorkRecordsCollectionRef();
-        const querySnapshot = await getDocs(workRecordsColRef);
-        const liveWorkRecordsDocs = querySnapshot.docs.map(doc => doc.data());
-
-        const allRecordsSnapshot = (liveWorkRecordsDocs || []).map(record => {
-            const snapshot = JSON.parse(JSON.stringify(record));
-            if (snapshot.status === 'ongoing' || snapshot.status === 'paused') {
-                snapshot.duration = calcElapsedMinutes(snapshot.startTime, now, snapshot.pauses);
-                snapshot.endTime = now;
+        const recordsSnapshot = await getDocs(workRecordsColRef);
+        const liveWorkRecords = recordsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            // 진행 중인 업무는 현재 시간 기준으로 duration 계산하여 스냅샷 저장
+            if (data.status === 'ongoing' || data.status === 'paused') {
+                data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
+                data.endTime = now;
             }
-            return snapshot;
+            return data;
         });
 
-        // 2. 로컬 appState에서 메타데이터를 가져옵니다.
-        const currentQuantities = {};
-        for (const task in (appState.taskQuantities || {})) {
-            const q = Number(appState.taskQuantities[task]);
-            if (!Number.isNaN(q) && q >= 0) {
-                currentQuantities[task] = q;
-            }
-        }
-        const currentConfirmedZero = appState.confirmedZeroTasks || [];
-        const currentLeaveMembersCombined = [
-            ...(appState.dailyOnLeaveMembers || []),
-            ...(appState.dateBasedOnLeaveMembers || [])
-        ];
-        const currentPartTimers = appState.partTimers || [];
-
-        if (allRecordsSnapshot.length === 0 && Object.keys(currentQuantities).length === 0 && currentLeaveMembersCombined.length === 0 && currentPartTimers.length === 0) {
-            const docSnap = await getDoc(historyDocRef);
-            if(docSnap.exists()) {
-                await deleteDoc(historyDocRef);
-                console.log(`History doc ${dateStr} deleted as it's empty.`);
-            }
-            return;
+        // 데이터가 아예 없으면 빈 이력 생성 방지
+        if (liveWorkRecords.length === 0 && Object.keys(dailyData.taskQuantities || {}).length === 0) {
+             // 필요 시 빈 문서 삭제 로직 추가 가능
+             return;
         }
 
-        // 3. 트랜잭션으로 'history' 문서에 *덮어쓰기*
-        await runTransaction(db, async (transaction) => {
-            const dataToSave = {
-                id: dateStr,
-                workRecords: allRecordsSnapshot,
-                taskQuantities: currentQuantities,
-                confirmedZeroTasks: currentConfirmedZero,
-                onLeaveMembers: currentLeaveMembersCombined,
-                partTimers: currentPartTimers
-            };
-            transaction.set(historyDocRef, dataToSave);
-        });
+        // 3. [Firestore Write] 읽어온 최신 데이터로 이력 문서 덮어쓰기
+        const historyData = {
+            id: dateStr,
+            workRecords: liveWorkRecords,
+            taskQuantities: dailyData.taskQuantities || {},
+            confirmedZeroTasks: dailyData.confirmedZeroTasks || [],
+            onLeaveMembers: dailyData.onLeaveMembers || [],
+            partTimers: dailyData.partTimers || [],
+            dailyAttendance: dailyData.dailyAttendance || {},
+            savedAt: now // 저장 시각 기록
+        };
 
-        // 4. 로컬 'allHistoryData' 캐시도 동기화
+        await setDoc(historyDocRef, historyData);
+
+        // 4. 로컬 캐시 동기화
         await _syncTodayToHistory();
 
         if (isAutoSave) {
-            console.log(`Auto-save to history completed at ${now}`);
+            console.log(`Auto-save (server-authoritative) completed at ${now}`);
         } else {
-            showToast('현재 상태가 이력에 저장되었습니다.');
+            showToast('최신 상태가 이력에 안전하게 저장되었습니다.');
         }
 
     } catch (e) {
-        console.error('Error in saveProgress via transaction: ', e);
+        console.error('Error in saveProgress (server-authoritative): ', e);
         if (!isAutoSave) {
              showToast(`이력 저장 중 오류가 발생했습니다: ${e.message}`, true);
         }
@@ -219,12 +207,11 @@ export async function saveDayDataToHistory(shouldReset) {
     const endTime = getCurrentTime();
 
     try {
-        // 1. '진행 중(ongoing)' 또는 '일시정지(paused)' 상태인 모든 업무를 Firestore에서 직접 찾습니다.
+        // 1. '진행 중' 또는 '일시정지'인 업무를 Firestore에서 직접 찾아서 강제 종료
         const q = query(workRecordsColRef, where('status', 'in', ['ongoing', 'paused']));
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
-            // 2. 진행 중인 업무가 있다면 모두 'completed'로 강제 종료합니다.
             const batch = writeBatch(db);
             querySnapshot.forEach(docSnap => {
                 const record = docSnap.data();
@@ -252,13 +239,13 @@ export async function saveDayDataToHistory(shouldReset) {
          showToast("업무 마감 중 진행 업무 종료 실패. (이력 저장은 계속 진행합니다)", true);
     }
 
-    // 3. (약간의 딜레이 후) 'history' 컬렉션에 최종 스냅샷 저장
+    // 3. (약간의 딜레이 후) 최신 상태를 이력에 저장
     await new Promise(resolve => setTimeout(resolve, 500));
     await saveProgress(false);
 
-    // 4. 초기화 (shouldReset === true)
+    // 4. 초기화 (필요 시)
     if (shouldReset) {
-        try {
+         try {
             const qAll = query(workRecordsColRef);
             const snapshotAll = await getDocs(qAll);
             if (!snapshotAll.empty) {
@@ -266,22 +253,17 @@ export async function saveDayDataToHistory(shouldReset) {
                 snapshotAll.forEach(doc => deleteBatch.delete(doc.ref));
                 await deleteBatch.commit();
             }
+             // 메인 데일리 문서 초기화
+             await setDoc(getDailyDocRef(), { state: '{}' });
         } catch (e) {
-             console.error("Error clearing workRecords: ", e);
+             console.error("Error clearing daily data: ", e);
         }
-
-        // 로컬 상태 초기화
+        
         appState.workRecords = [];
-        Object.keys(appState.taskQuantities || {}).forEach(k => appState.taskQuantities[k] = 0);
-        appState.confirmedZeroTasks = [];
-        appState.dailyAttendance = {};
-        // ... 기타 초기화 ...
-        await saveStateToFirestore();
         showToast('오늘의 업무 기록을 초기화했습니다.');
     }
 }
 
-// ... (fetchAllHistoryData 함수는 변경 없음) ...
 export async function fetchAllHistoryData() {
     const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
     try {
@@ -307,13 +289,12 @@ export async function fetchAllHistoryData() {
     }
 }
 
-// ✅ [수정] async 추가, await _syncTodayToHistory() 호출
 export const loadAndRenderHistoryList = async () => {
     if (!historyDateList) return;
     historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
 
     await fetchAllHistoryData();
-    await _syncTodayToHistory(); // ✅ [수정] await 추가
+    await _syncTodayToHistory();
 
     if (allHistoryData.length === 0) {
         historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
@@ -367,16 +348,14 @@ export const loadAndRenderHistoryList = async () => {
     context.reportSortState = {};
     context.currentReportParams = null;
 
-    // ✅ [수정] await 추가
     await renderHistoryDateListByMode('day');
 };
 
-// ✅ [수정] async 추가, await _syncTodayToHistory() 호출
 export const renderHistoryDateListByMode = async (mode = 'day') => {
     if (!historyDateList) return;
     historyDateList.innerHTML = '';
 
-    await _syncTodayToHistory(); // ✅ [수정] await 추가
+    await _syncTodayToHistory();
 
     const filteredData = (context.historyStartDate || context.historyEndDate)
         ? allHistoryData.filter(d => {
@@ -441,47 +420,10 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
 
     const firstButton = historyDateList.firstChild?.querySelector('button');
     if (firstButton) {
-        firstButton.classList.add('bg-blue-100', 'font-bold');
-        const key = firstButton.dataset.key;
-
-        context.reportSortState = {};
-
-        if (context.activeMainHistoryTab === 'work') {
-            if (mode === 'day') {
-                const currentIndex = filteredData.findIndex(d => d.id === key);
-                const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length)
-                    ? filteredData[currentIndex + 1]
-                    : null;
-                renderHistoryDetail(key, previousDayData);
-            } else if (mode === 'week') {
-                renderWeeklyHistory(key, filteredData, appConfig);
-            } else if (mode === 'month') {
-                renderMonthlyHistory(key, filteredData, appConfig);
-            }
-        } else if (context.activeMainHistoryTab === 'attendance') {
-             if (mode === 'day') {
-                renderAttendanceDailyHistory(key, filteredData);
-            } else if (mode === 'week') {
-                renderAttendanceWeeklyHistory(key, filteredData);
-            } else if (mode === 'month') {
-                renderAttendanceMonthlyHistory(key, filteredData);
-            }
-        }
-        else if (context.activeMainHistoryTab === 'report') {
-            if (mode === 'day') {
-                renderReportDaily(key, filteredData, appConfig, context);
-            } else if (mode === 'week') {
-                renderReportWeekly(key, filteredData, appConfig, context);
-            } else if (mode === 'month') {
-                renderReportMonthly(key, filteredData, appConfig, context);
-            } else if (mode === 'year') {
-                renderReportYearly(key, filteredData, appConfig, context);
-            }
-        }
+        firstButton.click();
     }
 };
 
-// ... (openHistoryQuantityModal, renderHistoryDetail, requestHistoryDeletion 함수는 변경 없음) ...
 export const openHistoryQuantityModal = (dateKey) => {
     const todayDateString = getTodayDateString();
 
@@ -537,21 +479,16 @@ export const openHistoryQuantityModal = (dateKey) => {
 
             // 3. 만약 오늘 날짜라면 메인 앱 'daily_data' 문서도 즉시 동기화
             if (dateKey === getTodayDateString()) {
-                appState.taskQuantities = newQuantities;
-                appState.confirmedZeroTasks = confirmedZeroTasks;
-                // ✅ 메인 문서 저장
-                await saveStateToFirestore();
-                // ⛔️ render(); // 제거 (onSnapshot이 처리)
+                 const dailyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+                 await setDoc(dailyDocRef, { taskQuantities: newQuantities, confirmedZeroTasks: confirmedZeroTasks }, { merge: true });
             }
 
-            // 4. 이력 보기 화면 갱신
             if (historyModal && !historyModal.classList.contains('hidden')) {
-                // 현재 보고 있는 탭(일/주/월 등) 유지
                 const activeSubTabBtn = document.querySelector('#history-tabs button.font-semibold')
                                      || document.querySelector('#report-tabs button.font-semibold');
                 const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
 
-                await switchHistoryView(currentView); // ✅ [수정] await 추가
+                await switchHistoryView(currentView);
             }
 
         } catch (e) {
@@ -931,4 +868,36 @@ export const switchHistoryView = async (view) => {
         tabToActivate.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
         tabToActivate.classList.remove('text-gray-500');
     }
+};
+
+// ✅ [신규] 인건비 시뮬레이션 계산 로직 (export 필수)
+export const calculateSimulation = (task, targetQty, workerCount, appConfig, historyData) => {
+    if (!task || targetQty <= 0 || workerCount <= 0) {
+        return { error: "모든 값을 올바르게 입력해주세요." };
+    }
+
+    // 1. 과거 이력 기반 표준 속도(인당 분당 처리량) 계산
+    const standards = calculateStandardThroughputs(historyData);
+    const speedPerPerson = standards[task] || 0; // (개/분/인)
+
+    if (speedPerPerson <= 0) {
+        return { error: "해당 업무의 과거 이력 데이터가 부족하여 예측할 수 없습니다." };
+    }
+
+    // 2. 예상 소요 시간 계산 (분)
+    // 총 필요 인력분 = 목표수량 / 인당속도
+    // 실제 소요시간 = 총 필요 인력분 / 투입인원
+    const totalManMinutes = targetQty / speedPerPerson;
+    const durationMinutes = totalManMinutes / workerCount;
+
+    // 3. 예상 총 인건비 계산 (원)
+    // 총 인건비 = 총 필요 인력분 * (분당 평균 임금)
+    const avgWagePerMinute = (appConfig.defaultPartTimerWage || 10000) / 60;
+    const totalCost = totalManMinutes * avgWagePerMinute;
+
+    return {
+        durationMinutes,
+        totalCost,
+        speed: speedPerPerson
+    };
 };
