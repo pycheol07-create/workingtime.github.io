@@ -70,7 +70,8 @@ const _renderTooltip = (metricKey) => {
 
 // ✅ [수정] benchmarkOEE 인자 추가 및 렌더링 로직 개선
 const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, benchmarkOEE) => {
-    if (!tMetrics.staffing || ['기록'].includes(periodText)) return '';
+    // ✨ [수정] ['기록'].includes(periodText) 제한 제거 -> 일별 리포트에서도 표시됨
+    if (!tMetrics.staffing) return '';
 
     const {
         utilizationRate, efficiencyRatio, qualityRatio, oee,
