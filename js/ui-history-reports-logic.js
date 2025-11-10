@@ -5,8 +5,9 @@ import { formatDuration, isWeekday, getWeekOfYear } from './utils.js';
 // ================== [ 1. 헬퍼 함수 ] ==================
 
 export const getDiffHtmlForMetric = (metric, current, previous) => {
-    const currValue = current || 0;
-    const prevValue = previous || 0;
+    // ✅ [수정] 입력값을 강제로 숫자로 변환하여 타입 오류 방지
+    const currValue = Number(current) || 0;
+    const prevValue = Number(previous) || 0;
 
     if (prevValue === 0) {
         if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
@@ -20,25 +21,30 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
 
     let colorClass = 'text-gray-500';
-    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee', 'availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
+    // 긍정적인 지표 (높을수록 좋음)
+    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee', 'qualityFTE'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     }
-    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'activeMembersCount', 'coqPercentage', 'theoreticalRequiredStaff', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost'].includes(metric)) {
+    // 부정적인 지표 (낮을수록 좋음)
+    else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'coqPercentage', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost'].includes(metric)) {
         colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
     }
 
     let diffStr = '';
     let prevStr = '';
+
+    // 포맷팅
     if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration' || metric === 'nonWorkTime') {
         diffStr = formatDuration(Math.abs(diff));
         prevStr = formatDuration(prevValue);
-    } else if (['avgStaff', 'avgCostPerItem', 'quantity', 'totalQuantity', 'totalCost', 'overallAvgCostPerItem', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost'].includes(metric)) {
+    } else if (['avgStaff', 'avgCostPerItem', 'quantity', 'totalQuantity', 'totalCost', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost'].includes(metric)) {
         diffStr = Math.round(Math.abs(diff)).toLocaleString();
         prevStr = Math.round(prevValue).toLocaleString();
     } else if (['availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
         diffStr = Math.abs(diff).toFixed(1) + ' FTE';
         prevStr = prevValue.toFixed(1) + ' FTE';
     } else {
+        // 기타 실수형 지표 (비율 등)
         diffStr = Math.abs(diff).toFixed(1);
         prevStr = prevValue.toFixed(1);
     }
@@ -119,7 +125,7 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
     let totalQualityCost = 0;
 
     records.forEach(r => {
-        const duration = r.duration || 0;
+        const duration = Number(r.duration) || 0;
         const cost = (duration / 60) * (wageMap[r.member] || 0);
 
         totalDuration += duration;
@@ -169,7 +175,7 @@ export const calculateReportAggregations = (data, appConfig, wageMap, memberToPa
 
     records.forEach(r => {
         if (!r || !r.task) return;
-        const duration = r.duration || 0;
+        const duration = Number(r.duration) || 0;
         const wage = wageMap[r.member] || 0;
         const cost = (duration / 60) * wage;
         const part = memberToPartMap.get(r.member) || '알바';
@@ -249,9 +255,10 @@ export const calculateStandardThroughputs = (allHistoryData) => {
         const quantities = day.taskQuantities || {};
 
         records.forEach(r => {
-            if (r.task && r.duration > 0) {
+            const duration = Number(r.duration) || 0;
+            if (r.task && duration > 0) {
                 if (!totals[r.task]) totals[r.task] = { duration: 0, quantity: 0 };
-                totals[r.task].duration += r.duration;
+                totals[r.task].duration += duration;
             }
         });
 
@@ -267,6 +274,7 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     const standards = {};
     Object.keys(totals).forEach(task => {
         const t = totals[task];
+        // 최소 데이터 기준 (예: 누적 60분 이상)
         if (t.duration > 60 && t.quantity > 0) {
             standards[task] = t.quantity / t.duration; // (개/분)
         }
@@ -274,29 +282,20 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     return standards;
 };
 
-// ✅ [신규] 최근 30일 OEE 평균 계산
 export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
     if (!allHistoryData || allHistoryData.length === 0) return null;
-
-    // 최근 30일 데이터 필터링 (역순 정렬 후 상위 30개)
     const recentData = [...allHistoryData].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 30);
     if (recentData.length === 0) return null;
 
     let totalOEE = 0;
     let validDays = 0;
-    const standardThroughputs = calculateStandardThroughputs(allHistoryData); // 전체 이력 기준 표준 속도
+    const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
     recentData.forEach(day => {
-         // WageMap 생성 (임시)
         const wageMap = { ...(appConfig.memberWages || {}) };
         (day.partTimers || []).forEach(pt => { if (pt && pt.name && !wageMap[pt.name]) wageMap[pt.name] = pt.wage || 0; });
-        
-        // 일별 집계
-        const dayAggr = calculateReportAggregations(day, appConfig, wageMap, new Map()); // memberToPartMap은 OEE 계산에 불필요
-        
-        // 고급 생산성 계산
+        const dayAggr = calculateReportAggregations(day, appConfig, wageMap, new Map());
         const productivity = calculateAdvancedProductivity([day], dayAggr, standardThroughputs, appConfig, wageMap);
-        
         if (productivity.oee > 0) {
             totalOEE += productivity.oee;
             validDays++;
@@ -362,7 +361,6 @@ export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, current
     };
 };
 
-// ✅ [수정] 손실 요인(Drill-down) 계산 로직 추가
 export const calculateAdvancedProductivity = (daysData, currentDataAggr, standardThroughputs, appConfig, wageMap) => {
     let totalStandardAvailableMinutes = 0;
     let totalActualWorkedMinutes = 0;
@@ -400,18 +398,15 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
         const actualQty = summary.quantity || 0;
         const stdSpeed = standardThroughputs[task];
         
-        // 1. 표준 시간 계산
         let standardMinutes = 0;
         if (actualQty > 0 && stdSpeed > 0) {
             standardMinutes = (actualQty / stdSpeed);
             totalStandardMinutesNeeded += standardMinutes;
         } else if (summary.duration > 0) {
-             // 표준 속도가 없는 경우, 실제 시간을 표준으로 가정 (손실 0)
             standardMinutes = summary.duration;
             totalStandardMinutesNeeded += summary.duration;
         }
 
-        // 2. 속도 저하 손실(분) 계산 및 수집
         if (stdSpeed > 0 && summary.duration > standardMinutes) {
              taskPerformanceLosses.push({
                  task: task,
@@ -421,7 +416,6 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
              });
         }
 
-        // 3. 품질 손실(비용) 수집
         if (qualityTasksStr.has(task) && summary.cost > 0) {
             qualityLossTasks.push({ task: task, cost: summary.cost });
         }
@@ -446,7 +440,6 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
     const qualityLossCost = totalQualityCost;
     const totalLossCost = availabilityLossCost + performanceLossCost + qualityLossCost;
 
-    // 상위 3개 손실 요인 추출
     const topPerformanceLossTasks = taskPerformanceLosses.sort((a, b) => b.lossMinutes - a.lossMinutes).slice(0, 3);
     const topQualityLossTasks = qualityLossTasks.sort((a, b) => b.cost - a.cost).slice(0, 3);
 
@@ -455,7 +448,7 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
         availableFTE, workedFTE, requiredFTE, qualityFTE,
         totalLossCost, availabilityLossCost, performanceLossCost, qualityLossCost,
         totalStandardAvailableMinutes, totalActualWorkedMinutes, totalStandardMinutesNeeded,
-        topPerformanceLossTasks, topQualityLossTasks, avgCostPerMinute // Drill-down용 데이터 추가
+        topPerformanceLossTasks, topQualityLossTasks, avgCostPerMinute
     };
 };
 
@@ -494,7 +487,6 @@ export const PRODUCTIVITY_METRIC_DESCRIPTIONS = {
     }
 };
 
-// ✅ [수정] 벤치마크 비교 코멘트 추가
 export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE = null) => {
     if (!metrics) return null;
     const { utilizationRate, efficiencyRatio, qualityRatio, oee } = metrics;
@@ -536,7 +528,6 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
     if (oee >= 85) comments.push(`종합적으로 <strong>매우 우수한 생산성(OEE ${oee.toFixed(0)}%)</strong>을 기록했습니다. 👏`);
     else if (oee <= 60) comments.push(`전반적인 생산성 지표가 낮습니다. <strong>가장 큰 손실 요인(${utilizationRate < 80 ? '대기시간' : (efficiencyRatio < 90 ? '속도저하' : '품질이슈')})</strong>부터 개선하는 것이 좋습니다.`);
 
-    // ✨ 벤치마크 비교 코멘트 추가
     if (benchmarkOEE !== null && benchmarkOEE > 0) {
         const diff = oee - benchmarkOEE;
         if (diff >= 5) {
