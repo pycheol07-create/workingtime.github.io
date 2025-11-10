@@ -193,6 +193,18 @@ export const adminClockOutBtn = document.getElementById('admin-clock-out-btn');
 export const adminCancelClockOutBtn = document.getElementById('admin-cancel-clock-out-btn');
 export const openLeaveModalBtn = document.getElementById('open-leave-modal-btn');
 
+// ✅ [신규] 인건비 시뮬레이션 모달 관련 요소 추가
+export const costSimulationModal = document.getElementById('cost-simulation-modal');
+export const openCostSimulationBtn = document.getElementById('open-cost-simulation-btn');
+export const simTaskSelect = document.getElementById('sim-task-select');
+export const simTargetQuantityInput = document.getElementById('sim-target-quantity');
+export const simWorkerCountInput = document.getElementById('sim-worker-count');
+export const simCalculateBtn = document.getElementById('sim-calculate-btn');
+export const simResultContainer = document.getElementById('sim-result-container');
+export const simResultDuration = document.getElementById('sim-result-duration');
+export const simResultCost = document.getElementById('sim-result-cost');
+export const simResultSpeed = document.getElementById('sim-result-speed');
+
 
 // Firebase/App State
 export let db, auth;

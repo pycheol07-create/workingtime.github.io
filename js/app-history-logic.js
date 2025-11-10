@@ -45,6 +45,11 @@ const getWorkRecordsCollectionRef = () => {
     return collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
 };
 
+// ✅ [신규] 메인 데일리 문서 참조 헬퍼
+const getDailyDocRef = () => {
+    return doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+};
+
 
 // ✅ [수정] Firestore에서 직접 데이터를 읽어와 동기화 (async 추가)
 const _syncTodayToHistory = async () => {
@@ -818,13 +823,11 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     view.innerHTML = html;
 };
 
-// ... (requestHistoryDeletion 함수는 변경 없음) ...
 export const requestHistoryDeletion = (dateKey) => {
     context.historyKeyToDelete = dateKey;
     if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
 };
 
-// ✅ [수정] async 추가, await renderHistoryDateListByMode() 호출
 export const switchHistoryView = async (view) => {
     const allViews = [
         document.getElementById('history-daily-view'),
@@ -921,7 +924,6 @@ export const switchHistoryView = async (view) => {
             break;
     }
 
-    // ✅ [수정] await 추가
     await renderHistoryDateListByMode(listMode);
 
     if (viewToShow) viewToShow.classList.remove('hidden');

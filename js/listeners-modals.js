@@ -1,3 +1,4 @@
+// === js/listeners-modals.js ===
 import {
     appState, appConfig, db, auth,
     context,
@@ -74,14 +75,20 @@ import {
     debouncedSaveState,
     render,
     persistentLeaveSchedule,
-    allHistoryData
+    allHistoryData, // 이력 데이터 필요
+
+    // ✅ [신규] 시뮬레이션 관련 DOM 요소 import
+    costSimulationModal, openCostSimulationBtn, simTaskSelect,
+    simTargetQuantityInput, simWorkerCountInput, simCalculateBtn,
+    simResultContainer, simResultDuration, simResultCost, simResultSpeed
 } from './app.js';
 
-import { getTodayDateString, getCurrentTime, formatTimeTo24H, showToast, calcElapsedMinutes } from './utils.js';
+import { getTodayDateString, getCurrentTime, formatTimeTo24H, showToast, calcElapsedMinutes, formatDuration } from './utils.js';
 
 import {
     renderTaskSelectionModal,
     renderTeamSelectionModalContent,
+    renderLeaveTypeModalOptions
 } from './ui-modals.js';
 
 import {
@@ -89,11 +96,12 @@ import {
     addMembersToWorkGroup,
     finalizeStopGroup,
     stopWorkIndividual,
+    processClockIn,
     processClockOut,
     cancelClockOut
 } from './app-logic.js';
 
-import { saveProgress, saveDayDataToHistory, switchHistoryView } from './app-history-logic.js';
+import { saveProgress, saveDayDataToHistory, switchHistoryView, calculateSimulation } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -141,6 +149,56 @@ export function setupGeneralModalListeners() {
             }
         });
     });
+
+    // ✅ [신규] 인건비 시뮬레이션 모달 열기
+    if (openCostSimulationBtn) {
+        openCostSimulationBtn.addEventListener('click', () => {
+            // 1. 모달 초기화
+            if (simResultContainer) simResultContainer.classList.add('hidden');
+            if (simTargetQuantityInput) simTargetQuantityInput.value = '';
+            if (simWorkerCountInput) simWorkerCountInput.value = '';
+
+            // 2. 업무 선택 드롭다운 채우기 (처리량 집계 대상 업무만)
+            if (simTaskSelect) {
+                simTaskSelect.innerHTML = '<option value="">업무 선택</option>';
+                (appConfig.quantityTaskTypes || []).sort().forEach(task => {
+                    const option = document.createElement('option');
+                    option.value = task;
+                    option.textContent = task;
+                    simTaskSelect.appendChild(option);
+                });
+            }
+
+            // 3. 모달 표시
+            if (costSimulationModal) costSimulationModal.classList.remove('hidden');
+            // 메뉴 닫기
+            const menuDropdown = document.getElementById('menu-dropdown');
+            if (menuDropdown) menuDropdown.classList.add('hidden');
+        });
+    }
+
+    // ✅ [신규] 시뮬레이션 계산 실행
+    if (simCalculateBtn) {
+        simCalculateBtn.addEventListener('click', () => {
+            const task = simTaskSelect.value;
+            const qty = Number(simTargetQuantityInput.value);
+            const workers = Number(simWorkerCountInput.value);
+
+            // 1. 계산 실행
+            const result = calculateSimulation(task, qty, workers, appConfig, allHistoryData);
+
+            // 2. 결과 표시
+            if (result.error) {
+                showToast(result.error, true);
+                if (simResultContainer) simResultContainer.classList.add('hidden');
+            } else {
+                if (simResultDuration) simResultDuration.textContent = formatDuration(result.durationMinutes);
+                if (simResultCost) simResultCost.textContent = `약 ${Math.round(result.totalCost).toLocaleString()}원`;
+                if (simResultSpeed) simResultSpeed.textContent = result.speed.toFixed(2);
+                if (simResultContainer) simResultContainer.classList.remove('hidden');
+            }
+        });
+    }
 
     if (confirmQuantityBtn) {
         confirmQuantityBtn.addEventListener('click', async () => {
@@ -353,7 +411,6 @@ export function setupGeneralModalListeners() {
         });
     }
 
-    // ✨ [수정] 알바 추가/수정 통합 처리 로직
     if (confirmEditPartTimerBtn) {
         confirmEditPartTimerBtn.addEventListener('click', async () => {
             const partTimerId = document.getElementById('part-timer-edit-id').value;
@@ -370,7 +427,6 @@ export function setupGeneralModalListeners() {
                 showToast(`'${newName}'(이)라는 이름은 이미 사용 중입니다.`, true); return;
             }
 
-            // 1. 신규 추가 모드 (ID가 비어있음)
             if (!partTimerId) {
                 const newPartTimer = {
                     id: generateId(),
@@ -383,26 +439,22 @@ export function setupGeneralModalListeners() {
                 debouncedSaveState();
                 renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
                 showToast(`알바 '${newName}'님이 추가되었습니다.`);
-            } 
-            // 2. 기존 수정 모드 (ID가 있음)
-            else {
+            } else {
                 const partTimer = (appState.partTimers || []).find(p => p.id === partTimerId);
                 if (!partTimer) {
                     showToast('수정할 알바 정보를 찾을 수 없습니다.', true); return;
                 }
                 const oldName = partTimer.name;
-                if (oldName === newName) { // 변경사항 없음
+                if (oldName === newName) {
                      document.getElementById('edit-part-timer-modal').classList.add('hidden'); return;
                 }
 
-                partTimer.name = newName; // 로컬 상태 업데이트
+                partTimer.name = newName;
 
-                // 로컬 업무 기록 이름 변경
                 (appState.workRecords || []).forEach(record => {
                     if (record.member === oldName) record.member = newName;
                 });
 
-                // Firestore DB 업데이트 (당일 업무 기록)
                 try {
                     const today = getTodayDateString();
                     const workRecordsColRef = collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
@@ -418,12 +470,9 @@ export function setupGeneralModalListeners() {
                 } catch (e) {
                     console.error("알바 이름 변경 중 DB 오류: ", e);
                     showToast("이름 변경 중 DB 저장에 실패했습니다.", true);
-                    // 롤백
                     partTimer.name = oldName;
                 }
             }
-            
-            // 공통 마무리
             document.getElementById('edit-part-timer-modal').classList.add('hidden');
             renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
         });
