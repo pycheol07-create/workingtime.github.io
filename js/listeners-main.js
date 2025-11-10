@@ -837,7 +837,7 @@ export function setupMainScreenListeners() {
                 return;
             }
 
-            // ✨ [수정] 알바 삭제 버튼 클릭 핸들러 (🗑️ 아이콘) - 즉시 삭제
+            // ✨ [수정] 알바 삭제 버튼 클릭 핸들러 (🗑️ 아이콘) - 즉시 삭제 (확인 팝업 제거)
             const deletePartTimerBtn = target.closest('.delete-part-timer-btn');
             if (deletePartTimerBtn) {
                 const partTimerId = deletePartTimerBtn.dataset.partTimerId;
@@ -896,21 +896,33 @@ export function setupMainScreenListeners() {
             }
         });
 
-        // 확인 버튼 (업무 시작)
+        // 확인 버튼 (업무 시작) - ✨ 중복 클릭 방지 로직 추가
         const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
         if (confirmTeamSelectBtn) {
-             confirmTeamSelectBtn.addEventListener('click', async () => {
+             confirmTeamSelectBtn.addEventListener('click', async (e) => {
                 if (context.tempSelectedMembers.length === 0) {
                     showToast('최소 1명 이상의 팀원을 선택해주세요.', true);
                     return;
                 }
 
-                if (context.selectedGroupForAdd) {
-                    await addMembersToWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart, context.selectedGroupForAdd);
-                } else {
-                    await startWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart);
+                const btn = e.currentTarget;
+                btn.disabled = true;
+                btn.textContent = '처리 중...';
+
+                try {
+                    if (context.selectedGroupForAdd) {
+                        await addMembersToWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart, context.selectedGroupForAdd);
+                    } else {
+                        await startWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart);
+                    }
+                    teamSelectModal.classList.add('hidden');
+                } catch (error) {
+                    console.error("업무 시작 중 오류:", error);
+                    showToast("오류가 발생했습니다. 다시 시도해주세요.", true);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = '선택 완료 및 업무 시작';
                 }
-                teamSelectModal.classList.add('hidden');
              });
         }
     }
