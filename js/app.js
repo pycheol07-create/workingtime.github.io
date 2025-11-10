@@ -192,7 +192,7 @@ export const adminClockOutBtn = document.getElementById('admin-clock-out-btn');
 export const adminCancelClockOutBtn = document.getElementById('admin-cancel-clock-out-btn');
 export const openLeaveModalBtn = document.getElementById('open-leave-modal-btn');
 
-// ✅ [신규] 인건비 시뮬레이션 모달 관련 요소 추가
+// ✅ [신규] 인건비 시뮬레이션 모달 관련 요소 추가 (확장됨)
 export const costSimulationModal = document.getElementById('cost-simulation-modal');
 export const openCostSimulationBtn = document.getElementById('open-cost-simulation-btn');
 export const simTaskSelect = document.getElementById('sim-task-select');
@@ -200,7 +200,10 @@ export const simTargetQuantityInput = document.getElementById('sim-target-quanti
 export const simWorkerCountInput = document.getElementById('sim-worker-count');
 export const simCalculateBtn = document.getElementById('sim-calculate-btn');
 export const simResultContainer = document.getElementById('sim-result-container');
-// ✨ [추가됨] 확장 기능용 DOM 요소
+export const simResultDuration = document.getElementById('sim-result-duration');
+export const simResultCost = document.getElementById('sim-result-cost');
+export const simResultSpeed = document.getElementById('sim-result-speed');
+// ✨ 추가된 DOM 요소들
 export const simModeRadios = document.getElementsByName('sim-mode');
 export const simInputWorkerGroup = document.getElementById('sim-input-worker-group');
 export const simInputDurationGroup = document.getElementById('sim-input-duration-group');
@@ -210,11 +213,12 @@ export const simAddComparisonBtn = document.getElementById('sim-add-to-compare-b
 export const simComparisonContainer = document.getElementById('sim-comparison-container');
 export const simComparisonTbody = document.getElementById('sim-comparison-tbody');
 export const simClearComparisonBtn = document.getElementById('sim-clear-comparison-btn');
-// 결과 표시용 레이블/값 요소 (가변적)
 export const simResultLabel1 = document.getElementById('sim-result-label-1');
 export const simResultValue1 = document.getElementById('sim-result-value-1');
-export const simResultCost = document.getElementById('sim-result-cost');
-export const simResultSpeed = document.getElementById('sim-result-speed');
+export const simBottleneckContainer = document.getElementById('sim-bottleneck-container');
+export const simBottleneckTbody = document.getElementById('sim-bottleneck-tbody');
+export const simChartContainer = document.getElementById('sim-chart-container');
+export const simInputArea = document.getElementById('sim-input-area');
 
 
 // Firebase/App State
@@ -298,6 +302,7 @@ export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase()
 // Core Functions
 
 // ✅ [신규/핵심] 원자적 업데이트를 위한 새로운 저장 함수
+// 기존 saveStateToFirestore 대체용. 필요한 필드만 부분 업데이트합니다.
 export async function updateDailyData(updates) {
     if (!auth || !auth.currentUser) {
         console.warn('Cannot update daily data: User not authenticated.');
@@ -306,6 +311,7 @@ export async function updateDailyData(updates) {
 
     try {
         const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+        // setDoc({ ... }, { merge: true })를 사용하여 문서가 없으면 생성하고, 있으면 병합합니다.
         await setDoc(docRef, updates, { merge: true });
 
     } catch (error) {
@@ -315,7 +321,10 @@ export async function updateDailyData(updates) {
 }
 
 // [레거시 호환] 기존 saveStateToFirestore 유지 (점진적 교체)
+// 이제 내부적으로 updateDailyData를 호출하여 새로운 구조로 저장하도록 유도합니다.
 export async function saveStateToFirestore() {
+    // 기존에는 모든 상태를 JSON으로 묶었지만, 이제는 개별 필드로 저장합니다.
+    // 하위 호환성을 위해 이 함수는 '전체 상태를 한 번에 저장해야 할 때' 사용됩니다.
     const updates = {
         taskQuantities: appState.taskQuantities || {},
         onLeaveMembers: appState.dailyOnLeaveMembers || [],
@@ -327,6 +336,7 @@ export async function saveStateToFirestore() {
         dailyAttendance: appState.dailyAttendance || {}
     };
 
+    // 더 이상 'state' JSON 문자열로 묶어서 저장하지 않습니다.
     await updateDailyData(updates);
     isDataDirty = false;
 }
