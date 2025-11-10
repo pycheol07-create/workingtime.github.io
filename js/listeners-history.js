@@ -91,7 +91,8 @@ export function setupHistoryModalListeners() {
         if (maximized) {
             // ▶️ 최대화 모드
             // fixed 포지션으로 뷰포트에 강제 고정하고, z-index를 높여 최상단에 표시합니다.
-            historyModalContentBox.classList.add('fixed', 'inset-0', 'w-screen', 'h-screen', 'z-[150]', 'rounded-none');
+            // w-screen, h-screen 대신 w-full, h-full을 사용하여 스크롤바 이슈를 방지합니다.
+            historyModalContentBox.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
             // 기존의 상대적 위치 및 크기 제한 클래스를 제거합니다.
             historyModalContentBox.classList.remove('relative', 'max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl');
 
@@ -101,7 +102,7 @@ export function setupHistoryModalListeners() {
         } else {
             // ◀️ 일반 모드 복귀
             // 전체화면 강제 클래스를 제거합니다.
-            historyModalContentBox.classList.remove('fixed', 'inset-0', 'w-screen', 'h-screen', 'z-[150]', 'rounded-none');
+            historyModalContentBox.classList.remove('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
             // 원래의 모달 스타일 클래스를 복구합니다.
             historyModalContentBox.classList.add('relative', 'max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl');
 
@@ -598,7 +599,8 @@ export function setupHistoryModalListeners() {
         if (icon) icon.innerHTML = iconMaximize;
 
         toggleFullscreenBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
+            // ✨ [수정됨] 중요! 같은 버튼에 걸린 '모달 닫기' 리스너가 실행되지 않도록 즉시 전파 차단
+            e.stopImmediatePropagation();
             setHistoryMaximized(!isHistoryMaximized);
         });
     }
