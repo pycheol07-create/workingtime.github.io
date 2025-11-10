@@ -1,16 +1,14 @@
 // === js/app-logic.js ===
 import {
     appState, db, auth,
-    render, // ⛔️ render는 이제 사용하지 않지만, 호환성을 위해 일단 둡니다. (제거해도 무방)
     generateId,
-    saveStateToFirestore, // ✅ taskQuantities, dailyAttendance 등 메타데이터 저장용
+    saveStateToFirestore,
     debouncedSaveState
 } from './app.js';
 
-// ✅ [수정] Firestore 함수 및 getTodayDateString 임포트
 import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
-// ✅ [수정] query, where, getDocs 추가
-import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ✅ [필수] increment, updateDoc 등 원자적 연산 함수 임포트
+import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
 // ✅ [신규] workRecords 컬렉션 참조를 반환하는 헬퍼 함수
@@ -19,34 +17,52 @@ const getWorkRecordsCollectionRef = () => {
     return collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
 };
 
+// ✅ [신규] 메인 데일리 문서 참조 헬퍼
+const getDailyDocRef = () => {
+    return doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+};
 
-// ✅ [수정] 출근 처리 (render 제거)
-export const processClockIn = (memberName, isAdminAction = false) => {
+
+// ✅ [수정] 출근 처리 - 원자적 업데이트 적용
+export const processClockIn = async (memberName, isAdminAction = false) => {
     const now = getCurrentTime();
-    if (!appState.dailyAttendance) appState.dailyAttendance = {};
-
-    const currentStatus = appState.dailyAttendance[memberName]?.status;
-    if (currentStatus === 'active') {
+    // 로컬 상태 확인은 UX를 위한 것일 뿐, 실제 데이터 무결성은 Firestore가 보장합니다.
+    if (appState.dailyAttendance?.[memberName]?.status === 'active') {
         showToast(`${memberName}님은 이미 출근(Active) 상태입니다.`, true);
         return false;
     }
 
-    appState.dailyAttendance[memberName] = {
-        ...appState.dailyAttendance[memberName],
-        inTime: now,
-        outTime: null,
-        status: 'active' // 활동 중(출근 상태)
-    };
+    try {
+        // ✨ Dot Notation을 사용한 원자적 업데이트
+        await updateDoc(getDailyDocRef(), {
+            [`dailyAttendance.${memberName}`]: {
+                inTime: now,
+                outTime: null,
+                status: 'active' // 활동 중(출근 상태)
+            }
+        });
 
-    saveStateToFirestore(); // ✅ dailyAttendance는 메인 문서에 저장
-    // ⛔️ render(); // 제거 (onSnapshot이 처리)
-    showToast(`${memberName}님 ${isAdminAction ? '관리자에 의해 ' : ''}출근 처리되었습니다. (${now})`);
-    return true;
+        showToast(`${memberName}님 ${isAdminAction ? '관리자에 의해 ' : ''}출근 처리되었습니다. (${now})`);
+        return true;
+    } catch (e) {
+        console.error("Clock-in error:", e);
+        // 문서가 없을 경우(하루 첫 출근) 대비한 setDoc fallback
+        if (e.code === 'not-found') {
+             await setDoc(getDailyDocRef(), {
+                dailyAttendance: {
+                    [memberName]: { inTime: now, outTime: null, status: 'active' }
+                }
+            }, { merge: true });
+             showToast(`${memberName}님 첫 출근 처리되었습니다. (${now})`);
+             return true;
+        }
+        showToast("출근 처리 중 오류가 발생했습니다.", true);
+        return false;
+    }
 };
 
-// ✅ [수정] 퇴근 처리 (render 제거)
-export const processClockOut = (memberName, isAdminAction = false) => {
-    // ⛔️ [주의] appState.workRecords는 이제 실시간 캐시입니다.
+// ✅ [수정] 퇴근 처리 - 원자적 업데이트 적용
+export const processClockOut = async (memberName, isAdminAction = false) => {
     const isWorking = (appState.workRecords || []).some(r =>
         r.member === memberName && (r.status === 'ongoing' || r.status === 'paused')
     );
@@ -57,49 +73,46 @@ export const processClockOut = (memberName, isAdminAction = false) => {
     }
 
     const now = getCurrentTime();
-    if (!appState.dailyAttendance) appState.dailyAttendance = {};
 
-    if (!appState.dailyAttendance[memberName]) {
-         appState.dailyAttendance[memberName] = { inTime: now };
-    }
+    // 기존 데이터 유지를 위해 merge 옵션 사용 (혹은 dot notation으로 특정 필드만 업데이트)
+    try {
+         await setDoc(getDailyDocRef(), {
+            dailyAttendance: {
+                [memberName]: {
+                    // inTime은 기존 값 유지를 위해 여기선 덮어쓰지 않음 (merge: true 덕분)
+                    // 하지만 더 안전하게 하려면 updateDoc을 쓰는 게 좋음.
+                    // 여기서는 'status'와 'outTime'만 확실히 변경하면 됨.
+                    outTime: now,
+                    status: 'returned'
+                }
+            }
+        }, { merge: true });
 
-    if (appState.dailyAttendance[memberName].status === 'returned') {
-         showToast(`${memberName}님은 이미 퇴근 처리되었습니다.`, true);
-         return false;
-    }
-
-    appState.dailyAttendance[memberName].outTime = now;
-    appState.dailyAttendance[memberName].status = 'returned';
-
-    saveStateToFirestore(); // ✅ dailyAttendance는 메인 문서에 저장
-    // ⛔️ render(); // 제거
-    showToast(`${memberName}님 ${isAdminAction ? '관리자에 의해 ' : ''}퇴근 처리되었습니다. (${now})`);
-    return true;
-};
-
-// ✅ [수정] 퇴근 취소 (render 제거)
-export const cancelClockOut = (memberName, isAdminAction = false) => {
-    if (!appState.dailyAttendance || !appState.dailyAttendance[memberName]) {
-        showToast(`${memberName}님의 출퇴근 기록이 없습니다.`, true);
+        showToast(`${memberName}님 ${isAdminAction ? '관리자에 의해 ' : ''}퇴근 처리되었습니다. (${now})`);
+        return true;
+    } catch (e) {
+        console.error("Clock-out error:", e);
+        showToast("퇴근 처리 중 오류가 발생했습니다.", true);
         return false;
     }
+};
 
-    const record = appState.dailyAttendance[memberName];
-    if (record.status !== 'returned') {
-         showToast(`${memberName}님은 현재 퇴근 상태가 아닙니다.`, true);
-         return false;
+// ✅ [수정] 퇴근 취소 - 원자적 업데이트 적용
+export const cancelClockOut = async (memberName, isAdminAction = false) => {
+    try {
+        // 'status'를 'active'로, 'outTime'을 null로 원자적 업데이트
+        await updateDoc(getDailyDocRef(), {
+            [`dailyAttendance.${memberName}.status`]: 'active',
+            [`dailyAttendance.${memberName}.outTime`]: null
+        });
+
+        showToast(`${memberName}님의 퇴근이 ${isAdminAction ? '관리자에 의해 ' : ''}취소되었습니다. (다시 근무 상태)`);
+        return true;
+    } catch (e) {
+        console.error("Cancel clock-out error:", e);
+        showToast("퇴근 취소 중 오류가 발생했습니다.", true);
+        return false;
     }
-
-    appState.dailyAttendance[memberName] = {
-        ...record,
-        outTime: null,
-        status: 'active'
-    };
-
-    saveStateToFirestore(); // ✅ dailyAttendance는 메인 문서에 저장
-    // ⛔️ render(); // 제거
-    showToast(`${memberName}님의 퇴근이 ${isAdminAction ? '관리자에 의해 ' : ''}취소되었습니다. (다시 근무 상태)`);
-    return true;
 };
 
 
@@ -221,7 +234,7 @@ export const stopWorkGroup = (groupId) => {
     finalizeStopGroup(groupId, null);
 };
 
-// ✅ [수정] Firestore 직접 조회 방식으로 변경하여 그룹 종료 기능 강화
+// ✅ [수정] 그룹 종료 시 처리량 업데이트에 'increment' 사용
 export const finalizeStopGroup = async (groupId, quantity) => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
@@ -260,16 +273,14 @@ export const finalizeStopGroup = async (groupId, quantity) => {
             });
         });
 
-        // 3. (선택사항) 처리량이 입력되었다면 메타데이터에 업데이트합니다.
-        if (quantity !== null && taskName) {
-            appState.taskQuantities = appState.taskQuantities || {};
-            appState.taskQuantities[taskName] = (appState.taskQuantities[taskName] || 0) + (Number(quantity) || 0);
-        }
-
         await batch.commit();
 
-        if (quantity !== null) {
-            saveStateToFirestore();
+        // ✨ 3. 처리량 원자적 증가 (increment 사용)
+        if (quantity !== null && taskName && Number(quantity) > 0) {
+             // updateDoc을 사용하여 'taskQuantities.{taskName}' 필드만 원자적으로 증가시킵니다.
+             await updateDoc(getDailyDocRef(), {
+                [`taskQuantities.${taskName}`]: increment(Number(quantity))
+            });
         }
 
     } catch (e) {

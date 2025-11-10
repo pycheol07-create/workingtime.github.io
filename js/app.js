@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction, query, where, writeBatch, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction, query, where, writeBatch, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
@@ -273,62 +273,45 @@ export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase()
 
 
 // Core Functions
-// ✨ [중요 수정] 데이터 유실 방지를 위한 트랜잭션 로직 개선
-export async function saveStateToFirestore() {
+
+// ✅ [신규/핵심] 원자적 업데이트를 위한 새로운 저장 함수
+// 기존 saveStateToFirestore 대체용. 필요한 필드만 부분 업데이트합니다.
+export async function updateDailyData(updates) {
     if (!auth || !auth.currentUser) {
-        console.warn('Cannot save state: User not authenticated.');
+        console.warn('Cannot update daily data: User not authenticated.');
         return;
     }
 
     try {
         const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-
-        await runTransaction(db, async (transaction) => {
-            // 1. [중요] 먼저 DB의 최신 상태를 읽어옵니다.
-            const docSnap = await transaction.get(docRef);
-            let latestState = {};
-            if (docSnap.exists() && docSnap.data().state) {
-                try {
-                    latestState = JSON.parse(docSnap.data().state);
-                } catch (e) {
-                    console.error("Error parsing latest state in transaction:", e);
-                }
-            }
-
-            // 2. DB의 최신 상태 위에 현재 로컬의 변경 사항을 병합합니다.
-            const mergedState = {
-                ...latestState, // DB의 다른 필드 값을 유지
-                taskQuantities: appState.taskQuantities || {},
-                onLeaveMembers: appState.dailyOnLeaveMembers || [],
-                partTimers: appState.partTimers || [],
-                hiddenGroupIds: appState.hiddenGroupIds || [],
-                lunchPauseExecuted: appState.lunchPauseExecuted || false,
-                lunchResumeExecuted: appState.lunchResumeExecuted || false,
-                confirmedZeroTasks: appState.confirmedZeroTasks || [],
-                dailyAttendance: appState.dailyAttendance || {}
-            };
-
-            const stateToSave = JSON.stringify(mergedState);
-
-            if (stateToSave.length > 900000) {
-                throw new Error("저장 데이터 용량 초과");
-            }
-
-            // 3. 병합된 상태를 저장합니다.
-            transaction.set(docRef, { state: stateToSave }, { merge: true });
-        });
-
-        isDataDirty = false;
+        // setDoc({ ... }, { merge: true })를 사용하여 문서가 없으면 생성하고, 있으면 병합합니다.
+        await setDoc(docRef, updates, { merge: true });
 
     } catch (error) {
-        console.error('Error saving state via transaction:', error);
-        if (error.message === "저장 데이터 용량 초과") {
-             showToast('저장 데이터가 너무 큽니다. 이력을 정리해주세요.', true);
-        } else {
-             // 트랜잭션 충돌 등으로 인한 재시도 필요성을 사용자에게 알림
-             console.warn("Transient error during save, data might need re-sync.");
-        }
+        console.error('Error updating daily data atomically:', error);
+        showToast('데이터 저장 중 오류가 발생했습니다.', true);
     }
+}
+
+// [레거시 호환] 기존 saveStateToFirestore 유지 (점진적 교체)
+// 이제 내부적으로 updateDailyData를 호출하여 새로운 구조로 저장하도록 유도합니다.
+export async function saveStateToFirestore() {
+    // 기존에는 모든 상태를 JSON으로 묶었지만, 이제는 개별 필드로 저장합니다.
+    // 하위 호환성을 위해 이 함수는 '전체 상태를 한 번에 저장해야 할 때' 사용됩니다.
+    const updates = {
+        taskQuantities: appState.taskQuantities || {},
+        onLeaveMembers: appState.dailyOnLeaveMembers || [],
+        partTimers: appState.partTimers || [],
+        hiddenGroupIds: appState.hiddenGroupIds || [],
+        lunchPauseExecuted: appState.lunchPauseExecuted || false,
+        lunchResumeExecuted: appState.lunchResumeExecuted || false,
+        confirmedZeroTasks: appState.confirmedZeroTasks || [],
+        dailyAttendance: appState.dailyAttendance || {}
+    };
+
+    // 더 이상 'state' JSON 문자열로 묶어서 저장하지 않습니다.
+    await updateDailyData(updates);
+    isDataDirty = false;
 }
 
 export const debouncedSaveState = debounce(saveStateToFirestore, 1000);
@@ -632,22 +615,34 @@ async function startAppAfterLogin(user) {
     const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
     if (unsubscribeToday) unsubscribeToday();
 
+    // ✅ [핵심] 메인 문서 리스너 개선: 개별 필드와 레거시 'state' 문자열 모두 지원
     unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
         try {
             const taskTypes = (appConfig.taskGroups || []).flatMap(group => group.tasks);
             const defaultQuantities = {};
             taskTypes.forEach(task => defaultQuantities[task] = 0);
 
-            const loadedState = docSnap.exists() ? JSON.parse(docSnap.data().state || '{}') : {};
+            const data = docSnap.exists() ? docSnap.data() : {};
+            
+            // 레거시 'state' 문자열이 있으면 파싱하여 사용 (마이그레이션 과도기 지원)
+            let legacyState = {};
+            if (data.state && typeof data.state === 'string') {
+                try {
+                    legacyState = JSON.parse(data.state);
+                } catch (e) {
+                    console.error("Legacy state parse error", e);
+                }
+            }
 
-            appState.taskQuantities = { ...defaultQuantities, ...(loadedState.taskQuantities || {}) };
-            appState.partTimers = loadedState.partTimers || [];
-            appState.hiddenGroupIds = loadedState.hiddenGroupIds || [];
-            appState.dailyOnLeaveMembers = loadedState.onLeaveMembers || [];
-            appState.lunchPauseExecuted = loadedState.lunchPauseExecuted || false;
-            appState.lunchResumeExecuted = loadedState.lunchResumeExecuted || false;
-            appState.confirmedZeroTasks = loadedState.confirmedZeroTasks || [];
-            appState.dailyAttendance = loadedState.dailyAttendance || {};
+            // 우선순위: 최상위 개별 필드 > 레거시 state 내부 필드 > 기본값
+            appState.taskQuantities = { ...defaultQuantities, ...(data.taskQuantities || legacyState.taskQuantities || {}) };
+            appState.partTimers = data.partTimers || legacyState.partTimers || [];
+            appState.hiddenGroupIds = data.hiddenGroupIds || legacyState.hiddenGroupIds || [];
+            appState.dailyOnLeaveMembers = data.onLeaveMembers || legacyState.onLeaveMembers || [];
+            appState.lunchPauseExecuted = data.lunchPauseExecuted ?? legacyState.lunchPauseExecuted ?? false;
+            appState.lunchResumeExecuted = data.lunchResumeExecuted ?? legacyState.lunchResumeExecuted ?? false;
+            appState.confirmedZeroTasks = data.confirmedZeroTasks || legacyState.confirmedZeroTasks || [];
+            appState.dailyAttendance = data.dailyAttendance || legacyState.dailyAttendance || {};
 
             isDataDirty = false;
 

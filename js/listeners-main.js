@@ -36,7 +36,10 @@ import {
 
     pcClockOutCancelBtn, mobileClockOutCancelBtn,
     memberActionModal, actionMemberName, actionMemberStatusBadge, actionMemberTimeInfo,
-    adminClockInBtn, adminClockOutBtn, adminCancelClockOutBtn, openLeaveModalBtn
+    adminClockInBtn, adminClockOutBtn, adminCancelClockOutBtn, openLeaveModalBtn,
+
+    // ✅ [신규] updateDailyData 임포트
+    updateDailyData
 
 } from './app.js';
 
@@ -562,47 +565,18 @@ export function setupMainScreenListeners() {
             context.quantityModalContext.dateKey = null;
 
             context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
+                // 로컬 상태 즉시 업데이트 (UX 반응성)
                 appState.taskQuantities = newQuantities;
                 appState.confirmedZeroTasks = confirmedZeroTasks;
-                debouncedSaveState();
-                render();
+                
+                // ✅ [핵심 수정] 서버 원자적 업데이트 (updateDailyData 사용)
+                await updateDailyData({
+                    taskQuantities: newQuantities,
+                    confirmedZeroTasks: confirmedZeroTasks
+                });
+
                 showToast('오늘의 처리량이 저장되었습니다.');
-
-                try {
-                    const allDefinitions = getAllDashboardDefinitions(appConfig);
-                    const dashboardItemIds = appConfig.dashboardItems || [];
-                    const quantityToDashboardMap = appConfig.quantityToDashboardMap || {};
-
-                    for (const task in newQuantities) {
-                        const targetId = quantityToDashboardMap[task];
-                        if (targetId && dashboardItemIds.includes(targetId) && allDefinitions[targetId]) {
-                            const element = document.getElementById(allDefinitions[targetId].valueId);
-                            if (element) {
-                                element.textContent = newQuantities[task];
-                            }
-                        }
-                    }
-                } catch (syncError) {
-                    console.error("Error during dashboard sync:", syncError);
-                }
-
-                const todayDateKey = getTodayDateString();
-                const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', todayDateKey);
-                try {
-                    await runTransaction(db, async (transaction) => {
-                        transaction.set(historyDocRef, {
-                            taskQuantities: newQuantities,
-                            confirmedZeroTasks: confirmedZeroTasks
-                        }, { merge: true });
-                    });
-                    const idx = allHistoryData.findIndex(d => d.id === todayDateKey);
-                    if (idx > -1) {
-                        allHistoryData[idx].taskQuantities = newQuantities;
-                        allHistoryData[idx].confirmedZeroTasks = confirmedZeroTasks;
-                    }
-                } catch (e) {
-                    console.error('오늘자 이력 동기화 실패:', e);
-                }
+                // ⛔️ render(); // onSnapshot이 처리하므로 제거
             };
 
             context.quantityModalContext.onCancel = () => {};
@@ -641,10 +615,14 @@ export function setupMainScreenListeners() {
             context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
                 appState.taskQuantities = newQuantities;
                 appState.confirmedZeroTasks = confirmedZeroTasks;
-                debouncedSaveState();
-                saveProgress(true);
+
+                // ✅ [핵심 수정] 모바일도 동일하게 updateDailyData 적용
+                await updateDailyData({
+                    taskQuantities: newQuantities,
+                    confirmedZeroTasks: confirmedZeroTasks
+                });
+                
                 showToast('오늘의 처리량이 저장되었습니다.');
-                render();
             };
 
             context.quantityModalContext.onCancel = () => {};
@@ -837,7 +815,7 @@ export function setupMainScreenListeners() {
                 return;
             }
 
-            // ✨ [수정] 알바 삭제 버튼 클릭 핸들러 (🗑️ 아이콘) - 즉시 삭제 (확인 팝업 제거)
+            // ✨ [수정] 알바 삭제 버튼 클릭 핸들러 (🗑️ 아이콘) - 즉시 삭제
             const deletePartTimerBtn = target.closest('.delete-part-timer-btn');
             if (deletePartTimerBtn) {
                 const partTimerId = deletePartTimerBtn.dataset.partTimerId;
