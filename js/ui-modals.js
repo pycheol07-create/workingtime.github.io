@@ -80,7 +80,7 @@ export const renderTaskSelectionModal = (taskGroups = []) => {
     });
 };
 
-// ✅ [수정] 표준 스타일 적용
+// ✅ [수정] '출근 전' 상태 비활성화 로직 추가
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -107,11 +107,9 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             .map(item => [item.member, item])
     );
 
-    // 🔥 [핵심] 표준 스타일 정의 (listeners-main.js 와 동일하게 유지)
     const baseClasses = "member-select-btn w-full p-2 rounded-lg border-2 text-center transition-all duration-200 min-h-[50px] flex flex-col justify-center";
-    const disabledClasses = "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed";
-    const unselectedClasses = "bg-white border-gray-300 text-gray-900 hover:bg-blue-50 hover:border-blue-300"; // 선택 안됨
-    // (참고: selectedClasses는 초기 렌더링엔 안 쓰이지만 listeners-main.js 에서 사용됨: bg-blue-600 border-blue-600 text-white)
+    const disabledClasses = "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60"; // ✨ 비활성화 스타일 강화
+    const unselectedClasses = "bg-white border-gray-300 text-gray-900 hover:bg-blue-50 hover:border-blue-300";
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -138,19 +136,28 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             const isPaused = pausedMembers.has(member);
             const leaveEntry = onLeaveMemberMap.get(member);
             const isOnLeave = !!leaveEntry;
+            
+            // ✨ 출근 상태 체크
+            const attendance = appState.dailyAttendance?.[member];
+            const isClockedIn = attendance && attendance.status === 'active';
+            const isReturned = attendance && attendance.status === 'returned';
+
+            // ✨ 선택 불가 조건에 '출근 안 함(또는 퇴근함)' 추가
+            const isDisabled = isOngoing || isPaused || isOnLeave || !isClockedIn;
+
             const card = document.createElement('button');
             card.type = 'button';
             card.dataset.memberName = member;
-
-            // 🔥 초기 상태 클래스 적용
-            card.className = `${baseClasses} ${isOngoing || isPaused || isOnLeave ? disabledClasses : unselectedClasses}`;
-
-            if (isOngoing || isPaused || isOnLeave) card.disabled = true;
+            card.className = `${baseClasses} ${isDisabled ? disabledClasses : unselectedClasses}`;
+            if (isDisabled) card.disabled = true;
 
             let statusLabel = '';
             if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
             else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
             else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
+            else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; } // ✨ 퇴근 상태 표시
+            else if (!isClockedIn) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; } // ✨ 출근 전 상태 표시
+            
             card.innerHTML = `<div class="font-bold">${member}</div>${statusLabel}`;
 
             memberList.appendChild(card);
@@ -178,22 +185,29 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const isPaused = pausedMembers.has(pt.name);
         const leaveEntry = onLeaveMemberMap.get(pt.name);
         const isOnLeave = !!leaveEntry;
+
+        // ✨ 알바 출근 상태 체크
+        const attendance = appState.dailyAttendance?.[pt.name];
+        const isClockedIn = attendance && attendance.status === 'active';
+        const isReturned = attendance && attendance.status === 'returned';
+        const isDisabled = isOngoing || isPaused || isOnLeave || !isClockedIn;
+
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'relative';
 
         const card = document.createElement('button');
         card.type = 'button';
         card.dataset.memberName = pt.name;
-
-        // 🔥 초기 상태 클래스 적용 (알바)
-        card.className = `${baseClasses} ${isOngoing || isPaused || isOnLeave ? disabledClasses : unselectedClasses}`;
-
-        if (isOngoing || isPaused || isOnLeave) card.disabled = true;
+        card.className = `${baseClasses} ${isDisabled ? disabledClasses : unselectedClasses}`;
+        if (isDisabled) card.disabled = true;
 
         let statusLabel = '';
         if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
         else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
         else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
+        else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; }
+        else if (!isClockedIn) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; }
+
         card.innerHTML = `<div class="font-bold">${pt.name}</div>${statusLabel}`;
 
         cardWrapper.appendChild(card);
