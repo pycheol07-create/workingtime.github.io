@@ -67,6 +67,7 @@ import {
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, runTransaction, updateDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ✅ [신규] 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
     if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
     context.memberToSetLeave = memberName;
@@ -74,6 +75,7 @@ const openLeaveModal = (memberName) => {
     if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
 };
 
+// ✅ [신규] 관리자 액션 모달 열기 헬퍼 함수
 const openAdminMemberActionModal = (memberName) => {
     context.memberToAction = memberName;
     if (actionMemberName) actionMemberName.textContent = memberName;
@@ -83,6 +85,7 @@ const openAdminMemberActionModal = (memberName) => {
     const attendance = appState.dailyAttendance?.[memberName];
     const status = attendance?.status || 'none';
 
+    // 상태 배지 & 시간 정보 업데이트
     if (actionMemberStatusBadge && actionMemberTimeInfo) {
          if (ongoingRecord) {
             actionMemberStatusBadge.textContent = `업무 중 (${ongoingRecord.task})`;
@@ -107,6 +110,7 @@ const openAdminMemberActionModal = (memberName) => {
         }
     }
 
+    // 버튼 표시 여부 제어
     if (adminClockInBtn) adminClockInBtn.classList.toggle('hidden', status === 'active' || status === 'returned');
     if (adminClockOutBtn) adminClockOutBtn.classList.toggle('hidden', status !== 'active');
     if (adminCancelClockOutBtn) adminCancelClockOutBtn.classList.toggle('hidden', status !== 'returned');
@@ -116,17 +120,21 @@ const openAdminMemberActionModal = (memberName) => {
 
 export function setupMainScreenListeners() {
 
+    // 🔥 [핵심] 선택/미선택 상태 클래스 정의
     const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
     const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
 
+    // 헬퍼: 버튼을 선택 상태로 만듦
     const selectMemberBtn = (btn) => {
         btn.classList.remove(...UNSELECTED_CLASSES);
         btn.classList.add(...SELECTED_CLASSES);
     };
+    // 헬퍼: 버튼을 선택 해제 상태로 만듦
     const deselectMemberBtn = (btn) => {
         btn.classList.remove(...SELECTED_CLASSES);
         btn.classList.add(...UNSELECTED_CLASSES);
     };
+
 
     const pcAttendanceCheckbox = document.getElementById('pc-attendance-checkbox');
     if (pcAttendanceCheckbox) {
@@ -355,6 +363,7 @@ export function setupMainScreenListeners() {
                     showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
                 }
 
+                // ✅ 관리자일 경우 관리자 전용 모달 열기
                 if (role === 'admin' && memberName !== selfName) {
                      openAdminMemberActionModal(memberName);
                      return;
@@ -765,10 +774,12 @@ export function setupMainScreenListeners() {
         });
     }
 
+    // ✅ 팀 선택 모달 리스너
     if (teamSelectModal) {
         teamSelectModal.addEventListener('click', async (e) => {
             const target = e.target;
 
+            // 1. 개별 멤버 버튼 클릭
             const memberButton = target.closest('.member-select-btn');
             if (memberButton && !memberButton.disabled) {
                 const memberName = memberButton.dataset.memberName;
@@ -785,6 +796,7 @@ export function setupMainScreenListeners() {
                 }
             }
 
+            // 2. 전체 선택/해제 버튼 클릭
             const selectAllBtn = target.closest('.group-select-all-btn');
             if (selectAllBtn) {
                 const groupName = selectAllBtn.dataset.groupName;
@@ -810,7 +822,7 @@ export function setupMainScreenListeners() {
                 }
             }
 
-            // ✨ [신규] 알바 수정 버튼 클릭 핸들러 추가 (✏️ 아이콘)
+            // 3. 알바 수정 버튼 클릭 핸들러 (✏️ 아이콘)
             const editPartTimerBtn = target.closest('.edit-part-timer-btn');
             if (editPartTimerBtn) {
                 const partTimerId = editPartTimerBtn.dataset.partTimerId;
@@ -820,20 +832,42 @@ export function setupMainScreenListeners() {
                     document.getElementById('part-timer-edit-id').value = partTimer.id;
                     document.getElementById('part-timer-new-name').value = partTimer.name;
                     document.getElementById('edit-part-timer-modal').classList.remove('hidden');
+                    setTimeout(() => document.getElementById('part-timer-new-name').focus(), 50);
                 }
                 return;
             }
 
-            // ✨ [수정] 알바 추가 모달 열기 버튼 핸들러 수정
+            // ✨ [수정] 알바 추가 버튼 핸들러: 즉시 자동 추가로 변경
              if (target.closest('#add-part-timer-modal-btn')) {
-                document.querySelector('#edit-part-timer-modal h2').textContent = '알바 인원 추가';
-                document.getElementById('part-timer-edit-id').value = '';
-                document.getElementById('part-timer-new-name').value = '';
-                document.getElementById('edit-part-timer-modal').classList.remove('hidden');
+                if (!appState.partTimers) appState.partTimers = [];
+
+                // 1. 중복되지 않는 '알바N' 이름 찾기
+                const existingNames = new Set(appState.partTimers.map(p => p.name));
+                let nextNum = 1;
+                while (existingNames.has(`알바${nextNum}`)) {
+                    nextNum++;
+                }
+                const newName = `알바${nextNum}`;
+
+                // 2. 새 알바 객체 생성
+                const newPartTimer = {
+                    id: generateId(),
+                    name: newName,
+                    wage: appConfig.defaultPartTimerWage || 10000
+                };
+
+                // 3. 상태 추가 및 저장
+                appState.partTimers.push(newPartTimer);
+                debouncedSaveState();
+
+                // 4. 모달 컨텐츠 리렌더링
+                renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
+                showToast(`'${newName}'이(가) 추가되었습니다.`);
                 return;
             }
         });
 
+        // 확인 버튼 (업무 시작)
         const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
         if (confirmTeamSelectBtn) {
              confirmTeamSelectBtn.addEventListener('click', async () => {
