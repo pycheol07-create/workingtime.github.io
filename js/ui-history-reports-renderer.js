@@ -68,21 +68,32 @@ const _renderTooltip = (metricKey) => {
     </span>`;
 };
 
-const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
+// ✅ [수정] benchmarkOEE 인자 추가 및 렌더링 로직 개선
+const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, benchmarkOEE) => {
     if (!tMetrics.staffing || ['기록'].includes(periodText)) return '';
 
     const {
         utilizationRate, efficiencyRatio, qualityRatio, oee,
         availableFTE, workedFTE, requiredFTE, qualityFTE,
-        totalLossCost, availabilityLossCost, performanceLossCost, qualityLossCost
+        totalLossCost, availabilityLossCost, performanceLossCost, qualityLossCost,
+        topPerformanceLossTasks, topQualityLossTasks, avgCostPerMinute
     } = tMetrics.staffing;
 
     const prev = pMetrics?.staffing || {};
     if (availableFTE <= 0) return '';
 
-    const analysisResult = generateProductivityDiagnosis(tMetrics.staffing, prev);
+    const analysisResult = generateProductivityDiagnosis(tMetrics.staffing, prev, benchmarkOEE);
     if (!analysisResult) return '';
     const { diagnosis, commentHtml } = analysisResult;
+
+    // ✨ 벤치마크 비교 HTML
+    let benchmarkHtml = '';
+    if (benchmarkOEE) {
+        const diff = oee - benchmarkOEE;
+        const sign = diff > 0 ? '+' : '';
+        const color = diff > 0 ? 'text-green-600' : (diff < 0 ? 'text-red-500' : 'text-gray-500');
+        benchmarkHtml = `<div class="text-xs text-right mt-1 ${color} font-medium" title="최근 30일 평균 OEE: ${benchmarkOEE.toFixed(0)}%">(vs 30일 평균: ${sign}${diff.toFixed(0)}%p)</div>`;
+    }
 
     return `
         <div class="bg-white p-6 rounded-lg shadow-sm">
@@ -124,9 +135,12 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
                         </div>
                     </div>
 
-                    <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-lg flex justify-between items-center">
-                        <span class="font-bold text-indigo-800 flex items-center">종합 생산 효율 (OEE)${_renderTooltip('oee')}</span>
-                        <span class="text-2xl font-extrabold text-indigo-600">${oee.toFixed(0)}%</span>
+                    <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-indigo-800 flex items-center">종합 생산 효율 (OEE)${_renderTooltip('oee')}</span>
+                            <span class="text-2xl font-extrabold text-indigo-600">${oee.toFixed(0)}%</span>
+                        </div>
+                        ${benchmarkHtml}
                     </div>
                 </div>
 
@@ -170,8 +184,40 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText) => {
                         </div>
                         <div class="space-y-1 text-sm px-2">
                             <div class="flex justify-between"><span class="text-gray-500">• 대기 시간 손실</span><span>${Math.round(availabilityLossCost).toLocaleString()} 원</span></div>
-                            <div class="flex justify-between"><span class="text-gray-500">• 속도 저하 손실</span><span>${Math.round(performanceLossCost).toLocaleString()} 원</span></div>
-                            <div class="flex justify-between"><span class="text-gray-500">• 품질(COQ) 손실</span><span>${Math.round(qualityLossCost).toLocaleString()} 원</span></div>
+                            
+                            <details class="group">
+                                <summary class="flex justify-between cursor-pointer hover:text-gray-700">
+                                    <span class="text-gray-500 flex items-center">
+                                        • 속도 저하 손실
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </span>
+                                    <span>${Math.round(performanceLossCost).toLocaleString()} 원</span>
+                                </summary>
+                                <div class="pl-4 pt-1 text-xs text-gray-600 space-y-1 bg-gray-50 rounded p-2 mt-1">
+                                    ${(topPerformanceLossTasks || []).map(t => 
+                                        `<div class="flex justify-between"><span>- ${t.task} (${Math.round(t.lossMinutes)}분 지연)</span><span class="text-red-400">약 -${Math.round(t.lossMinutes * avgCostPerMinute).toLocaleString()}원</span></div>`
+                                    ).join('') || '<div class="text-gray-400">주요 지연 업무 없음</div>'}
+                                </div>
+                            </details>
+
+                            <details class="group">
+                                <summary class="flex justify-between cursor-pointer hover:text-gray-700">
+                                     <span class="text-gray-500 flex items-center">
+                                        • 품질(COQ) 손실
+                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </span>
+                                    <span>${Math.round(qualityLossCost).toLocaleString()} 원</span>
+                                </summary>
+                                <div class="pl-4 pt-1 text-xs text-gray-600 space-y-1 bg-gray-50 rounded p-2 mt-1">
+                                     ${(topQualityLossTasks || []).map(t => 
+                                        `<div class="flex justify-between"><span>- ${t.task}</span><span class="text-red-400">-${Math.round(t.cost).toLocaleString()}원</span></div>`
+                                    ).join('') || '<div class="text-gray-400">품질 이슈 없음</div>'}
+                                </div>
+                            </details>
                         </div>
                     </div>
                 </div>
@@ -454,7 +500,8 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     return html;
 };
 
-export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, appConfig, sortState, periodText, prevRevenue = 0) => {
+// ✅ [수정] benchmarkOEE 인자 추가
+export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, appConfig, sortState, periodText, prevRevenue = 0, benchmarkOEE = null) => {
     const view = document.getElementById(targetId);
     if (!view) return;
 
@@ -462,7 +509,7 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
 
     let html = `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800">${title}</h2>`;
     html += _generateKPIHTML(tMetrics.kpis, pMetrics.kpis);
-    html += _generateProductivityAnalysisHTML(tMetrics, pMetrics, periodText);
+    html += _generateProductivityAnalysisHTML(tMetrics, pMetrics, periodText, benchmarkOEE);
     html += _generateRevenueAnalysisHTML(periodText, tMetrics.revenueAnalysis, tMetrics.revenueTrend, currentRevenue, prevRevenue);
     html += _generateInsightsHTML(tMetrics.aggr, pMetrics.aggr, appConfig, periodText);
     html += _generateTablesHTML(tMetrics.aggr, pMetrics.aggr, periodText, sortState, tData.memberToPartMap, tData.raw.onLeaveMembers);

@@ -8,8 +8,9 @@ import {
     calculateStandardThroughputs,
     analyzeRevenueBasedStaffing,
     analyzeRevenueWorkloadTrend,
-    // ✨ [신규] 고급 통합 분석 함수 import
-    calculateAdvancedProductivity
+    calculateAdvancedProductivity,
+    // ✨ [신규 import] 벤치마크 계산 함수
+    calculateBenchmarkOEE
 } from './ui-history-reports-logic.js';
 
 import {
@@ -75,17 +76,26 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     const prevKPIs = calculateReportKPIs(previousDayData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(previousDayData, appConfig, wageMap, memberToPartMap);
 
+    const standardThroughputs = calculateStandardThroughputs(allHistoryData);
+    const todayStaffing = calculateAdvancedProductivity([data], todayAggr, standardThroughputs, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity([previousDayData].filter(Boolean), prevAggr, standardThroughputs, appConfig, wageMap);
+
+    // ✨ 벤치마크 OEE 계산
+    const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
+
     const sortState = context.reportSortState || {};
 
     renderGenericReport(
         'report-daily-view',
         `${dateKey} 업무 리포트 (이전 기록 대비)`,
         { raw: data, memberToPartMap: memberToPartMap },
-        { kpis: todayKPIs, aggr: todayAggr },
-        { kpis: prevKPIs, aggr: prevAggr },
+        { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
+        { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
         appConfig,
         sortState,
-        '기록'
+        '기록',
+        0,
+        benchmarkOEE // ✨ 전달
     );
 };
 
@@ -118,9 +128,11 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
 
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
-    // ✨ [수정] 고급 생산성 분석 함수 호출
     const todayStaffing = calculateAdvancedProductivity(currentWeekDays, todayAggr, standardThroughputs, appConfig, wageMap);
     const prevStaffing = calculateAdvancedProductivity(prevWeekDays, prevAggr, standardThroughputs, appConfig, wageMap);
+    
+    // ✨ 벤치마크 OEE 계산
+    const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
 
     const sortState = context.reportSortState || {};
 
@@ -132,7 +144,9 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
         appConfig,
         sortState,
-        '주'
+        '주',
+        0,
+        benchmarkOEE // ✨ 전달
     );
 };
 
@@ -165,7 +179,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
 
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
-    // ✨ [수정] 고급 생산성 분석 함수 호출
     const todayStaffing = calculateAdvancedProductivity(currentMonthDays, todayAggr, standardThroughputs, appConfig, wageMap);
     const prevStaffing = calculateAdvancedProductivity(prevMonthDays, prevAggr, standardThroughputs, appConfig, wageMap);
 
@@ -187,6 +200,9 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         todayStaffing.totalStandardMinutesNeeded,
         prevStaffing.totalStandardMinutesNeeded
     );
+    
+    // ✨ 벤치마크 OEE 계산
+    const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
 
     const sortState = context.reportSortState || {};
 
@@ -199,7 +215,8 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         appConfig,
         sortState,
         '월',
-        prevRevenue
+        prevRevenue,
+        benchmarkOEE // ✨ 전달
     );
 };
 
@@ -232,7 +249,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
 
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
-    // ✨ [수정] 고급 생산성 분석 함수 호출
     const todayStaffing = calculateAdvancedProductivity(currentYearDays, todayAggr, standardThroughputs, appConfig, wageMap);
     const prevStaffing = calculateAdvancedProductivity(prevYearDays, prevAggr, standardThroughputs, appConfig, wageMap);
 
@@ -247,5 +263,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         appConfig,
         sortState,
         '연도'
+        // 연간은 벤치마크 생략 (의미 적음)
     );
 };

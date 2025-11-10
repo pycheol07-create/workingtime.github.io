@@ -274,6 +274,38 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     return standards;
 };
 
+// ✅ [신규] 최근 30일 OEE 평균 계산
+export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
+    if (!allHistoryData || allHistoryData.length === 0) return null;
+
+    // 최근 30일 데이터 필터링 (역순 정렬 후 상위 30개)
+    const recentData = [...allHistoryData].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 30);
+    if (recentData.length === 0) return null;
+
+    let totalOEE = 0;
+    let validDays = 0;
+    const standardThroughputs = calculateStandardThroughputs(allHistoryData); // 전체 이력 기준 표준 속도
+
+    recentData.forEach(day => {
+         // WageMap 생성 (임시)
+        const wageMap = { ...(appConfig.memberWages || {}) };
+        (day.partTimers || []).forEach(pt => { if (pt && pt.name && !wageMap[pt.name]) wageMap[pt.name] = pt.wage || 0; });
+        
+        // 일별 집계
+        const dayAggr = calculateReportAggregations(day, appConfig, wageMap, new Map()); // memberToPartMap은 OEE 계산에 불필요
+        
+        // 고급 생산성 계산
+        const productivity = calculateAdvancedProductivity([day], dayAggr, standardThroughputs, appConfig, wageMap);
+        
+        if (productivity.oee > 0) {
+            totalOEE += productivity.oee;
+            validDays++;
+        }
+    });
+
+    return validDays > 0 ? (totalOEE / validDays) : null;
+};
+
 export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded, activeMembersCount, actualTotalDuration, appConfig) => {
     if (!revenue || revenue <= 0 || !totalStandardMinutesNeeded || totalStandardMinutesNeeded <= 0 || !actualTotalDuration || actualTotalDuration <= 0 || !activeMembersCount || activeMembersCount <= 0) {
         return null;
@@ -330,35 +362,7 @@ export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, current
     };
 };
 
-export const calculateUtilization = (daysData, appConfig, wageMap) => {
-    let totalStandardAvailableMinutes = 0;
-    let totalActualWorkedMinutes = 0;
-
-    daysData.forEach(day => {
-        if (day.workRecords && day.workRecords.length > 0) {
-            const kpis = calculateReportKPIs(day, appConfig, wageMap);
-            const activeStaff = kpis.activeMembersCount;
-
-            if (activeStaff > 0) {
-                totalActualWorkedMinutes += kpis.totalDuration;
-                const standardHours = appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
-                const hoursPerPerson = isWeekday(day.id) ? (standardHours.weekday || 8) : (standardHours.weekend || 4);
-                totalStandardAvailableMinutes += (activeStaff * hoursPerPerson * 60);
-            }
-        }
-    });
-
-    const utilizationRate = totalStandardAvailableMinutes > 0
-        ? (totalActualWorkedMinutes / totalStandardAvailableMinutes) * 100
-        : 0;
-
-    return {
-        utilizationRate,
-        totalStandardAvailableMinutes,
-        totalActualWorkedMinutes
-    };
-};
-
+// ✅ [수정] 손실 요인(Drill-down) 계산 로직 추가
 export const calculateAdvancedProductivity = (daysData, currentDataAggr, standardThroughputs, appConfig, wageMap) => {
     let totalStandardAvailableMinutes = 0;
     let totalActualWorkedMinutes = 0;
@@ -367,6 +371,9 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
     let totalActualCost = 0;
     let totalActiveStaffSum = 0;
     let workingDaysCount = 0;
+
+    const qualityTasksStr = new Set(appConfig.qualityCostTasks || []);
+    const qualityLossTasks = [];
 
     daysData.forEach(day => {
         if (day.workRecords && day.workRecords.length > 0) {
@@ -387,13 +394,36 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
         }
     });
 
+    const taskPerformanceLosses = [];
+
     Object.entries(currentDataAggr.taskSummary).forEach(([task, summary]) => {
         const actualQty = summary.quantity || 0;
         const stdSpeed = standardThroughputs[task];
+        
+        // 1. 표준 시간 계산
+        let standardMinutes = 0;
         if (actualQty > 0 && stdSpeed > 0) {
-            totalStandardMinutesNeeded += (actualQty / stdSpeed);
+            standardMinutes = (actualQty / stdSpeed);
+            totalStandardMinutesNeeded += standardMinutes;
         } else if (summary.duration > 0) {
+             // 표준 속도가 없는 경우, 실제 시간을 표준으로 가정 (손실 0)
+            standardMinutes = summary.duration;
             totalStandardMinutesNeeded += summary.duration;
+        }
+
+        // 2. 속도 저하 손실(분) 계산 및 수집
+        if (stdSpeed > 0 && summary.duration > standardMinutes) {
+             taskPerformanceLosses.push({
+                 task: task,
+                 lossMinutes: summary.duration - standardMinutes,
+                 actualSpeed: (summary.avgThroughput || 0).toFixed(2),
+                 stdSpeed: stdSpeed.toFixed(2)
+             });
+        }
+
+        // 3. 품질 손실(비용) 수집
+        if (qualityTasksStr.has(task) && summary.cost > 0) {
+            qualityLossTasks.push({ task: task, cost: summary.cost });
         }
     });
 
@@ -416,17 +446,19 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
     const qualityLossCost = totalQualityCost;
     const totalLossCost = availabilityLossCost + performanceLossCost + qualityLossCost;
 
+    // 상위 3개 손실 요인 추출
+    const topPerformanceLossTasks = taskPerformanceLosses.sort((a, b) => b.lossMinutes - a.lossMinutes).slice(0, 3);
+    const topQualityLossTasks = qualityLossTasks.sort((a, b) => b.cost - a.cost).slice(0, 3);
+
     return {
         utilizationRate, efficiencyRatio, qualityRatio, oee,
         availableFTE, workedFTE, requiredFTE, qualityFTE,
         totalLossCost, availabilityLossCost, performanceLossCost, qualityLossCost,
-        totalStandardAvailableMinutes, totalActualWorkedMinutes, totalStandardMinutesNeeded
+        totalStandardAvailableMinutes, totalActualWorkedMinutes, totalStandardMinutesNeeded,
+        topPerformanceLossTasks, topQualityLossTasks, avgCostPerMinute // Drill-down용 데이터 추가
     };
 };
 
-/**
- * ✨ [신규] 생산성 지표별 도움말 텍스트 정의
- */
 export const PRODUCTIVITY_METRIC_DESCRIPTIONS = {
     utilizationRate: {
         title: "시간 활용률 (Availability)",
@@ -462,10 +494,8 @@ export const PRODUCTIVITY_METRIC_DESCRIPTIONS = {
     }
 };
 
-/**
- * ✨ [신규] 종합 생산성 진단 및 서술형 코멘트 생성 함수
- */
-export const generateProductivityDiagnosis = (metrics, prevMetrics) => {
+// ✅ [수정] 벤치마크 비교 코멘트 추가
+export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE = null) => {
     if (!metrics) return null;
     const { utilizationRate, efficiencyRatio, qualityRatio, oee } = metrics;
     
@@ -505,6 +535,18 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics) => {
 
     if (oee >= 85) comments.push(`종합적으로 <strong>매우 우수한 생산성(OEE ${oee.toFixed(0)}%)</strong>을 기록했습니다. 👏`);
     else if (oee <= 60) comments.push(`전반적인 생산성 지표가 낮습니다. <strong>가장 큰 손실 요인(${utilizationRate < 80 ? '대기시간' : (efficiencyRatio < 90 ? '속도저하' : '품질이슈')})</strong>부터 개선하는 것이 좋습니다.`);
+
+    // ✨ 벤치마크 비교 코멘트 추가
+    if (benchmarkOEE !== null && benchmarkOEE > 0) {
+        const diff = oee - benchmarkOEE;
+        if (diff >= 5) {
+            comments.push(`📈 최근 30일 평균 OEE(${benchmarkOEE.toFixed(0)}%)보다 <strong>${diff.toFixed(0)}%p 더 높은</strong> 우수한 성과입니다!`);
+        } else if (diff <= -5) {
+             comments.push(`📉 최근 30일 평균 OEE(${benchmarkOEE.toFixed(0)}%)에 비해 <strong>${Math.abs(diff).toFixed(0)}%p 낮습니다.</strong> 원인 파악이 필요합니다.`);
+        } else {
+             comments.push(`평소 수준(최근 30일 평균 ${benchmarkOEE.toFixed(0)}%)의 생산성을 유지했습니다.`);
+        }
+    }
 
     return {
         diagnosis,
