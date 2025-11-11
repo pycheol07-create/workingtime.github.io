@@ -228,8 +228,9 @@ export function setupGeneralModalListeners() {
                 const inputVal = Number(row.querySelector('.sim-row-worker-or-time').value);
 
                 if (task && qty > 0 && inputVal > 0) {
-                    // ✨ 순차적 계산: 현재 업무의 예상 종료 시간을 다음 업무의 시작 시간으로 전달
-                    const res = calculateSimulation(mode, task, qty, inputVal, State.appConfig, State.allHistoryData, currentStartTimeStr);
+                    // ✅ [수정] 호출 시그니처 변경 (7개 -> 5개 인자)
+                    // appConfig와 allHistoryData를 제거하고, 함수 내부에서 State를 참조하도록 함
+                    const res = calculateSimulation(mode, task, qty, inputVal, currentStartTimeStr);
                     
                     if (!res.error) {
                         res.startTime = currentStartTimeStr; // 결과 표시용 시작 시간 저장
