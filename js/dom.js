@@ -135,6 +135,7 @@ export const menuToggleBtn = document.getElementById('menu-toggle-btn');
 export const menuDropdown = document.getElementById('menu-dropdown');
 export const openQuantityModalTodayBtn = document.getElementById('open-quantity-modal-today');
 export const openQuantityModalTodayBtnMobile = document.getElementById('open-quantity-modal-today-mobile');
+export const adminLinkBtn = document.getElementById('admin-link-btn');
 export const adminLinkBtnMobile = document.getElementById('admin-link-btn-mobile');
 export const resetAppBtnMobile = document.getElementById('reset-app-btn-mobile');
 export const logoutBtnMobile = document.getElementById('logout-btn-mobile');
