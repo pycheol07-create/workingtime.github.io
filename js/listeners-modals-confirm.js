@@ -1,17 +1,16 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
 
+// ✅ [수정] 모든 import 구문을 파일 최상단으로 이동
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getTodayDateString } from './utils.js';
 import { finalizeStopGroup, stopWorkIndividual } from './app-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
 import { switchHistoryView } from './app-history-logic.js';
-
-// ✅ [수정] app.js와 app-data.js, config.js에서 올바르게 임포트
-import { render } from './app.js';
-import { debouncedSaveState } from './app-data.js';
-import { saveLeaveSchedule } from './config.js';
+import { render } from './app.js'; // 'render'는 app.js에서
+import { debouncedSaveState } from './app-data.js'; // 'debouncedSaveState'는 app-data.js에서
+import { saveLeaveSchedule } from './config.js'; // 'saveLeaveSchedule'는 config.js에서
 
 import { 
     doc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc
