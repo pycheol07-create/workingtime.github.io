@@ -1,6 +1,8 @@
 // === js/dom-elements.js ===
 // 설명: 앱 전역에서 사용되는 모든 DOM 요소를 export합니다.
 
+export const loadingSpinner = document.getElementById('loading-spinner'); // ✅ [신규] 이 라인을 추가하세요.
+
 export const addAttendanceRecordModal = document.getElementById('add-attendance-record-modal');
 export const addAttendanceForm = document.getElementById('add-attendance-form');
 export const confirmAddAttendanceBtn = document.getElementById('confirm-add-attendance-btn');

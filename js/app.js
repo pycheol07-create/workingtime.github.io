@@ -195,7 +195,7 @@ export const autoSaveProgress = () => {
  * ✅ [수정됨] DOM과 State를 import된 네임스페이스로 접근하고, Setter 함수를 사용합니다.
  */
 async function startAppAfterLogin(user) {
-    if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block';
+    if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; // ✅ 수정됨
 
     try {
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '설정 로딩 중...';
@@ -208,7 +208,7 @@ async function startAppAfterLogin(user) {
 
         if (!userEmail) {
             showToast('로그인 사용자의 이메일 정보를 가져올 수 없습니다. 다시 로그인해주세요.', true);
-            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
             if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '인증 오류';
             State.auth.signOut();
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
@@ -229,7 +229,7 @@ async function startAppAfterLogin(user) {
 
         if (!currentUserName) {
             showToast('로그인했으나 앱에 등록된 사용자가 아닙니다. 관리자에게 문의하세요.', true);
-            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
             if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '사용자 미등록';
             State.auth.signOut();
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
@@ -290,14 +290,14 @@ async function startAppAfterLogin(user) {
             }
         });
 
-        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
         renderDashboardLayout(State.appConfig);
         renderTaskSelectionModal(State.appConfig.taskGroups);
 
     } catch (e) {
         console.error("설정 로드 실패:", e);
         showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
-        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
         renderDashboardLayout(State.appConfig);
         renderTaskSelectionModal(State.appConfig.taskGroups);
     }
@@ -479,7 +479,7 @@ async function startAppAfterLogin(user) {
  */
 async function main() {
     // ✅ DOM 접근
-    if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block';
+    if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; // ✅ 수정됨
 
     try {
         const firebase = initializeFirebase();
@@ -488,12 +488,12 @@ async function main() {
         State.setAuth(firebase.auth);
         
         if (!State.db || !State.auth) {
-            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
             return;
         }
     } catch (e) {
         console.error("Firebase init failed:", e);
-        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
         return;
     }
 
@@ -501,7 +501,7 @@ async function main() {
         // ✅ DOM 접근
         if (user) {
             if (DOM.loginModal) DOM.loginModal.classList.add('hidden');
-            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block';
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; // ✅ 수정됨
             await startAppAfterLogin(user);
         } else {
             if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '인증 필요';
@@ -555,7 +555,7 @@ async function main() {
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
 
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
-            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
 
             renderDashboardLayout({ dashboardItems: [] });
         }
