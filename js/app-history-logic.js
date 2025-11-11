@@ -603,7 +603,8 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasQuantities = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            const diffHtml = getDiffHtmlForMetric('quantity', metrics.quantity, prevMetric);
+            // ✅ [수정] prevMetric 객체 대신 prevMetric.quantity 값을 전달합니다.
+            const diffHtml = getDiffHtmlForMetric('quantity', metrics.quantity, prevMetric?.quantity);
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
                  <span>${metrics.quantity} 개 ${diffHtml}</span>
@@ -620,7 +621,8 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasThroughput = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            const diffHtml = getDiffHtmlForMetric('avgThroughput', metrics.avgThroughput, prevMetric);
+            // ✅ [수정] prevMetric 객체 대신 prevMetric.avgThroughput 값을 전달합니다.
+            const diffHtml = getDiffHtmlForMetric('avgThroughput', metrics.avgThroughput, prevMetric?.avgThroughput);
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
                  <span>${metrics.avgThroughput.toFixed(2)} 개/분 ${diffHtml}</span>
@@ -637,7 +639,8 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasCostPerItem = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            const diffHtml = getDiffHtmlForMetric('avgCostPerItem', metrics.avgCostPerItem, prevMetric);
+            // ✅ [수정] prevMetric 객체 대신 prevMetric.avgCostPerItem 값을 전달합니다.
+            const diffHtml = getDiffHtmlForMetric('avgCostPerItem', metrics.avgCostPerItem, prevMetric?.avgCostPerItem);
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
                  <span>${metrics.avgCostPerItem.toFixed(0)} 원/개 ${diffHtml}</span>
@@ -654,7 +657,8 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             const percentage = totalSumDuration > 0 ? (metrics.duration / totalSumDuration * 100).toFixed(1) : 0;
             const prevMetric = prevTaskMetrics[task] || null;
-            const diffHtml = getDiffHtmlForMetric('duration', metrics.duration, prevMetric);
+            // ✅ [수정] prevMetric 객체 대신 prevMetric.duration 값을 전달합니다.
+            const diffHtml = getDiffHtmlForMetric('duration', metrics.duration, prevMetric?.duration);
 
             html += `
         <div>
