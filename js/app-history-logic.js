@@ -1,6 +1,6 @@
 // === js/app-history-logic.js ===
 import {
-    appConfig, db,
+    appState, appConfig, db, auth,
     allHistoryData,
     context,
     historyModal,
@@ -9,7 +9,8 @@ import {
     reportPanel, reportTabs,
     deleteHistoryModal,
     quantityModal,
-    render
+    render, debouncedSaveState, saveStateToFirestore,
+    markDataAsDirty,
 } from './app.js';
 
 import {
@@ -33,12 +34,12 @@ import {
 
 // Firestore 함수 임포트
 import {
-    doc, setDoc, getDoc, collection, getDocs, deleteDoc,
+    doc, setDoc, getDoc, collection, getDocs, deleteDoc, runTransaction,
     query, where, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 🔥 [수정] getDiffHtmlForMetric 추가 임포트
-import { calculateStandardThroughputs, getDiffHtmlForMetric } from './ui-history-reports-logic.js';
+// 표준 속도 계산 함수 임포트
+import { calculateStandardThroughputs, PRODUCTIVITY_METRIC_DESCRIPTIONS, getDiffHtmlForMetric, createTableRow } from './ui-history-reports-logic.js';
 
 
 // workRecords 컬렉션 참조 헬퍼
@@ -236,13 +237,12 @@ export async function saveDayDataToHistory(shouldReset) {
                 snapshotAll.forEach(doc => deleteBatch.delete(doc.ref));
                 await deleteBatch.commit();
             }
-             // 초기화 시에는 전체 상태를 비워야 하므로 setDoc({}) 사용
-             await setDoc(getDailyDocRef(), {});
+             await setDoc(getDailyDocRef(), { state: '{}' });
         } catch (e) {
              console.error("Error clearing daily data: ", e);
         }
         
-        // app.js의 onSnapshot이 상태를 비워줄 것이므로 여기서는 UI 알림만
+        appState.workRecords = [];
         showToast('오늘의 업무 기록을 초기화했습니다.');
     }
 }
@@ -408,15 +408,8 @@ export const openHistoryQuantityModal = (dateKey) => {
             taskQuantities: appState.taskQuantities || {},
             confirmedZeroTasks: appState.confirmedZeroTasks || []
         };
-        // 실제로는 app.js의 appState를 참조해야 정확하지만, 
-        // 이 함수가 호출될 때는 보통 이력 모드이거나 오늘 날짜라도 appState가 최신화되어 있음.
-        // 여기서는 안전하게 appState가 아닌 Firestore에서 다시 읽거나, 
-        // 이미 동기화된 allHistoryData를 사용하는 것이 좋음.
-        const dayData = allHistoryData.find(d => d.id === dateKey);
-        if (dayData) {
-             const missingTasksList = checkMissingQuantities(dayData);
-             renderQuantityModalInputs(dayData.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList, dayData.confirmedZeroTasks || []);
-        }
+        const missingTasksList = checkMissingQuantities(todayData);
+        renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList, appState.confirmedZeroTasks || []);
     } else {
         const dayData = allHistoryData.find(d => d.id === dateKey);
         if (!dayData) {
@@ -681,4 +674,214 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     html += `</div></div>`;
 
     view.innerHTML = html;
+};
+
+export const requestHistoryDeletion = (dateKey) => {
+    context.historyKeyToDelete = dateKey;
+    if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
+};
+
+export const switchHistoryView = async (view) => {
+    const allViews = [
+        document.getElementById('history-daily-view'),
+        document.getElementById('history-weekly-view'),
+        document.getElementById('history-monthly-view'),
+        document.getElementById('history-attendance-daily-view'),
+        document.getElementById('history-attendance-weekly-view'),
+        document.getElementById('history-attendance-monthly-view'),
+        document.getElementById('report-daily-view'),
+        document.getElementById('report-weekly-view'),
+        document.getElementById('report-monthly-view'),
+        document.getElementById('report-yearly-view')
+    ];
+    allViews.forEach(v => v && v.classList.add('hidden'));
+
+    if (historyTabs) {
+        historyTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+            btn.classList.add('text-gray-500');
+        });
+    }
+    if (attendanceHistoryTabs) {
+        attendanceHistoryTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+            btn.classList.add('text-gray-500');
+        });
+    }
+    if (reportTabs) {
+        reportTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+            btn.classList.add('text-gray-500');
+        });
+    }
+
+    const dateListContainer = document.getElementById('history-date-list-container');
+    if (dateListContainer) {
+        dateListContainer.style.display = 'block';
+    }
+
+    let viewToShow = null;
+    let tabToActivate = null;
+    let listMode = 'day';
+
+    switch (view) {
+        case 'daily':
+            listMode = 'day';
+            viewToShow = document.getElementById('history-daily-view');
+            tabToActivate = historyTabs?.querySelector('button[data-view="daily"]');
+            break;
+        case 'weekly':
+            listMode = 'week';
+            viewToShow = document.getElementById('history-weekly-view');
+            tabToActivate = historyTabs?.querySelector('button[data-view="weekly"]');
+            break;
+        case 'monthly':
+            listMode = 'month';
+            viewToShow = document.getElementById('history-monthly-view');
+            tabToActivate = historyTabs?.querySelector('button[data-view="monthly"]');
+            break;
+        case 'attendance-daily':
+            listMode = 'day';
+            viewToShow = document.getElementById('history-attendance-daily-view');
+            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-daily"]');
+            break;
+        case 'attendance-weekly':
+            listMode = 'week';
+            viewToShow = document.getElementById('history-attendance-weekly-view');
+            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
+            break;
+        case 'attendance-monthly':
+            listMode = 'month';
+            viewToShow = document.getElementById('history-attendance-monthly-view');
+            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
+            break;
+        case 'report-daily':
+            listMode = 'day';
+            viewToShow = document.getElementById('report-daily-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-daily"]');
+            break;
+        case 'report-weekly':
+            listMode = 'week';
+            viewToShow = document.getElementById('report-weekly-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-weekly"]');
+            break;
+        case 'report-monthly':
+            listMode = 'month';
+            viewToShow = document.getElementById('report-monthly-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-monthly"]');
+            break;
+        case 'report-yearly':
+            listMode = 'year';
+            viewToShow = document.getElementById('report-yearly-view');
+            tabToActivate = reportTabs?.querySelector('button[data-view="report-yearly"]');
+            break;
+    }
+
+    await renderHistoryDateListByMode(listMode);
+
+    if (viewToShow) viewToShow.classList.remove('hidden');
+    if (tabToActivate) {
+        tabToActivate.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+        tabToActivate.classList.remove('text-gray-500');
+    }
+};
+
+// ✅ [수정] 인건비 시뮬레이션 계산 로직 (휴게시간 및 모드 지원)
+export const calculateSimulation = (mode, task, targetQty, inputValue, appConfig, historyData, startTimeStr = "09:00") => {
+    // mode: 'fixed-workers' | 'target-time'
+    if (!task || targetQty <= 0 || inputValue <= 0) {
+        return { error: "모든 값을 올바르게 입력해주세요." };
+    }
+
+    const standards = calculateStandardThroughputs(historyData);
+    const speedPerPerson = standards[task] || 0; // (개/분/인)
+
+    if (speedPerPerson <= 0) {
+        return { error: "해당 업무의 과거 이력 데이터가 부족하여 예측할 수 없습니다." };
+    }
+
+    const avgWagePerMinute = (appConfig.defaultPartTimerWage || 10000) / 60;
+    const totalManMinutesNeeded = targetQty / speedPerPerson; // 총 필요 인력분
+
+    let result = {
+        speed: speedPerPerson,
+        totalCost: totalManMinutesNeeded * avgWagePerMinute
+    };
+
+    if (mode === 'fixed-workers') {
+        // 입력값 = 인원 수 -> 결과값 = 소요 시간
+        result.workerCount = inputValue;
+        result.durationMinutes = totalManMinutesNeeded / inputValue;
+        result.label1 = '예상 소요 시간';
+        result.value1 = formatDuration(result.durationMinutes);
+
+        // ✨ 휴게시간(12:30~13:30) 고려한 종료 시간 예측
+        const now = new Date();
+        const [startH, startM] = startTimeStr.split(':').map(Number);
+        const startDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
+        
+        const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
+        const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 13, 30);
+        
+        let endDateTime = new Date(startDateTime.getTime() + result.durationMinutes * 60000);
+
+        // 작업 구간이 점심시간을 포함하는지 체크
+        if (startDateTime < lunchEnd && endDateTime > lunchStart) {
+             result.durationMinutes += 60; // 실제 소요 시간에 점심시간 포함
+             result.value1 = `${formatDuration(result.durationMinutes)} (점심포함)`;
+             endDateTime = new Date(endDateTime.getTime() + 60 * 60000); // 종료 시각도 1시간 뒤로 밀림
+        }
+        
+        result.expectedEndTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`;
+
+    } else if (mode === 'target-time') {
+        // 입력값 = 목표 시간 -> 결과값 = 필요 인원
+        result.durationMinutes = inputValue;
+        result.workerCount = totalManMinutesNeeded / inputValue;
+        result.label1 = '필요 인원';
+        result.value1 = `${Math.ceil(result.workerCount * 10) / 10} 명`;
+        
+        // 역산 모드에서도 종료 시각은 단순 계산 (목표 시간만큼 더함)
+        const [startH, startM] = startTimeStr.split(':').map(Number);
+        const now = new Date();
+        const startDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
+        const endDateTime = new Date(startDateTime.getTime() + inputValue * 60000);
+        result.expectedEndTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`;
+    }
+
+    return result;
+};
+
+// ✅ [신규] 효율 곡선 차트 데이터 생성
+export const generateEfficiencyChartData = (task, targetQty, historyData) => {
+    const standards = calculateStandardThroughputs(historyData);
+    const speedPerPerson = standards[task] || 0;
+    if (speedPerPerson <= 0) return null;
+
+    const totalManMinutes = targetQty / speedPerPerson;
+    const labels = [];
+    const data = [];
+
+    for (let workers = 1; workers <= 15; workers++) {
+        labels.push(`${workers}명`);
+        data.push(Math.round(totalManMinutes / workers));
+    }
+
+    return { labels, data, taskName: task };
+};
+
+// ✨ [신규] 병목 구간 분석 로직
+export const analyzeBottlenecks = (historyData) => {
+    const standards = calculateStandardThroughputs(historyData);
+    const ranked = Object.entries(standards)
+        .map(([task, speed]) => ({
+            task,
+            speed,
+            timeFor1000: (speed > 0) ? (1000 / speed) : 0 // 1000개 처리 시 필요 시간 (1인 기준)
+        }))
+        .filter(item => item.speed > 0)
+        .sort((a, b) => b.timeFor1000 - a.timeFor1000) // 시간이 오래 걸릴수록(느릴수록) 상위
+        .slice(0, 5); // 상위 5개
+
+    return ranked;
 };
