@@ -1,10 +1,12 @@
 // === js/app-logic.js ===
+import {
+    appState, db, auth,
+    generateId,
+    saveStateToFirestore,
+    debouncedSaveState
+} from './app.js';
 
-// ✅ [수정] import 경로를 state.js, app.js, utils.js로 분리
-import { appState, db, auth } from './state.js';
-import { saveStateToFirestore, debouncedSaveState } from './app.js';
-import { generateId, calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
-
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
 // ✅ [필수] increment, updateDoc 등 원자적 연산 함수 임포트
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -45,7 +47,7 @@ export const processClockIn = async (memberName, isAdminAction = false) => {
     } catch (e) {
         console.error("Clock-in error:", e);
         // 문서가 없을 경우(하루 첫 출근) 대비한 setDoc fallback
-        if (e.code === 'not-found' || e.message.includes('No document to update')) {
+        if (e.code === 'not-found') {
              await setDoc(getDailyDocRef(), {
                 dailyAttendance: {
                     [memberName]: { inTime: now, outTime: null, status: 'active' }
@@ -78,6 +80,7 @@ export const processClockOut = async (memberName, isAdminAction = false) => {
             dailyAttendance: {
                 [memberName]: {
                     // inTime은 기존 값 유지를 위해 여기선 덮어쓰지 않음 (merge: true 덕분)
+                    // 하지만 더 안전하게 하려면 updateDoc을 쓰는 게 좋음.
                     // 여기서는 'status'와 'outTime'만 확실히 변경하면 됨.
                     outTime: now,
                     status: 'returned'
@@ -160,6 +163,9 @@ export const startWorkGroup = async (members, task) => {
         });
 
         await batch.commit();
+        // ⛔️ appState.workRecords.push(...) 제거
+        // ⛔️ render() 제거
+        // ⛔️ saveStateToFirestore() 제거
     } catch (e) {
         console.error("Error starting work group: ", e);
         showToast("업무 시작 중 오류가 발생했습니다.", true);
@@ -212,12 +218,23 @@ export const addMembersToWorkGroup = async (members, task, groupId) => {
         });
 
         await batch.commit();
+        // ⛔️ appState.workRecords.push(...) 제거
+        // ⛔️ render() 제거
+        // ⛔️ saveStateToFirestore() 제거
     } catch (e) {
          console.error("Error adding members to work group: ", e);
          showToast("팀원 추가 중 오류가 발생했습니다.", true);
     }
 };
 
+// ✅ [수정] 이 함수는 로컬 캐시를 읽기만 하므로 변경 없음
+export const stopWorkGroup = (groupId) => {
+    // 이 함수는 이제 직접 호출되지 않고 confirmStopGroupBtn 리스너에서 finalizeStopGroup을 바로 호출합니다.
+    // 호환성을 위해 남겨둘 수 있습니다.
+    finalizeStopGroup(groupId, null);
+};
+
+// ✅ [수정] 그룹 종료 시 처리량 업데이트에 'increment' 사용
 export const finalizeStopGroup = async (groupId, quantity) => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
@@ -260,6 +277,7 @@ export const finalizeStopGroup = async (groupId, quantity) => {
 
         // ✨ 3. 처리량 원자적 증가 (increment 사용)
         if (quantity !== null && taskName && Number(quantity) > 0) {
+             // updateDoc을 사용하여 'taskQuantities.{taskName}' 필드만 원자적으로 증가시킵니다.
              await updateDoc(getDailyDocRef(), {
                 [`taskQuantities.${taskName}`]: increment(Number(quantity))
             });
@@ -295,6 +313,9 @@ export const stopWorkIndividual = async (recordId) => {
                 duration: duration,
                 pauses: pauses
             });
+
+            // ⛔️ render() 제거
+            // ⛔️ saveStateToFirestore() 제거
             showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
         } else {
             showToast('이미 완료되었거나 찾을 수 없는 기록입니다.', true);
@@ -329,6 +350,8 @@ export const pauseWorkGroup = async (groupId) => {
 
         if (changed) {
             await batch.commit();
+            // ⛔️ render() 제거
+            // ⛔️ saveStateToFirestore() 제거
             showToast('그룹 업무가 일시정지 되었습니다.');
         }
     } catch (e) {
@@ -365,6 +388,8 @@ export const resumeWorkGroup = async (groupId) => {
 
         if (changed) {
             await batch.commit();
+            // ⛔️ render() 제거
+            // ⛔️ saveStateToFirestore() 제거
             showToast('그룹 업무를 다시 시작합니다.');
         }
     } catch (e) {
@@ -389,6 +414,9 @@ export const pauseWorkIndividual = async (recordId) => {
                 status: 'paused',
                 pauses: newPauses
             });
+
+            // ⛔️ render() 제거
+            // ⛔️ saveStateToFirestore() 제거
             showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
         }
     } catch (e) {
@@ -416,6 +444,9 @@ export const resumeWorkIndividual = async (recordId) => {
                 status: 'ongoing',
                 pauses: pauses
             });
+
+            // ⛔️ render() 제거
+            // ⛔️ saveStateToFirestore() 제거
             showToast(`${record.member}님 ${record.task} 업무 재개.`);
         }
     } catch (e) {
@@ -443,12 +474,12 @@ export const autoPauseForLunch = async () => {
         const currentTime = getCurrentTime();
         let tasksPaused = 0;
 
-        querySnapshot.forEach(docSnap => {
-            const record = docSnap.data();
+        querySnapshot.forEach(doc => {
+            const record = doc.data();
             const newPauses = record.pauses || [];
             newPauses.push({ start: currentTime, end: null, type: 'lunch' });
 
-            batch.update(docSnap.ref, {
+            batch.update(doc.ref, {
                 status: 'paused',
                 pauses: newPauses
             });
@@ -486,8 +517,8 @@ export const autoResumeFromLunch = async () => {
         const currentTime = getCurrentTime();
         let tasksResumed = 0;
 
-        querySnapshot.forEach(docSnap => {
-            const record = docSnap.data();
+        querySnapshot.forEach(doc => {
+            const record = doc.data();
             const pauses = record.pauses || [];
             const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
 
@@ -495,7 +526,7 @@ export const autoResumeFromLunch = async () => {
             if (lastPause && lastPause.type === 'lunch' && lastPause.end === null) {
                 lastPause.end = currentTime;
 
-                batch.update(docSnap.ref, {
+                batch.update(doc.ref, {
                     status: 'ongoing',
                     pauses: pauses
                 });
