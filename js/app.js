@@ -27,8 +27,8 @@ import {
     loginModal, navContent, addAttendanceMemberDatalist,
     personalAttendanceTogglePc, pcAttendanceLabel, personalAttendanceToggleMobile,
     adminLinkBtn, resetAppBtn, openHistoryBtn, adminLinkBtnMobile, resetAppBtnMobile,
-    currentDateDisplay, topRightControls, mainContentArea,
-    bgGray800ShadowLg, contentPanels // (참고: dom.js에 이 변수명들이 정확히 있는지 확인 필요, 없다면 아래 코드에서 수정)
+    currentDateDisplay, topRightControls, mainContentArea
+    // 👈 [수정 완료] 문제가 되는 두 변수 삭제
 } from './dom.js';
 
 
