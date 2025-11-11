@@ -1,6 +1,6 @@
 // === js/app-history-logic.js ===
 import {
-    appState, appConfig, db, auth,
+    appConfig, db,
     allHistoryData,
     context,
     historyModal,
@@ -9,8 +9,7 @@ import {
     reportPanel, reportTabs,
     deleteHistoryModal,
     quantityModal,
-    render, debouncedSaveState, saveStateToFirestore,
-    markDataAsDirty,
+    render
 } from './app.js';
 
 import {
@@ -34,12 +33,12 @@ import {
 
 // Firestore 함수 임포트
 import {
-    doc, setDoc, getDoc, collection, getDocs, deleteDoc, runTransaction,
+    doc, setDoc, getDoc, collection, getDocs, deleteDoc,
     query, where, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 표준 속도 계산 함수 임포트
-import { calculateStandardThroughputs, PRODUCTIVITY_METRIC_DESCRIPTIONS, getDiffHtmlForMetric, createTableRow } from './ui-history-reports-logic.js';
+import { calculateStandardThroughputs } from './ui-history-reports-logic.js';
 
 
 // workRecords 컬렉션 참조 헬퍼
@@ -237,12 +236,13 @@ export async function saveDayDataToHistory(shouldReset) {
                 snapshotAll.forEach(doc => deleteBatch.delete(doc.ref));
                 await deleteBatch.commit();
             }
-             await setDoc(getDailyDocRef(), { state: '{}' });
+             // 초기화 시에는 전체 상태를 비워야 하므로 setDoc({}) 사용
+             await setDoc(getDailyDocRef(), {});
         } catch (e) {
              console.error("Error clearing daily data: ", e);
         }
         
-        appState.workRecords = [];
+        // app.js의 onSnapshot이 상태를 비워줄 것이므로 여기서는 UI 알림만
         showToast('오늘의 업무 기록을 초기화했습니다.');
     }
 }
@@ -404,12 +404,19 @@ export const openHistoryQuantityModal = (dateKey) => {
     if (dateKey === todayDateString) {
         const todayData = {
             id: todayDateString,
-            workRecords: appState.workRecords || [],
-            taskQuantities: appState.taskQuantities || {},
-            confirmedZeroTasks: appState.confirmedZeroTasks || []
+            workRecords: [], // app.js에서 실시간 로드되므로 여기선 빈 배열로 두거나 appState 참조
+            taskQuantities: {}, // 마찬가지
+            confirmedZeroTasks: []
         };
-        const missingTasksList = checkMissingQuantities(todayData);
-        renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList, appState.confirmedZeroTasks || []);
+        // 실제로는 app.js의 appState를 참조해야 정확하지만, 
+        // 이 함수가 호출될 때는 보통 이력 모드이거나 오늘 날짜라도 appState가 최신화되어 있음.
+        // 여기서는 안전하게 appState가 아닌 Firestore에서 다시 읽거나, 
+        // 이미 동기화된 allHistoryData를 사용하는 것이 좋음.
+        const dayData = allHistoryData.find(d => d.id === dateKey);
+        if (dayData) {
+             const missingTasksList = checkMissingQuantities(dayData);
+             renderQuantityModalInputs(dayData.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList, dayData.confirmedZeroTasks || []);
+        }
     } else {
         const dayData = allHistoryData.find(d => d.id === dateKey);
         if (!dayData) {
