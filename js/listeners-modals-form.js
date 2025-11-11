@@ -21,6 +21,22 @@ import {
     doc, updateDoc, collection, query, where, getDocs, writeBatch, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ✅ [추가] (listeners-main.js에서 누락되었던 헬퍼 변수)
+const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
+const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
+
+// 헬퍼: 버튼을 선택 상태로 만듦
+const selectMemberBtn = (btn) => {
+    btn.classList.remove(...UNSELECTED_CLASSES);
+    btn.classList.add(...SELECTED_CLASSES);
+};
+// 헬퍼: 버튼을 선택 해제 상태로 만듦
+const deselectMemberBtn = (btn) => {
+    btn.classList.remove(...SELECTED_CLASSES);
+    btn.classList.add(...UNSELECTED_CLASSES);
+};
+
+
 export function setupFormModalListeners() {
 
     // (listeners-modals.js -> listeners-modals-form.js)
@@ -89,6 +105,158 @@ export function setupFormModalListeners() {
             }
         });
     }
+
+    // ✅ [추가] (listeners-main.js에서 누락되었던 핵심 리스너)
+    if (DOM.teamSelectModal) {
+        DOM.teamSelectModal.addEventListener('click', async (e) => {
+            const target = e.target;
+
+            // 1. 개별 멤버 버튼 클릭
+            const memberButton = target.closest('.member-select-btn');
+            if (memberButton && !memberButton.disabled) {
+                const memberName = memberButton.dataset.memberName;
+                const isCurrentlySelected = memberButton.classList.contains('bg-blue-600');
+
+                if (!isCurrentlySelected) {
+                    selectMemberBtn(memberButton);
+                    if (!State.context.tempSelectedMembers.includes(memberName)) {
+                        State.context.tempSelectedMembers.push(memberName);
+                    }
+                } else {
+                    deselectMemberBtn(memberButton);
+                    State.context.tempSelectedMembers = State.context.tempSelectedMembers.filter(m => m !== memberName);
+                }
+            }
+
+            // 2. 전체 선택/해제 버튼 클릭
+            const selectAllBtn = target.closest('.group-select-all-btn');
+            if (selectAllBtn) {
+                const groupName = selectAllBtn.dataset.groupName;
+                const memberListDiv = DOM.teamSelectModal.querySelector(`.space-y-2[data-group-name="${groupName}"]`);
+                if (memberListDiv) {
+                    const availableButtons = Array.from(memberListDiv.querySelectorAll('.member-select-btn:not(:disabled)'));
+                    const allSelected = availableButtons.length > 0 && availableButtons.every(btn => btn.classList.contains('bg-blue-600'));
+
+                    availableButtons.forEach(btn => {
+                        const memberName = btn.dataset.memberName;
+                        if (allSelected) {
+                            deselectMemberBtn(btn);
+                            State.context.tempSelectedMembers = State.context.tempSelectedMembers.filter(m => m !== memberName);
+                        } else {
+                             if (!btn.classList.contains('bg-blue-600')) {
+                                selectMemberBtn(btn);
+                                if (!State.context.tempSelectedMembers.includes(memberName)) {
+                                    State.context.tempSelectedMembers.push(memberName);
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // 3. 알바 수정 버튼 클릭 핸들러 (✏️ 아이콘)
+            const editPartTimerBtn = target.closest('.edit-part-timer-btn');
+            if (editPartTimerBtn) {
+                const partTimerId = editPartTimerBtn.dataset.partTimerId;
+                const partTimer = (State.appState.partTimers || []).find(p => p.id === partTimerId);
+                if (partTimer) {
+                    document.querySelector('#edit-part-timer-modal h2').textContent = '알바 이름 수정';
+                    document.getElementById('part-timer-edit-id').value = partTimer.id;
+                    document.getElementById('part-timer-new-name').value = partTimer.name;
+                    document.getElementById('edit-part-timer-modal').classList.remove('hidden');
+                    setTimeout(() => document.getElementById('part-timer-new-name').focus(), 50);
+                }
+                return;
+            }
+
+            // 4. 알바 삭제 버튼 클릭 핸들러 (🗑️ 아이콘)
+            const deletePartTimerBtn = target.closest('.delete-part-timer-btn');
+            if (deletePartTimerBtn) {
+                const partTimerId = deletePartTimerBtn.dataset.partTimerId;
+                const partTimer = (State.appState.partTimers || []).find(p => p.id === partTimerId);
+
+                if (partTimer) {
+                    // 1. 로컬 상태에서 알바 제거
+                    State.appState.partTimers = State.appState.partTimers.filter(p => p.id !== partTimerId);
+                    
+                    // 2. 금일 출근 기록이 있다면 함께 제거 (정리)
+                    if (State.appState.dailyAttendance && State.appState.dailyAttendance[partTimer.name]) {
+                        delete State.appState.dailyAttendance[partTimer.name];
+                    }
+
+                    debouncedSaveState();
+                    renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
+                    showToast(`${partTimer.name}님이 삭제되었습니다.`);
+                }
+                return;
+            }
+
+            // 5. 알바 추가 버튼 핸들러 (+ 추가)
+             if (target.closest('#add-part-timer-modal-btn')) {
+                if (!State.appState.partTimers) State.appState.partTimers = [];
+
+                // 1. 중복되지 않는 '알바N' 이름 찾기
+                const existingNames = new Set(State.appState.partTimers.map(p => p.name));
+                let nextNum = 1;
+                while (existingNames.has(`알바${nextNum}`)) {
+                    nextNum++;
+                }
+                const newName = `알바${nextNum}`;
+
+                // 2. 새 알바 객체 생성
+                const newPartTimer = {
+                    id: generateId(),
+                    name: newName,
+                    wage: State.appConfig.defaultPartTimerWage || 10000
+                };
+
+                // 3. 상태 추가 (알바 정보 + 즉시 출근 처리)
+                if (!State.appState.dailyAttendance) State.appState.dailyAttendance = {};
+                State.appState.dailyAttendance[newName] = {
+                    inTime: getCurrentTime(),
+                    outTime: null,
+                    status: 'active'
+                };
+                State.appState.partTimers.push(newPartTimer);
+                
+                debouncedSaveState();
+
+                // 4. 모달 컨텐츠 리렌더링
+                renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
+                showToast(`'${newName}'이(가) 추가되고 출근 처리되었습니다.`);
+                return;
+            }
+
+            // 6. 확인 버튼 (업무 시작/추가)
+            const confirmTeamSelectBtn = target.closest('#confirm-team-select-btn');
+            if (confirmTeamSelectBtn) {
+                 if (State.context.tempSelectedMembers.length === 0) {
+                    showToast('최소 1명 이상의 팀원을 선택해주세요.', true);
+                    return;
+                }
+
+                const btn = confirmTeamSelectBtn;
+                btn.disabled = true;
+                btn.textContent = '처리 중...';
+
+                try {
+                    if (State.context.selectedGroupForAdd) {
+                        await addMembersToWorkGroup(State.context.tempSelectedMembers, State.context.selectedTaskForStart, State.context.selectedGroupForAdd);
+                    } else {
+                        await startWorkGroup(State.context.tempSelectedMembers, State.context.selectedTaskForStart);
+                    }
+                    DOM.teamSelectModal.classList.add('hidden');
+                } catch (error) {
+                    console.error("업무 시작 중 오류:", error);
+                    showToast("오류가 발생했습니다. 다시 시도해주세요.", true);
+                } finally {
+                    btn.disabled = false;
+                    // (원래 텍스트는 모달이 다시 열릴 때 세팅되므로 복원 불필요)
+                }
+             }
+        });
+    }
+
 
     // (listeners-modals.js -> listeners-modals-form.js)
     if (DOM.confirmEditBtn) {
