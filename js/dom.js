@@ -30,6 +30,7 @@ export const editAttendanceTimeFields = document.getElementById('edit-attendance
 export const editAttendanceDateFields = document.getElementById('edit-attendance-date-fields');
 export const connectionStatusEl = document.getElementById('connection-status');
 export const statusDotEl = document.getElementById('status-dot');
+export const loadingSpinner = document.getElementById('loading-spinner');
 export const teamStatusBoard = document.getElementById('team-status-board');
 export const workLogBody = document.getElementById('work-log-body');
 export const teamSelectModal = document.getElementById('team-select-modal');
