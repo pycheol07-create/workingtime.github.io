@@ -4,9 +4,9 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 
-// ✅ [수정] app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
+// ✅ [수정] app.js에서는 'render'만, app-data.js에서는 'updateDailyData' 등을 가져옵니다.
 import { render } from './app.js';
-import { updateDailyData } from './app-data.js';
+import { updateDailyData, debouncedSaveState, generateId } from './app-data.js'; // ✅ debouncedSaveState, generateId 임포트 추가
 
 import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js';
 import {
