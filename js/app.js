@@ -252,7 +252,9 @@ async function startAppAfterLogin(user) {
             if (DOM.adminLinkBtnMobile) DOM.adminLinkBtnMobile.style.display = 'flex';
             if (DOM.resetAppBtn) DOM.resetAppBtn.style.display = 'flex';
             if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'flex';
-            if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'inline-block';
+            
+            // ✅ [수정] 'inline-block' -> 'flex' (메뉴 스타일과 맞춤)
+            if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'flex';
         } else {
             if (adminLinkBtn) adminLinkBtn.style.display = 'none';
             if (DOM.adminLinkBtnMobile) DOM.adminLinkBtnMobile.style.display = 'none';

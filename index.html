@@ -68,6 +68,14 @@
                                 <button id="open-cost-simulation-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">
                                     <span>💰</span> <span class="font-medium">운영 시뮬레이션</span>
                                 </button>
+                                
+                                <button id="open-history-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100" style="display: none;">
+                                    <span>📜</span> <span class="font-medium">이력 보기</span>
+                                </button>
+                                <button id="end-shift-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">
+                                    <span>🏁</span> <span class="font-medium">업무 마감</span>
+                                </button>
+
                                 <a href="admin.html" id="admin-link-btn" target="admin_window" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100" style="display: none;">
                                     <span>⚙️</span> <span class="font-medium">관리자 페이지</span>
                                 </a>
@@ -145,9 +153,7 @@
             </div>
             <div id="completed-log-content" class="hidden md:block mt-4">
                 <div class="flex flex-wrap gap-2 justify-end items-center mb-4">
-                    <button id="open-history-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">이력 보기</button>
                     <button id="save-progress-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">중간 저장</button>
-                    <button id="end-shift-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">업무 마감</button>
                 </div>
                 <div class="overflow-auto relative bg-white rounded-md max-h-96">
                     <table class="w-full text-sm text-left text-gray-600">
