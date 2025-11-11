@@ -3,10 +3,11 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import {
-    render, debouncedSaveState,
-    updateDailyData
-} from './app.js';
+
+// ✅ [수정] app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
+import { render } from './app.js';
+import { updateDailyData } from './app-data.js';
+
 import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js';
 import {
     renderPersonalAnalysis,
