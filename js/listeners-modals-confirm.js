@@ -7,6 +7,7 @@ import { showToast, getTodayDateString } from './utils.js';
 import { finalizeStopGroup, stopWorkIndividual } from './app-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
 import { switchHistoryView } from './app-history-logic.js';
+
 // ✅ [수정] app.js와 config.js의 import를 파일 최상단으로 이동
 import { debouncedSaveState, render } from './app.js';
 import { saveLeaveSchedule } from './config.js';
