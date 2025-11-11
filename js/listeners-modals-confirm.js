@@ -7,6 +7,9 @@ import { showToast, getTodayDateString } from './utils.js';
 import { finalizeStopGroup, stopWorkIndividual } from './app-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
 import { switchHistoryView } from './app-history-logic.js';
+// ✅ [수정] app.js와 config.js의 import를 파일 최상단으로 이동
+import { debouncedSaveState, render } from './app.js';
+import { saveLeaveSchedule } from './config.js';
 
 import { 
     doc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc
@@ -156,7 +159,6 @@ export function setupConfirmationModalListeners() {
     // (listeners-modals.js -> listeners-modals-confirm.js)
     if (DOM.confirmCancelLeaveBtn) {
         DOM.confirmCancelLeaveBtn.addEventListener('click', () => {
-            // (이 로직은 Firestore를 직접 쓰지 않고 State만 변경하므로 그대로 둠)
             const memberName = State.context.memberToCancelLeave;
             if (!memberName) return;
 
@@ -181,40 +183,8 @@ export function setupConfirmationModalListeners() {
                 return true;
             });
 
+            // ✅ [수정] import가 최상단으로 이동됨
             if (dailyChanged) {
-                // debouncedSaveState()는 app.js에 있지만,
-                // 이 함수는 app-logic.js의 saveLeaveSchedule과 함께 호출되어야 함
-                // 여기서는 State.js의 debouncedSaveState를 호출해야 함.
-                // -> app.js에서 debouncedSaveState를 가져와야 함.
-                // --> 아, app.js의 debouncedSaveState는 app-logic.js를 통해 못가져옴.
-                // ---> listeners-modals.js에 debouncedSaveState import가 있었음!
-                // ----> 이 파일(confirm.js)에도 import app.js가 필요함.
-                
-                // [임시 조치] app.js의 debouncedSaveState를 직접 호출해야 함.
-                // 상단에 import { debouncedSaveState } from './app.js'; 추가.
-                // (app.js import가 listeners-modals.js에 이미 있었음)
-                
-                // [정정] 아, saveLeaveSchedule이 config.js에 있네.
-                // 그럼 app.js의 debouncedSaveState와 config.js의 saveLeaveSchedule을 둘다 import해야함.
-                
-                // [최종]
-                // 1. 상단에 import { debouncedSaveState } from './app.js'; 추가
-                // 2. 상단에 import { saveLeaveSchedule } from './config.js'; 추가
-                
-                // [다시 최종]
-                // listeners-modals.js는 이미 app.js와 config.js를 import 하고 있었음.
-                // 따라서 이 파일(confirm.js)도 동일하게 import 해야 함.
-                // 상단에 app.js와 config.js import 추가
-                
-                // [정말 최종]
-                // `listeners-modals.js` 파일에 `debouncedSaveState`와 `saveLeaveSchedule`이 이미 임포트되어 있었음.
-                // 따라서 `listeners-modals-confirm.js`도 동일하게 임포트해야 함.
-                
-                // -> 아님. `confirmCancelLeaveBtn` 리스너만 해당 임포트가 필요함.
-                // -> `listeners-modals-confirm.js` 상단에 추가:
-                import { debouncedSaveState } from './app.js';
-                import { saveLeaveSchedule } from './config.js';
-                
                 debouncedSaveState();
             }
             if (persistentChanged) {
@@ -267,9 +237,7 @@ export function setupConfirmationModalListeners() {
                 State.appState.dailyOnLeaveMembers = [];
                 State.appState.dailyAttendance = {};
 
-                // render()는 app.js에 있음.
-                // 상단에 import { render } from './app.js'; 추가
-                import { render } from './app.js';
+                // ✅ [수정] import가 최상단으로 이동됨
                 render();
 
                 showToast('오늘 데이터가 모두 초기화되었습니다.');
