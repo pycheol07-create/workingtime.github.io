@@ -8,8 +8,9 @@ import { finalizeStopGroup, stopWorkIndividual } from './app-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
 import { switchHistoryView } from './app-history-logic.js';
 
-// ✅ [수정] app.js와 config.js의 import를 파일 최상단으로 이동
-import { debouncedSaveState, render } from './app.js';
+// ✅ [수정] app.js와 app-data.js, config.js에서 올바르게 임포트
+import { render } from './app.js';
+import { debouncedSaveState } from './app-data.js';
 import { saveLeaveSchedule } from './config.js';
 
 import { 
@@ -184,7 +185,6 @@ export function setupConfirmationModalListeners() {
                 return true;
             });
 
-            // ✅ [수정] import가 최상단으로 이동됨
             if (dailyChanged) {
                 debouncedSaveState();
             }
@@ -238,7 +238,6 @@ export function setupConfirmationModalListeners() {
                 State.appState.dailyOnLeaveMembers = [];
                 State.appState.dailyAttendance = {};
 
-                // ✅ [수정] import가 최상단으로 이동됨
                 render();
 
                 showToast('오늘 데이터가 모두 초기화되었습니다.');
