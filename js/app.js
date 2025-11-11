@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction, query, where, writeBatch, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule } from './config.js';
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes, debounce } from './utils.js';
 
 import {
@@ -18,7 +18,6 @@ import {
 
 import { initializeAppListeners } from './app-listeners.js';
 import {
-    saveProgress,
     saveDayDataToHistory
 } from './app-history-logic.js';
 
@@ -109,7 +108,6 @@ export const confirmStopIndividualBtn = document.getElementById('confirm-stop-in
 export const cancelStopIndividualBtn = document.getElementById('cancel-stop-individual-btn');
 export const stopIndividualConfirmMessage = document.getElementById('stop-individual-confirm-message');
 
-// ✅ 그룹 종료 모달 관련 요소
 export const stopGroupConfirmModal = document.getElementById('stop-group-confirm-modal');
 export const confirmStopGroupBtn = document.getElementById('confirm-stop-group-btn');
 export const cancelStopGroupBtn = document.getElementById('cancel-stop-group-btn');
@@ -181,6 +179,7 @@ export const historyFilterBtn = document.getElementById('history-filter-btn');
 export const historyClearFilterBtn = document.getElementById('history-clear-filter-btn');
 export const historyDownloadPeriodExcelBtn = document.getElementById('history-download-period-excel-btn');
 export const coqExplanationModal = document.getElementById('coq-explanation-modal');
+
 export const pcClockOutCancelBtn = document.getElementById('pc-clock-out-cancel-btn');
 export const mobileClockOutCancelBtn = document.getElementById('mobile-clock-out-cancel-btn');
 export const memberActionModal = document.getElementById('member-action-modal');
@@ -192,7 +191,6 @@ export const adminClockOutBtn = document.getElementById('admin-clock-out-btn');
 export const adminCancelClockOutBtn = document.getElementById('admin-cancel-clock-out-btn');
 export const openLeaveModalBtn = document.getElementById('open-leave-modal-btn');
 
-// ✅ [신규] 인건비 시뮬레이션 모달 관련 요소 추가 (확장됨)
 export const costSimulationModal = document.getElementById('cost-simulation-modal');
 export const openCostSimulationBtn = document.getElementById('open-cost-simulation-btn');
 export const simTaskSelect = document.getElementById('sim-task-select');
@@ -203,7 +201,6 @@ export const simResultContainer = document.getElementById('sim-result-container'
 export const simResultDuration = document.getElementById('sim-result-duration');
 export const simResultCost = document.getElementById('sim-result-cost');
 export const simResultSpeed = document.getElementById('sim-result-speed');
-// ✨ 추가된 DOM 요소들
 export const simModeRadios = document.getElementsByName('sim-mode');
 export const simInputWorkerGroup = document.getElementById('sim-input-worker-group');
 export const simInputDurationGroup = document.getElementById('sim-input-duration-group');
@@ -219,6 +216,8 @@ export const simBottleneckContainer = document.getElementById('sim-bottleneck-co
 export const simBottleneckTbody = document.getElementById('sim-bottleneck-tbody');
 export const simChartContainer = document.getElementById('sim-chart-container');
 export const simInputArea = document.getElementById('sim-input-area');
+export const simModalHeader = document.getElementById('cost-simulation-modal')?.querySelector('.sticky');
+export const simModalContent = document.getElementById('cost-simulation-modal')?.querySelector('.bg-white.rounded-2xl');
 
 
 // Firebase/App State
@@ -228,12 +227,7 @@ export let unsubscribeLeaveSchedule;
 export let unsubscribeConfig;
 export let elapsedTimeTimer = null;
 export let periodicRefreshTimer = null;
-// ✅ workRecords 리스너 변수
 export let unsubscribeWorkRecords;
-
-export let isDataDirty = false;
-export let autoSaveTimer = null;
-export const AUTO_SAVE_INTERVAL = 1 * 60 * 1000;
 
 export let context = {
     recordCounter: 0,
@@ -266,7 +260,7 @@ export let context = {
 };
 
 export let appState = {
-    workRecords: [], // 로컬 캐시
+    workRecords: [],
     taskQuantities: {},
     dailyOnLeaveMembers: [],
     dateBasedOnLeaveMembers: [],
@@ -301,8 +295,7 @@ export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase()
 
 // Core Functions
 
-// ✅ [신규/핵심] 원자적 업데이트를 위한 새로운 저장 함수
-// 기존 saveStateToFirestore 대체용. 필요한 필드만 부분 업데이트합니다.
+// ✅ [신규] 원자적 업데이트를 위한 새로운 저장 함수
 export async function updateDailyData(updates) {
     if (!auth || !auth.currentUser) {
         console.warn('Cannot update daily data: User not authenticated.');
@@ -311,37 +304,14 @@ export async function updateDailyData(updates) {
 
     try {
         const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-        // setDoc({ ... }, { merge: true })를 사용하여 문서가 없으면 생성하고, 있으면 병합합니다.
         await setDoc(docRef, updates, { merge: true });
-
     } catch (error) {
         console.error('Error updating daily data atomically:', error);
         showToast('데이터 저장 중 오류가 발생했습니다.', true);
     }
 }
 
-// [레거시 호환] 기존 saveStateToFirestore 유지 (점진적 교체)
-// 이제 내부적으로 updateDailyData를 호출하여 새로운 구조로 저장하도록 유도합니다.
-export async function saveStateToFirestore() {
-    // 기존에는 모든 상태를 JSON으로 묶었지만, 이제는 개별 필드로 저장합니다.
-    // 하위 호환성을 위해 이 함수는 '전체 상태를 한 번에 저장해야 할 때' 사용됩니다.
-    const updates = {
-        taskQuantities: appState.taskQuantities || {},
-        onLeaveMembers: appState.dailyOnLeaveMembers || [],
-        partTimers: appState.partTimers || [],
-        hiddenGroupIds: appState.hiddenGroupIds || [],
-        lunchPauseExecuted: appState.lunchPauseExecuted || false,
-        lunchResumeExecuted: appState.lunchResumeExecuted || false,
-        confirmedZeroTasks: appState.confirmedZeroTasks || [],
-        dailyAttendance: appState.dailyAttendance || {}
-    };
-
-    // 더 이상 'state' JSON 문자열로 묶어서 저장하지 않습니다.
-    await updateDailyData(updates);
-    isDataDirty = false;
-}
-
-export const debouncedSaveState = debounce(saveStateToFirestore, 1000);
+// ⛔️ [삭제됨] saveStateToFirestore, debouncedSaveState, autoSaveProgress, isDataDirty 등
 
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
@@ -358,7 +328,8 @@ export const updateElapsedTimes = async () => {
                 console.error("Error during auto-pause: ", e);
             }
         }
-        saveStateToFirestore(); 
+        // 🔥 [핵심] 전체 저장 대신 플래그만 안전하게 업데이트
+        updateDailyData({ lunchPauseExecuted: true });
     }
 
     if (now === '13:30' && !appState.lunchResumeExecuted) {
@@ -373,9 +344,11 @@ export const updateElapsedTimes = async () => {
                  console.error("Error during auto-resume: ", e);
             }
         }
-        saveStateToFirestore();
+        // 🔥 [핵심] 전체 저장 대신 플래그만 안전하게 업데이트
+        updateDailyData({ lunchResumeExecuted: true });
     }
 
+    // 진행 시간 실시간 표시 업데이트 (로컬 UI만 갱신)
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
             const startTime = el.dataset.startTime;
@@ -423,18 +396,7 @@ export const render = () => {
     }
 };
 
-export const markDataAsDirty = () => {
-    isDataDirty = true;
-};
-
-export const autoSaveProgress = () => {
-    const hasOngoing = (appState.workRecords || []).some(r => r.status === 'ongoing');
-
-    if (isDataDirty || hasOngoing) {
-        saveProgress(true); 
-        isDataDirty = false;
-    }
-};
+// ⛔️ [삭제됨] markDataAsDirty, autoSaveProgress
 
 // 앱 초기화
 async function startAppAfterLogin(user) {
@@ -556,8 +518,7 @@ async function startAppAfterLogin(user) {
         renderTaskAnalysis(appState, appConfig);
     }, 30000);
 
-    if (autoSaveTimer) clearInterval(autoSaveTimer);
-    autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
+    // ⛔️ [삭제] autoSaveTimer 제거
 
     const leaveScheduleDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
     if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule();
@@ -572,7 +533,7 @@ async function startAppAfterLogin(user) {
             }
             return false;
         });
-        markDataAsDirty();
+        // ⛔️ markDataAsDirty() 제거
         render();
     }, (error) => {
         console.error("근태 일정 실시간 연결 실패:", error);
@@ -642,7 +603,6 @@ async function startAppAfterLogin(user) {
     const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
     if (unsubscribeToday) unsubscribeToday();
 
-    // ✅ [핵심] 메인 문서 리스너 개선: 개별 필드와 레거시 'state' 문자열 모두 지원
     unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
         try {
             const taskTypes = (appConfig.taskGroups || []).flatMap(group => group.tasks);
@@ -651,7 +611,6 @@ async function startAppAfterLogin(user) {
 
             const data = docSnap.exists() ? docSnap.data() : {};
             
-            // 레거시 'state' 문자열이 있으면 파싱하여 사용 (마이그레이션 과도기 지원)
             let legacyState = {};
             if (data.state && typeof data.state === 'string') {
                 try {
@@ -661,7 +620,6 @@ async function startAppAfterLogin(user) {
                 }
             }
 
-            // 우선순위: 최상위 개별 필드 > 레거시 state 내부 필드 > 기본값
             appState.taskQuantities = { ...defaultQuantities, ...(data.taskQuantities || legacyState.taskQuantities || {}) };
             appState.partTimers = data.partTimers || legacyState.partTimers || [];
             appState.hiddenGroupIds = data.hiddenGroupIds || legacyState.hiddenGroupIds || [];
@@ -671,7 +629,7 @@ async function startAppAfterLogin(user) {
             appState.confirmedZeroTasks = data.confirmedZeroTasks || legacyState.confirmedZeroTasks || [];
             appState.dailyAttendance = data.dailyAttendance || legacyState.dailyAttendance || {};
 
-            isDataDirty = false;
+            // ⛔️ isDataDirty = false 제거
 
             render();
             if (connectionStatusEl) connectionStatusEl.textContent = '동기화 (메타)';
