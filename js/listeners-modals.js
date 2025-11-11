@@ -10,6 +10,7 @@ import {
     saveStateToFirestore,
     debouncedSaveState,
     render,
+    updateDailyData // ✅ updateDailyData 임포트
 } from './app.js';
 
 import { getTodayDateString, getCurrentTime, formatTimeTo24H, showToast, calcElapsedMinutes, formatDuration } from './utils.js';
@@ -736,7 +737,8 @@ export function setupGeneralModalListeners() {
                 }
 
                 const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
-                await setDoc(docRef, { state: '{}' });
+                // ✅ [수정] state: '{}' 대신 빈 객체로 설정하여 새 구조에 맞게 초기화
+                await setDoc(docRef, {});
 
                 State.appState.workRecords = [];
                 State.appState.taskQuantities = {};

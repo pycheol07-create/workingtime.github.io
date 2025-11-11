@@ -4,7 +4,7 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 
-// ✅ [수정] app.js에서는 더 이상 상태/DOM 변수를 가져오지 않습니다.
+// ✅ [수정] app.js에서는 더 이상 상태 변수를 가져오지 않습니다.
 import {
     render, debouncedSaveState, saveStateToFirestore,
     markDataAsDirty,
@@ -784,20 +784,21 @@ export const switchHistoryView = async (view) => {
 };
 
 // ✅ [수정] 인건비 시뮬레이션 계산 로직 (휴게시간 및 모드 지원)
-export const calculateSimulation = (mode, task, targetQty, inputValue, appConfig, historyData, startTimeStr = "09:00") => {
+// ✅ [수정] appConfig, historyData를 State에서 직접 참조하도록 변경
+export const calculateSimulation = (mode, task, targetQty, inputValue, startTimeStr = "09:00") => {
     // mode: 'fixed-workers' | 'target-time'
     if (!task || targetQty <= 0 || inputValue <= 0) {
         return { error: "모든 값을 올바르게 입력해주세요." };
     }
 
-    const standards = calculateStandardThroughputs(historyData);
+    const standards = calculateStandardThroughputs(State.allHistoryData); // ✅ State.allHistoryData 사용
     const speedPerPerson = standards[task] || 0; // (개/분/인)
 
     if (speedPerPerson <= 0) {
         return { error: "해당 업무의 과거 이력 데이터가 부족하여 예측할 수 없습니다." };
     }
 
-    const avgWagePerMinute = (appConfig.defaultPartTimerWage || 10000) / 60;
+    const avgWagePerMinute = (State.appConfig.defaultPartTimerWage || 10000) / 60; // ✅ State.appConfig 사용
     const totalManMinutesNeeded = targetQty / speedPerPerson; // 총 필요 인력분
 
     let result = {
