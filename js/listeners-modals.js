@@ -41,6 +41,10 @@ import {
     confirmEditStartTimeBtn,
     stopGroupConfirmModal, confirmStopGroupBtn, cancelStopGroupBtn,
 
+    // ✅ [누락 복구] cancelTeamSelectBtn 추가
+    cancelTeamSelectBtn,
+    partTimerNewNameInput, partTimerEditIdInput,
+
     generateId,
     render,
     persistentLeaveSchedule,
@@ -54,7 +58,6 @@ import {
     // ✨ 드래그를 위한 요소
     simModalHeader, simModalContent,
 
-    // 🔥 [핵심] 원자적 업데이트 함수 임포트 (debouncedSaveState 제거)
     updateDailyData
 
 } from './app.js';
@@ -70,15 +73,11 @@ import {
 import {
     finalizeStopGroup,
     stopWorkIndividual,
-    processClockIn,
-    processClockOut,
-    cancelClockOut
 } from './app-logic.js';
 
 import { saveDayDataToHistory, switchHistoryView, calculateSimulation, analyzeBottlenecks } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
-import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
@@ -778,7 +777,7 @@ export function setupGeneralModalListeners() {
                 }
 
                 const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
-                // 초기화 시에는 전체 상태를 비워야 하므로 setDoc({}) 사용 (state 필드 없이)
+                // 초기화는 전체 상태를 비우는 것이므로 setDoc({}) 사용
                 await setDoc(docRef, {});
 
                 appState.workRecords = [];
