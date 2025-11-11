@@ -26,7 +26,9 @@ import {
 
     stopGroupConfirmModal,
 
-    render, debouncedSaveState,
+    render,
+    // ⛔️ [삭제] 더 이상 존재하지 않는 함수 import 제거
+    // debouncedSaveState,
     generateId,
 
     loginModal, loginForm, loginEmailInput, loginPasswordInput, loginSubmitBtn,
@@ -65,7 +67,7 @@ import {
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// ✅ [신규] 근태 설정 모달 열기 헬퍼 함수
+// 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
     if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
     context.memberToSetLeave = memberName;
@@ -73,7 +75,7 @@ const openLeaveModal = (memberName) => {
     if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
 };
 
-// ✅ [신규] 관리자 액션 모달 열기 헬퍼 함수
+// 관리자 액션 모달 열기 헬퍼 함수
 const openAdminMemberActionModal = (memberName) => {
     context.memberToAction = memberName;
     if (actionMemberName) actionMemberName.textContent = memberName;
@@ -118,7 +120,7 @@ const openAdminMemberActionModal = (memberName) => {
 
 export function setupMainScreenListeners() {
 
-    // 🔥 [핵심] 선택/미선택 상태 클래스 정의
+    // 선택/미선택 상태 클래스 정의
     const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
     const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
 
@@ -295,7 +297,6 @@ export function setupMainScreenListeners() {
                     }
                     return;
                 }
-                // 연차 등의 수정은 현재 이력 보기에서만 가능하도록 유도하거나, 추후 구현
                 showToast('연차/출장 등의 수정은 이력 보기 메뉴를 이용해주세요.', false);
                 return;
             }
@@ -310,7 +311,6 @@ export function setupMainScreenListeners() {
                     showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
                 }
 
-                // ✅ 관리자일 경우 관리자 전용 모달 열기
                 if (role === 'admin' && memberName !== selfName) {
                      openAdminMemberActionModal(memberName);
                      return;
@@ -417,10 +417,7 @@ export function setupMainScreenListeners() {
                 if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = `총 ${ongoingRecords.length}명이 참여 중인 ${ongoingTaskCount}종의 업무가 있습니다. 모두 종료하고 마감하시겠습니까?`;
                 if (endShiftConfirmModal) endShiftConfirmModal.classList.remove('hidden');
             } else {
-                // 마감 확인 모달 없이 바로 마감 시도
-                 if (endShiftConfirmTitle) endShiftConfirmTitle.textContent = '업무 마감';
-                 if (endShiftConfirmMessage) endShiftConfirmMessage.textContent = '오늘 업무를 마감하고 이력에 저장하시겠습니까?';
-                 if (endShiftConfirmModal) endShiftConfirmModal.classList.remove('hidden');
+                saveDayDataToHistory(true);
             }
         });
     }
@@ -494,25 +491,7 @@ export function setupMainScreenListeners() {
                 return;
             }
 
-            // 오늘 날짜 처리를 위한 컨텍스트 설정
-            context.quantityModalContext.mode = 'today';
-            context.quantityModalContext.dateKey = null;
-
-            context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
-                // 로컬 상태 즉시 업데이트 (UX)
-                appState.taskQuantities = newQuantities;
-                appState.confirmedZeroTasks = confirmedZeroTasks;
-                
-                // 🔥 [핵심] 원자적 업데이트 (updateDailyData 사용)
-                await updateDailyData({
-                    taskQuantities: newQuantities,
-                    confirmedZeroTasks: confirmedZeroTasks
-                });
-
-                showToast('오늘의 처리량이 저장되었습니다.');
-            };
-
-            context.quantityModalContext.onCancel = () => {};
+            const quantityModal = document.getElementById('quantity-modal');
 
             const todayData = {
                 workRecords: appState.workRecords || [],
@@ -525,6 +504,23 @@ export function setupMainScreenListeners() {
 
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
+
+            context.quantityModalContext.mode = 'today';
+            context.quantityModalContext.dateKey = null;
+
+            context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
+                appState.taskQuantities = newQuantities;
+                appState.confirmedZeroTasks = confirmedZeroTasks;
+                
+                await updateDailyData({
+                    taskQuantities: newQuantities,
+                    confirmedZeroTasks: confirmedZeroTasks
+                });
+
+                showToast('오늘의 처리량이 저장되었습니다.');
+            };
+
+            context.quantityModalContext.onCancel = () => {};
 
             const quantityModalEl = document.getElementById('quantity-modal');
             if (quantityModalEl) quantityModalEl.classList.remove('hidden');
@@ -540,24 +536,7 @@ export function setupMainScreenListeners() {
                 return;
             }
 
-             // 오늘 날짜 처리를 위한 컨텍스트 설정 (모바일)
-            context.quantityModalContext.mode = 'today';
-            context.quantityModalContext.dateKey = null;
-
-            context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
-                appState.taskQuantities = newQuantities;
-                appState.confirmedZeroTasks = confirmedZeroTasks;
-
-                // 🔥 [핵심] 원자적 업데이트
-                await updateDailyData({
-                    taskQuantities: newQuantities,
-                    confirmedZeroTasks: confirmedZeroTasks
-                });
-                
-                showToast('오늘의 처리량이 저장되었습니다.');
-            };
-
-            context.quantityModalContext.onCancel = () => {};
+            const quantityModal = document.getElementById('quantity-modal');
 
             const todayData = {
                 workRecords: appState.workRecords || [],
@@ -570,6 +549,23 @@ export function setupMainScreenListeners() {
 
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력';
+
+            context.quantityModalContext.mode = 'today';
+            context.quantityModalContext.dateKey = null;
+
+            context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
+                appState.taskQuantities = newQuantities;
+                appState.confirmedZeroTasks = confirmedZeroTasks;
+
+                await updateDailyData({
+                    taskQuantities: newQuantities,
+                    confirmedZeroTasks: confirmedZeroTasks
+                });
+                
+                showToast('오늘의 처리량이 저장되었습니다.');
+            };
+
+            context.quantityModalContext.onCancel = () => {};
 
             const quantityModalEl = document.getElementById('quantity-modal');
             if (quantityModalEl) quantityModalEl.classList.remove('hidden');
@@ -696,12 +692,9 @@ export function setupMainScreenListeners() {
         });
     }
 
-    // ✅ 팀 선택 모달 리스너
     if (teamSelectModal) {
         teamSelectModal.addEventListener('click', async (e) => {
             const target = e.target;
-
-            // 1. 개별 멤버 버튼 클릭
             const memberButton = target.closest('.member-select-btn');
             if (memberButton && !memberButton.disabled) {
                 const memberName = memberButton.dataset.memberName;
@@ -718,7 +711,6 @@ export function setupMainScreenListeners() {
                 }
             }
 
-            // 2. 전체 선택/해제 버튼 클릭
             const selectAllBtn = target.closest('.group-select-all-btn');
             if (selectAllBtn) {
                 const groupName = selectAllBtn.dataset.groupName;
@@ -743,10 +735,8 @@ export function setupMainScreenListeners() {
                     });
                 }
             }
-            // (알바 추가/수정/삭제 버튼 리스너는 이미 listeners-modals.js나 다른 곳에서 위임 처리되거나 제거됨)
         });
 
-        // 확인 버튼 (업무 시작)
         const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
         if (confirmTeamSelectBtn) {
              confirmTeamSelectBtn.addEventListener('click', async (e) => {
