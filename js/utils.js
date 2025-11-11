@@ -63,6 +63,9 @@ export const getTodayDateString = () => {
     return localDate.toISOString().slice(0, 10);
 };
 
+// ✅ [추가] generateId 함수를 app.js에서 이곳으로 이동
+export const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
 export const getWeekOfYear = (date) => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));

@@ -1,12 +1,10 @@
 // === js/app-logic.js ===
-import {
-    appState, db, auth,
-    generateId,
-    saveStateToFirestore,
-    debouncedSaveState
-} from './app.js';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
+// ✅ [수정] import 경로를 state.js, app.js, utils.js로 분리
+import { appState, db, auth } from './state.js';
+import { saveStateToFirestore, debouncedSaveState } from './app.js';
+import { generateId, calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
+
 // ✅ [필수] increment, updateDoc 등 원자적 연산 함수 임포트
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 

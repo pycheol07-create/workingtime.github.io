@@ -1,7 +1,12 @@
 // === js/listeners-modals.js ===
+
+// ✅ [수정] state.js, dom.js, app.js 등에서 필요한 항목을 분리하여 임포트
 import {
     appState, appConfig, db, auth,
-    context,
+    context, allHistoryData
+} from './state.js';
+
+import {
     teamSelectModal,
     deleteConfirmModal,
     confirmDeleteBtn,
@@ -68,17 +73,7 @@ import {
     pcClockOutCancelBtn,
     mobileClockOutCancelBtn,
     memberActionModal,
-
     stopGroupConfirmModal, confirmStopGroupBtn, cancelStopGroupBtn,
-
-    generateId,
-    saveStateToFirestore,
-    debouncedSaveState,
-    render,
-    persistentLeaveSchedule,
-    allHistoryData,
-
-    // 시뮬레이션 관련 DOM 요소
     costSimulationModal, openCostSimulationBtn, simTaskSelect,
     simTargetQuantityInput, simWorkerCountInput, simCalculateBtn,
     simResultContainer, simResultCost, simResultSpeed,
@@ -86,17 +81,26 @@ import {
     simEfficiencyChartCanvas, simAddComparisonBtn, simComparisonContainer,
     simComparisonTbody, simClearComparisonBtn, simResultLabel1, simResultValue1,
     simBottleneckContainer, simBottleneckTbody, simChartContainer, simInputArea
+} from './dom.js';
 
+import {
+    render, debouncedSaveState
 } from './app.js';
 
-import { getTodayDateString, getCurrentTime, formatTimeTo24H, showToast, calcElapsedMinutes, formatDuration } from './utils.js';
+// ✅ [수정] utils.js에서 generateId 및 유틸 함수 임포트
+import {
+    generateId,
+    getTodayDateString, getCurrentTime, formatTimeTo24H, showToast, calcElapsedMinutes, formatDuration
+} from './utils.js';
 
+// ✅ [수정] ui-modals.js에서 직접 임포트
 import {
     renderTaskSelectionModal,
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions
 } from './ui-modals.js';
 
+// ✅ [수정] app-logic.js에서 직접 임포트
 import {
     startWorkGroup,
     addMembersToWorkGroup,
@@ -107,9 +111,11 @@ import {
     cancelClockOut
 } from './app-logic.js';
 
+// ✅ [수정] app-history-logic.js에서 직접 임포트
 import { saveProgress, saveDayDataToHistory, switchHistoryView, calculateSimulation, generateEfficiencyChartData, analyzeBottlenecks } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
+// Firebase SDK 임포트
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -227,13 +233,13 @@ export function setupGeneralModalListeners() {
                 if (e.target.checked) {
                     const mode = e.target.value;
                     if (mode === 'bottleneck') {
-                        simInputArea.classList.add('hidden');
-                        simResultContainer.classList.add('hidden');
-                        simCalculateBtn.textContent = '병목 구간 분석하기';
+                        if (simInputArea) simInputArea.classList.add('hidden');
+                        if (simResultContainer) simResultContainer.classList.add('hidden');
+                        if (simCalculateBtn) simCalculateBtn.textContent = '병목 구간 분석하기';
                     } else {
-                        simInputArea.classList.remove('hidden');
-                        simBottleneckContainer.classList.add('hidden');
-                        simCalculateBtn.textContent = '시뮬레이션 실행 🚀';
+                        if (simInputArea) simInputArea.classList.remove('hidden');
+                        if (simBottleneckContainer) simBottleneckContainer.classList.add('hidden');
+                        if (simCalculateBtn) simCalculateBtn.textContent = '시뮬레이션 실행 🚀';
                         
                         if (simTableHeaderWorker) {
                             simTableHeaderWorker.textContent = (mode === 'fixed-workers') ? '투입 인원 (명)' : '목표 시간 (분)';
@@ -265,7 +271,9 @@ export function setupGeneralModalListeners() {
 
     if (simCalculateBtn) {
         simCalculateBtn.addEventListener('click', () => {
-            const mode = document.querySelector('input[name="sim-mode"]:checked').value;
+            const modeRadio = document.querySelector('input[name="sim-mode"]:checked');
+            if (!modeRadio) return;
+            const mode = modeRadio.value;
 
             // --- 모드 3: 병목 분석 ---
             if (mode === 'bottleneck') {
@@ -274,6 +282,7 @@ export function setupGeneralModalListeners() {
                     showToast('분석할 데이터가 충분하지 않습니다.', true);
                     return;
                 }
+                const simBottleneckTbody = document.getElementById('sim-bottleneck-tbody');
                 if (simBottleneckTbody) {
                     simBottleneckTbody.innerHTML = bottlenecks.map((item, index) => `
                         <tr class="bg-white">
@@ -284,7 +293,7 @@ export function setupGeneralModalListeners() {
                         </tr>
                     `).join('');
                 }
-                simBottleneckContainer.classList.remove('hidden');
+                if (simBottleneckContainer) simBottleneckContainer.classList.remove('hidden');
                 return;
             }
 
@@ -297,15 +306,20 @@ export function setupGeneralModalListeners() {
             let finalEndTimeStr = currentStartTimeStr;
 
             rows.forEach(row => {
-                const task = row.querySelector('.sim-row-task').value;
-                const qty = Number(row.querySelector('.sim-row-qty').value);
-                const inputVal = Number(row.querySelector('.sim-row-worker-or-time').value);
+                const taskEl = row.querySelector('.sim-row-task');
+                const qtyEl = row.querySelector('.sim-row-qty');
+                const inputEl = row.querySelector('.sim-row-worker-or-time');
+                if (!taskEl || !qtyEl || !inputEl) return;
+                
+                const task = taskEl.value;
+                const qty = Number(qtyEl.value);
+                const inputVal = Number(inputEl.value);
 
                 if (task && qty > 0 && inputVal > 0) {
                     // ✨ 순차적 계산: 현재 업무의 예상 종료 시간을 다음 업무의 시작 시간으로 전달
                     const res = calculateSimulation(mode, task, qty, inputVal, appConfig, allHistoryData, currentStartTimeStr);
                     
-                    if (!res.error) {
+                    if (res && !res.error) {
                         res.startTime = currentStartTimeStr; // 결과 표시용 시작 시간 저장
                         results.push({ task, ...res });
                         
@@ -342,7 +356,7 @@ export function setupGeneralModalListeners() {
                         </td>
                         <td class="px-4 py-3 text-right">
                             ${formatDuration(res.durationMinutes)}
-                            ${res.includesLunch ? '<span class="text-xs text-orange-500 block">(점심포함)</span>' : ''}
+                            ${(res.includesLunch || (res.durationMinutes > 60 && res.startTime < '12:30' && res.expectedEndTime > '13:30')) ? '<span class="text-xs text-orange-500 block">(점심포함)</span>' : ''}
                         </td>
                         <td class="px-4 py-3 text-right">${Math.round(res.totalCost).toLocaleString()}원</td>
                         <td class="px-4 py-3 text-right font-bold text-indigo-600">${res.expectedEndTime}</td>
@@ -471,7 +485,7 @@ export function setupGeneralModalListeners() {
                 context.attendanceRecordToDelete = null;
             }
 
-            deleteConfirmModal.classList.add('hidden');
+            if (deleteConfirmModal) deleteConfirmModal.classList.add('hidden');
             context.recordToDeleteId = null;
             context.deleteMode = 'single';
         });
@@ -518,7 +532,7 @@ export function setupGeneralModalListeners() {
                 await updateDoc(docRef, updates);
 
                 showToast('업무 기록이 수정되었습니다.');
-                editRecordModal.classList.add('hidden');
+                if (editRecordModal) editRecordModal.classList.add('hidden');
             } catch (e) {
                 console.error("Error updating work record: ", e);
                 showToast("기록 수정 중 오류 발생", true);
@@ -530,14 +544,14 @@ export function setupGeneralModalListeners() {
         confirmQuantityOnStopBtn.addEventListener('click', async () => {
             const quantity = document.getElementById('quantity-on-stop-input').value;
             await finalizeStopGroup(context.groupToStopId, quantity);
-            quantityOnStopModal.classList.add('hidden');
+            if (quantityOnStopModal) quantityOnStopModal.classList.add('hidden');
             context.groupToStopId = null;
         });
     }
     if (cancelQuantityOnStopBtn) {
         cancelQuantityOnStopBtn.addEventListener('click', async () => {
             await finalizeStopGroup(context.groupToStopId, null);
-            quantityOnStopModal.classList.add('hidden');
+            if (quantityOnStopModal) quantityOnStopModal.classList.add('hidden');
             context.groupToStopId = null;
         });
     }
@@ -545,7 +559,7 @@ export function setupGeneralModalListeners() {
     if (confirmStopIndividualBtn) {
         confirmStopIndividualBtn.addEventListener('click', async () => {
             await stopWorkIndividual(context.recordToStopId);
-            stopIndividualConfirmModal.classList.add('hidden');
+            if (stopIndividualConfirmModal) stopIndividualConfirmModal.classList.add('hidden');
             context.recordToStopId = null;
         });
     }
@@ -674,7 +688,7 @@ export function setupGeneralModalListeners() {
             }
 
             showToast(`${memberName}님 ${type} 처리 완료.`);
-            leaveTypeModal.classList.add('hidden');
+            if (leaveTypeModal) leaveTypeModal.classList.add('hidden');
         });
     }
 
@@ -717,7 +731,7 @@ export function setupGeneralModalListeners() {
                 showToast('취소할 근태 기록이 없습니다.');
             }
 
-            cancelLeaveConfirmModal.classList.add('hidden');
+            if (cancelLeaveConfirmModal) cancelLeaveConfirmModal.classList.add('hidden');
             context.memberToCancelLeave = null;
         });
     }
@@ -759,8 +773,8 @@ export function setupGeneralModalListeners() {
                 await setDoc(docRef, newRecordData);
 
                 showToast('수동 기록이 추가되었습니다.');
-                manualAddRecordModal.classList.add('hidden');
-                manualAddForm.reset();
+                if (manualAddRecordModal) manualAddRecordModal.classList.add('hidden');
+                if (manualAddForm) manualAddForm.reset();
 
             } catch (e) {
                 console.error("Error adding manual work record: ", e);
@@ -772,7 +786,7 @@ export function setupGeneralModalListeners() {
     if (confirmEndShiftBtn) {
         confirmEndShiftBtn.addEventListener('click', async () => {
             await saveDayDataToHistory(false);
-            endShiftConfirmModal.classList.add('hidden');
+            if (endShiftConfirmModal) endShiftConfirmModal.classList.add('hidden');
         });
     }
 
@@ -805,7 +819,7 @@ export function setupGeneralModalListeners() {
                 render();
 
                 showToast('오늘 데이터가 모두 초기화되었습니다.');
-                resetAppModal.classList.add('hidden');
+                if (resetAppModal) resetAppModal.classList.add('hidden');
 
             } catch (e) {
                 console.error("오늘 데이터 초기화 실패: ", e);
@@ -847,7 +861,7 @@ export function setupGeneralModalListeners() {
                 }
 
                 showToast('시작 시간이 수정되었습니다.');
-                editStartTimeModal.classList.add('hidden');
+                if (editStartTimeModal) editStartTimeModal.classList.add('hidden');
 
             } catch (e) {
                  console.error("Error updating start time: ", e);

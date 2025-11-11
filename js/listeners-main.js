@@ -1,9 +1,13 @@
+// === js/listeners-main.js ===
+
+// ✅ [수정] app.js 대신 state.js와 dom.js에서 직접 변수 임포트
 import {
     appState, appConfig, db, auth,
     persistentLeaveSchedule, allHistoryData,
-    context,
-    LEAVE_TYPES,
+    context, LEAVE_TYPES
+} from './state.js';
 
+import {
     teamStatusBoard, workLogBody,
     deleteConfirmModal,
     endShiftBtn, endShiftConfirmModal, endShiftConfirmTitle, endShiftConfirmMessage,
@@ -24,29 +28,29 @@ import {
     hamburgerBtn, navContent,
     analysisMemberSelect,
     openManualAddBtn, manualAddRecordModal,
-
     stopGroupConfirmModal,
-
-    render, debouncedSaveState,
-    generateId,
-    markDataAsDirty,
-
     loginModal, loginForm, loginEmailInput, loginPasswordInput, loginSubmitBtn,
     loginErrorMsg, loginButtonText, loginButtonSpinner, logoutBtn, logoutBtnMobile,
-
     pcClockOutCancelBtn, mobileClockOutCancelBtn,
     memberActionModal, actionMemberName, actionMemberStatusBadge, actionMemberTimeInfo,
-    adminClockInBtn, adminClockOutBtn, adminCancelClockOutBtn, openLeaveModalBtn,
+    adminClockInBtn, adminClockOutBtn, adminCancelClockOutBtn, openLeaveModalBtn
+} from './dom.js';
 
-    // ✅ [신규] updateDailyData 임포트
+// ✅ [수정] app.js에서는 핵심 함수만 임포트
+import {
+    render, debouncedSaveState,
+    markDataAsDirty,
     updateDailyData
-
 } from './app.js';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js';
-
+// ✅ [수정] utils.js에서 generateId 및 유틸 함수 임포트
 import {
-    getAllDashboardDefinitions,
+    generateId,
+    calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H
+} from './utils.js';
+
+// ✅ [수정] ui.js에서 렌더링 함수 임포트 (app.js 경유 불필요)
+import {
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderPersonalAnalysis,
@@ -54,6 +58,7 @@ import {
     renderManualAddModalDatalists
 } from './ui.js';
 
+// ✅ [수정] app-logic.js에서 로직 함수 임포트 (app.js 경유 불필요)
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -62,13 +67,15 @@ import {
     addMembersToWorkGroup,
 } from './app-logic.js';
 
+// ✅ [수정] app-history-logic.js에서 이력 함수 임포트 (app.js 경유 불필요)
 import {
     saveProgress, saveDayDataToHistory,
     checkMissingQuantities
 } from './app-history-logic.js';
 
+// Firebase SDK 임포트
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, runTransaction, updateDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, updateDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ [신규] 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
