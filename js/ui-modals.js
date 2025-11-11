@@ -15,7 +15,9 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
     quantityTaskTypes.forEach(task => {
         const div = document.createElement('div');
         const isConfirmed = confirmedZeroSet.has(task);
+        // ✅ [핵심] 이 로직이 누락 항목을 확인합니다.
         const isMissing = missingTaskSet.has(task) && !isConfirmed;
+        // ✅ [핵심] 여기서 경고 클래스를 할당합니다.
         const warningClass = isMissing ? 'warning-missing-quantity' : '';
 
         div.innerHTML = `
@@ -43,11 +45,14 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
             const label = container.querySelector(`label[for="modal-quantity-${task}"]`);
 
             if (e.target.checked) {
+                // ✅ [핵심] 체크 시 경고 클래스를 제거합니다.
                 input.classList.remove('warning-missing-quantity');
                 label.classList.remove('text-yellow-700', 'font-bold');
                 label.textContent = task;
             } else {
-                if (Number(input.value) <= 0) {
+                // ✅ [핵심] 체크 해제 시, 누락 상태라면 경고 클래스를 다시 추가합니다.
+                // (주의: missingTaskSet은 이 스코프에서 접근이 안되므로, 0건 기준 재확인)
+                if (Number(input.value) <= 0 && missingTaskSet.has(task)) { // 0건이면서 원래 누락 목록에 있었다면
                      input.classList.add('warning-missing-quantity');
                      label.classList.add('text-yellow-700', 'font-bold');
                      if (!label.textContent.includes('(누락됨)')) {
