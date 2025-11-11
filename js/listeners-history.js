@@ -59,11 +59,17 @@ export function setupHistoryModalListeners() {
         // 1. 드래그나 이전 상태로 인한 인라인 스타일을 '완전히' 제거합니다. (필수)
         DOM.historyModalContentBox.removeAttribute('style');
         DOM.historyModalContentBox.dataset.hasBeenUncentered = 'false';
+        
+        // ✅ [추가] 모달 오버레이의 flex-center 스타일도 리셋
+        DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
 
         if (maximized) {
             // ▶️ 최대화 모드
             DOM.historyModalContentBox.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
-            DOM.historyModalContentBox.classList.remove('relative', 'max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl');
+            DOM.historyModalContentBox.classList.remove('relative', 'w-[1280px]', 'h-[950px]', 'rounded-2xl', 'shadow-2xl');
+            
+            // ✅ [추가] 최대화 시 오버레이의 flex-center 제거
+            DOM.historyModal.classList.remove('flex', 'items-center', 'justify-center');
 
             if (toggleBtn) toggleBtn.title = "기본 크기로";
             if (icon) icon.innerHTML = iconMinimize;
@@ -71,7 +77,7 @@ export function setupHistoryModalListeners() {
         } else {
             // ◀️ 일반 모드 복귀
             DOM.historyModalContentBox.classList.remove('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
-            DOM.historyModalContentBox.classList.add('relative', 'max-w-7xl', 'h-[90vh]', 'rounded-2xl', 'shadow-2xl');
+            DOM.historyModalContentBox.classList.add('relative', 'w-[1280px]', 'h-[950px]', 'rounded-2xl', 'shadow-2xl');
 
             if (toggleBtn) toggleBtn.title = "전체화면";
             if (icon) icon.innerHTML = iconMaximize;
@@ -162,6 +168,9 @@ export function setupHistoryModalListeners() {
                 
                 // ✨ 항상 기본 크기로 열기
                 setHistoryMaximized(false);
+                
+                // ✅ [수정] 1. 드래그로 인해 제거되었을 수 있는 flex-center 스타일을 다시 추가합니다.
+                DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
 
                 if (DOM.historyStartDateInput) DOM.historyStartDateInput.value = '';
                 if (DOM.historyEndDateInput) DOM.historyEndDateInput.value = '';
@@ -184,6 +193,9 @@ export function setupHistoryModalListeners() {
             if (DOM.historyModal) {
                 DOM.historyModal.classList.add('hidden');
                 setHistoryMaximized(false); // 닫을 때 초기화
+                
+                // ✅ [수정] 2. 닫을 때도 flex-center 스타일을 복원합니다.
+                DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
             }
         });
     }
@@ -504,7 +516,7 @@ export function setupHistoryModalListeners() {
                 const isTimeBased = (firstType === '외출' || firstType === '조퇴');
                 const isDateBased = (firstType === '연차' || firstType === '출장' || firstType === '결근');
                 if (DOM.addAttendanceTimeFields) DOM.addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
-                if (DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
+                if (DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', isDateBased);
 
                 setHistoryMaximized(false);
                 if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.remove('hidden');
@@ -618,7 +630,9 @@ export function setupHistoryModalListeners() {
             dayData.onLeaveMembers[index] = updatedRecord;
             try {
                 const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                await setDoc(historyDocRef, dayData);
+                // ✅ [수정] setDoc(dayData) -> setDoc(..., { onLeaveMembers: ... }, { merge: true })
+                // 실수로 dayData 전체를 덮어쓰는 것을 방지하고 onLeaveMembers 필드만 업데이트합니다.
+                await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
                 showToast('근태 기록이 수정되었습니다.');
                 if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden');
                 renderAttendanceDailyHistory(dateKey, State.allHistoryData);
@@ -654,23 +668,31 @@ export function setupHistoryModalListeners() {
                 if (!newRecord.startDate) { showToast('시작일을 입력해주세요.', true); return; }
             }
             let dayData = State.allHistoryData.find(d => d.id === dateKey);
+            let isNewDay = false;
             if (!dayData) {
                 dayData = { id: dateKey, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
                 State.allHistoryData.push(dayData);
                 State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
+                isNewDay = true;
             }
             if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
             dayData.onLeaveMembers.push(newRecord);
             try {
                 const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                await setDoc(historyDocRef, dayData);
+                // ✅ [수정] setDoc(dayData) -> setDoc(..., { onLeaveMembers: ... }, { merge: true })
+                // dayData 전체를 덮어쓰지 않고 onLeaveMembers 필드만 업데이트 (병합)
+                await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
+
                 showToast(`${memberName}님의 근태 기록이 추가되었습니다.`);
                 if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.add('hidden');
                 renderAttendanceDailyHistory(dateKey, State.allHistoryData);
             } catch (e) {
                 console.error('Error adding attendance history:', e);
                 showToast('근태 기록 추가 중 오류가 발생했습니다.', true);
-                dayData.onLeaveMembers.pop();
+                dayData.onLeaveMembers.pop(); // 롤백
+                if (isNewDay) { // 새 날짜였다면 롤백
+                    State.allHistoryData.shift(); 
+                }
             }
         });
     }
@@ -715,10 +737,16 @@ function makeDraggable(modalOverlay, header, contentBox) {
             contentBox.style.position = 'absolute';
             contentBox.style.top = `${rect.top}px`;
             contentBox.style.left = `${rect.left}px`;
+            
+            // ✅ [수정] 3. 드래그 시작 시, 현재 계산된 크기를 인라인 스타일로 고정합니다.
+            contentBox.style.width = `${rect.width}px`;
+            contentBox.style.height = `${rect.height}px`;
+
             contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';
         }
 
+        // mousedown 시점의 좌표를 다시 계산 (스타일이 변경되었으므로)
         const rect = contentBox.getBoundingClientRect();
         offsetX = e.clientX - rect.left;
         offsetY = e.clientY - rect.top;
