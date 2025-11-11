@@ -3,7 +3,9 @@
 // ✅ [수정] state.js, dom.js, app.js 등에서 필요한 항목을 분리하여 임포트
 import {
     appState, appConfig, db, auth,
-    context, allHistoryData
+    context,
+    persistentLeaveSchedule, // state.js에서 가져오도록 수정
+    allHistoryData // state.js에서 가져오도록 수정
 } from './state.js';
 
 import {
@@ -84,23 +86,23 @@ import {
 } from './dom.js';
 
 import {
-    render, debouncedSaveState
+    render, // app.js에서 가져옴
+    saveStateToFirestore, // app.js에서 가져옴
+    debouncedSaveState // app.js에서 가져옴
 } from './app.js';
 
 // ✅ [수정] utils.js에서 generateId 및 유틸 함수 임포트
 import {
-    generateId,
+    generateId, // <-- ERROR FIX: utils.js에서 가져옴
     getTodayDateString, getCurrentTime, formatTimeTo24H, showToast, calcElapsedMinutes, formatDuration
 } from './utils.js';
 
-// ✅ [수정] ui-modals.js에서 직접 임포트
 import {
     renderTaskSelectionModal,
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions
 } from './ui-modals.js';
 
-// ✅ [수정] app-logic.js에서 직접 임포트
 import {
     startWorkGroup,
     addMembersToWorkGroup,
@@ -111,11 +113,9 @@ import {
     cancelClockOut
 } from './app-logic.js';
 
-// ✅ [수정] app-history-logic.js에서 직접 임포트
 import { saveProgress, saveDayDataToHistory, switchHistoryView, calculateSimulation, generateEfficiencyChartData, analyzeBottlenecks } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
-// Firebase SDK 임포트
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -310,7 +310,7 @@ export function setupGeneralModalListeners() {
                 const qtyEl = row.querySelector('.sim-row-qty');
                 const inputEl = row.querySelector('.sim-row-worker-or-time');
                 if (!taskEl || !qtyEl || !inputEl) return;
-                
+
                 const task = taskEl.value;
                 const qty = Number(qtyEl.value);
                 const inputVal = Number(inputEl.value);
@@ -807,8 +807,18 @@ export function setupGeneralModalListeners() {
                     await batch.commit();
                 }
 
+                // ✅ [수정] 'state' 필드 대신 개별 필드를 초기화합니다.
                 const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
-                await setDoc(docRef, { state: '{}' });
+                await setDoc(docRef, { 
+                    taskQuantities: {},
+                    onLeaveMembers: [],
+                    partTimers: [],
+                    hiddenGroupIds: [],
+                    lunchPauseExecuted: false,
+                    lunchResumeExecuted: false,
+                    confirmedZeroTasks: [],
+                    dailyAttendance: {}
+                 }); // state: '{}' 대신 개별 필드 초기화
 
                 appState.workRecords = [];
                 appState.taskQuantities = {};

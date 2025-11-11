@@ -45,7 +45,7 @@ import {
 
 // ✅ [수정] utils.js에서 generateId 및 유틸 함수 임포트
 import {
-    generateId,
+    generateId, // generateId 임포트 추가
     calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H
 } from './utils.js';
 
@@ -65,17 +65,20 @@ import {
     processClockIn, processClockOut, cancelClockOut,
     startWorkGroup,
     addMembersToWorkGroup,
+    finalizeStopGroup // finalizeStopGroup 임포트 추가
 } from './app-logic.js';
 
 // ✅ [수정] app-history-logic.js에서 이력 함수 임포트 (app.js 경유 불필요)
 import {
     saveProgress, saveDayDataToHistory,
-    checkMissingQuantities
+    checkMissingQuantities,
+    switchHistoryView // switchHistoryView 임포트 추가
 } from './app-history-logic.js';
 
 // Firebase SDK 임포트
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, updateDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { saveLeaveSchedule } from './config.js'; // saveLeaveSchedule 임포트 추가
 
 // ✅ [신규] 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -108,11 +111,11 @@ const openAdminMemberActionModal = (memberName) => {
         } else if (status === 'active') {
             actionMemberStatusBadge.textContent = '대기 중';
             actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800';
-            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance.inTime)}`;
+            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance?.inTime)}`;
         } else if (status === 'returned') {
             actionMemberStatusBadge.textContent = '퇴근 완료';
             actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-600';
-            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance.inTime)} / 퇴근: ${formatTimeTo24H(attendance.outTime)}`;
+            actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance?.inTime)} / 퇴근: ${formatTimeTo24H(attendance?.outTime)}`;
         } else {
             actionMemberStatusBadge.textContent = '출근 전';
             actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-400';
@@ -154,8 +157,9 @@ export function setupMainScreenListeners() {
             if (e.target.checked) {
                 processClockIn(currentUser);
             } else {
-                const success = processClockOut(currentUser);
-                if (!success) e.target.checked = true;
+                processClockOut(currentUser).then(success => {
+                    if (!success) e.target.checked = true;
+                });
             }
         });
     }
@@ -168,8 +172,9 @@ export function setupMainScreenListeners() {
             if (e.target.checked) {
                 processClockIn(currentUser);
             } else {
-                 const success = processClockOut(currentUser);
-                if (!success) e.target.checked = true;
+                 processClockOut(currentUser).then(success => {
+                    if (!success) e.target.checked = true;
+                 });
             }
         });
     }
@@ -326,7 +331,7 @@ export function setupMainScreenListeners() {
                 const originalStartInput = document.getElementById('edit-leave-original-start-identifier');
                 const originalTypeInput = document.getElementById('edit-leave-original-type');
 
-                if (!modal || !typeSelect) return;
+                if (!modal || !typeSelect || !titleEl || !nameEl || !timeFields || !dateFields || !startTimeInput || !endTimeInput || !startDateInput || !endDateInput || !originalNameInput || !originalStartInput || !originalTypeInput) return;
 
                 titleEl.textContent = `${memberName}님 근태 수정`;
                 nameEl.textContent = memberName;
@@ -689,7 +694,7 @@ export function setupMainScreenListeners() {
             } catch (error) {
                 console.error('Login error:', error.code, error.message);
                 if (loginErrorMsg) {
-                    if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+                    if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-login-credentials') {
                         loginErrorMsg.textContent = '이메일 또는 비밀번호가 잘못되었습니다.';
                     } else {
                         loginErrorMsg.textContent = `로그인 오류: ${error.code}`;
@@ -737,8 +742,9 @@ export function setupMainScreenListeners() {
     if (adminClockOutBtn) {
         adminClockOutBtn.addEventListener('click', () => {
              if (context.memberToAction) {
-                processClockOut(context.memberToAction, true);
-                if (memberActionModal) memberActionModal.classList.add('hidden');
+                processClockOut(context.memberToAction, true).then(success => {
+                    if (memberActionModal) memberActionModal.classList.add('hidden');
+                });
             }
         });
     }
@@ -900,7 +906,7 @@ export function setupMainScreenListeners() {
                     } else {
                         await startWorkGroup(context.tempSelectedMembers, context.selectedTaskForStart);
                     }
-                    teamSelectModal.classList.add('hidden');
+                    if (teamSelectModal) teamSelectModal.classList.add('hidden');
                 } catch (error) {
                     console.error("업무 시작 중 오류:", error);
                     showToast("오류가 발생했습니다. 다시 시도해주세요.", true);
