@@ -78,16 +78,14 @@ import {
     persistentLeaveSchedule,
     allHistoryData,
 
-    // ✅ [신규] 시뮬레이션 관련 DOM 요소 import
+    // 시뮬레이션 관련 DOM 요소
     costSimulationModal, openCostSimulationBtn, simTaskSelect,
     simTargetQuantityInput, simWorkerCountInput, simCalculateBtn,
     simResultContainer, simResultCost, simResultSpeed,
     simModeRadios, simInputWorkerGroup, simInputDurationGroup, simTargetDurationInput,
     simEfficiencyChartCanvas, simAddComparisonBtn, simComparisonContainer,
     simComparisonTbody, simClearComparisonBtn, simResultLabel1, simResultValue1,
-    simBottleneckContainer, simBottleneckTbody, simChartContainer, simInputArea,
-    // ✨ 드래그를 위한 요소 추가
-    simModalHeader, simModalContent
+    simBottleneckContainer, simBottleneckTbody, simChartContainer, simInputArea
 
 } from './app.js';
 
@@ -194,16 +192,11 @@ export function setupGeneralModalListeners() {
         });
     });
 
-    // ✅ [신규] 인건비 시뮬레이션 모달 관련 리스너
+    // 인건비 시뮬레이션 모달 열기
     const simAddTaskRowBtn = document.getElementById('sim-add-task-row-btn');
     const simTaskTableBody = document.getElementById('sim-task-table-body');
     const simTableHeaderWorker = document.getElementById('sim-table-header-worker');
     const simStartTimeInput = document.getElementById('sim-start-time-input');
-
-    // ✨ [신규] 시뮬레이션 모달 드래그 적용
-    if (costSimulationModal && simModalHeader && simModalContent) {
-        makeDraggable(costSimulationModal, simModalHeader, simModalContent);
-    }
 
     if (openCostSimulationBtn) {
         openCostSimulationBtn.addEventListener('click', () => {
@@ -211,17 +204,6 @@ export function setupGeneralModalListeners() {
             if (simResultContainer) simResultContainer.classList.add('hidden');
             if (simBottleneckContainer) simBottleneckContainer.classList.add('hidden');
             if (simInputArea) simInputArea.classList.remove('hidden');
-            
-            // 모달 위치 초기화 (이전 드래그 위치 리셋)
-            if (simModalContent) {
-                simModalContent.removeAttribute('style');
-                simModalContent.dataset.hasBeenUncentered = 'false';
-            }
-            // costSimulationModal에 flex, items-center, justify-center 클래스 복구 필요할 수 있음
-             if (costSimulationModal) {
-                costSimulationModal.classList.add('flex', 'items-center', 'justify-center');
-            }
-
             if (simTaskTableBody) {
                 simTaskTableBody.innerHTML = '';
                 renderSimulationTaskRow(simTaskTableBody); // 기본 1줄 추가
@@ -872,55 +854,5 @@ export function setupGeneralModalListeners() {
                  showToast("시작 시간 수정 중 오류 발생", true);
             }
         });
-    }
-}
-
-// ✅ [신규] 드래그 앤 드롭 기능 (모달용)
-function makeDraggable(modalOverlay, header, contentBox) {
-    let isDragging = false;
-    let offsetX, offsetY;
-
-    header.addEventListener('mousedown', (e) => {
-        // 버튼 클릭 시 드래그 방지
-        if (e.target.closest('button')) return;
-        
-        isDragging = true;
-
-        // 중앙 정렬 해제 및 절대 위치로 변경
-        if (contentBox.dataset.hasBeenUncentered !== 'true') {
-            const rect = contentBox.getBoundingClientRect();
-            modalOverlay.classList.remove('flex', 'items-center', 'justify-center');
-            contentBox.style.position = 'absolute';
-            // 현재 보이는 위치 그대로 고정
-            contentBox.style.top = `${rect.top + window.scrollY}px`;
-            contentBox.style.left = `${rect.left + window.scrollX}px`;
-            contentBox.style.margin = '0';
-            contentBox.style.transform = 'none';
-            contentBox.dataset.hasBeenUncentered = 'true';
-        }
-
-        // 드래그 시작점 계산
-        const rect = contentBox.getBoundingClientRect();
-        offsetX = e.clientX - rect.left;
-        offsetY = e.clientY - rect.top;
-
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    });
-
-    function onMouseMove(e) {
-        if (!isDragging) return;
-        // 새 위치 계산
-        const newLeft = e.clientX - offsetX + window.scrollX;
-        const newTop = e.clientY - offsetY + window.scrollY;
-
-        contentBox.style.left = `${newLeft}px`;
-        contentBox.style.top = `${newTop}px`;
-    }
-
-    function onMouseUp() {
-        isDragging = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
     }
 }

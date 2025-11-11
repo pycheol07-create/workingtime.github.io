@@ -181,7 +181,6 @@ export const historyFilterBtn = document.getElementById('history-filter-btn');
 export const historyClearFilterBtn = document.getElementById('history-clear-filter-btn');
 export const historyDownloadPeriodExcelBtn = document.getElementById('history-download-period-excel-btn');
 export const coqExplanationModal = document.getElementById('coq-explanation-modal');
-
 export const pcClockOutCancelBtn = document.getElementById('pc-clock-out-cancel-btn');
 export const mobileClockOutCancelBtn = document.getElementById('mobile-clock-out-cancel-btn');
 export const memberActionModal = document.getElementById('member-action-modal');
@@ -193,7 +192,7 @@ export const adminClockOutBtn = document.getElementById('admin-clock-out-btn');
 export const adminCancelClockOutBtn = document.getElementById('admin-cancel-clock-out-btn');
 export const openLeaveModalBtn = document.getElementById('open-leave-modal-btn');
 
-// ✅ [신규] 인건비 시뮬레이션 모달 관련 요소 추가
+// ✅ [신규] 인건비 시뮬레이션 모달 관련 요소 추가 (확장됨)
 export const costSimulationModal = document.getElementById('cost-simulation-modal');
 export const openCostSimulationBtn = document.getElementById('open-cost-simulation-btn');
 export const simTaskSelect = document.getElementById('sim-task-select');
@@ -204,9 +203,7 @@ export const simResultContainer = document.getElementById('sim-result-container'
 export const simResultDuration = document.getElementById('sim-result-duration');
 export const simResultCost = document.getElementById('sim-result-cost');
 export const simResultSpeed = document.getElementById('sim-result-speed');
-// ✨ 추가된 DOM 요소들 (다중 업무, 병목 분석, 드래그 등)
-export const simModalHeader = document.getElementById('sim-modal-header');
-export const simModalContent = document.getElementById('sim-modal-content');
+// ✨ 추가된 DOM 요소들
 export const simModeRadios = document.getElementsByName('sim-mode');
 export const simInputWorkerGroup = document.getElementById('sim-input-worker-group');
 export const simInputDurationGroup = document.getElementById('sim-input-duration-group');
@@ -222,10 +219,6 @@ export const simBottleneckContainer = document.getElementById('sim-bottleneck-co
 export const simBottleneckTbody = document.getElementById('sim-bottleneck-tbody');
 export const simChartContainer = document.getElementById('sim-chart-container');
 export const simInputArea = document.getElementById('sim-input-area');
-export const simTaskTableBody = document.getElementById('sim-task-table-body');
-export const simAddTaskRowBtn = document.getElementById('sim-add-task-row-btn');
-export const simTableHeaderWorker = document.getElementById('sim-table-header-worker');
-export const simStartTimeInput = document.getElementById('sim-start-time-input');
 
 
 // Firebase/App State
