@@ -195,3 +195,8 @@ export const simBottleneckContainer = document.getElementById('sim-bottleneck-co
 export const simBottleneckTbody = document.getElementById('sim-bottleneck-tbody');
 export const simChartContainer = document.getElementById('sim-chart-container');
 export const simInputArea = document.getElementById('sim-input-area');
+
+// ✅ [신규] 모바일 메뉴 버튼 3개 추가
+export const openCostSimulationBtnMobile = document.getElementById('open-cost-simulation-btn-mobile');
+export const openHistoryBtnMobile = document.getElementById('open-history-btn-mobile');
+export const endShiftBtnMobile = document.getElementById('end-shift-btn-mobile');
