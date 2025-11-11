@@ -204,7 +204,9 @@ export const simResultContainer = document.getElementById('sim-result-container'
 export const simResultDuration = document.getElementById('sim-result-duration');
 export const simResultCost = document.getElementById('sim-result-cost');
 export const simResultSpeed = document.getElementById('sim-result-speed');
-// ✨ 추가된 DOM 요소들
+// ✨ 추가된 DOM 요소들 (다중 업무, 병목 분석, 드래그 등)
+export const simModalHeader = document.getElementById('sim-modal-header');
+export const simModalContent = document.getElementById('sim-modal-content');
 export const simModeRadios = document.getElementsByName('sim-mode');
 export const simInputWorkerGroup = document.getElementById('sim-input-worker-group');
 export const simInputDurationGroup = document.getElementById('sim-input-duration-group');
@@ -220,6 +222,10 @@ export const simBottleneckContainer = document.getElementById('sim-bottleneck-co
 export const simBottleneckTbody = document.getElementById('sim-bottleneck-tbody');
 export const simChartContainer = document.getElementById('sim-chart-container');
 export const simInputArea = document.getElementById('sim-input-area');
+export const simTaskTableBody = document.getElementById('sim-task-table-body');
+export const simAddTaskRowBtn = document.getElementById('sim-add-task-row-btn');
+export const simTableHeaderWorker = document.getElementById('sim-table-header-worker');
+export const simStartTimeInput = document.getElementById('sim-start-time-input');
 
 
 // Firebase/App State
