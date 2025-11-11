@@ -1,10 +1,10 @@
 // === history-excel.js (엑셀 다운로드 로직) ===
 
-// app.js에서 핵심 상태, DB, 헬퍼 함수들을 가져옵니다.
+// ✅ [신규] DOM 요소와 상태 변수를 분리된 파일에서 가져옵니다.
 import { 
     appState, appConfig, db, auth, 
     allHistoryData
-} from './app.js'; 
+} from './state.js'; 
 
 // utils.js에서 헬퍼 함수들을 가져옵니다.
 import { 

@@ -3,6 +3,9 @@
 import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday } from './utils.js';
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 
+// ✅ [신규] app.js 대신 state.js에서 직접 상태를 가져옵니다.
+import { appState, appConfig } from './state.js';
+
 /**
  * 1. 메인 화면 - 상단 현황판 레이아웃 렌더링
  */

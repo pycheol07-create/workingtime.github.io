@@ -1,5 +1,8 @@
 // === js/ui-modals.js ===
 
+// ✅ [신규] app.js 대신 state.js에서 직접 상태를 가져옵니다.
+import { appState, appConfig } from './state.js';
+
 // ... (renderQuantityModalInputs, renderTaskSelectionModal 함수는 기존과 동일하므로 생략) ...
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');

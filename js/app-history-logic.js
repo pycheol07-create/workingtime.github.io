@@ -1,18 +1,10 @@
 // === js/app-history-logic.js ===
-import {
-    appState, appConfig, db, auth,
-    allHistoryData,
-    context,
-    historyModal,
-    historyDateList, historyTabs, attendanceHistoryTabs,
-    workHistoryPanel, attendanceHistoryPanel, trendAnalysisPanel,
-    reportPanel, reportTabs,
-    deleteHistoryModal,
-    quantityModal,
-    render, debouncedSaveState, saveStateToFirestore,
-    markDataAsDirty,
-} from './app.js';
 
+// ✅ [신규] DOM 요소와 상태 변수를 분리된 파일에서 가져옵니다.
+import * as DOM from './dom-elements.js';
+import * as State from './state.js';
+
+// ✅ [수정] app.js에서는 더 이상 상태 변수를 가져오지 않습니다.
 import {
     renderQuantityModalInputs,
     renderAttendanceDailyHistory,
@@ -45,12 +37,12 @@ import { calculateStandardThroughputs, PRODUCTIVITY_METRIC_DESCRIPTIONS, getDiff
 // workRecords 컬렉션 참조 헬퍼
 const getWorkRecordsCollectionRef = () => {
     const today = getTodayDateString();
-    return collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
+    return collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
 };
 
 // 메인 데일리 문서 참조 헬퍼
 const getDailyDocRef = () => {
-    return doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+    return doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
 };
 
 
@@ -84,12 +76,12 @@ const _syncTodayToHistory = async () => {
             dailyAttendance: dailyData.dailyAttendance || {}
         };
 
-        const idx = allHistoryData.findIndex(d => d.id === todayKey);
+        const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
         if (idx > -1) {
-            allHistoryData[idx] = liveTodayData;
+            State.allHistoryData[idx] = liveTodayData;
         } else {
-            allHistoryData.unshift(liveTodayData);
-            allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
+            State.allHistoryData.unshift(liveTodayData);
+            State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
         }
 
     } catch (e) {
@@ -114,7 +106,7 @@ export const checkMissingQuantities = (dayData) => {
     const tasksWithDuration = Object.keys(durationByTask);
     if (tasksWithDuration.length === 0) return [];
 
-    const quantityTaskTypes = appConfig.quantityTaskTypes || [];
+    const quantityTaskTypes = State.appConfig.quantityTaskTypes || [];
     const missingTasks = [];
 
     for (const task of tasksWithDuration) {
@@ -139,7 +131,7 @@ export async function saveProgress(isAutoSave = false) {
         showToast('서버의 최신 상태를 이력에 저장합니다...');
     }
 
-    const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
+    const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
 
     try {
         const dailyDocSnap = await getDoc(getDailyDocRef());
@@ -198,7 +190,7 @@ export async function saveDayDataToHistory(shouldReset) {
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
-            const batch = writeBatch(db);
+            const batch = writeBatch(State.db);
             querySnapshot.forEach(docSnap => {
                 const record = docSnap.data();
                 let pauses = record.pauses || [];
@@ -233,7 +225,7 @@ export async function saveDayDataToHistory(shouldReset) {
             const qAll = query(workRecordsColRef);
             const snapshotAll = await getDocs(qAll);
             if (!snapshotAll.empty) {
-                const deleteBatch = writeBatch(db);
+                const deleteBatch = writeBatch(State.db);
                 snapshotAll.forEach(doc => deleteBatch.delete(doc.ref));
                 await deleteBatch.commit();
             }
@@ -242,13 +234,13 @@ export async function saveDayDataToHistory(shouldReset) {
              console.error("Error clearing daily data: ", e);
         }
         
-        appState.workRecords = [];
+        State.appState.workRecords = []; // 로컬 상태도 초기화
         showToast('오늘의 업무 기록을 초기화했습니다.');
     }
 }
 
 export async function fetchAllHistoryData() {
-    const historyCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'history');
+    const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     try {
         const querySnapshot = await getDocs(historyCollectionRef);
         const data = [];
@@ -260,27 +252,27 @@ export async function fetchAllHistoryData() {
         });
         data.sort((a, b) => b.id.localeCompare(a.id));
 
-        allHistoryData.length = 0;
-        allHistoryData.push(...data);
+        State.allHistoryData.length = 0; // 배열을 비우고
+        State.allHistoryData.push(...data); // 새 데이터로 채웁니다.
 
-        return allHistoryData;
+        return State.allHistoryData;
     } catch (error) {
         console.error('Error fetching all history data:', error);
         showToast('전체 이력 로딩 실패', true);
-        allHistoryData.length = 0;
+        State.allHistoryData.length = 0;
         return [];
     }
 }
 
 export const loadAndRenderHistoryList = async () => {
-    if (!historyDateList) return;
-    historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
+    if (!DOM.historyDateList) return;
+    DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
 
     await fetchAllHistoryData();
     await _syncTodayToHistory();
 
-    if (allHistoryData.length === 0) {
-        historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
+    if (State.allHistoryData.length === 0) {
+        DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
         const viewsToClear = [
             'history-daily-view', 'history-weekly-view', 'history-monthly-view',
             'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
@@ -311,10 +303,10 @@ export const loadAndRenderHistoryList = async () => {
         btn.classList.add('text-gray-500');
     });
 
-    if (workHistoryPanel) workHistoryPanel.classList.remove('hidden');
-    if (attendanceHistoryPanel) attendanceHistoryPanel.classList.add('hidden');
-    if (trendAnalysisPanel) trendAnalysisPanel.classList.add('hidden');
-    if (reportPanel) reportPanel.classList.add('hidden');
+    if (DOM.workHistoryPanel) DOM.workHistoryPanel.classList.remove('hidden');
+    if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.add('hidden');
+    if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.add('hidden');
+    if (DOM.reportPanel) DOM.reportPanel.classList.add('hidden');
 
     document.getElementById('history-daily-view')?.classList.remove('hidden');
     document.getElementById('history-weekly-view')?.classList.add('hidden');
@@ -327,30 +319,30 @@ export const loadAndRenderHistoryList = async () => {
     document.getElementById('report-monthly-view')?.classList.add('hidden');
     document.getElementById('report-yearly-view')?.classList.add('hidden');
 
-    context.activeMainHistoryTab = 'work';
-    context.reportSortState = {};
-    context.currentReportParams = null;
+    State.context.activeMainHistoryTab = 'work';
+    State.context.reportSortState = {};
+    State.context.currentReportParams = null;
 
     await renderHistoryDateListByMode('day');
 };
 
 export const renderHistoryDateListByMode = async (mode = 'day') => {
-    if (!historyDateList) return;
-    historyDateList.innerHTML = '';
+    if (!DOM.historyDateList) return;
+    DOM.historyDateList.innerHTML = '';
 
     await _syncTodayToHistory();
 
-    const filteredData = (context.historyStartDate || context.historyEndDate)
-        ? allHistoryData.filter(d => {
+    const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
+        ? State.allHistoryData.filter(d => {
             const date = d.id;
-            const start = context.historyStartDate;
-            const end = context.historyEndDate;
+            const start = State.context.historyStartDate;
+            const end = State.context.historyEndDate;
             if (start && end) return date >= start && date <= end;
             if (start) return date >= start;
             if (end) return date <= end;
             return true;
         })
-        : allHistoryData;
+        : State.allHistoryData;
 
     let keys = [];
 
@@ -368,7 +360,7 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
     }
 
     if (keys.length === 0) {
-        historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
+        DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
         return;
     }
 
@@ -389,10 +381,10 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
         }
 
         li.innerHTML = `<button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300 ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>${key}</button>`;
-        historyDateList.appendChild(li);
+        DOM.historyDateList.appendChild(li);
     });
 
-    const firstButton = historyDateList.firstChild?.querySelector('button');
+    const firstButton = DOM.historyDateList.firstChild?.querySelector('button');
     if (firstButton) {
         firstButton.click();
     }
@@ -404,40 +396,40 @@ export const openHistoryQuantityModal = (dateKey) => {
     if (dateKey === todayDateString) {
         const todayData = {
             id: todayDateString,
-            workRecords: appState.workRecords || [],
-            taskQuantities: appState.taskQuantities || {},
-            confirmedZeroTasks: appState.confirmedZeroTasks || []
+            workRecords: State.appState.workRecords || [],
+            taskQuantities: State.appState.taskQuantities || {},
+            confirmedZeroTasks: State.appState.confirmedZeroTasks || []
         };
         const missingTasksList = checkMissingQuantities(todayData);
-        renderQuantityModalInputs(appState.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList, appState.confirmedZeroTasks || []);
+        renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes, missingTasksList, State.appState.confirmedZeroTasks || []);
     } else {
-        const dayData = allHistoryData.find(d => d.id === dateKey);
+        const dayData = State.allHistoryData.find(d => d.id === dateKey);
         if (!dayData) {
             return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
         }
         const missingTasksList = checkMissingQuantities(dayData);
-        renderQuantityModalInputs(dayData.taskQuantities || {}, appConfig.quantityTaskTypes, missingTasksList, dayData.confirmedZeroTasks || []);
+        renderQuantityModalInputs(dayData.taskQuantities || {}, State.appConfig.quantityTaskTypes, missingTasksList, dayData.confirmedZeroTasks || []);
     }
 
     const title = document.getElementById('quantity-modal-title');
     if (title) title.textContent = `${dateKey} 처리량 수정`;
 
-    context.quantityModalContext.mode = 'history';
-    context.quantityModalContext.dateKey = dateKey;
+    State.context.quantityModalContext.mode = 'history';
+    State.context.quantityModalContext.dateKey = dateKey;
 
-    context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
+    State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
         if (!dateKey) return;
 
-        const idx = allHistoryData.findIndex(d => d.id === dateKey);
+        const idx = State.allHistoryData.findIndex(d => d.id === dateKey);
         if (idx > -1) {
-            allHistoryData[idx] = {
-                ...allHistoryData[idx],
+            State.allHistoryData[idx] = {
+                ...State.allHistoryData[idx],
                 taskQuantities: newQuantities,
                 confirmedZeroTasks: confirmedZeroTasks
             };
         }
 
-        const historyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+        const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
         try {
             await setDoc(historyDocRef, {
                 taskQuantities: newQuantities,
@@ -447,11 +439,11 @@ export const openHistoryQuantityModal = (dateKey) => {
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
 
             if (dateKey === getTodayDateString()) {
-                 const dailyDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+                 const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
                  await setDoc(dailyDocRef, { taskQuantities: newQuantities, confirmedZeroTasks: confirmedZeroTasks }, { merge: true });
             }
 
-            if (historyModal && !historyModal.classList.contains('hidden')) {
+            if (DOM.historyModal && !DOM.historyModal.classList.contains('hidden')) {
                 const activeSubTabBtn = document.querySelector('#history-tabs button.font-semibold')
                                      || document.querySelector('#report-tabs button.font-semibold');
                 const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
@@ -469,7 +461,7 @@ export const openHistoryQuantityModal = (dateKey) => {
     const xBtn = document.getElementById('cancel-quantity-btn');
     if (cBtn) cBtn.textContent = '수정 저장';
     if (xBtn) xBtn.textContent = '취소';
-    if (quantityModal) quantityModal.classList.remove('hidden');
+    if (DOM.quantityModal) DOM.quantityModal.classList.remove('hidden');
 };
 
 export const renderHistoryDetail = (dateKey, previousDayData = null) => {
@@ -477,7 +469,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">데이터 로딩 중...</div>';
 
-    const data = allHistoryData.find(d => d.id === dateKey);
+    const data = State.allHistoryData.find(d => d.id === dateKey);
     if (!data) {
         view.innerHTML = '<div class="text-center text-red-500">해당 날짜의 데이터를 찾을 수 없습니다.</div>';
         return;
@@ -489,14 +481,14 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
     const partTimersFromHistory = data.partTimers || [];
 
-    const wageMap = { ...appConfig.memberWages };
+    const wageMap = { ...State.appConfig.memberWages };
     partTimersFromHistory.forEach(pt => {
         if (pt && pt.name && !wageMap[pt.name]) {
             wageMap[pt.name] = pt.wage || 0;
         }
     });
 
-    const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
+    const allRegularMembers = new Set((State.appConfig.teamGroups || []).flatMap(g => g.members));
     const activeMembersCount = allRegularMembers.size - onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length
         + partTimersFromHistory.length - onLeaveMemberNames.filter(name => partTimersFromHistory.some(pt => pt.name === name)).length;
 
@@ -531,9 +523,9 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     let prevTaskMetrics = {};
     let prevDay = previousDayData;
     if (!prevDay) {
-        const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
-        if (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) {
-            prevDay = allHistoryData[currentIndex + 1];
+        const currentIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
+        if (currentIndex > -1 && currentIndex + 1 < State.allHistoryData.length) {
+            prevDay = State.allHistoryData[currentIndex + 1];
         }
     }
 
@@ -677,8 +669,8 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 };
 
 export const requestHistoryDeletion = (dateKey) => {
-    context.historyKeyToDelete = dateKey;
-    if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');
+    State.context.historyKeyToDelete = dateKey;
+    if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.remove('hidden');
 };
 
 export const switchHistoryView = async (view) => {
@@ -696,20 +688,20 @@ export const switchHistoryView = async (view) => {
     ];
     allViews.forEach(v => v && v.classList.add('hidden'));
 
-    if (historyTabs) {
-        historyTabs.querySelectorAll('button').forEach(btn => {
+    if (DOM.historyTabs) {
+        DOM.historyTabs.querySelectorAll('button').forEach(btn => {
             btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
             btn.classList.add('text-gray-500');
         });
     }
-    if (attendanceHistoryTabs) {
-        attendanceHistoryTabs.querySelectorAll('button').forEach(btn => {
+    if (DOM.attendanceHistoryTabs) {
+        DOM.attendanceHistoryTabs.querySelectorAll('button').forEach(btn => {
             btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
             btn.classList.add('text-gray-500');
         });
     }
-    if (reportTabs) {
-        reportTabs.querySelectorAll('button').forEach(btn => {
+    if (DOM.reportTabs) {
+        DOM.reportTabs.querySelectorAll('button').forEach(btn => {
             btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
             btn.classList.add('text-gray-500');
         });
@@ -728,52 +720,52 @@ export const switchHistoryView = async (view) => {
         case 'daily':
             listMode = 'day';
             viewToShow = document.getElementById('history-daily-view');
-            tabToActivate = historyTabs?.querySelector('button[data-view="daily"]');
+            tabToActivate = DOM.historyTabs?.querySelector('button[data-view="daily"]');
             break;
         case 'weekly':
             listMode = 'week';
             viewToShow = document.getElementById('history-weekly-view');
-            tabToActivate = historyTabs?.querySelector('button[data-view="weekly"]');
+            tabToActivate = DOM.historyTabs?.querySelector('button[data-view="weekly"]');
             break;
         case 'monthly':
             listMode = 'month';
             viewToShow = document.getElementById('history-monthly-view');
-            tabToActivate = historyTabs?.querySelector('button[data-view="monthly"]');
+            tabToActivate = DOM.historyTabs?.querySelector('button[data-view="monthly"]');
             break;
         case 'attendance-daily':
             listMode = 'day';
             viewToShow = document.getElementById('history-attendance-daily-view');
-            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-daily"]');
+            tabToActivate = DOM.attendanceHistoryTabs?.querySelector('button[data-view="attendance-daily"]');
             break;
         case 'attendance-weekly':
             listMode = 'week';
             viewToShow = document.getElementById('history-attendance-weekly-view');
-            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
+            tabToActivate = DOM.attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
             break;
         case 'attendance-monthly':
             listMode = 'month';
             viewToShow = document.getElementById('history-attendance-monthly-view');
-            tabToActivate = attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
+            tabToActivate = DOM.attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
             break;
         case 'report-daily':
             listMode = 'day';
             viewToShow = document.getElementById('report-daily-view');
-            tabToActivate = reportTabs?.querySelector('button[data-view="report-daily"]');
+            tabToActivate = DOM.reportTabs?.querySelector('button[data-view="report-daily"]');
             break;
         case 'report-weekly':
             listMode = 'week';
             viewToShow = document.getElementById('report-weekly-view');
-            tabToActivate = reportTabs?.querySelector('button[data-view="report-weekly"]');
+            tabToActivate = DOM.reportTabs?.querySelector('button[data-view="report-weekly"]');
             break;
         case 'report-monthly':
             listMode = 'month';
             viewToShow = document.getElementById('report-monthly-view');
-            tabToActivate = reportTabs?.querySelector('button[data-view="report-monthly"]');
+            tabToActivate = DOM.reportTabs?.querySelector('button[data-view="report-monthly"]');
             break;
         case 'report-yearly':
             listMode = 'year';
             viewToShow = document.getElementById('report-yearly-view');
-            tabToActivate = reportTabs?.querySelector('button[data-view="report-yearly"]');
+            tabToActivate = DOM.reportTabs?.querySelector('button[data-view="report-yearly"]');
             break;
     }
 
@@ -830,6 +822,9 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, appConfig
              result.durationMinutes += 60; // 실제 소요 시간에 점심시간 포함
              result.value1 = `${formatDuration(result.durationMinutes)} (점심포함)`;
              endDateTime = new Date(endDateTime.getTime() + 60 * 60000); // 종료 시각도 1시간 뒤로 밀림
+             result.includesLunch = true; // ✨ 점심 포함 플래그
+        } else {
+             result.includesLunch = false;
         }
         
         result.expectedEndTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`;
@@ -845,7 +840,20 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, appConfig
         const [startH, startM] = startTimeStr.split(':').map(Number);
         const now = new Date();
         const startDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
-        const endDateTime = new Date(startDateTime.getTime() + inputValue * 60000);
+        
+        const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
+        const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 13, 30);
+        
+        let endDateTime = new Date(startDateTime.getTime() + inputValue * 60000);
+        
+        // 목표 시간이 점심시간을 포함하는지 체크
+        if (startDateTime < lunchEnd && endDateTime > lunchStart) {
+             endDateTime = new Date(endDateTime.getTime() + 60 * 60000); // 종료 시각도 1시간 뒤로 밀림
+             result.includesLunch = true; // ✨ 점심 포함 플래그
+        } else {
+             result.includesLunch = false;
+        }
+
         result.expectedEndTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`;
     }
 

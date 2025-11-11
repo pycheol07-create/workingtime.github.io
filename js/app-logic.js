@@ -1,10 +1,16 @@
 // === js/app-logic.js ===
+
+// ✅ [수정] app.js에서는 '유틸리티' 함수만 가져옵니다.
 import {
-    appState, db, auth,
     generateId,
     saveStateToFirestore,
     debouncedSaveState
 } from './app.js';
+
+// ✅ [신규] 핵심 상태 변수들은 state.js에서 가져옵니다.
+import {
+    appState, db, auth
+} from './state.js';
 
 import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
 // ✅ [필수] increment, updateDoc 등 원자적 연산 함수 임포트
