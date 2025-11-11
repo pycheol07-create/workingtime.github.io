@@ -1,10 +1,13 @@
+// === js/app.js (리팩토링 완료) ===
+
+// --- 1. Firebase 및 라이브러리 임포트 ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction, query, where, writeBatch, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+// --- 2. 모듈 임포트 ---
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes, debounce } from './utils.js';
-
 import {
     renderDashboardLayout,
     renderRealtimeStatus,
@@ -12,305 +15,37 @@ import {
     updateSummary,
     renderTaskAnalysis,
     renderTaskSelectionModal,
-    renderManualAddModalDatalists,
-    trendCharts
+    renderManualAddModalDatalists
 } from './ui.js';
-
 import { initializeAppListeners } from './app-listeners.js';
 import {
     saveProgress,
     saveDayDataToHistory
 } from './app-history-logic.js';
 
-
-// DOM Elements
-export const addAttendanceRecordModal = document.getElementById('add-attendance-record-modal');
-export const addAttendanceForm = document.getElementById('add-attendance-form');
-export const confirmAddAttendanceBtn = document.getElementById('confirm-add-attendance-btn');
-export const cancelAddAttendanceBtn = document.getElementById('cancel-add-attendance-btn');
-export const addAttendanceMemberNameInput = document.getElementById('add-attendance-member-name');
-export const addAttendanceMemberDatalist = document.getElementById('add-attendance-member-datalist');
-export const addAttendanceTypeSelect = document.getElementById('add-attendance-type');
-export const addAttendanceStartTimeInput = document.getElementById('add-attendance-start-time');
-export const addAttendanceEndTimeInput = document.getElementById('add-attendance-end-time');
-export const addAttendanceStartDateInput = document.getElementById('add-attendance-start-date');
-export const addAttendanceEndDateInput = document.getElementById('add-attendance-end-date');
-export const addAttendanceDateKeyInput = document.getElementById('add-attendance-date-key');
-export const addAttendanceTimeFields = document.getElementById('add-attendance-time-fields');
-export const addAttendanceDateFields = document.getElementById('add-attendance-date-fields');
-export const editAttendanceRecordModal = document.getElementById('edit-attendance-record-modal');
-export const confirmEditAttendanceBtn = document.getElementById('confirm-edit-attendance-btn');
-export const cancelEditAttendanceBtn = document.getElementById('cancel-edit-attendance-btn');
-export const editAttendanceMemberName = document.getElementById('edit-attendance-member-name');
-export const editAttendanceTypeSelect = document.getElementById('edit-attendance-type');
-export const editAttendanceStartTimeInput = document.getElementById('edit-attendance-start-time');
-export const editAttendanceEndTimeInput = document.getElementById('edit-attendance-end-time');
-export const editAttendanceStartDateInput = document.getElementById('edit-attendance-start-date');
-export const editAttendanceEndDateInput = document.getElementById('edit-attendance-end-date');
-export const editAttendanceDateKeyInput = document.getElementById('edit-attendance-date-key');
-export const editAttendanceRecordIndexInput = document.getElementById('edit-attendance-record-index');
-export const editAttendanceTimeFields = document.getElementById('edit-attendance-time-fields');
-export const editAttendanceDateFields = document.getElementById('edit-attendance-date-fields');
-export const connectionStatusEl = document.getElementById('connection-status');
-export const statusDotEl = document.getElementById('status-dot');
-export const teamStatusBoard = document.getElementById('team-status-board');
-export const workLogBody = document.getElementById('work-log-body');
-export const teamSelectModal = document.getElementById('team-select-modal');
-export const deleteConfirmModal = document.getElementById('delete-confirm-modal');
-export const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
-export const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
-export const historyModal = document.getElementById('history-modal');
-export const historyModalContentBox = document.getElementById('history-modal-content-box');
-export const openHistoryBtn = document.getElementById('open-history-btn');
-export const closeHistoryBtn = document.getElementById('close-history-btn');
-export const historyDateList = document.getElementById('history-date-list');
-export const historyViewContainer = document.getElementById('history-view-container');
-export const historyTabs = document.getElementById('history-tabs');
-export const historyMainTabs = document.getElementById('history-main-tabs');
-export const workHistoryPanel = document.getElementById('work-history-panel');
-export const attendanceHistoryPanel = document.getElementById('attendance-history-panel');
-export const attendanceHistoryTabs = document.getElementById('attendance-history-tabs');
-export const attendanceHistoryViewContainer = document.getElementById('attendance-history-view-container');
-export const trendAnalysisPanel = document.getElementById('trend-analysis-panel');
-
-export const reportPanel = document.getElementById('report-panel');
-export const reportTabs = document.getElementById('report-tabs');
-export const reportViewContainer = document.getElementById('report-view-container');
-export const reportDailyView = document.getElementById('report-daily-view');
-export const reportWeeklyView = document.getElementById('report-weekly-view');
-export const reportMonthlyView = document.getElementById('report-monthly-view');
-export const reportYearlyView = document.getElementById('report-yearly-view');
-
-export const historyAttendanceDailyView = document.getElementById('history-attendance-daily-view');
-export const historyAttendanceWeeklyView = document.getElementById('history-attendance-weekly-view');
-export const historyAttendanceMonthlyView = document.getElementById('history-attendance-monthly-view');
-export const quantityModal = document.getElementById('quantity-modal');
-export const confirmQuantityBtn = document.getElementById('confirm-quantity-btn');
-export const cancelQuantityBtn = document.getElementById('cancel-quantity-btn');
-export const deleteHistoryModal = document.getElementById('delete-history-modal');
-export const confirmHistoryDeleteBtn = document.getElementById('confirm-history-delete-btn');
-export const cancelHistoryDeleteBtn = document.getElementById('cancel-history-delete-btn');
-export const deleteAllCompletedBtn = document.getElementById('delete-all-completed-btn');
-export const editRecordModal = document.getElementById('edit-record-modal');
-export const confirmEditBtn = document.getElementById('confirm-edit-btn');
-export const cancelEditBtn = document.getElementById('cancel-edit-btn');
-export const saveProgressBtn = document.getElementById('save-progress-btn');
-export const quantityOnStopModal = document.getElementById('quantity-on-stop-modal');
-export const confirmQuantityOnStopBtn = document.getElementById('confirm-quantity-on-stop');
-export const cancelQuantityOnStopBtn = document.getElementById('cancel-quantity-on-stop');
-export const endShiftBtn = document.getElementById('end-shift-btn');
-export const resetAppBtn = document.getElementById('reset-app-btn');
-export const resetAppModal = document.getElementById('reset-app-modal');
-export const confirmResetAppBtn = document.getElementById('confirm-reset-app-btn');
-export const cancelResetAppBtn = document.getElementById('cancel-reset-app-btn');
-export const taskSelectModal = document.getElementById('task-select-modal');
-export const stopIndividualConfirmModal = document.getElementById('stop-individual-confirm-modal');
-export const confirmStopIndividualBtn = document.getElementById('confirm-stop-individual-btn');
-export const cancelStopIndividualBtn = document.getElementById('cancel-stop-individual-btn');
-export const stopIndividualConfirmMessage = document.getElementById('stop-individual-confirm-message');
-
-// ✅ 그룹 종료 모달 관련 요소
-export const stopGroupConfirmModal = document.getElementById('stop-group-confirm-modal');
-export const confirmStopGroupBtn = document.getElementById('confirm-stop-group-btn');
-export const cancelStopGroupBtn = document.getElementById('cancel-stop-group-btn');
-
-export const editPartTimerModal = document.getElementById('edit-part-timer-modal');
-export const confirmEditPartTimerBtn = document.getElementById('confirm-edit-part-timer-btn');
-export const cancelEditPartTimerBtn = document.getElementById('cancel-edit-part-timer-btn');
-export const partTimerNewNameInput = document.getElementById('part-timer-new-name');
-export const partTimerEditIdInput = document.getElementById('part-timer-edit-id');
-export const cancelTeamSelectBtn = document.getElementById('cancel-team-select-btn');
-export const leaveTypeModal = document.getElementById('leave-type-modal');
-export const leaveModalTitle = document.getElementById('leave-modal-title');
-export const leaveMemberNameSpan = document.getElementById('leave-member-name');
-export const leaveTypeOptionsContainer = document.getElementById('leave-type-options');
-export const confirmLeaveBtn = document.getElementById('confirm-leave-btn');
-export const cancelLeaveBtn = document.getElementById('cancel-leave-btn');
-export const leaveDateInputsDiv = document.getElementById('leave-date-inputs');
-export const leaveStartDateInput = document.getElementById('leave-start-date-input');
-export const leaveEndDateInput = document.getElementById('leave-end-date-input');
-export const cancelLeaveConfirmModal = document.getElementById('cancel-leave-confirm-modal');
-export const confirmCancelLeaveBtn = document.getElementById('confirm-cancel-leave-btn');
-export const cancelCancelLeaveBtn = document.getElementById('cancel-cancel-leave-btn');
-export const cancelLeaveConfirmMessage = document.getElementById('cancel-leave-confirm-message');
-export const toggleCompletedLog = document.getElementById('toggle-completed-log');
-export const toggleAnalysis = document.getElementById('toggle-analysis');
-export const toggleSummary = document.getElementById('toggle-summary');
-export const openManualAddBtn = document.getElementById('open-manual-add-btn');
-export const manualAddRecordModal = document.getElementById('manual-add-record-modal');
-export const confirmManualAddBtn = document.getElementById('confirm-manual-add-btn');
-export const cancelManualAddBtn = document.getElementById('cancel-manual-add-btn');
-export const manualAddForm = document.getElementById('manual-add-form');
-export const endShiftConfirmModal = document.getElementById('end-shift-confirm-modal');
-export const endShiftConfirmTitle = document.getElementById('end-shift-confirm-title');
-export const endShiftConfirmMessage = document.getElementById('end-shift-confirm-message');
-export const confirmEndShiftBtn = document.getElementById('confirm-end-shift-btn');
-export const cancelEndShiftBtn = document.getElementById('cancel-end-shift-btn');
-export const loginModal = document.getElementById('login-modal');
-export const loginForm = document.getElementById('login-form');
-export const loginEmailInput = document.getElementById('login-email');
-export const loginPasswordInput = document.getElementById('login-password');
-export const loginSubmitBtn = document.getElementById('login-submit-btn');
-export const loginErrorMsg = document.getElementById('login-error-message');
-export const loginButtonText = document.getElementById('login-button-text');
-export const loginButtonSpinner = document.getElementById('login-button-spinner');
-export const userGreeting = document.getElementById('user-greeting');
-export const logoutBtn = document.getElementById('logout-btn');
-export const menuToggleBtn = document.getElementById('menu-toggle-btn');
-export const menuDropdown = document.getElementById('menu-dropdown');
-export const openQuantityModalTodayBtn = document.getElementById('open-quantity-modal-today');
-export const openQuantityModalTodayBtnMobile = document.getElementById('open-quantity-modal-today-mobile');
-export const adminLinkBtnMobile = document.getElementById('admin-link-btn-mobile');
-export const resetAppBtnMobile = document.getElementById('reset-app-btn-mobile');
-export const logoutBtnMobile = document.getElementById('logout-btn-mobile');
-export const hamburgerBtn = document.getElementById('hamburger-btn');
-export const navContent = document.getElementById('nav-content');
-export const editStartTimeModal = document.getElementById('edit-start-time-modal');
-export const editStartTimeModalTitle = document.getElementById('edit-start-time-modal-title');
-export const editStartTimeModalMessage = document.getElementById('edit-start-time-modal-message');
-export const editStartTimeInput = document.getElementById('edit-start-time-input');
-export const editStartTimeContextIdInput = document.getElementById('edit-start-time-context-id');
-export const editStartTimeContextTypeInput = document.getElementById('edit-start-time-context-type');
-export const confirmEditStartTimeBtn = document.getElementById('confirm-edit-start-time-btn');
-export const cancelEditStartTimeBtn = document.getElementById('cancel-edit-start-time-btn');
-export const analysisMemberSelect = document.getElementById('analysis-member-select');
-export const editLeaveModal = document.getElementById('edit-leave-record-modal');
-export const historyStartDateInput = document.getElementById('history-start-date');
-export const historyEndDateInput = document.getElementById('history-end-date');
-export const historyFilterBtn = document.getElementById('history-filter-btn');
-export const historyClearFilterBtn = document.getElementById('history-clear-filter-btn');
-export const historyDownloadPeriodExcelBtn = document.getElementById('history-download-period-excel-btn');
-export const coqExplanationModal = document.getElementById('coq-explanation-modal');
-export const pcClockOutCancelBtn = document.getElementById('pc-clock-out-cancel-btn');
-export const mobileClockOutCancelBtn = document.getElementById('mobile-clock-out-cancel-btn');
-export const memberActionModal = document.getElementById('member-action-modal');
-export const actionMemberName = document.getElementById('action-member-name');
-export const actionMemberStatusBadge = document.getElementById('action-member-status-badge');
-export const actionMemberTimeInfo = document.getElementById('action-member-time-info');
-export const adminClockInBtn = document.getElementById('admin-clock-in-btn');
-export const adminClockOutBtn = document.getElementById('admin-clock-out-btn');
-export const adminCancelClockOutBtn = document.getElementById('admin-cancel-clock-out-btn');
-export const openLeaveModalBtn = document.getElementById('open-leave-modal-btn');
-
-// ✅ [신규] 인건비 시뮬레이션 모달 관련 요소 추가 (확장됨)
-export const costSimulationModal = document.getElementById('cost-simulation-modal');
-export const openCostSimulationBtn = document.getElementById('open-cost-simulation-btn');
-export const simTaskSelect = document.getElementById('sim-task-select');
-export const simTargetQuantityInput = document.getElementById('sim-target-quantity');
-export const simWorkerCountInput = document.getElementById('sim-worker-count');
-export const simCalculateBtn = document.getElementById('sim-calculate-btn');
-export const simResultContainer = document.getElementById('sim-result-container');
-export const simResultDuration = document.getElementById('sim-result-duration');
-export const simResultCost = document.getElementById('sim-result-cost');
-export const simResultSpeed = document.getElementById('sim-result-speed');
-// ✨ 추가된 DOM 요소들
-export const simModeRadios = document.getElementsByName('sim-mode');
-export const simInputWorkerGroup = document.getElementById('sim-input-worker-group');
-export const simInputDurationGroup = document.getElementById('sim-input-duration-group');
-export const simTargetDurationInput = document.getElementById('sim-target-duration');
-export const simEfficiencyChartCanvas = document.getElementById('sim-efficiency-chart');
-export const simAddComparisonBtn = document.getElementById('sim-add-to-compare-btn');
-export const simComparisonContainer = document.getElementById('sim-comparison-container');
-export const simComparisonTbody = document.getElementById('sim-comparison-tbody');
-export const simClearComparisonBtn = document.getElementById('sim-clear-comparison-btn');
-export const simResultLabel1 = document.getElementById('sim-result-label-1');
-export const simResultValue1 = document.getElementById('sim-result-value-1');
-export const simBottleneckContainer = document.getElementById('sim-bottleneck-container');
-export const simBottleneckTbody = document.getElementById('sim-bottleneck-tbody');
-export const simChartContainer = document.getElementById('sim-chart-container');
-export const simInputArea = document.getElementById('sim-input-area');
+// ✅ [신규] 분리된 DOM 요소와 상태 변수를 가져옵니다.
+import * as DOM from './dom-elements.js';
+import * as State from './state.js';
 
 
-// Firebase/App State
-export let db, auth;
-export let unsubscribeToday;
-export let unsubscribeLeaveSchedule;
-export let unsubscribeConfig;
-export let elapsedTimeTimer = null;
-export let periodicRefreshTimer = null;
-// ✅ workRecords 리스너 변수
-export let unsubscribeWorkRecords;
-
-export let isDataDirty = false;
-export let autoSaveTimer = null;
-export const AUTO_SAVE_INTERVAL = 1 * 60 * 1000;
-
-export let context = {
-    recordCounter: 0,
-    recordIdOrGroupIdToEdit: null,
-    editType: null,
-    selectedTaskForStart: null,
-    selectedGroupForAdd: null,
-    recordToDeleteId: null,
-    recordToStopId: null,
-    historyKeyToDelete: null,
-    recordToEditId: null,
-    deleteMode: 'single',
-    groupToStopId: null,
-    quantityModalContext: { mode: 'today', dateKey: null, onConfirm: null, onCancel: null },
-    tempSelectedMembers: [],
-    memberToSetLeave: null,
-    memberToCancelLeave: null,
-    activeMainHistoryTab: 'work',
-    attendanceRecordToDelete: null,
-    isMobileTaskViewExpanded: false,
-    isMobileMemberViewExpanded: false,
-    historyStartDate: null,
-    historyEndDate: null,
-    reportSortState: {},
-    currentReportParams: null,
-    monthlyRevenues: {},
-    memberToAction: null,
-    autoPauseForLunch: null,
-    autoResumeFromLunch: null
-};
-
-export let appState = {
-    workRecords: [], // 로컬 캐시
-    taskQuantities: {},
-    dailyOnLeaveMembers: [],
-    dateBasedOnLeaveMembers: [],
-    partTimers: [],
-    hiddenGroupIds: [],
-    currentUser: null,
-    currentUserRole: 'user',
-    confirmedZeroTasks: [],
-    dailyAttendance: {}
-};
-export let persistentLeaveSchedule = {
-    onLeaveMembers: []
-};
-export let appConfig = {
-    teamGroups: [],
-    systemAccounts: [],
-    memberWages: {},
-    taskGroups: {},
-    quantityTaskTypes: [],
-    defaultPartTimerWage: 10000,
-    keyTasks: []
-};
-
-export let allHistoryData = [];
-
-export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
-
-// Core Helpers
+// --- 3. 헬퍼 함수 ---
 export const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
 
-// Core Functions
+// --- 4. 핵심 코어 함수 ---
 
-// ✅ [신규/핵심] 원자적 업데이트를 위한 새로운 저장 함수
-// 기존 saveStateToFirestore 대체용. 필요한 필드만 부분 업데이트합니다.
+/**
+ * ✅ [수정됨] State.db와 State.auth를 사용합니다.
+ */
 export async function updateDailyData(updates) {
-    if (!auth || !auth.currentUser) {
+    if (!State.auth || !State.auth.currentUser) {
         console.warn('Cannot update daily data: User not authenticated.');
         return;
     }
 
     try {
-        const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
         // setDoc({ ... }, { merge: true })를 사용하여 문서가 없으면 생성하고, 있으면 병합합니다.
         await setDoc(docRef, updates, { merge: true });
 
@@ -320,37 +55,40 @@ export async function updateDailyData(updates) {
     }
 }
 
-// [레거시 호환] 기존 saveStateToFirestore 유지 (점진적 교체)
-// 이제 내부적으로 updateDailyData를 호출하여 새로운 구조로 저장하도록 유도합니다.
+/**
+ * ✅ [수정됨] State.appState와 State.setIsDataDirty를 사용합니다.
+ */
 export async function saveStateToFirestore() {
     // 기존에는 모든 상태를 JSON으로 묶었지만, 이제는 개별 필드로 저장합니다.
-    // 하위 호환성을 위해 이 함수는 '전체 상태를 한 번에 저장해야 할 때' 사용됩니다.
     const updates = {
-        taskQuantities: appState.taskQuantities || {},
-        onLeaveMembers: appState.dailyOnLeaveMembers || [],
-        partTimers: appState.partTimers || [],
-        hiddenGroupIds: appState.hiddenGroupIds || [],
-        lunchPauseExecuted: appState.lunchPauseExecuted || false,
-        lunchResumeExecuted: appState.lunchResumeExecuted || false,
-        confirmedZeroTasks: appState.confirmedZeroTasks || [],
-        dailyAttendance: appState.dailyAttendance || {}
+        taskQuantities: State.appState.taskQuantities || {},
+        onLeaveMembers: State.appState.dailyOnLeaveMembers || [],
+        partTimers: State.appState.partTimers || [],
+        hiddenGroupIds: State.appState.hiddenGroupIds || [],
+        lunchPauseExecuted: State.appState.lunchPauseExecuted || false,
+        lunchResumeExecuted: State.appState.lunchResumeExecuted || false,
+        confirmedZeroTasks: State.appState.confirmedZeroTasks || [],
+        dailyAttendance: State.appState.dailyAttendance || {}
     };
 
-    // 더 이상 'state' JSON 문자열로 묶어서 저장하지 않습니다.
     await updateDailyData(updates);
-    isDataDirty = false;
+    State.setIsDataDirty(false); // Setter 함수를 통해 상태 변경
 }
 
 export const debouncedSaveState = debounce(saveStateToFirestore, 1000);
 
+/**
+ * ✅ [수정됨] State.appState와 State.context를 사용합니다.
+ */
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     
-    if (now === '12:30' && !appState.lunchPauseExecuted) {
-        appState.lunchPauseExecuted = true;
-        if (context.autoPauseForLunch) {
+    // 12:30 점심시간 자동 일시정지
+    if (now === '12:30' && !State.appState.lunchPauseExecuted) {
+        State.appState.lunchPauseExecuted = true;
+        if (State.context.autoPauseForLunch) {
             try {
-                const tasksPaused = await context.autoPauseForLunch();
+                const tasksPaused = await State.context.autoPauseForLunch();
                 if (tasksPaused > 0) {
                     showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
                 }
@@ -358,14 +96,15 @@ export const updateElapsedTimes = async () => {
                 console.error("Error during auto-pause: ", e);
             }
         }
-        saveStateToFirestore(); 
+        saveStateToFirestore(); // lunchPauseExecuted 상태를 저장
     }
 
-    if (now === '13:30' && !appState.lunchResumeExecuted) {
-        appState.lunchResumeExecuted = true;
-        if (context.autoResumeFromLunch) {
+    // 13:30 점심시간 자동 재개
+    if (now === '13:30' && !State.appState.lunchResumeExecuted) {
+        State.appState.lunchResumeExecuted = true;
+        if (State.context.autoResumeFromLunch) {
             try {
-                const tasksResumed = await context.autoResumeFromLunch();
+                const tasksResumed = await State.context.autoResumeFromLunch();
                 if (tasksResumed > 0) {
                     showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
                 }
@@ -373,9 +112,10 @@ export const updateElapsedTimes = async () => {
                  console.error("Error during auto-resume: ", e);
             }
         }
-        saveStateToFirestore();
+        saveStateToFirestore(); // lunchResumeExecuted 상태를 저장
     }
 
+    // 진행 중인 시간 업데이트
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
             const startTime = el.dataset.startTime;
@@ -387,6 +127,7 @@ export const updateElapsedTimes = async () => {
 
             if (status === 'paused') {
                 const lastPause = currentPauses.length > 0 ? currentPauses[currentPauses.length - 1] : null;
+                // 현재 휴식 중인 시간을 반영하기 위해 마지막 pause의 끝을 '지금'으로 가정
                 const tempPauses = [
                     ...currentPauses.slice(0, -1),
                     { start: lastPause?.start || startTime, end: now }
@@ -394,73 +135,89 @@ export const updateElapsedTimes = async () => {
                 const dur = calcElapsedMinutes(startTime, now, tempPauses);
                 el.textContent = `(진행: ${formatDuration(dur)})`;
 
-            } else {
+            } else { // 'ongoing'
                 const dur = calcElapsedMinutes(startTime, now, currentPauses);
                 el.textContent = `(진행: ${formatDuration(dur)})`;
             }
         } catch (e) { /* noop */ }
     });
 
-    const completedRecords = (appState.workRecords || []).filter(r => r.status === 'completed');
+    // 상단 현황판의 '업무진행시간' 업데이트
+    const completedRecords = (State.appState.workRecords || []).filter(r => r.status === 'completed');
     const totalCompletedMinutes = completedRecords.reduce((sum, r) => sum + (r.duration || 0), 0);
-    const ongoingLiveRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
+    const ongoingLiveRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing');
     let totalOngoingMinutes = 0;
     ongoingLiveRecords.forEach(rec => {
         totalOngoingMinutes += calcElapsedMinutes(rec.startTime, now, rec.pauses);
     });
+    
+    // 이 ID는 dom-elements.js에 없습니다 (동적으로 생성되는 ID임). 따라서 getElementById 유지.
     const el = document.getElementById('summary-total-work-time');
     if (el) el.textContent = formatDuration(totalCompletedMinutes + totalOngoingMinutes);
 };
 
+/**
+ * ✅ [수정됨] State.appState, State.appConfig, State.context를 사용합니다.
+ */
 export const render = () => {
     try {
-        renderRealtimeStatus(appState, appConfig.teamGroups, appConfig.keyTasks || [], context.isMobileTaskViewExpanded, context.isMobileMemberViewExpanded);
-        renderCompletedWorkLog(appState);
-        updateSummary(appState, appConfig);
-        renderTaskAnalysis(appState, appConfig);
+        renderRealtimeStatus(State.appState, State.appConfig.teamGroups, State.appConfig.keyTasks || [], State.context.isMobileTaskViewExpanded, State.context.isMobileMemberViewExpanded);
+        renderCompletedWorkLog(State.appState);
+        updateSummary(State.appState, State.appConfig);
+        renderTaskAnalysis(State.appState, State.appConfig);
     } catch (e) {
         console.error('Render error:', e);
     }
 };
 
+/**
+ * ✅ [수정됨] State.setIsDataDirty Setter를 사용합니다.
+ */
 export const markDataAsDirty = () => {
-    isDataDirty = true;
+    State.setIsDataDirty(true);
 };
 
+/**
+ * ✅ [수정됨] State.isDataDirty, State.appState, State.setIsDataDirty를 사용합니다.
+ */
 export const autoSaveProgress = () => {
-    const hasOngoing = (appState.workRecords || []).some(r => r.status === 'ongoing');
+    const hasOngoing = (State.appState.workRecords || []).some(r => r.status === 'ongoing');
 
-    if (isDataDirty || hasOngoing) {
+    if (State.isDataDirty || hasOngoing) {
         saveProgress(true); 
-        isDataDirty = false;
+        State.setIsDataDirty(false);
     }
 };
 
-// 앱 초기화
+// --- 5. 앱 초기화 및 인증 로직 ---
+
+/**
+ * ✅ [수정됨] DOM과 State를 import된 네임스페이스로 접근하고, Setter 함수를 사용합니다.
+ */
 async function startAppAfterLogin(user) {
-    const loadingSpinner = document.getElementById('loading-spinner');
-    if (loadingSpinner) loadingSpinner.style.display = 'block';
+    if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block';
 
     try {
-        if (connectionStatusEl) connectionStatusEl.textContent = '설정 로딩 중...';
+        if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '설정 로딩 중...';
 
-        appConfig = await loadAppConfig(db);
-        persistentLeaveSchedule = await loadLeaveSchedule(db);
+        // ✅ Setter를 사용하여 전역 상태 변수 할당
+        State.setAppConfig(await loadAppConfig(State.db));
+        State.setPersistentLeaveSchedule(await loadLeaveSchedule(State.db));
 
         const userEmail = user.email;
 
         if (!userEmail) {
             showToast('로그인 사용자의 이메일 정보를 가져올 수 없습니다. 다시 로그인해주세요.', true);
-            if (loadingSpinner) loadingSpinner.style.display = 'none';
-            if (connectionStatusEl) connectionStatusEl.textContent = '인증 오류';
-            auth.signOut();
-            if (loginModal) loginModal.classList.remove('hidden');
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+            if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '인증 오류';
+            State.auth.signOut();
+            if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
             return;
         }
 
         const userEmailLower = userEmail.toLowerCase();
-        const memberEmails = appConfig.memberEmails || {};
-        const memberRoles = appConfig.memberRoles || {};
+        const memberEmails = State.appConfig.memberEmails || {};
+        const memberRoles = State.appConfig.memberRoles || {};
 
         const emailToMemberMap = Object.entries(memberEmails).reduce((acc, [name, email]) => {
             if (email) acc[email.toLowerCase()] = name;
@@ -472,23 +229,26 @@ async function startAppAfterLogin(user) {
 
         if (!currentUserName) {
             showToast('로그인했으나 앱에 등록된 사용자가 아닙니다. 관리자에게 문의하세요.', true);
-            if (loadingSpinner) loadingSpinner.style.display = 'none';
-            if (connectionStatusEl) connectionStatusEl.textContent = '사용자 미등록';
-            auth.signOut();
-            if (loginModal) loginModal.classList.remove('hidden');
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+            if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '사용자 미등록';
+            State.auth.signOut();
+            if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
             return;
         }
 
-        appState.currentUser = currentUserName;
-        appState.currentUserRole = currentUserRole;
+        // appState는 객체이므로 직접 수정
+        State.appState.currentUser = currentUserName;
+        State.appState.currentUserRole = currentUserRole;
 
-        if (userGreeting) {
-            userGreeting.textContent = `${currentUserName}님 (${currentUserRole}), 안녕하세요.`;
-            userGreeting.classList.remove('hidden');
+        // ✅ DOM 요소는 DOM.xxx로 접근
+        if (DOM.userGreeting) {
+            DOM.userGreeting.textContent = `${currentUserName}님 (${currentUserRole}), 안녕하세요.`;
+            DOM.userGreeting.classList.remove('hidden');
         }
-        if (logoutBtn) logoutBtn.classList.remove('hidden');
-        if (logoutBtnMobile) logoutBtnMobile.classList.remove('hidden');
+        if (DOM.logoutBtn) DOM.logoutBtn.classList.remove('hidden');
+        if (DOM.logoutBtnMobile) DOM.logoutBtnMobile.classList.remove('hidden');
 
+        // 이 ID들은 dom-elements.js에 없습니다. getElementById 유지.
         const pcAttendanceToggle = document.getElementById('personal-attendance-toggle-pc');
         const pcAttendanceLabel = document.getElementById('pc-attendance-label');
         if (pcAttendanceToggle && pcAttendanceLabel) {
@@ -503,26 +263,23 @@ async function startAppAfterLogin(user) {
         }
 
 
+        // 이 ID는 dom-elements.js에 없습니다. getElementById 유지.
         const adminLinkBtn = document.getElementById('admin-link-btn');
-        const resetAppBtn = document.getElementById('reset-app-btn');
-        const openHistoryBtn = document.getElementById('open-history-btn');
-        const adminLinkBtnMobile = document.getElementById('admin-link-btn-mobile');
-        const resetAppBtnMobile = document.getElementById('reset-app-btn-mobile');
-
         if (currentUserRole === 'admin') {
             if (adminLinkBtn) adminLinkBtn.style.display = 'flex';
-            if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'flex';
-            if (resetAppBtn) resetAppBtn.style.display = 'flex';
-            if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'flex';
-            if (openHistoryBtn) openHistoryBtn.style.display = 'inline-block';
+            if (DOM.adminLinkBtnMobile) DOM.adminLinkBtnMobile.style.display = 'flex';
+            if (DOM.resetAppBtn) DOM.resetAppBtn.style.display = 'flex';
+            if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'flex';
+            if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'inline-block';
         } else {
             if (adminLinkBtn) adminLinkBtn.style.display = 'none';
-            if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'none';
-            if (resetAppBtn) resetAppBtn.style.display = 'none';
-            if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'none';
-            if (openHistoryBtn) openHistoryBtn.style.display = 'none';
+            if (DOM.adminLinkBtnMobile) DOM.adminLinkBtnMobile.style.display = 'none';
+            if (DOM.resetAppBtn) DOM.resetAppBtn.style.display = 'none';
+            if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'none';
+            if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
         }
 
+        // 이 ID들은 dom-elements.js에 없습니다. getElementById 유지.
         document.getElementById('current-date-display')?.classList.remove('hidden');
         document.getElementById('top-right-controls')?.classList.remove('hidden');
         document.querySelector('.bg-gray-800.shadow-lg')?.classList.remove('hidden');
@@ -533,38 +290,40 @@ async function startAppAfterLogin(user) {
             }
         });
 
-        if (loadingSpinner) loadingSpinner.style.display = 'none';
-        renderDashboardLayout(appConfig);
-        renderTaskSelectionModal(appConfig.taskGroups);
+        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+        renderDashboardLayout(State.appConfig);
+        renderTaskSelectionModal(State.appConfig.taskGroups);
 
     } catch (e) {
         console.error("설정 로드 실패:", e);
         showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
-        const loadingSpinner = document.getElementById('loading-spinner');
-        if (loadingSpinner) loadingSpinner.style.display = 'none';
-        renderDashboardLayout(appConfig);
-        renderTaskSelectionModal(appConfig.taskGroups);
+        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
+        renderDashboardLayout(State.appConfig);
+        renderTaskSelectionModal(State.appConfig.taskGroups);
     }
 
     displayCurrentDate();
-    if (elapsedTimeTimer) clearInterval(elapsedTimeTimer);
-    elapsedTimeTimer = setInterval(updateElapsedTimes, 1000);
+    // ✅ Setter 사용
+    if (State.elapsedTimeTimer) clearInterval(State.elapsedTimeTimer);
+    State.setElapsedTimeTimer(setInterval(updateElapsedTimes, 1000));
 
-    if (periodicRefreshTimer) clearInterval(periodicRefreshTimer);
-    periodicRefreshTimer = setInterval(() => {
-        renderCompletedWorkLog(appState);
-        renderTaskAnalysis(appState, appConfig);
-    }, 30000);
+    if (State.periodicRefreshTimer) clearInterval(State.periodicRefreshTimer);
+    State.setPeriodicRefreshTimer(setInterval(() => {
+        renderCompletedWorkLog(State.appState);
+        renderTaskAnalysis(State.appState, State.appConfig);
+    }, 30000));
 
-    if (autoSaveTimer) clearInterval(autoSaveTimer);
-    autoSaveTimer = setInterval(autoSaveProgress, AUTO_SAVE_INTERVAL);
+    if (State.autoSaveTimer) clearInterval(State.autoSaveTimer);
+    State.setAutoSaveTimer(setInterval(autoSaveProgress, State.AUTO_SAVE_INTERVAL));
 
-    const leaveScheduleDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
-    if (unsubscribeLeaveSchedule) unsubscribeLeaveSchedule();
-    unsubscribeLeaveSchedule = onSnapshot(leaveScheduleDocRef, (docSnap) => {
-        persistentLeaveSchedule = docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] };
+    // --- 실시간 리스너 설정 ---
+    const leaveScheduleDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
+    if (State.unsubscribeLeaveSchedule) State.unsubscribeLeaveSchedule();
+    // ✅ Setter 사용
+    State.setUnsubscribeLeaveSchedule(onSnapshot(leaveScheduleDocRef, (docSnap) => {
+        State.setPersistentLeaveSchedule(docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] }); // ✅ Setter 사용
         const today = getTodayDateString();
-        appState.dateBasedOnLeaveMembers = (persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
+        State.appState.dateBasedOnLeaveMembers = (State.persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
             if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
                 const endDate = entry.endDate || entry.startDate;
                 return entry.startDate && typeof entry.startDate === 'string' &&
@@ -577,26 +336,28 @@ async function startAppAfterLogin(user) {
     }, (error) => {
         console.error("근태 일정 실시간 연결 실패:", error);
         showToast("근태 일정 연결에 실패했습니다.", true);
-        appState.dateBasedOnLeaveMembers = [];
+        State.appState.dateBasedOnLeaveMembers = [];
         render();
-    });
+    }));
 
-    const configDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
-    if (unsubscribeConfig) unsubscribeConfig();
-    unsubscribeConfig = onSnapshot(configDocRef, (docSnap) => {
+    const configDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
+    if (State.unsubscribeConfig) State.unsubscribeConfig();
+    // ✅ Setter 사용
+    State.setUnsubscribeConfig(onSnapshot(configDocRef, (docSnap) => {
         if (docSnap.exists()) {
             console.log("실시간 앱 설정 감지: 변경 사항을 적용합니다.");
             const loadedConfig = docSnap.data();
 
-            const mergedConfig = { ...appConfig, ...loadedConfig };
+            const mergedConfig = { ...State.appConfig, ...loadedConfig };
 
-            mergedConfig.teamGroups = loadedConfig.teamGroups || appConfig.teamGroups;
-            mergedConfig.keyTasks = loadedConfig.keyTasks || appConfig.keyTasks;
-            mergedConfig.dashboardItems = loadedConfig.dashboardItems || appConfig.dashboardItems;
+            // ... (기존 병합 로직 동일) ...
+            mergedConfig.teamGroups = loadedConfig.teamGroups || State.appConfig.teamGroups;
+            mergedConfig.keyTasks = loadedConfig.keyTasks || State.appConfig.keyTasks;
+            mergedConfig.dashboardItems = loadedConfig.dashboardItems || State.appConfig.dashboardItems;
             mergedConfig.dashboardCustomItems = { ...(loadedConfig.dashboardCustomItems || {}) };
-            mergedConfig.quantityTaskTypes = loadedConfig.quantityTaskTypes || appConfig.quantityTaskTypes;
-            mergedConfig.qualityCostTasks = loadedConfig.qualityCostTasks || appConfig.qualityCostTasks;
-            mergedConfig.systemAccounts = loadedConfig.systemAccounts || appConfig.systemAccounts || [];
+            mergedConfig.quantityTaskTypes = loadedConfig.quantityTaskTypes || State.appConfig.quantityTaskTypes;
+            mergedConfig.qualityCostTasks = loadedConfig.qualityCostTasks || State.appConfig.qualityCostTasks;
+            mergedConfig.systemAccounts = loadedConfig.systemAccounts || State.appConfig.systemAccounts || [];
 
             if (Array.isArray(loadedConfig.taskGroups)) {
                 mergedConfig.taskGroups = loadedConfig.taskGroups;
@@ -605,29 +366,29 @@ async function startAppAfterLogin(user) {
                     return { name: groupName, tasks: Array.isArray(tasks) ? tasks : [] };
                 });
             } else {
-                mergedConfig.taskGroups = appConfig.taskGroups;
+                mergedConfig.taskGroups = State.appConfig.taskGroups;
             }
 
-            mergedConfig.memberWages = { ...appConfig.memberWages, ...(loadedConfig.memberWages || {}) };
-            mergedConfig.memberEmails = { ...appConfig.memberEmails, ...(loadedConfig.memberEmails || {}) };
-            mergedConfig.memberRoles = { ...appConfig.memberRoles, ...(loadedConfig.memberRoles || {}) };
-            mergedConfig.quantityToDashboardMap = { ...appConfig.quantityToDashboardMap, ...(loadedConfig.quantityToDashboardMap || {}) };
+            mergedConfig.memberWages = { ...State.appConfig.memberWages, ...(loadedConfig.memberWages || {}) };
+            mergedConfig.memberEmails = { ...State.appConfig.memberEmails, ...(loadedConfig.memberEmails || {}) };
+            mergedConfig.memberRoles = { ...State.appConfig.memberRoles, ...(loadedConfig.memberRoles || {}) };
+            mergedConfig.quantityToDashboardMap = { ...State.appConfig.quantityToDashboardMap, ...(loadedConfig.quantityToDashboardMap || {}) };
 
-            appConfig = mergedConfig;
+            State.setAppConfig(mergedConfig); // ✅ Setter 사용
 
-            renderDashboardLayout(appConfig);
-            renderTaskSelectionModal(appConfig.taskGroups);
+            renderDashboardLayout(State.appConfig);
+            renderTaskSelectionModal(State.appConfig.taskGroups);
             render();
 
-            if (addAttendanceMemberDatalist) {
-                addAttendanceMemberDatalist.innerHTML = '';
-                const staffMembers = (appConfig.teamGroups || []).flatMap(g => g.members);
-                const partTimerMembers = (appState.partTimers || []).map(p => p.name);
+            if (DOM.addAttendanceMemberDatalist) {
+                DOM.addAttendanceMemberDatalist.innerHTML = '';
+                const staffMembers = (State.appConfig.teamGroups || []).flatMap(g => g.members);
+                const partTimerMembers = (State.appState.partTimers || []).map(p => p.name);
                 const allMembers = [...new Set([...staffMembers, ...partTimerMembers])].sort();
                 allMembers.forEach(member => {
                     const option = document.createElement('option');
                     option.value = member;
-                    addAttendanceMemberDatalist.appendChild(option);
+                    DOM.addAttendanceMemberDatalist.appendChild(option);
                 });
             }
 
@@ -637,21 +398,19 @@ async function startAppAfterLogin(user) {
     }, (error) => {
         console.error("앱 설정 실시간 연결 실패:", error);
         showToast("앱 설정 연결에 실패했습니다.", true);
-    });
+    }));
 
-    const todayDocRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-    if (unsubscribeToday) unsubscribeToday();
-
-    // ✅ [핵심] 메인 문서 리스너 개선: 개별 필드와 레거시 'state' 문자열 모두 지원
-    unsubscribeToday = onSnapshot(todayDocRef, (docSnap) => {
+    const todayDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+    if (State.unsubscribeToday) State.unsubscribeToday();
+    // ✅ Setter 사용
+    State.setUnsubscribeToday(onSnapshot(todayDocRef, (docSnap) => {
         try {
-            const taskTypes = (appConfig.taskGroups || []).flatMap(group => group.tasks);
+            const taskTypes = (State.appConfig.taskGroups || []).flatMap(group => group.tasks);
             const defaultQuantities = {};
             taskTypes.forEach(task => defaultQuantities[task] = 0);
 
             const data = docSnap.exists() ? docSnap.data() : {};
             
-            // 레거시 'state' 문자열이 있으면 파싱하여 사용 (마이그레이션 과도기 지원)
             let legacyState = {};
             if (data.state && typeof data.state === 'string') {
                 try {
@@ -661,119 +420,127 @@ async function startAppAfterLogin(user) {
                 }
             }
 
-            // 우선순위: 최상위 개별 필드 > 레거시 state 내부 필드 > 기본값
-            appState.taskQuantities = { ...defaultQuantities, ...(data.taskQuantities || legacyState.taskQuantities || {}) };
-            appState.partTimers = data.partTimers || legacyState.partTimers || [];
-            appState.hiddenGroupIds = data.hiddenGroupIds || legacyState.hiddenGroupIds || [];
-            appState.dailyOnLeaveMembers = data.onLeaveMembers || legacyState.onLeaveMembers || [];
-            appState.lunchPauseExecuted = data.lunchPauseExecuted ?? legacyState.lunchPauseExecuted ?? false;
-            appState.lunchResumeExecuted = data.lunchResumeExecuted ?? legacyState.lunchResumeExecuted ?? false;
-            appState.confirmedZeroTasks = data.confirmedZeroTasks || legacyState.confirmedZeroTasks || [];
-            appState.dailyAttendance = data.dailyAttendance || legacyState.dailyAttendance || {};
+            // appState 객체의 속성 업데이트
+            State.appState.taskQuantities = { ...defaultQuantities, ...(data.taskQuantities || legacyState.taskQuantities || {}) };
+            State.appState.partTimers = data.partTimers || legacyState.partTimers || [];
+            State.appState.hiddenGroupIds = data.hiddenGroupIds || legacyState.hiddenGroupIds || [];
+            State.appState.dailyOnLeaveMembers = data.onLeaveMembers || legacyState.onLeaveMembers || [];
+            State.appState.lunchPauseExecuted = data.lunchPauseExecuted ?? legacyState.lunchPauseExecuted ?? false;
+            State.appState.lunchResumeExecuted = data.lunchResumeExecuted ?? legacyState.lunchResumeExecuted ?? false;
+            State.appState.confirmedZeroTasks = data.confirmedZeroTasks || legacyState.confirmedZeroTasks || [];
+            State.appState.dailyAttendance = data.dailyAttendance || legacyState.dailyAttendance || {};
 
-            isDataDirty = false;
+            State.setIsDataDirty(false); // ✅ Setter 사용
 
             render();
-            if (connectionStatusEl) connectionStatusEl.textContent = '동기화 (메타)';
-            if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
+            // ✅ DOM 접근
+            if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (메타)';
+            if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
         } catch (parseError) {
             console.error('Error parsing state from Firestore:', parseError);
             showToast('데이터 로딩 중 오류 발생 (파싱 실패).', true);
-            if (connectionStatusEl) connectionStatusEl.textContent = '데이터 오류';
-            if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+            if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '데이터 오류';
+            if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
         }
     }, (error) => {
         console.error('Firebase onSnapshot error:', error);
         showToast('실시간 연결에 실패했습니다.', true);
-        if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류';
-        if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-    });
+        if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '연결 오류';
+        if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+    }));
     
-    const workRecordsCollectionRef = collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
-    if (unsubscribeWorkRecords) unsubscribeWorkRecords();
-
-    unsubscribeWorkRecords = onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
-        appState.workRecords = [];
+    const workRecordsCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
+    if (State.unsubscribeWorkRecords) State.unsubscribeWorkRecords();
+    // ✅ Setter 사용
+    State.setUnsubscribeWorkRecords(onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
+        State.appState.workRecords = [];
         querySnapshot.forEach((doc) => {
-            appState.workRecords.push(doc.data());
+            State.appState.workRecords.push(doc.data());
         });
 
-        appState.workRecords.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+        State.appState.workRecords.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 
         render();
         
-        if (connectionStatusEl) connectionStatusEl.textContent = '동기화 (업무)';
-        if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
+        // ✅ DOM 접근
+        if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (업무)';
+        if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
 
     }, (error) => {
         console.error('Firebase workRecords onSnapshot error:', error);
         showToast('업무 기록 실시간 연결에 실패했습니다.', true);
-        if (connectionStatusEl) connectionStatusEl.textContent = '연결 오류 (업무)';
-        if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500';
-    });
+        if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '연결 오류 (업무)';
+        if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500';
+    }));
 }
 
+/**
+ * ✅ [수정됨] DOM과 State를 import된 네임스페이스로 접근하고, Setter 함수를 사용합니다.
+ */
 async function main() {
-    const loadingSpinner = document.getElementById('loading-spinner');
-    if (loadingSpinner) loadingSpinner.style.display = 'block';
+    // ✅ DOM 접근
+    if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block';
 
     try {
         const firebase = initializeFirebase();
-        db = firebase.db;
-        auth = firebase.auth;
-        if (!db || !auth) {
-            if (loadingSpinner) loadingSpinner.style.display = 'none';
+        // ✅ Setter 사용
+        State.setDb(firebase.db);
+        State.setAuth(firebase.auth);
+        
+        if (!State.db || !State.auth) {
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
             return;
         }
     } catch (e) {
         console.error("Firebase init failed:", e);
-        if (loadingSpinner) loadingSpinner.style.display = 'none';
+        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
         return;
     }
 
-    onAuthStateChanged(auth, async user => {
-        const loadingSpinner = document.getElementById('loading-spinner');
+    onAuthStateChanged(State.auth, async user => {
+        // ✅ DOM 접근
         if (user) {
-            if (loginModal) loginModal.classList.add('hidden');
-            if (loadingSpinner) loadingSpinner.style.display = 'block';
+            if (DOM.loginModal) DOM.loginModal.classList.add('hidden');
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block';
             await startAppAfterLogin(user);
         } else {
-            if (connectionStatusEl) connectionStatusEl.textContent = '인증 필요';
-            if (statusDotEl) statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
+            if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '인증 필요';
+            if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
 
-            if (unsubscribeToday) { unsubscribeToday(); unsubscribeToday = undefined; }
-            if (unsubscribeLeaveSchedule) { unsubscribeLeaveSchedule(); unsubscribeLeaveSchedule = undefined; }
-            if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = undefined; }
-            if (elapsedTimeTimer) { clearInterval(elapsedTimeTimer); elapsedTimeTimer = null; }
-            if (periodicRefreshTimer) { clearInterval(periodicRefreshTimer); periodicRefreshTimer = null; }
-            
-            if (unsubscribeWorkRecords) { unsubscribeWorkRecords(); unsubscribeWorkRecords = undefined; }
+            // ✅ Setter 사용 및 전역 변수 해제
+            if (State.unsubscribeToday) { State.unsubscribeToday(); State.setUnsubscribeToday(null); }
+            if (State.unsubscribeLeaveSchedule) { State.unsubscribeLeaveSchedule(); State.setUnsubscribeLeaveSchedule(null); }
+            if (State.unsubscribeConfig) { State.unsubscribeConfig(); State.setUnsubscribeConfig(null); }
+            if (State.elapsedTimeTimer) { clearInterval(State.elapsedTimeTimer); State.setElapsedTimeTimer(null); }
+            if (State.periodicRefreshTimer) { clearInterval(State.periodicRefreshTimer); State.setPeriodicRefreshTimer(null); }
+            if (State.unsubscribeWorkRecords) { State.unsubscribeWorkRecords(); State.setUnsubscribeWorkRecords(null); }
 
-            // ✅ [수정] appState 변수 자체를 재할당하지 않고 내부 속성만 초기화
-            appState.workRecords = [];
-            appState.taskQuantities = {};
-            appState.dailyOnLeaveMembers = [];
-            appState.dateBasedOnLeaveMembers = [];
-            appState.partTimers = [];
-            appState.hiddenGroupIds = [];
-            appState.currentUser = null;
-            appState.currentUserRole = 'user';
-            appState.confirmedZeroTasks = [];
-            appState.dailyAttendance = {};
-            appState.lunchPauseExecuted = false;
-            appState.lunchResumeExecuted = false;
+            // ✅ appState 객체 내부 속성 초기화
+            State.appState.workRecords = [];
+            State.appState.taskQuantities = {};
+            State.appState.dailyOnLeaveMembers = [];
+            State.appState.dateBasedOnLeaveMembers = [];
+            State.appState.partTimers = [];
+            State.appState.hiddenGroupIds = [];
+            State.appState.currentUser = null;
+            State.appState.currentUserRole = 'user';
+            State.appState.confirmedZeroTasks = [];
+            State.appState.dailyAttendance = {};
+            State.appState.lunchPauseExecuted = false;
+            State.appState.lunchResumeExecuted = false;
 
-            if (navContent) navContent.classList.add('hidden');
-            if (userGreeting) userGreeting.classList.add('hidden');
-            if (logoutBtn) logoutBtn.classList.add('hidden');
-            if (logoutBtnMobile) logoutBtnMobile.classList.add('hidden');
+            // ✅ DOM 접근
+            if (DOM.navContent) DOM.navContent.classList.add('hidden');
+            if (DOM.userGreeting) DOM.userGreeting.classList.add('hidden');
+            if (DOM.logoutBtn) DOM.logoutBtn.classList.add('hidden');
+            if (DOM.logoutBtnMobile) DOM.logoutBtnMobile.classList.add('hidden');
             document.getElementById('current-date-display')?.classList.add('hidden');
             document.getElementById('top-right-controls')?.classList.add('hidden');
             document.querySelector('.bg-gray-800.shadow-lg')?.classList.add('hidden');
             document.getElementById('main-content-area')?.classList.add('hidden');
             document.querySelectorAll('.p-6.bg-gray-50.rounded-lg.border.border-gray-200').forEach(el => {
                 if (el.querySelector('#completed-log-content') || el.querySelector('#analysis-content')) {
-                    el.classList.remove('hidden');
+                    el.classList.add('hidden');
                 }
             });
 
@@ -781,19 +548,14 @@ async function main() {
             document.getElementById('personal-attendance-toggle-mobile')?.classList.add('hidden');
 
             const adminLinkBtn = document.getElementById('admin-link-btn');
-            const resetAppBtn = document.getElementById('reset-app-btn');
-            const openHistoryBtn = document.getElementById('open-history-btn');
-            const adminLinkBtnMobile = document.getElementById('admin-link-btn-mobile');
-            const resetAppBtnMobile = document.getElementById('reset-app-btn-mobile');
-
             if (adminLinkBtn) adminLinkBtn.style.display = 'none';
-            if (adminLinkBtnMobile) adminLinkBtnMobile.style.display = 'none';
-            if (resetAppBtn) resetAppBtn.style.display = 'none';
-            if (resetAppBtnMobile) resetAppBtnMobile.style.display = 'none';
-            if (openHistoryBtn) openHistoryBtn.style.display = 'none';
+            if (DOM.adminLinkBtnMobile) DOM.adminLinkBtnMobile.style.display = 'none';
+            if (DOM.resetAppBtn) DOM.resetAppBtn.style.display = 'none';
+            if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'none';
+            if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
 
-            if (loginModal) loginModal.classList.remove('hidden');
-            if (loadingSpinner) loadingSpinner.style.display = 'none';
+            if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none';
 
             renderDashboardLayout({ dashboardItems: [] });
         }
