@@ -42,6 +42,59 @@ const renderSimulationTaskRow = (tbody) => {
     tbody.appendChild(row);
 };
 
+// ✅ [신규] (listeners-history.js에서 가져온 드래그 기능)
+function makeDraggable(modalOverlay, header, contentBox) {
+    let isDragging = false;
+    let offsetX, offsetY;
+
+    header.addEventListener('mousedown', (e) => {
+        // 최대화 상태가 없으므로 isHistoryMaximized 체크 제거
+        if (e.target.closest('button')) { 
+            return;
+        }
+        isDragging = true;
+
+        if (contentBox.dataset.hasBeenUncentered !== 'true') {
+            const rect = contentBox.getBoundingClientRect();
+            modalOverlay.classList.remove('flex', 'items-center', 'justify-center');
+            contentBox.style.position = 'absolute';
+            contentBox.style.top = `${rect.top}px`;
+            contentBox.style.left = `${rect.left}px`;
+            
+            // 드래그 시작 시, 현재 계산된 크기를 인라인 스타일로 고정
+            contentBox.style.width = `${rect.width}px`;
+            contentBox.style.height = `${rect.height}px`;
+
+            contentBox.style.transform = 'none';
+            contentBox.dataset.hasBeenUncentered = 'true';
+        }
+
+        // mousedown 시점의 좌표를 다시 계산
+        const rect = contentBox.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
+    function onMouseMove(e) {
+        if (!isDragging) return;
+        let newLeft = e.clientX - offsetX;
+        let newTop = e.clientY - offsetY;
+
+        contentBox.style.left = `${newLeft}px`;
+        contentBox.style.top = `${newTop}px`;
+    }
+
+    function onMouseUp() {
+        isDragging = false;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
+}
+
+
 export function setupSimulationModalListeners() {
     
     // 인건비 시뮬레이션 모달 열기
@@ -68,7 +121,16 @@ export function setupSimulationModalListeners() {
                 DOM.simModeRadios[0].dispatchEvent(new Event('change'));
             }
 
-            if (DOM.costSimulationModal) DOM.costSimulationModal.classList.remove('hidden');
+            // ✅ [신규] 모달 열 때 위치 리셋 (드래그 대비)
+            const contentBox = document.getElementById('sim-modal-content-box');
+            if (contentBox) {
+                contentBox.removeAttribute('style');
+                contentBox.dataset.hasBeenUncentered = 'false';
+            }
+            if (DOM.costSimulationModal) {
+                 DOM.costSimulationModal.classList.add('flex', 'items-center', 'justify-center');
+                 DOM.costSimulationModal.classList.remove('hidden');
+            }
             document.getElementById('menu-dropdown')?.classList.add('hidden');
         });
     }
@@ -203,5 +265,14 @@ export function setupSimulationModalListeners() {
 
             if (DOM.simResultContainer) DOM.simResultContainer.classList.remove('hidden');
         });
+    }
+
+    // --- ✅ [신규] 드래그 기능 활성화 ---
+    const modalOverlay = DOM.costSimulationModal;
+    const modalHeader = document.getElementById('sim-modal-header');
+    const modalContentBox = document.getElementById('sim-modal-content-box');
+
+    if (modalOverlay && modalHeader && modalContentBox) {
+        makeDraggable(modalOverlay, modalHeader, modalContentBox);
     }
 }
