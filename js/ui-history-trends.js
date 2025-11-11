@@ -2,6 +2,9 @@
 
 import { isWeekday, formatDuration } from './utils.js';
 
+// ✅ [신규] app.js 대신 state.js에서 직접 appConfig를 가져옵니다.
+import { appConfig } from './state.js';
+
 /**
  * 트렌드 분석용 일일 KPI 계산 헬퍼
  * (ui-history.js -> ui-history-trends.js)

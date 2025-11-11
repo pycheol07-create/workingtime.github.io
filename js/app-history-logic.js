@@ -4,7 +4,12 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 
-// ✅ [수정] app.js에서는 더 이상 상태 변수를 가져오지 않습니다.
+// ✅ [수정] app.js에서는 더 이상 상태/DOM 변수를 가져오지 않습니다.
+import {
+    render, debouncedSaveState, saveStateToFirestore,
+    markDataAsDirty,
+} from './app.js';
+
 import {
     renderQuantityModalInputs,
     renderAttendanceDailyHistory,

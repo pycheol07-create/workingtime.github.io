@@ -4,7 +4,8 @@
 import {
     generateId,
     saveStateToFirestore,
-    debouncedSaveState
+    debouncedSaveState,
+    updateDailyData // ✅ updateDailyData 추가
 } from './app.js';
 
 // ✅ [신규] 핵심 상태 변수들은 state.js에서 가져옵니다.
@@ -53,7 +54,7 @@ export const processClockIn = async (memberName, isAdminAction = false) => {
     } catch (e) {
         console.error("Clock-in error:", e);
         // 문서가 없을 경우(하루 첫 출근) 대비한 setDoc fallback
-        if (e.code === 'not-found') {
+        if (e.code === 'not-found' || e.message.includes('No document to update')) {
              await setDoc(getDailyDocRef(), {
                 dailyAttendance: {
                     [memberName]: { inTime: now, outTime: null, status: 'active' }
@@ -80,24 +81,20 @@ export const processClockOut = async (memberName, isAdminAction = false) => {
 
     const now = getCurrentTime();
 
-    // 기존 데이터 유지를 위해 merge 옵션 사용 (혹은 dot notation으로 특정 필드만 업데이트)
     try {
-         await setDoc(getDailyDocRef(), {
-            dailyAttendance: {
-                [memberName]: {
-                    // inTime은 기존 값 유지를 위해 여기선 덮어쓰지 않음 (merge: true 덕분)
-                    // 하지만 더 안전하게 하려면 updateDoc을 쓰는 게 좋음.
-                    // 여기서는 'status'와 'outTime'만 확실히 변경하면 됨.
-                    outTime: now,
-                    status: 'returned'
-                }
-            }
-        }, { merge: true });
+         // ✨ [개선] setDoc(merge:true) 대신 updateDoc을 사용하여 더 안전하게 업데이트
+         await updateDoc(getDailyDocRef(), {
+            [`dailyAttendance.${memberName}.outTime`]: now,
+            [`dailyAttendance.${memberName}.status`]: 'returned'
+        });
 
         showToast(`${memberName}님 ${isAdminAction ? '관리자에 의해 ' : ''}퇴근 처리되었습니다. (${now})`);
         return true;
     } catch (e) {
         console.error("Clock-out error:", e);
+        // HACK: updateDoc은 문서가 없으면 실패합니다. (출근 없이 퇴근 누를 때)
+        // 이 경우, '출근 전' 상태이므로 오류를 무시하거나, 'returned'로 강제 생성할 수 있습니다.
+        // 여기서는 이미 'active'가 아닌 상태에서만 호출 가능하므로, 오류 발생 시 토스트만 띄웁니다.
         showToast("퇴근 처리 중 오류가 발생했습니다.", true);
         return false;
     }
@@ -169,9 +166,6 @@ export const startWorkGroup = async (members, task) => {
         });
 
         await batch.commit();
-        // ⛔️ appState.workRecords.push(...) 제거
-        // ⛔️ render() 제거
-        // ⛔️ saveStateToFirestore() 제거
     } catch (e) {
         console.error("Error starting work group: ", e);
         showToast("업무 시작 중 오류가 발생했습니다.", true);
@@ -224,9 +218,6 @@ export const addMembersToWorkGroup = async (members, task, groupId) => {
         });
 
         await batch.commit();
-        // ⛔️ appState.workRecords.push(...) 제거
-        // ⛔️ render() 제거
-        // ⛔️ saveStateToFirestore() 제거
     } catch (e) {
          console.error("Error adding members to work group: ", e);
          showToast("팀원 추가 중 오류가 발생했습니다.", true);
@@ -320,8 +311,6 @@ export const stopWorkIndividual = async (recordId) => {
                 pauses: pauses
             });
 
-            // ⛔️ render() 제거
-            // ⛔️ saveStateToFirestore() 제거
             showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
         } else {
             showToast('이미 완료되었거나 찾을 수 없는 기록입니다.', true);
@@ -356,8 +345,6 @@ export const pauseWorkGroup = async (groupId) => {
 
         if (changed) {
             await batch.commit();
-            // ⛔️ render() 제거
-            // ⛔️ saveStateToFirestore() 제거
             showToast('그룹 업무가 일시정지 되었습니다.');
         }
     } catch (e) {
@@ -394,8 +381,6 @@ export const resumeWorkGroup = async (groupId) => {
 
         if (changed) {
             await batch.commit();
-            // ⛔️ render() 제거
-            // ⛔️ saveStateToFirestore() 제거
             showToast('그룹 업무를 다시 시작합니다.');
         }
     } catch (e) {
@@ -421,8 +406,6 @@ export const pauseWorkIndividual = async (recordId) => {
                 pauses: newPauses
             });
 
-            // ⛔️ render() 제거
-            // ⛔️ saveStateToFirestore() 제거
             showToast(`${record.member}님 ${record.task} 업무 일시정지.`);
         }
     } catch (e) {
@@ -451,8 +434,6 @@ export const resumeWorkIndividual = async (recordId) => {
                 pauses: pauses
             });
 
-            // ⛔️ render() 제거
-            // ⛔️ saveStateToFirestore() 제거
             showToast(`${record.member}님 ${record.task} 업무 재개.`);
         }
     } catch (e) {
