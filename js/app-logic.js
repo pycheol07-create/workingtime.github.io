@@ -1,12 +1,12 @@
 // === js/app-logic.js ===
 
-// ✅ [수정] app.js에서는 '유틸리티' 함수만 가져옵니다.
+// ✅ [수정] app.js 대신 app-data.js에서 데이터 함수들을 가져옵니다.
 import {
     generateId,
     saveStateToFirestore,
     debouncedSaveState,
-    updateDailyData // ✅ updateDailyData 추가
-} from './app.js';
+    updateDailyData
+} from './app-data.js';
 
 // ✅ [신규] 핵심 상태 변수들은 state.js에서 가져옵니다.
 import {
