@@ -1,13 +1,17 @@
 // === js/listeners-modals-form.js ===
-// 설명: '폼 입력' 또는 '선택'이 필요한 복잡한 모달 리스너를 담당합니다.
+// 설명: '폼 입력' 또는 '선택'이 필요한 모달 리스너를 담당합니다.
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
+
+// ✅ [수정] app.js 대신 app-data.js에서 데이터 함수 임포트
 import {
     generateId,
     debouncedSaveState,
     updateDailyData
-} from './app.js';
+} from './app-data.js';
+// ⛔️ [삭제] app.js 임포트
+
 import { getTodayDateString, getCurrentTime, showToast, calcElapsedMinutes } from './utils.js';
 import {
     renderTeamSelectionModalContent
@@ -21,7 +25,7 @@ import {
     doc, updateDoc, collection, query, where, getDocs, writeBatch, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ [추가] (listeners-main.js에서 누락되었던 헬퍼 변수)
+// ✅ (listeners-main.js에서 누락되었던 헬퍼 변수)
 const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
 const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
 
@@ -106,10 +110,10 @@ export function setupFormModalListeners() {
         });
     }
 
-    // ✅ [추가] (listeners-main.js에서 누락되었던 핵심 리스너)
+    // ✅ (listeners-main.js에서 누락되었던 핵심 리스너)
     if (DOM.teamSelectModal) {
         DOM.teamSelectModal.addEventListener('click', async (e) => {
-            const target = e.target;
+            const target = e.target; // <--- This is the element that was clicked
 
             // 1. 개별 멤버 버튼 클릭
             const memberButton = target.closest('.member-select-btn');
@@ -166,7 +170,7 @@ export function setupFormModalListeners() {
                     document.getElementById('edit-part-timer-modal').classList.remove('hidden');
                     setTimeout(() => document.getElementById('part-timer-new-name').focus(), 50);
                 }
-                return;
+                return; 
             }
 
             // 4. 알바 삭제 버튼 클릭 핸들러 (🗑️ 아이콘)
@@ -184,11 +188,11 @@ export function setupFormModalListeners() {
                         delete State.appState.dailyAttendance[partTimer.name];
                     }
 
-                    debouncedSaveState();
+                    debouncedSaveState(); // ✅ [수정] app-data.js에서 임포트됨
                     renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
                     showToast(`${partTimer.name}님이 삭제되었습니다.`);
                 }
-                return;
+                return; 
             }
 
             // 5. 알바 추가 버튼 핸들러 (+ 추가)
@@ -205,7 +209,7 @@ export function setupFormModalListeners() {
 
                 // 2. 새 알바 객체 생성
                 const newPartTimer = {
-                    id: generateId(),
+                    id: generateId(), // ✅ [수정] app-data.js에서 임포트됨
                     name: newName,
                     wage: State.appConfig.defaultPartTimerWage || 10000
                 };
@@ -219,12 +223,12 @@ export function setupFormModalListeners() {
                 };
                 State.appState.partTimers.push(newPartTimer);
                 
-                debouncedSaveState();
+                debouncedSaveState(); // ✅ [수정] app-data.js에서 임포트됨
 
                 // 4. 모달 컨텐츠 리렌더링
                 renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
                 showToast(`'${newName}'이(가) 추가되고 출근 처리되었습니다.`);
-                return;
+                return; 
             }
 
             // 6. 확인 버튼 (업무 시작/추가)
@@ -251,7 +255,7 @@ export function setupFormModalListeners() {
                     showToast("오류가 발생했습니다. 다시 시도해주세요.", true);
                 } finally {
                     btn.disabled = false;
-                    // (원래 텍스트는 모달이 다시 열릴 때 세팅되므로 복원 불필요)
+                    btn.textContent = '선택 완료 및 업무 시작';
                 }
              }
         });
@@ -327,14 +331,14 @@ export function setupFormModalListeners() {
 
             if (!partTimerId) {
                 const newPartTimer = {
-                    id: generateId(),
+                    id: generateId(), // ✅ [수정] app-data.js에서 임포트됨
                     name: newName,
                     wage: State.appConfig.defaultPartTimerWage || 10000
                 };
                 if (!State.appState.partTimers) State.appState.partTimers = [];
                 State.appState.partTimers.push(newPartTimer);
                 
-                debouncedSaveState();
+                debouncedSaveState(); // ✅ [수정] app-data.js에서 임포트됨
                 renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
                 showToast(`알바 '${newName}'님이 추가되었습니다.`);
             } else {
@@ -363,7 +367,7 @@ export function setupFormModalListeners() {
                         querySnapshot.forEach(doc => batch.update(doc.ref, { member: newName }));
                         await batch.commit();
                     }
-                    debouncedSaveState();
+                    debouncedSaveState(); // ✅ [수정] app-data.js에서 임포트됨
                     showToast(`'${oldName}'님을 '${newName}'(으)로 수정했습니다.`);
                 } catch (e) {
                     console.error("알바 이름 변경 중 DB 오류: ", e);
@@ -413,7 +417,7 @@ export function setupFormModalListeners() {
                     endTime: null
                 };
                 State.appState.dailyOnLeaveMembers.push(newDailyEntry);
-                debouncedSaveState();
+                debouncedSaveState(); // ✅ [수정] app-data.js에서 임포트됨
             }
 
             showToast(`${memberName}님 ${type} 처리 완료.`);
@@ -440,7 +444,7 @@ export function setupFormModalListeners() {
             }
 
             try {
-                const recordId = generateId();
+                const recordId = generateId(); // ✅ [수정] app-data.js에서 임포트됨
                 const duration = calcElapsedMinutes(startTime, endTime, pauses);
 
                 const newRecordData = {
@@ -451,7 +455,7 @@ export function setupFormModalListeners() {
                     endTime,
                     duration,
                     status: 'completed',
-                    groupId: `manual-${generateId()}`,
+                    groupId: `manual-${generateId()}`, // ✅ [수정] app-data.js에서 임포트됨
                     pauses: []
                 };
 

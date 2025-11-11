@@ -35,55 +35,25 @@ import {
     autoResumeFromLunch
 } from './app-logic.js';
 
+// ✅ [신규] app-data.js에서 데이터 함수 임포트
+import {
+    generateId,
+    updateDailyData,
+    saveStateToFirestore,
+    debouncedSaveState
+} from './app-data.js';
+
 
 // --- 3. 헬퍼 함수 ---
-export const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+// ⛔️ [삭제] generateId (app-data.js로 이동)
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
 
 // --- 4. 핵심 코어 함수 ---
 
-/**
- * ✅ [수정됨] State.db와 State.auth를 사용합니다.
- */
-export async function updateDailyData(updates) {
-    if (!State.auth || !State.auth.currentUser) {
-        console.warn('Cannot update daily data: User not authenticated.');
-        return;
-    }
-
-    try {
-        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-        // setDoc({ ... }, { merge: true })를 사용하여 문서가 없으면 생성하고, 있으면 병합합니다.
-        await setDoc(docRef, updates, { merge: true });
-
-    } catch (error) {
-        console.error('Error updating daily data atomically:', error);
-        showToast('데이터 저장 중 오류가 발생했습니다.', true);
-    }
-}
-
-/**
- * ✅ [수정됨] State.appState와 State.setIsDataDirty를 사용합니다.
- */
-export async function saveStateToFirestore() {
-    // 기존에는 모든 상태를 JSON으로 묶었지만, 이제는 개별 필드로 저장합니다.
-    const updates = {
-        taskQuantities: State.appState.taskQuantities || {},
-        onLeaveMembers: State.appState.dailyOnLeaveMembers || [],
-        partTimers: State.appState.partTimers || [],
-        hiddenGroupIds: State.appState.hiddenGroupIds || [],
-        lunchPauseExecuted: State.appState.lunchPauseExecuted || false,
-        lunchResumeExecuted: State.appState.lunchResumeExecuted || false,
-        confirmedZeroTasks: State.appState.confirmedZeroTasks || [],
-        dailyAttendance: State.appState.dailyAttendance || {}
-    };
-
-    await updateDailyData(updates);
-    State.setIsDataDirty(false); // Setter 함수를 통해 상태 변경
-}
-
-export const debouncedSaveState = debounce(saveStateToFirestore, 1000);
+// ⛔️ [삭제] updateDailyData (app-data.js로 이동)
+// ⛔️ [삭제] saveStateToFirestore (app-data.js로 이동)
+// ⛔️ [삭제] debouncedSaveState (app-data.js로 이동)
 
 /**
  * ✅ [수정됨] State.appState와 State.context를 사용합니다.
