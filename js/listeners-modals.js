@@ -5,10 +5,15 @@ import {
     teamSelectModal,
     deleteConfirmModal,
     confirmDeleteBtn,
-    deleteHistoryModal,
+    cancelDeleteBtn,
+    historyModal,
+    closeHistoryBtn,
     quantityModal,
     confirmQuantityBtn,
     cancelQuantityBtn,
+    deleteHistoryModal,
+    confirmHistoryDeleteBtn,
+    cancelHistoryDeleteBtn,
     editRecordModal,
     confirmEditBtn,
     cancelEditBtn,
@@ -17,6 +22,7 @@ import {
     cancelQuantityOnStopBtn,
     resetAppModal,
     confirmResetAppBtn,
+    cancelResetAppBtn,
     taskSelectModal,
     stopIndividualConfirmModal,
     confirmStopIndividualBtn,
@@ -25,6 +31,9 @@ import {
     editPartTimerModal,
     confirmEditPartTimerBtn,
     cancelEditPartTimerBtn,
+    partTimerNewNameInput,
+    partTimerEditIdInput,
+    cancelTeamSelectBtn,
     leaveTypeModal,
     confirmLeaveBtn,
     cancelLeaveBtn,
@@ -34,50 +43,74 @@ import {
     cancelLeaveConfirmMessage,
     manualAddRecordModal,
     confirmManualAddBtn,
+    cancelManualAddBtn,
     manualAddForm,
     endShiftConfirmModal,
     confirmEndShiftBtn,
+    cancelEndShiftBtn,
+    loginModal,
+    loginForm,
+    loginSubmitBtn,
+    loginErrorMsg,
+    loginButtonText,
+    loginButtonSpinner,
     editStartTimeModal,
     confirmEditStartTimeBtn,
+    cancelEditStartTimeBtn,
+    editLeaveModal,
+    coqExplanationModal,
+    addAttendanceRecordModal,
+    confirmAddAttendanceBtn,
+    cancelAddAttendanceBtn,
+    editAttendanceRecordModal,
+    confirmEditAttendanceBtn,
+    cancelEditAttendanceBtn,
+    pcClockOutCancelBtn,
+    mobileClockOutCancelBtn,
+    memberActionModal,
+
     stopGroupConfirmModal, confirmStopGroupBtn, cancelStopGroupBtn,
 
-    // ✅ [누락 복구] cancelTeamSelectBtn 추가
-    cancelTeamSelectBtn,
-    partTimerNewNameInput, partTimerEditIdInput,
-
     generateId,
+    saveStateToFirestore,
+    debouncedSaveState,
     render,
     persistentLeaveSchedule,
     allHistoryData,
 
     // 시뮬레이션 관련 DOM 요소
-    costSimulationModal, openCostSimulationBtn, simCalculateBtn,
-    simResultContainer,
-    simModeRadios, simInputArea,
-    simBottleneckContainer, simBottleneckTbody,
-    // ✨ 드래그를 위한 요소
-    simModalHeader, simModalContent,
-
-    updateDailyData
+    costSimulationModal, openCostSimulationBtn, simTaskSelect,
+    simTargetQuantityInput, simWorkerCountInput, simCalculateBtn,
+    simResultContainer, simResultCost, simResultSpeed,
+    simModeRadios, simInputWorkerGroup, simInputDurationGroup, simTargetDurationInput,
+    simEfficiencyChartCanvas, simAddComparisonBtn, simComparisonContainer,
+    simComparisonTbody, simClearComparisonBtn, simResultLabel1, simResultValue1,
+    simBottleneckContainer, simBottleneckTbody, simChartContainer, simInputArea
 
 } from './app.js';
 
-import { getTodayDateString, getCurrentTime, formatDuration, showToast, calcElapsedMinutes } from './utils.js';
+import { getTodayDateString, getCurrentTime, formatTimeTo24H, showToast, calcElapsedMinutes, formatDuration } from './utils.js';
 
 import {
+    renderTaskSelectionModal,
     renderTeamSelectionModalContent,
-    renderLeaveTypeModalOptions,
-    renderManualAddModalDatalists
+    renderLeaveTypeModalOptions
 } from './ui-modals.js';
 
 import {
+    startWorkGroup,
+    addMembersToWorkGroup,
     finalizeStopGroup,
     stopWorkIndividual,
+    processClockIn,
+    processClockOut,
+    cancelClockOut
 } from './app-logic.js';
 
-import { saveDayDataToHistory, switchHistoryView, calculateSimulation, analyzeBottlenecks } from './app-history-logic.js';
+import { saveProgress, saveDayDataToHistory, switchHistoryView, calculateSimulation, generateEfficiencyChartData, analyzeBottlenecks } from './app-history-logic.js';
 import { saveLeaveSchedule } from './config.js';
 
+import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
@@ -111,6 +144,9 @@ const deleteWorkRecordDocuments = async (recordIds) => {
         showToast("여러 문서 삭제 중 오류 발생.", true);
     }
 };
+
+// 차트 인스턴스 보관용 변수
+let simChartInstance = null;
 
 // 시뮬레이션 테이블 행 추가 헬퍼 함수
 const renderSimulationTaskRow = (tbody) => {
@@ -156,16 +192,11 @@ export function setupGeneralModalListeners() {
         });
     });
 
-    // 인건비 시뮬레이션 모달 관련 리스너
+    // 인건비 시뮬레이션 모달 열기
     const simAddTaskRowBtn = document.getElementById('sim-add-task-row-btn');
     const simTaskTableBody = document.getElementById('sim-task-table-body');
     const simTableHeaderWorker = document.getElementById('sim-table-header-worker');
     const simStartTimeInput = document.getElementById('sim-start-time-input');
-
-    // 시뮬레이션 모달 드래그 적용
-    if (costSimulationModal && simModalHeader && simModalContent) {
-        makeDraggable(costSimulationModal, simModalHeader, simModalContent);
-    }
 
     if (openCostSimulationBtn) {
         openCostSimulationBtn.addEventListener('click', () => {
@@ -173,16 +204,6 @@ export function setupGeneralModalListeners() {
             if (simResultContainer) simResultContainer.classList.add('hidden');
             if (simBottleneckContainer) simBottleneckContainer.classList.add('hidden');
             if (simInputArea) simInputArea.classList.remove('hidden');
-            
-            // 모달 위치 초기화
-            if (simModalContent) {
-                simModalContent.removeAttribute('style');
-                simModalContent.dataset.hasBeenUncentered = 'false';
-            }
-             if (costSimulationModal) {
-                costSimulationModal.classList.add('flex', 'items-center', 'justify-center');
-            }
-
             if (simTaskTableBody) {
                 simTaskTableBody.innerHTML = '';
                 renderSimulationTaskRow(simTaskTableBody); // 기본 1줄 추가
@@ -281,7 +302,7 @@ export function setupGeneralModalListeners() {
                 const inputVal = Number(row.querySelector('.sim-row-worker-or-time').value);
 
                 if (task && qty > 0 && inputVal > 0) {
-                    // 순차적 계산: 현재 업무의 예상 종료 시간을 다음 업무의 시작 시간으로 전달
+                    // ✨ 순차적 계산: 현재 업무의 예상 종료 시간을 다음 업무의 시작 시간으로 전달
                     const res = calculateSimulation(mode, task, qty, inputVal, appConfig, allHistoryData, currentStartTimeStr);
                     
                     if (!res.error) {
@@ -333,6 +354,8 @@ export function setupGeneralModalListeners() {
         });
     }
 
+
+    // ... (나머지 기존 모달 리스너들 유지) ...
     if (confirmQuantityBtn) {
         confirmQuantityBtn.addEventListener('click', async () => {
             const newQuantities = {};
@@ -569,9 +592,7 @@ export function setupGeneralModalListeners() {
                 if (!appState.partTimers) appState.partTimers = [];
                 appState.partTimers.push(newPartTimer);
                 
-                // 🔥 [핵심] 전체 저장 대신 partTimers 필드만 원자적 업데이트
-                await updateDailyData({ partTimers: appState.partTimers });
-                
+                debouncedSaveState();
                 renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
                 showToast(`알바 '${newName}'님이 추가되었습니다.`);
             } else {
@@ -600,9 +621,7 @@ export function setupGeneralModalListeners() {
                         querySnapshot.forEach(doc => batch.update(doc.ref, { member: newName }));
                         await batch.commit();
                     }
-                    // 🔥 [핵심] 전체 저장 대신 partTimers 필드만 원자적 업데이트
-                    await updateDailyData({ partTimers: appState.partTimers });
-
+                    debouncedSaveState();
                     showToast(`'${oldName}'님을 '${newName}'(으)로 수정했습니다.`);
                 } catch (e) {
                     console.error("알바 이름 변경 중 DB 오류: ", e);
@@ -616,7 +635,7 @@ export function setupGeneralModalListeners() {
     }
 
     if (confirmLeaveBtn) {
-        confirmLeaveBtn.addEventListener('click', async () => {
+        confirmLeaveBtn.addEventListener('click', () => {
             const memberName = context.memberToSetLeave;
             const selectedTypeRadio = document.querySelector('input[name="leave-type"]:checked');
             if (!memberName || !selectedTypeRadio) {
@@ -642,7 +661,7 @@ export function setupGeneralModalListeners() {
                     endDate
                 };
                 persistentLeaveSchedule.onLeaveMembers.push(newEntry);
-                await saveLeaveSchedule(db, persistentLeaveSchedule);
+                saveLeaveSchedule(db, persistentLeaveSchedule);
             } else {
                 const newDailyEntry = {
                     member: memberName,
@@ -651,8 +670,7 @@ export function setupGeneralModalListeners() {
                     endTime: null
                 };
                 appState.dailyOnLeaveMembers.push(newDailyEntry);
-                // 🔥 [핵심] 전체 저장 대신 onLeaveMembers 필드만 원자적 업데이트
-                await updateDailyData({ onLeaveMembers: appState.dailyOnLeaveMembers });
+                debouncedSaveState();
             }
 
             showToast(`${memberName}님 ${type} 처리 완료.`);
@@ -661,7 +679,7 @@ export function setupGeneralModalListeners() {
     }
 
     if (confirmCancelLeaveBtn) {
-        confirmCancelLeaveBtn.addEventListener('click', async () => {
+        confirmCancelLeaveBtn.addEventListener('click', () => {
             const memberName = context.memberToCancelLeave;
             if (!memberName) return;
 
@@ -687,11 +705,10 @@ export function setupGeneralModalListeners() {
             });
 
             if (dailyChanged) {
-                // 🔥 [핵심] 전체 저장 대신 onLeaveMembers 필드만 원자적 업데이트
-                await updateDailyData({ onLeaveMembers: appState.dailyOnLeaveMembers });
+                debouncedSaveState();
             }
             if (persistentChanged) {
-                await saveLeaveSchedule(db, persistentLeaveSchedule);
+                saveLeaveSchedule(db, persistentLeaveSchedule);
             }
 
             if (dailyChanged || persistentChanged) {
@@ -777,8 +794,7 @@ export function setupGeneralModalListeners() {
                 }
 
                 const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
-                // 초기화는 전체 상태를 비우는 것이므로 setDoc({}) 사용
-                await setDoc(docRef, {});
+                await setDoc(docRef, { state: '{}' });
 
                 appState.workRecords = [];
                 appState.taskQuantities = {};
@@ -838,49 +854,5 @@ export function setupGeneralModalListeners() {
                  showToast("시작 시간 수정 중 오류 발생", true);
             }
         });
-    }
-}
-
-function makeDraggable(modalOverlay, header, contentBox) {
-    let isDragging = false;
-    let offsetX, offsetY;
-
-    header.addEventListener('mousedown', (e) => {
-        if (e.target.closest('button')) return;
-        
-        isDragging = true;
-
-        if (contentBox.dataset.hasBeenUncentered !== 'true') {
-            const rect = contentBox.getBoundingClientRect();
-            modalOverlay.classList.remove('flex', 'items-center', 'justify-center');
-            contentBox.style.position = 'absolute';
-            contentBox.style.top = `${rect.top + window.scrollY}px`;
-            contentBox.style.left = `${rect.left + window.scrollX}px`;
-            contentBox.style.margin = '0';
-            contentBox.style.transform = 'none';
-            contentBox.dataset.hasBeenUncentered = 'true';
-        }
-
-        const rect = contentBox.getBoundingClientRect();
-        offsetX = e.clientX - rect.left;
-        offsetY = e.clientY - rect.top;
-
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    });
-
-    function onMouseMove(e) {
-        if (!isDragging) return;
-        const newLeft = e.clientX - offsetX + window.scrollX;
-        const newTop = e.clientY - offsetY + window.scrollY;
-
-        contentBox.style.left = `${newLeft}px`;
-        contentBox.style.top = `${newTop}px`;
-    }
-
-    function onMouseUp() {
-        isDragging = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
     }
 }
