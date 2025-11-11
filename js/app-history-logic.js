@@ -9,8 +9,7 @@ import {
     reportPanel, reportTabs,
     deleteHistoryModal,
     quantityModal,
-    render, debouncedSaveState, saveStateToFirestore,
-    markDataAsDirty,
+    render
 } from './app.js';
 
 import {
@@ -237,7 +236,8 @@ export async function saveDayDataToHistory(shouldReset) {
                 snapshotAll.forEach(doc => deleteBatch.delete(doc.ref));
                 await deleteBatch.commit();
             }
-             await setDoc(getDailyDocRef(), { state: '{}' });
+             // 초기화 시에는 전체 상태를 비워야 하므로 setDoc({}) 사용
+             await setDoc(getDailyDocRef(), {});
         } catch (e) {
              console.error("Error clearing daily data: ", e);
         }
@@ -676,6 +676,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     view.innerHTML = html;
 };
 
+// ✅ [신규] 누락되었던 requestHistoryDeletion 함수 복구
 export const requestHistoryDeletion = (dateKey) => {
     context.historyKeyToDelete = dateKey;
     if (deleteHistoryModal) deleteHistoryModal.classList.remove('hidden');

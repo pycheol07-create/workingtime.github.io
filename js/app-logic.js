@@ -1,9 +1,10 @@
 // === js/app-logic.js ===
 import {
     appState, db, auth,
-    generateId,
-    saveStateToFirestore,
-    debouncedSaveState
+    generateId
+    // ⛔️ [삭제] 더 이상 app.js에서 내보내지 않으므로 제거
+    // saveStateToFirestore,
+    // debouncedSaveState
 } from './app.js';
 
 import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';

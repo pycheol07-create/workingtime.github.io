@@ -1,12 +1,13 @@
+// === js/listeners-main.js ===
 import {
     appState, appConfig, db, auth,
-    persistentLeaveSchedule, allHistoryData,
+    persistentLeaveSchedule,
     context,
     LEAVE_TYPES,
 
     teamStatusBoard, workLogBody,
     deleteConfirmModal,
-    endShiftBtn, endShiftConfirmModal, endShiftConfirmTitle, endShiftConfirmMessage,
+    endShiftBtn, endShiftConfirmTitle, endShiftConfirmMessage, endShiftConfirmModal,
     saveProgressBtn,
     editRecordModal,
     taskSelectModal,
@@ -14,9 +15,7 @@ import {
     teamSelectModal,
     editStartTimeModal, editStartTimeModalTitle, editStartTimeModalMessage,
     editStartTimeInput, editStartTimeContextIdInput, editStartTimeContextTypeInput,
-    editLeaveModal,
-    leaveTypeModal, leaveMemberNameSpan, leaveTypeOptionsContainer,
-    leaveDateInputsDiv, leaveStartDateInput, leaveEndDateInput,
+    leaveTypeModal, leaveMemberNameSpan,
     cancelLeaveConfirmModal, cancelLeaveConfirmMessage,
     toggleCompletedLog, toggleAnalysis, toggleSummary,
     menuToggleBtn, menuDropdown,
@@ -27,9 +26,10 @@ import {
 
     stopGroupConfirmModal,
 
-    render, debouncedSaveState,
+    render,
+    // ⛔️ [삭제] 더 이상 존재하지 않는 함수 import 제거
+    // debouncedSaveState,
     generateId,
-    markDataAsDirty,
 
     loginModal, loginForm, loginEmailInput, loginPasswordInput, loginSubmitBtn,
     loginErrorMsg, loginButtonText, loginButtonSpinner, logoutBtn, logoutBtnMobile,
@@ -38,15 +38,13 @@ import {
     memberActionModal, actionMemberName, actionMemberStatusBadge, actionMemberTimeInfo,
     adminClockInBtn, adminClockOutBtn, adminCancelClockOutBtn, openLeaveModalBtn,
 
-    // ✅ [신규] updateDailyData 임포트
     updateDailyData
 
 } from './app.js';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js';
+import { showToast, getCurrentTime, formatTimeTo24H } from './utils.js';
 
 import {
-    getAllDashboardDefinitions,
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderPersonalAnalysis,
@@ -55,7 +53,7 @@ import {
 } from './ui.js';
 
 import {
-    stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
+    pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
     processClockIn, processClockOut, cancelClockOut,
     startWorkGroup,
@@ -63,14 +61,13 @@ import {
 } from './app-logic.js';
 
 import {
-    saveProgress, saveDayDataToHistory,
+    saveProgress,
     checkMissingQuantities
 } from './app-history-logic.js';
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, runTransaction, updateDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ [신규] 근태 설정 모달 열기 헬퍼 함수
+// 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
     if (leaveMemberNameSpan) leaveMemberNameSpan.textContent = memberName;
     context.memberToSetLeave = memberName;
@@ -78,7 +75,7 @@ const openLeaveModal = (memberName) => {
     if (leaveTypeModal) leaveTypeModal.classList.remove('hidden');
 };
 
-// ✅ [신규] 관리자 액션 모달 열기 헬퍼 함수
+// 관리자 액션 모달 열기 헬퍼 함수
 const openAdminMemberActionModal = (memberName) => {
     context.memberToAction = memberName;
     if (actionMemberName) actionMemberName.textContent = memberName;
@@ -123,7 +120,7 @@ const openAdminMemberActionModal = (memberName) => {
 
 export function setupMainScreenListeners() {
 
-    // 🔥 [핵심] 선택/미선택 상태 클래스 정의
+    // 선택/미선택 상태 클래스 정의
     const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
     const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
 
@@ -282,10 +279,6 @@ export function setupMainScreenListeners() {
             if (editLeaveCard) {
                 const memberName = editLeaveCard.dataset.memberName;
                 const currentType = editLeaveCard.dataset.leaveType;
-                const currentStartTime = editLeaveCard.dataset.startTime;
-                const currentStartDate = editLeaveCard.dataset.startDate;
-                const currentEndTime = editLeaveCard.dataset.endTime;
-                const currentEndDate = editLeaveCard.dataset.endDate;
 
                 const role = appState.currentUserRole || 'user';
                 const selfName = appState.currentUser || null;
@@ -304,55 +297,7 @@ export function setupMainScreenListeners() {
                     }
                     return;
                 }
-
-                const modal = document.getElementById('edit-leave-record-modal');
-                const titleEl = document.getElementById('edit-leave-modal-title');
-                const nameEl = document.getElementById('edit-leave-member-name');
-                const typeSelect = document.getElementById('edit-leave-type');
-                const timeFields = document.getElementById('edit-leave-time-fields');
-                const dateFields = document.getElementById('edit-leave-date-fields');
-                const startTimeInput = document.getElementById('edit-leave-start-time');
-                const endTimeInput = document.getElementById('edit-leave-end-time');
-                const startDateInput = document.getElementById('edit-leave-start-date');
-                const endDateInput = document.getElementById('edit-leave-end-date');
-                const originalNameInput = document.getElementById('edit-leave-original-member-name');
-                const originalStartInput = document.getElementById('edit-leave-original-start-identifier');
-                const originalTypeInput = document.getElementById('edit-leave-original-type');
-
-                if (!modal || !typeSelect) return;
-
-                titleEl.textContent = `${memberName}님 근태 수정`;
-                nameEl.textContent = memberName;
-
-                typeSelect.innerHTML = '';
-                LEAVE_TYPES.forEach(type => {
-                    const option = document.createElement('option');
-                    option.value = type;
-                    option.textContent = type;
-                    if (type === currentType) {
-                        option.selected = true;
-                    }
-                    typeSelect.appendChild(option);
-                });
-
-                const isTimeBased = (currentType === '외출' || currentType === '조퇴');
-
-                timeFields.classList.toggle('hidden', !isTimeBased);
-                dateFields.classList.toggle('hidden', isTimeBased);
-
-                if (isTimeBased) {
-                    startTimeInput.value = currentStartTime || '';
-                    endTimeInput.value = currentEndTime || '';
-                } else {
-                    startDateInput.value = currentStartDate || '';
-                    endDateInput.value = currentEndDate || '';
-                }
-
-                originalNameInput.value = memberName;
-                originalStartInput.value = isTimeBased ? currentStartTime : currentStartDate;
-                originalTypeInput.value = isTimeBased ? 'daily' : 'persistent';
-
-                modal.classList.remove('hidden');
+                showToast('연차/출장 등의 수정은 이력 보기 메뉴를 이용해주세요.', false);
                 return;
             }
 
@@ -366,7 +311,6 @@ export function setupMainScreenListeners() {
                     showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
                 }
 
-                // ✅ 관리자일 경우 관리자 전용 모달 열기
                 if (role === 'admin' && memberName !== selfName) {
                      openAdminMemberActionModal(memberName);
                      return;
@@ -565,18 +509,15 @@ export function setupMainScreenListeners() {
             context.quantityModalContext.dateKey = null;
 
             context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
-                // 로컬 상태 즉시 업데이트 (UX 반응성)
                 appState.taskQuantities = newQuantities;
                 appState.confirmedZeroTasks = confirmedZeroTasks;
                 
-                // ✅ [핵심 수정] 서버 원자적 업데이트 (updateDailyData 사용)
                 await updateDailyData({
                     taskQuantities: newQuantities,
                     confirmedZeroTasks: confirmedZeroTasks
                 });
 
                 showToast('오늘의 처리량이 저장되었습니다.');
-                // ⛔️ render(); // onSnapshot이 처리하므로 제거
             };
 
             context.quantityModalContext.onCancel = () => {};
@@ -616,7 +557,6 @@ export function setupMainScreenListeners() {
                 appState.taskQuantities = newQuantities;
                 appState.confirmedZeroTasks = confirmedZeroTasks;
 
-                // ✅ [핵심 수정] 모바일도 동일하게 updateDailyData 적용
                 await updateDailyData({
                     taskQuantities: newQuantities,
                     confirmedZeroTasks: confirmedZeroTasks
@@ -752,12 +692,9 @@ export function setupMainScreenListeners() {
         });
     }
 
-    // ✅ 팀 선택 모달 리스너
     if (teamSelectModal) {
         teamSelectModal.addEventListener('click', async (e) => {
             const target = e.target;
-
-            // 1. 개별 멤버 버튼 클릭
             const memberButton = target.closest('.member-select-btn');
             if (memberButton && !memberButton.disabled) {
                 const memberName = memberButton.dataset.memberName;
@@ -774,7 +711,6 @@ export function setupMainScreenListeners() {
                 }
             }
 
-            // 2. 전체 선택/해제 버튼 클릭
             const selectAllBtn = target.closest('.group-select-all-btn');
             if (selectAllBtn) {
                 const groupName = selectAllBtn.dataset.groupName;
@@ -799,82 +735,8 @@ export function setupMainScreenListeners() {
                     });
                 }
             }
-
-            // 3. 알바 수정 버튼 클릭 핸들러 (✏️ 아이콘)
-            const editPartTimerBtn = target.closest('.edit-part-timer-btn');
-            if (editPartTimerBtn) {
-                const partTimerId = editPartTimerBtn.dataset.partTimerId;
-                const partTimer = (appState.partTimers || []).find(p => p.id === partTimerId);
-                if (partTimer) {
-                    document.querySelector('#edit-part-timer-modal h2').textContent = '알바 이름 수정';
-                    document.getElementById('part-timer-edit-id').value = partTimer.id;
-                    document.getElementById('part-timer-new-name').value = partTimer.name;
-                    document.getElementById('edit-part-timer-modal').classList.remove('hidden');
-                    setTimeout(() => document.getElementById('part-timer-new-name').focus(), 50);
-                }
-                return;
-            }
-
-            // ✨ [수정] 알바 삭제 버튼 클릭 핸들러 (🗑️ 아이콘) - 즉시 삭제
-            const deletePartTimerBtn = target.closest('.delete-part-timer-btn');
-            if (deletePartTimerBtn) {
-                const partTimerId = deletePartTimerBtn.dataset.partTimerId;
-                const partTimer = (appState.partTimers || []).find(p => p.id === partTimerId);
-
-                if (partTimer) {
-                    // 1. 로컬 상태에서 알바 제거
-                    appState.partTimers = appState.partTimers.filter(p => p.id !== partTimerId);
-                    
-                    // 2. 금일 출근 기록이 있다면 함께 제거 (정리)
-                    if (appState.dailyAttendance && appState.dailyAttendance[partTimer.name]) {
-                        delete appState.dailyAttendance[partTimer.name];
-                    }
-
-                    debouncedSaveState();
-                    renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
-                    showToast(`${partTimer.name}님이 삭제되었습니다.`);
-                }
-                return;
-            }
-
-            // ✨ [수정] 알바 추가 버튼 핸들러: 즉시 자동 추가 및 출근 처리
-             if (target.closest('#add-part-timer-modal-btn')) {
-                if (!appState.partTimers) appState.partTimers = [];
-
-                // 1. 중복되지 않는 '알바N' 이름 찾기
-                const existingNames = new Set(appState.partTimers.map(p => p.name));
-                let nextNum = 1;
-                while (existingNames.has(`알바${nextNum}`)) {
-                    nextNum++;
-                }
-                const newName = `알바${nextNum}`;
-
-                // 2. 새 알바 객체 생성
-                const newPartTimer = {
-                    id: generateId(),
-                    name: newName,
-                    wage: appConfig.defaultPartTimerWage || 10000
-                };
-
-                // 3. 상태 추가 (알바 정보 + 즉시 출근 처리)
-                if (!appState.dailyAttendance) appState.dailyAttendance = {};
-                appState.dailyAttendance[newName] = {
-                    inTime: getCurrentTime(),
-                    outTime: null,
-                    status: 'active'
-                };
-                appState.partTimers.push(newPartTimer);
-                
-                debouncedSaveState();
-
-                // 4. 모달 컨텐츠 리렌더링
-                renderTeamSelectionModalContent(context.selectedTaskForStart, appState, appConfig.teamGroups);
-                showToast(`'${newName}'이(가) 추가되고 출근 처리되었습니다.`);
-                return;
-            }
         });
 
-        // 확인 버튼 (업무 시작) - ✨ 중복 클릭 방지 로직 추가
         const confirmTeamSelectBtn = document.getElementById('confirm-team-select-btn');
         if (confirmTeamSelectBtn) {
              confirmTeamSelectBtn.addEventListener('click', async (e) => {
