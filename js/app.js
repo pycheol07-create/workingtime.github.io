@@ -181,7 +181,6 @@ export const historyFilterBtn = document.getElementById('history-filter-btn');
 export const historyClearFilterBtn = document.getElementById('history-clear-filter-btn');
 export const historyDownloadPeriodExcelBtn = document.getElementById('history-download-period-excel-btn');
 export const coqExplanationModal = document.getElementById('coq-explanation-modal');
-
 export const pcClockOutCancelBtn = document.getElementById('pc-clock-out-cancel-btn');
 export const mobileClockOutCancelBtn = document.getElementById('mobile-clock-out-cancel-btn');
 export const memberActionModal = document.getElementById('member-action-modal');
@@ -193,7 +192,7 @@ export const adminClockOutBtn = document.getElementById('admin-clock-out-btn');
 export const adminCancelClockOutBtn = document.getElementById('admin-cancel-clock-out-btn');
 export const openLeaveModalBtn = document.getElementById('open-leave-modal-btn');
 
-// ✅ [신규] 인건비 시뮬레이션 모달 관련 요소 추가
+// ✅ [신규] 인건비 시뮬레이션 모달 관련 요소 추가 (확장됨)
 export const costSimulationModal = document.getElementById('cost-simulation-modal');
 export const openCostSimulationBtn = document.getElementById('open-cost-simulation-btn');
 export const simTaskSelect = document.getElementById('sim-task-select');
