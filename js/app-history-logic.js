@@ -815,7 +815,9 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
 
         // ✨ 휴게시간(12:30~13:30) 고려한 종료 시간 예측
         const now = new Date();
-        const [startH, startM] = startTimeStr.split(':').map(Number); // ✅ 여기가 line 818
+        // ✅ [수정] startTimeStr이 문자열이 아닐 경우(undefined 등)를 대비해 기본값을 설정합니다.
+        const safeStartTimeStr = String(startTimeStr || "09:00");
+        const [startH, startM] = safeStartTimeStr.split(':').map(Number);
         const startDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
         
         const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
@@ -843,7 +845,9 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
         result.value1 = `${Math.ceil(result.workerCount * 10) / 10} 명`;
         
         // 역산 모드에서도 종료 시각은 단순 계산 (목표 시간만큼 더함)
-        const [startH, startM] = startTimeStr.split(':').map(Number);
+        // ✅ [수정] startTimeStr이 문자열이 아닐 경우(undefined 등)를 대비해 기본값을 설정합니다.
+        const safeStartTimeStr = String(startTimeStr || "09:00");
+        const [startH, startM] = safeStartTimeStr.split(':').map(Number);
         const now = new Date();
         const startDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
         
