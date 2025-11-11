@@ -229,7 +229,7 @@
 
             // (2) 모달이 준비된 후 메인 앱 로직(app.js)을 실행합니다.
             try {
-                await import('./js/app.js');
+                await import('./js/app.js?v=1.0');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
