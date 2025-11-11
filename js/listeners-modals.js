@@ -31,8 +31,11 @@ import {
     cancelClockOut
 } from './app-logic.js';
 
-import { saveProgress, saveDayDataToHistory, switchHistoryView, calculateSimulation, generateEfficiencyChartData, analyzeBottlenecks } from './app-history-logic.js';
-import { saveLeaveSchedule } from './config.js';
+// ✅ [수정] app-history-logic.js에서 분리된 import
+import { switchHistoryView } from './app-history-logic.js'; // 'switchHistoryView'는 app-history-logic.js에 남아있음
+import { saveProgress, saveDayDataToHistory } from './history-data-manager.js'; // 데이터 로직
+import { calculateSimulation, generateEfficiencyChartData, analyzeBottlenecks } from './analysis-logic.js'; // 계산 로직
+
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -797,7 +800,7 @@ export function setupGeneralModalListeners() {
 
             } catch (e) {
                  console.error("Error updating start time: ", e);
-                 showToast("시작 시간 수정 중 오류 발생", true);
+                 showToast("시작 시간 수정 중 오류가 발생했습니다.", true);
             }
         });
     }

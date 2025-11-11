@@ -38,10 +38,10 @@ import {
     addMembersToWorkGroup,
 } from './app-logic.js';
 
-import {
-    saveProgress, saveDayDataToHistory,
-    checkMissingQuantities
-} from './app-history-logic.js';
+// ✅ [수정] app-history-logic.js에서 분리된 import
+import { saveProgress, saveDayDataToHistory } from './history-data-manager.js';
+import { checkMissingQuantities } from './analysis-logic.js';
+
 
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, runTransaction, updateDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";

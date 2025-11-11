@@ -18,14 +18,22 @@ import {
     renderManualAddModalDatalists
 } from './ui.js';
 import { initializeAppListeners } from './app-listeners.js';
+
+// ✅ [수정] app-history-logic.js 대신 history-data-manager.js에서 직접 임포트
 import {
     saveProgress,
     saveDayDataToHistory
-} from './app-history-logic.js';
+} from './history-data-manager.js';
 
 // ✅ [신규] 분리된 DOM 요소와 상태 변수를 가져옵니다.
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
+
+// ✅ [추가] app-logic.js에서 점심시간 자동화 함수 임포트
+import {
+    autoPauseForLunch,
+    autoResumeFromLunch
+} from './app-logic.js';
 
 
 // --- 3. 헬퍼 함수 ---
@@ -203,6 +211,10 @@ async function startAppAfterLogin(user) {
         // ✅ Setter를 사용하여 전역 상태 변수 할당
         State.setAppConfig(await loadAppConfig(State.db));
         State.setPersistentLeaveSchedule(await loadLeaveSchedule(State.db));
+
+        // ✅ [신규] 자동화 함수를 context에 등록
+        State.context.autoPauseForLunch = autoPauseForLunch;
+        State.context.autoResumeFromLunch = autoResumeFromLunch;
 
         const userEmail = user.email;
 
