@@ -201,8 +201,13 @@
             </div>
         </div>
     
-    </div> <div id="modals-container"></div>
-
+    </div>
+    
+    <div id="modals-container-auth"></div>
+    <div id="modals-container-simulation"></div>
+    <div id="modals-container-confirm"></div>
+    <div id="modals-container-history"></div>
+    <div id="modals-container-form"></div>
     <script>
         // 1. 외부 HTML 컴포넌트 로더
         async function loadComponent(url, containerId) {
@@ -223,9 +228,15 @@
 
         // 2. 앱 시작 (순차 실행 보장)
         async function initApp() {
-            // (1) 모달 HTML 파일을 먼저 불러와서 DOM에 삽입합니다.
-            // ✨ 중요: 이 파일이 실제로 존재해야 앱이 정상 동작합니다.
-            await loadComponent('components/modals.html', 'modals-container');
+            // (1) 모달 HTML 파일들을 먼저 불러와서 DOM에 삽입합니다.
+            // ✅ [수정] 모든 분리된 모달 파일을 병렬로 로드
+            await Promise.all([
+                loadComponent('components/modals-auth.html', 'modals-container-auth'),
+                loadComponent('components/modals-simulation.html', 'modals-container-simulation'),
+                loadComponent('components/modals-confirm.html', 'modals-container-confirm'),
+                loadComponent('components/modals-history.html', 'modals-container-history'),
+                loadComponent('components/modals-form.html', 'modals-container-form')
+            ]);
 
             // (2) 모달이 준비된 후 메인 앱 로직(app.js)을 실행합니다.
             try {
