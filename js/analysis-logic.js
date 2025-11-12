@@ -58,7 +58,7 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
     const standards = calculateStandardThroughputs(State.allHistoryData);
     const speedPerPerson = standards[task] || 0; // (개/분/인)
 
-    // ✅ [수정] '건당 평균 시간'을 가져오도록 함수 변경
+    // ✅ [수정] '건당 평균 시간' (분/건)을 가져오도록 헬퍼 함수 변경
     const linkedAvgDurations = calculateLinkedTaskAverageDuration(State.allHistoryData, currentAppConfig);
     const linkedTaskAvgDuration = linkedAvgDurations[task] || 0; // (분/건)
     const linkedTaskName = currentAppConfig.simulationTaskLinks ? currentAppConfig.simulationTaskLinks[task] : null;
@@ -71,13 +71,14 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
     // ✅ [수정] currentAppConfig에서 시급을 가져옵니다.
     const avgWagePerMinute = (currentAppConfig.defaultPartTimerWage || 10000) / 60;
     
-    // ✅ [수정] 총 필요 시간 = (주업무 시간) + (연관 업무 고정 시간)
+    // ✅ [수정] 총 필요 시간 = (주업무 시간) + (연관 업무 고정 시간 1회)
     const totalManMinutesForMainTask = targetQty / speedPerPerson;
-    // ✅ [수정] '건당 평균 시간'을 수량에 곱하지 않고 한 번만 더합니다.
-    const totalManMinutesForLinkedTask = linkedTaskAvgDuration;
+    // ✅ [수정] (분/건)으로 계산된 시간을 수량(qty)과 곱하지 않고, 1회만 더합니다.
+    const totalManMinutesForLinkedTask = linkedTaskAvgDuration; 
     const totalManMinutesNeeded = totalManMinutesForMainTask + totalManMinutesForLinkedTask;
 
     let relatedTaskInfo = null;
+    // ✅ [수정] 'totalManMinutesForLinkedTask > 0' 조건을 제거 (0분이라도 표시)
     if (linkedTaskName) {
         relatedTaskInfo = {
             name: linkedTaskName,
@@ -197,6 +198,7 @@ export const analyzeBottlenecks = (historyData) => {
 /**
  * ✅ [수정] 연관 업무의 '건당 평균 시간' (분/건) 계산 헬퍼
  * (e.g. '직진배송 준비작업' 1건당 평균 몇 분이 걸리는가?)
+ * [수정] 'calculateLinkedTaskMinutesPerItem' -> 'calculateLinkedTaskAverageDuration'
  */
 const calculateLinkedTaskAverageDuration = (allHistoryData, appConfig) => {
     const links = (appConfig && appConfig.simulationTaskLinks) ? appConfig.simulationTaskLinks : {};
@@ -209,14 +211,17 @@ const calculateLinkedTaskAverageDuration = (allHistoryData, appConfig) => {
     allHistoryData.forEach(day => {
         // 1. Aggregate Durations & Counts (연관 업무의 총 시간 및 횟수 집계)
         (day.workRecords || []).forEach(r => {
-            if (linkedTasks.has(r.task) && r.duration > 0) {
+            // ✅ [수정] '직진배송 사전작업' 같은 연관 업무를 찾습니다.
+            if (linkedTasks.has(r.task)) {
                 if (!taskStats[r.task]) {
                     taskStats[r.task] = { duration: 0, count: 0 };
                 }
+                // ✅ [수정] 리포트 로직과 동일하게, duration이 0이더라도 count합니다.
                 taskStats[r.task].duration += (r.duration || 0);
                 taskStats[r.task].count += 1;
             }
         });
+        // ⛔️ [삭제] 주 업무(메인)의 처리량(quantity) 집계 로직 삭제
     });
 
     const avgDurations = {}; // 연관 업무의 평균 시간 (분/건)
