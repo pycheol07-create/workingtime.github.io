@@ -35,7 +35,7 @@ export const setDb = (val) => { db = val; };
 export const setAuth = (val) => { auth = val; };
 export const setUnsubscribeToday = (val) => { unsubscribeToday = val; };
 export const setUnsubscribeLeaveSchedule = (val) => { unsubscribeLeaveSchedule = val; };
-export const setUnsubscribeConfig = (val) => { unsubscribeConfig = val; };
+export const setUnsubscribeConfig = (val) => { appConfig = val; };
 export const setElapsedTimeTimer = (val) => { elapsedTimeTimer = val; };
 export const setPeriodicRefreshTimer = (val) => { periodicRefreshTimer = val; };
 export const setUnsubscribeWorkRecords = (val) => { unsubscribeWorkRecords = val; };
@@ -90,7 +90,8 @@ export const appState = {
     currentUser: null,
     currentUserRole: 'user',
     confirmedZeroTasks: [],
-    dailyAttendance: {}
+    dailyAttendance: {},
+    simulationResults: null // ✅ [신규] 이 줄을 추가합니다.
 };
 
 // --- Data Arrays (Mutated, not re-assigned) ---

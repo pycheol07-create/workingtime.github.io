@@ -1,6 +1,7 @@
 // === js/analysis-logic.js ===
 // 설명: app-history-logic.js에서 분리된 순수 계산 및 분석 함수 모음입니다.
 
+// ✅ [수정] State 임포트 추가 (appConfig, allHistoryData 접근용)
 import * as State from './state.js';
 import { formatDuration } from './utils.js';
 import { calculateStandardThroughputs } from './ui-history-reports-logic.js';
@@ -44,6 +45,7 @@ export const checkMissingQuantities = (dayData) => {
 /**
  * (app-history-logic.js -> analysis-logic.js)
  * 인건비 시뮬레이션 계산 로직
+ * ✅ [수정] 연관 업무 시간(요청 1) 및 표준 속도 반환(요청 4) 로직 추가
  */
 export const calculateSimulation = (mode, task, targetQty, inputValue, startTimeStr = "09:00") => {
     // mode: 'fixed-workers' | 'target-time'
@@ -51,19 +53,39 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
         return { error: "모든 값을 올바르게 입력해주세요." };
     }
 
+    // ✅ [수정] State에서 allHistoryData와 appConfig 직접 참조
     const standards = calculateStandardThroughputs(State.allHistoryData); // ✅ State에서 직접 참조
     const speedPerPerson = standards[task] || 0; // (개/분/인)
+
+    // ✅ [신규] 연관 업무 시간 계산 (요청 1)
+    const linkedRatios = calculateLinkedTaskMinutesPerItem(State.allHistoryData, State.appConfig);
+    const linkedTimePerItem = linkedRatios[task] || 0; // (분/개)
+    const linkedTaskName = State.appConfig.simulationTaskLinks ? State.appConfig.simulationTaskLinks[task] : null;
+
 
     if (speedPerPerson <= 0) {
         return { error: "해당 업무의 과거 이력 데이터가 부족하여 예측할 수 없습니다." };
     }
 
     const avgWagePerMinute = (State.appConfig.defaultPartTimerWage || 10000) / 60; // ✅ State에서 직접 참조
-    const totalManMinutesNeeded = targetQty / speedPerPerson; // 총 필요 인력분
+    
+    // ✅ [수정] 총 필요 시간 = (주업무 시간) + (연관 업무 시간)
+    const totalManMinutesForMainTask = targetQty / speedPerPerson;
+    const totalManMinutesForLinkedTask = targetQty * linkedTimePerItem;
+    const totalManMinutesNeeded = totalManMinutesForMainTask + totalManMinutesForLinkedTask;
+
+    let relatedTaskInfo = null;
+    if (linkedTaskName && totalManMinutesForLinkedTask > 0) {
+        relatedTaskInfo = {
+            name: linkedTaskName,
+            time: totalManMinutesForLinkedTask // 이 업무(e.g. 준비작업)에만 할당된 총 시간
+        };
+    }
 
     let result = {
-        speed: speedPerPerson,
-        totalCost: totalManMinutesNeeded * avgWagePerMinute
+        speed: speedPerPerson, // ✅ [신규] 요구사항 4: 속도 반환
+        totalCost: totalManMinutesNeeded * avgWagePerMinute,
+        relatedTaskInfo: relatedTaskInfo // ✅ [신규] 요구사항 1: 연관 업무 정보 반환
     };
 
     if (mode === 'fixed-workers') {
@@ -166,4 +188,47 @@ export const analyzeBottlenecks = (historyData) => {
         .slice(0, 5); // 상위 5개
 
     return ranked;
+};
+
+
+/**
+ * ✅ [신규] 연관 업무의 (분/개) 비율 계산 헬퍼
+ * (e.g. '직진배송' 1개당 '직진배송 준비작업'은 평균 몇 분이 걸리는가?)
+ */
+const calculateLinkedTaskMinutesPerItem = (allHistoryData, appConfig) => {
+    const links = appConfig.simulationTaskLinks || {};
+    const mainTasks = Object.keys(links);
+    if (mainTasks.length === 0) return {};
+
+    const linkedTasks = new Set(Object.values(links));
+    const totalDurations = {};
+    const totalQuantities = {};
+
+    allHistoryData.forEach(day => {
+        // 1. Aggregate Durations (연관 업무의 총 시간 집계)
+        (day.workRecords || []).forEach(r => {
+            if (linkedTasks.has(r.task)) {
+                totalDurations[r.task] = (totalDurations[r.task] || 0) + (r.duration || 0);
+            }
+        });
+        // 2. Aggregate Quantities (주 업무의 총 처리량 집계)
+        Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
+            if (mainTasks.includes(task)) {
+                totalQuantities[task] = (totalQuantities[task] || 0) + (Number(qty) || 0);
+            }
+        });
+    });
+
+    const ratios = {};
+    for (const mainTask of mainTasks) {
+        const linkedTaskName = links[mainTask];
+        const mainQty = totalQuantities[mainTask] || 0;
+        const linkedDuration = totalDurations[linkedTaskName] || 0;
+
+        if (mainQty > 0 && linkedDuration > 0) {
+            // (분 / 개) 비율 계산
+            ratios[mainTask] = linkedDuration / mainQty; 
+        }
+    }
+    return ratios;
 };

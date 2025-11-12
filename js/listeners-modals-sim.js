@@ -43,14 +43,13 @@ const renderSimulationTaskRow = (tbody) => {
     tbody.appendChild(row);
 };
 
-// ✅ [수정] makeDraggable 함수 (width/height 고정 로직 복원)
+// ✅ [수정] makeDraggable 함수 (width/height 고정 로직 *제거* - 요청 2)
 function makeDraggable(modalOverlay, header, contentBox) {
     let isDragging = false;
     let offsetX, offsetY;
 
     header.addEventListener('mousedown', (e) => {
-        // 최대화 상태가 없으므로 isHistoryMaximized 체크 제거
-        if (e.target.closest('button')) { 
+        if (e.target.closest('button')) {
             return;
         }
         isDragging = true;
@@ -62,15 +61,14 @@ function makeDraggable(modalOverlay, header, contentBox) {
             contentBox.style.top = `${rect.top}px`;
             contentBox.style.left = `${rect.left}px`;
             
-            // ✅ [수정] 너비와 높이를 인라인 스타일로 고정 (창 축소 방지)
-            contentBox.style.width = `${rect.width}px`;
-            contentBox.style.height = `${rect.height}px`;
+            // ✅ [수정] 너비/높이 고정 로직 제거 (자동 리사이징 허용)
+            // contentBox.style.width = `${rect.width}px`;
+            // contentBox.style.height = `${rect.height}px`;
 
             contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';
         }
 
-        // mousedown 시점의 좌표를 다시 계산
         const rect = contentBox.getBoundingClientRect();
         offsetX = e.clientX - rect.left;
         offsetY = e.clientY - rect.top;
@@ -95,18 +93,91 @@ function makeDraggable(modalOverlay, header, contentBox) {
     }
 }
 
+/**
+ * ✅ [신규] 시뮬레이션 결과 렌더링 헬퍼 (요청 1, 3, 4)
+ * @param {object} data - State.appState.simulationResults
+ */
+const renderSimulationResults = (data) => {
+    if (!data) return;
+    
+    // ✅ [신규] 요청 2: 자동 크기 조절 (높이 제한 해제)
+    const contentBox = document.getElementById('sim-modal-content-box');
+    if (contentBox) contentBox.style.height = 'auto';
+
+    const { mode } = data;
+
+    if (mode === 'bottleneck') {
+        const { bottlenecks } = data;
+        if (DOM.simBottleneckTbody) {
+            DOM.simBottleneckTbody.innerHTML = bottlenecks.map((item, index) => `
+                <tr class="bg-white">
+                    <td class="px-4 py-3 font-medium text-gray-900">${index + 1}위</td>
+                    <td class="px-4 py-3 font-bold ${index === 0 ? 'text-red-600' : 'text-gray-800'}">${item.task}</td>
+                    <td class="px-4 py-3 text-right font-mono ${index === 0 ? 'text-red-600 font-bold' : ''}">${formatDuration(item.timeFor1000)}</td>
+                    <td class="px-4 py-3 text-right text-gray-500">${item.speed.toFixed(2)}</td>
+                </tr>
+            `).join('');
+        }
+        if (DOM.simBottleneckContainer) DOM.simBottleneckContainer.classList.remove('hidden');
+        if (DOM.simResultContainer) DOM.simResultContainer.classList.add('hidden');
+        if (DOM.simInputArea) DOM.simInputArea.classList.add('hidden');
+
+    } else if (mode === 'fixed-workers') {
+        const { results, totalDuration, finalEndTimeStr, totalCost } = data;
+        
+        const simTotalDurationEl = document.getElementById('sim-total-duration');
+        const simExpectedEndTimeEl = document.getElementById('sim-expected-end-time');
+        const simTotalCostEl = document.getElementById('sim-total-cost');
+        const simResultTbody = document.getElementById('sim-result-tbody');
+
+        if (simTotalDurationEl) simTotalDurationEl.textContent = formatDuration(totalDuration);
+        if (simExpectedEndTimeEl) simExpectedEndTimeEl.textContent = finalEndTimeStr;
+        if (simTotalCostEl) simTotalCostEl.textContent = `${Math.round(totalCost).toLocaleString()}원`;
+
+        if (simResultTbody) {
+            simResultTbody.innerHTML = results.map(res => {
+                // ✅ [신규] 요청 1: 연관 업무 시간 표시
+                let relatedTaskHtml = '';
+                if (res.relatedTaskInfo && res.workerCount > 0) {
+                    const timePerWorker = res.relatedTaskInfo.time / res.workerCount;
+                    relatedTaskHtml = `<div class="text-xs text-gray-400 font-normal">+ ${res.relatedTaskInfo.name} (${formatDuration(timePerWorker)})</div>`;
+                }
+
+                return `
+                <tr class="bg-white">
+                    <td class="px-4 py-3 font-medium text-gray-900">
+                        ${res.task}
+                        <div class="text-xs text-gray-400 font-normal">${res.startTime} 시작</div>
+                        ${relatedTaskHtml} 
+                    </td>
+                    <td class="px-4 py-3 text-right text-gray-500 font-mono">
+                        ${res.speed.toFixed(2)} 
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        ${formatDuration(res.durationMinutes)}
+                        ${res.includesLunch ? '<span class="text-xs text-orange-500 block">(점심포함)</span>' : ''}
+                    </td>
+                    <td class="px-4 py-3 text-right">${Math.round(res.totalCost).toLocaleString()}원</td>
+                    <td class="px-4 py-3 text-right font-bold text-indigo-600">${res.expectedEndTime}</td>
+                </tr>
+                `;
+            }).join('');
+        }
+        if (DOM.simResultContainer) DOM.simResultContainer.classList.remove('hidden');
+        if (DOM.simBottleneckContainer) DOM.simBottleneckContainer.classList.add('hidden');
+        if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
+    }
+};
+
 
 export function setupSimulationModalListeners() {
     
-    // ... (기존 시뮬레이션 모달 리스너 코드 - openCostSimulationBtn 부터 simCalculateBtn 까지 - 모두 그대로 둡니다) ...
-    
-    // 인건비 시뮬레이션 모달 열기
     const simAddTaskRowBtn = document.getElementById('sim-add-task-row-btn');
     const simTaskTableBody = document.getElementById('sim-task-table-body');
     const simTableHeaderWorker = document.getElementById('sim-table-header-worker');
     const simStartTimeInput = document.getElementById('sim-start-time-input');
 
-    // ✅ [신규] 공통 시뮬레이션 모달 열기 로직
+    // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (요청 3)
     const openSimulationModalLogic = () => {
         // 초기화
         if (DOM.simResultContainer) DOM.simResultContainer.classList.add('hidden');
@@ -124,7 +195,22 @@ export function setupSimulationModalListeners() {
             DOM.simModeRadios[0].dispatchEvent(new Event('change'));
         }
 
-        // ✅ [신규] 모달 열 때 위치 리셋 (드래그 대비)
+        // ✅ [신규] 요청 3: 저장된 결과가 있으면 로드
+        if (State.appState.simulationResults) {
+            renderSimulationResults(State.appState.simulationResults);
+            // 저장된 모드/시작시간 복원
+            const savedMode = State.appState.simulationResults.mode;
+            const savedStartTime = State.appState.simulationResults.startTime;
+            
+            if (savedMode) {
+                 const radio = document.querySelector(`input[name="sim-mode"][value="${savedMode}"]`);
+                 if(radio) radio.checked = true;
+            }
+            if (savedStartTime && simStartTimeInput) {
+                simStartTimeInput.value = savedStartTime;
+            }
+        }
+
         const contentBox = document.getElementById('sim-modal-content-box');
         if (contentBox) {
             contentBox.removeAttribute('style');
@@ -143,7 +229,6 @@ export function setupSimulationModalListeners() {
         });
     }
 
-    // ✅ [신규] 모바일 시뮬레이션 버튼 리스너
     if (DOM.openCostSimulationBtnMobile) {
         DOM.openCostSimulationBtnMobile.addEventListener('click', () => {
             openSimulationModalLogic();
@@ -157,19 +242,23 @@ export function setupSimulationModalListeners() {
             radio.addEventListener('change', (e) => {
                 if (e.target.checked) {
                     const mode = e.target.value;
+                    // ✅ [신규] 요청 3: 모드 변경 시 저장된 결과 초기화
+                    State.appState.simulationResults = null; 
+                    
                     if (mode === 'bottleneck') {
                         DOM.simInputArea.classList.add('hidden');
                         DOM.simResultContainer.classList.add('hidden');
+                        DOM.simBottleneckContainer.classList.add('hidden'); // 계산 전엔 숨김
                         DOM.simCalculateBtn.textContent = '병목 구간 분석하기';
                     } else {
                         DOM.simInputArea.classList.remove('hidden');
+                        DOM.simResultContainer.classList.add('hidden'); // 계산 전엔 숨김
                         DOM.simBottleneckContainer.classList.add('hidden');
                         DOM.simCalculateBtn.textContent = '시뮬레이션 실행 🚀';
                         
                         if (simTableHeaderWorker) {
                             simTableHeaderWorker.textContent = (mode === 'fixed-workers') ? '투입 인원 (명)' : '목표 시간 (분)';
                         }
-                        // 테이블 내 placeholder 업데이트
                         document.querySelectorAll('.sim-row-worker-or-time').forEach(input => {
                             input.placeholder = (mode === 'fixed-workers') ? '5' : '60';
                         });
@@ -194,9 +283,11 @@ export function setupSimulationModalListeners() {
         });
     }
 
+    // ✅ [수정] 계산 버튼 리스너 (요청 1, 2, 3, 4)
     if (DOM.simCalculateBtn) {
         DOM.simCalculateBtn.addEventListener('click', () => {
             const mode = document.querySelector('input[name="sim-mode"]:checked').value;
+            const currentStartTimeStr = simStartTimeInput ? simStartTimeInput.value : "09:00";
 
             // --- 모드 3: 병목 분석 ---
             if (mode === 'bottleneck') {
@@ -205,27 +296,22 @@ export function setupSimulationModalListeners() {
                     showToast('분석할 데이터가 충분하지 않습니다.', true);
                     return;
                 }
-                if (DOM.simBottleneckTbody) {
-                    DOM.simBottleneckTbody.innerHTML = bottlenecks.map((item, index) => `
-                        <tr class="bg-white">
-                            <td class="px-4 py-3 font-medium text-gray-900">${index + 1}위</td>
-                            <td class="px-4 py-3 font-bold ${index === 0 ? 'text-red-600' : 'text-gray-800'}">${item.task}</td>
-                            <td class="px-4 py-3 text-right font-mono ${index === 0 ? 'text-red-600 font-bold' : ''}">${formatDuration(item.timeFor1000)}</td>
-                            <td class="px-4 py-3 text-right text-gray-500">${item.speed.toFixed(2)}</td>
-                        </tr>
-                    `).join('');
-                }
-                DOM.simBottleneckContainer.classList.remove('hidden');
+                
+                const simulationData = { mode, bottlenecks, startTime: currentStartTimeStr };
+                // ✅ [신규] 요청 3: 결과 저장
+                State.appState.simulationResults = simulationData;
+                // ✅ [신규] 요청 2,3: 렌더링 헬퍼 호출
+                renderSimulationResults(simulationData);
                 return;
             }
 
-            // --- 모드 1 & 2: 다중 업무 시뮬레이션 (순차적 계산) ---
-            let currentStartTimeStr = simStartTimeInput ? simStartTimeInput.value : "09:00";
+            // --- 모드 1 & 2: 다중 업무 시뮬레이션 ---
             const rows = document.querySelectorAll('.sim-task-row');
             const results = [];
             let totalDuration = 0;
             let totalCost = 0;
             let finalEndTimeStr = currentStartTimeStr;
+            let effectiveStartTime = currentStartTimeStr;
 
             rows.forEach(row => {
                 const task = row.querySelector('.sim-row-task').value;
@@ -233,14 +319,13 @@ export function setupSimulationModalListeners() {
                 const inputVal = Number(row.querySelector('.sim-row-worker-or-time').value);
 
                 if (task && qty > 0 && inputVal > 0) {
-                    const res = calculateSimulation(mode, task, qty, inputVal, currentStartTimeStr);
+                    const res = calculateSimulation(mode, task, qty, inputVal, effectiveStartTime);
                     
                     if (!res.error) {
-                        res.startTime = currentStartTimeStr; // 결과 표시용 시작 시간 저장
+                        res.startTime = effectiveStartTime; // 결과 표시용 시작 시간 저장
                         results.push({ task, ...res });
                         
-                        // 다음 업무를 위해 시작 시간 및 누적 값 업데이트
-                        currentStartTimeStr = res.expectedEndTime;
+                        effectiveStartTime = res.expectedEndTime;
                         finalEndTimeStr = res.expectedEndTime;
                         totalDuration += res.durationMinutes;
                         totalCost += res.totalCost;
@@ -253,34 +338,19 @@ export function setupSimulationModalListeners() {
                 return;
             }
 
-            // 결과 렌더링
-            const simTotalDurationEl = document.getElementById('sim-total-duration');
-            const simExpectedEndTimeEl = document.getElementById('sim-expected-end-time');
-            const simTotalCostEl = document.getElementById('sim-total-cost');
-            const simResultTbody = document.getElementById('sim-result-tbody');
-
-            if (simTotalDurationEl) simTotalDurationEl.textContent = formatDuration(totalDuration);
-            if (simExpectedEndTimeEl) simExpectedEndTimeEl.textContent = finalEndTimeStr;
-            if (simTotalCostEl) simTotalCostEl.textContent = `${Math.round(totalCost).toLocaleString()}원`;
-
-            if (simResultTbody) {
-                simResultTbody.innerHTML = results.map(res => `
-                    <tr class="bg-white">
-                        <td class="px-4 py-3 font-medium text-gray-900">
-                            ${res.task}
-                            <div class="text-xs text-gray-400 font-normal">${res.startTime} 시작</div>
-                        </td>
-                        <td class="px-4 py-3 text-right">
-                            ${formatDuration(res.durationMinutes)}
-                            ${res.includesLunch ? '<span class="text-xs text-orange-500 block">(점심포함)</span>' : ''}
-                        </td>
-                        <td class="px-4 py-3 text-right">${Math.round(res.totalCost).toLocaleString()}원</td>
-                        <td class="px-4 py-3 text-right font-bold text-indigo-600">${res.expectedEndTime}</td>
-                    </tr>
-                `).join('');
-            }
-
-            if (DOM.simResultContainer) DOM.simResultContainer.classList.remove('hidden');
+            const simulationData = {
+                mode,
+                results,
+                totalDuration,
+                finalEndTimeStr,
+                totalCost,
+                startTime: currentStartTimeStr
+            };
+            
+            // ✅ [신규] 요청 3: 결과 저장
+            State.appState.simulationResults = simulationData;
+            // ✅ [신규] 요청 1, 2, 4: 렌더링 헬퍼 호출
+            renderSimulationResults(simulationData);
         });
     }
 
