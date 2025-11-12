@@ -50,7 +50,7 @@ export function setupHistoryModalListeners() {
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
 
-    // ✨ [수정됨] 전체화면 전환 로직 (DOM.historyModalContentBox 사용)
+    // ✨ [수정됨] 전체화면 전환 로직 (w-full 충돌 해결)
     const setHistoryMaximized = (maximized) => {
         isHistoryMaximized = maximized;
         const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
@@ -60,14 +60,15 @@ export function setupHistoryModalListeners() {
         DOM.historyModalContentBox.removeAttribute('style');
         DOM.historyModalContentBox.dataset.hasBeenUncentered = 'false';
         
-        // ✅ [추가] 모달 오버레이의 flex-center 스타일도 리셋
+        // 2. 모달 오버레이의 flex-center 스타일도 리셋
         DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
 
         if (maximized) {
             // ▶️ 최대화 모드
-            DOM.historyModalContentBox.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
-            // ✅ [수정] w-full max-w-7xl h-[85vh]로 변경
-            DOM.historyModalContentBox.classList.remove('relative', 'w-full', 'max-w-7xl', 'h-[85vh]', 'rounded-2xl', 'shadow-2xl');
+            // ✅ [수정] 'fixed', 'inset-0', 'h-full' 등 상태 변경에 꼭 필요한 클래스만 add
+            DOM.historyModalContentBox.classList.add('fixed', 'inset-0', 'h-full', 'z-[150]', 'rounded-none');
+            // ✅ [수정] 'relative', 'max-w-7xl', 'h-[85vh]' 등 기본 크기 클래스만 remove
+            DOM.historyModalContentBox.classList.remove('relative', 'max-w-7xl', 'h-[85vh]', 'rounded-2xl', 'shadow-2xl');
             
             // ✅ [추가] 최대화 시 오버레이의 flex-center 제거
             DOM.historyModal.classList.remove('flex', 'items-center', 'justify-center');
@@ -77,9 +78,10 @@ export function setupHistoryModalListeners() {
 
         } else {
             // ◀️ 일반 모드 복귀
-            DOM.historyModalContentBox.classList.remove('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
-            // ✅ [수정] w-full max-w-7xl h-[85vh]로 변경
-            DOM.historyModalContentBox.classList.add('relative', 'w-full', 'max-w-7xl', 'h-[85vh]', 'rounded-2xl', 'shadow-2xl');
+            // ✅ [수정] 최대화 클래스만 remove
+            DOM.historyModalContentBox.classList.remove('fixed', 'inset-0', 'h-full', 'z-[150]', 'rounded-none');
+            // ✅ [수정] 기본 크기 클래스만 add
+            DOM.historyModalContentBox.classList.add('relative', 'max-w-7xl', 'h-[85vh]', 'rounded-2xl', 'shadow-2xl');
 
             if (toggleBtn) toggleBtn.title = "전체화면";
             if (icon) icon.innerHTML = iconMaximize;
