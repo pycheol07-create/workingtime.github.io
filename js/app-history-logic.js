@@ -52,12 +52,77 @@ import {
 // ⛔️ [삭제] 다른 모듈을 위한 재내보내기(re-export) 구문이 모두 제거되었습니다.
 
 
+// ✅ [신규] 연차/출장 등 지속성 근태 기록을 이력 데이터에 주입하는 헬퍼
+function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
+    if (!leaveSchedule || !leaveSchedule.onLeaveMembers || leaveSchedule.onLeaveMembers.length === 0) {
+        return historyData;
+    }
+
+    // 1. '연차', '출장', '결근' 타입의 근태만 필터링
+    const persistentLeaves = leaveSchedule.onLeaveMembers.filter(
+        entry => entry.type === '연차' || entry.type === '출장' || entry.type === '결근'
+    );
+
+    if (persistentLeaves.length === 0) return historyData;
+
+    // 2. 중복 주입을 방지하기 위해, 각 날짜별로 이미 기록된 (멤버, 타입)을 Set으로 만듭니다.
+    const existingEntriesMap = new Map();
+    historyData.forEach(day => {
+        const entries = new Set();
+        (day.onLeaveMembers || []).forEach(entry => {
+            // 날짜 기반(연차/출장/결근) 또는 '기타'에서 수동 추가된 날짜 기반 항목을 식별합니다.
+            if (entry.startDate || entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+                entries.add(`${entry.member}::${entry.type}`);
+            }
+        });
+        existingEntriesMap.set(day.id, entries);
+    });
+
+    // 3. 모든 지속성 근태 기록을 순회합니다.
+    persistentLeaves.forEach(pLeave => {
+        if (!pLeave.startDate) return; // 시작일이 없으면 처리 불가
+
+        const startDate = new Date(pLeave.startDate + "T00:00:00");
+        const endDate = new Date((pLeave.endDate || pLeave.startDate) + "T00:00:00");
+
+        // 4. 시작일부터 종료일까지 하루씩 순회합니다.
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateKey = d.toISOString().slice(0, 10);
+            
+            const dayData = historyData.find(day => day.id === dateKey);
+            const existingEntries = existingEntriesMap.get(dateKey);
+
+            // 5. 해당 날짜(dateKey)에 이력(dayData)이 존재하고, 중복 검사 맵(existingEntries)이 있을 경우
+            if (dayData && existingEntries) {
+                const entryKey = `${pLeave.member}::${pLeave.type}`;
+                
+                // 6. 아직 해당 날짜에 이 근태 기록이 주입되지 않았다면 주입합니다.
+                if (!existingEntries.has(entryKey)) {
+                    if (!dayData.onLeaveMembers) {
+                        dayData.onLeaveMembers = [];
+                    }
+                    // pLeave 객체의 복사본을 주입 (원본 수정을 방지)
+                    dayData.onLeaveMembers.push({ ...pLeave });
+                    existingEntries.add(entryKey); // 맵에 추가하여 중복 방지
+                }
+            }
+            // (만약 해당 날짜(dateKey)에 이력(dayData)이 아예 없다면, 아무것도 하지 않습니다.)
+        }
+    });
+
+    return historyData;
+}
+
+
 export const loadAndRenderHistoryList = async () => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
 
-    await fetchAllHistoryData(); // ✅ 수정: 임포트된 함수 사용
-    await syncTodayToHistory();  // ✅ 수정: 임포트된 함수 사용
+    await fetchAllHistoryData(); // ✅ 1. Firebase에서 모든 이력 로드 (-> State.allHistoryData)
+    await syncTodayToHistory();  // ✅ 2. 오늘 데이터 이력에 덮어쓰기 (-> State.allHistoryData)
+
+    // ✅ [신규] 3. 지속성 근태 기록(연차 등)을 State.allHistoryData에 주입
+    augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
 
     if (State.allHistoryData.length === 0) {
         DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
@@ -119,6 +184,9 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
     DOM.historyDateList.innerHTML = '';
 
     await syncTodayToHistory(); // ✅ 수정: 임포트된 함수 사용
+    
+    // ✅ [신규] 렌더링 직전에도 데이터 보강 (필터링 시 누락 방지)
+    augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
 
     const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
         ? State.allHistoryData.filter(d => {
