@@ -57,27 +57,29 @@ export function setupHistoryModalListeners() {
         DOM.historyModalContentBox.removeAttribute('style');
         DOM.historyModalContentBox.dataset.hasBeenUncentered = 'false';
         
-        // 2. [CRITICAL] 오버레이의 flex-center 스타일 복원 (기본 모드용)
-        DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
-
+        // 2. [수정] 오버레이(historyModal)와 컨텐츠(historyModalContentBox)의 스타일을 함께 변경
+        
         if (maximized) {
             // ▶️ 최대화 모드
-            // 'fixed' 관련 클래스 추가
+            // 오버레이: flex/padding 제거 (전체 화면을 채우도록)
+            DOM.historyModal.classList.remove('flex', 'items-center', 'justify-center', 'p-4');
+
+            // 컨텐츠: 'fixed' 관련 클래스 추가 (화면 전체 채우기)
             DOM.historyModalContentBox.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
-            // 'relative' 및 '고정 크기' 클래스 제거
+            // 컨텐츠: 'relative' 및 '고정 크기' 클래스 제거
             DOM.historyModalContentBox.classList.remove('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
             
-            // 오버레이 flex-center 제거 (최대화 시 불필요)
-            DOM.historyModal.classList.remove('flex', 'items-center', 'justify-center');
-
             if (toggleBtn) toggleBtn.title = "기본 크기로";
             if (icon) icon.innerHTML = iconMinimize;
 
         } else {
             // ◀️ 일반 모드 복귀
-            // 'fixed' 관련 클래스 제거
+            // 오버레이: flex/padding 복원 (가운데 정렬 및 여백)
+            DOM.historyModal.classList.add('flex', 'items-center', 'justify-center', 'p-4');
+            
+            // 컨텐츠: 'fixed' 관련 클래스 제거
             DOM.historyModalContentBox.classList.remove('fixed', 'inset-0', 'h-full', 'z-[150]', 'rounded-none');
-            // 'relative' 및 '고정 크기' 클래스 추가
+            // 컨텐츠: 'relative' 및 '고정 크기' 클래스 추가
             DOM.historyModalContentBox.classList.add('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
 
             if (toggleBtn) toggleBtn.title = "전체화면";
@@ -167,7 +169,8 @@ export function setupHistoryModalListeners() {
             // ✅ [수정] 열 때 항상 setHistoryMaximized(false) 호출하여 리셋
             setHistoryMaximized(false);
             
-            DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
+            // ⛔️ [제거] DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
+            // (setHistoryMaximized(false) 내부에서 이미 처리함)
 
             if (DOM.historyStartDateInput) DOM.historyStartDateInput.value = '';
             if (DOM.historyEndDateInput) DOM.historyEndDateInput.value = '';
@@ -203,7 +206,8 @@ export function setupHistoryModalListeners() {
                 // ✅ [수정] 닫을 때도 setHistoryMaximized(false) 호출하여 리셋
                 setHistoryMaximized(false);
                 
-                DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
+                // ⛔️ [제거] DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
+                // (setHistoryMaximized(false) 내부에서 이미 처리함)
             }
         });
     }
