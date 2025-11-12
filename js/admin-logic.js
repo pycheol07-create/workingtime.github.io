@@ -11,6 +11,7 @@ import { getAllDashboardDefinitions } from './admin-ui.js';
  */
 export function collectConfigFromDOM(currentConfig) {
     const newConfig = {
+        // 1. DOM에서 수집할 항목 (초기화)
         teamGroups: [],
         memberWages: {},
         memberEmails: {},
@@ -21,9 +22,19 @@ export function collectConfigFromDOM(currentConfig) {
         keyTasks: [],
         taskGroups: [],
         quantityTaskTypes: [],
+        
+        // 2. DOM에서 수집할 항목 (기본값)
         defaultPartTimerWage: 10000,
         revenueIncrementUnit: 10000000,
-        standardMonthlyWorkHours: 209
+        standardMonthlyWorkHours: 209,
+
+        // ✅ [수정] UI에서 수정하지 않는 중요 설정값 보존
+        // currentConfig에서 이 값들을 가져와서 newConfig에 미리 넣어줍니다.
+        // 이 로직이 없으면 저장 시 이 값들이 사라집니다.
+        simulationTaskLinks: currentConfig.simulationTaskLinks || {},
+        qualityCostTasks: currentConfig.qualityCostTasks || [],
+        systemAccounts: currentConfig.systemAccounts || [],
+        standardDailyWorkHours: currentConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 }
     };
 
     const emailCheck = new Map();
