@@ -16,7 +16,9 @@ const renderSimulationTaskRow = (tbody) => {
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
     
     let taskOptions = '<option value="">업무 선택</option>';
-    (State.appConfig.quantityTaskTypes || []).sort().forEach(task => {
+    // ✅ [수정] State.appConfig가 로드되기 전에 호출될 수 있으므로 방어 코드 추가
+    const quantityTaskTypes = (State.appConfig && State.appConfig.quantityTaskTypes) ? State.appConfig.quantityTaskTypes : [];
+    quantityTaskTypes.sort().forEach(task => {
         taskOptions += `<option value="${task}">${task}</option>`;
     });
 
@@ -63,8 +65,8 @@ function makeDraggable(modalOverlay, header, contentBox) {
             contentBox.style.left = `${rect.left}px`;
             
             // ✅ [수정] 너비/높이 고정 로직 제거 (자동 리사이징 허용)
-            // contentBox.style.width = `${rect.width}px`;
-            // contentBox.style.height = `${rect.height}px`; // 이 줄 제거
+            contentBox.style.width = `${rect.width}px`; // 너비는 유지
+            // contentBox.style.height = `${rect.height}px`; // ✅ 높이 고정 제거
 
             contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';
@@ -97,22 +99,22 @@ function makeDraggable(modalOverlay, header, contentBox) {
 
 
 /**
- * ✅ [신규] 시뮬레이션 결과 렌더링 헬퍼 (요청 1, 3, 4)
+ * ✅ [신규] 시뮬레이션 결과 렌더링 헬퍼 (요청 1, 2, 4)
  * @param {object} data - State.appState.simulationResults
  */
 const renderSimulationResults = (data) => {
+    const contentBox = document.getElementById('sim-modal-content-box');
+
     if (!data) {
         // 결과가 없으면(null) 결과창 숨기기
         if (DOM.simResultContainer) DOM.simResultContainer.classList.add('hidden');
         if (DOM.simBottleneckContainer) DOM.simBottleneckContainer.classList.add('hidden');
         // ✅ [신규] 요청 2: 자동 크기 조절 (높이 복원)
-        const contentBox = document.getElementById('sim-modal-content-box');
         if (contentBox) contentBox.style.height = null; // 인라인 스타일 제거
         return;
     }
     
     // ✅ [신규] 요청 2: 자동 크기 조절 (높이 제한 해제)
-    const contentBox = document.getElementById('sim-modal-content-box');
     if (contentBox) contentBox.style.height = 'auto';
 
     const { mode } = data;
@@ -150,6 +152,7 @@ const renderSimulationResults = (data) => {
                 // ✅ [신규] 요청 1: 연관 업무 시간 표시
                 let relatedTaskHtml = '';
                 if (res.relatedTaskInfo && res.workerCount > 0) {
+                    // 총 연관 업무 시간을 인원수로 나눠서, 1인당 추가되는 시간으로 표시
                     const timePerWorker = res.relatedTaskInfo.time / res.workerCount;
                     relatedTaskHtml = `<div class="text-xs text-gray-400 font-normal">+ ${res.relatedTaskInfo.name} (${formatDuration(timePerWorker)})</div>`;
                 }
@@ -189,7 +192,7 @@ export function setupSimulationModalListeners() {
     const simTableHeaderWorker = document.getElementById('sim-table-header-worker');
     const simStartTimeInput = document.getElementById('sim-start-time-input');
 
-    // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (요청 3)
+    // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (요청 2)
     const openSimulationModalLogic = () => {
         // 초기화
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
@@ -231,14 +234,23 @@ export function setupSimulationModalListeners() {
 
         } else {
             // 결과가 없으면: 입력창 초기화
-            if (DOM.simResultContainer) DOM.simResultContainer.classList.add('hidden');
-            if (DOM.simBottleneckContainer) DOM.simBottleneckContainer.classList.add('hidden');
+            renderSimulationResults(null); // 결과창 숨기기
             if (simStartTimeInput) simStartTimeInput.value = "08:30"; // 기본 시작 시간
 
             // 모드 초기화 (기본: 소요 시간 예측)
             if (DOM.simModeRadios && DOM.simModeRadios.length > 0) {
                 DOM.simModeRadios[0].checked = true;
-                DOM.simModeRadios[0].dispatchEvent(new Event('change')); // UI 업데이트 트리거
+                // ✅ [수정] DOM.simModeRadios[0].dispatchEvent(new Event('change')); // 이 이벤트를 발생시키면 appState.simulationResults가 null로 덮어씌워지므로 제거
+                
+                // 수동으로 UI 초기화
+                DOM.simInputArea.classList.remove('hidden');
+                DOM.simCalculateBtn.textContent = '시뮬레이션 실행 🚀';
+                if (simTableHeaderWorker) {
+                    simTableHeaderWorker.textContent = '투입 인원 (명)';
+                }
+                document.querySelectorAll('.sim-row-worker-or-time').forEach(input => {
+                    input.placeholder = '5';
+                });
             }
         }
 
@@ -358,6 +370,12 @@ export function setupSimulationModalListeners() {
                         finalEndTimeStr = res.expectedEndTime;
                         totalDuration += res.durationMinutes;
                         totalCost += res.totalCost;
+                    } else {
+                        // 오류 발생 시 중단하고 알림
+                        showToast(`'${task}' 업무 시뮬레이션 오류: ${res.error}`, true);
+                        State.appState.simulationResults = null; // 오류 시 결과 저장 안 함
+                        renderSimulationResults(null); // 결과창 숨김
+                        return; // forEach 종료 (이후 로직 실행 안 함)
                     }
                 }
             });

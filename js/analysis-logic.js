@@ -1,7 +1,6 @@
 // === js/analysis-logic.js ===
 // 설명: app-history-logic.js에서 분리된 순수 계산 및 분석 함수 모음입니다.
 
-// ✅ [수정] State 임포트 추가 (appConfig, allHistoryData 접근용)
 import * as State from './state.js';
 import { formatDuration } from './utils.js';
 import { calculateStandardThroughputs } from './ui-history-reports-logic.js';
@@ -26,8 +25,9 @@ export const checkMissingQuantities = (dayData) => {
 
     const tasksWithDuration = Object.keys(durationByTask);
     if (tasksWithDuration.length === 0) return [];
-
-    const quantityTaskTypes = State.appConfig.quantityTaskTypes || [];
+    
+    // ✅ [수정] State.appConfig가 로드되기 전에 호출될 수 있으므로 방어 코드 추가
+    const quantityTaskTypes = (State.appConfig && State.appConfig.quantityTaskTypes) ? State.appConfig.quantityTaskTypes : [];
     const missingTasks = [];
 
     for (const task of tasksWithDuration) {
@@ -53,21 +53,24 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
         return { error: "모든 값을 올바르게 입력해주세요." };
     }
 
-    // ✅ [수정] State에서 allHistoryData와 appConfig 직접 참조
-    const standards = calculateStandardThroughputs(State.allHistoryData); // ✅ State에서 직접 참조
+    // ✅ [수정] State에서 appConfig를 안전하게 가져옵니다.
+    const currentAppConfig = State.appConfig || {};
+    const standards = calculateStandardThroughputs(State.allHistoryData);
     const speedPerPerson = standards[task] || 0; // (개/분/인)
 
     // ✅ [신규] 연관 업무 시간 계산 (요청 1)
-    const linkedRatios = calculateLinkedTaskMinutesPerItem(State.allHistoryData, State.appConfig);
+    const linkedRatios = calculateLinkedTaskMinutesPerItem(State.allHistoryData, currentAppConfig);
     const linkedTimePerItem = linkedRatios[task] || 0; // (분/개)
-    const linkedTaskName = State.appConfig.simulationTaskLinks ? State.appConfig.simulationTaskLinks[task] : null;
+    // ✅ [수정] currentAppConfig에서 링크를 가져옵니다.
+    const linkedTaskName = currentAppConfig.simulationTaskLinks ? currentAppConfig.simulationTaskLinks[task] : null;
 
 
     if (speedPerPerson <= 0) {
         return { error: "해당 업무의 과거 이력 데이터가 부족하여 예측할 수 없습니다." };
     }
 
-    const avgWagePerMinute = (State.appConfig.defaultPartTimerWage || 10000) / 60; // ✅ State에서 직접 참조
+    // ✅ [수정] currentAppConfig에서 시급을 가져옵니다.
+    const avgWagePerMinute = (currentAppConfig.defaultPartTimerWage || 10000) / 60;
     
     // ✅ [수정] 총 필요 시간 = (주업무 시간) + (연관 업무 시간)
     const totalManMinutesForMainTask = targetQty / speedPerPerson;
@@ -197,7 +200,7 @@ export const analyzeBottlenecks = (historyData) => {
  */
 const calculateLinkedTaskMinutesPerItem = (allHistoryData, appConfig) => {
     // ✅ [수정] appConfig가 로드되기 전(첫 실행 등)에 호출될 수 있으므로 방어 코드 추가
-    const links = appConfig.simulationTaskLinks || {};
+    const links = (appConfig && appConfig.simulationTaskLinks) ? appConfig.simulationTaskLinks : {};
     const mainTasks = Object.keys(links);
     if (mainTasks.length === 0 || !allHistoryData) return {};
 
