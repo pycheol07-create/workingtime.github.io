@@ -134,6 +134,27 @@ export function setupMainScreenListeners() {
             }
         });
     }
+    
+    // ✅ [신규] 모바일 업무 마감 버튼 리스너
+    if (DOM.endShiftBtnMobile) {
+        DOM.endShiftBtnMobile.addEventListener('click', () => {
+            // (데스크톱 버튼과 동일한 로직 수행)
+            const ongoingRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+
+            if (ongoingRecords.length > 0) {
+                const ongoingTaskNames = new Set(ongoingRecords.map(r => r.task));
+                const ongoingTaskCount = ongoingTaskNames.size;
+                if (DOM.endShiftConfirmTitle) DOM.endShiftConfirmTitle.textContent = `진행 중인 업무 ${ongoingTaskCount}종`;
+                if (DOM.endShiftConfirmMessage) DOM.endShiftConfirmMessage.textContent = `총 ${ongoingRecords.length}명이 참여 중인 ${ongoingTaskCount}종의 업무가 있습니다. 모두 종료하고 마감하시겠습니까?`;
+                if (DOM.endShiftConfirmModal) DOM.endShiftConfirmModal.classList.remove('hidden');
+            } else {
+                saveDayDataToHistory(true);
+            }
+            // 모바일 메뉴 닫기
+            if (DOM.navContent) DOM.navContent.classList.add('hidden');
+        });
+    }
+
 
     if (DOM.saveProgressBtn) {
         DOM.saveProgressBtn.addEventListener('click', () => saveProgress(false));

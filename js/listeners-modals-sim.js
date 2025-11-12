@@ -11,6 +11,7 @@ let simChartInstance = null;
 
 // 시뮬레이션 테이블 행 추가 헬퍼 함수
 const renderSimulationTaskRow = (tbody) => {
+    // ... (이 함수 내용은 기존과 동일) ...
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
     
@@ -103,37 +104,51 @@ export function setupSimulationModalListeners() {
     const simTableHeaderWorker = document.getElementById('sim-table-header-worker');
     const simStartTimeInput = document.getElementById('sim-start-time-input');
 
+    // ✅ [신규] 공통 시뮬레이션 모달 열기 로직
+    const openSimulationModalLogic = () => {
+        // 초기화
+        if (DOM.simResultContainer) DOM.simResultContainer.classList.add('hidden');
+        if (DOM.simBottleneckContainer) DOM.simBottleneckContainer.classList.add('hidden');
+        if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
+        if (simTaskTableBody) {
+            simTaskTableBody.innerHTML = '';
+            renderSimulationTaskRow(simTaskTableBody); // 기본 1줄 추가
+        }
+        if (simStartTimeInput) simStartTimeInput.value = "08:30"; // 기본 시작 시간
+
+        // 모드 초기화 (기본: 소요 시간 예측)
+        if (DOM.simModeRadios && DOM.simModeRadios.length > 0) {
+            DOM.simModeRadios[0].checked = true;
+            DOM.simModeRadios[0].dispatchEvent(new Event('change'));
+        }
+
+        // 모달 열 때 위치 리셋 (드래그 대비)
+        const contentBox = document.getElementById('sim-modal-content-box');
+        if (contentBox) {
+            contentBox.removeAttribute('style');
+            contentBox.dataset.hasBeenUncentered = 'false';
+        }
+        if (DOM.costSimulationModal) {
+             DOM.costSimulationModal.classList.add('flex', 'items-center', 'justify-center');
+             DOM.costSimulationModal.classList.remove('hidden');
+        }
+    };
+
     if (DOM.openCostSimulationBtn) {
         DOM.openCostSimulationBtn.addEventListener('click', () => {
-            // 초기화
-            if (DOM.simResultContainer) DOM.simResultContainer.classList.add('hidden');
-            if (DOM.simBottleneckContainer) DOM.simBottleneckContainer.classList.add('hidden');
-            if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
-            if (simTaskTableBody) {
-                simTaskTableBody.innerHTML = '';
-                renderSimulationTaskRow(simTaskTableBody); // 기본 1줄 추가
-            }
-            if (simStartTimeInput) simStartTimeInput.value = "08:30"; // 기본 시작 시간
-
-            // 모드 초기화 (기본: 소요 시간 예측)
-            if (DOM.simModeRadios && DOM.simModeRadios.length > 0) {
-                DOM.simModeRadios[0].checked = true;
-                DOM.simModeRadios[0].dispatchEvent(new Event('change'));
-            }
-
-            // ✅ [신규] 모달 열 때 위치 리셋 (드래그 대비)
-            const contentBox = document.getElementById('sim-modal-content-box');
-            if (contentBox) {
-                contentBox.removeAttribute('style');
-                contentBox.dataset.hasBeenUncentered = 'false';
-            }
-            if (DOM.costSimulationModal) {
-                 DOM.costSimulationModal.classList.add('flex', 'items-center', 'justify-center');
-                 DOM.costSimulationModal.classList.remove('hidden');
-            }
+            openSimulationModalLogic();
             document.getElementById('menu-dropdown')?.classList.add('hidden');
         });
     }
+
+    // ✅ [신규] 모바일 시뮬레이션 버튼 리스너
+    if (DOM.openCostSimulationBtnMobile) {
+        DOM.openCostSimulationBtnMobile.addEventListener('click', () => {
+            openSimulationModalLogic();
+            if (DOM.navContent) DOM.navContent.classList.add('hidden'); // 모바일 메뉴 닫기
+        });
+    }
+
 
     if (DOM.simModeRadios) {
         Array.from(DOM.simModeRadios).forEach(radio => {

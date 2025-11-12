@@ -151,41 +151,51 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // ✅ [신규] 공통 이력 열기 로직
+    const openHistoryModalLogic = async () => {
+        if (!State.auth || !State.auth.currentUser) {
+            showToast('이력을 보려면 로그인이 필요합니다.', true);
+            if (DOM.historyModal && !DOM.historyModal.classList.contains('hidden')) {
+                DOM.historyModal.classList.add('hidden');
+            }
+            if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
+            return;
+        }
+
+        if (DOM.historyModal) {
+            DOM.historyModal.classList.remove('hidden');
+            
+            setHistoryMaximized(false);
+            
+            DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
+
+            if (DOM.historyStartDateInput) DOM.historyStartDateInput.value = '';
+            if (DOM.historyEndDateInput) DOM.historyEndDateInput.value = '';
+            State.context.historyStartDate = null;
+            State.context.historyEndDate = null;
+
+            try {
+                await loadAndRenderHistoryList();
+            } catch (loadError) {
+                console.error("이력 데이터 로딩 중 오류:", loadError);
+                showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true);
+            }
+        }
+    };
+
     // ✅ [수정] DOM, State 사용
     if (DOM.openHistoryBtn) {
-        DOM.openHistoryBtn.addEventListener('click', async () => {
-            if (!State.auth || !State.auth.currentUser) {
-                showToast('이력을 보려면 로그인이 필요합니다.', true);
-                if (DOM.historyModal && !DOM.historyModal.classList.contains('hidden')) {
-                    DOM.historyModal.classList.add('hidden');
-                }
-                if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
-                return;
-            }
-
-            if (DOM.historyModal) {
-                DOM.historyModal.classList.remove('hidden');
-                
-                // ✨ 항상 기본 크기로 열기
-                setHistoryMaximized(false);
-                
-                // ✅ [수정] 1. 드래그로 인해 제거되었을 수 있는 flex-center 스타일을 다시 추가합니다.
-                DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
-
-                if (DOM.historyStartDateInput) DOM.historyStartDateInput.value = '';
-                if (DOM.historyEndDateInput) DOM.historyEndDateInput.value = '';
-                State.context.historyStartDate = null;
-                State.context.historyEndDate = null;
-
-                try {
-                    await loadAndRenderHistoryList();
-                } catch (loadError) {
-                    console.error("이력 데이터 로딩 중 오류:", loadError);
-                    showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true);
-                }
-            }
+        DOM.openHistoryBtn.addEventListener('click', openHistoryModalLogic);
+    }
+    
+    // ✅ [신규] 모바일 이력 보기 버튼 리스너
+    if (DOM.openHistoryBtnMobile) {
+        DOM.openHistoryBtnMobile.addEventListener('click', () => {
+            openHistoryModalLogic();
+            if (DOM.navContent) DOM.navContent.classList.add('hidden'); // 모바일 메뉴 닫기
         });
     }
+
 
     // ✅ [수정] DOM 사용
     if (DOM.closeHistoryBtn) {

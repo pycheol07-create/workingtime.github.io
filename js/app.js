@@ -253,14 +253,18 @@ async function startAppAfterLogin(user) {
             if (DOM.resetAppBtn) DOM.resetAppBtn.style.display = 'flex';
             if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'flex';
             
-            // ✅ [수정] 'inline-block' -> 'flex' (메뉴 스타일과 맞춤)
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'flex';
+            // ✅ [수정] 모바일 이력 보기 버튼 표시
+            if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'flex';
+
         } else {
             if (adminLinkBtn) adminLinkBtn.style.display = 'none';
             if (DOM.adminLinkBtnMobile) DOM.adminLinkBtnMobile.style.display = 'none';
             if (DOM.resetAppBtn) DOM.resetAppBtn.style.display = 'none';
             if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'none';
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
+            // ✅ [수정] 모바일 이력 보기 버튼 숨김
+            if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'none';
         }
 
         // 이 ID들은 dom-elements.js에 없습니다. getElementById 유지.
@@ -537,6 +541,8 @@ async function main() {
             if (DOM.resetAppBtn) DOM.resetAppBtn.style.display = 'none';
             if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'none';
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
+            // ✅ [수정] 모바일 이력 보기 버튼 숨김
+            if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'none';
 
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
             if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
