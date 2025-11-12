@@ -58,10 +58,9 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
     const standards = calculateStandardThroughputs(State.allHistoryData);
     const speedPerPerson = standards[task] || 0; // (개/분/인)
 
-    // ✅ [신규] 연관 업무 시간 계산 (요청 1)
-    const linkedRatios = calculateLinkedTaskMinutesPerItem(State.allHistoryData, currentAppConfig);
-    const linkedTimePerItem = linkedRatios[task] || 0; // (분/개)
-    // ✅ [수정] currentAppConfig에서 링크를 가져옵니다.
+    // ✅ [수정] '건당 평균 시간'을 가져오도록 함수 변경
+    const linkedAvgDurations = calculateLinkedTaskAverageDuration(State.allHistoryData, currentAppConfig);
+    const linkedTaskAvgDuration = linkedAvgDurations[task] || 0; // (분/건)
     const linkedTaskName = currentAppConfig.simulationTaskLinks ? currentAppConfig.simulationTaskLinks[task] : null;
 
 
@@ -72,15 +71,13 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
     // ✅ [수정] currentAppConfig에서 시급을 가져옵니다.
     const avgWagePerMinute = (currentAppConfig.defaultPartTimerWage || 10000) / 60;
     
-    // ✅ [수정] 총 필요 시간 = (주업무 시간) + (연관 업무 시간)
+    // ✅ [수정] 총 필요 시간 = (주업무 시간) + (연관 업무 고정 시간)
     const totalManMinutesForMainTask = targetQty / speedPerPerson;
-    const totalManMinutesForLinkedTask = targetQty * linkedTimePerItem;
+    // ✅ [수정] '건당 평균 시간'을 수량에 곱하지 않고 한 번만 더합니다.
+    const totalManMinutesForLinkedTask = linkedTaskAvgDuration;
     const totalManMinutesNeeded = totalManMinutesForMainTask + totalManMinutesForLinkedTask;
 
     let relatedTaskInfo = null;
-    // ✅ [수정] 'totalManMinutesForLinkedTask > 0' 조건을 제거합니다.
-    // 이렇게 하면 연관 업무(linkedTaskName)가 설정되어 있다면,
-    // 계산된 시간이 0분이더라도 relatedTaskInfo 객체가 생성됩니다.
     if (linkedTaskName) {
         relatedTaskInfo = {
             name: linkedTaskName,
@@ -198,44 +195,44 @@ export const analyzeBottlenecks = (historyData) => {
 
 
 /**
- * ✅ [신규] 연관 업무의 (분/개) 비율 계산 헬퍼
- * (e.g. '직진배송' 1개당 '직진배송 준비작업'은 평균 몇 분이 걸리는가?)
+ * ✅ [수정] 연관 업무의 '건당 평균 시간' (분/건) 계산 헬퍼
+ * (e.g. '직진배송 준비작업' 1건당 평균 몇 분이 걸리는가?)
  */
-const calculateLinkedTaskMinutesPerItem = (allHistoryData, appConfig) => {
-    // ✅ [수정] appConfig가 로드되기 전(첫 실행 등)에 호출될 수 있으므로 방어 코드 추가
+const calculateLinkedTaskAverageDuration = (allHistoryData, appConfig) => {
     const links = (appConfig && appConfig.simulationTaskLinks) ? appConfig.simulationTaskLinks : {};
     const mainTasks = Object.keys(links);
     if (mainTasks.length === 0 || !allHistoryData) return {};
 
     const linkedTasks = new Set(Object.values(links));
-    const totalDurations = {};
-    const totalQuantities = {};
+    const taskStats = {}; // { duration: 총 시간, count: 총 횟수 }
 
     allHistoryData.forEach(day => {
-        // 1. Aggregate Durations (연관 업무의 총 시간 집계)
+        // 1. Aggregate Durations & Counts (연관 업무의 총 시간 및 횟수 집계)
         (day.workRecords || []).forEach(r => {
-            if (linkedTasks.has(r.task)) {
-                totalDurations[r.task] = (totalDurations[r.task] || 0) + (r.duration || 0);
-            }
-        });
-        // 2. Aggregate Quantities (주 업무의 총 처리량 집계)
-        Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
-            if (mainTasks.includes(task)) {
-                totalQuantities[task] = (totalQuantities[task] || 0) + (Number(qty) || 0);
+            if (linkedTasks.has(r.task) && r.duration > 0) {
+                if (!taskStats[r.task]) {
+                    taskStats[r.task] = { duration: 0, count: 0 };
+                }
+                taskStats[r.task].duration += (r.duration || 0);
+                taskStats[r.task].count += 1;
             }
         });
     });
 
-    const ratios = {};
+    const avgDurations = {}; // 연관 업무의 평균 시간 (분/건)
+    Object.entries(taskStats).forEach(([taskName, stats]) => {
+        if (stats.count > 0) {
+            avgDurations[taskName] = stats.duration / stats.count; // (평균 분/건)
+        }
+    });
+
+    // 2. 주 업무(mainTask)를 기준으로 매핑하여 반환
+    const mainTaskAvgDurations = {};
     for (const mainTask of mainTasks) {
         const linkedTaskName = links[mainTask];
-        const mainQty = totalQuantities[mainTask] || 0;
-        const linkedDuration = totalDurations[linkedTaskName] || 0;
-
-        if (mainQty > 0 && linkedDuration > 0) {
-            // (분 / 개) 비율 계산
-            ratios[mainTask] = linkedDuration / mainQty; 
+        if (avgDurations[linkedTaskName]) {
+            mainTaskAvgDurations[mainTask] = avgDurations[linkedTaskName];
         }
     }
-    return ratios;
+    return mainTaskAvgDurations;
 };
