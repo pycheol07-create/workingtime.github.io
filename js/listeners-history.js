@@ -66,7 +66,8 @@ export function setupHistoryModalListeners() {
         if (maximized) {
             // ▶️ 최대화 모드
             DOM.historyModalContentBox.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
-            DOM.historyModalContentBox.classList.remove('relative', 'w-[1280px]', 'h-[950px]', 'rounded-2xl', 'shadow-2xl');
+            // ✅ [수정] w-[1400px] h-[880px]로 변경
+            DOM.historyModalContentBox.classList.remove('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
             
             // ✅ [추가] 최대화 시 오버레이의 flex-center 제거
             DOM.historyModal.classList.remove('flex', 'items-center', 'justify-center');
@@ -77,7 +78,8 @@ export function setupHistoryModalListeners() {
         } else {
             // ◀️ 일반 모드 복귀
             DOM.historyModalContentBox.classList.remove('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
-            DOM.historyModalContentBox.classList.add('relative', 'w-[1280px]', 'h-[950px]', 'rounded-2xl', 'shadow-2xl');
+            // ✅ [수정] w-[1400px] h-[880px]로 변경
+            DOM.historyModalContentBox.classList.add('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
 
             if (toggleBtn) toggleBtn.title = "전체화면";
             if (icon) icon.innerHTML = iconMaximize;
