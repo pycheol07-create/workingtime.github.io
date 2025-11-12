@@ -43,7 +43,7 @@ const renderSimulationTaskRow = (tbody) => {
     tbody.appendChild(row);
 };
 
-// ✅ [신규] (listeners-history.js에서 가져온 드래그 기능)
+// ✅ [수정] makeDraggable 함수에서 width/height 설정 제거
 function makeDraggable(modalOverlay, header, contentBox) {
     let isDragging = false;
     let offsetX, offsetY;
@@ -62,9 +62,9 @@ function makeDraggable(modalOverlay, header, contentBox) {
             contentBox.style.top = `${rect.top}px`;
             contentBox.style.left = `${rect.left}px`;
             
-            // 드래그 시작 시, 현재 계산된 크기를 인라인 스타일로 고정
-            contentBox.style.width = `${rect.width}px`;
-            contentBox.style.height = `${rect.height}px`;
+            // ⛔️ [삭제] 이 두 줄이 문제의 원인이었습니다.
+            // contentBox.style.width = `${rect.width}px`;
+            // contentBox.style.height = `${rect.height}px`;
 
             contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';
@@ -98,6 +98,8 @@ function makeDraggable(modalOverlay, header, contentBox) {
 
 export function setupSimulationModalListeners() {
     
+    // ... (기존 시뮬레이션 모달 리스너 코드 - openCostSimulationBtn 부터 simCalculateBtn 까지 - 모두 그대로 둡니다) ...
+    
     // 인건비 시뮬레이션 모달 열기
     const simAddTaskRowBtn = document.getElementById('sim-add-task-row-btn');
     const simTaskTableBody = document.getElementById('sim-task-table-body');
@@ -122,7 +124,7 @@ export function setupSimulationModalListeners() {
             DOM.simModeRadios[0].dispatchEvent(new Event('change'));
         }
 
-        // 모달 열 때 위치 리셋 (드래그 대비)
+        // ✅ [신규] 모달 열 때 위치 리셋 (드래그 대비)
         const contentBox = document.getElementById('sim-modal-content-box');
         if (contentBox) {
             contentBox.removeAttribute('style');

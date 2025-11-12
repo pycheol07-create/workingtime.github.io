@@ -66,8 +66,8 @@ export function setupHistoryModalListeners() {
         if (maximized) {
             // ▶️ 최대화 모드
             DOM.historyModalContentBox.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
-            // ✅ [수정] w-[1400px] h-[880px]로 변경
-            DOM.historyModalContentBox.classList.remove('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
+            // ✅ [수정] w-full max-w-7xl h-[85vh]로 변경
+            DOM.historyModalContentBox.classList.remove('relative', 'w-full', 'max-w-7xl', 'h-[85vh]', 'rounded-2xl', 'shadow-2xl');
             
             // ✅ [추가] 최대화 시 오버레이의 flex-center 제거
             DOM.historyModal.classList.remove('flex', 'items-center', 'justify-center');
@@ -78,8 +78,8 @@ export function setupHistoryModalListeners() {
         } else {
             // ◀️ 일반 모드 복귀
             DOM.historyModalContentBox.classList.remove('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
-            // ✅ [수정] w-[1400px] h-[880px]로 변경
-            DOM.historyModalContentBox.classList.add('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
+            // ✅ [수정] w-full max-w-7xl h-[85vh]로 변경
+            DOM.historyModalContentBox.classList.add('relative', 'w-full', 'max-w-7xl', 'h-[85vh]', 'rounded-2xl', 'shadow-2xl');
 
             if (toggleBtn) toggleBtn.title = "전체화면";
             if (icon) icon.innerHTML = iconMaximize;
@@ -733,6 +733,7 @@ export function setupHistoryModalListeners() {
 
 }
 
+// ✅ [수정] makeDraggable 함수에서 width/height 설정 제거
 function makeDraggable(modalOverlay, header, contentBox) {
     let isDragging = false;
     let offsetX, offsetY;
@@ -750,9 +751,9 @@ function makeDraggable(modalOverlay, header, contentBox) {
             contentBox.style.top = `${rect.top}px`;
             contentBox.style.left = `${rect.left}px`;
             
-            // ✅ [수정] 3. 드래그 시작 시, 현재 계산된 크기를 인라인 스타일로 고정합니다.
-            contentBox.style.width = `${rect.width}px`;
-            contentBox.style.height = `${rect.height}px`;
+            // ⛔️ [삭제] 이 두 줄이 문제의 원인이었습니다.
+            // contentBox.style.width = `${rect.width}px`;
+            // contentBox.style.height = `${rect.height}px`;
 
             contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';
