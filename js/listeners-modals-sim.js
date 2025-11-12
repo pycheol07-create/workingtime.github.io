@@ -153,10 +153,11 @@ const renderSimulationResults = (data) => {
                 let relatedTaskHtml = '';
                 // ✅ [수정] res.relatedTaskInfo가 존재하기만 하면 표시 (시간이 0이라도)
                 if (res.relatedTaskInfo) {
-                    const timePerWorker = (res.workerCount > 0) ? (res.relatedTaskInfo.time / res.workerCount) : 0;
+                    // ✅ [수정] 인원수로 나누는 로직 제거. res.relatedTaskInfo.time이 고정값(예: 29분)임.
+                    const fixedTime = res.relatedTaskInfo.time;
                     // ✅ [수정] 시간이 0분일 경우 회색으로, 0보다 클 경우 기존 색상으로 표시
-                    const timeClass = timePerWorker > 0 ? "text-gray-400" : "text-gray-300";
-                    relatedTaskHtml = `<div class="text-xs ${timeClass} font-normal">+ ${res.relatedTaskInfo.name} (${formatDuration(timePerWorker)})</div>`;
+                    const timeClass = fixedTime > 0 ? "text-gray-400" : "text-gray-300";
+                    relatedTaskHtml = `<div class="text-xs ${timeClass} font-normal">+ ${res.relatedTaskInfo.name} (${formatDuration(fixedTime)})</div>`;
                 }
 
 
@@ -327,11 +328,13 @@ export function setupSimulationModalListeners() {
         });
     }
 
-    // ✅ [수정] 계산 버튼 리스너 (요청 1, 2, 3, 4)
+    // ✅ [수정] 계산 버튼 리스너 (체크박스 값 읽기)
     if (DOM.simCalculateBtn) {
         DOM.simCalculateBtn.addEventListener('click', () => {
             const mode = document.querySelector('input[name="sim-mode"]:checked').value;
             const currentStartTimeStr = simStartTimeInput ? simStartTimeInput.value : "09:00";
+            // ✅ [신규] 체크박스 값 읽기
+            const includeLinkedTasks = document.getElementById('sim-include-linked-tasks-checkbox')?.checked || false;
 
             // --- 모드 3: 병목 분석 ---
             if (mode === 'bottleneck') {
@@ -363,7 +366,8 @@ export function setupSimulationModalListeners() {
                 const inputVal = Number(row.querySelector('.sim-row-worker-or-time').value);
 
                 if (task && qty > 0 && inputVal > 0) {
-                    const res = calculateSimulation(mode, task, qty, inputVal, effectiveStartTime);
+                    // ✅ [수정] includeLinkedTasks 값을 계산 함수로 전달
+                    const res = calculateSimulation(mode, task, qty, inputVal, effectiveStartTime, includeLinkedTasks);
                     
                     if (!res.error) {
                         res.startTime = effectiveStartTime; // 결과 표시용 시작 시간 저장
