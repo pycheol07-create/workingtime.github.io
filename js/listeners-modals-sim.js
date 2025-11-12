@@ -149,13 +149,16 @@ const renderSimulationResults = (data) => {
 
         if (simResultTbody) {
             simResultTbody.innerHTML = results.map(res => {
-                // ✅ [신규] 요청 1: 연관 업무 시간 표시
+                // ✅ [수정] 연관 업무 시간 표시 로직 수정
                 let relatedTaskHtml = '';
-                if (res.relatedTaskInfo && res.workerCount > 0) {
-                    // 총 연관 업무 시간을 인원수로 나눠서, 1인당 추가되는 시간으로 표시
-                    const timePerWorker = res.relatedTaskInfo.time / res.workerCount;
-                    relatedTaskHtml = `<div class="text-xs text-gray-400 font-normal">+ ${res.relatedTaskInfo.name} (${formatDuration(timePerWorker)})</div>`;
+                // ✅ [수정] res.relatedTaskInfo가 존재하기만 하면 표시 (시간이 0이라도)
+                if (res.relatedTaskInfo) {
+                    const timePerWorker = (res.workerCount > 0) ? (res.relatedTaskInfo.time / res.workerCount) : 0;
+                    // ✅ [수정] 시간이 0분일 경우 회색으로, 0보다 클 경우 기존 색상으로 표시
+                    const timeClass = timePerWorker > 0 ? "text-gray-400" : "text-gray-300";
+                    relatedTaskHtml = `<div class="text-xs ${timeClass} font-normal">+ ${res.relatedTaskInfo.name} (${formatDuration(timePerWorker)})</div>`;
                 }
+
 
                 return `
                 <tr class="bg-white">

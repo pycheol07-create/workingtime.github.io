@@ -78,10 +78,13 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
     const totalManMinutesNeeded = totalManMinutesForMainTask + totalManMinutesForLinkedTask;
 
     let relatedTaskInfo = null;
-    if (linkedTaskName && totalManMinutesForLinkedTask > 0) {
+    // ✅ [수정] 'totalManMinutesForLinkedTask > 0' 조건을 제거합니다.
+    // 이렇게 하면 연관 업무(linkedTaskName)가 설정되어 있다면,
+    // 계산된 시간이 0분이더라도 relatedTaskInfo 객체가 생성됩니다.
+    if (linkedTaskName) {
         relatedTaskInfo = {
             name: linkedTaskName,
-            time: totalManMinutesForLinkedTask // 이 업무(e.g. 준비작업)에만 할당된 총 시간
+            time: totalManMinutesForLinkedTask // 0일 수도 있음
         };
     }
 
