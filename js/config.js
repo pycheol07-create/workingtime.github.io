@@ -73,7 +73,7 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
             
-            // ✅ [신규] 시뮬레이션 연관 업무 설정 병합
+            // ✅ [수정] 시뮬레이션 연관 업무 설정 병합
             mergedConfig.simulationTaskLinks = { ...defaultData.simulationTaskLinks, ...(loadedData.simulationTaskLinks || {}) };
 
             return mergedConfig;
@@ -149,7 +149,8 @@ function getDefaultConfig() {
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
         taskGroups: [
-            { name: '공통', tasks: ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업'] },
+            // ✅ [수정] '공통' 그룹에 '직진배송 준비작업'을 추가했습니다.
+            { name: '공통', tasks: ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업', '직진배송 준비작업'] },
             { name: '담당', tasks: ['개인담당업무', '상.하차', '검수', '아이롱', '오류'] },
             { name: '기타', tasks: ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무'] }
         ],
@@ -157,7 +158,7 @@ function getDefaultConfig() {
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
         defaultPartTimerWage: 10000,
 
-        // ✅ [신규] 시뮬레이션 연관 업무 설정
+        // ✅ [수정] 시뮬레이션 연관 업무 설정 (이 부분이 '직진배송 준비작업'과 연결됩니다)
         simulationTaskLinks: {
             '직진배송': '직진배송 준비작업' 
             // 예: '국내배송': '택배포장' // 필요시 여기에 더 추가
