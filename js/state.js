@@ -91,7 +91,7 @@ export const appState = {
     currentUserRole: 'user',
     confirmedZeroTasks: [],
     dailyAttendance: {},
-    simulationResults: null // ✅ [신규] 이 줄을 추가합니다.
+    simulationResults: null // ✅ [적용 확인] 이 줄이 있어야 합니다.
 };
 
 // --- Data Arrays (Mutated, not re-assigned) ---

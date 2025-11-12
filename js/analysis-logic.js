@@ -196,9 +196,10 @@ export const analyzeBottlenecks = (historyData) => {
  * (e.g. '직진배송' 1개당 '직진배송 준비작업'은 평균 몇 분이 걸리는가?)
  */
 const calculateLinkedTaskMinutesPerItem = (allHistoryData, appConfig) => {
+    // ✅ [수정] appConfig가 로드되기 전(첫 실행 등)에 호출될 수 있으므로 방어 코드 추가
     const links = appConfig.simulationTaskLinks || {};
     const mainTasks = Object.keys(links);
-    if (mainTasks.length === 0) return {};
+    if (mainTasks.length === 0 || !allHistoryData) return {};
 
     const linkedTasks = new Set(Object.values(links));
     const totalDurations = {};
