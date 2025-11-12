@@ -4,14 +4,11 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 
-// ✅ [수정] app.js에서는 더 이상 상태/DOM 변수를 가져오지 않습니다.
-// (app.js에서 가져오는 변수가 없으므로 import 구문 제거)
-
 import { showToast } from './utils.js';
 
 import {
     renderTrendAnalysisCharts,
-    trendCharts // trendCharts는 ui.js에서 export되므로 State.trendCharts가 아님
+    trendCharts
 } from './ui.js';
 
 import {
@@ -50,27 +47,27 @@ export function setupHistoryModalListeners() {
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
 
-    // ✨ [수정됨] 전체화면 전환 로직 (w-full 충돌 해결)
+    // ✅ [수정] 전체화면/기본화면 전환 로직
     const setHistoryMaximized = (maximized) => {
         isHistoryMaximized = maximized;
         const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
         const icon = toggleBtn?.querySelector('svg');
 
-        // 1. 드래그나 이전 상태로 인한 인라인 스타일을 '완전히' 제거합니다. (필수)
+        // 1. [CRITICAL] 모든 인라인 스타일(드래그 위치/크기)을 제거
         DOM.historyModalContentBox.removeAttribute('style');
         DOM.historyModalContentBox.dataset.hasBeenUncentered = 'false';
         
-        // 2. 모달 오버레이의 flex-center 스타일도 리셋
+        // 2. [CRITICAL] 오버레이의 flex-center 스타일 복원 (기본 모드용)
         DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
 
         if (maximized) {
             // ▶️ 최대화 모드
-            // ✅ [수정] 'fixed', 'inset-0', 'h-full' 등 상태 변경에 꼭 필요한 클래스만 add
-            DOM.historyModalContentBox.classList.add('fixed', 'inset-0', 'h-full', 'z-[150]', 'rounded-none');
-            // ✅ [수정] 'relative', 'max-w-7xl', 'h-[85vh]' 등 기본 크기 클래스만 remove
-            DOM.historyModalContentBox.classList.remove('relative', 'max-w-7xl', 'h-[85vh]', 'rounded-2xl', 'shadow-2xl');
+            // 'fixed' 관련 클래스 추가
+            DOM.historyModalContentBox.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
+            // 'relative' 및 '고정 크기' 클래스 제거
+            DOM.historyModalContentBox.classList.remove('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
             
-            // ✅ [추가] 최대화 시 오버레이의 flex-center 제거
+            // 오버레이 flex-center 제거 (최대화 시 불필요)
             DOM.historyModal.classList.remove('flex', 'items-center', 'justify-center');
 
             if (toggleBtn) toggleBtn.title = "기본 크기로";
@@ -78,17 +75,18 @@ export function setupHistoryModalListeners() {
 
         } else {
             // ◀️ 일반 모드 복귀
-            // ✅ [수정] 최대화 클래스만 remove
+            // 'fixed' 관련 클래스 제거
             DOM.historyModalContentBox.classList.remove('fixed', 'inset-0', 'h-full', 'z-[150]', 'rounded-none');
-            // ✅ [수정] 기본 크기 클래스만 add
-            DOM.historyModalContentBox.classList.add('relative', 'max-w-7xl', 'h-[85vh]', 'rounded-2xl', 'shadow-2xl');
+            // 'relative' 및 '고정 크기' 클래스 추가
+            DOM.historyModalContentBox.classList.add('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
 
             if (toggleBtn) toggleBtn.title = "전체화면";
             if (icon) icon.innerHTML = iconMaximize;
         }
     };
 
-    // ✅ [수정] State.context, DOM.historyTabs 등 사용
+    // ... (getCurrentHistoryListMode, historyFilterBtn, historyClearFilterBtn, historyDownloadPeriodExcelBtn 리스너는 변경 없음) ...
+    
     const getCurrentHistoryListMode = () => {
         let activeSubTabBtn;
         if (State.context.activeMainHistoryTab === 'work') {
@@ -107,7 +105,6 @@ export function setupHistoryModalListeners() {
         return 'day';
     };
 
-    // ✅ [수정] DOM, State 사용
     if (DOM.historyFilterBtn) {
         DOM.historyFilterBtn.addEventListener('click', () => {
             const startDate = DOM.historyStartDateInput.value;
@@ -127,7 +124,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] DOM, State 사용
     if (DOM.historyClearFilterBtn) {
         DOM.historyClearFilterBtn.addEventListener('click', () => {
             DOM.historyStartDateInput.value = '';
@@ -141,7 +137,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] State.context 사용
     if (DOM.historyDownloadPeriodExcelBtn) {
         DOM.historyDownloadPeriodExcelBtn.addEventListener('click', () => {
             const startDate = State.context.historyStartDate;
@@ -169,6 +164,7 @@ export function setupHistoryModalListeners() {
         if (DOM.historyModal) {
             DOM.historyModal.classList.remove('hidden');
             
+            // ✅ [수정] 열 때 항상 setHistoryMaximized(false) 호출하여 리셋
             setHistoryMaximized(false);
             
             DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
@@ -187,12 +183,10 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    // ✅ [수정] DOM, State 사용
     if (DOM.openHistoryBtn) {
         DOM.openHistoryBtn.addEventListener('click', openHistoryModalLogic);
     }
     
-    // ✅ [신규] 모바일 이력 보기 버튼 리스너
     if (DOM.openHistoryBtnMobile) {
         DOM.openHistoryBtnMobile.addEventListener('click', () => {
             openHistoryModalLogic();
@@ -201,20 +195,21 @@ export function setupHistoryModalListeners() {
     }
 
 
-    // ✅ [수정] DOM 사용
     if (DOM.closeHistoryBtn) {
         DOM.closeHistoryBtn.addEventListener('click', () => {
             if (DOM.historyModal) {
                 DOM.historyModal.classList.add('hidden');
-                setHistoryMaximized(false); // 닫을 때 초기화
                 
-                // ✅ [수정] 2. 닫을 때도 flex-center 스타일을 복원합니다.
+                // ✅ [수정] 닫을 때도 setHistoryMaximized(false) 호출하여 리셋
+                setHistoryMaximized(false);
+                
                 DOM.historyModal.classList.add('flex', 'items-center', 'justify-center');
             }
         });
     }
 
-    // ✅ [수정] DOM, State 사용
+    // ... (historyDateList, historyTabs, confirmHistoryDeleteBtn, historyMainTabs, attendanceHistoryTabs, reportTabs, historyViewContainer, attendanceHistoryViewContainer, reportViewContainer 리스너는 변경 없음) ...
+
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
@@ -285,7 +280,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] DOM 사용
     if (DOM.historyTabs) {
         DOM.historyTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-view]');
@@ -295,7 +289,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] DOM, State 사용
     if (DOM.confirmHistoryDeleteBtn) {
         DOM.confirmHistoryDeleteBtn.addEventListener('click', async () => {
             if (State.context.historyKeyToDelete) {
@@ -314,7 +307,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] DOM, State 사용
     if (DOM.historyMainTabs) {
         DOM.historyMainTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-main-tab]');
@@ -379,7 +371,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] DOM 사용
     if (DOM.attendanceHistoryTabs) {
         DOM.attendanceHistoryTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-view]');
@@ -389,7 +380,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] DOM, State 사용
     if (DOM.reportTabs) {
         DOM.reportTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-view]');
@@ -401,7 +391,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] DOM 사용
     if (DOM.historyViewContainer) {
         DOM.historyViewContainer.addEventListener('click', (e) => {
             const button = e.target.closest('button[data-action]');
@@ -424,7 +413,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] DOM, State 사용
     if (DOM.attendanceHistoryViewContainer) {
         DOM.attendanceHistoryViewContainer.addEventListener('click', (e) => {
 
@@ -539,7 +527,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] DOM, State 사용
     if (DOM.reportViewContainer) {
         DOM.reportViewContainer.addEventListener('click', (e) => {
             const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
@@ -596,13 +583,11 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] DOM 사용
     const historyHeader = document.getElementById('history-modal-header');
     if (DOM.historyModal && historyHeader && DOM.historyModalContentBox) {
         makeDraggable(DOM.historyModal, historyHeader, DOM.historyModalContentBox);
     }
 
-    // ✅ [수정] DOM 사용
     const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
     if (toggleFullscreenBtn && DOM.historyModal && DOM.historyModalContentBox) {
         // 초기 아이콘 설정
@@ -610,13 +595,12 @@ export function setupHistoryModalListeners() {
         if (icon) icon.innerHTML = iconMaximize;
 
         toggleFullscreenBtn.addEventListener('click', (e) => {
-            // ✨ [수정됨] 중요! 같은 버튼에 걸린 '모달 닫기' 리스너가 실행되지 않도록 즉시 전파 차단
             e.stopImmediatePropagation();
             setHistoryMaximized(!isHistoryMaximized);
         });
     }
 
-    // ✅ [수정] DOM, State 사용
+    // ... (confirmEditAttendanceBtn, cancelEditAttendanceBtn, confirmAddAttendanceBtn, cancelAddAttendanceBtn, addAttendanceTypeSelect, editAttendanceTypeSelect 리스너는 변경 없음) ...
     if (DOM.confirmEditAttendanceBtn) {
         DOM.confirmEditAttendanceBtn.addEventListener('click', async () => {
             const dateKey = DOM.editAttendanceDateKeyInput?.value;
@@ -644,8 +628,6 @@ export function setupHistoryModalListeners() {
             dayData.onLeaveMembers[index] = updatedRecord;
             try {
                 const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                // ✅ [수정] setDoc(dayData) -> setDoc(..., { onLeaveMembers: ... }, { merge: true })
-                // 실수로 dayData 전체를 덮어쓰는 것을 방지하고 onLeaveMembers 필드만 업데이트합니다.
                 await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
                 showToast('근태 기록이 수정되었습니다.');
                 if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden');
@@ -656,13 +638,11 @@ export function setupHistoryModalListeners() {
             }
         });
     }
-    // ✅ [수정] DOM 사용
     if (DOM.cancelEditAttendanceBtn) {
         DOM.cancelEditAttendanceBtn.addEventListener('click', () => {
             if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden');
         });
     }
-    // ✅ [수정] DOM, State 사용
     if (DOM.confirmAddAttendanceBtn) {
         DOM.confirmAddAttendanceBtn.addEventListener('click', async () => {
             const dateKey = DOM.addAttendanceDateKeyInput?.value;
@@ -693,8 +673,6 @@ export function setupHistoryModalListeners() {
             dayData.onLeaveMembers.push(newRecord);
             try {
                 const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                // ✅ [수정] setDoc(dayData) -> setDoc(..., { onLeaveMembers: ... }, { merge: true })
-                // dayData 전체를 덮어쓰지 않고 onLeaveMembers 필드만 업데이트 (병합)
                 await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
 
                 showToast(`${memberName}님의 근태 기록이 추가되었습니다.`);
@@ -710,13 +688,11 @@ export function setupHistoryModalListeners() {
             }
         });
     }
-    // ✅ [수정] DOM 사용
     if (DOM.cancelAddAttendanceBtn) {
         DOM.cancelAddAttendanceBtn.addEventListener('click', () => {
             if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.add('hidden');
         });
     }
-    // ✅ [수정] DOM 사용
     if (DOM.addAttendanceTypeSelect) {
         DOM.addAttendanceTypeSelect.addEventListener('change', (e) => {
             const isTimeBased = (e.target.value === '외출' || e.target.value === '조퇴');
@@ -724,7 +700,6 @@ export function setupHistoryModalListeners() {
             if (DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', isTimeBased);
         });
     }
-    // ✅ [수정] DOM 사용
     if (DOM.editAttendanceTypeSelect) {
         DOM.editAttendanceTypeSelect.addEventListener('change', (e) => {
             const isTimeBased = (e.target.value === '외출' || e.target.value === '조퇴');
@@ -735,7 +710,7 @@ export function setupHistoryModalListeners() {
 
 }
 
-// ✅ [수정] makeDraggable 함수에서 width/height 설정 제거
+// ✅ [수정] makeDraggable 함수 (width/height 고정 로직 복원)
 function makeDraggable(modalOverlay, header, contentBox) {
     let isDragging = false;
     let offsetX, offsetY;
@@ -753,9 +728,9 @@ function makeDraggable(modalOverlay, header, contentBox) {
             contentBox.style.top = `${rect.top}px`;
             contentBox.style.left = `${rect.left}px`;
             
-            // ⛔️ [삭제] 이 두 줄이 문제의 원인이었습니다.
-            // contentBox.style.width = `${rect.width}px`;
-            // contentBox.style.height = `${rect.height}px`;
+            // ✅ [수정] 너비와 높이를 인라인 스타일로 고정 (창 축소 방지)
+            contentBox.style.width = `${rect.width}px`;
+            contentBox.style.height = `${rect.height}px`;
 
             contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';

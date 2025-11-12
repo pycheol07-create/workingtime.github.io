@@ -43,7 +43,7 @@ const renderSimulationTaskRow = (tbody) => {
     tbody.appendChild(row);
 };
 
-// ✅ [수정] makeDraggable 함수에서 width/height 설정 제거
+// ✅ [수정] makeDraggable 함수 (width/height 고정 로직 복원)
 function makeDraggable(modalOverlay, header, contentBox) {
     let isDragging = false;
     let offsetX, offsetY;
@@ -62,9 +62,9 @@ function makeDraggable(modalOverlay, header, contentBox) {
             contentBox.style.top = `${rect.top}px`;
             contentBox.style.left = `${rect.left}px`;
             
-            // ⛔️ [삭제] 이 두 줄이 문제의 원인이었습니다.
-            // contentBox.style.width = `${rect.width}px`;
-            // contentBox.style.height = `${rect.height}px`;
+            // ✅ [수정] 너비와 높이를 인라인 스타일로 고정 (창 축소 방지)
+            contentBox.style.width = `${rect.width}px`;
+            contentBox.style.height = `${rect.height}px`;
 
             contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';
