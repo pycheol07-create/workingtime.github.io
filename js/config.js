@@ -73,8 +73,9 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
             
-            // ✅ [수정] 시뮬레이션 연관 업무 설정 병합
-            mergedConfig.simulationTaskLinks = { ...defaultData.simulationTaskLinks, ...(loadedData.simulationTaskLinks || {}) };
+            // ✅ [수정] 병합 순서 변경 (loadedData를 먼저, defaultData를 나중에)
+            // 이렇게 하면 코드에 있는 기본값(...사전작업)이 DB에 저장된 옛날 값(...준비작업)을 덮어씁니다.
+            mergedConfig.simulationTaskLinks = { ...(loadedData.simulationTaskLinks || {}), ...defaultData.simulationTaskLinks };
 
             return mergedConfig;
         } else {
@@ -149,7 +150,7 @@ function getDefaultConfig() {
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
         taskGroups: [
-            // ✅ [수정] '직진배송 준비작업' -> '직진배송 사전작업'
+            // [수정됨] '직진배송 사전작업'
             { name: '공통', tasks: ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업', '직진배송 사전작업'] },
             { name: '담당', tasks: ['개인담당업무', '상.하차', '검수', '아이롱', '오류'] },
             { name: '기타', tasks: ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무'] }
@@ -158,10 +159,9 @@ function getDefaultConfig() {
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
         defaultPartTimerWage: 10000,
 
-        // ✅ [수정] 시뮬레이션 연관 업무 이름 변경
+        // [수정됨] '직진배송 사전작업'
         simulationTaskLinks: {
             '직진배송': '직진배송 사전작업' 
-            // 예: '국내배송': '택배포장' // 필요시 여기에 더 추가
         },
 
         // ✨ 매출액 및 근무시간 분석 기준
