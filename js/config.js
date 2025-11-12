@@ -72,6 +72,9 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberEmails = { ...defaultData.memberEmails, ...(loadedData.memberEmails || {}) };
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
+            
+            // ✅ [신규] 시뮬레이션 연관 업무 설정 병합
+            mergedConfig.simulationTaskLinks = { ...defaultData.simulationTaskLinks, ...(loadedData.simulationTaskLinks || {}) };
 
             return mergedConfig;
         } else {
@@ -153,6 +156,12 @@ function getDefaultConfig() {
         quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '검수'],
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
         defaultPartTimerWage: 10000,
+
+        // ✅ [신규] 시뮬레이션 연관 업무 설정
+        simulationTaskLinks: {
+            '직진배송': '직진배송 준비작업' 
+            // 예: '국내배송': '택배포장' // 필요시 여기에 더 추가
+        },
 
         // ✨ 매출액 및 근무시간 분석 기준
         revenueIncrementUnit: 10000000,
