@@ -390,40 +390,46 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         };
     });
 
+    // ✅ [수정] '전일'이 아닌 '가장 최근 기록'과 비교하도록 로직 변경
     let prevTaskMetrics = {};
-    let prevDay = previousDayData;
-    if (!prevDay) {
-        const currentIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-        if (currentIndex > -1 && currentIndex + 1 < State.allHistoryData.length) {
-            prevDay = State.allHistoryData[currentIndex + 1];
-        }
-    }
+    const currentIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
 
-    if (prevDay) {
-        const prevRecords = prevDay.workRecords || [];
-        const prevQuantities = prevDay.taskQuantities || {};
+    // 1. 현재 날짜의 모든 업무 키에 대해 루프를 돕니다.
+    allTaskKeys.forEach(task => {
+        // 2. 현재 날짜(currentIndex)보다 오래된 모든 이력(currentIndex + 1 부터 끝까지)을 순회합니다.
+        for (let i = currentIndex + 1; i < State.allHistoryData.length; i++) {
+            const recentDay = State.allHistoryData[i];
+            if (!recentDay) continue;
 
-        allTaskKeys.forEach(task => {
-            const taskRecords = prevRecords.filter(r => r.task === task);
+            const recentRecords = recentDay.workRecords || [];
+            const recentQuantities = recentDay.taskQuantities || {};
+
+            const taskRecords = recentRecords.filter(r => r.task === task);
             const duration = taskRecords.reduce((sum, r) => sum + (Number(r.duration) || 0), 0);
-            const cost = taskRecords.reduce((sum, r) => {
-                const wage = wageMap[r.member] || 0;
-                return sum + ((Number(r.duration) || 0) / 60) * wage;
-            }, 0);
-            const qty = Number(prevQuantities[task]) || 0;
+            const qty = Number(recentQuantities[task]) || 0;
 
+            // 3. 해당 'task'에 대한 기록(시간 또는 수량)이 있는 가장 빠른 날짜를 찾으면,
             if (duration > 0 || qty > 0) {
+                const cost = taskRecords.reduce((sum, r) => {
+                    const wage = wageMap[r.member] || 0;
+                    return sum + ((Number(r.duration) || 0) / 60) * wage;
+                }, 0);
+
+                // 4. prevTaskMetrics에 *해당 task*의 정보만 저장하고 루프를 탈출합니다.
                 prevTaskMetrics[task] = {
-                    date: prevDay.id,
+                    date: recentDay.id, // 📌 비교 대상 날짜를 저장
                     duration: duration,
                     cost: cost,
                     quantity: qty,
                     avgThroughput: duration > 0 ? (qty / duration) : 0,
                     avgCostPerItem: qty > 0 ? (cost / qty) : 0
                 };
+                break; // 다음 task를 찾기 위해 내부 for 루프 탈출
             }
-        });
-    }
+        }
+        // (만약 for 루프가 끝날 때까지 못 찾으면, 'prevTaskMetrics[task]'는 undefined로 남아 (new)로 표시됩니다.)
+    });
+    // ⛔️ [삭제] '전일' 하루만 비교하던 기존 로직 (약 25줄) 삭제
 
     const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
 
@@ -468,10 +474,16 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasQuantities = true;
             const prevMetric = prevTaskMetrics[task] || null;
+            // ✅ [수정] diffHtml 함수 호출 시, 4번째 인자로 '비교 대상 날짜'를 포함한 title 문자열 전달
+            const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('quantity', metrics.quantity, prevMetric?.quantity);
+            
+            // ✅ [수정] 비교 대상 날짜 표시 span 추가
+            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
+
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
-                 <span>${metrics.quantity} 개 ${diffHtml}</span>
+                 <span>${metrics.quantity} 개 ${diffHtml} ${dateSpan}</span>
                </div>`;
         });
     if (!hasQuantities) html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
@@ -485,10 +497,14 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasThroughput = true;
             const prevMetric = prevTaskMetrics[task] || null;
+            // ✅ [수정] 비교 대상 날짜 표시
+            const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('avgThroughput', metrics.avgThroughput, prevMetric?.avgThroughput);
+            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
+            
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
-                 <span>${metrics.avgThroughput.toFixed(2)} 개/분 ${diffHtml}</span>
+                 <span>${metrics.avgThroughput.toFixed(2)} 개/분 ${diffHtml} ${dateSpan}</span>
                </div>`;
         });
     if (!hasThroughput) html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
@@ -502,10 +518,14 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasCostPerItem = true;
             const prevMetric = prevTaskMetrics[task] || null;
+            // ✅ [수정] 비교 대상 날짜 표시
+            const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('avgCostPerItem', metrics.avgCostPerItem, prevMetric?.avgCostPerItem);
+            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
+
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
                  <span class="font-semibold text-gray-600">${task}</span>
-                 <span>${metrics.avgCostPerItem.toFixed(0)} 원/개 ${diffHtml}</span>
+                 <span>${metrics.avgCostPerItem.toFixed(0)} 원/개 ${diffHtml} ${dateSpan}</span>
                </div>`;
         });
     if (!hasCostPerItem) html += `<p class="text-gray-500 text-sm">처리량이 없어 계산 불가.</p>`;
@@ -519,13 +539,16 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             const percentage = totalSumDuration > 0 ? (metrics.duration / totalSumDuration * 100).toFixed(1) : 0;
             const prevMetric = prevTaskMetrics[task] || null;
+            // ✅ [수정] 비교 대상 날짜 표시
+            const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('duration', metrics.duration, prevMetric?.duration);
+            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
 
             html += `
         <div>
           <div class="flex justify-between items-center mb-1 text-sm">
             <span class="font-semibold text-gray-600">${task}</span>
-            <span>${formatDuration(metrics.duration)} (${percentage}%) ${diffHtml}</span>
+            <span>${formatDuration(metrics.duration)} (${percentage}%) ${diffHtml} ${dateSpan}</span>
           </div>
           <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${percentage}%"></div></div>
         </div>`;
