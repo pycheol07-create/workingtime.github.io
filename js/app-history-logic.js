@@ -82,11 +82,24 @@ function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     persistentLeaves.forEach(pLeave => {
         if (!pLeave.startDate) return; // 시작일이 없으면 처리 불가
 
-        const startDate = new Date(pLeave.startDate + "T00:00:00");
-        const endDate = new Date((pLeave.endDate || pLeave.startDate) + "T00:00:00");
+        // ✅ [수정] new Date("YYYY-MM-DD")는 로컬 타임존 기준으로 생성됩니다.
+        // KST (UTC+9)에서 "2025-11-14" -> 2025-11-14 00:00:00 KST
+        // 이를 toISOString()으로 변환하면 2025-11-13T15:00:00Z 가 되어 날짜가 하루 밀립니다.
+        // Date.UTC()를 사용하여 UTC 00:00:00 기준으로 Date 객체를 생성합니다.
+        
+        const [sY, sM, sD] = pLeave.startDate.split('-').map(Number);
+        const effectiveEndDate = pLeave.endDate || pLeave.startDate;
+        const [eY, eM, eD] = effectiveEndDate.split('-').map(Number);
 
-        // 4. 시작일부터 종료일까지 하루씩 순회합니다.
-        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        // Date.UTC는 월을 0-11 기준으로 받으므로 sM-1, eM-1을 사용
+        const startDate = new Date(Date.UTC(sY, sM - 1, sD));
+        const endDate = new Date(Date.UTC(eY, eM - 1, eD));
+
+        // 4. 시작일부터 종료일까지 하루씩 순회합니다. (UTC 기준)
+        for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+            
+            // ✅ [수정] UTC Date 객체를 toISOString().slice(0, 10)으로 변환하면
+            // (예: 2025-11-14T00:00:00.000Z -> "2025-11-14") 정확한 날짜가 나옵니다.
             const dateKey = d.toISOString().slice(0, 10);
             
             const dayData = historyData.find(day => day.id === dateKey);
