@@ -8,7 +8,8 @@ import * as State from './state.js';
 import {
     generateId,
     debouncedSaveState,
-    updateDailyData
+    updateDailyData,
+    saveStateToFirestore // ✅ [수정] 이 부분을 추가하세요.
 } from './app-data.js';
 // ⛔️ [삭제] app.js 임포트
 
@@ -635,8 +636,8 @@ export function setupFormModalListeners() {
                 try {
                     if (dailyChanged) {
                         // dailyOnLeaveMembers는 appState의 일부로 debouncedSaveState에 의해 저장됨
-                        // 즉시 반영을 위해 flush() 호출
-                        await debouncedSaveState.flush();
+                        // ✅ [수정] 즉시 반영을 위해 (flush 대신) 원본 함수 직접 호출
+                        await saveStateToFirestore();
                     }
                     if (persistentChanged) {
                         // persistentLeaveSchedule은 별도로 저장
