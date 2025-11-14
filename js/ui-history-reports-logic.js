@@ -285,7 +285,44 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     return standards;
 };
 
+/**
+ * ✅ [신규] 시뮬레이션을 위한 업무별 '평균 투입 인원' 계산 헬퍼
+ * (전체 이력을 기반으로 각 업무가 수행된 날의 평균 참여 인원 수를 계산)
+ */
+export const calculateAverageStaffing = (allHistoryData) => {
+    if (!allHistoryData) return {};
+    const taskDailyStaff = {}; // { taskName: { '2025-11-13': Set('A', 'B'), '2025-11-14': Set('A') } }
+
+    // 1. 날짜별, 업무별로 참여한 인원 Set을 만듭니다.
+    allHistoryData.forEach(day => {
+        (day.workRecords || []).forEach(r => {
+            if (r.task && r.member) {
+                if (!taskDailyStaff[r.task]) taskDailyStaff[r.task] = {};
+                if (!taskDailyStaff[r.task][day.id]) {
+                    taskDailyStaff[r.task][day.id] = new Set();
+                }
+                taskDailyStaff[r.task][day.id].add(r.member);
+            }
+        });
+    });
+
+    const avgStaffMap = {};
+    // 2. 업무별로 (참여 인원 합계 / 수행된 날짜 수)를 계산합니다.
+    Object.keys(taskDailyStaff).forEach(task => {
+        const dayEntries = Object.values(taskDailyStaff[task]); // [Set('A','B'), Set('A')]
+        const totalDays = dayEntries.length;
+        if (totalDays > 0) {
+            const totalStaffSum = dayEntries.reduce((sum, daySet) => sum + daySet.size, 0);
+            // 예: (2 + 1) / 2 = 1.5
+            avgStaffMap[task] = totalStaffSum / totalDays; 
+        }
+    });
+    return avgStaffMap;
+};
+
+
 export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
+// ... (이하 calculateBenchmarkOEE, analyzeRevenueBasedStaffing 등 기존 함수들은 동일) ...
     if (!allHistoryData || allHistoryData.length === 0) return null;
     const recentData = [...allHistoryData].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 30);
     if (recentData.length === 0) return null;

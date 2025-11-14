@@ -7,12 +7,14 @@ import { appState, appConfig, allHistoryData } from './state.js';
 // ✅ [수정] calcElapsedMinutes 임포트 추가
 import { showToast, formatDuration, calcElapsedMinutes } from './utils.js';
 import { analyzeBottlenecks, calculateSimulation } from './analysis-logic.js';
+// ✅ [신규] '평균 인원' 계산 함수 임포트
+import { calculateAverageStaffing } from './ui-history-reports-logic.js';
 
 // 차트 인스턴스 보관용 변수
 let simChartInstance = null;
 
-// ✅ [수정] 함수가 task와 qty를 인자로 받도록 변경
-const renderSimulationTaskRow = (tbody, task = '', qty = '') => {
+// ✅ [수정] 함수가 task, qty, workers를 인자로 받도록 변경
+const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
     
@@ -25,6 +27,9 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '') => {
         taskOptions += `<option value="${taskName}" ${selected}>${taskName}</option>`;
     });
 
+    // ✅ [신규] workers 값을 정수로 반올림 (0 이하는 빈 문자열)
+    const workerVal = workers > 0 ? Math.round(workers) : '';
+
     row.innerHTML = `
         <td class="px-4 py-2">
             <select class="sim-row-task w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm">
@@ -32,10 +37,10 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '') => {
             </select>
         </td>
         <td class="px-4 py-2">
-            <input type="number" class="sim-row-qty w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="1000" min="1" value="${qty}">
+            <input type="number" class="sim-row-qty w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="1000" min="1" value="${qty > 0 ? qty : ''}">
         </td>
         <td class="px-4 py-2 sim-row-worker-or-time-cell">
-            <input type="number" class="sim-row-worker-or-time w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="5" min="1">
+            <input type="number" class="sim-row-worker-or-time w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="5" min="1" value="${workerVal}">
         </td>
         <td class="px-4 py-2 text-center">
             <button class="sim-row-delete-btn text-gray-400 hover:text-red-500 transition">
@@ -289,37 +294,36 @@ export function setupSimulationModalListeners() {
     // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (오늘의 주요 업무 자동 추가)
     const openSimulationModalLogic = () => {
         
-        // ✅ [수정] '주요 업무' 중 '오늘 처리량'이 있는 항목을 찾아 자동 추가
+        // ✅ [수정] '주요 업무' + '평균 인원' 자동 추가
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
         if (simTaskTableBody) {
             simTaskTableBody.innerHTML = ''; // 테이블 비우기
 
-            // ✅ [수정] 3가지 목록을 모두 가져옴
-            const keyTaskSet = new Set(appConfig.keyTasks || []);
+            // ✅ [신규] 1. 평균 인원 계산
+            const avgStaffMap = calculateAverageStaffing(allHistoryData);
+            
+            // ✅ [신규] 2. 목록 가져오기
+            const keyTasks = appConfig.keyTasks || [];
             const quantityTaskSet = new Set(appConfig.quantityTaskTypes || []);
             const quantities = appState.taskQuantities || {};
-            const tasksToPrepopulate = [];
+            let tasksWereAdded = false;
 
-            // ✅ [수정] 오늘의 처리량(quantities)을 기준으로 순회
-            for (const taskName in quantities) {
-                const qty = Number(quantities[taskName]) || 0;
-                
-                // ✅ [수정] 3가지 조건 모두 만족하는지 확인
-                // 1. 처리량이 0보다 크고
-                // 2. '주요 업무' 목록(keyTaskSet)에 포함되어 있고
-                // 3. '처리량 집계 업무' 목록(quantityTaskSet)에 포함 (이래야 드롭다운에 항목이 있음)
-                if (qty > 0 && keyTaskSet.has(taskName) && quantityTaskSet.has(taskName)) {
-                    tasksToPrepopulate.push({ task: taskName, qty: qty });
+            // ✅ [신규] 3. '주요 업무' 목록 기준으로 순회
+            keyTasks.forEach(taskName => {
+                // ✅ [신규] 4. 드롭다운에 존재하는지(처리량 집계 업무인지) 확인
+                if (quantityTaskSet.has(taskName)) {
+                    // ✅ [신규] 5. 데이터 가져오기 (없으면 0 또는 빈 문자열)
+                    const qty = Number(quantities[taskName]) || 0;
+                    const avgStaff = avgStaffMap[taskName] || 0;
+                    
+                    // ✅ [신규] 6. 행 렌더링 (qty, avgStaff 값 전달)
+                    renderSimulationTaskRow(simTaskTableBody, taskName, qty, avgStaff);
+                    tasksWereAdded = true;
                 }
-            }
+            });
 
-            if (tasksToPrepopulate.length > 0) {
-                // 처리량이 있는 주요 업무가 하나 이상 있으면, 그것들을 채워넣음
-                tasksToPrepopulate.forEach(item => {
-                    renderSimulationTaskRow(simTaskTableBody, item.task, item.qty);
-                });
-            } else {
-                // 없으면, 예전처럼 빈 행 1개 추가
+            // ✅ [신규] 7. 추가된 주요 업무가 없으면, 빈 행 1개 추가
+            if (!tasksWereAdded) {
                 renderSimulationTaskRow(simTaskTableBody);
             }
         }
@@ -389,9 +393,11 @@ export function setupSimulationModalListeners() {
                     simTableHeaderWorker.textContent = '투입 인원 (명)';
                 }
                 document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.remove('hidden')); // ✅ 인원 열 표시
-                document.querySelectorAll('.sim-row-worker-or-time').forEach(input => {
-                    input.placeholder = '5';
-                });
+                
+                // ✅ [수정] placeholder는 남겨두되, value가 이미 설정되었으므로 이 로직은 불필요 (주석 처리)
+                // document.querySelectorAll('.sim-row-worker-or-time').forEach(input => {
+                //     input.placeholder = '5';
+                // });
             }
         }
 
@@ -455,9 +461,10 @@ export function setupSimulationModalListeners() {
                             simTableHeaderWorker.textContent = '투입 인원 (명)';
                         }
                         document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.remove('hidden'));
-                        document.querySelectorAll('.sim-row-worker-or-time').forEach(input => {
-                            input.placeholder = '5';
-                        });
+                        // ✅ [수정] placeholder 변경 로직 제거 (value가 우선함)
+                        // document.querySelectorAll('.sim-row-worker-or-time').forEach(input => {
+                        //     input.placeholder = '5';
+                        // });
                     }
                 }
             });
