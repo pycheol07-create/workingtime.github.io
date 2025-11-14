@@ -2,7 +2,8 @@
 // 설명: '운영 시뮬레이션' 모달 전용 리스너입니다.
 
 import * as DOM from './dom-elements.js';
-import * as State from './state.js';
+// ✅ [수정] State import 방식을 네임스페이스가 아닌 개별 바인딩으로 변경
+import { appState, appConfig, allHistoryData } from './state.js';
 // ✅ [수정] calcElapsedMinutes 임포트 추가
 import { showToast, formatDuration, calcElapsedMinutes } from './utils.js';
 import { analyzeBottlenecks, calculateSimulation } from './analysis-logic.js';
@@ -10,17 +11,18 @@ import { analyzeBottlenecks, calculateSimulation } from './analysis-logic.js';
 // 차트 인스턴스 보관용 변수
 let simChartInstance = null;
 
-// 시뮬레이션 테이블 행 추가 헬퍼 함수
-const renderSimulationTaskRow = (tbody) => {
-    // ... (이 함수 내용은 기존과 동일) ...
+// ✅ [수정] 함수가 task와 qty를 인자로 받도록 변경
+const renderSimulationTaskRow = (tbody, task = '', qty = '') => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
     
     let taskOptions = '<option value="">업무 선택</option>';
-    // ✅ [수정] State.appConfig가 로드되기 전에 호출될 수 있으므로 방어 코드 추가
-    const quantityTaskTypes = (State.appConfig && State.appConfig.quantityTaskTypes) ? State.appConfig.quantityTaskTypes : [];
-    quantityTaskTypes.sort().forEach(task => {
-        taskOptions += `<option value="${task}">${task}</option>`;
+    // ✅ [수정] State.appConfig -> appConfig
+    const quantityTaskTypes = (appConfig && appConfig.quantityTaskTypes) ? appConfig.quantityTaskTypes : [];
+    quantityTaskTypes.sort().forEach(taskName => {
+        // ✅ [수정] 인자로 받은 task가 일치하면 selected 속성 추가
+        const selected = (taskName === task) ? 'selected' : '';
+        taskOptions += `<option value="${taskName}" ${selected}>${taskName}</option>`;
     });
 
     row.innerHTML = `
@@ -30,7 +32,7 @@ const renderSimulationTaskRow = (tbody) => {
             </select>
         </td>
         <td class="px-4 py-2">
-            <input type="number" class="sim-row-qty w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="1000" min="1">
+            <input type="number" class="sim-row-qty w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="1000" min="1" value="${qty}">
         </td>
         <td class="px-4 py-2 sim-row-worker-or-time-cell">
             <input type="number" class="sim-row-worker-or-time w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="5" min="1">
@@ -107,7 +109,7 @@ function makeDraggable(modalOverlay, header, contentBox) {
 
 /**
  * ✅ [대폭 수정] 시뮬레이션 결과 렌더링 헬퍼 (요청 1, 2, 4 + 신규 모드)
- * @param {object} data - State.appState.simulationResults
+ * @param {object} data - appState.simulationResults
  */
 const renderSimulationResults = (data) => {
     const contentBox = document.getElementById('sim-modal-content-box');
@@ -284,25 +286,54 @@ export function setupSimulationModalListeners() {
     const simEndTimeInput = document.getElementById('sim-end-time-input');
     const simEndTimeWrapper = document.getElementById('sim-end-time-wrapper');
 
-    // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (요청 2 + 신규 모드)
+    // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (오늘의 주요 업무 자동 추가)
     const openSimulationModalLogic = () => {
-        // 초기화
+        
+        // ✅ [수정] '주요 업무' 중 '오늘 처리량'이 있는 항목을 찾아 자동 추가
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
         if (simTaskTableBody) {
-            simTaskTableBody.innerHTML = '';
-            renderSimulationTaskRow(simTaskTableBody); // 기본 1줄 추가
+            simTaskTableBody.innerHTML = ''; // 테이블 비우기
+
+            // ✅ [수정] 3가지 목록을 모두 가져옴
+            const keyTaskSet = new Set(appConfig.keyTasks || []);
+            const quantityTaskSet = new Set(appConfig.quantityTaskTypes || []);
+            const quantities = appState.taskQuantities || {};
+            const tasksToPrepopulate = [];
+
+            // ✅ [수정] 오늘의 처리량(quantities)을 기준으로 순회
+            for (const taskName in quantities) {
+                const qty = Number(quantities[taskName]) || 0;
+                
+                // ✅ [수정] 3가지 조건 모두 만족하는지 확인
+                // 1. 처리량이 0보다 크고
+                // 2. '주요 업무' 목록(keyTaskSet)에 포함되어 있고
+                // 3. '처리량 집계 업무' 목록(quantityTaskSet)에 포함 (이래야 드롭다운에 항목이 있음)
+                if (qty > 0 && keyTaskSet.has(taskName) && quantityTaskSet.has(taskName)) {
+                    tasksToPrepopulate.push({ task: taskName, qty: qty });
+                }
+            }
+
+            if (tasksToPrepopulate.length > 0) {
+                // 처리량이 있는 주요 업무가 하나 이상 있으면, 그것들을 채워넣음
+                tasksToPrepopulate.forEach(item => {
+                    renderSimulationTaskRow(simTaskTableBody, item.task, item.qty);
+                });
+            } else {
+                // 없으면, 예전처럼 빈 행 1개 추가
+                renderSimulationTaskRow(simTaskTableBody);
+            }
         }
         
-        // ✅ [수정] 요청 2: 로직 순서 변경
         // 1. 저장된 결과가 있는지 먼저 확인
-        if (State.appState.simulationResults) {
+        // ✅ [수정] State.appState -> appState
+        if (appState.simulationResults) {
             // 결과가 있으면: 결과 렌더링
-            renderSimulationResults(State.appState.simulationResults);
+            renderSimulationResults(appState.simulationResults);
             
             // 저장된 모드/시작시간/종료시간 복원
-            const savedMode = State.appState.simulationResults.mode;
-            const savedStartTime = State.appState.simulationResults.startTime;
-            const savedEndTime = State.appState.simulationResults.endTime; // ✅ 신규
+            const savedMode = appState.simulationResults.mode;
+            const savedStartTime = appState.simulationResults.startTime;
+            const savedEndTime = appState.simulationResults.endTime; // ✅ 신규
             
             if (savedMode) {
                  const radio = document.querySelector(`input[name="sim-mode"][value="${savedMode}"]`);
@@ -340,7 +371,7 @@ export function setupSimulationModalListeners() {
             }
 
         } else {
-            // 결과가 없으면: 입력창 초기화
+            // 결과가 없으면: 입력창 초기화 (자동 채우기 로직은 이미 위에서 실행됨)
             renderSimulationResults(null); // 결과창 숨기기
             if (simStartTimeInput) simStartTimeInput.value = "08:30"; // 기본 시작 시간
             if (simEndTimeInput) simEndTimeInput.value = "17:00"; // ✅ 기본 종료 시간
@@ -390,14 +421,16 @@ export function setupSimulationModalListeners() {
         });
     }
 
-    // ✅ [수정] 모드 변경 리스너 (신규 모드 추가)
+    // ✅ [수정] 모드 변경 리스너 (결과값 초기화 제거)
     if (DOM.simModeRadios) {
         Array.from(DOM.simModeRadios).forEach(radio => {
             radio.addEventListener('change', (e) => {
                 if (e.target.checked) {
                     const mode = e.target.value;
-                    State.appState.simulationResults = null; 
-                    renderSimulationResults(null); // 결과창 숨기기
+                    
+                    // ✅ [수정] 이 두 줄을 제거하여 결과값이 유지되도록 함
+                    // appState.simulationResults = null; 
+                    // renderSimulationResults(null);
                     
                     if (mode === 'bottleneck') {
                         DOM.simInputArea.classList.add('hidden');
@@ -446,7 +479,7 @@ export function setupSimulationModalListeners() {
         });
     }
 
-    // ✅ [수정] 계산 버튼 리스너 (신규 모드 로직 추가)
+    // ✅ [수정] 계산 버튼 리스너 (신규 모드 로직 추가 + State. -> appState)
     if (DOM.simCalculateBtn) {
         DOM.simCalculateBtn.addEventListener('click', () => {
             const mode = document.querySelector('input[name="sim-mode"]:checked').value;
@@ -457,14 +490,16 @@ export function setupSimulationModalListeners() {
 
             // --- 모드 3: 병목 분석 ---
             if (mode === 'bottleneck') {
-                const bottlenecks = analyzeBottlenecks(State.allHistoryData);
+                // ✅ [수정] State.allHistoryData -> allHistoryData
+                const bottlenecks = analyzeBottlenecks(allHistoryData);
                 if (!bottlenecks || bottlenecks.length === 0) {
                     showToast('분석할 데이터가 충분하지 않습니다.', true);
                     return;
                 }
                 
                 const simulationData = { mode, bottlenecks, startTime: currentStartTimeStr };
-                State.appState.simulationResults = simulationData;
+                // ✅ [수정] State.appState -> appState
+                appState.simulationResults = simulationData;
                 renderSimulationResults(simulationData);
                 return;
             }
@@ -486,18 +521,15 @@ export function setupSimulationModalListeners() {
                 }
                 
                 // 1. 총 가용 시간 계산 (점심시간 제외)
-                // calcElapsedMinutes은 "HH:MM" 문자열을 받지 못하므로 Date 객체로 변환
                 const now = new Date();
                 const [startH, startM] = currentStartTimeStr.split(':').map(Number);
                 const [endH, endM] = currentEndTimeStr.split(':').map(Number);
                 const startDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
                 const endDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM);
                 
-                // calcElapsedMinutes은 Z(UTC) 기준으로 계산하므로, 로컬 타임존 오프셋을 고려하지 않음.
-                // "1970-01-01T...Z"를 사용하지 않고 "HH:MM" 그대로 사용
                 let durationMinutes = calcElapsedMinutes(currentStartTimeStr, currentEndTimeStr, []);
 
-                // 점심시간 체크 (calcElapsedMinutes는 이 로직이 없음)
+                // 점심시간 체크
                 const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
                 const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 13, 30);
                 let includesLunch = false;
@@ -529,7 +561,8 @@ export function setupSimulationModalListeners() {
                             totalCost += res.totalCost;
                         } else {
                             showToast(`'${task}' 업무 시뮬레이션 오류: ${res.error}`, true);
-                            State.appState.simulationResults = null;
+                            // ✅ [수정] State.appState -> appState
+                            appState.simulationResults = null;
                             renderSimulationResults(null);
                             return;
                         }
@@ -551,7 +584,8 @@ export function setupSimulationModalListeners() {
                     endTime: currentEndTimeStr
                 };
                 
-                State.appState.simulationResults = simulationData;
+                // ✅ [수정] State.appState -> appState
+                appState.simulationResults = simulationData;
                 renderSimulationResults(simulationData);
                 return; // 'fixed-workers' 로직을 실행하지 않고 종료
             }
@@ -579,7 +613,8 @@ export function setupSimulationModalListeners() {
                         totalCost += res.totalCost;
                     } else {
                         showToast(`'${task}' 업무 시뮬레이션 오류: ${res.error}`, true);
-                        State.appState.simulationResults = null;
+                        // ✅ [수정] State.appState -> appState
+                        appState.simulationResults = null;
                         renderSimulationResults(null);
                         return;
                     }
@@ -600,7 +635,8 @@ export function setupSimulationModalListeners() {
                 startTime: currentStartTimeStr
             };
             
-            State.appState.simulationResults = simulationData;
+            // ✅ [수정] State.appState -> appState
+            appState.simulationResults = simulationData;
             renderSimulationResults(simulationData);
         });
     }
