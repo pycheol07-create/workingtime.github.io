@@ -9,7 +9,7 @@ import { finalizeStopGroup, stopWorkIndividual } from './app-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
 import { switchHistoryView } from './app-history-logic.js';
 import { render } from './app.js'; // 'render'는 app.js에서
-import { debouncedSaveState } from './app-data.js'; // 'debouncedSaveState'는 app-data.js에서
+import { debouncedSaveState, saveStateToFirestore } from './app-data.js'; // 'debouncedSaveState'는 app-data.js에서
 import { saveLeaveSchedule } from './config.js'; // 'saveLeaveSchedule'는 config.js에서
 
 import { 
@@ -111,16 +111,18 @@ export function setupConfirmationModalListeners() {
                 let persistentChanged = false;
                 
                 if (type === 'daily') {
+                    // ✅ [수정] (r.startTime || '')을 사용하여 null/undefined와 ""를 동일하게 비교
                     const index = State.appState.dailyOnLeaveMembers.findIndex(
-                        r => r.member === memberName && r.startTime === startIdentifier
+                        r => r.member === memberName && (r.startTime || '') === startIdentifier
                     );
                     if (index > -1) {
                         State.appState.dailyOnLeaveMembers.splice(index, 1);
                         dailyChanged = true;
                     }
                 } else { // 'persistent'
+                    // ✅ [수정] (r.startDate || '')을 사용하여 null/undefined와 ""를 동일하게 비교
                     const index = State.persistentLeaveSchedule.onLeaveMembers.findIndex(
-                        r => r.member === memberName && r.startDate === startIdentifier
+                        r => r.member === memberName && (r.startDate || '') === startIdentifier
                     );
                     if (index > -1) {
                         State.persistentLeaveSchedule.onLeaveMembers.splice(index, 1);
@@ -130,7 +132,7 @@ export function setupConfirmationModalListeners() {
 
                 if (dailyChanged || persistentChanged) {
                     try {
-                        if (dailyChanged) await debouncedSaveState.flush(); // 일일 근태 즉시 저장
+                        if (dailyChanged) await saveStateToFirestore(); // ✅ [수정] 일일 근태 즉시 저장
                         if (persistentChanged) await saveLeaveSchedule(State.db, State.persistentLeaveSchedule); // 영구 근태 즉시 저장
                         showToast(`${memberName}님의 '${displayType}' 기록이 삭제되었습니다.`);
                     } catch (e) {

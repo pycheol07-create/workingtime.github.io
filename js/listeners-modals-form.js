@@ -9,7 +9,7 @@ import {
     generateId,
     debouncedSaveState,
     updateDailyData,
-    saveStateToFirestore // ✅ [수정] 이 부분을 추가하세요.
+    saveStateToFirestore // ✅ [수정] saveStateToFirestore 임포트
 } from './app-data.js';
 // ⛔️ [삭제] app.js 임포트
 
@@ -579,8 +579,9 @@ export function setupFormModalListeners() {
                 let foundAndRemoved = false;
 
                 if (originalType === 'daily') {
+                    // ✅ [수정] (r.startTime || '')을 사용하여 null/undefined와 ""를 동일하게 비교
                     const index = State.appState.dailyOnLeaveMembers.findIndex(
-                        r => r.member === memberName && r.startTime === originalStart
+                        r => r.member === memberName && (r.startTime || '') === originalStart
                     );
                     if (index > -1) {
                         State.appState.dailyOnLeaveMembers.splice(index, 1);
@@ -588,8 +589,9 @@ export function setupFormModalListeners() {
                         foundAndRemoved = true;
                     }
                 } else { // 'persistent'
+                    // ✅ [수정] (r.startDate || '')을 사용하여 null/undefined와 ""를 동일하게 비교
                     const index = State.persistentLeaveSchedule.onLeaveMembers.findIndex(
-                        r => r.member === memberName && r.startDate === originalStart
+                        r => r.member === memberName && (r.startDate || '') === originalStart
                     );
                     if (index > -1) {
                         State.persistentLeaveSchedule.onLeaveMembers.splice(index, 1);
