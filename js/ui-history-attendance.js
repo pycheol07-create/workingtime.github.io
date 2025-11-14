@@ -85,11 +85,17 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
             let detailText = '-';
             if (entry.startTime) {
                 detailText = formatTimeTo24H(entry.startTime);
-                if (entry.endTime) {
-                     detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
-                } else if (entry.type === '외출') {
-                     detailText += ' ~';
+                
+                // ✅ [수정] '외출'일 때만 종료시간 또는 '~' 표시
+                if (entry.type === '외출') {
+                    if (entry.endTime) {
+                        detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+                    } else {
+                        detailText += ' ~';
+                    }
                 }
+                // '조퇴'는 시작 시간만 표시됨
+
             } else if (entry.startDate) {
                 detailText = entry.startDate;
                 if (entry.endDate && entry.endDate !== entry.startDate) {

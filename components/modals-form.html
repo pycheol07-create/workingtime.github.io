@@ -108,7 +108,7 @@
             </div>
         </div>
         <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-            <button type="button" id="cancel-leave-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
+            <button type="button" id="cancel-leave-btn" class="modal-cancel-btn bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
             <button type="button" id="confirm-leave-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">설정 완료</button>
         </div>
     </div>
@@ -250,7 +250,7 @@
                     <label for="edit-attendance-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
                     <input type="time" id="edit-attendance-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                 </div>
-                <div>
+                <div id="edit-attendance-end-time-wrapper">
                     <label for="edit-attendance-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM)</label>
                     <input type="time" id="edit-attendance-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                 </div>
@@ -294,7 +294,7 @@
                         <label for="add-attendance-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
                         <input type="time" id="add-attendance-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                     </div>
-                    <div>
+                    <div id="add-attendance-end-time-wrapper">
                         <label for="add-attendance-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM)</label>
                         <input type="time" id="add-attendance-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                     </div>

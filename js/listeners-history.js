@@ -444,11 +444,21 @@ export function setupHistoryModalListeners() {
                         DOM.editAttendanceTypeSelect.appendChild(option);
                     });
                 }
+                
+                // ✅ [수정] '조퇴'와 '외출'을 구분하여 필드 표시
                 const isTimeBased = (record.type === '외출' || record.type === '조퇴');
                 const isDateBased = (record.type === '연차' || record.type === '출장' || record.type === '결근');
+                const isOuting = (record.type === '외출'); // '외출'만 종료 시간 있음
 
                 if (DOM.editAttendanceTimeFields) {
                     DOM.editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
+                    
+                    // ✅ [수정] '조퇴'일 때 종료 시간 필드 숨김
+                    const endTimeWrapper = document.getElementById('edit-attendance-end-time-wrapper');
+                    if (endTimeWrapper) {
+                        endTimeWrapper.classList.toggle('hidden', !isOuting);
+                    }
+                    
                     if (DOM.editAttendanceStartTimeInput) DOM.editAttendanceStartTimeInput.value = record.startTime || '';
                     if (DOM.editAttendanceEndTimeInput) DOM.editAttendanceEndTimeInput.value = record.endTime || '';
                 }
@@ -519,10 +529,21 @@ export function setupHistoryModalListeners() {
                     });
                 }
                 const firstType = State.LEAVE_TYPES[0] || '';
+                
+                // ✅ [수정] '조퇴'와 '외출'을 구분하여 필드 표시
                 const isTimeBased = (firstType === '외출' || firstType === '조퇴');
                 const isDateBased = (firstType === '연차' || firstType === '출장' || firstType === '결근');
+                const isOuting = (firstType === '외출');
+
                 if (DOM.addAttendanceTimeFields) DOM.addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
-                if (DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', isDateBased);
+                
+                // ✅ [수정] '조퇴'일 때 종료 시간 필드 숨김
+                const endTimeWrapper = document.getElementById('add-attendance-end-time-wrapper');
+                if (endTimeWrapper) {
+                    endTimeWrapper.classList.toggle('hidden', !isOuting);
+                }
+
+                if (DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
 
                 setHistoryMaximized(false);
                 if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.remove('hidden');
@@ -615,20 +636,33 @@ export function setupHistoryModalListeners() {
             if (dayDataIndex === -1) { showToast('해당 날짜의 이력 데이터를 찾을 수 없습니다.', true); return; }
             const dayData = State.allHistoryData[dayDataIndex];
             if (!dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) { showToast('수정할 근태 기록을 찾을 수 없습니다.', true); return; }
+            
             const newType = DOM.editAttendanceTypeSelect?.value;
+            
+            // ✅ [수정] '조퇴'와 '외출' 구분
             const isTimeBased = (newType === '외출' || newType === '조퇴');
+            const isOuting = (newType === '외출');
+            
             const updatedRecord = { ...dayData.onLeaveMembers[index], type: newType };
+            
             if (isTimeBased) {
                 updatedRecord.startTime = DOM.editAttendanceStartTimeInput?.value || null;
-                updatedRecord.endTime = DOM.editAttendanceEndTimeInput?.value || null;
+                // ✅ [수정] '외출'일 때만 종료시간 저장
+                if (isOuting) {
+                    updatedRecord.endTime = DOM.editAttendanceEndTimeInput?.value || null;
+                } else {
+                    updatedRecord.endTime = null; // '조퇴'는 종료 시간 없음
+                }
                 delete updatedRecord.startDate; delete updatedRecord.endDate;
             } else {
                 updatedRecord.startDate = DOM.editAttendanceStartDateInput?.value || null;
                 updatedRecord.endDate = DOM.editAttendanceEndDateInput?.value || null;
                 delete updatedRecord.startTime; delete updatedRecord.endTime;
             }
+            
             if (isTimeBased && !updatedRecord.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
             if (!isTimeBased && !updatedRecord.startDate) { showToast('시작일을 입력해주세요.', true); return; }
+            
             dayData.onLeaveMembers[index] = updatedRecord;
             try {
                 const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
@@ -654,11 +688,20 @@ export function setupHistoryModalListeners() {
             const memberName = DOM.addAttendanceMemberNameInput?.value.trim();
             const type = DOM.addAttendanceTypeSelect?.value;
             if (!memberName || !type) { showToast('이름과 유형을 모두 입력해주세요.', true); return; }
+            
+            // ✅ [수정] '조퇴'와 '외출' 구분
             const isTimeBased = (type === '외출' || type === '조퇴');
+            const isOuting = (type === '외출');
+            
             const newRecord = { member: memberName, type: type };
             if (isTimeBased) {
                 newRecord.startTime = DOM.addAttendanceStartTimeInput?.value || null;
-                newRecord.endTime = DOM.addAttendanceEndTimeInput?.value || null;
+                // ✅ [수정] '외출'일 때만 종료시간 저장
+                if (isOuting) {
+                    newRecord.endTime = DOM.addAttendanceEndTimeInput?.value || null;
+                } else {
+                    newRecord.endTime = null;
+                }
                 if (!newRecord.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
             } else {
                 newRecord.startDate = DOM.addAttendanceStartDateInput?.value || null;
@@ -699,15 +742,37 @@ export function setupHistoryModalListeners() {
     }
     if (DOM.addAttendanceTypeSelect) {
         DOM.addAttendanceTypeSelect.addEventListener('change', (e) => {
-            const isTimeBased = (e.target.value === '외출' || e.target.value === '조퇴');
+            // ✅ [수정] '조퇴'와 '외출' 구분
+            const newType = e.target.value;
+            const isTimeBased = (newType === '외출' || newType === '조퇴');
+            const isOuting = (newType === '외출');
+
             if (DOM.addAttendanceTimeFields) DOM.addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
+            
+            // ✅ [수정] '조퇴'일 때 종료 시간 필드 숨김
+            const endTimeWrapper = document.getElementById('add-attendance-end-time-wrapper');
+            if (endTimeWrapper) {
+                endTimeWrapper.classList.toggle('hidden', !isOuting);
+            }
+
             if (DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', isTimeBased);
         });
     }
     if (DOM.editAttendanceTypeSelect) {
         DOM.editAttendanceTypeSelect.addEventListener('change', (e) => {
-            const isTimeBased = (e.target.value === '외출' || e.target.value === '조퇴');
+            // ✅ [수정] '조퇴'와 '외출' 구분
+            const newType = e.target.value;
+            const isTimeBased = (newType === '외출' || newType === '조퇴');
+            const isOuting = (newType === '외출');
+
             if (DOM.editAttendanceTimeFields) DOM.editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
+            
+            // ✅ [수정] '조퇴'일 때 종료 시간 필드 숨김
+            const endTimeWrapper = document.getElementById('edit-attendance-end-time-wrapper');
+            if (endTimeWrapper) {
+                endTimeWrapper.classList.toggle('hidden', !isOuting);
+            }
+
             if (DOM.editAttendanceDateFields) DOM.editAttendanceDateFields.classList.toggle('hidden', isTimeBased);
         });
     }
