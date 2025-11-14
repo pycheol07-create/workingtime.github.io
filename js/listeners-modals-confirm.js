@@ -104,6 +104,46 @@ export function setupConfirmationModalListeners() {
                 }
                 State.context.attendanceRecordToDelete = null;
             }
+            // ✅ [신규] 메인 화면 근태 기록 삭제 로직
+            else if (State.context.deleteMode === 'leave-record') {
+                const { memberName, startIdentifier, type, displayType } = State.context.attendanceRecordToDelete;
+                let dailyChanged = false;
+                let persistentChanged = false;
+                
+                if (type === 'daily') {
+                    const index = State.appState.dailyOnLeaveMembers.findIndex(
+                        r => r.member === memberName && r.startTime === startIdentifier
+                    );
+                    if (index > -1) {
+                        State.appState.dailyOnLeaveMembers.splice(index, 1);
+                        dailyChanged = true;
+                    }
+                } else { // 'persistent'
+                    const index = State.persistentLeaveSchedule.onLeaveMembers.findIndex(
+                        r => r.member === memberName && r.startDate === startIdentifier
+                    );
+                    if (index > -1) {
+                        State.persistentLeaveSchedule.onLeaveMembers.splice(index, 1);
+                        persistentChanged = true;
+                    }
+                }
+
+                if (dailyChanged || persistentChanged) {
+                    try {
+                        if (dailyChanged) await debouncedSaveState.flush(); // 일일 근태 즉시 저장
+                        if (persistentChanged) await saveLeaveSchedule(State.db, State.persistentLeaveSchedule); // 영구 근태 즉시 저장
+                        showToast(`${memberName}님의 '${displayType}' 기록이 삭제되었습니다.`);
+                    } catch (e) {
+                        console.error("Error deleting leave record:", e);
+                        showToast('기록 삭제 중 오류가 발생했습니다.', true);
+                        // (TODO: Rollback)
+                    }
+                } else {
+                    showToast('삭제할 기록을 찾지 못했습니다.', true);
+                }
+                
+                State.context.attendanceRecordToDelete = null;
+            }
 
             DOM.deleteConfirmModal.classList.add('hidden');
             State.context.recordToDeleteId = null;

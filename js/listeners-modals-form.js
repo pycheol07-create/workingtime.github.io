@@ -515,4 +515,161 @@ export function setupFormModalListeners() {
             }
         });
     }
+    
+    // ✅ [신규] 메인 화면 근태 수정 모달(edit-leave-record-modal) 리스너 추가
+    
+    const editLeaveModal = document.getElementById('edit-leave-record-modal');
+
+    if (editLeaveModal) {
+        
+        // 1. 취소 버튼
+        const cancelEditLeaveBtn = document.getElementById('cancel-edit-leave-record-btn');
+        if (cancelEditLeaveBtn) {
+            cancelEditLeaveBtn.addEventListener('click', () => {
+                editLeaveModal.classList.add('hidden');
+            });
+        }
+
+        // 2. 삭제 버튼 (확인 모달 열기)
+        const deleteLeaveBtn = document.getElementById('delete-leave-record-btn');
+        if (deleteLeaveBtn) {
+            deleteLeaveBtn.addEventListener('click', () => {
+                const memberName = document.getElementById('edit-leave-original-member-name').value;
+                const type = document.getElementById('edit-leave-type').value; // 현재 선택된 타입
+                
+                State.context.deleteMode = 'leave-record';
+                State.context.attendanceRecordToDelete = { // 재활용
+                    memberName: memberName,
+                    startIdentifier: document.getElementById('edit-leave-original-start-identifier').value,
+                    type: document.getElementById('edit-leave-original-type').value, // 'daily' or 'persistent'
+                    displayType: type // 메시지 표시용
+                };
+
+                const msgEl = document.getElementById('delete-confirm-message');
+                if (msgEl) msgEl.textContent = `${memberName}님의 '${type}' 기록을 삭제하시겠습니까?`;
+                
+                editLeaveModal.classList.add('hidden');
+                if (DOM.deleteConfirmModal) DOM.deleteConfirmModal.classList.remove('hidden');
+            });
+        }
+
+        // 3. 저장 버튼
+        const confirmEditLeaveBtn = document.getElementById('confirm-edit-leave-record-btn');
+        if (confirmEditLeaveBtn) {
+            confirmEditLeaveBtn.addEventListener('click', async () => {
+                // 1. 원본 데이터 가져오기
+                const memberName = document.getElementById('edit-leave-original-member-name').value;
+                const originalStart = document.getElementById('edit-leave-original-start-identifier').value;
+                const originalType = document.getElementById('edit-leave-original-type').value; // 'daily' or 'persistent'
+
+                // 2. 새 데이터 가져오기
+                const newType = document.getElementById('edit-leave-type').value;
+                const newStartTime = document.getElementById('edit-leave-start-time').value;
+                const newEndTime = document.getElementById('edit-leave-end-time').value;
+                const newStartDate = document.getElementById('edit-leave-start-date').value;
+                const newEndDate = document.getElementById('edit-leave-end-date').value;
+
+                const isNewTimeBased = (newType === '외출' || newType === '조퇴');
+                const isNewDateBased = (newType === '연차' || newType === '출장' || newType === '결근');
+
+                // 3. 원본 기록 찾아서 제거
+                let dailyChanged = false;
+                let persistentChanged = false;
+                let foundAndRemoved = false;
+
+                if (originalType === 'daily') {
+                    const index = State.appState.dailyOnLeaveMembers.findIndex(
+                        r => r.member === memberName && r.startTime === originalStart
+                    );
+                    if (index > -1) {
+                        State.appState.dailyOnLeaveMembers.splice(index, 1);
+                        dailyChanged = true;
+                        foundAndRemoved = true;
+                    }
+                } else { // 'persistent'
+                    const index = State.persistentLeaveSchedule.onLeaveMembers.findIndex(
+                        r => r.member === memberName && r.startDate === originalStart
+                    );
+                    if (index > -1) {
+                        State.persistentLeaveSchedule.onLeaveMembers.splice(index, 1);
+                        persistentChanged = true;
+                        foundAndRemoved = true;
+                    }
+                }
+
+                if (!foundAndRemoved) {
+                    showToast('수정할 원본 기록을 찾지 못했습니다.', true);
+                    return;
+                }
+
+                // 4. 새/수정된 기록 추가
+                if (isNewTimeBased) {
+                    if (!newStartTime) {
+                        showToast('시간 기반 근태는 시작 시간이 필수입니다.', true);
+                        // (TODO: Rollback)
+                        return;
+                    }
+                    State.appState.dailyOnLeaveMembers.push({
+                        member: memberName,
+                        type: newType,
+                        startTime: newStartTime,
+                        endTime: (newType === '외출') ? newEndTime : null // 조퇴는 endTime null
+                    });
+                    dailyChanged = true;
+                } else { // Date based
+                    if (!newStartDate) {
+                        showToast('날짜 기반 근태는 시작일이 필수입니다.', true);
+                        return;
+                    }
+                    State.persistentLeaveSchedule.onLeaveMembers.push({
+                        id: `leave-${Date.now()}`,
+                        member: memberName,
+                        type: newType,
+                        startDate: newStartDate,
+                        endDate: newEndDate || newStartDate
+                    });
+                    persistentChanged = true;
+                }
+
+                // 5. 변경사항 Firestore에 저장
+                try {
+                    if (dailyChanged) {
+                        // dailyOnLeaveMembers는 appState의 일부로 debouncedSaveState에 의해 저장됨
+                        // 즉시 반영을 위해 flush() 호출
+                        await debouncedSaveState.flush();
+                    }
+                    if (persistentChanged) {
+                        // persistentLeaveSchedule은 별도로 저장
+                        await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+                    }
+                    showToast('근태 기록이 수정되었습니다.');
+                    editLeaveModal.classList.add('hidden');
+                    // onSnapshot이 변경을 감지하고 자동으로 render()를 호출할 것입니다.
+                } catch (e) {
+                    console.error("Error saving updated leave record:", e);
+                    showToast('기록 저장 중 오류가 발생했습니다.', true);
+                    // (TODO: Rollback)
+                }
+            });
+        }
+
+        // 4. 유형 변경 시 UI 토글
+        const editLeaveTypeSelect = document.getElementById('edit-leave-type');
+        if (editLeaveTypeSelect) {
+            editLeaveTypeSelect.addEventListener('change', (e) => {
+                const newType = e.target.value;
+                const isTimeBased = (newType === '외출' || newType === '조퇴');
+                const isOuting = (newType === '외출'); // '외출'만 종료 시간 있음
+                
+                document.getElementById('edit-leave-time-fields').classList.toggle('hidden', !isTimeBased);
+                document.getElementById('edit-leave-date-fields').classList.toggle('hidden', isTimeBased);
+                
+                // '조퇴'일 때 종료 시간 필드 숨기기
+                const endTimeWrapper = document.getElementById('edit-leave-end-time-wrapper');
+                if (endTimeWrapper) {
+                    endTimeWrapper.classList.toggle('hidden', !isOuting);
+                }
+            });
+        }
+    }
 }
