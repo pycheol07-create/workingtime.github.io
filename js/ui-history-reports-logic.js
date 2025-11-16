@@ -10,12 +10,43 @@ import { appConfig } from './state.js';
 export const getDiffHtmlForMetric = (metric, current, previous) => {
     // ✅ [수정] 입력값을 강제로 숫자로 변환하여 타입 오류 방지
     const currValue = Number(current) || 0;
-    const prevValue = Number(previous) || 0;
 
-    if (prevValue === 0) {
+    // ✅ [수정] 'previous'가 null/undefined일 때만 'new'로 처리. 0은 유효한 비교 값임. (Issue 3)
+    if (previous === null || typeof previous === 'undefined') {
         if (currValue > 0) return `<span class="text-xs text-gray-400 ml-1" title="이전 기록 없음">(new)</span>`;
         return '';
     }
+    
+    const prevValue = Number(previous) || 0;
+
+    // ✅ [수정] 이전 값이 0일 때의 비교 로직 (Issue 3)
+    if (prevValue === 0) {
+        if (currValue === 0) return `<span class="text-xs text-gray-400 ml-1">(-)</span>`;
+        
+        // 이전 값이 0이고 현재 값이 0보다 크면, 'new'가 아니라 증가로 표시
+        const sign = '↑';
+        let colorClass = 'text-green-600'; // 긍정적
+        if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'coqPercentage', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost'].includes(metric)) {
+             colorClass = 'text-red-600'; // 부정적
+        }
+        
+        let diffStr = '';
+        if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration' || metric === 'nonWorkTime') {
+            diffStr = formatDuration(Math.abs(currValue));
+        } else if (['avgStaff', 'avgCostPerItem', 'quantity', 'totalQuantity', 'totalCost', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost'].includes(metric)) {
+            diffStr = Math.round(Math.abs(currValue)).toLocaleString();
+        } else if (['availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
+            diffStr = Math.abs(currValue).toFixed(1) + ' FTE';
+        } else {
+            diffStr = Math.abs(currValue).toFixed(1);
+        }
+        // 0에서 증가한 경우, % 증가는 무한대이므로 %는 생략.
+        return `<span class="text-xs ${colorClass} ml-1 font-mono" title="이전: 0">
+                    ${sign} ${diffStr}
+                </span>`;
+    }
+
+    // ⛔️ [삭제] if (prevValue === 0) { ... } 블록 (위에서 처리됨)
 
     const diff = currValue - prevValue;
     if (Math.abs(diff) < 0.001) return `<span class="text-xs text-gray-400 ml-1">(-)</span>`;

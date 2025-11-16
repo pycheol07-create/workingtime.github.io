@@ -348,7 +348,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     const records = data.workRecords || [];
     const quantities = data.taskQuantities || {};
     const onLeaveMemberEntries = data.onLeaveMembers || [];
-    const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
+    // ⛔️ [삭제] const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
     const partTimersFromHistory = data.partTimers || [];
 
     const wageMap = { ...State.appConfig.memberWages };
@@ -358,9 +358,25 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         }
     });
 
-    const allRegularMembers = new Set((State.appConfig.teamGroups || []).flatMap(g => g.members));
-    const activeMembersCount = allRegularMembers.size - onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length
-        + partTimersFromHistory.length - onLeaveMemberNames.filter(name => partTimersFromHistory.some(pt => pt.name === name)).length;
+    // ⛔️ [삭제] const allRegularMembers = new Set((State.appConfig.teamGroups || []).flatMap(g => g.members));
+    
+    // ✅ [수정] 근무 인원 계산 로직 변경 (Issue 2)
+    // '출근(active)' 또는 '퇴근(returned)' 기록이 있는 모든 고유 인원을 집계합니다.
+    const attendanceMap = data.dailyAttendance || {};
+    const clockedInMembers = new Set(
+        Object.keys(attendanceMap).filter(member => 
+            attendanceMap[member] && (attendanceMap[member].status === 'active' || attendanceMap[member].status === 'returned')
+        )
+    );
+    
+    // 만약 'dailyAttendance' 데이터가 없는 아주 오래된 이력이라면, workRecords 기준으로 fallback
+    if (Object.keys(attendanceMap).length === 0 && records.length > 0) {
+         console.warn(`(History ${dateKey}) dailyAttendance data is missing. Falling back to workRecords for member count.`);
+         records.forEach(r => r.member && clockedInMembers.add(r.member));
+    }
+
+    const activeMembersCount = clockedInMembers.size;
+
 
     const totalSumDuration = records.reduce((sum, r) => sum + (Number(r.duration) || 0), 0);
     const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
@@ -390,13 +406,11 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         };
     });
 
-    // ✅ [수정] '전일'이 아닌 '가장 최근 기록'과 비교하도록 로직 변경
+    // ✅ [수정] '전일'이 아닌 '가장 최근 기록'과 비교하도록 로직 변경 (이 로직은 정상이었습니다)
     let prevTaskMetrics = {};
     const currentIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
 
-    // 1. 현재 날짜의 모든 업무 키에 대해 루프를 돕니다.
     allTaskKeys.forEach(task => {
-        // 2. 현재 날짜(currentIndex)보다 오래된 모든 이력(currentIndex + 1 부터 끝까지)을 순회합니다.
         for (let i = currentIndex + 1; i < State.allHistoryData.length; i++) {
             const recentDay = State.allHistoryData[i];
             if (!recentDay) continue;
@@ -408,40 +422,53 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
             const duration = taskRecords.reduce((sum, r) => sum + (Number(r.duration) || 0), 0);
             const qty = Number(recentQuantities[task]) || 0;
 
-            // 3. 해당 'task'에 대한 기록(시간 또는 수량)이 있는 가장 빠른 날짜를 찾으면,
             if (duration > 0 || qty > 0) {
                 const cost = taskRecords.reduce((sum, r) => {
                     const wage = wageMap[r.member] || 0;
                     return sum + ((Number(r.duration) || 0) / 60) * wage;
                 }, 0);
-
-                // 4. prevTaskMetrics에 *해당 task*의 정보만 저장하고 루프를 탈출합니다.
+                
                 prevTaskMetrics[task] = {
-                    date: recentDay.id, // 📌 비교 대상 날짜를 저장
+                    date: recentDay.id, 
                     duration: duration,
                     cost: cost,
                     quantity: qty,
                     avgThroughput: duration > 0 ? (qty / duration) : 0,
                     avgCostPerItem: qty > 0 ? (cost / qty) : 0
                 };
-                break; // 다음 task를 찾기 위해 내부 for 루프 탈출
+                break; 
             }
         }
-        // (만약 for 루프가 끝날 때까지 못 찾으면, 'prevTaskMetrics[task]'는 undefined로 남아 (new)로 표시됩니다.)
     });
-    // ⛔️ [삭제] '전일' 하루만 비교하던 기존 로직 (약 25줄) 삭제
 
     const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
 
+    // ✅ [수정] 주말/주중 비업무시간 계산 로직 변경 (Issue 1)
     let nonWorkHtml = '';
-    if (isWeekday(dateKey)) {
-        const totalPotentialMinutes = activeMembersCount * 8 * 60;
+    const standardHoursSettings = State.appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
+    const standardHours = isWeekday(dateKey) ? (standardHoursSettings.weekday || 8) : (standardHoursSettings.weekend || 4);
+
+    if (activeMembersCount > 0 || totalSumDuration > 0) {
+        const totalPotentialMinutes = activeMembersCount * standardHours * 60;
         const nonWorkMinutes = Math.max(0, totalPotentialMinutes - totalSumDuration);
         const percentage = totalPotentialMinutes > 0 ? (nonWorkMinutes / totalPotentialMinutes * 100).toFixed(1) : 0;
-        nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-xl font-bold text-gray-700">${formatDuration(nonWorkMinutes)}</p><p class="text-xs text-gray-500 mt-1">(추정치, ${percentage}%)</p></div>`;
+        
+        const titleText = isWeekday(dateKey) ? `총 비업무시간` : `총 비업무시간 (주말)`;
+        const subText = isWeekday(dateKey) ? `(추정치, ${percentage}%)` : `(주말 ${standardHours}H 기준, ${percentage}%)`;
+
+        nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]">
+                        <h4 class="text-sm font-semibold text-gray-500">${titleText}</h4>
+                        <p class="text-xl font-bold text-gray-700">${formatDuration(nonWorkMinutes)}</p>
+                        <p class="text-xs text-gray-500 mt-1">${subText}</p>
+                       </div>`;
     } else {
-        nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px] flex flex-col justify-center items-center"><h4 class="text-sm font-semibold text-gray-500">총 비업무시간</h4><p class="text-lg font-bold text-gray-400">주말</p></div>`;
+         const titleText = isWeekday(dateKey) ? '총 비업무시간' : '총 비업무시간 (주말)';
+         nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px] flex flex-col justify-center items-center">
+                         <h4 class="text-sm font-semibold text-gray-500">${titleText}</h4>
+                         <p class="text-lg font-bold text-gray-400">${isWeekday(dateKey) ? '데이터 없음' : '주말 근무 없음'}</p>
+                        </div>`;
     }
+    // ⛔️ [삭제] 기존 if (isWeekday(dateKey)) { ... } else { ... } 블록 (약 10줄)
 
     let html = `
     <div class="mb-6 pb-4 border-b flex justify-between items-center">
@@ -456,7 +483,10 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
       </div>
     </div>
     <div class="flex flex-wrap gap-4 mb-6">
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">근무 인원</h4><p class="text-2xl font-bold text-gray-800">${activeMembersCount} 명</p></div>
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]">
+        <h4 class="text-sm font-semibold text-gray-500">근무 인원 (출근 기준)</h4> 
+        <p class="text-2xl font-bold text-gray-800">${activeMembersCount} 명</p>
+      </div>
       <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${formatDuration(totalSumDuration)}</p></div>
       ${nonWorkHtml}
       <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${totalQuantity} 개</p></div>
