@@ -6,7 +6,7 @@ import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, 
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // --- 2. 모듈 임포트 ---
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js'; // ✅ saveLeaveSchedule 추가
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes, debounce } from './utils.js';
 import {
     renderDashboardLayout,
@@ -19,23 +19,19 @@ import {
 } from './ui.js';
 import { initializeAppListeners } from './app-listeners.js';
 
-// ✅ [수정] app-history-logic.js 대신 history-data-manager.js에서 직접 임포트
 import {
     saveProgress,
     saveDayDataToHistory
 } from './history-data-manager.js';
 
-// ✅ [신규] 분리된 DOM 요소와 상태 변수를 가져옵니다.
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 
-// ✅ [추가] app-logic.js에서 점심시간 자동화 함수 임포트
 import {
     autoPauseForLunch,
     autoResumeFromLunch
 } from './app-logic.js';
 
-// ✅ [신규] app-data.js에서 데이터 함수 임포트
 import {
     generateId,
     updateDailyData,
@@ -45,23 +41,70 @@ import {
 
 
 // --- 3. 헬퍼 함수 ---
-// ⛔️ [삭제] generateId (app-data.js로 이동)
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
 
+// ✅ [신규] 과거 연차 데이터 (이미지 기반)
+const historicalLeaveData = [
+    { member: "박영철", dates: ["2025-01-22", "2025-02-10", "2025-02-17", "2025-02-19", "2025-02-20", "2025-02-21", "2025-03-21", "2025-05-02", "2025-05-07", "2025-05-08", "2025-05-09", "2025-05-12", "2025-05-13", "2025-06-17", "2025-09-01", "2025-09-30", "2025-11-24"] },
+    { member: "유아라", dates: ["2025-01-14", "2025-03-20", "2025-03-21", "2025-04-21", "2025-06-23", "2025-07-14", "2025-08-04", "2025-08-22", "2025-08-25", "2025-09-24", "2025-09-25", "2025-09-26", "2025-09-29", "2025-09-30", "2025-10-01", "2025-10-02", "2025-10-29", "2025-11-11", "2025-11-17"] },
+    { member: "박호진", dates: ["2025-01-16", "2025-02-05", "2025-03-08", "2025-03-10", "2025-04-04", "2025-04-14", "2025-04-25", "2025-06-25", "2025-07-11", "2025-09-08", "2025-09-19", "2025-09-23", "2025-10-14", "2025-11-05", "2025-11-14"] },
+    { member: "송다진", dates: ["2025-01-10", "2025-02-03", "2025-02-14", "2025-02-21", "2025-03-10", "2025-04-04", "2025-04-07", "2025-05-02", "2025-06-09", "2025-07-14", "2025-07-28", "2025-09-01", "2025-10-20", "2025-11-10", "2025-11-07"] },
+    { member: "정미혜", dates: ["2025-01-06", "2025-01-07", "2025-01-08", "2025-01-10", "2025-03-14", "2025-04-09", "2025-05-21", "2025-05-22", "2025-05-23", "2025-06-13", "2025-07-21", "2025-08-04", "2025-10-17", "2025-10-24", "2025-09-22"] },
+    { member: "김수은", dates: ["2025-02-03", "2025-02-13", "2025-03-12", "2025-03-18", "2025-04-30", "2025-05-02", "2025-05-15", "2025-05-27", "2025-06-18", "2025-07-21", "2025-07-31", "2025-08-18", "2025-09-01", "2025-10-14", "2025-10-23", "2025-10-24", "2025-11-06"] },
+    { member: "이미숙", dates: ["2025-01-24", "2025-03-20", "2025-03-21", "2025-04-24", "2025-05-29", "2025-07-04", "2025-07-18", "2025-08-04", "2025-08-08", "2025-09-11", "2025-09-22", "2025-10-01", "2025-10-02", "2025-10-13", "2025-11-17"] },
+    { member: "이승운", dates: ["2025-01-22", "2025-03-21", "2025-03-26", "2025-05-02", "2025-05-07", "2025-05-08", "2025-05-09", "2025-05-12", "2025-05-13", "2025-06-17", "2025-09-01", "2025-09-30", "2025-10-01", "2025-10-28"] },
+    { member: "진희주", dates: ["2025-02-17", "2025-03-28", "2025-04-18", "2025-04-21", "2025-04-28", "2025-05-08", "2025-06-23", "2025-06-24", "2025-06-20", "2025-07-25", "2025-10-02"] },
+    { member: "김성곤", dates: ["2025-06-23", "2025-07-07", "2025-07-28", "2025-08-25", "2025-09-22", "2025-10-21", "2025-10-22", "2025-11-17"] },
+    { member: "김현", dates: ["2025-11-10", "2025-11-11", "2025-11-12"] },
+    { member: "박상희", dates: ["2025-11-11"] },
+    { member: "김동훈", dates: ["2025-01-22", "2025-01-23", "2025-02-05", "2025-02-13", "2025-03-04", "2025-03-13", "2025-03-27", "2025-04-11", "2025-04-21", "2025-05-19", "2025-06-04", "2025-06-11", "2025-06-18", "2025-07-14", "2025-08-18", "2025-08-27", "2025-11-14"] },
+    { member: "신민재", dates: ["2025-03-31", "2025-04-15", "2025-05-12", "2025-06-20", "2025-08-08", "2025-08-11", "2025-09-24", "2025-09-25", "2025-10-20", "2025-11-10"] },
+    { member: "황호석", dates: ["2025-03-17", "2025-04-02", "2025-04-23", "2025-05-16", "2025-06-13", "2025-07-11", "2025-07-21", "2025-08-25", "2025-09-15", "2025-10-17", "2025-11-10"] }
+];
+
+// ✅ [신규] 데이터 일괄 적용 함수
+async function applyHistoricalLeaveData() {
+    if (!State.persistentLeaveSchedule || !State.persistentLeaveSchedule.onLeaveMembers) {
+        State.persistentLeaveSchedule = { onLeaveMembers: [] };
+    }
+
+    let updatedCount = 0;
+    const currentLeaves = State.persistentLeaveSchedule.onLeaveMembers;
+
+    const existingSet = new Set(currentLeaves.map(l => `${l.member}_${l.startDate}_연차`));
+
+    historicalLeaveData.forEach(data => {
+        data.dates.forEach(date => {
+            const key = `${data.member}_${date}_연차`;
+            if (!existingSet.has(key)) {
+                currentLeaves.push({
+                    id: `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    member: data.member,
+                    type: '연차',
+                    startDate: date,
+                    endDate: date // 하루 연차
+                });
+                existingSet.add(key);
+                updatedCount++;
+            }
+        });
+    });
+
+    if (updatedCount > 0) {
+        console.log(`총 ${updatedCount}건의 과거 연차 데이터를 새로 등록합니다.`);
+        await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+        showToast(`${updatedCount}건의 과거 연차 데이터가 적용되었습니다.`);
+    } else {
+        console.log("새로 적용할 연차 데이터가 없습니다 (이미 최신).");
+    }
+}
+
+
 // --- 4. 핵심 코어 함수 ---
-
-// ⛔️ [삭제] updateDailyData (app-data.js로 이동)
-// ⛔️ [삭제] saveStateToFirestore (app-data.js로 이동)
-// ⛔️ [삭제] debouncedSaveState (app-data.js로 이동)
-
-/**
- * ✅ [수정됨] State.appState와 State.context를 사용합니다.
- */
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     
-    // 12:30 점심시간 자동 일시정지
     if (now === '12:30' && !State.appState.lunchPauseExecuted) {
         State.appState.lunchPauseExecuted = true;
         if (State.context.autoPauseForLunch) {
@@ -74,10 +117,9 @@ export const updateElapsedTimes = async () => {
                 console.error("Error during auto-pause: ", e);
             }
         }
-        saveStateToFirestore(); // lunchPauseExecuted 상태를 저장
+        saveStateToFirestore(); 
     }
 
-    // 13:30 점심시간 자동 재개
     if (now === '13:30' && !State.appState.lunchResumeExecuted) {
         State.appState.lunchResumeExecuted = true;
         if (State.context.autoResumeFromLunch) {
@@ -90,10 +132,9 @@ export const updateElapsedTimes = async () => {
                  console.error("Error during auto-resume: ", e);
             }
         }
-        saveStateToFirestore(); // lunchResumeExecuted 상태를 저장
+        saveStateToFirestore(); 
     }
 
-    // 진행 중인 시간 업데이트
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
             const startTime = el.dataset.startTime;
@@ -105,7 +146,6 @@ export const updateElapsedTimes = async () => {
 
             if (status === 'paused') {
                 const lastPause = currentPauses.length > 0 ? currentPauses[currentPauses.length - 1] : null;
-                // 현재 휴식 중인 시간을 반영하기 위해 마지막 pause의 끝을 '지금'으로 가정
                 const tempPauses = [
                     ...currentPauses.slice(0, -1),
                     { start: lastPause?.start || startTime, end: now }
@@ -113,14 +153,13 @@ export const updateElapsedTimes = async () => {
                 const dur = calcElapsedMinutes(startTime, now, tempPauses);
                 el.textContent = `(진행: ${formatDuration(dur)})`;
 
-            } else { // 'ongoing'
+            } else { 
                 const dur = calcElapsedMinutes(startTime, now, currentPauses);
                 el.textContent = `(진행: ${formatDuration(dur)})`;
             }
         } catch (e) { /* noop */ }
     });
 
-    // 상단 현황판의 '업무진행시간' 업데이트
     const completedRecords = (State.appState.workRecords || []).filter(r => r.status === 'completed');
     const totalCompletedMinutes = completedRecords.reduce((sum, r) => sum + (r.duration || 0), 0);
     const ongoingLiveRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing');
@@ -129,14 +168,10 @@ export const updateElapsedTimes = async () => {
         totalOngoingMinutes += calcElapsedMinutes(rec.startTime, now, rec.pauses);
     });
     
-    // 이 ID는 dom-elements.js에 없습니다 (동적으로 생성되는 ID임). 따라서 getElementById 유지.
     const el = document.getElementById('summary-total-work-time');
     if (el) el.textContent = formatDuration(totalCompletedMinutes + totalOngoingMinutes);
 };
 
-/**
- * ✅ [수정됨] State.appState, State.appConfig, State.context를 사용합니다.
- */
 export const render = () => {
     try {
         renderRealtimeStatus(State.appState, State.appConfig.teamGroups, State.appConfig.keyTasks || [], State.context.isMobileTaskViewExpanded, State.context.isMobileMemberViewExpanded);
@@ -148,16 +183,10 @@ export const render = () => {
     }
 };
 
-/**
- * ✅ [수정됨] State.setIsDataDirty Setter를 사용합니다.
- */
 export const markDataAsDirty = () => {
     State.setIsDataDirty(true);
 };
 
-/**
- * ✅ [수정됨] State.isDataDirty, State.appState, State.setIsDataDirty를 사용합니다.
- */
 export const autoSaveProgress = () => {
     const hasOngoing = (State.appState.workRecords || []).some(r => r.status === 'ongoing');
 
@@ -169,20 +198,20 @@ export const autoSaveProgress = () => {
 
 // --- 5. 앱 초기화 및 인증 로직 ---
 
-/**
- * ✅ [수정됨] DOM과 State를 import된 네임스페이스로 접근하고, Setter 함수를 사용합니다.
- */
 async function startAppAfterLogin(user) {
-    if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; // ✅ 수정됨
+    if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; 
 
     try {
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '설정 로딩 중...';
 
-        // ✅ Setter를 사용하여 전역 상태 변수 할당
         State.setAppConfig(await loadAppConfig(State.db));
         State.setPersistentLeaveSchedule(await loadLeaveSchedule(State.db));
 
-        // ✅ [신규] 자동화 함수를 context에 등록
+        // ✅ [신규] 연차 데이터 일괄 적용 (초기화 후 지연 실행)
+        setTimeout(() => {
+            applyHistoricalLeaveData();
+        }, 2000);
+
         State.context.autoPauseForLunch = autoPauseForLunch;
         State.context.autoResumeFromLunch = autoResumeFromLunch;
 
@@ -190,7 +219,7 @@ async function startAppAfterLogin(user) {
 
         if (!userEmail) {
             showToast('로그인 사용자의 이메일 정보를 가져올 수 없습니다. 다시 로그인해주세요.', true);
-            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 
             if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '인증 오류';
             State.auth.signOut();
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
@@ -211,18 +240,16 @@ async function startAppAfterLogin(user) {
 
         if (!currentUserName) {
             showToast('로그인했으나 앱에 등록된 사용자가 아닙니다. 관리자에게 문의하세요.', true);
-            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 
             if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '사용자 미등록';
             State.auth.signOut();
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
             return;
         }
 
-        // appState는 객체이므로 직접 수정
         State.appState.currentUser = currentUserName;
         State.appState.currentUserRole = currentUserRole;
 
-        // ✅ DOM 요소는 DOM.xxx로 접근
         if (DOM.userGreeting) {
             DOM.userGreeting.textContent = `${currentUserName}님 (${currentUserRole}), 안녕하세요.`;
             DOM.userGreeting.classList.remove('hidden');
@@ -230,7 +257,6 @@ async function startAppAfterLogin(user) {
         if (DOM.logoutBtn) DOM.logoutBtn.classList.remove('hidden');
         if (DOM.logoutBtnMobile) DOM.logoutBtnMobile.classList.remove('hidden');
 
-        // 이 ID들은 dom-elements.js에 없습니다. getElementById 유지.
         const pcAttendanceToggle = document.getElementById('personal-attendance-toggle-pc');
         const pcAttendanceLabel = document.getElementById('pc-attendance-label');
         if (pcAttendanceToggle && pcAttendanceLabel) {
@@ -244,8 +270,6 @@ async function startAppAfterLogin(user) {
              mobileAttendanceToggle.classList.add('flex');
         }
 
-
-        // 이 ID는 dom-elements.js에 없습니다. getElementById 유지.
         const adminLinkBtn = document.getElementById('admin-link-btn');
         if (currentUserRole === 'admin') {
             if (adminLinkBtn) adminLinkBtn.style.display = 'flex';
@@ -254,7 +278,6 @@ async function startAppAfterLogin(user) {
             if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'flex';
             
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'flex';
-            // ✅ [수정] 모바일 이력 보기 버튼 표시
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'flex';
 
         } else {
@@ -263,11 +286,9 @@ async function startAppAfterLogin(user) {
             if (DOM.resetAppBtn) DOM.resetAppBtn.style.display = 'none';
             if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'none';
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
-            // ✅ [수정] 모바일 이력 보기 버튼 숨김
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'none';
         }
 
-        // 이 ID들은 dom-elements.js에 없습니다. getElementById 유지.
         document.getElementById('current-date-display')?.classList.remove('hidden');
         document.getElementById('top-right-controls')?.classList.remove('hidden');
         document.querySelector('.bg-gray-800.shadow-lg')?.classList.remove('hidden');
@@ -278,20 +299,20 @@ async function startAppAfterLogin(user) {
             }
         });
 
-        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
+        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 
         renderDashboardLayout(State.appConfig);
         renderTaskSelectionModal(State.appConfig.taskGroups);
 
     } catch (e) {
         console.error("설정 로드 실패:", e);
         showToast("설정 정보 로드에 실패했습니다. 기본값으로 실행합니다.", true);
-        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
+        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 
         renderDashboardLayout(State.appConfig);
         renderTaskSelectionModal(State.appConfig.taskGroups);
     }
 
     displayCurrentDate();
-    // ✅ Setter 사용
+    
     if (State.elapsedTimeTimer) clearInterval(State.elapsedTimeTimer);
     State.setElapsedTimeTimer(setInterval(updateElapsedTimes, 1000));
 
@@ -307,9 +328,9 @@ async function startAppAfterLogin(user) {
     // --- 실시간 리스너 설정 ---
     const leaveScheduleDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
     if (State.unsubscribeLeaveSchedule) State.unsubscribeLeaveSchedule();
-    // ✅ Setter 사용
+    
     State.setUnsubscribeLeaveSchedule(onSnapshot(leaveScheduleDocRef, (docSnap) => {
-        State.setPersistentLeaveSchedule(docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] }); // ✅ Setter 사용
+        State.setPersistentLeaveSchedule(docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] });
         const today = getTodayDateString();
         State.appState.dateBasedOnLeaveMembers = (State.persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
             if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
@@ -330,7 +351,7 @@ async function startAppAfterLogin(user) {
 
     const configDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
     if (State.unsubscribeConfig) State.unsubscribeConfig();
-    // ✅ Setter 사용
+    
     State.setUnsubscribeConfig(onSnapshot(configDocRef, (docSnap) => {
         if (docSnap.exists()) {
             console.log("실시간 앱 설정 감지: 변경 사항을 적용합니다.");
@@ -338,7 +359,6 @@ async function startAppAfterLogin(user) {
 
             const mergedConfig = { ...State.appConfig, ...loadedConfig };
 
-            // ... (기존 병합 로직 동일) ...
             mergedConfig.teamGroups = loadedConfig.teamGroups || State.appConfig.teamGroups;
             mergedConfig.keyTasks = loadedConfig.keyTasks || State.appConfig.keyTasks;
             mergedConfig.dashboardItems = loadedConfig.dashboardItems || State.appConfig.dashboardItems;
@@ -362,7 +382,7 @@ async function startAppAfterLogin(user) {
             mergedConfig.memberRoles = { ...State.appConfig.memberRoles, ...(loadedConfig.memberRoles || {}) };
             mergedConfig.quantityToDashboardMap = { ...State.appConfig.quantityToDashboardMap, ...(loadedConfig.quantityToDashboardMap || {}) };
 
-            State.setAppConfig(mergedConfig); // ✅ Setter 사용
+            State.setAppConfig(mergedConfig); 
 
             renderDashboardLayout(State.appConfig);
             renderTaskSelectionModal(State.appConfig.taskGroups);
@@ -390,7 +410,7 @@ async function startAppAfterLogin(user) {
 
     const todayDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
     if (State.unsubscribeToday) State.unsubscribeToday();
-    // ✅ Setter 사용
+    
     State.setUnsubscribeToday(onSnapshot(todayDocRef, (docSnap) => {
         try {
             const taskTypes = (State.appConfig.taskGroups || []).flatMap(group => group.tasks);
@@ -408,7 +428,6 @@ async function startAppAfterLogin(user) {
                 }
             }
 
-            // appState 객체의 속성 업데이트
             State.appState.taskQuantities = { ...defaultQuantities, ...(data.taskQuantities || legacyState.taskQuantities || {}) };
             State.appState.partTimers = data.partTimers || legacyState.partTimers || [];
             State.appState.hiddenGroupIds = data.hiddenGroupIds || legacyState.hiddenGroupIds || [];
@@ -418,10 +437,10 @@ async function startAppAfterLogin(user) {
             State.appState.confirmedZeroTasks = data.confirmedZeroTasks || legacyState.confirmedZeroTasks || [];
             State.appState.dailyAttendance = data.dailyAttendance || legacyState.dailyAttendance || {};
 
-            State.setIsDataDirty(false); // ✅ Setter 사용
+            State.setIsDataDirty(false); 
 
             render();
-            // ✅ DOM 접근
+            
             if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (메타)';
             if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
         } catch (parseError) {
@@ -439,7 +458,7 @@ async function startAppAfterLogin(user) {
     
     const workRecordsCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
     if (State.unsubscribeWorkRecords) State.unsubscribeWorkRecords();
-    // ✅ Setter 사용
+    
     State.setUnsubscribeWorkRecords(onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
         State.appState.workRecords = [];
         querySnapshot.forEach((doc) => {
@@ -450,7 +469,6 @@ async function startAppAfterLogin(user) {
 
         render();
         
-        // ✅ DOM 접근
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (업무)';
         if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
 
@@ -462,40 +480,33 @@ async function startAppAfterLogin(user) {
     }));
 }
 
-/**
- * ✅ [수정됨] DOM과 State를 import된 네임스페이스로 접근하고, Setter 함수를 사용합니다.
- */
 async function main() {
-    // ✅ DOM 접근
-    if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; // ✅ 수정됨
+    if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; 
 
     try {
         const firebase = initializeFirebase();
-        // ✅ Setter 사용
         State.setDb(firebase.db);
         State.setAuth(firebase.auth);
         
         if (!State.db || !State.auth) {
-            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 
             return;
         }
     } catch (e) {
         console.error("Firebase init failed:", e);
-        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
+        if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 
         return;
     }
 
     onAuthStateChanged(State.auth, async user => {
-        // ✅ DOM 접근
         if (user) {
             if (DOM.loginModal) DOM.loginModal.classList.add('hidden');
-            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; // ✅ 수정됨
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; 
             await startAppAfterLogin(user);
         } else {
             if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '인증 필요';
             if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
 
-            // ✅ Setter 사용 및 전역 변수 해제
             if (State.unsubscribeToday) { State.unsubscribeToday(); State.setUnsubscribeToday(null); }
             if (State.unsubscribeLeaveSchedule) { State.unsubscribeLeaveSchedule(); State.setUnsubscribeLeaveSchedule(null); }
             if (State.unsubscribeConfig) { State.unsubscribeConfig(); State.setUnsubscribeConfig(null); }
@@ -503,7 +514,6 @@ async function main() {
             if (State.periodicRefreshTimer) { clearInterval(State.periodicRefreshTimer); State.setPeriodicRefreshTimer(null); }
             if (State.unsubscribeWorkRecords) { State.unsubscribeWorkRecords(); State.setUnsubscribeWorkRecords(null); }
 
-            // ✅ appState 객체 내부 속성 초기화
             State.appState.workRecords = [];
             State.appState.taskQuantities = {};
             State.appState.dailyOnLeaveMembers = [];
@@ -517,7 +527,6 @@ async function main() {
             State.appState.lunchPauseExecuted = false;
             State.appState.lunchResumeExecuted = false;
 
-            // ✅ DOM 접근
             if (DOM.navContent) DOM.navContent.classList.add('hidden');
             if (DOM.userGreeting) DOM.userGreeting.classList.add('hidden');
             if (DOM.logoutBtn) DOM.logoutBtn.classList.add('hidden');
@@ -541,11 +550,10 @@ async function main() {
             if (DOM.resetAppBtn) DOM.resetAppBtn.style.display = 'none';
             if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'none';
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
-            // ✅ [수정] 모바일 이력 보기 버튼 숨김
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'none';
 
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
-            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; // ✅ 수정됨
+            if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 
 
             renderDashboardLayout({ dashboardItems: [] });
         }

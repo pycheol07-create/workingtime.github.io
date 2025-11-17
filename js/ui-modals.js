@@ -1,10 +1,69 @@
 // === js/ui-modals.js ===
 
-// ✅ [신규] persistentLeaveSchedule 임포트 추가
+// ✅ [수정] persistentLeaveSchedule 임포트 추가
 import { appState, appConfig, persistentLeaveSchedule } from './state.js';
-import { calculateDateDifference } from './utils.js'; // ✅ [신규] 날짜 차이 계산 함수 임포트
+import { calculateDateDifference } from './utils.js';
 
-// ... (renderQuantityModalInputs, renderTaskSelectionModal 함수는 기존과 동일하므로 생략하지 않고 전체 제공) ...
+// ✅ [신규] 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
+const calculateTenure = (joinDateStr) => {
+    if (!joinDateStr || joinDateStr === '-') return '';
+    
+    const start = new Date(joinDateStr);
+    const now = new Date();
+    
+    if (start > now) return '입사 예정';
+
+    let years = now.getFullYear() - start.getFullYear();
+    let months = now.getMonth() - start.getMonth();
+    let days = now.getDate() - start.getDate();
+
+    if (days < 0) {
+        months--;
+        const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+        days += prevMonth.getDate();
+    }
+
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    // "일째" 표현을 위해 +1
+    return `${years}년 ${months}개월 ${days + 1}일째`;
+};
+
+// ✅ [신규] 연차 사용 내역 계산 헬퍼 함수
+const calculateLeaveUsage = (memberName) => {
+    // 설정값 가져오기 (없으면 기본값)
+    const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-' };
+    const totalLeave = leaveSettings.totalLeave;
+    const joinDate = leaveSettings.joinDate;
+
+    // 'persistentLeaveSchedule'에서 해당 멤버의 '연차' 기록만 필터링
+    const history = (persistentLeaveSchedule.onLeaveMembers || [])
+        .filter(item => item.member === memberName && item.type === '연차')
+        .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '')); // 날짜순 정렬
+
+    let usedCount = 0;
+    const usageHistory = history.map((item, index) => {
+        // 시작일~종료일 차이 계산
+        const days = calculateDateDifference(item.startDate, item.endDate);
+        usedCount += days;
+        return {
+            ...item,
+            days,
+            nth: index + 1 // 몇 번째 연차인지
+        };
+    });
+
+    return {
+        total: totalLeave,
+        used: usedCount,
+        remaining: totalLeave - usedCount,
+        joinDate: joinDate,
+        history: usageHistory.reverse() // 보여줄 때는 최신순(역순)으로
+    };
+};
 
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
@@ -232,42 +291,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     container.appendChild(albaGroupContainer);
 };
 
-// ✅ [신규] 연차 사용 내역 계산 헬퍼 함수
-const calculateLeaveUsage = (memberName) => {
-    // 설정값 가져오기 (없으면 기본값)
-    const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-' };
-    const totalLeave = leaveSettings.totalLeave;
-    const joinDate = leaveSettings.joinDate;
-
-    // 'persistentLeaveSchedule' (영구 근태)에서 해당 멤버의 '연차' 기록만 필터링
-    // (참고: 'dailyOnLeaveMembers'는 당일 휘발성 기록이므로 장기 연차 계산에는 부적합할 수 있으나, 
-    //  설계상 '연차'는 persistentLeaveSchedule에 저장되도록 구현됨)
-    const history = (persistentLeaveSchedule.onLeaveMembers || [])
-        .filter(item => item.member === memberName && item.type === '연차')
-        .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '')); // 날짜순 정렬
-
-    let usedCount = 0;
-    const usageHistory = history.map((item, index) => {
-        // 시작일~종료일 차이 계산 (하루면 1일)
-        const days = calculateDateDifference(item.startDate, item.endDate);
-        usedCount += days;
-        return {
-            ...item,
-            days,
-            nth: index + 1 // 몇 번째 연차인지 (날짜순 정렬 기준)
-        };
-    });
-
-    return {
-        total: totalLeave,
-        used: usedCount,
-        remaining: totalLeave - usedCount,
-        joinDate: joinDate,
-        history: usageHistory.reverse() // 보여줄 때는 최신순(역순)으로
-    };
-};
-
-// ✅ [수정] 탭 전환 기능 및 연차 현황 렌더링 추가
+// ✅ [수정] 탭 전환 기능 및 연차 현황(근속연수 포함) 렌더링
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs');
@@ -290,7 +314,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         tabStatus.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
         panelSetting.classList.remove('hidden');
         panelStatus.classList.add('hidden');
-        if(confirmBtn) confirmBtn.classList.remove('hidden'); // 저장 버튼 보임
+        if(confirmBtn) confirmBtn.classList.remove('hidden'); 
     }
 
     // --- 탭 클릭 리스너 ---
@@ -310,7 +334,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
             tabSetting.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
             panelStatus.classList.remove('hidden');
             panelSetting.classList.add('hidden');
-            if(confirmBtn) confirmBtn.classList.add('hidden'); // 현황 탭에서는 저장 버튼 숨김
+            if(confirmBtn) confirmBtn.classList.add('hidden'); 
 
             // ✨ 데이터 계산 및 렌더링
             const stats = calculateLeaveUsage(memberName);
@@ -329,7 +353,15 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
                 remainEl.className = stats.remaining < 0 ? "text-3xl font-bold text-red-600" : "text-3xl font-bold text-blue-600";
             }
             
-            if (joinDateEl) joinDateEl.textContent = stats.joinDate || '-';
+            // ✅ [수정] 입사일 옆에 근속연수 표시
+            if (joinDateEl) {
+                const tenureText = calculateTenure(stats.joinDate);
+                if (stats.joinDate && stats.joinDate !== '-') {
+                    joinDateEl.innerHTML = `${stats.joinDate} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>`;
+                } else {
+                    joinDateEl.textContent = '-';
+                }
+            }
 
             if (historyListEl) {
                 historyListEl.innerHTML = '';
@@ -350,7 +382,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         };
     }
 
-    // --- 라디오 버튼 렌더링 (기존 로직) ---
+    // --- 라디오 버튼 렌더링 ---
     container.innerHTML = '';
     leaveTypes.forEach((type, index) => {
         const div = document.createElement('div');
@@ -362,7 +394,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         container.appendChild(div);
     });
 
-    // 날짜 입력 필드 표시 토글 로직
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
@@ -374,7 +405,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         }
     });
 
-    // 초기 상태 설정 (첫 번째 라디오 선택)
     const firstRadio = container.querySelector('input[type="radio"]');
     if (firstRadio) {
         firstRadio.checked = true;
@@ -385,7 +415,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         }
     }
 
-    // ✅ [신규] 날짜 선택 시 차감 일수 미리보기
+    // 날짜 선택 시 차감 일수 미리보기
     const sInput = document.getElementById('leave-start-date-input');
     const eInput = document.getElementById('leave-end-date-input');
     const preview = document.getElementById('leave-count-preview');
