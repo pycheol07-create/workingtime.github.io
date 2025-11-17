@@ -1,9 +1,11 @@
 // === js/ui-modals.js ===
 
-// ✅ [신규] app.js 대신 state.js에서 직접 상태를 가져옵니다.
-import { appState, appConfig } from './state.js';
+// ✅ [신규] persistentLeaveSchedule 임포트 추가
+import { appState, appConfig, persistentLeaveSchedule } from './state.js';
+import { calculateDateDifference } from './utils.js'; // ✅ [신규] 날짜 차이 계산 함수 임포트
 
-// ... (renderQuantityModalInputs, renderTaskSelectionModal 함수는 기존과 동일하므로 생략) ...
+// ... (renderQuantityModalInputs, renderTaskSelectionModal 함수는 기존과 동일하므로 생략하지 않고 전체 제공) ...
+
 export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
@@ -15,9 +17,7 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
     quantityTaskTypes.forEach(task => {
         const div = document.createElement('div');
         const isConfirmed = confirmedZeroSet.has(task);
-        // ✅ [핵심] 이 로직이 누락 항목을 확인합니다.
         const isMissing = missingTaskSet.has(task) && !isConfirmed;
-        // ✅ [핵심] 여기서 경고 클래스를 할당합니다.
         const warningClass = isMissing ? 'warning-missing-quantity' : '';
 
         div.innerHTML = `
@@ -45,14 +45,11 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
             const label = container.querySelector(`label[for="modal-quantity-${task}"]`);
 
             if (e.target.checked) {
-                // ✅ [핵심] 체크 시 경고 클래스를 제거합니다.
                 input.classList.remove('warning-missing-quantity');
                 label.classList.remove('text-yellow-700', 'font-bold');
                 label.textContent = task;
             } else {
-                // ✅ [핵심] 체크 해제 시, 누락 상태라면 경고 클래스를 다시 추가합니다.
-                // (주의: missingTaskSet은 이 스코프에서 접근이 안되므로, 0건 기준 재확인)
-                if (Number(input.value) <= 0 && missingTaskSet.has(task)) { // 0건이면서 원래 누락 목록에 있었다면
+                if (Number(input.value) <= 0 && missingTaskSet.has(task)) {
                      input.classList.add('warning-missing-quantity');
                      label.classList.add('text-yellow-700', 'font-bold');
                      if (!label.textContent.includes('(누락됨)')) {
@@ -88,7 +85,6 @@ export const renderTaskSelectionModal = (taskGroups = []) => {
     });
 };
 
-// ✅ [수정] '출근 전' 상태 비활성화 로직 추가
 export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
@@ -116,7 +112,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     );
 
     const baseClasses = "member-select-btn w-full p-2 rounded-lg border-2 text-center transition-all duration-200 min-h-[50px] flex flex-col justify-center";
-    const disabledClasses = "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60"; // ✨ 비활성화 스타일 강화
+    const disabledClasses = "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60";
     const unselectedClasses = "bg-white border-gray-300 text-gray-900 hover:bg-blue-50 hover:border-blue-300";
 
     const orderedTeamGroups = [
@@ -145,12 +141,10 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             const leaveEntry = onLeaveMemberMap.get(member);
             const isOnLeave = !!leaveEntry;
             
-            // ✨ 출근 상태 체크
             const attendance = appState.dailyAttendance?.[member];
             const isClockedIn = attendance && attendance.status === 'active';
             const isReturned = attendance && attendance.status === 'returned';
 
-            // ✨ 선택 불가 조건에 '출근 안 함(또는 퇴근함)' 추가
             const isDisabled = isOngoing || isPaused || isOnLeave || !isClockedIn;
 
             const card = document.createElement('button');
@@ -163,8 +157,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
             else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
             else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
-            else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; } // ✨ 퇴근 상태 표시
-            else if (!isClockedIn) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; } // ✨ 출근 전 상태 표시
+            else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; }
+            else if (!isClockedIn) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; }
             
             card.innerHTML = `<div class="font-bold">${member}</div>${statusLabel}`;
 
@@ -194,7 +188,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const leaveEntry = onLeaveMemberMap.get(pt.name);
         const isOnLeave = !!leaveEntry;
 
-        // ✨ 알바 출근 상태 체크
         const attendance = appState.dailyAttendance?.[pt.name];
         const isClockedIn = attendance && attendance.status === 'active';
         const isReturned = attendance && attendance.status === 'returned';
@@ -239,11 +232,125 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     container.appendChild(albaGroupContainer);
 };
 
+// ✅ [신규] 연차 사용 내역 계산 헬퍼 함수
+const calculateLeaveUsage = (memberName) => {
+    // 설정값 가져오기 (없으면 기본값)
+    const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-' };
+    const totalLeave = leaveSettings.totalLeave;
+    const joinDate = leaveSettings.joinDate;
+
+    // 'persistentLeaveSchedule' (영구 근태)에서 해당 멤버의 '연차' 기록만 필터링
+    // (참고: 'dailyOnLeaveMembers'는 당일 휘발성 기록이므로 장기 연차 계산에는 부적합할 수 있으나, 
+    //  설계상 '연차'는 persistentLeaveSchedule에 저장되도록 구현됨)
+    const history = (persistentLeaveSchedule.onLeaveMembers || [])
+        .filter(item => item.member === memberName && item.type === '연차')
+        .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '')); // 날짜순 정렬
+
+    let usedCount = 0;
+    const usageHistory = history.map((item, index) => {
+        // 시작일~종료일 차이 계산 (하루면 1일)
+        const days = calculateDateDifference(item.startDate, item.endDate);
+        usedCount += days;
+        return {
+            ...item,
+            days,
+            nth: index + 1 // 몇 번째 연차인지 (날짜순 정렬 기준)
+        };
+    });
+
+    return {
+        total: totalLeave,
+        used: usedCount,
+        remaining: totalLeave - usedCount,
+        joinDate: joinDate,
+        history: usageHistory.reverse() // 보여줄 때는 최신순(역순)으로
+    };
+};
+
+// ✅ [수정] 탭 전환 기능 및 연차 현황 렌더링 추가
 export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs');
+    const confirmBtn = document.getElementById('confirm-leave-btn');
+    
+    // 탭 요소들
+    const tabSetting = document.getElementById('tab-leave-setting');
+    const tabStatus = document.getElementById('tab-leave-status');
+    const panelSetting = document.getElementById('panel-leave-setting');
+    const panelStatus = document.getElementById('panel-leave-status');
+    const memberNameEl = document.getElementById('leave-member-name');
+    
     if (!container || !dateInputsDiv) return;
 
+    const memberName = memberNameEl ? memberNameEl.textContent : '';
+
+    // --- 탭 초기화 (설정 탭 활성화) ---
+    if(tabSetting) {
+        tabSetting.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
+        tabStatus.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
+        panelSetting.classList.remove('hidden');
+        panelStatus.classList.add('hidden');
+        if(confirmBtn) confirmBtn.classList.remove('hidden'); // 저장 버튼 보임
+    }
+
+    // --- 탭 클릭 리스너 ---
+    if (tabSetting) {
+        tabSetting.onclick = () => {
+            tabSetting.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
+            tabStatus.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
+            panelSetting.classList.remove('hidden');
+            panelStatus.classList.add('hidden');
+            if(confirmBtn) confirmBtn.classList.remove('hidden');
+        };
+    }
+
+    if (tabStatus) {
+        tabStatus.onclick = () => {
+            tabStatus.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
+            tabSetting.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
+            panelStatus.classList.remove('hidden');
+            panelSetting.classList.add('hidden');
+            if(confirmBtn) confirmBtn.classList.add('hidden'); // 현황 탭에서는 저장 버튼 숨김
+
+            // ✨ 데이터 계산 및 렌더링
+            const stats = calculateLeaveUsage(memberName);
+            
+            const totalEl = document.getElementById('status-total-days');
+            const usedEl = document.getElementById('status-used-days');
+            const remainEl = document.getElementById('status-remaining-days');
+            const joinDateEl = document.getElementById('status-join-date');
+            const historyListEl = document.getElementById('status-history-list');
+
+            if (totalEl) totalEl.textContent = `${stats.total}일`;
+            if (usedEl) usedEl.textContent = `${stats.used}일`;
+            
+            if (remainEl) {
+                remainEl.textContent = `${stats.remaining}일`;
+                remainEl.className = stats.remaining < 0 ? "text-3xl font-bold text-red-600" : "text-3xl font-bold text-blue-600";
+            }
+            
+            if (joinDateEl) joinDateEl.textContent = stats.joinDate || '-';
+
+            if (historyListEl) {
+                historyListEl.innerHTML = '';
+                if (stats.history.length === 0) {
+                    historyListEl.innerHTML = '<li class="text-center text-gray-400 py-4">사용 내역이 없습니다.</li>';
+                } else {
+                    stats.history.forEach(h => {
+                        historyListEl.innerHTML += `
+                            <li class="flex justify-between items-center bg-white p-2 rounded border border-gray-100 shadow-sm">
+                                <span class="font-semibold text-gray-700 text-xs">
+                                    <span class="text-blue-500 mr-1">[${h.nth}차]</span> ${h.startDate} ${h.endDate && h.endDate !== h.startDate ? '~ ' + h.endDate.slice(5) : ''}
+                                </span>
+                                <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">-${h.days}일</span>
+                            </li>`;
+                    });
+                }
+            }
+        };
+    }
+
+    // --- 라디오 버튼 렌더링 (기존 로직) ---
     container.innerHTML = '';
     leaveTypes.forEach((type, index) => {
         const div = document.createElement('div');
@@ -255,6 +362,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         container.appendChild(div);
     });
 
+    // 날짜 입력 필드 표시 토글 로직
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
@@ -266,6 +374,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
         }
     });
 
+    // 초기 상태 설정 (첫 번째 라디오 선택)
     const firstRadio = container.querySelector('input[type="radio"]');
     if (firstRadio) {
         firstRadio.checked = true;
@@ -275,6 +384,25 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
             dateInputsDiv.classList.add('hidden');
         }
     }
+
+    // ✅ [신규] 날짜 선택 시 차감 일수 미리보기
+    const sInput = document.getElementById('leave-start-date-input');
+    const eInput = document.getElementById('leave-end-date-input');
+    const preview = document.getElementById('leave-count-preview');
+    
+    const updatePreview = () => {
+        if (!preview) return;
+        if (sInput.value && eInput.value) {
+            const diff = calculateDateDifference(sInput.value, eInput.value);
+            preview.textContent = `총 ${diff}일 차감 예정`;
+        } else if (sInput.value) {
+            preview.textContent = `1일 차감 예정`;
+        } else {
+            preview.textContent = '';
+        }
+    };
+    if (sInput) sInput.addEventListener('change', updatePreview);
+    if (eInput) eInput.addEventListener('change', updatePreview);
 };
 
 export const renderManualAddModalDatalists = (appState, appConfig) => {

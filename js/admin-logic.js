@@ -16,6 +16,7 @@ export function collectConfigFromDOM(currentConfig) {
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
+        memberLeaveSettings: {}, // ✅ [신규] 연차 설정 초기화
         dashboardItems: [],
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
@@ -30,7 +31,6 @@ export function collectConfigFromDOM(currentConfig) {
 
         // ✅ [수정] UI에서 수정하지 않는 중요 설정값 보존
         // currentConfig에서 이 값들을 가져와서 newConfig에 미리 넣어줍니다.
-        // 이 로직이 없으면 저장 시 이 값들이 사라집니다.
         simulationTaskLinks: currentConfig.simulationTaskLinks || {},
         qualityCostTasks: currentConfig.qualityCostTasks || [],
         systemAccounts: currentConfig.systemAccounts || [],
@@ -54,10 +54,20 @@ export function collectConfigFromDOM(currentConfig) {
             const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
             const memberRole = memberItem.querySelector('.member-role').value || 'user';
 
+            // ✅ [신규] 입사일 및 연차 정보 수집
+            const joinDate = memberItem.querySelector('.member-join-date').value;
+            const totalLeave = Number(memberItem.querySelector('.member-total-leave').value) || 0;
+
             if (!memberName) return;
 
             newGroup.members.push(memberName);
             newConfig.memberWages[memberName] = memberWage;
+
+            // ✅ [신규] 연차 설정 저장
+            newConfig.memberLeaveSettings[memberName] = {
+                joinDate: joinDate,
+                totalLeave: totalLeave
+            };
 
             if (memberEmail) {
                 const emailLower = memberEmail.toLowerCase();

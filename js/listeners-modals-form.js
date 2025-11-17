@@ -9,11 +9,11 @@ import {
     generateId,
     debouncedSaveState,
     updateDailyData,
-    saveStateToFirestore // ✅ [수정] saveStateToFirestore 임포트
+    saveStateToFirestore 
 } from './app-data.js';
-// ⛔️ [삭제] app.js 임포트
 
-import { getTodayDateString, getCurrentTime, showToast, calcElapsedMinutes } from './utils.js';
+// ✅ [수정] calculateDateDifference 임포트 추가
+import { getTodayDateString, getCurrentTime, showToast, calcElapsedMinutes, calculateDateDifference } from './utils.js';
 import {
     renderTeamSelectionModalContent
 } from './ui-modals.js';
@@ -26,7 +26,7 @@ import {
     doc, updateDoc, collection, query, where, getDocs, writeBatch, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ (listeners-main.js에서 누락되었던 헬퍼 변수)
+// 헬퍼 변수
 const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
 const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
 
@@ -44,7 +44,6 @@ const deselectMemberBtn = (btn) => {
 
 export function setupFormModalListeners() {
 
-    // (listeners-modals.js -> listeners-modals-form.js)
     if (DOM.confirmQuantityBtn) {
         DOM.confirmQuantityBtn.addEventListener('click', async () => {
             const newQuantities = {};
@@ -71,7 +70,6 @@ export function setupFormModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-form.js)
     if (DOM.cancelQuantityBtn) {
         DOM.cancelQuantityBtn.addEventListener('click', () => {
             if (State.context.quantityModalContext && typeof State.context.quantityModalContext.onCancel === 'function') {
@@ -81,14 +79,12 @@ export function setupFormModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-form.js)
     if (DOM.cancelTeamSelectBtn) {
         DOM.cancelTeamSelectBtn.addEventListener('click', () => {
             if (DOM.teamSelectModal) DOM.teamSelectModal.classList.add('hidden');
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-form.js)
     if (DOM.taskSelectModal) {
         DOM.taskSelectModal.addEventListener('click', (e) => {
             const taskButton = e.target.closest('.task-select-btn');
@@ -111,10 +107,9 @@ export function setupFormModalListeners() {
         });
     }
 
-    // ✅ (listeners-main.js에서 누락되었던 핵심 리스너)
     if (DOM.teamSelectModal) {
         DOM.teamSelectModal.addEventListener('click', async (e) => {
-            const target = e.target; // <--- This is the element that was clicked
+            const target = e.target; 
 
             // 1. 개별 멤버 버튼 클릭
             const memberButton = target.closest('.member-select-btn');
@@ -159,7 +154,7 @@ export function setupFormModalListeners() {
                 }
             }
 
-            // 3. 알바 수정 버튼 클릭 핸들러 (✏️ 아이콘)
+            // 3. 알바 수정 버튼 클릭 핸들러
             const editPartTimerBtn = target.closest('.edit-part-timer-btn');
             if (editPartTimerBtn) {
                 const partTimerId = editPartTimerBtn.dataset.partTimerId;
@@ -174,33 +169,30 @@ export function setupFormModalListeners() {
                 return; 
             }
 
-            // 4. 알바 삭제 버튼 클릭 핸들러 (🗑️ 아이콘)
+            // 4. 알바 삭제 버튼 클릭 핸들러
             const deletePartTimerBtn = target.closest('.delete-part-timer-btn');
             if (deletePartTimerBtn) {
                 const partTimerId = deletePartTimerBtn.dataset.partTimerId;
                 const partTimer = (State.appState.partTimers || []).find(p => p.id === partTimerId);
 
                 if (partTimer) {
-                    // 1. 로컬 상태에서 알바 제거
                     State.appState.partTimers = State.appState.partTimers.filter(p => p.id !== partTimerId);
                     
-                    // 2. 금일 출근 기록이 있다면 함께 제거 (정리)
                     if (State.appState.dailyAttendance && State.appState.dailyAttendance[partTimer.name]) {
                         delete State.appState.dailyAttendance[partTimer.name];
                     }
 
-                    debouncedSaveState(); // ✅ [수정] app-data.js에서 임포트됨
+                    debouncedSaveState();
                     renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
                     showToast(`${partTimer.name}님이 삭제되었습니다.`);
                 }
                 return; 
             }
 
-            // 5. 알바 추가 버튼 핸들러 (+ 추가)
+            // 5. 알바 추가 버튼 핸들러
              if (target.closest('#add-part-timer-modal-btn')) {
                 if (!State.appState.partTimers) State.appState.partTimers = [];
 
-                // 1. 중복되지 않는 '알바N' 이름 찾기
                 const existingNames = new Set(State.appState.partTimers.map(p => p.name));
                 let nextNum = 1;
                 while (existingNames.has(`알바${nextNum}`)) {
@@ -208,14 +200,12 @@ export function setupFormModalListeners() {
                 }
                 const newName = `알바${nextNum}`;
 
-                // 2. 새 알바 객체 생성
                 const newPartTimer = {
-                    id: generateId(), // ✅ [수정] app-data.js에서 임포트됨
+                    id: generateId(),
                     name: newName,
                     wage: State.appConfig.defaultPartTimerWage || 10000
                 };
 
-                // 3. 상태 추가 (알바 정보 + 즉시 출근 처리)
                 if (!State.appState.dailyAttendance) State.appState.dailyAttendance = {};
                 State.appState.dailyAttendance[newName] = {
                     inTime: getCurrentTime(),
@@ -224,9 +214,8 @@ export function setupFormModalListeners() {
                 };
                 State.appState.partTimers.push(newPartTimer);
                 
-                debouncedSaveState(); // ✅ [수정] app-data.js에서 임포트됨
+                debouncedSaveState(); 
 
-                // 4. 모달 컨텐츠 리렌더링
                 renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
                 showToast(`'${newName}'이(가) 추가되고 출근 처리되었습니다.`);
                 return; 
@@ -262,8 +251,6 @@ export function setupFormModalListeners() {
         });
     }
 
-
-    // (listeners-modals.js -> listeners-modals-form.js)
     if (DOM.confirmEditBtn) {
         DOM.confirmEditBtn.addEventListener('click', async () => {
             const recordId = State.context.recordToEditId;
@@ -313,7 +300,6 @@ export function setupFormModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-form.js)
     if (DOM.confirmEditPartTimerBtn) {
         DOM.confirmEditPartTimerBtn.addEventListener('click', async () => {
             const partTimerId = document.getElementById('part-timer-edit-id').value;
@@ -332,14 +318,14 @@ export function setupFormModalListeners() {
 
             if (!partTimerId) {
                 const newPartTimer = {
-                    id: generateId(), // ✅ [수정] app-data.js에서 임포트됨
+                    id: generateId(),
                     name: newName,
                     wage: State.appConfig.defaultPartTimerWage || 10000
                 };
                 if (!State.appState.partTimers) State.appState.partTimers = [];
                 State.appState.partTimers.push(newPartTimer);
                 
-                debouncedSaveState(); // ✅ [수정] app-data.js에서 임포트됨
+                debouncedSaveState();
                 renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
                 showToast(`알바 '${newName}'님이 추가되었습니다.`);
             } else {
@@ -368,7 +354,7 @@ export function setupFormModalListeners() {
                         querySnapshot.forEach(doc => batch.update(doc.ref, { member: newName }));
                         await batch.commit();
                     }
-                    debouncedSaveState(); // ✅ [수정] app-data.js에서 임포트됨
+                    debouncedSaveState(); 
                     showToast(`'${oldName}'님을 '${newName}'(으)로 수정했습니다.`);
                 } catch (e) {
                     console.error("알바 이름 변경 중 DB 오류: ", e);
@@ -381,7 +367,7 @@ export function setupFormModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-form.js)
+    // ✅ [수정] 근태 저장 리스너 (연차 사용일 수 계산 및 안내 메시지 추가)
     if (DOM.confirmLeaveBtn) {
         DOM.confirmLeaveBtn.addEventListener('click', () => {
             const memberName = State.context.memberToSetLeave;
@@ -401,6 +387,10 @@ export function setupFormModalListeners() {
                     showToast('종료 날짜는 시작 날짜보다 빠를 수 없습니다.', true);
                     return;
                 }
+
+                // ✅ [신규] 사용 일수 계산
+                const diffDays = calculateDateDifference(startDate, endDate);
+
                 const newEntry = {
                     id: `leave-${Date.now()}`,
                     member: memberName,
@@ -410,6 +400,13 @@ export function setupFormModalListeners() {
                 };
                 State.persistentLeaveSchedule.onLeaveMembers.push(newEntry);
                 saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+                
+                // ✅ [신규] 연차 차감 안내 메시지
+                if (type === '연차') {
+                     showToast(`${memberName}님 ${diffDays}일 연차 처리 완료. (현황 탭에서 잔여일 확인 가능)`);
+                } else {
+                     showToast(`${memberName}님 ${type} 처리 완료.`);
+                }
             } else {
                 const newDailyEntry = {
                     member: memberName,
@@ -418,15 +415,14 @@ export function setupFormModalListeners() {
                     endTime: null
                 };
                 State.appState.dailyOnLeaveMembers.push(newDailyEntry);
-                debouncedSaveState(); // ✅ [수정] app-data.js에서 임포트됨
+                debouncedSaveState();
+                showToast(`${memberName}님 ${type} 처리 완료.`);
             }
 
-            showToast(`${memberName}님 ${type} 처리 완료.`);
             DOM.leaveTypeModal.classList.add('hidden');
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-form.js)
     if (DOM.confirmManualAddBtn) {
         DOM.confirmManualAddBtn.addEventListener('click', async () => {
             const member = document.getElementById('manual-add-member').value;
@@ -445,7 +441,7 @@ export function setupFormModalListeners() {
             }
 
             try {
-                const recordId = generateId(); // ✅ [수정] app-data.js에서 임포트됨
+                const recordId = generateId();
                 const duration = calcElapsedMinutes(startTime, endTime, pauses);
 
                 const newRecordData = {
@@ -456,7 +452,7 @@ export function setupFormModalListeners() {
                     endTime,
                     duration,
                     status: 'completed',
-                    groupId: `manual-${generateId()}`, // ✅ [수정] app-data.js에서 임포트됨
+                    groupId: `manual-${generateId()}`,
                     pauses: []
                 };
 
@@ -474,7 +470,6 @@ export function setupFormModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-form.js)
     if (DOM.confirmEditStartTimeBtn) {
         DOM.confirmEditStartTimeBtn.addEventListener('click', async () => {
             const contextId = document.getElementById('edit-start-time-context-id').value;
@@ -517,8 +512,7 @@ export function setupFormModalListeners() {
         });
     }
     
-    // ✅ [신규] 메인 화면 근태 수정 모달(edit-leave-record-modal) 리스너 추가
-    
+    // 메인 화면 근태 수정 모달 리스너
     const editLeaveModal = document.getElementById('edit-leave-record-modal');
 
     if (editLeaveModal) {
@@ -536,14 +530,14 @@ export function setupFormModalListeners() {
         if (deleteLeaveBtn) {
             deleteLeaveBtn.addEventListener('click', () => {
                 const memberName = document.getElementById('edit-leave-original-member-name').value;
-                const type = document.getElementById('edit-leave-type').value; // 현재 선택된 타입
+                const type = document.getElementById('edit-leave-type').value; 
                 
                 State.context.deleteMode = 'leave-record';
-                State.context.attendanceRecordToDelete = { // 재활용
+                State.context.attendanceRecordToDelete = { 
                     memberName: memberName,
                     startIdentifier: document.getElementById('edit-leave-original-start-identifier').value,
-                    type: document.getElementById('edit-leave-original-type').value, // 'daily' or 'persistent'
-                    displayType: type // 메시지 표시용
+                    type: document.getElementById('edit-leave-original-type').value,
+                    displayType: type
                 };
 
                 const msgEl = document.getElementById('delete-confirm-message');
@@ -561,7 +555,7 @@ export function setupFormModalListeners() {
                 // 1. 원본 데이터 가져오기
                 const memberName = document.getElementById('edit-leave-original-member-name').value;
                 const originalStart = document.getElementById('edit-leave-original-start-identifier').value;
-                const originalType = document.getElementById('edit-leave-original-type').value; // 'daily' or 'persistent'
+                const originalType = document.getElementById('edit-leave-original-type').value;
 
                 // 2. 새 데이터 가져오기
                 const newType = document.getElementById('edit-leave-type').value;
@@ -571,7 +565,6 @@ export function setupFormModalListeners() {
                 const newEndDate = document.getElementById('edit-leave-end-date').value;
 
                 const isNewTimeBased = (newType === '외출' || newType === '조퇴');
-                const isNewDateBased = (newType === '연차' || newType === '출장' || newType === '결근');
 
                 // 3. 원본 기록 찾아서 제거
                 let dailyChanged = false;
@@ -579,7 +572,6 @@ export function setupFormModalListeners() {
                 let foundAndRemoved = false;
 
                 if (originalType === 'daily') {
-                    // ✅ [수정] (r.startTime || '')을 사용하여 null/undefined와 ""를 동일하게 비교
                     const index = State.appState.dailyOnLeaveMembers.findIndex(
                         r => r.member === memberName && (r.startTime || '') === originalStart
                     );
@@ -589,7 +581,6 @@ export function setupFormModalListeners() {
                         foundAndRemoved = true;
                     }
                 } else { // 'persistent'
-                    // ✅ [수정] (r.startDate || '')을 사용하여 null/undefined와 ""를 동일하게 비교
                     const index = State.persistentLeaveSchedule.onLeaveMembers.findIndex(
                         r => r.member === memberName && (r.startDate || '') === originalStart
                     );
@@ -609,14 +600,13 @@ export function setupFormModalListeners() {
                 if (isNewTimeBased) {
                     if (!newStartTime) {
                         showToast('시간 기반 근태는 시작 시간이 필수입니다.', true);
-                        // (TODO: Rollback)
                         return;
                     }
                     State.appState.dailyOnLeaveMembers.push({
                         member: memberName,
                         type: newType,
                         startTime: newStartTime,
-                        endTime: (newType === '외출') ? newEndTime : null // 조퇴는 endTime null
+                        endTime: (newType === '외출') ? newEndTime : null 
                     });
                     dailyChanged = true;
                 } else { // Date based
@@ -637,21 +627,16 @@ export function setupFormModalListeners() {
                 // 5. 변경사항 Firestore에 저장
                 try {
                     if (dailyChanged) {
-                        // dailyOnLeaveMembers는 appState의 일부로 debouncedSaveState에 의해 저장됨
-                        // ✅ [수정] 즉시 반영을 위해 (flush 대신) 원본 함수 직접 호출
                         await saveStateToFirestore();
                     }
                     if (persistentChanged) {
-                        // persistentLeaveSchedule은 별도로 저장
                         await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
                     }
                     showToast('근태 기록이 수정되었습니다.');
                     editLeaveModal.classList.add('hidden');
-                    // onSnapshot이 변경을 감지하고 자동으로 render()를 호출할 것입니다.
                 } catch (e) {
                     console.error("Error saving updated leave record:", e);
                     showToast('기록 저장 중 오류가 발생했습니다.', true);
-                    // (TODO: Rollback)
                 }
             });
         }
@@ -662,12 +647,11 @@ export function setupFormModalListeners() {
             editLeaveTypeSelect.addEventListener('change', (e) => {
                 const newType = e.target.value;
                 const isTimeBased = (newType === '외출' || newType === '조퇴');
-                const isOuting = (newType === '외출'); // '외출'만 종료 시간 있음
+                const isOuting = (newType === '외출');
                 
                 document.getElementById('edit-leave-time-fields').classList.toggle('hidden', !isTimeBased);
                 document.getElementById('edit-leave-date-fields').classList.toggle('hidden', isTimeBased);
                 
-                // '조퇴'일 때 종료 시간 필드 숨기기
                 const endTimeWrapper = document.getElementById('edit-leave-end-time-wrapper');
                 if (endTimeWrapper) {
                     endTimeWrapper.classList.toggle('hidden', !isOuting);

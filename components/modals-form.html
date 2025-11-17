@@ -87,29 +87,66 @@
 </div>
 
 <div id="leave-type-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
-        <div class="p-6 border-b border-gray-200">
-            <h2 id="leave-modal-title" class="text-xl font-bold text-gray-900">근태 설정</h2>
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden">
+        <div class="p-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-gray-900"><span id="leave-member-name"></span> 근태 관리</h2>
             <button class="modal-close-btn">&times;</button>
         </div>
-        <div class="p-6 space-y-4">
-            <p><span id="leave-member-name" class="font-bold"></span> 님의 근태 유형을 선택하세요.</p>
-            <div id="leave-type-options" class="grid grid-cols-2 gap-3">
+        
+        <div class="flex border-b border-gray-200">
+            <button id="tab-leave-setting" class="flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition">근태 설정</button>
+            <button id="tab-leave-status" class="flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition">연차 현황</button>
+        </div>
+
+        <div class="p-6 min-h-[350px]">
+            <div id="panel-leave-setting">
+                <p class="mb-4 text-gray-600 text-sm">근태 유형을 선택하세요.</p>
+                <div id="leave-type-options" class="grid grid-cols-2 gap-3"></div>
+                <div id="leave-date-inputs" class="hidden space-y-3 mt-5 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div>
+                        <label for="leave-start-date-input" class="block text-xs font-bold text-gray-700 uppercase mb-1">시작일</label>
+                        <input type="date" id="leave-start-date-input" class="w-full bg-white border border-gray-300 rounded p-2 text-sm">
+                    </div>
+                    <div>
+                        <label for="leave-end-date-input" class="block text-xs font-bold text-gray-700 uppercase mb-1">종료일 (선택)</label>
+                        <input type="date" id="leave-end-date-input" class="w-full bg-white border border-gray-300 rounded p-2 text-sm">
+                    </div>
+                    <div id="leave-count-preview" class="text-xs text-blue-600 font-semibold text-right mt-1"></div>
                 </div>
-            <div id="leave-date-inputs" class="hidden space-y-2 mt-4">
-                <div>
-                    <label for="leave-start-date-input" class="block text-sm font-medium text-gray-700">시작일</label>
-                    <input type="date" id="leave-start-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+            </div>
+
+            <div id="panel-leave-status" class="hidden space-y-4">
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
+                    <div class="text-sm text-gray-500 mb-1">잔여 연차</div>
+                    <div class="text-3xl font-bold text-blue-600" id="status-remaining-days">-</div>
                 </div>
-                <div>
-                    <label for="leave-end-date-input" class="block text-sm font-medium text-gray-700">종료일 (선택)</label>
-                    <input type="date" id="leave-end-date-input" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <div class="text-xs text-gray-500">총 연차</div>
+                        <div class="text-lg font-bold text-gray-800" id="status-total-days">-</div>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <div class="text-xs text-gray-500">사용 연차</div>
+                        <div class="text-lg font-bold text-gray-800" id="status-used-days">-</div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <h4 class="text-sm font-bold text-gray-700 mb-2 border-b pb-1">📅 사용 내역 (최근순)</h4>
+                    <ul id="status-history-list" class="text-sm space-y-2 max-h-40 overflow-y-auto pr-1">
+                        </ul>
+                </div>
+                
+                <div class="text-xs text-right text-gray-400 mt-4">
+                    입사일: <span id="status-join-date">-</span>
                 </div>
             </div>
         </div>
-        <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-            <button type="button" id="cancel-leave-btn" class="modal-cancel-btn bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
-            <button type="button" id="confirm-leave-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">설정 완료</button>
+
+        <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+            <button type="button" id="cancel-leave-btn" class="modal-cancel-btn bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition text-sm">닫기</button>
+            <button type="button" id="confirm-leave-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition text-sm shadow-md">설정 저장</button>
         </div>
     </div>
 </div>

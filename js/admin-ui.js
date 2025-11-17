@@ -47,7 +47,15 @@ export function renderAdminUI(config) {
         workHoursInput.value = config.standardMonthlyWorkHours || 209;
     }
 
-    renderTeamGroups(config.teamGroups || [], config.memberWages || {}, config.memberEmails || {}, config.memberRoles || {});
+    // ✅ [수정] renderTeamGroups에 memberLeaveSettings 전달
+    renderTeamGroups(
+        config.teamGroups || [], 
+        config.memberWages || {}, 
+        config.memberEmails || {}, 
+        config.memberRoles || {}, 
+        config.memberLeaveSettings || {} // 연차 설정 추가
+    );
+    
     renderDashboardItemsConfig(config.dashboardItems || [], config);
     renderKeyTasks(config.keyTasks || []);
     renderTaskGroups(config.taskGroups || []);
@@ -55,7 +63,8 @@ export function renderAdminUI(config) {
     renderQuantityToDashboardMapping(config);
 }
 
-export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles) {
+// ✅ [수정] 연차 관리 필드(입사일, 총연차) 추가된 함수
+export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}) {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
     container.innerHTML = '';
@@ -70,24 +79,48 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
             // 이메일 키는 소문자로 통일하여 역할 확인
             const currentRole = (memberEmail && memberRoles[memberEmail.toLowerCase()]) ? memberRoles[memberEmail.toLowerCase()] : 'user';
 
+            // ✅ [신규] 연차 설정 데이터 가져오기
+            const settings = memberLeaveSettings[member] || {};
+            const joinDate = settings.joinDate || '';
+            const totalLeave = settings.totalLeave !== undefined ? settings.totalLeave : 15; // 기본값 15
+
             return `
-            <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item">
-                <span class="drag-handle" draggable="true">☰</span>
-                <input type="text" value="${member}" class="member-name w-32" placeholder="팀원 이름">
+            <div class="flex flex-wrap items-center gap-2 mb-2 p-2 rounded hover:bg-gray-100 member-item border-b border-gray-200 pb-2">
+                <span class="drag-handle text-gray-400 mr-2 cursor-move" draggable="true">☰</span>
                 
-                <label class="text-sm whitespace-nowrap ml-2">로그인 이메일:</label>
-                <input type="email" value="${memberEmail}" class="member-email w-48" placeholder="example@email.com">
+                <div class="flex flex-col">
+                    <label class="text-[10px] text-gray-500">이름</label>
+                    <input type="text" value="${member}" class="member-name w-24 p-1 border border-gray-300 rounded text-sm" placeholder="이름">
+                </div>
                 
-                <label class="text-sm whitespace-nowrap ml-2">시급:</label>
-                <input type="number" value="${memberWages[member] || 0}" class="member-wage w-20" placeholder="시급">
+                <div class="flex flex-col">
+                    <label class="text-[10px] text-gray-500">이메일</label>
+                    <input type="email" value="${memberEmail}" class="member-email w-40 p-1 border border-gray-300 rounded text-sm" placeholder="email">
+                </div>
+
+                <div class="flex flex-col">
+                    <label class="text-[10px] text-blue-600 font-bold">입사일자</label>
+                    <input type="date" value="${joinDate}" class="member-join-date w-32 p-1 border border-blue-300 rounded text-sm bg-blue-50">
+                </div>
+                <div class="flex flex-col">
+                    <label class="text-[10px] text-blue-600 font-bold">총연차</label>
+                    <input type="number" value="${totalLeave}" class="member-total-leave w-16 p-1 border border-blue-300 rounded text-center text-sm bg-blue-50" min="0">
+                </div>
                 
-                <label class="text-sm whitespace-nowrap ml-2">역할:</label>
-                <select class="member-role w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
-                    <option value="user" ${currentRole === 'user' ? 'selected' : ''}>일반사용자</option>
-                    <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>관리자</option>
-                </select>
+                <div class="flex flex-col">
+                    <label class="text-[10px] text-gray-500">시급</label>
+                    <input type="number" value="${memberWages[member] || 0}" class="member-wage w-20 p-1 border border-gray-300 rounded text-sm" placeholder="시급">
+                </div>
                 
-                <button class="btn btn-danger btn-small delete-member-btn ml-auto" data-m-index="${mIndex}">삭제</button>
+                <div class="flex flex-col">
+                     <label class="text-[10px] text-gray-500">권한</label>
+                    <select class="member-role w-20 p-1 border border-gray-300 rounded text-sm">
+                        <option value="user" ${currentRole === 'user' ? 'selected' : ''}>일반</option>
+                        <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>관리자</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-danger btn-small delete-member-btn ml-auto h-8 mt-4" data-m-index="${mIndex}">삭제</button>
             </div>
             `;
         }).join('');
@@ -95,12 +128,12 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
         groupEl.innerHTML = `
             <div class="flex justify-between items-center mb-4">
                 <div class="flex items-center">
-                    <span class="drag-handle" draggable="true">☰</span> 
-                    <input type="text" value="${group.name}" class="text-lg font-semibold team-group-name w-auto">
+                    <span class="drag-handle mr-2 cursor-move" draggable="true">☰</span> 
+                    <input type="text" value="${group.name}" class="text-lg font-semibold team-group-name w-auto p-1 border-b border-transparent hover:border-gray-300 bg-transparent">
                 </div>
                 <button class="btn btn-danger btn-small delete-team-group-btn">그룹 삭제</button>
             </div>
-            <div class="pl-4 border-l-2 border-gray-200 space-y-2 members-container">${membersHtml}</div>
+            <div class="pl-2 space-y-2 members-container">${membersHtml}</div>
             <button class="btn btn-secondary btn-small mt-3 add-member-btn">+ 팀원 추가</button>
         `;
         container.appendChild(groupEl);
@@ -162,7 +195,7 @@ export function renderTaskGroups(taskGroups) {
         const tasksHtml = (group.tasks || []).map((task, tIndex) => `
             <div class="flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item">
                 <span class="drag-handle" draggable="true">☰</span>
-                <input type="text" value="${task}" class="task-name flex-grow">
+                <input type="text" value="${task}" class="task-name flex-grow p-2 border border-gray-300 rounded">
                 <button class="btn btn-danger btn-small delete-task-btn" data-t-index="${tIndex}">삭제</button>
             </div>
         `).join('');
@@ -170,8 +203,8 @@ export function renderTaskGroups(taskGroups) {
         groupEl.innerHTML = `
              <div class="flex justify-between items-center mb-4">
                 <div class="flex items-center"> 
-                   <span class="drag-handle" draggable="true">☰</span>
-                   <input type="text" value="${group.name}" class="text-lg font-semibold task-group-name w-auto">
+                   <span class="drag-handle mr-2 cursor-move" draggable="true">☰</span>
+                   <input type="text" value="${group.name}" class="text-lg font-semibold task-group-name w-auto p-1 border-b border-transparent hover:border-gray-300 bg-transparent">
                  </div>
                 <button class="btn btn-danger btn-small delete-task-group-btn">그룹 삭제</button>
             </div>
