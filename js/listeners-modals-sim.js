@@ -59,13 +59,12 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0) => {
     }
 };
 
-// ✅ [수정] makeDraggable 함수 (width/height 고정 로직 *제거* - 요청 2)
+// ✅ [수정] makeDraggable 함수 (width/height 고정 로직 복원)
 function makeDraggable(modalOverlay, header, contentBox) {
     let isDragging = false;
     let offsetX, offsetY;
 
     header.addEventListener('mousedown', (e) => {
-        // 최대화 상태가 없으므로 isHistoryMaximized 체크 제거
         if (e.target.closest('button')) { 
             return;
         }
@@ -78,15 +77,14 @@ function makeDraggable(modalOverlay, header, contentBox) {
             contentBox.style.top = `${rect.top}px`;
             contentBox.style.left = `${rect.left}px`;
             
-            // ✅ [수정] 너비/높이 고정 로직 제거 (자동 리사이징 허용)
-            contentBox.style.width = `${rect.width}px`; // 너비는 유지
-            // contentBox.style.height = `${rect.height}px`; // ✅ 높이 고정 제거
+            // ✅ [수정] 너비만 유지하고 높이는 자동 조절되도록 설정
+            contentBox.style.width = `${rect.width}px`;
+            // contentBox.style.height = `${rect.height}px`; // 높이 고정 제거
 
             contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';
         }
 
-        // mousedown 시점의 좌표를 다시 계산
         const rect = contentBox.getBoundingClientRect();
         offsetX = e.clientX - rect.left;
         offsetY = e.clientY - rect.top;
@@ -119,7 +117,6 @@ function makeDraggable(modalOverlay, header, contentBox) {
 const renderSimulationResults = (data) => {
     const contentBox = document.getElementById('sim-modal-content-box');
     
-    // ✅ [신규] 결과 표시 DOM (HTML에서 ID 변경됨)
     const simResultThead = document.getElementById('sim-result-thead');
     const simResultTbody = document.getElementById('sim-result-tbody');
     const simSummaryLabel1 = document.getElementById('sim-summary-label-1');
@@ -131,15 +128,12 @@ const renderSimulationResults = (data) => {
 
 
     if (!data) {
-        // 결과가 없으면(null) 결과창 숨기기
         if (DOM.simResultContainer) DOM.simResultContainer.classList.add('hidden');
         if (DOM.simBottleneckContainer) DOM.simBottleneckContainer.classList.add('hidden');
-        // ✅ [신규] 요청 2: 자동 크기 조절 (높이 복원)
-        if (contentBox) contentBox.style.height = null; // 인라인 스타일 제거
+        if (contentBox) contentBox.style.height = null;
         return;
     }
     
-    // ✅ [신규] 요청 2: 자동 크기 조절 (높이 제한 해제)
     if (contentBox) contentBox.style.height = 'auto';
 
     const { mode } = data;
@@ -163,7 +157,6 @@ const renderSimulationResults = (data) => {
     } else if (mode === 'fixed-workers') {
         const { results, totalDuration, finalEndTimeStr, totalCost } = data;
         
-        // --- 요약 카드 ---
         if (simSummaryLabel1) simSummaryLabel1.textContent = '총 예상 소요 시간';
         if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration);
         if (simSummaryLabel2) simSummaryLabel2.textContent = '예상 종료 시각';
@@ -171,7 +164,6 @@ const renderSimulationResults = (data) => {
         if (simSummaryLabel3) simSummaryLabel3.textContent = '예상 총 인건비';
         if (simSummaryValue3) simSummaryValue3.textContent = `${Math.round(totalCost).toLocaleString()}원`;
 
-        // --- 결과 테이블 헤더 ---
         if (simResultThead) {
             simResultThead.innerHTML = `
                 <tr>
@@ -184,7 +176,6 @@ const renderSimulationResults = (data) => {
             `;
         }
 
-        // --- 결과 테이블 바디 ---
         if (simResultTbody) {
             simResultTbody.innerHTML = results.map(res => {
                 let relatedTaskHtml = '';
@@ -217,11 +208,9 @@ const renderSimulationResults = (data) => {
         if (DOM.simBottleneckContainer) DOM.simBottleneckContainer.classList.add('hidden');
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
     
-    // ✅ [신규] '필요 인원 예측' (target-time) 모드 결과 렌더링
     } else if (mode === 'target-time') {
         const { results, totalDuration, totalWorkers, totalCost, startTime, endTime } = data;
 
-        // --- 요약 카드 ---
         if (simSummaryLabel1) simSummaryLabel1.textContent = '총 가용 시간';
         if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration);
         if (simSummaryLabel2) simSummaryLabel2.textContent = '총 필요 인원 (연인원)';
@@ -229,7 +218,6 @@ const renderSimulationResults = (data) => {
         if (simSummaryLabel3) simSummaryLabel3.textContent = '예상 총 인건비';
         if (simSummaryValue3) simSummaryValue3.textContent = `${Math.round(totalCost).toLocaleString()}원`;
 
-        // --- 결과 테이블 헤더 ---
         if (simResultThead) {
             simResultThead.innerHTML = `
                 <tr>
@@ -242,7 +230,6 @@ const renderSimulationResults = (data) => {
             `;
         }
 
-        // --- 결과 테이블 바디 ---
         if (simResultTbody) {
             simResultTbody.innerHTML = results.map(res => {
                 let relatedTaskHtml = '';
@@ -282,54 +269,58 @@ const renderSimulationResults = (data) => {
 
 export function setupSimulationModalListeners() {
     
-    // ... (simAddTaskRowBtn, simTaskTableBody 등 변수 선언은 동일) ...
     const simAddTaskRowBtn = document.getElementById('sim-add-task-row-btn');
     const simTaskTableBody = document.getElementById('sim-task-table-body');
     const simTableHeaderWorker = document.getElementById('sim-table-header-worker');
     const simStartTimeInput = document.getElementById('sim-start-time-input');
-    // ✅ [신규] 종료 시각 DOM
     const simEndTimeInput = document.getElementById('sim-end-time-input');
     const simEndTimeWrapper = document.getElementById('sim-end-time-wrapper');
 
-    // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (오늘의 주요 업무 자동 추가)
+    // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (목록 자동 채우기 개선)
     const openSimulationModalLogic = () => {
         
-        // ✅ [수정] '주요 업무' + '평균 인원' 자동 추가
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
         if (simTaskTableBody) {
             simTaskTableBody.innerHTML = ''; // 테이블 비우기
 
-            // ✅ [신규] 1. 평균 인원 계산
+            // 1. 평균 인원 계산 (이력 데이터 기반)
             const avgStaffMap = calculateAverageStaffing(allHistoryData);
             
-            // ✅ [신규] 2. 목록 가져오기
-            const keyTasks = appConfig.keyTasks || [];
+            // 2. 오늘 처리량이 입력된 업무 데이터 가져오기
             const quantityTaskSet = new Set(appConfig.quantityTaskTypes || []);
             const quantities = appState.taskQuantities || {};
+
+            // 3. 표시할 업무 목록 구성 (주요 업무 + 처리량 > 0 인 모든 업무)
+            // Set을 사용하여 중복 제거
+            const tasksToShow = new Set(appConfig.keyTasks || []); // 주요 업무 먼저 추가
+            Object.keys(quantities).forEach(t => {
+                if (Number(quantities[t]) > 0) {
+                    tasksToShow.add(t); // 처리량이 있는 업무 추가
+                }
+            });
+
             let tasksWereAdded = false;
 
-            // ✅ [신규] 3. '주요 업무' 목록 기준으로 순회
-            keyTasks.forEach(taskName => {
-                // ✅ [신규] 4. 드롭다운에 존재하는지(처리량 집계 업무인지) 확인
+            // 4. 정렬된 목록을 순회하며 테이블 행 추가
+            Array.from(tasksToShow).sort().forEach(taskName => {
+                // 드롭다운에 존재하는지(유효한 처리량 집계 업무인지) 확인
                 if (quantityTaskSet.has(taskName)) {
-                    // ✅ [신규] 5. 데이터 가져오기 (없으면 0 또는 빈 문자열)
                     const qty = Number(quantities[taskName]) || 0;
                     const avgStaff = avgStaffMap[taskName] || 0;
                     
-                    // ✅ [신규] 6. 행 렌더링 (qty, avgStaff 값 전달)
+                    // 행 렌더링 (자동 입력: 수량, 투입인원)
                     renderSimulationTaskRow(simTaskTableBody, taskName, qty, avgStaff);
                     tasksWereAdded = true;
                 }
             });
 
-            // ✅ [신규] 7. 추가된 주요 업무가 없으면, 빈 행 1개 추가
+            // 5. 추가된 업무가 없으면 빈 행 1개 추가
             if (!tasksWereAdded) {
                 renderSimulationTaskRow(simTaskTableBody);
             }
         }
         
         // 1. 저장된 결과가 있는지 먼저 확인
-        // ✅ [수정] State.appState -> appState
         if (appState.simulationResults) {
             // 결과가 있으면: 결과 렌더링
             renderSimulationResults(appState.simulationResults);
@@ -337,7 +328,7 @@ export function setupSimulationModalListeners() {
             // 저장된 모드/시작시간/종료시간 복원
             const savedMode = appState.simulationResults.mode;
             const savedStartTime = appState.simulationResults.startTime;
-            const savedEndTime = appState.simulationResults.endTime; // ✅ 신규
+            const savedEndTime = appState.simulationResults.endTime; 
             
             if (savedMode) {
                  const radio = document.querySelector(`input[name="sim-mode"][value="${savedMode}"]`);
@@ -346,7 +337,6 @@ export function setupSimulationModalListeners() {
             if (savedStartTime && simStartTimeInput) {
                 simStartTimeInput.value = savedStartTime;
             }
-            // ✅ [신규] 종료 시간 복원
             if (savedEndTime && simEndTimeInput) {
                 simEndTimeInput.value = savedEndTime;
             }
@@ -357,7 +347,7 @@ export function setupSimulationModalListeners() {
                 DOM.simInputArea.classList.add('hidden');
                 if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
                 DOM.simCalculateBtn.textContent = '병목 구간 분석하기';
-            } else if (mode === 'target-time') { // ✅ [신규]
+            } else if (mode === 'target-time') {
                 DOM.simInputArea.classList.remove('hidden');
                 if(simEndTimeWrapper) simEndTimeWrapper.classList.remove('hidden');
                 DOM.simCalculateBtn.textContent = '필요 인원 예측하기 👥';
@@ -375,10 +365,10 @@ export function setupSimulationModalListeners() {
             }
 
         } else {
-            // 결과가 없으면: 입력창 초기화 (자동 채우기 로직은 이미 위에서 실행됨)
-            renderSimulationResults(null); // 결과창 숨기기
-            if (simStartTimeInput) simStartTimeInput.value = "08:30"; // 기본 시작 시간
-            if (simEndTimeInput) simEndTimeInput.value = "17:00"; // ✅ 기본 종료 시간
+            // 결과가 없으면: 입력창 초기화
+            renderSimulationResults(null); 
+            if (simStartTimeInput) simStartTimeInput.value = "08:30"; 
+            if (simEndTimeInput) simEndTimeInput.value = "17:00"; 
 
             // 모드 초기화 (기본: 소요 시간 예측)
             if (DOM.simModeRadios && DOM.simModeRadios.length > 0) {
@@ -386,18 +376,13 @@ export function setupSimulationModalListeners() {
                 
                 // 수동으로 UI 초기화
                 DOM.simInputArea.classList.remove('hidden');
-                if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden'); // ✅ 종료 시간 숨김
+                if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
                 DOM.simCalculateBtn.textContent = '시뮬레이션 실행 🚀';
                 if (simTableHeaderWorker) {
-                    simTableHeaderWorker.classList.remove('hidden'); // ✅ 인원 열 표시
+                    simTableHeaderWorker.classList.remove('hidden');
                     simTableHeaderWorker.textContent = '투입 인원 (명)';
                 }
-                document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.remove('hidden')); // ✅ 인원 열 표시
-                
-                // ✅ [수정] placeholder는 남겨두되, value가 이미 설정되었으므로 이 로직은 불필요 (주석 처리)
-                // document.querySelectorAll('.sim-row-worker-or-time').forEach(input => {
-                //     input.placeholder = '5';
-                // });
+                document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.remove('hidden'));
             }
         }
 
@@ -434,16 +419,12 @@ export function setupSimulationModalListeners() {
                 if (e.target.checked) {
                     const mode = e.target.value;
                     
-                    // ✅ [수정] 이 두 줄을 제거하여 결과값이 유지되도록 함
-                    // appState.simulationResults = null; 
-                    // renderSimulationResults(null);
-                    
                     if (mode === 'bottleneck') {
                         DOM.simInputArea.classList.add('hidden');
                         if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
                         DOM.simCalculateBtn.textContent = '병목 구간 분석하기';
                     
-                    } else if (mode === 'target-time') { // ✅ [신규]
+                    } else if (mode === 'target-time') {
                         DOM.simInputArea.classList.remove('hidden');
                         if(simEndTimeWrapper) simEndTimeWrapper.classList.remove('hidden');
                         DOM.simCalculateBtn.textContent = '필요 인원 예측하기 👥';
@@ -461,10 +442,6 @@ export function setupSimulationModalListeners() {
                             simTableHeaderWorker.textContent = '투입 인원 (명)';
                         }
                         document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.remove('hidden'));
-                        // ✅ [수정] placeholder 변경 로직 제거 (value가 우선함)
-                        // document.querySelectorAll('.sim-row-worker-or-time').forEach(input => {
-                        //     input.placeholder = '5';
-                        // });
                     }
                 }
             });
@@ -491,13 +468,11 @@ export function setupSimulationModalListeners() {
         DOM.simCalculateBtn.addEventListener('click', () => {
             const mode = document.querySelector('input[name="sim-mode"]:checked').value;
             const currentStartTimeStr = simStartTimeInput ? simStartTimeInput.value : "09:00";
-            // ✅ [신규] 종료 시각 읽기
             const currentEndTimeStr = simEndTimeInput ? simEndTimeInput.value : "17:00";
             const includeLinkedTasks = document.getElementById('sim-include-linked-tasks-checkbox')?.checked || false;
 
             // --- 모드 3: 병목 분석 ---
             if (mode === 'bottleneck') {
-                // ✅ [수정] State.allHistoryData -> allHistoryData
                 const bottlenecks = analyzeBottlenecks(allHistoryData);
                 if (!bottlenecks || bottlenecks.length === 0) {
                     showToast('분석할 데이터가 충분하지 않습니다.', true);
@@ -505,7 +480,6 @@ export function setupSimulationModalListeners() {
                 }
                 
                 const simulationData = { mode, bottlenecks, startTime: currentStartTimeStr };
-                // ✅ [수정] State.appState -> appState
                 appState.simulationResults = simulationData;
                 renderSimulationResults(simulationData);
                 return;
@@ -516,7 +490,7 @@ export function setupSimulationModalListeners() {
             let totalDuration = 0;
             let totalCost = 0;
 
-            // --- ✅ [신규] 모드 2: 필요 인원 예측 (target-time) ---
+            // --- 모드 2: 필요 인원 예측 (target-time) ---
             if (mode === 'target-time') {
                 if (!currentEndTimeStr) {
                     showToast('필요 인원 예측 모드는 종료 시각이 필수입니다.', true);
@@ -568,7 +542,6 @@ export function setupSimulationModalListeners() {
                             totalCost += res.totalCost;
                         } else {
                             showToast(`'${task}' 업무 시뮬레이션 오류: ${res.error}`, true);
-                            // ✅ [수정] State.appState -> appState
                             appState.simulationResults = null;
                             renderSimulationResults(null);
                             return;
@@ -591,10 +564,9 @@ export function setupSimulationModalListeners() {
                     endTime: currentEndTimeStr
                 };
                 
-                // ✅ [수정] State.appState -> appState
                 appState.simulationResults = simulationData;
                 renderSimulationResults(simulationData);
-                return; // 'fixed-workers' 로직을 실행하지 않고 종료
+                return;
             }
 
             // --- 모드 1: 소요 시간 예측 (fixed-workers) ---
@@ -620,7 +592,6 @@ export function setupSimulationModalListeners() {
                         totalCost += res.totalCost;
                     } else {
                         showToast(`'${task}' 업무 시뮬레이션 오류: ${res.error}`, true);
-                        // ✅ [수정] State.appState -> appState
                         appState.simulationResults = null;
                         renderSimulationResults(null);
                         return;
@@ -642,7 +613,6 @@ export function setupSimulationModalListeners() {
                 startTime: currentStartTimeStr
             };
             
-            // ✅ [수정] State.appState -> appState
             appState.simulationResults = simulationData;
             renderSimulationResults(simulationData);
         });
