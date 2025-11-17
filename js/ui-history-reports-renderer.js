@@ -50,9 +50,6 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
     `;
 };
 
-/**
- * [내부 헬퍼] 도움말 툴팁 HTML 생성
- */
 const _renderTooltip = (metricKey) => {
     const info = PRODUCTIVITY_METRIC_DESCRIPTIONS[metricKey];
     if (!info) return '';
@@ -68,9 +65,7 @@ const _renderTooltip = (metricKey) => {
     </span>`;
 };
 
-// ✅ [수정] benchmarkOEE 인자 추가 및 렌더링 로직 개선
 const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, benchmarkOEE) => {
-    // ✨ [수정] ['기록'].includes(periodText) 제한 제거 -> 일별 리포트에서도 표시됨
     if (!tMetrics.staffing) return '';
 
     const {
@@ -87,7 +82,6 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
     if (!analysisResult) return '';
     const { diagnosis, commentHtml } = analysisResult;
 
-    // ✨ 벤치마크 비교 HTML
     let benchmarkHtml = '';
     if (benchmarkOEE) {
         const diff = oee - benchmarkOEE;
@@ -424,9 +418,11 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
     return html;
 };
 
-const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMap, attendanceData) => {
+// ✅ [수정] standardThroughputs 인자 추가 및 테이블 컬럼 추가
+const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMap, attendanceData, standardThroughputs = {}) => {
     let html = '';
 
+    // 1. 파트별 요약
     const partSort = sortState.partSummary || { key: 'partName', dir: 'asc' };
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">파트별 요약</h3><div class="overflow-x-auto max-h-[60vh]"><table class="w-full text-sm text-left text-gray-600" id="report-table-part"><thead>${createTableRow([
         { content: '파트', sortKey: 'partName' }, { content: '총 업무시간', sortKey: 'duration' }, { content: '총 인건비', sortKey: 'cost' }, { content: '참여 인원 (명)', sortKey: 'members' }
@@ -445,6 +441,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     });
     html += `</tbody></table></div></div>`;
 
+    // 2. 인원별 상세
     const memberSort = sortState.memberSummary || { key: 'memberName', dir: 'asc' };
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">인원별 상세</h3><div class="overflow-x-auto max-h-[60vh]"><table class="w-full text-sm text-left text-gray-600" id="report-table-member"><thead>${createTableRow([
         { content: '이름', sortKey: 'memberName' }, { content: '파트', sortKey: 'part' }, { content: '총 업무시간', sortKey: 'duration' }, { content: '총 인건비', sortKey: 'cost' }, { content: '수행 업무 수', sortKey: 'taskCount' }, { content: '수행 업무', sortKey: null }
@@ -463,9 +460,19 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     });
     html += `</tbody></table></div></div>`;
 
+    // 3. ✅ 업무별 상세 (컬럼 추가됨)
     const taskSort = sortState.taskSummary || { key: 'taskName', dir: 'asc' };
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 이전 ${periodText} 대비)</h3><div class="overflow-x-auto max-h-[70vh]"><table class="w-full text-sm text-left text-gray-600" id="report-table-task"><thead>${createTableRow([
-        { content: '업무', sortKey: 'taskName' }, { content: '총 시간', sortKey: 'duration' }, { content: '총 인건비', sortKey: 'cost' }, { content: '총 처리량', sortKey: 'quantity' }, { content: '분당 처리량(Avg)', sortKey: 'avgThroughput' }, { content: '개당 처리비용(Avg)', sortKey: 'avgCostPerItem' }, { content: '총 참여인원', sortKey: 'avgStaff' }, { content: '평균 처리시간(건)', sortKey: 'avgTime' }, { content: '인당 분당 처리량(효율)', sortKey: 'efficiency', title: '계산: (분당 처리량) / (총 참여인원)' }
+        { content: '업무', sortKey: 'taskName' }, 
+        { content: '총 시간', sortKey: 'duration' }, 
+        { content: '총 인건비', sortKey: 'cost' }, 
+        { content: '총 처리량', sortKey: 'quantity' }, 
+        { content: '분당 처리량(Avg)', sortKey: 'avgThroughput' },
+        { content: '표준 속도 (Top3)', title: '과거 이력 중 가장 빨랐던 상위 3일의 평균 속도입니다.', class: 'text-indigo-600' }, // ✨ 신규 컬럼
+        { content: '개당 처리비용(Avg)', sortKey: 'avgCostPerItem' }, 
+        { content: '총 참여인원', sortKey: 'avgStaff' }, 
+        { content: '평균 처리시간(건)', sortKey: 'avgTime' }, 
+        { content: '인당 분당 처리량(효율)', sortKey: 'efficiency', title: '계산: (분당 처리량) / (총 참여인원)' }
     ], true, taskSort)}</thead><tbody>`;
 
     const allTasks = Array.from(new Set([...Object.keys(tAggr.taskSummary), ...Object.keys(pAggr.taskSummary)]));
@@ -478,10 +485,27 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     }).forEach(task => {
         const d = tAggr.taskSummary[task], p = pAggr.taskSummary[task] || {};
         if (!d || (d.duration === 0 && d.quantity === 0)) return;
-        html += createTableRow([{ content: task, class: "font-medium text-gray-900" }, { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p.duration) }, { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, p.cost) }, { content: d.quantity.toLocaleString(), diff: getDiffHtmlForMetric('quantity', d.quantity, p.quantity) }, { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, p.avgThroughput) }, { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, p.avgCostPerItem) }, { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, p.avgStaff) }, { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, p.avgTime) }, { content: d.efficiency.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.efficiency, p.efficiency), class: "font-bold" }]);
+        
+        // ✨ 표준 속도 가져오기
+        const stdSpeed = standardThroughputs[task] || 0;
+        const stdSpeedDisplay = stdSpeed > 0 ? stdSpeed.toFixed(2) : '-';
+
+        html += createTableRow([
+            { content: task, class: "font-medium text-gray-900" }, 
+            { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p.duration) }, 
+            { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, p.cost) }, 
+            { content: d.quantity.toLocaleString(), diff: getDiffHtmlForMetric('quantity', d.quantity, p.quantity) }, 
+            { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, p.avgThroughput) }, 
+            { content: stdSpeedDisplay, class: "text-indigo-600 font-mono bg-indigo-50" }, // ✨ 신규 데이터 셀
+            { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, p.avgCostPerItem) }, 
+            { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, p.avgStaff) }, 
+            { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, p.avgTime) }, 
+            { content: d.efficiency.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.efficiency, p.efficiency), class: "font-bold" }
+        ]);
     });
     html += `</tbody></table></div></div>`;
 
+    // 4. 근태 현황
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3><div class="space-y-3 max-h-[60vh] overflow-y-auto">`;
     const attSummary = (attendanceData || []).reduce((acc, e) => {
         if (!acc[e.member]) acc[e.member] = { member: e.member, counts: {} };
@@ -501,8 +525,8 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     return html;
 };
 
-// ✅ [수정] benchmarkOEE 인자 추가
-export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, appConfig, sortState, periodText, prevRevenue = 0, benchmarkOEE = null) => {
+// ✅ [수정] benchmarkOEE, standardThroughputs 인자 추가
+export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, appConfig, sortState, periodText, prevRevenue = 0, benchmarkOEE = null, standardThroughputs = {}) => {
     const view = document.getElementById(targetId);
     if (!view) return;
 
@@ -513,7 +537,8 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
     html += _generateProductivityAnalysisHTML(tMetrics, pMetrics, periodText, benchmarkOEE);
     html += _generateRevenueAnalysisHTML(periodText, tMetrics.revenueAnalysis, tMetrics.revenueTrend, currentRevenue, prevRevenue);
     html += _generateInsightsHTML(tMetrics.aggr, pMetrics.aggr, appConfig, periodText);
-    html += _generateTablesHTML(tMetrics.aggr, pMetrics.aggr, periodText, sortState, tData.memberToPartMap, tData.raw.onLeaveMembers);
+    // ✅ 전달
+    html += _generateTablesHTML(tMetrics.aggr, pMetrics.aggr, periodText, sortState, tData.memberToPartMap, tData.raw.onLeaveMembers, standardThroughputs);
     html += `</div>`;
 
     view.innerHTML = html;

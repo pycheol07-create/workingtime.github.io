@@ -9,7 +9,6 @@ import {
     analyzeRevenueBasedStaffing,
     analyzeRevenueWorkloadTrend,
     calculateAdvancedProductivity,
-    // ✨ [신규 import] 벤치마크 계산 함수
     calculateBenchmarkOEE
 } from './ui-history-reports-logic.js';
 
@@ -76,11 +75,12 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     const prevKPIs = calculateReportKPIs(previousDayData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(previousDayData, appConfig, wageMap, memberToPartMap);
 
+    // ✅ [수정] 표준값 계산
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
+
     const todayStaffing = calculateAdvancedProductivity([data], todayAggr, standardThroughputs, appConfig, wageMap);
     const prevStaffing = calculateAdvancedProductivity([previousDayData].filter(Boolean), prevAggr, standardThroughputs, appConfig, wageMap);
 
-    // ✨ 벤치마크 OEE 계산
     const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
 
     const sortState = context.reportSortState || {};
@@ -95,7 +95,8 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         sortState,
         '기록',
         0,
-        benchmarkOEE // ✨ 전달
+        benchmarkOEE,
+        standardThroughputs // ✅ [수정] 표준값 전달
     );
 };
 
@@ -126,12 +127,12 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentWeekDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevWeekDays, appConfig, wageMap);
 
+    // ✅ [수정] 표준값 계산
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
     const todayStaffing = calculateAdvancedProductivity(currentWeekDays, todayAggr, standardThroughputs, appConfig, wageMap);
     const prevStaffing = calculateAdvancedProductivity(prevWeekDays, prevAggr, standardThroughputs, appConfig, wageMap);
     
-    // ✨ 벤치마크 OEE 계산
     const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
 
     const sortState = context.reportSortState || {};
@@ -146,7 +147,8 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         sortState,
         '주',
         0,
-        benchmarkOEE // ✨ 전달
+        benchmarkOEE,
+        standardThroughputs // ✅ [수정] 표준값 전달
     );
 };
 
@@ -177,6 +179,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentMonthDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevMonthDays, appConfig, wageMap);
 
+    // ✅ [수정] 표준값 계산
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
     const todayStaffing = calculateAdvancedProductivity(currentMonthDays, todayAggr, standardThroughputs, appConfig, wageMap);
@@ -201,7 +204,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         prevStaffing.totalStandardMinutesNeeded
     );
     
-    // ✨ 벤치마크 OEE 계산
     const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
 
     const sortState = context.reportSortState || {};
@@ -216,7 +218,8 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         sortState,
         '월',
         prevRevenue,
-        benchmarkOEE // ✨ 전달
+        benchmarkOEE,
+        standardThroughputs // ✅ [수정] 표준값 전달
     );
 };
 
@@ -247,6 +250,7 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentYearDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevYearDays, appConfig, wageMap);
 
+    // ✅ [수정] 표준값 계산
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
     const todayStaffing = calculateAdvancedProductivity(currentYearDays, todayAggr, standardThroughputs, appConfig, wageMap);
@@ -262,7 +266,9 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
         appConfig,
         sortState,
-        '연도'
-        // 연간은 벤치마크 생략 (의미 적음)
+        '연도',
+        0,
+        null,
+        standardThroughputs // ✅ [수정] 표준값 전달
     );
 };
