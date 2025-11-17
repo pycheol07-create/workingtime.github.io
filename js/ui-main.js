@@ -3,7 +3,7 @@
 import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday, calculateDateDifference } from './utils.js';
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 
-// State 모듈 전체 임포트
+// State 전체 임포트
 import * as State from './state.js';
 
 /**
@@ -14,7 +14,7 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     if (leaveEntry.type !== '연차') return leaveEntry.type;
 
     // 1. 해당 멤버의 모든 연차 기록을 가져와 날짜순 정렬
-    // State.persistentLeaveSchedule를 직접 참조하여 최신 데이터 보장
+    // persistentLeaveSchedule 데이터를 직접 참조하여 최신 상태 보장
     const allLeaves = (State.persistentLeaveSchedule.onLeaveMembers || [])
         .filter(l => l.member === member && l.type === '연차')
         .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
@@ -383,7 +383,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 
 /**
  * ✅ [위치 이동] 개인 출퇴근 토글 스위치 상태 렌더링 함수
- * (renderRealtimeStatus보다 먼저 정의하여 ReferenceError 방지)
+ * (renderRealtimeStatus에서 호출하므로 먼저 정의되어야 함)
  */
 export const renderAttendanceToggle = (appState) => {
     const currentUser = appState.currentUser;
@@ -494,10 +494,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const pausedMembers = new Set(ongoingRecords.filter(r => r.status === 'paused').map(r => r.member));
     const workingMembersMap = new Map(ongoingRecords.map(r => [r.member, r.task]));
     
-    const combinedOnLeaveMembers = [
-        ...(appState.dailyOnLeaveMembers || []),
-        ...(appState.dateBasedOnLeaveMembers || [])
-    ];
+    const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
     const onLeaveStatusMap = new Map(combinedOnLeaveMembers.filter(item => !(item.type === '외출' && item.endTime)).map(item => [item.member, item]));
 
     const orderedTeamGroups = [
@@ -529,8 +526,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = leaveInfo.type; card.dataset.startTime = leaveInfo.startTime || ''; card.dataset.startDate = leaveInfo.startDate || ''; card.dataset.endTime = leaveInfo.endTime || ''; card.dataset.endDate = leaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 
+                // ✅ [수정] 연차 차수 표시 및 색상 적용 (text-gray-600)
                 const displayLabel = getLeaveDisplayLabel(member, leaveInfo);
-                // ✅ [수정] 색상을 회색 계열(text-gray-600)로 변경하여 이질감 해소
                 const labelHtml = `<div class="text-xs font-bold text-gray-600">${displayLabel}</div>`;
 
                 let detailText = leaveInfo.startTime ? formatTimeTo24H(leaveInfo.startTime) + (leaveInfo.endTime ? ` - ${formatTimeTo24H(leaveInfo.endTime)}` : (leaveInfo.type === '외출' ? ' ~' : '')) : (leaveInfo.startDate ? leaveInfo.startDate.substring(5) + (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate ? ` ~ ${leaveInfo.endDate.substring(5)}` : '') : '');
@@ -584,8 +581,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 
+                // ✅ [수정] 알바생도 연차 상세 표시 및 색상 적용
                 const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
-                // ✅ [수정] 알바생 카드도 색상 변경
                 const labelHtml = `<div class="text-xs font-bold text-gray-600">${displayLabel}</div>`;
 
                 let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? ' ~' : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
@@ -617,7 +614,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     }
     teamStatusBoard.appendChild(allMembersContainer);
 
-    // 이미 위에서 정의했으므로 안전하게 호출 가능
+    // 호출 순서 보장
     renderAttendanceToggle(appState);
 };
 
