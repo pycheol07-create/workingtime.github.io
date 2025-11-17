@@ -1,11 +1,8 @@
 // === js/app-history-logic.js ===
 // 설명: '이력 보기' 모달의 UI 렌더링과 상태 관리를 담당합니다.
-// (데이터 로직은 history-data-manager.js로, 계산 로직은 analysis-logic.js로 분리됨)
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-
-// ⛔️ [삭제] app.js 임포트 (더 이상 사용하지 않음)
 
 import {
     renderQuantityModalInputs,
@@ -23,54 +20,41 @@ import {
 
 import {
     formatDuration, isWeekday, getWeekOfYear,
-    getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast
+    getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast, formatTimeTo24H
 } from './utils.js';
 
-// Firestore 함수 임포트 (openHistoryQuantityModal에서만 사용)
 import {
     doc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 표준 속도 계산 함수 임포트
 import { calculateStandardThroughputs, PRODUCTIVITY_METRIC_DESCRIPTIONS, getDiffHtmlForMetric, createTableRow } from './ui-history-reports-logic.js';
 
-// ✅ [신규] 분리된 분석 로직 임포트
 import {
     checkMissingQuantities
-    // ⛔️ [삭제] calculateSimulation, generateEfficiencyChartData, analyzeBottlenecks (이 파일에서 더 이상 사용 안 함)
 } from './analysis-logic.js';
 
-// ✅ [신규] 분리된 데이터 로직 임포트
 import {
     syncTodayToHistory,
-    // ⛔️ [삭제] saveProgress, saveDayDataToHistory (이 파일에서 더 이상 사용 안 함)
     fetchAllHistoryData,
     getDailyDocRef
 } from './history-data-manager.js';
 
-
-// ⛔️ [삭제] 다른 모듈을 위한 재내보내기(re-export) 구문이 모두 제거되었습니다.
-
-
-// ✅ [신규] 연차/출장 등 지속성 근태 기록을 이력 데이터에 주입하는 헬퍼
+// ✅ [신규] 지속성 근태 기록 주입 헬퍼
 function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     if (!leaveSchedule || !leaveSchedule.onLeaveMembers || leaveSchedule.onLeaveMembers.length === 0) {
         return historyData;
     }
 
-    // 1. '연차', '출장', '결근' 타입의 근태만 필터링
     const persistentLeaves = leaveSchedule.onLeaveMembers.filter(
         entry => entry.type === '연차' || entry.type === '출장' || entry.type === '결근'
     );
 
     if (persistentLeaves.length === 0) return historyData;
 
-    // 2. 중복 주입을 방지하기 위해, 각 날짜별로 이미 기록된 (멤버, 타입)을 Set으로 만듭니다.
     const existingEntriesMap = new Map();
     historyData.forEach(day => {
         const entries = new Set();
         (day.onLeaveMembers || []).forEach(entry => {
-            // 날짜 기반(연차/출장/결근) 또는 '기타'에서 수동 추가된 날짜 기반 항목을 식별합니다.
             if (entry.startDate || entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
                 entries.add(`${entry.member}::${entry.type}`);
             }
@@ -78,48 +62,31 @@ function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
         existingEntriesMap.set(day.id, entries);
     });
 
-    // 3. 모든 지속성 근태 기록을 순회합니다.
     persistentLeaves.forEach(pLeave => {
-        if (!pLeave.startDate) return; // 시작일이 없으면 처리 불가
+        if (!pLeave.startDate) return;
 
-        // ✅ [수정] new Date("YYYY-MM-DD")는 로컬 타임존 기준으로 생성됩니다.
-        // KST (UTC+9)에서 "2025-11-14" -> 2025-11-14 00:00:00 KST
-        // 이를 toISOString()으로 변환하면 2025-11-13T15:00:00Z 가 되어 날짜가 하루 밀립니다.
-        // Date.UTC()를 사용하여 UTC 00:00:00 기준으로 Date 객체를 생성합니다.
-        
         const [sY, sM, sD] = pLeave.startDate.split('-').map(Number);
         const effectiveEndDate = pLeave.endDate || pLeave.startDate;
         const [eY, eM, eD] = effectiveEndDate.split('-').map(Number);
 
-        // Date.UTC는 월을 0-11 기준으로 받으므로 sM-1, eM-1을 사용
         const startDate = new Date(Date.UTC(sY, sM - 1, sD));
         const endDate = new Date(Date.UTC(eY, eM - 1, eD));
 
-        // 4. 시작일부터 종료일까지 하루씩 순회합니다. (UTC 기준)
         for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
-            
-            // ✅ [수정] UTC Date 객체를 toISOString().slice(0, 10)으로 변환하면
-            // (예: 2025-11-14T00:00:00.000Z -> "2025-11-14") 정확한 날짜가 나옵니다.
             const dateKey = d.toISOString().slice(0, 10);
-            
             const dayData = historyData.find(day => day.id === dateKey);
             const existingEntries = existingEntriesMap.get(dateKey);
 
-            // 5. 해당 날짜(dateKey)에 이력(dayData)이 존재하고, 중복 검사 맵(existingEntries)이 있을 경우
             if (dayData && existingEntries) {
                 const entryKey = `${pLeave.member}::${pLeave.type}`;
-                
-                // 6. 아직 해당 날짜에 이 근태 기록이 주입되지 않았다면 주입합니다.
                 if (!existingEntries.has(entryKey)) {
                     if (!dayData.onLeaveMembers) {
                         dayData.onLeaveMembers = [];
                     }
-                    // pLeave 객체의 복사본을 주입 (원본 수정을 방지)
                     dayData.onLeaveMembers.push({ ...pLeave });
-                    existingEntries.add(entryKey); // 맵에 추가하여 중복 방지
+                    existingEntries.add(entryKey);
                 }
             }
-            // (만약 해당 날짜(dateKey)에 이력(dayData)이 아예 없다면, 아무것도 하지 않습니다.)
         }
     });
 
@@ -131,10 +98,9 @@ export const loadAndRenderHistoryList = async () => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
 
-    await fetchAllHistoryData(); // ✅ 1. Firebase에서 모든 이력 로드 (-> State.allHistoryData)
-    await syncTodayToHistory();  // ✅ 2. 오늘 데이터 이력에 덮어쓰기 (-> State.allHistoryData)
+    await fetchAllHistoryData(); 
+    await syncTodayToHistory(); 
 
-    // ✅ [신규] 3. 지속성 근태 기록(연차 등)을 State.allHistoryData에 주입
     augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
 
     if (State.allHistoryData.length === 0) {
@@ -196,9 +162,8 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '';
 
-    await syncTodayToHistory(); // ✅ 수정: 임포트된 함수 사용
+    await syncTodayToHistory(); 
     
-    // ✅ [신규] 렌더링 직전에도 데이터 보강 (필터링 시 누락 방지)
     augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
 
     const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
@@ -308,7 +273,6 @@ export const openHistoryQuantityModal = (dateKey) => {
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
 
             if (dateKey === getTodayDateString()) {
-                 // ✅ 수정: 임포트된 getDailyDocRef 사용
                  const dailyDocRef = getDailyDocRef();
                  await setDoc(dailyDocRef, { taskQuantities: newQuantities, confirmedZeroTasks: confirmedZeroTasks }, { merge: true });
             }
@@ -348,7 +312,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     const records = data.workRecords || [];
     const quantities = data.taskQuantities || {};
     const onLeaveMemberEntries = data.onLeaveMembers || [];
-    // ⛔️ [삭제] const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
     const partTimersFromHistory = data.partTimers || [];
 
     const wageMap = { ...State.appConfig.memberWages };
@@ -357,11 +320,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
             wageMap[pt.name] = pt.wage || 0;
         }
     });
-
-    // ⛔️ [삭제] const allRegularMembers = new Set((State.appConfig.teamGroups || []).flatMap(g => g.members));
     
-    // ✅ [수정] 근무 인원 계산 로직 변경 (Issue 2)
-    // '출근(active)' 또는 '퇴근(returned)' 기록이 있는 모든 고유 인원을 집계합니다.
     const attendanceMap = data.dailyAttendance || {};
     const clockedInMembers = new Set(
         Object.keys(attendanceMap).filter(member => 
@@ -369,9 +328,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         )
     );
     
-    // 만약 'dailyAttendance' 데이터가 없는 아주 오래된 이력이라면, workRecords 기준으로 fallback
     if (Object.keys(attendanceMap).length === 0 && records.length > 0) {
-         console.warn(`(History ${dateKey}) dailyAttendance data is missing. Falling back to workRecords for member count.`);
          records.forEach(r => r.member && clockedInMembers.add(r.member));
     }
 
@@ -406,7 +363,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         };
     });
 
-    // ✅ [수정] '전일'이 아닌 '가장 최근 기록'과 비교하도록 로직 변경 (이 로직은 정상이었습니다)
     let prevTaskMetrics = {};
     const currentIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
 
@@ -443,7 +399,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 
     const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
 
-    // ✅ [수정] 주말/주중 비업무시간 계산 로직 변경 (Issue 1)
     let nonWorkHtml = '';
     const standardHoursSettings = State.appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
     const standardHours = isWeekday(dateKey) ? (standardHoursSettings.weekday || 8) : (standardHoursSettings.weekend || 4);
@@ -468,7 +423,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
                          <p class="text-lg font-bold text-gray-400">${isWeekday(dateKey) ? '데이터 없음' : '주말 근무 없음'}</p>
                         </div>`;
     }
-    // ⛔️ [삭제] 기존 if (isWeekday(dateKey)) { ... } else { ... } 블록 (약 10줄)
 
     let html = `
     <div class="mb-6 pb-4 border-b flex justify-between items-center">
@@ -476,6 +430,10 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
       <div>
         <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
                 data-action="open-history-quantity-modal" data-date-key="${dateKey}">처리량 수정</button>
+        <button class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
+                data-action="open-record-manager" data-date-key="${dateKey}">
+            기록 관리
+        </button>
         <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
                 data-action="download-history-excel" data-date-key="${dateKey}">엑셀 (전체)</button>
         <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
@@ -504,11 +462,9 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasQuantities = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            // ✅ [수정] diffHtml 함수 호출 시, 4번째 인자로 '비교 대상 날짜'를 포함한 title 문자열 전달
             const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('quantity', metrics.quantity, prevMetric?.quantity);
             
-            // ✅ [수정] 비교 대상 날짜 표시 span 추가
             const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
 
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
@@ -527,7 +483,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasThroughput = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            // ✅ [수정] 비교 대상 날짜 표시
             const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('avgThroughput', metrics.avgThroughput, prevMetric?.avgThroughput);
             const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
@@ -548,7 +503,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasCostPerItem = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            // ✅ [수정] 비교 대상 날짜 표시
             const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('avgCostPerItem', metrics.avgCostPerItem, prevMetric?.avgCostPerItem);
             const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
@@ -569,7 +523,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             const percentage = totalSumDuration > 0 ? (metrics.duration / totalSumDuration * 100).toFixed(1) : 0;
             const prevMetric = prevTaskMetrics[task] || null;
-            // ✅ [수정] 비교 대상 날짜 표시
             const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('duration', metrics.duration, prevMetric?.duration);
             const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
@@ -698,5 +651,77 @@ export const switchHistoryView = async (view) => {
     if (tabToActivate) {
         tabToActivate.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
         tabToActivate.classList.remove('text-gray-500');
+    }
+};
+
+// ✅ [신규] 기록 관리 모달 열기 및 데이터 준비
+export const openHistoryRecordManager = (dateKey) => {
+    const data = State.allHistoryData.find(d => d.id === dateKey);
+    if (!data) {
+        showToast('데이터를 찾을 수 없습니다.', true);
+        return;
+    }
+
+    if (DOM.historyRecordsDateSpan) DOM.historyRecordsDateSpan.textContent = dateKey;
+    renderHistoryRecordsTable(dateKey, data.workRecords || []);
+    if (DOM.historyRecordsModal) DOM.historyRecordsModal.classList.remove('hidden');
+}
+
+// ✅ [신규] 기록 관리 테이블 렌더링 (인라인 수정 UI)
+export const renderHistoryRecordsTable = (dateKey, records) => {
+    if (!DOM.historyRecordsTableBody) return;
+    
+    DOM.historyRecordsTableBody.innerHTML = '';
+    
+    // 시작 시간 순 정렬
+    const sorted = [...records].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+    // 업무 선택 옵션 (현재 설정 기준)
+    const allTasks = (State.appConfig.taskGroups || []).flatMap(g => g.tasks).sort();
+    // 현재 기록에 있지만 설정에는 없는 업무도 처리하기 위해 Set 사용
+    
+    sorted.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.className = 'bg-white border-b hover:bg-gray-50 transition';
+        
+        // 업무 옵션 생성
+        let taskOptions = '';
+        const uniqueTasks = new Set([...allTasks, r.task]); // 기존 task 포함
+        Array.from(uniqueTasks).sort().forEach(t => {
+            taskOptions += `<option value="${t}" ${t === r.task ? 'selected' : ''}>${t}</option>`;
+        });
+
+        tr.innerHTML = `
+            <td class="px-6 py-4 font-medium text-gray-900 w-1/6">${r.member}</td>
+            <td class="px-6 py-4 w-1/4">
+                <select class="history-record-task w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500">
+                    ${taskOptions}
+                </select>
+            </td>
+            <td class="px-6 py-4 w-1/6">
+                <input type="time" class="history-record-start w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.startTime || ''}">
+            </td>
+            <td class="px-6 py-4 w-1/6">
+                <input type="time" class="history-record-end w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.endTime || ''}">
+            </td>
+            <td class="px-6 py-4 text-gray-500 text-xs w-1/12">
+                ${formatDuration(r.duration)}
+            </td>
+            <td class="px-6 py-4 text-right space-x-2 w-1/6">
+                <button class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 
+                    data-action="save-history-record" 
+                    data-date-key="${dateKey}" 
+                    data-record-id="${r.id}">저장</button>
+                <button class="text-white bg-red-500 hover:bg-red-600 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 
+                    data-action="delete-history-record" 
+                    data-date-key="${dateKey}" 
+                    data-record-id="${r.id}">삭제</button>
+            </td>
+        `;
+        DOM.historyRecordsTableBody.appendChild(tr);
+    });
+    
+    if (sorted.length === 0) {
+        DOM.historyRecordsTableBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">기록된 업무가 없습니다.</td></tr>';
     }
 };

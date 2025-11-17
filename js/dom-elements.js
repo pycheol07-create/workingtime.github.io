@@ -1,7 +1,7 @@
 // === js/dom-elements.js ===
 // 설명: 앱 전역에서 사용되는 모든 DOM 요소를 export합니다.
 
-export const loadingSpinner = document.getElementById('loading-spinner'); // ✅ [신규] 이 라인을 추가하세요.
+export const loadingSpinner = document.getElementById('loading-spinner');
 
 export const addAttendanceRecordModal = document.getElementById('add-attendance-record-modal');
 export const addAttendanceForm = document.getElementById('add-attendance-form');
@@ -196,7 +196,11 @@ export const simBottleneckTbody = document.getElementById('sim-bottleneck-tbody'
 export const simChartContainer = document.getElementById('sim-chart-container');
 export const simInputArea = document.getElementById('sim-input-area');
 
-// ✅ [신규] 모바일 메뉴 버튼 3개 추가
 export const openCostSimulationBtnMobile = document.getElementById('open-cost-simulation-btn-mobile');
 export const openHistoryBtnMobile = document.getElementById('open-history-btn-mobile');
 export const endShiftBtnMobile = document.getElementById('end-shift-btn-mobile');
+
+// ✅ [신규] 이력 기록 관리 모달 관련 요소
+export const historyRecordsModal = document.getElementById('history-records-modal');
+export const historyRecordsTableBody = document.getElementById('history-records-table-body');
+export const historyRecordsDateSpan = document.getElementById('history-records-date');

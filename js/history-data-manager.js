@@ -7,7 +7,7 @@ import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } fro
 // Firestore 함수 임포트
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc, runTransaction,
-    query, where, writeBatch
+    query, where, writeBatch, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
@@ -26,7 +26,6 @@ export const getDailyDocRef = () => {
 
 // (app-history-logic.js -> history-data-manager.js)
 // Firestore에서 직접 데이터를 읽어와 로컬 이력 리스트와 동기화
-// (이름 변경: _syncTodayToHistory -> syncTodayToHistory)
 export const syncTodayToHistory = async () => {
     const todayKey = getTodayDateString();
     const now = getCurrentTime();
@@ -112,7 +111,7 @@ export async function saveProgress(isAutoSave = false) {
         };
 
         await setDoc(historyDocRef, historyData);
-        await syncTodayToHistory(); // ✅ 이름 변경된 함수 호출
+        await syncTodayToHistory(); 
 
         if (isAutoSave) {
             console.log(`Auto-save (server-authoritative) completed at ${now}`);
@@ -203,8 +202,8 @@ export async function fetchAllHistoryData() {
         });
         data.sort((a, b) => b.id.localeCompare(a.id));
 
-        State.allHistoryData.length = 0; // 배열을 비우고
-        State.allHistoryData.push(...data); // 새 데이터로 채웁니다.
+        State.allHistoryData.length = 0; 
+        State.allHistoryData.push(...data); 
 
         return State.allHistoryData;
     } catch (error) {
@@ -213,4 +212,83 @@ export async function fetchAllHistoryData() {
         State.allHistoryData.length = 0;
         return [];
     }
+}
+
+
+// ✅ [신규] 이력(또는 오늘)의 특정 업무 기록 수정
+export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
+    const todayKey = getTodayDateString();
+
+    // 1. 오늘 날짜인 경우 -> 실제 daily_data 컬렉션을 수정
+    if (dateKey === todayKey) {
+        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey, 'workRecords', recordId);
+        
+        // 지속 시간 재계산 필요 시 처리
+        if (updateData.startTime && updateData.endTime) {
+            // 기존 레코드 정보가 필요하므로 로컬 상태에서 조회
+            const localRecord = (State.appState.workRecords || []).find(r => r.id === recordId);
+            if (localRecord) {
+                updateData.duration = calcElapsedMinutes(updateData.startTime, updateData.endTime, localRecord.pauses || []);
+            }
+        }
+        
+        await updateDoc(docRef, updateData);
+        await syncTodayToHistory(); // 변경 사항 즉시 반영
+        return;
+    }
+
+    // 2. 과거 날짜인 경우 -> history 문서의 배열을 수정
+    const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
+    if (dayIndex === -1) throw new Error("해당 날짜의 이력을 찾을 수 없습니다.");
+
+    const dayData = State.allHistoryData[dayIndex];
+    const recordIndex = dayData.workRecords.findIndex(r => r.id === recordId);
+    if (recordIndex === -1) throw new Error("수정할 기록을 찾을 수 없습니다.");
+
+    // 로컬 데이터 업데이트
+    const originalRecord = dayData.workRecords[recordIndex];
+    const updatedRecord = { ...originalRecord, ...updateData };
+
+    // 지속 시간 재계산 (시간이 변경된 경우)
+    if (updateData.startTime || updateData.endTime) {
+        const start = updateData.startTime || originalRecord.startTime;
+        const end = updateData.endTime || originalRecord.endTime;
+        updatedRecord.duration = calcElapsedMinutes(start, end, originalRecord.pauses || []);
+    }
+
+    dayData.workRecords[recordIndex] = updatedRecord;
+
+    // Firestore 업데이트
+    const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+    await setDoc(historyDocRef, { workRecords: dayData.workRecords }, { merge: true });
+}
+
+// ✅ [신규] 이력(또는 오늘)의 특정 업무 기록 삭제
+export async function deleteHistoryWorkRecord(dateKey, recordId) {
+    const todayKey = getTodayDateString();
+
+    // 1. 오늘 날짜인 경우 -> daily_data에서 삭제
+    if (dateKey === todayKey) {
+        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey, 'workRecords', recordId);
+        await deleteDoc(docRef);
+        await syncTodayToHistory();
+        return;
+    }
+
+    // 2. 과거 날짜인 경우 -> history 문서 배열에서 제거
+    const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
+    if (dayIndex === -1) throw new Error("해당 날짜의 이력을 찾을 수 없습니다.");
+
+    const dayData = State.allHistoryData[dayIndex];
+    const newRecords = dayData.workRecords.filter(r => r.id !== recordId);
+
+    if (dayData.workRecords.length === newRecords.length) {
+        throw new Error("삭제할 기록을 찾을 수 없습니다.");
+    }
+
+    dayData.workRecords = newRecords; // 로컬 업데이트
+
+    // Firestore 업데이트
+    const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+    await setDoc(historyDocRef, { workRecords: newRecords }, { merge: true });
 }
