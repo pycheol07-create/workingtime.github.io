@@ -1,9 +1,9 @@
 // === js/listeners-modals-sim.js ===
-// 설명: '운영 시뮬레이션' 모달 전용 리스너입니다.
+// 설명: '운영 시뮬레이션' 모달 전용 리스너입니다. (동시 진행 기능 추가)
 
 import * as DOM from './dom-elements.js';
 import { appState, appConfig, allHistoryData } from './state.js';
-import { showToast, formatDuration, calcElapsedMinutes } from './utils.js';
+import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js';
 import { analyzeBottlenecks, calculateSimulation } from './analysis-logic.js';
 import { calculateAverageStaffing } from './ui-history-reports-logic.js';
 
@@ -12,30 +12,34 @@ let simChartInstance = null;
 
 // ✅ [신규] 사용자 지정 업무 정렬 순서 정의
 const CUSTOM_TASK_ORDER = ['채우기', '국내배송', '해외배송', '상.하차', '중국제작', '직진배송', '티니'];
+// ✅ [신규] 기본적으로 '동시 진행' 체크할 업무 목록
+const DEFAULT_CONCURRENT_TASKS = ['해외배송', '상.하차'];
 
 // ✅ [신규] 정렬 헬퍼 함수
 const sortTasksCustom = (a, b) => {
     const idxA = CUSTOM_TASK_ORDER.indexOf(a);
     const idxB = CUSTOM_TASK_ORDER.indexOf(b);
-
-    // 둘 다 커스텀 목록에 있으면 지정된 순서대로
     if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    // A만 있으면 A가 먼저
     if (idxA !== -1) return -1;
-    // B만 있으면 B가 먼저
     if (idxB !== -1) return 1;
-    // 둘 다 없으면 가나다순
     return a.localeCompare(b);
 };
 
-const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0) => {
+// ✅ [수정] 렌더링 함수 (동시 진행 체크박스 추가)
+const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
     
+    // 첫 번째 행인지 확인 (첫 행은 동시 진행 불가)
+    const isFirstRow = tbody.children.length === 0;
+    const disableCheckbox = isFirstRow ? 'disabled' : '';
+    const checkedAttr = (!isFirstRow && isConcurrent) ? 'checked' : '';
+    const checkboxClass = isFirstRow ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer';
+
     let taskOptions = '<option value="">업무 선택</option>';
     const quantityTaskTypes = (appConfig && appConfig.quantityTaskTypes) ? appConfig.quantityTaskTypes : [];
     
-    // ✅ [수정] 드롭다운 옵션도 지정된 순서대로 정렬
+    // 드롭다운 옵션 정렬
     quantityTaskTypes.sort(sortTasksCustom).forEach(taskName => {
         const selected = (taskName === task) ? 'selected' : '';
         taskOptions += `<option value="${taskName}" ${selected}>${taskName}</option>`;
@@ -44,6 +48,12 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0) => {
     const workerVal = workers > 0 ? Math.round(workers) : '';
 
     row.innerHTML = `
+        <td class="px-2 py-2 text-center border-r border-gray-100">
+            <div class="flex flex-col items-center justify-center">
+                <input type="checkbox" class="sim-row-concurrent w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 ${checkboxClass}" ${disableCheckbox} ${checkedAttr}>
+                <span class="text-[10px] text-gray-400 mt-0.5 ${isFirstRow ? 'invisible' : ''}">동시</span>
+            </div>
+        </td>
         <td class="px-4 py-2">
             <select class="sim-row-task w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm">
                 ${taskOptions}
@@ -76,29 +86,21 @@ function makeDraggable(modalOverlay, header, contentBox) {
     let offsetX, offsetY;
 
     header.addEventListener('mousedown', (e) => {
-        if (e.target.closest('button')) { 
-            return;
-        }
+        if (e.target.closest('button')) return;
         isDragging = true;
-
         if (contentBox.dataset.hasBeenUncentered !== 'true') {
             const rect = contentBox.getBoundingClientRect();
             modalOverlay.classList.remove('flex', 'items-center', 'justify-center');
             contentBox.style.position = 'absolute';
             contentBox.style.top = `${rect.top}px`;
             contentBox.style.left = `${rect.left}px`;
-            
             contentBox.style.width = `${rect.width}px`;
-            // contentBox.style.height = `${rect.height}px`; 
-
             contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';
         }
-
         const rect = contentBox.getBoundingClientRect();
         offsetX = e.clientX - rect.left;
         offsetY = e.clientY - rect.top;
-
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
     });
@@ -107,7 +109,6 @@ function makeDraggable(modalOverlay, header, contentBox) {
         if (!isDragging) return;
         let newLeft = e.clientX - offsetX;
         let newTop = e.clientY - offsetY;
-
         contentBox.style.left = `${newLeft}px`;
         contentBox.style.top = `${newTop}px`;
     }
@@ -121,7 +122,6 @@ function makeDraggable(modalOverlay, header, contentBox) {
 
 const renderSimulationResults = (data) => {
     const contentBox = document.getElementById('sim-modal-content-box');
-    
     const simResultThead = document.getElementById('sim-result-thead');
     const simResultTbody = document.getElementById('sim-result-tbody');
     const simSummaryLabel1 = document.getElementById('sim-summary-label-1');
@@ -139,7 +139,6 @@ const renderSimulationResults = (data) => {
     }
     
     if (contentBox) contentBox.style.height = 'auto';
-
     const { mode } = data;
 
     if (mode === 'bottleneck') {
@@ -162,7 +161,7 @@ const renderSimulationResults = (data) => {
         const { results, totalDuration, finalEndTimeStr, totalCost } = data;
         
         if (simSummaryLabel1) simSummaryLabel1.textContent = '총 예상 소요 시간';
-        if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration);
+        if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration); // ✅ [수정] 전체 기간(시작~끝)으로 변경됨
         if (simSummaryLabel2) simSummaryLabel2.textContent = '예상 종료 시각';
         if (simSummaryValue2) simSummaryValue2.textContent = finalEndTimeStr;
         if (simSummaryLabel3) simSummaryLabel3.textContent = '예상 총 인건비';
@@ -188,10 +187,13 @@ const renderSimulationResults = (data) => {
                     const timeClass = fixedTime > 0 ? "text-gray-400" : "text-gray-300";
                     relatedTaskHtml = `<div class="text-xs ${timeClass} font-normal">+ ${res.relatedTaskInfo.name} (${formatDuration(fixedTime)})</div>`;
                 }
+                // 동시 진행 표시 아이콘
+                const concurrentIcon = res.isConcurrent ? `<span class="text-indigo-500 ml-1" title="동시 진행">🔗</span>` : '';
+
                 return `
                 <tr class="bg-white">
                     <td class="px-4 py-3 font-medium text-gray-900">
-                        ${res.task}
+                        ${res.task} ${concurrentIcon}
                         <div class="text-xs text-gray-400 font-normal">${res.startTime} 시작</div>
                         ${relatedTaskHtml} 
                     </td>
@@ -213,7 +215,7 @@ const renderSimulationResults = (data) => {
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
     
     } else if (mode === 'target-time') {
-        const { results, totalDuration, totalWorkers, totalCost, startTime, endTime } = data;
+        const { results, totalDuration, totalWorkers, totalCost } = data;
 
         if (simSummaryLabel1) simSummaryLabel1.textContent = '총 가용 시간';
         if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration);
@@ -242,11 +244,12 @@ const renderSimulationResults = (data) => {
                     const timeClass = fixedTime > 0 ? "text-gray-400" : "text-gray-300";
                     relatedTaskHtml = `<div class="text-xs ${timeClass} font-normal">+ ${res.relatedTaskInfo.name} (${formatDuration(fixedTime)})</div>`;
                 }
+                const concurrentIcon = res.isConcurrent ? `<span class="text-indigo-500 ml-1" title="동시 진행">🔗</span>` : '';
 
                 return `
                 <tr class="bg-white">
                     <td class="px-4 py-3 font-medium text-gray-900">
-                        ${res.task}
+                        ${res.task} ${concurrentIcon}
                         ${relatedTaskHtml} 
                     </td>
                     <td class="px-4 py-3 text-right text-gray-500 font-mono">
@@ -270,7 +273,6 @@ const renderSimulationResults = (data) => {
     }
 };
 
-
 export function setupSimulationModalListeners() {
     
     const simAddTaskRowBtn = document.getElementById('sim-add-task-row-btn');
@@ -279,38 +281,39 @@ export function setupSimulationModalListeners() {
     const simStartTimeInput = document.getElementById('sim-start-time-input');
     const simEndTimeInput = document.getElementById('sim-end-time-input');
     const simEndTimeWrapper = document.getElementById('sim-end-time-wrapper');
+    
+    // ✅ [신규] 테이블 헤더에 '동시' 컬럼 주입 (HTML 수정 없이 동작하도록)
+    const headerRow = document.querySelector('#sim-input-area thead tr');
+    if (headerRow && !headerRow.querySelector('.sim-header-concurrent')) {
+        const th = document.createElement('th');
+        th.className = 'px-2 py-3 text-center sim-header-concurrent w-12';
+        th.textContent = '동시';
+        headerRow.prepend(th);
+    }
 
-    // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (정렬 기준 변경)
     const openSimulationModalLogic = () => {
-        
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
         if (simTaskTableBody) {
-            simTaskTableBody.innerHTML = ''; // 테이블 비우기
+            simTaskTableBody.innerHTML = '';
 
-            // 1. 평균 인원 계산
             const avgStaffMap = calculateAverageStaffing(allHistoryData);
-            
-            // 2. 오늘 처리량이 입력된 업무 데이터 가져오기
             const quantityTaskSet = new Set(appConfig.quantityTaskTypes || []);
             const quantities = appState.taskQuantities || {};
-
-            // 3. 표시할 업무 목록 구성
             const tasksToShow = new Set(appConfig.keyTasks || []); 
             Object.keys(quantities).forEach(t => {
-                if (Number(quantities[t]) > 0) {
-                    tasksToShow.add(t); 
-                }
+                if (Number(quantities[t]) > 0) tasksToShow.add(t); 
             });
 
             let tasksWereAdded = false;
 
-            // 4. ✅ 지정된 순서대로 정렬하여 테이블 행 추가
             Array.from(tasksToShow).sort(sortTasksCustom).forEach(taskName => {
                 if (quantityTaskSet.has(taskName)) {
                     const qty = Number(quantities[taskName]) || 0;
                     const avgStaff = avgStaffMap[taskName] || 0;
+                    // ✅ [신규] 특정 업무는 기본적으로 '동시 진행' 체크
+                    const isConcurrent = DEFAULT_CONCURRENT_TASKS.includes(taskName);
                     
-                    renderSimulationTaskRow(simTaskTableBody, taskName, qty, avgStaff);
+                    renderSimulationTaskRow(simTaskTableBody, taskName, qty, avgStaff, isConcurrent);
                     tasksWereAdded = true;
                 }
             });
@@ -331,34 +334,11 @@ export function setupSimulationModalListeners() {
                  const radio = document.querySelector(`input[name="sim-mode"][value="${savedMode}"]`);
                  if(radio) radio.checked = true;
             }
-            if (savedStartTime && simStartTimeInput) {
-                simStartTimeInput.value = savedStartTime;
-            }
-            if (savedEndTime && simEndTimeInput) {
-                simEndTimeInput.value = savedEndTime;
-            }
+            if (savedStartTime && simStartTimeInput) simStartTimeInput.value = savedStartTime;
+            if (savedEndTime && simEndTimeInput) simEndTimeInput.value = savedEndTime;
             
             const mode = savedMode || 'fixed-workers';
-            if (mode === 'bottleneck') {
-                DOM.simInputArea.classList.add('hidden');
-                if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
-                DOM.simCalculateBtn.textContent = '병목 구간 분석하기';
-            } else if (mode === 'target-time') {
-                DOM.simInputArea.classList.remove('hidden');
-                if(simEndTimeWrapper) simEndTimeWrapper.classList.remove('hidden');
-                DOM.simCalculateBtn.textContent = '필요 인원 예측하기 👥';
-                if (simTableHeaderWorker) simTableHeaderWorker.classList.add('hidden');
-                document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.add('hidden'));
-            } else { // 'fixed-workers'
-                DOM.simInputArea.classList.remove('hidden');
-                if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
-                DOM.simCalculateBtn.textContent = '시뮬레이션 실행 🚀';
-                if (simTableHeaderWorker) {
-                    simTableHeaderWorker.classList.remove('hidden');
-                    simTableHeaderWorker.textContent = '투입 인원 (명)';
-                }
-                document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.remove('hidden'));
-            }
+            updateUIMode(mode);
 
         } else {
             renderSimulationResults(null); 
@@ -367,15 +347,7 @@ export function setupSimulationModalListeners() {
 
             if (DOM.simModeRadios && DOM.simModeRadios.length > 0) {
                 DOM.simModeRadios[0].checked = true;
-                
-                DOM.simInputArea.classList.remove('hidden');
-                if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
-                DOM.simCalculateBtn.textContent = '시뮬레이션 실행 🚀';
-                if (simTableHeaderWorker) {
-                    simTableHeaderWorker.classList.remove('hidden');
-                    simTableHeaderWorker.textContent = '투입 인원 (명)';
-                }
-                document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.remove('hidden'));
+                updateUIMode('fixed-workers');
             }
         }
 
@@ -387,6 +359,30 @@ export function setupSimulationModalListeners() {
         if (DOM.costSimulationModal) {
              DOM.costSimulationModal.classList.add('flex', 'items-center', 'justify-center');
              DOM.costSimulationModal.classList.remove('hidden');
+        }
+    };
+
+    // UI 모드 업데이트 헬퍼
+    const updateUIMode = (mode) => {
+        if (mode === 'bottleneck') {
+            DOM.simInputArea.classList.add('hidden');
+            if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
+            DOM.simCalculateBtn.textContent = '병목 구간 분석하기';
+        } else if (mode === 'target-time') {
+            DOM.simInputArea.classList.remove('hidden');
+            if(simEndTimeWrapper) simEndTimeWrapper.classList.remove('hidden');
+            DOM.simCalculateBtn.textContent = '필요 인원 예측하기 👥';
+            if (simTableHeaderWorker) simTableHeaderWorker.classList.add('hidden');
+            document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.add('hidden'));
+        } else { // fixed-workers
+            DOM.simInputArea.classList.remove('hidden');
+            if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
+            DOM.simCalculateBtn.textContent = '시뮬레이션 실행 🚀';
+            if (simTableHeaderWorker) {
+                simTableHeaderWorker.classList.remove('hidden');
+                simTableHeaderWorker.textContent = '투입 인원 (명)';
+            }
+            document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.remove('hidden'));
         }
     };
 
@@ -407,34 +403,7 @@ export function setupSimulationModalListeners() {
     if (DOM.simModeRadios) {
         Array.from(DOM.simModeRadios).forEach(radio => {
             radio.addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    const mode = e.target.value;
-                    
-                    if (mode === 'bottleneck') {
-                        DOM.simInputArea.classList.add('hidden');
-                        if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
-                        DOM.simCalculateBtn.textContent = '병목 구간 분석하기';
-                    
-                    } else if (mode === 'target-time') {
-                        DOM.simInputArea.classList.remove('hidden');
-                        if(simEndTimeWrapper) simEndTimeWrapper.classList.remove('hidden');
-                        DOM.simCalculateBtn.textContent = '필요 인원 예측하기 👥';
-
-                        if (simTableHeaderWorker) simTableHeaderWorker.classList.add('hidden');
-                        document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.add('hidden'));
-
-                    } else { // 'fixed-workers'
-                        DOM.simInputArea.classList.remove('hidden');
-                        if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
-                        DOM.simCalculateBtn.textContent = '시뮬레이션 실행 🚀';
-                        
-                        if (simTableHeaderWorker) {
-                            simTableHeaderWorker.classList.remove('hidden');
-                            simTableHeaderWorker.textContent = '투입 인원 (명)';
-                        }
-                        document.querySelectorAll('.sim-row-worker-or-time-cell').forEach(cell => cell.classList.remove('hidden'));
-                    }
-                }
+                if (e.target.checked) updateUIMode(e.target.value);
             });
         });
     }
@@ -454,6 +423,7 @@ export function setupSimulationModalListeners() {
         });
     }
 
+    // ✅ [수정] 계산 버튼 리스너 (동시 진행 로직 포함)
     if (DOM.simCalculateBtn) {
         DOM.simCalculateBtn.addEventListener('click', () => {
             const mode = document.querySelector('input[name="sim-mode"]:checked').value;
@@ -463,11 +433,6 @@ export function setupSimulationModalListeners() {
 
             if (mode === 'bottleneck') {
                 const bottlenecks = analyzeBottlenecks(allHistoryData);
-                if (!bottlenecks || bottlenecks.length === 0) {
-                    showToast('분석할 데이터가 충분하지 않습니다.', true);
-                    return;
-                }
-                
                 const simulationData = { mode, bottlenecks, startTime: currentStartTimeStr };
                 appState.simulationResults = simulationData;
                 renderSimulationResults(simulationData);
@@ -476,115 +441,109 @@ export function setupSimulationModalListeners() {
 
             const rows = document.querySelectorAll('.sim-task-row');
             const results = [];
-            let totalDuration = 0;
+            let totalWorkers = 0;
             let totalCost = 0;
 
-            if (mode === 'target-time') {
-                if (!currentEndTimeStr) {
-                    showToast('필요 인원 예측 모드는 종료 시각이 필수입니다.', true);
-                    return;
-                }
-                if (currentStartTimeStr >= currentEndTimeStr) {
-                    showToast('종료 시각은 시작 시각보다 늦어야 합니다.', true);
-                    return;
-                }
-                
-                const now = new Date();
-                const [startH, startM] = currentStartTimeStr.split(':').map(Number);
-                const [endH, endM] = currentEndTimeStr.split(':').map(Number);
-                const startDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
-                const endDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM);
-                
-                let durationMinutes = calcElapsedMinutes(currentStartTimeStr, currentEndTimeStr, []);
+            // ✅ [핵심] 동시 진행(타임라인) 계산 로직
+            const now = new Date();
+            const [startH, startM] = currentStartTimeStr.split(':').map(Number);
+            let globalStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
+            
+            // 배치(Batch) 관리 변수
+            let currentBatchStartTime = new Date(globalStart); 
+            let currentBatchMaxEndTime = new Date(globalStart);
 
+            // 날짜 포맷 헬퍼 (HH:MM)
+            const formatTimeStr = (date) => {
+                return `${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}`;
+            };
+
+            // 전체 가용 시간(Target Mode용)
+            let durationMinutesForTarget = 0;
+            if (mode === 'target-time') {
+                durationMinutesForTarget = calcElapsedMinutes(currentStartTimeStr, currentEndTimeStr, []);
                 const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
                 const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 13, 30);
-                let includesLunch = false;
-                if (startDateTime < lunchEnd && endDateTime > lunchStart) {
-                     durationMinutes -= 60; 
-                     includesLunch = true;
+                let checkStart = new Date(globalStart);
+                let checkEnd = new Date(globalStart.getTime() + durationMinutesForTarget * 60000);
+                if (checkStart < lunchEnd && checkEnd > lunchStart) {
+                     durationMinutesForTarget = Math.max(0, durationMinutesForTarget - 60);
                 }
-                durationMinutes = Math.max(0, durationMinutes);
-                totalDuration = durationMinutes; 
-                
-                if (durationMinutes <= 0) {
-                     showToast('총 가용 시간이 0분입니다. 시간을 확인해주세요.', true);
-                     return;
-                }
-                
-                let totalWorkers = 0; 
-
-                rows.forEach(row => {
-                    const task = row.querySelector('.sim-row-task').value;
-                    const qty = Number(row.querySelector('.sim-row-qty').value);
-                    if (task && qty > 0) {
-                        const res = calculateSimulation(mode, task, qty, durationMinutes, currentStartTimeStr, includeLinkedTasks);
-                        if (!res.error) {
-                            res.includesLunch = includesLunch; 
-                            results.push({ task, ...res });
-                            totalWorkers += res.workerCount; 
-                            totalCost += res.totalCost;
-                        } else {
-                            showToast(`'${task}' 업무 시뮬레이션 오류: ${res.error}`, true);
-                            appState.simulationResults = null;
-                            renderSimulationResults(null);
-                            return;
-                        }
-                    }
-                });
-                
-                if (results.length === 0) {
-                    showToast('최소 1개 이상의 업무 정보를 올바르게 입력해주세요.', true);
-                    return;
-                }
-                
-                const simulationData = {
-                    mode,
-                    results,
-                    totalDuration,
-                    totalWorkers,
-                    totalCost,
-                    startTime: currentStartTimeStr,
-                    endTime: currentEndTimeStr
-                };
-                
-                appState.simulationResults = simulationData;
-                renderSimulationResults(simulationData);
-                return;
             }
 
-            let finalEndTimeStr = currentStartTimeStr;
-            let effectiveStartTime = currentStartTimeStr;
-
-            rows.forEach(row => {
+            rows.forEach((row, index) => {
                 const task = row.querySelector('.sim-row-task').value;
                 const qty = Number(row.querySelector('.sim-row-qty').value);
-                const inputVal = Number(row.querySelector('.sim-row-worker-or-time').value);
+                const inputVal = (mode === 'fixed-workers') ? Number(row.querySelector('.sim-row-worker-or-time').value) : durationMinutesForTarget;
+                const isConcurrent = row.querySelector('.sim-row-concurrent').checked;
 
                 if (task && qty > 0 && inputVal > 0) {
-                    const res = calculateSimulation(mode, task, qty, inputVal, effectiveStartTime, includeLinkedTasks);
+                    
+                    // 1. 시작 시간 결정
+                    let thisTaskStart;
+                    if (index === 0 || !isConcurrent) {
+                        // 순차 진행: 이전 배치가 끝난 시간부터 시작
+                        thisTaskStart = new Date(currentBatchMaxEndTime);
+                        currentBatchStartTime = thisTaskStart; // 새로운 배치 시작점 갱신
+                    } else {
+                        // 동시 진행: 현재 배치의 시작 시간과 동일하게 시작
+                        thisTaskStart = new Date(currentBatchStartTime);
+                    }
+                    
+                    const startTimeStr = formatTimeStr(thisTaskStart);
+
+                    // 2. 계산 실행
+                    const res = calculateSimulation(mode, task, qty, inputVal, startTimeStr, includeLinkedTasks);
                     
                     if (!res.error) {
-                        res.startTime = effectiveStartTime; 
+                        res.startTime = startTimeStr;
+                        res.isConcurrent = (index > 0 && isConcurrent);
                         results.push({ task, ...res });
                         
-                        effectiveStartTime = res.expectedEndTime;
-                        finalEndTimeStr = res.expectedEndTime;
-                        totalDuration += res.durationMinutes;
+                        totalWorkers += (res.workerCount || 0); // 연인원 누적
                         totalCost += res.totalCost;
+
+                        // 3. 종료 시간 계산 및 배치 Max 갱신
+                        const [endH, endM] = res.expectedEndTime.split(':').map(Number);
+                        let thisTaskEnd = new Date(thisTaskStart);
+                        thisTaskEnd.setHours(endH, endM, 0, 0);
+                        
+                        // 날짜가 넘어가는 경우 보정
+                        if (thisTaskEnd < thisTaskStart) {
+                            thisTaskEnd.setDate(thisTaskEnd.getDate() + 1);
+                        }
+
+                        // 현재 배치의 가장 늦게 끝나는 시간 갱신
+                        if (thisTaskEnd > currentBatchMaxEndTime) {
+                            currentBatchMaxEndTime = thisTaskEnd;
+                        }
+
                     } else {
-                        showToast(`'${task}' 업무 시뮬레이션 오류: ${res.error}`, true);
-                        appState.simulationResults = null;
-                        renderSimulationResults(null);
-                        return;
+                        showToast(`'${task}' 오류: ${res.error}`, true);
                     }
                 }
             });
 
             if (results.length === 0) {
-                showToast('최소 1개 이상의 업무 정보를 올바르게 입력해주세요.', true);
+                showToast('입력 정보를 확인해주세요.', true);
                 return;
             }
+
+            // 최종 종료 시간 및 총 소요 시간
+            const finalEndTimeStr = formatTimeStr(currentBatchMaxEndTime);
+            
+            // 총 소요 시간은 (최종 종료 - 최초 시작) - 점심시간 고려?
+            // calculateSimulation이 이미 점심시간을 고려해서 expectedEndTime을 냈으므로, 
+            // 단순 차이로 계산하되 점심시간 중복 제거는 복잡할 수 있음.
+            // 여기서는 단순하게 (마지막 끝 - 처음 시작)을 총 소요 시간으로 표시.
+            let totalDurationMs = currentBatchMaxEndTime - globalStart;
+            // 점심시간이 포함된 경우 (12:30~13:30) 실제 작업 시간은 60분 적음.
+            // 하지만 사용자는 '얼마나 걸리나(경과시간)'를 궁금해하므로 물리적 시간 차이를 보여주는게 맞음.
+            // 다만 '작업 공수' 관점이 아니라 '퇴근 시간' 관점이므로 그대로 둠.
+            let totalDuration = Math.floor(totalDurationMs / 60000);
+
+            // Target mode일 경우 totalDuration은 '가용 시간'을 의미하므로 입력값 사용
+            if (mode === 'target-time') totalDuration = durationMinutesForTarget;
 
             const simulationData = {
                 mode,
@@ -592,7 +551,9 @@ export function setupSimulationModalListeners() {
                 totalDuration,
                 finalEndTimeStr,
                 totalCost,
-                startTime: currentStartTimeStr
+                totalWorkers, // Target mode용
+                startTime: currentStartTimeStr,
+                endTime: currentEndTimeStr
             };
             
             appState.simulationResults = simulationData;
