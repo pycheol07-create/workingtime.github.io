@@ -1,10 +1,55 @@
 // === js/ui-main.js ===
 
-import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday } from './utils.js';
+// ✅ [수정] calculateDateDifference 추가 임포트
+import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday, calculateDateDifference } from './utils.js';
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 
-// ✅ [신규] app.js 대신 state.js에서 직접 상태를 가져옵니다.
-import { appState, appConfig } from './state.js';
+// ✅ [수정] persistentLeaveSchedule 추가 임포트 (연차 차수 계산용)
+import { appState, appConfig, persistentLeaveSchedule } from './state.js';
+
+/**
+ * ✅ [신규] 연차 표시 라벨 생성 헬퍼 (예: "연차16" or "연차16-18")
+ */
+const getLeaveDisplayLabel = (member, leaveEntry) => {
+    // 연차가 아니면 원래 타입 그대로 표시 (예: '출장', '결근', '외출')
+    if (leaveEntry.type !== '연차') return leaveEntry.type;
+
+    // 1. 해당 멤버의 모든 연차 기록을 가져와 날짜순 정렬
+    // (persistentLeaveSchedule이 로드되지 않았을 경우를 대비해 빈 배열 처리)
+    const allLeaves = (persistentLeaveSchedule.onLeaveMembers || [])
+        .filter(l => l.member === member && l.type === '연차')
+        .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+
+    let cumulativeDays = 0;
+    let label = '연차';
+
+    for (const entry of allLeaves) {
+        // 이 기록의 일수 계산
+        const days = calculateDateDifference(entry.startDate, entry.endDate);
+        
+        const startNth = cumulativeDays + 1;
+        const endNth = cumulativeDays + days;
+
+        // 2. 현재 카드에 표시하려는 기록(leaveEntry)과 일치하는지 확인
+        // (ID가 있으면 ID로, 없으면 날짜로 비교)
+        const isMatch = (leaveEntry.id && entry.id === leaveEntry.id) ||
+                        (!leaveEntry.id && entry.startDate === leaveEntry.startDate && entry.endDate === leaveEntry.endDate);
+
+        if (isMatch) {
+            if (days === 1) {
+                label = `연차${startNth}`;
+            } else {
+                label = `연차${startNth}-${endNth}`;
+            }
+            break;
+        }
+        
+        // 3. 누적 일수 업데이트
+        cumulativeDays += days;
+    }
+    
+    return label;
+};
 
 /**
  * 1. 메인 화면 - 상단 현황판 레이아웃 렌더링
@@ -242,7 +287,9 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
         const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember && !(m.type === '외출' && m.endTime));
         if (leaveInfo) {
-             currentStatusHtml = `<span class="text-sm font-semibold text-gray-600">${leaveInfo.type} 중</span>`;
+             // ✅ [수정] 개인별 분석에서도 상세 연차 라벨 적용
+             const label = getLeaveDisplayLabel(selectedMember, leaveInfo);
+             currentStatusHtml = `<span class="text-sm font-semibold text-gray-600">${label} 중</span>`;
         } else {
              if (attendance && attendance.status === 'active') {
                  currentStatusHtml = `<span class="text-sm font-semibold text-green-600">대기 중</span>`;
@@ -457,8 +504,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             if (isOnLeave) {
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = leaveInfo.type; card.dataset.startTime = leaveInfo.startTime || ''; card.dataset.startDate = leaveInfo.startDate || ''; card.dataset.endTime = leaveInfo.endTime || ''; card.dataset.endDate = leaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
+                
+                // ✅ [수정] 연차 차수(또는 범위) 표시 로직 적용
+                const displayLabel = getLeaveDisplayLabel(member, leaveInfo);
+
                 let detailText = leaveInfo.startTime ? formatTimeTo24H(leaveInfo.startTime) + (leaveInfo.endTime ? ` - ${formatTimeTo24H(leaveInfo.endTime)}` : (leaveInfo.type === '외출' ? ' ~' : '')) : (leaveInfo.startDate ? leaveInfo.startDate.substring(5) + (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate ? ` ~ ${leaveInfo.endDate.substring(5)}` : '') : '');
-                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">${leaveInfo.type}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
+                
+                card.innerHTML = `<div class="font-semibold text-sm break-keep">${member}</div><div class="text-xs">${displayLabel}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
             } else if (isWorking) {
                 card.dataset.action = 'member-toggle-leave';
                 card.classList.add('opacity-70', 'cursor-not-allowed', ongoingMembers.has(member) ? 'bg-red-50' : 'bg-yellow-50', ongoingMembers.has(member) ? 'border-red-200' : 'border-yellow-200');
@@ -469,7 +521,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.classList.add('bg-green-50', 'border-green-200');
                 card.innerHTML = `<div class="font-semibold text-sm text-green-800 break-keep">${member}</div><div class="text-xs text-green-600">대기 중</div>`;
             } else if (isReturned) {
-                // ✨ 퇴근 완료 상태 표시 추가
                 card.dataset.action = 'member-toggle-leave';
                 if (currentUserRole === 'admin' || isSelf) card.classList.add('cursor-pointer', 'hover:shadow-sm'); else card.classList.add('cursor-not-allowed', 'opacity-60');
                 card.classList.add('bg-gray-100', 'border-gray-300', 'text-gray-500');
@@ -486,7 +537,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         allMembersContainer.appendChild(groupContainer);
     });
 
-    const activePartTimers = (appState.partTimers || []).filter(pt => ongoingMembers.has(pt.name) || onLeaveStatusMap.has(pt.name) || appState.dailyAttendance?.[pt.name]); // 알바는 출근 기록 있으면 표시
+    const activePartTimers = (appState.partTimers || []).filter(pt => ongoingMembers.has(pt.name) || onLeaveStatusMap.has(pt.name) || appState.dailyAttendance?.[pt.name]);
     if (activePartTimers.length > 0) {
         const albaContainer = document.createElement('div'); albaContainer.className = 'mb-4'; albaContainer.innerHTML = `<h4 class="text-md font-semibold text-gray-600 mb-2 hidden md:block">알바</h4>`;
         const albaGrid = document.createElement('div'); albaGrid.className = 'flex flex-wrap gap-2';
@@ -507,8 +558,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             if (isAlbaOnLeave) {
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
+                
+                // ✅ [수정] 알바생도 연차 상세 표시 적용
+                const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
+
                 let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? ' ~' : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
-                card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">${albaLeaveInfo.type}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
+                
+                card.innerHTML = `<div class="font-semibold text-sm break-keep">${pt.name}</div><div class="text-xs">${displayLabel}</div>${detailText ? `<div class="text-[10px] leading-tight mt-0.5">${detailText}</div>` : ''}`;
             } else if (isAlbaWorking) {
                 card.dataset.action = 'member-toggle-leave';
                 card.classList.add('opacity-70', 'cursor-not-allowed', ongoingMembers.has(pt.name) ? 'bg-red-50' : 'bg-yellow-50', ongoingMembers.has(pt.name) ? 'border-red-200' : 'border-yellow-200');
