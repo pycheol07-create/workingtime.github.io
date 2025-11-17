@@ -17,8 +17,8 @@ import {
     renderHistoryDateListByMode,
     openHistoryQuantityModal,
     requestHistoryDeletion,
-    openHistoryRecordManager, // ✅ [신규] 기록 관리 모달 열기 함수 임포트
-    renderHistoryRecordsTable   // ✅ [신규] 테이블 리렌더링용
+    openHistoryRecordManager, // 기록 관리 모달 열기
+    renderHistoryRecordsTable   // 테이블 리렌더링
 } from './app-history-logic.js';
 
 import {
@@ -40,7 +40,6 @@ import {
 
 import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ [신규] 데이터 매니저에서 수정/삭제 함수 임포트
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord
@@ -392,7 +391,92 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [신규] 기록 관리 모달 내부 버튼 리스너 (저장/삭제)
+    // ✅ [신규] 필터 변경 리스너 (이름, 업무)
+    const memberFilter = document.getElementById('history-record-filter-member');
+    const taskFilter = document.getElementById('history-record-filter-task');
+
+    if (memberFilter) {
+        memberFilter.addEventListener('change', () => {
+            const dateKey = document.getElementById('history-records-date').textContent;
+            renderHistoryRecordsTable(dateKey);
+        });
+    }
+    if (taskFilter) {
+        taskFilter.addEventListener('change', () => {
+            const dateKey = document.getElementById('history-records-date').textContent;
+            renderHistoryRecordsTable(dateKey);
+        });
+    }
+
+    // ✅ [신규] 일괄 적용 버튼 리스너
+    const batchApplyBtn = document.getElementById('history-batch-apply-btn');
+    if (batchApplyBtn) {
+        batchApplyBtn.addEventListener('click', async () => {
+            const dateKey = document.getElementById('history-records-date').textContent;
+            const taskFilterVal = taskFilter ? taskFilter.value : '';
+            
+            const newStart = document.getElementById('history-batch-start-time').value;
+            const newEnd = document.getElementById('history-batch-end-time').value;
+
+            if (!taskFilterVal) {
+                showToast('업무를 선택한 상태에서만 일괄 수정이 가능합니다.', true);
+                return;
+            }
+            if (!newStart && !newEnd) {
+                showToast('수정할 시작 또는 종료 시간을 입력해주세요.', true);
+                return;
+            }
+            if (newStart && newEnd && newStart >= newEnd) {
+                showToast('시작 시간이 종료 시간보다 빨라야 합니다.', true);
+                return;
+            }
+
+            if (!confirm(`선택된 업무(${taskFilterVal})의 모든 기록을 일괄 수정하시겠습니까?`)) return;
+
+            try {
+                let records = [];
+                const todayKey = new Date().toISOString().slice(0, 10); // or getTodayDateString()
+
+                if (dateKey === todayKey) {
+                    // 오늘 데이터라면 실시간 로컬 상태 사용 권장 (또는 DB)
+                    // history-data-manager가 로컬 상태를 동기화하므로 State.appState 사용 가능하지만,
+                    // 일관성을 위해 allHistoryData에서 찾거나, syncTodayToHistory() 호출 후 사용
+                    // 여기서는 allHistoryData에서 찾습니다 (syncTodayToHistory가 주기적으로 됨)
+                    const data = State.allHistoryData.find(d => d.id === dateKey);
+                    records = data ? data.workRecords : [];
+                } else {
+                    const data = State.allHistoryData.find(d => d.id === dateKey);
+                    records = data ? data.workRecords : [];
+                }
+                
+                const targets = records.filter(r => r.task === taskFilterVal);
+                if (targets.length === 0) {
+                    showToast('수정할 대상이 없습니다.', true);
+                    return;
+                }
+
+                // 병렬 업데이트 수행
+                const updatePromises = targets.map(r => {
+                    const updateData = {};
+                    if (newStart) updateData.startTime = newStart;
+                    if (newEnd) updateData.endTime = newEnd;
+                    return updateHistoryWorkRecord(dateKey, r.id, updateData);
+                });
+
+                await Promise.all(updatePromises);
+                
+                showToast(`${targets.length}건의 기록이 일괄 수정되었습니다.`);
+                renderHistoryRecordsTable(dateKey);
+                renderHistoryDetail(dateKey); // 메인 화면 갱신
+
+            } catch (e) {
+                console.error(e);
+                showToast('일괄 수정 중 오류가 발생했습니다.', true);
+            }
+        });
+    }
+
+    // ✅ [신규] 기록 관리 모달 내부 버튼 리스너 (개별 저장/삭제)
     if (DOM.historyRecordsTableBody) {
         DOM.historyRecordsTableBody.addEventListener('click', async (e) => {
             const target = e.target;
@@ -406,9 +490,10 @@ export function setupHistoryModalListeners() {
                     try {
                         await deleteHistoryWorkRecord(dateKey, recordId);
                         showToast('기록이 삭제되었습니다.');
-                        // 테이블 및 메인 화면 리렌더링
                         const data = State.allHistoryData.find(d => d.id === dateKey);
                         renderHistoryRecordsTable(dateKey, data ? data.workRecords : []);
+                        
+                        // 메인 상세 화면 리렌더링 (현재 보고 있는 날짜라면)
                         if (dateKey === document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key) {
                              renderHistoryDetail(dateKey);
                         }
@@ -447,7 +532,7 @@ export function setupHistoryModalListeners() {
                         endTime: newEnd
                     });
                     showToast('기록이 수정되었습니다.');
-                    // 테이블 및 메인 화면 리렌더링
+                    
                     const data = State.allHistoryData.find(d => d.id === dateKey);
                     renderHistoryRecordsTable(dateKey, data ? data.workRecords : []);
                      if (dateKey === document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key) {
@@ -461,12 +546,10 @@ export function setupHistoryModalListeners() {
         });
     }
 
-
-    // ... (기존 출석부, 리포트 등 나머지 리스너 로직 그대로 유지) ...
+    // ... (기존 출석부, 리포트 등 나머지 리스너 로직 유지) ...
 
     if (DOM.attendanceHistoryViewContainer) {
         DOM.attendanceHistoryViewContainer.addEventListener('click', (e) => {
-            // (기존 코드 생략 - 변경 없음)
              const editBtn = e.target.closest('button[data-action="edit-attendance"]');
             if (editBtn) {
                 const dateKey = editBtn.dataset.dateKey;
@@ -595,7 +678,6 @@ export function setupHistoryModalListeners() {
 
     if (DOM.reportViewContainer) {
         DOM.reportViewContainer.addEventListener('click', (e) => {
-            // (기존 리포트 리스너 유지)
              const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
             if (coqButton) {
                 e.stopPropagation();

@@ -39,7 +39,7 @@ import {
     getDailyDocRef
 } from './history-data-manager.js';
 
-// ✅ [신규] 지속성 근태 기록 주입 헬퍼
+// 지속성 근태 기록 주입 헬퍼
 function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     if (!leaveSchedule || !leaveSchedule.onLeaveMembers || leaveSchedule.onLeaveMembers.length === 0) {
         return historyData;
@@ -462,9 +462,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasQuantities = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('quantity', metrics.quantity, prevMetric?.quantity);
-            
             const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
 
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
@@ -483,7 +481,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasThroughput = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('avgThroughput', metrics.avgThroughput, prevMetric?.avgThroughput);
             const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
             
@@ -503,7 +500,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             hasCostPerItem = true;
             const prevMetric = prevTaskMetrics[task] || null;
-            const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('avgCostPerItem', metrics.avgCostPerItem, prevMetric?.avgCostPerItem);
             const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
 
@@ -523,7 +519,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         .forEach(([task, metrics]) => {
             const percentage = totalSumDuration > 0 ? (metrics.duration / totalSumDuration * 100).toFixed(1) : 0;
             const prevMetric = prevTaskMetrics[task] || null;
-            const comparisonDateTitle = prevMetric ? ` (vs ${prevMetric.date})` : '';
             const diffHtml = getDiffHtmlForMetric('duration', metrics.duration, prevMetric?.duration);
             const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
 
@@ -654,7 +649,7 @@ export const switchHistoryView = async (view) => {
     }
 };
 
-// ✅ [신규] 기록 관리 모달 열기 및 데이터 준비
+// ✅ [신규] 기록 관리 모달 열기
 export const openHistoryRecordManager = (dateKey) => {
     const data = State.allHistoryData.find(d => d.id === dateKey);
     if (!data) {
@@ -663,51 +658,103 @@ export const openHistoryRecordManager = (dateKey) => {
     }
 
     if (DOM.historyRecordsDateSpan) DOM.historyRecordsDateSpan.textContent = dateKey;
-    renderHistoryRecordsTable(dateKey, data.workRecords || []);
+
+    // 필터 초기화 및 옵션 채우기
+    const records = data.workRecords || [];
+    const members = new Set(records.map(r => r.member).filter(Boolean));
+    const tasks = new Set(records.map(r => r.task).filter(Boolean));
+    
+    const memberSelect = document.getElementById('history-record-filter-member');
+    const taskSelect = document.getElementById('history-record-filter-task');
+
+    if (memberSelect) {
+        memberSelect.innerHTML = '<option value="">전체</option>';
+        [...members].sort().forEach(m => {
+            memberSelect.innerHTML += `<option value="${m}">${m}</option>`;
+        });
+        memberSelect.value = ''; // Reset
+    }
+    if (taskSelect) {
+        taskSelect.innerHTML = '<option value="">전체</option>';
+        [...tasks].sort().forEach(t => {
+            taskSelect.innerHTML += `<option value="${t}">${t}</option>`;
+        });
+        taskSelect.value = ''; // Reset
+    }
+
+    // 일괄 수정 패널 숨김
+    const batchArea = document.getElementById('history-record-batch-edit-area');
+    if (batchArea) batchArea.classList.add('hidden');
+
+    renderHistoryRecordsTable(dateKey); // 초기 렌더링 (전체)
+
     if (DOM.historyRecordsModal) DOM.historyRecordsModal.classList.remove('hidden');
 }
 
-// ✅ [신규] 기록 관리 테이블 렌더링 (인라인 수정 UI)
-export const renderHistoryRecordsTable = (dateKey, records) => {
+// ✅ [신규] 기록 관리 테이블 렌더링 (필터링 및 일괄수정 포함)
+export const renderHistoryRecordsTable = (dateKey) => {
     if (!DOM.historyRecordsTableBody) return;
+    
+    const data = State.allHistoryData.find(d => d.id === dateKey);
+    const records = data ? (data.workRecords || []) : [];
+
+    // 필터 값 읽기
+    const memberFilter = document.getElementById('history-record-filter-member')?.value;
+    const taskFilter = document.getElementById('history-record-filter-task')?.value;
+
+    // 일괄 수정 패널 표시 여부 제어
+    const batchArea = document.getElementById('history-record-batch-edit-area');
+    if (batchArea) {
+        if (taskFilter) {
+            batchArea.classList.remove('hidden');
+            batchArea.classList.add('flex');
+        } else {
+            batchArea.classList.add('hidden');
+            batchArea.classList.remove('flex');
+        }
+    }
     
     DOM.historyRecordsTableBody.innerHTML = '';
     
-    // 시작 시간 순 정렬
-    const sorted = [...records].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+    // 필터링
+    const filtered = records.filter(r => {
+        if (memberFilter && r.member !== memberFilter) return false;
+        if (taskFilter && r.task !== taskFilter) return false;
+        return true;
+    });
 
-    // 업무 선택 옵션 (현재 설정 기준)
+    // 정렬: 시작 시간 순
+    const sorted = filtered.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+
     const allTasks = (State.appConfig.taskGroups || []).flatMap(g => g.tasks).sort();
-    // 현재 기록에 있지만 설정에는 없는 업무도 처리하기 위해 Set 사용
     
     sorted.forEach(r => {
         const tr = document.createElement('tr');
         tr.className = 'bg-white border-b hover:bg-gray-50 transition';
         
-        // 업무 옵션 생성
         let taskOptions = '';
-        const uniqueTasks = new Set([...allTasks, r.task]); // 기존 task 포함
+        const uniqueTasks = new Set([...allTasks, r.task]); 
         Array.from(uniqueTasks).sort().forEach(t => {
             taskOptions += `<option value="${t}" ${t === r.task ? 'selected' : ''}>${t}</option>`;
         });
 
         tr.innerHTML = `
-            <td class="px-6 py-4 font-medium text-gray-900 w-1/6">${r.member}</td>
-            <td class="px-6 py-4 w-1/4">
+            <td class="px-6 py-4 font-medium text-gray-900 w-[15%]">${r.member}</td>
+            <td class="px-6 py-4 w-[20%]">
                 <select class="history-record-task w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500">
                     ${taskOptions}
                 </select>
             </td>
-            <td class="px-6 py-4 w-1/6">
+            <td class="px-6 py-4 w-[15%]">
                 <input type="time" class="history-record-start w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.startTime || ''}">
             </td>
-            <td class="px-6 py-4 w-1/6">
+            <td class="px-6 py-4 w-[15%]">
                 <input type="time" class="history-record-end w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.endTime || ''}">
             </td>
-            <td class="px-6 py-4 text-gray-500 text-xs w-1/12">
+            <td class="px-6 py-4 text-gray-500 text-xs w-[15%]">
                 ${formatDuration(r.duration)}
             </td>
-            <td class="px-6 py-4 text-right space-x-2 w-1/6">
+            <td class="px-6 py-4 text-right space-x-2 w-[20%]">
                 <button class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 
                     data-action="save-history-record" 
                     data-date-key="${dateKey}" 
@@ -722,6 +769,6 @@ export const renderHistoryRecordsTable = (dateKey, records) => {
     });
     
     if (sorted.length === 0) {
-        DOM.historyRecordsTableBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">기록된 업무가 없습니다.</td></tr>';
+        DOM.historyRecordsTableBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">조건에 맞는 기록이 없습니다.</td></tr>';
     }
 };
