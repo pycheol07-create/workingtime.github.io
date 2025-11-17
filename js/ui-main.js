@@ -1,10 +1,11 @@
 // === js/ui-main.js ===
 
+// ✅ [수정] calculateDateDifference 추가 임포트
 import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday, calculateDateDifference } from './utils.js';
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 
-// ✅ [수정] State 전체를 임포트하여 데이터 동기화 확실하게 처리
-import * as State from './state.js';
+// ✅ [수정] persistentLeaveSchedule 추가 임포트 (연차 차수 계산용)
+import { appState, appConfig, persistentLeaveSchedule } from './state.js';
 
 /**
  * ✅ [신규] 연차 표시 라벨 생성 헬퍼 (예: "연차16" or "연차16-18")
@@ -15,7 +16,7 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
 
     // 1. 해당 멤버의 모든 연차 기록을 가져와 날짜순 정렬
     // State.persistentLeaveSchedule를 직접 참조하여 최신 데이터 보장
-    const allLeaves = (State.persistentLeaveSchedule.onLeaveMembers || [])
+    const allLeaves = (persistentLeaveSchedule.onLeaveMembers || [])
         .filter(l => l.member === member && l.type === '연차')
         .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
 
@@ -506,8 +507,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 
                 // ✅ [수정] 연차 차수(또는 범위) 표시 로직 적용
                 const displayLabel = getLeaveDisplayLabel(member, leaveInfo);
-                // ✅ [수정] 텍스트 스타일 강조
-                const labelHtml = `<div class="text-xs font-bold text-blue-800">${displayLabel}</div>`;
+                // ✅ [수정] 색상을 회색 계열로 변경하여 이질감 없앰
+                const labelHtml = `<div class="text-xs font-bold text-gray-600">${displayLabel}</div>`;
 
                 let detailText = leaveInfo.startTime ? formatTimeTo24H(leaveInfo.startTime) + (leaveInfo.endTime ? ` - ${formatTimeTo24H(leaveInfo.endTime)}` : (leaveInfo.type === '외출' ? ' ~' : '')) : (leaveInfo.startDate ? leaveInfo.startDate.substring(5) + (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate ? ` ~ ${leaveInfo.endDate.substring(5)}` : '') : '');
                 
@@ -560,9 +561,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 
-                // ✅ [수정] 알바생도 연차 상세 표시 적용
+                // ✅ [수정] 알바생도 연차 상세 표시 적용 및 색상 변경
                 const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
-                const labelHtml = `<div class="text-xs font-bold text-blue-800">${displayLabel}</div>`;
+                const labelHtml = `<div class="text-xs font-bold text-gray-600">${displayLabel}</div>`;
 
                 let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? ' ~' : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
                 
@@ -594,30 +595,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     teamStatusBoard.appendChild(allMembersContainer);
 
     renderAttendanceToggle(appState);
-};
-
-/**
- * ✅ [신규] 개인 출퇴근 토글 스위치 상태 렌더링 함수
- */
-export const renderAttendanceToggle = (appState) => {
-    const currentUser = appState.currentUser;
-    if (!currentUser) return;
-
-    const attendance = appState.dailyAttendance?.[currentUser];
-    const status = attendance?.status;
-    const isClockedIn = status === 'active';
-    const isReturned = status === 'returned';
-
-    const pcToggle = document.getElementById('pc-attendance-checkbox');
-    const mobileToggle = document.getElementById('mobile-attendance-checkbox');
-    const pcCancelBtn = document.getElementById('pc-clock-out-cancel-btn');
-    const mobileCancelBtn = document.getElementById('mobile-clock-out-cancel-btn');
-
-    if (pcToggle) pcToggle.checked = isClockedIn;
-    if (mobileToggle) mobileToggle.checked = isClockedIn;
-
-    if (pcCancelBtn) pcCancelBtn.classList.toggle('hidden', !isReturned);
-    if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
 /**
