@@ -2,32 +2,45 @@
 // 설명: '운영 시뮬레이션' 모달 전용 리스너입니다.
 
 import * as DOM from './dom-elements.js';
-// ✅ [수정] State import 방식을 네임스페이스가 아닌 개별 바인딩으로 변경
 import { appState, appConfig, allHistoryData } from './state.js';
-// ✅ [수정] calcElapsedMinutes 임포트 추가
 import { showToast, formatDuration, calcElapsedMinutes } from './utils.js';
 import { analyzeBottlenecks, calculateSimulation } from './analysis-logic.js';
-// ✅ [신규] '평균 인원' 계산 함수 임포트
 import { calculateAverageStaffing } from './ui-history-reports-logic.js';
 
 // 차트 인스턴스 보관용 변수
 let simChartInstance = null;
 
-// ✅ [수정] 함수가 task, qty, workers를 인자로 받도록 변경
+// ✅ [신규] 사용자 지정 업무 정렬 순서 정의
+const CUSTOM_TASK_ORDER = ['채우기', '국내배송', '해외배송', '상.하차', '중국제작', '직진배송', '티니'];
+
+// ✅ [신규] 정렬 헬퍼 함수
+const sortTasksCustom = (a, b) => {
+    const idxA = CUSTOM_TASK_ORDER.indexOf(a);
+    const idxB = CUSTOM_TASK_ORDER.indexOf(b);
+
+    // 둘 다 커스텀 목록에 있으면 지정된 순서대로
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    // A만 있으면 A가 먼저
+    if (idxA !== -1) return -1;
+    // B만 있으면 B가 먼저
+    if (idxB !== -1) return 1;
+    // 둘 다 없으면 가나다순
+    return a.localeCompare(b);
+};
+
 const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
     
     let taskOptions = '<option value="">업무 선택</option>';
-    // ✅ [수정] State.appConfig -> appConfig
     const quantityTaskTypes = (appConfig && appConfig.quantityTaskTypes) ? appConfig.quantityTaskTypes : [];
-    quantityTaskTypes.sort().forEach(taskName => {
-        // ✅ [수정] 인자로 받은 task가 일치하면 selected 속성 추가
+    
+    // ✅ [수정] 드롭다운 옵션도 지정된 순서대로 정렬
+    quantityTaskTypes.sort(sortTasksCustom).forEach(taskName => {
         const selected = (taskName === task) ? 'selected' : '';
         taskOptions += `<option value="${taskName}" ${selected}>${taskName}</option>`;
     });
 
-    // ✅ [신규] workers 값을 정수로 반올림 (0 이하는 빈 문자열)
     const workerVal = workers > 0 ? Math.round(workers) : '';
 
     row.innerHTML = `
@@ -52,14 +65,12 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0) => {
     `;
     tbody.appendChild(row);
 
-    // ✅ [신규] 현재 모드에 따라 새 행의 열 숨김/표시 처리
     const currentMode = document.querySelector('input[name="sim-mode"]:checked')?.value || 'fixed-workers';
     if (currentMode === 'target-time') {
         row.querySelector('.sim-row-worker-or-time-cell')?.classList.add('hidden');
     }
 };
 
-// ✅ [수정] makeDraggable 함수 (width/height 고정 로직 복원)
 function makeDraggable(modalOverlay, header, contentBox) {
     let isDragging = false;
     let offsetX, offsetY;
@@ -77,9 +88,8 @@ function makeDraggable(modalOverlay, header, contentBox) {
             contentBox.style.top = `${rect.top}px`;
             contentBox.style.left = `${rect.left}px`;
             
-            // ✅ [수정] 너비만 유지하고 높이는 자동 조절되도록 설정
             contentBox.style.width = `${rect.width}px`;
-            // contentBox.style.height = `${rect.height}px`; // 높이 고정 제거
+            // contentBox.style.height = `${rect.height}px`; 
 
             contentBox.style.transform = 'none';
             contentBox.dataset.hasBeenUncentered = 'true';
@@ -109,11 +119,6 @@ function makeDraggable(modalOverlay, header, contentBox) {
     }
 }
 
-
-/**
- * ✅ [대폭 수정] 시뮬레이션 결과 렌더링 헬퍼 (요청 1, 2, 4 + 신규 모드)
- * @param {object} data - appState.simulationResults
- */
 const renderSimulationResults = (data) => {
     const contentBox = document.getElementById('sim-modal-content-box');
     
@@ -125,7 +130,6 @@ const renderSimulationResults = (data) => {
     const simSummaryValue2 = document.getElementById('sim-summary-value-2');
     const simSummaryLabel3 = document.getElementById('sim-summary-label-3');
     const simSummaryValue3 = document.getElementById('sim-summary-value-3');
-
 
     if (!data) {
         if (DOM.simResultContainer) DOM.simResultContainer.classList.add('hidden');
@@ -276,56 +280,49 @@ export function setupSimulationModalListeners() {
     const simEndTimeInput = document.getElementById('sim-end-time-input');
     const simEndTimeWrapper = document.getElementById('sim-end-time-wrapper');
 
-    // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (목록 자동 채우기 개선)
+    // ✅ [수정] 공통 시뮬레이션 모달 열기 로직 (정렬 기준 변경)
     const openSimulationModalLogic = () => {
         
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
         if (simTaskTableBody) {
             simTaskTableBody.innerHTML = ''; // 테이블 비우기
 
-            // 1. 평균 인원 계산 (이력 데이터 기반)
+            // 1. 평균 인원 계산
             const avgStaffMap = calculateAverageStaffing(allHistoryData);
             
             // 2. 오늘 처리량이 입력된 업무 데이터 가져오기
             const quantityTaskSet = new Set(appConfig.quantityTaskTypes || []);
             const quantities = appState.taskQuantities || {};
 
-            // 3. 표시할 업무 목록 구성 (주요 업무 + 처리량 > 0 인 모든 업무)
-            // Set을 사용하여 중복 제거
-            const tasksToShow = new Set(appConfig.keyTasks || []); // 주요 업무 먼저 추가
+            // 3. 표시할 업무 목록 구성
+            const tasksToShow = new Set(appConfig.keyTasks || []); 
             Object.keys(quantities).forEach(t => {
                 if (Number(quantities[t]) > 0) {
-                    tasksToShow.add(t); // 처리량이 있는 업무 추가
+                    tasksToShow.add(t); 
                 }
             });
 
             let tasksWereAdded = false;
 
-            // 4. 정렬된 목록을 순회하며 테이블 행 추가
-            Array.from(tasksToShow).sort().forEach(taskName => {
-                // 드롭다운에 존재하는지(유효한 처리량 집계 업무인지) 확인
+            // 4. ✅ 지정된 순서대로 정렬하여 테이블 행 추가
+            Array.from(tasksToShow).sort(sortTasksCustom).forEach(taskName => {
                 if (quantityTaskSet.has(taskName)) {
                     const qty = Number(quantities[taskName]) || 0;
                     const avgStaff = avgStaffMap[taskName] || 0;
                     
-                    // 행 렌더링 (자동 입력: 수량, 투입인원)
                     renderSimulationTaskRow(simTaskTableBody, taskName, qty, avgStaff);
                     tasksWereAdded = true;
                 }
             });
 
-            // 5. 추가된 업무가 없으면 빈 행 1개 추가
             if (!tasksWereAdded) {
                 renderSimulationTaskRow(simTaskTableBody);
             }
         }
         
-        // 1. 저장된 결과가 있는지 먼저 확인
         if (appState.simulationResults) {
-            // 결과가 있으면: 결과 렌더링
             renderSimulationResults(appState.simulationResults);
             
-            // 저장된 모드/시작시간/종료시간 복원
             const savedMode = appState.simulationResults.mode;
             const savedStartTime = appState.simulationResults.startTime;
             const savedEndTime = appState.simulationResults.endTime; 
@@ -341,7 +338,6 @@ export function setupSimulationModalListeners() {
                 simEndTimeInput.value = savedEndTime;
             }
             
-            // 모드에 따라 입력창 UI 업데이트
             const mode = savedMode || 'fixed-workers';
             if (mode === 'bottleneck') {
                 DOM.simInputArea.classList.add('hidden');
@@ -365,16 +361,13 @@ export function setupSimulationModalListeners() {
             }
 
         } else {
-            // 결과가 없으면: 입력창 초기화
             renderSimulationResults(null); 
             if (simStartTimeInput) simStartTimeInput.value = "08:30"; 
             if (simEndTimeInput) simEndTimeInput.value = "17:00"; 
 
-            // 모드 초기화 (기본: 소요 시간 예측)
             if (DOM.simModeRadios && DOM.simModeRadios.length > 0) {
                 DOM.simModeRadios[0].checked = true;
                 
-                // 수동으로 UI 초기화
                 DOM.simInputArea.classList.remove('hidden');
                 if(simEndTimeWrapper) simEndTimeWrapper.classList.add('hidden');
                 DOM.simCalculateBtn.textContent = '시뮬레이션 실행 🚀';
@@ -404,15 +397,13 @@ export function setupSimulationModalListeners() {
         });
     }
 
-    // ✅ [신규] 모바일 시뮬레이션 버튼 리스너
     if (DOM.openCostSimulationBtnMobile) {
         DOM.openCostSimulationBtnMobile.addEventListener('click', () => {
             openSimulationModalLogic();
-            if (DOM.navContent) DOM.navContent.classList.add('hidden'); // 모바일 메뉴 닫기
+            if (DOM.navContent) DOM.navContent.classList.add('hidden'); 
         });
     }
 
-    // ✅ [수정] 모드 변경 리스너 (결과값 초기화 제거)
     if (DOM.simModeRadios) {
         Array.from(DOM.simModeRadios).forEach(radio => {
             radio.addEventListener('change', (e) => {
@@ -463,7 +454,6 @@ export function setupSimulationModalListeners() {
         });
     }
 
-    // ✅ [수정] 계산 버튼 리스너 (신규 모드 로직 추가 + State. -> appState)
     if (DOM.simCalculateBtn) {
         DOM.simCalculateBtn.addEventListener('click', () => {
             const mode = document.querySelector('input[name="sim-mode"]:checked').value;
@@ -471,7 +461,6 @@ export function setupSimulationModalListeners() {
             const currentEndTimeStr = simEndTimeInput ? simEndTimeInput.value : "17:00";
             const includeLinkedTasks = document.getElementById('sim-include-linked-tasks-checkbox')?.checked || false;
 
-            // --- 모드 3: 병목 분석 ---
             if (mode === 'bottleneck') {
                 const bottlenecks = analyzeBottlenecks(allHistoryData);
                 if (!bottlenecks || bottlenecks.length === 0) {
@@ -490,7 +479,6 @@ export function setupSimulationModalListeners() {
             let totalDuration = 0;
             let totalCost = 0;
 
-            // --- 모드 2: 필요 인원 예측 (target-time) ---
             if (mode === 'target-time') {
                 if (!currentEndTimeStr) {
                     showToast('필요 인원 예측 모드는 종료 시각이 필수입니다.', true);
@@ -501,7 +489,6 @@ export function setupSimulationModalListeners() {
                     return;
                 }
                 
-                // 1. 총 가용 시간 계산 (점심시간 제외)
                 const now = new Date();
                 const [startH, startM] = currentStartTimeStr.split(':').map(Number);
                 const [endH, endM] = currentEndTimeStr.split(':').map(Number);
@@ -510,35 +497,32 @@ export function setupSimulationModalListeners() {
                 
                 let durationMinutes = calcElapsedMinutes(currentStartTimeStr, currentEndTimeStr, []);
 
-                // 점심시간 체크
                 const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
                 const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 13, 30);
                 let includesLunch = false;
                 if (startDateTime < lunchEnd && endDateTime > lunchStart) {
-                     durationMinutes -= 60; // 점심시간 60분 제외
+                     durationMinutes -= 60; 
                      includesLunch = true;
                 }
                 durationMinutes = Math.max(0, durationMinutes);
-                totalDuration = durationMinutes; // 요약 카드 표시용
+                totalDuration = durationMinutes; 
                 
                 if (durationMinutes <= 0) {
                      showToast('총 가용 시간이 0분입니다. 시간을 확인해주세요.', true);
                      return;
                 }
                 
-                let totalWorkers = 0; // 연인원 합계
+                let totalWorkers = 0; 
 
-                // 2. 각 업무별로 필요 인원 계산
                 rows.forEach(row => {
                     const task = row.querySelector('.sim-row-task').value;
                     const qty = Number(row.querySelector('.sim-row-qty').value);
-                    // 'inputValue'로 '총 가용 시간'을 전달
                     if (task && qty > 0) {
                         const res = calculateSimulation(mode, task, qty, durationMinutes, currentStartTimeStr, includeLinkedTasks);
                         if (!res.error) {
-                            res.includesLunch = includesLunch; // 점심시간 포함 여부 추가
+                            res.includesLunch = includesLunch; 
                             results.push({ task, ...res });
-                            totalWorkers += res.workerCount; // 필요 인원 누적 (연인원)
+                            totalWorkers += res.workerCount; 
                             totalCost += res.totalCost;
                         } else {
                             showToast(`'${task}' 업무 시뮬레이션 오류: ${res.error}`, true);
@@ -569,7 +553,6 @@ export function setupSimulationModalListeners() {
                 return;
             }
 
-            // --- 모드 1: 소요 시간 예측 (fixed-workers) ---
             let finalEndTimeStr = currentStartTimeStr;
             let effectiveStartTime = currentStartTimeStr;
 
@@ -579,11 +562,10 @@ export function setupSimulationModalListeners() {
                 const inputVal = Number(row.querySelector('.sim-row-worker-or-time').value);
 
                 if (task && qty > 0 && inputVal > 0) {
-                    // ✅ [수정] includeLinkedTasks 값을 계산 함수로 전달
                     const res = calculateSimulation(mode, task, qty, inputVal, effectiveStartTime, includeLinkedTasks);
                     
                     if (!res.error) {
-                        res.startTime = effectiveStartTime; // 결과 표시용 시작 시간 저장
+                        res.startTime = effectiveStartTime; 
                         results.push({ task, ...res });
                         
                         effectiveStartTime = res.expectedEndTime;
@@ -618,7 +600,6 @@ export function setupSimulationModalListeners() {
         });
     }
 
-    // --- ✅ [신규] 드래그 기능 활성화 ---
     const modalOverlay = DOM.costSimulationModal;
     const modalHeader = document.getElementById('sim-modal-header');
     const modalContentBox = document.getElementById('sim-modal-content-box');
