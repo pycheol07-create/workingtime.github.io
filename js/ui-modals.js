@@ -1,10 +1,9 @@
 // === js/ui-modals.js ===
 
-// ✅ [수정] persistentLeaveSchedule 임포트 추가
 import { appState, appConfig, persistentLeaveSchedule } from './state.js';
 import { calculateDateDifference } from './utils.js';
 
-// ✅ [신규] 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
+// 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
     if (!joinDateStr || joinDateStr === '-') return '';
     
@@ -32,7 +31,7 @@ const calculateTenure = (joinDateStr) => {
     return `${years}년 ${months}개월 ${days + 1}일째`;
 };
 
-// ✅ [신규] 연차 사용 내역 계산 헬퍼 함수
+// 연차 사용 내역 계산 헬퍼 함수
 const calculateLeaveUsage = (memberName) => {
     // 설정값 가져오기 (없으면 기본값)
     const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-' };
@@ -291,8 +290,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     container.appendChild(albaGroupContainer);
 };
 
-// ✅ [수정] 탭 전환 기능 및 연차 현황(근속연수 포함) 렌더링
-export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
+// ✅ [수정] 탭 전환 기능 및 연차 현황 렌더링 + initialTab 매개변수 추가
+export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setting') => {
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs');
     const confirmBtn = document.getElementById('confirm-leave-btn');
@@ -308,79 +307,75 @@ export const renderLeaveTypeModalOptions = (leaveTypes = []) => {
 
     const memberName = memberNameEl ? memberNameEl.textContent : '';
 
-    // --- 탭 초기화 (설정 탭 활성화) ---
-    if(tabSetting) {
-        tabSetting.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
-        tabStatus.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
-        panelSetting.classList.remove('hidden');
-        panelStatus.classList.add('hidden');
-        if(confirmBtn) confirmBtn.classList.remove('hidden'); 
-    }
+    // --- 현황판 데이터 업데이트 함수 ---
+    const updateStatusView = () => {
+        const stats = calculateLeaveUsage(memberName);
+        
+        const totalEl = document.getElementById('status-total-days');
+        const usedEl = document.getElementById('status-used-days');
+        const remainEl = document.getElementById('status-remaining-days');
+        const joinDateEl = document.getElementById('status-join-date');
+        const historyListEl = document.getElementById('status-history-list');
 
-    // --- 탭 클릭 리스너 ---
-    if (tabSetting) {
-        tabSetting.onclick = () => {
-            tabSetting.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
-            tabStatus.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
-            panelSetting.classList.remove('hidden');
-            panelStatus.classList.add('hidden');
-            if(confirmBtn) confirmBtn.classList.remove('hidden');
-        };
-    }
+        if (totalEl) totalEl.textContent = `${stats.total}일`;
+        if (usedEl) usedEl.textContent = `${stats.used}일`;
+        
+        if (remainEl) {
+            remainEl.textContent = `${stats.remaining}일`;
+            remainEl.className = stats.remaining < 0 ? "text-3xl font-bold text-red-600" : "text-3xl font-bold text-blue-600";
+        }
+        
+        if (joinDateEl) {
+            const tenureText = calculateTenure(stats.joinDate);
+            if (stats.joinDate && stats.joinDate !== '-') {
+                joinDateEl.innerHTML = `${stats.joinDate} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>`;
+            } else {
+                joinDateEl.textContent = '-';
+            }
+        }
 
-    if (tabStatus) {
-        tabStatus.onclick = () => {
+        if (historyListEl) {
+            historyListEl.innerHTML = '';
+            if (stats.history.length === 0) {
+                historyListEl.innerHTML = '<li class="text-center text-gray-400 py-4">사용 내역이 없습니다.</li>';
+            } else {
+                stats.history.forEach(h => {
+                    historyListEl.innerHTML += `
+                        <li class="flex justify-between items-center bg-white p-2 rounded border border-gray-100 shadow-sm">
+                            <span class="font-semibold text-gray-700 text-xs">
+                                <span class="text-blue-500 mr-1">[${h.nth}차]</span> ${h.startDate} ${h.endDate && h.endDate !== h.startDate ? '~ ' + h.endDate.slice(5) : ''}
+                            </span>
+                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">-${h.days}일</span>
+                        </li>`;
+                });
+            }
+        }
+    };
+
+    // --- 탭 UI 활성화 헬퍼 ---
+    const activateTab = (tab) => {
+        if (tab === 'status') {
             tabStatus.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
             tabSetting.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
             panelStatus.classList.remove('hidden');
             panelSetting.classList.add('hidden');
             if(confirmBtn) confirmBtn.classList.add('hidden'); 
+            updateStatusView();
+        } else {
+            tabSetting.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
+            tabStatus.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
+            panelSetting.classList.remove('hidden');
+            panelStatus.classList.add('hidden');
+            if(confirmBtn) confirmBtn.classList.remove('hidden'); 
+        }
+    };
 
-            // ✨ 데이터 계산 및 렌더링
-            const stats = calculateLeaveUsage(memberName);
-            
-            const totalEl = document.getElementById('status-total-days');
-            const usedEl = document.getElementById('status-used-days');
-            const remainEl = document.getElementById('status-remaining-days');
-            const joinDateEl = document.getElementById('status-join-date');
-            const historyListEl = document.getElementById('status-history-list');
+    // --- 탭 클릭 리스너 ---
+    if (tabSetting) tabSetting.onclick = () => activateTab('setting');
+    if (tabStatus) tabStatus.onclick = () => activateTab('status');
 
-            if (totalEl) totalEl.textContent = `${stats.total}일`;
-            if (usedEl) usedEl.textContent = `${stats.used}일`;
-            
-            if (remainEl) {
-                remainEl.textContent = `${stats.remaining}일`;
-                remainEl.className = stats.remaining < 0 ? "text-3xl font-bold text-red-600" : "text-3xl font-bold text-blue-600";
-            }
-            
-            // ✅ [수정] 입사일 옆에 근속연수 표시
-            if (joinDateEl) {
-                const tenureText = calculateTenure(stats.joinDate);
-                if (stats.joinDate && stats.joinDate !== '-') {
-                    joinDateEl.innerHTML = `${stats.joinDate} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>`;
-                } else {
-                    joinDateEl.textContent = '-';
-                }
-            }
-
-            if (historyListEl) {
-                historyListEl.innerHTML = '';
-                if (stats.history.length === 0) {
-                    historyListEl.innerHTML = '<li class="text-center text-gray-400 py-4">사용 내역이 없습니다.</li>';
-                } else {
-                    stats.history.forEach(h => {
-                        historyListEl.innerHTML += `
-                            <li class="flex justify-between items-center bg-white p-2 rounded border border-gray-100 shadow-sm">
-                                <span class="font-semibold text-gray-700 text-xs">
-                                    <span class="text-blue-500 mr-1">[${h.nth}차]</span> ${h.startDate} ${h.endDate && h.endDate !== h.startDate ? '~ ' + h.endDate.slice(5) : ''}
-                                </span>
-                                <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">-${h.days}일</span>
-                            </li>`;
-                    });
-                }
-            }
-        };
-    }
+    // --- 초기 탭 설정 ---
+    activateTab(initialTab);
 
     // --- 라디오 버튼 렌더링 ---
     container.innerHTML = '';

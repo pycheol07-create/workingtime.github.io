@@ -136,6 +136,11 @@ export const userGreeting = document.getElementById('user-greeting');
 export const logoutBtn = document.getElementById('logout-btn');
 export const menuToggleBtn = document.getElementById('menu-toggle-btn');
 export const menuDropdown = document.getElementById('menu-dropdown');
+
+// ✅ [신규] 내 연차관리 버튼
+export const openMyLeaveBtn = document.getElementById('open-my-leave-btn');
+export const openMyLeaveBtnMobile = document.getElementById('open-my-leave-btn-mobile');
+
 export const openQuantityModalTodayBtn = document.getElementById('open-quantity-modal-today');
 export const openQuantityModalTodayBtnMobile = document.getElementById('open-quantity-modal-today-mobile');
 export const adminLinkBtnMobile = document.getElementById('admin-link-btn-mobile');
@@ -218,7 +223,6 @@ export const historyAddStartTimeInput = document.getElementById('history-add-sta
 export const historyAddEndTimeInput = document.getElementById('history-add-end-time');
 export const confirmHistoryAddBtn = document.getElementById('confirm-history-add-btn');
 
-// ✅ [신규] 엑셀 다운로드 버튼
+// 엑셀 다운로드 버튼
 export const historyDownloadExcelBtn = document.getElementById('history-download-excel-btn');
-// ✅ [신규] 근태 엑셀 다운로드 버튼
 export const attendanceDownloadExcelBtn = document.getElementById('attendance-download-excel-btn');

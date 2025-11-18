@@ -7,13 +7,13 @@ import * as State from './state.js';
 // ✅ [수정] app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
 import { render } from './app.js';
 import { updateDailyData } from './app-data.js';
-// ⛔️ [삭제] debouncedSaveState는 이 파일에서 사용하지 않으므로 import 제거
 
 import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
-    renderManualAddModalDatalists
+    renderManualAddModalDatalists,
+    renderLeaveTypeModalOptions // ✅ [신규] 추가
 } from './ui.js';
 import {
     processClockIn, processClockOut, cancelClockOut
@@ -25,12 +25,7 @@ import {
     doc, updateDoc, collection, query, where, getDocs, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ⛔️ [삭제] openLeaveModal 헬퍼 (board.js로 이동)
-// ⛔️ [삭제] openAdminMemberActionModal 헬퍼 (board.js로 이동)
-
 export function setupMainScreenListeners() {
-
-    // ⛔️ [삭제] SELECTED_CLASSES, UNSELECTED_CLASSES 헬퍼 (listeners-modals-form.js에 이미 존재)
 
     // --- 개인 출퇴근 리스너 ---
     const pcAttendanceCheckbox = document.getElementById('pc-attendance-checkbox');
@@ -74,8 +69,49 @@ export function setupMainScreenListeners() {
             if (currentUser) cancelClockOut(currentUser);
         });
     }
+    
+    // ✅ [신규] 내 연차관리 버튼 리스너 (PC)
+    if (DOM.openMyLeaveBtn) {
+        DOM.openMyLeaveBtn.addEventListener('click', () => {
+            const currentUser = State.appState.currentUser;
+            if (!currentUser) {
+                showToast('로그인이 필요합니다.', true);
+                if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
+                return;
+            }
+            
+            // 컨텍스트 설정
+            State.context.memberToSetLeave = currentUser;
+            if (DOM.leaveMemberNameSpan) DOM.leaveMemberNameSpan.textContent = currentUser;
 
-    // ⛔️ [삭제] teamStatusBoard 리스너 (board.js로 이동)
+            // '연차 현황' 탭으로 모달 열기
+            renderLeaveTypeModalOptions(State.LEAVE_TYPES, 'status');
+            
+            if (DOM.leaveTypeModal) DOM.leaveTypeModal.classList.remove('hidden');
+            if (DOM.menuDropdown) DOM.menuDropdown.classList.add('hidden');
+        });
+    }
+
+    // ✅ [신규] 내 연차관리 버튼 리스너 (Mobile)
+    if (DOM.openMyLeaveBtnMobile) {
+        DOM.openMyLeaveBtnMobile.addEventListener('click', () => {
+            const currentUser = State.appState.currentUser;
+            if (!currentUser) {
+                showToast('로그인이 필요합니다.', true);
+                if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
+                return;
+            }
+
+            State.context.memberToSetLeave = currentUser;
+            if (DOM.leaveMemberNameSpan) DOM.leaveMemberNameSpan.textContent = currentUser;
+
+            renderLeaveTypeModalOptions(State.LEAVE_TYPES, 'status');
+
+            if (DOM.leaveTypeModal) DOM.leaveTypeModal.classList.remove('hidden');
+            if (DOM.navContent) DOM.navContent.classList.add('hidden');
+        });
+    }
+
 
     // --- 하단 완료 로그 리스너 ---
     if (DOM.workLogBody) {
@@ -135,10 +171,8 @@ export function setupMainScreenListeners() {
         });
     }
     
-    // ✅ [신규] 모바일 업무 마감 버튼 리스너
     if (DOM.endShiftBtnMobile) {
         DOM.endShiftBtnMobile.addEventListener('click', () => {
-            // (데스크톱 버튼과 동일한 로직 수행)
             const ongoingRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
 
             if (ongoingRecords.length > 0) {
@@ -150,7 +184,6 @@ export function setupMainScreenListeners() {
             } else {
                 saveDayDataToHistory(true);
             }
-            // 모바일 메뉴 닫기
             if (DOM.navContent) DOM.navContent.classList.add('hidden');
         });
     }
@@ -246,7 +279,6 @@ export function setupMainScreenListeners() {
             State.context.quantityModalContext.dateKey = null;
 
             State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
-                // 로컬 상태 즉시 업데이트 (UX 반응성)
                 State.appState.taskQuantities = newQuantities;
                 State.appState.confirmedZeroTasks = confirmedZeroTasks;
                 
@@ -343,6 +375,4 @@ export function setupMainScreenListeners() {
             renderPersonalAnalysis(selectedMember, State.appState);
         });
     }
-
-    // ⛔️ [삭제] 관리자 모달 버튼 리스너 (board.js로 이동)
 }
