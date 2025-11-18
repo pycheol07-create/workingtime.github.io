@@ -1,6 +1,7 @@
 // === js/ui-history-reports-renderer.js ===
 
-import { formatDuration } from './utils.js';
+// ✅ [수정] calculateDateDifference 추가 임포트
+import { formatDuration, calculateDateDifference } from './utils.js';
 import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js';
 import { context } from './state.js';
 
@@ -603,20 +604,86 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     html += `</tbody></table></div></div>`;
 
 
-    // 4. 근태 현황 (기존 유지)
-    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3><div class="space-y-3 max-h-[60vh] overflow-y-auto">`;
-    const attSummary = (attendanceData || []).reduce((acc, e) => {
-        if (!acc[e.member]) acc[e.member] = { member: e.member, counts: {} };
-        acc[e.member].counts[e.type] = (acc[e.member].counts[e.type] || 0) + 1;
-        return acc;
-    }, {});
-    if (Object.keys(attSummary).length === 0) {
-        html += `<p class="text-sm text-gray-500 text-center">데이터 없음</p>`;
+    // 4. 근태 현황 (Table Format Conversion)
+    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3><div class="overflow-x-auto max-h-[60vh]">`;
+
+    // Aggregate Data
+    const attSummary = {};
+    (attendanceData || []).forEach(entry => {
+        if (!attSummary[entry.member]) {
+            attSummary[entry.member] = {
+                member: entry.member,
+                counts: { '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0 },
+                totalCount: 0,
+                totalLeaveDays: 0
+            };
+        }
+        const rec = attSummary[entry.member];
+        const type = entry.type;
+
+        if (rec.counts.hasOwnProperty(type)) {
+            rec.counts[type]++;
+        } else {
+            // Handle unexpected types
+            rec.counts[type] = (rec.counts[type] || 0) + 1;
+        }
+
+        // Total Count (excluding '연차' usually in the reference logic)
+        if (type !== '연차') rec.totalCount++;
+
+        // Calculate Days for Annual Leave / Absence
+        if (type === '연차' || type === '결근') {
+             // Need to calculate days based on start/end date
+             // If start/end date are missing, assume 1 day
+             let days = 1;
+             if(entry.startDate && entry.endDate) {
+                 days = calculateDateDifference(entry.startDate, entry.endDate);
+             }
+             rec.totalLeaveDays += days;
+        }
+    });
+
+    const sortedMembers = Object.values(attSummary).sort((a, b) => a.member.localeCompare(b.member));
+
+    if (sortedMembers.length === 0) {
+        html += `<p class="text-sm text-gray-500 text-center py-4">데이터 없음</p>`;
     } else {
-        Object.values(attSummary).sort((a, b) => a.member.localeCompare(b.member)).forEach(item => {
-            const typesHtml = Object.entries(item.counts).sort().map(([t, c]) => `<div class="flex justify-between text-sm text-gray-700 pl-4"><span>${t}</span><span class="font-medium">${c}${['연차','출장','결근'].includes(t)?'일':'회'}</span></div>`).join('');
-            html += `<div class="border-t pt-2 first:border-t-0"><div class="font-semibold text-gray-900 mb-1">${item.member}</div><div class="space-y-0.5">${typesHtml}</div></div>`;
+        html += `
+        <table class="w-full text-sm text-left text-gray-600 border border-gray-200">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
+                <tr>
+                    <th class="px-4 py-3 border-b">이름</th>
+                    <th class="px-4 py-3 border-b text-center">지각</th>
+                    <th class="px-4 py-3 border-b text-center">외출</th>
+                    <th class="px-4 py-3 border-b text-center">조퇴</th>
+                    <th class="px-4 py-3 border-b text-center">결근</th>
+                    <th class="px-4 py-3 border-b text-center">연차</th>
+                    <th class="px-4 py-3 border-b text-center">출장</th>
+                    <th class="px-4 py-3 border-b text-center bg-indigo-50">총 횟수(연차제외)</th>
+                    <th class="px-4 py-3 border-b text-center bg-blue-50">총 연차/결근일</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+        `;
+
+        sortedMembers.forEach(item => {
+            const cell = (k, color='text-gray-400') => `<td class="px-4 py-3 text-center ${item.counts[k]>0 ? 'text-gray-800 font-medium' : color}">${item.counts[k]||0}</td>`;
+
+            html += `
+                <tr class="bg-white hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium text-gray-900">${item.member}</td>
+                    ${cell('지각', 'text-gray-300')}
+                    ${cell('외출', 'text-gray-300')}
+                    ${cell('조퇴', 'text-gray-300')}
+                    <td class="px-4 py-3 text-center ${item.counts['결근']>0?'text-red-600 font-bold':'text-gray-300'}">${item.counts['결근']||0}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['연차']>0?'text-blue-600 font-bold':'text-gray-300'}">${item.counts['연차']||0}</td>
+                    ${cell('출장', 'text-gray-300')}
+                    <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${item.totalCount}</td>
+                    <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${item.totalLeaveDays}일</td>
+                </tr>
+            `;
         });
+        html += `</tbody></table>`;
     }
     html += `</div></div>`;
 
