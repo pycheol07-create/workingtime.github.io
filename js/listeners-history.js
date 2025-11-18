@@ -26,7 +26,12 @@ import {
     downloadPeriodHistoryAsExcel,
     downloadWeeklyHistoryAsExcel, 
     downloadMonthlyHistoryAsExcel, 
-    downloadAttendanceExcel       
+    downloadAttendanceExcel,
+    // ✅ [신규] 리포트 다운로드 함수 임포트
+    downloadReportExcel,
+    downloadReportPdf,
+    downloadPersonalReportExcel,
+    downloadPersonalReportPdf
 } from './history-excel.js';
 
 import {
@@ -164,7 +169,6 @@ export function setupHistoryModalListeners() {
 
     // --- 이벤트 리스너 등록 ---
 
-    // 상단 필터/다운로드 버튼
     if (DOM.historyFilterBtn) {
         DOM.historyFilterBtn.addEventListener('click', () => {
             const startDate = DOM.historyStartDateInput.value;
@@ -248,6 +252,49 @@ export function setupHistoryModalListeners() {
             downloadAttendanceExcel(viewMode, key);
         });
     }
+
+    // ✅ [신규] 업무 리포트 다운로드 버튼
+    if (DOM.reportDownloadExcelBtn) {
+        DOM.reportDownloadExcelBtn.addEventListener('click', () => {
+            const key = getSelectedDateKey();
+            if (!key) { showToast('날짜를 선택해주세요.', true); return; }
+            const activeTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
+            const viewMode = activeTabBtn ? activeTabBtn.dataset.view : 'report-daily';
+            downloadReportExcel(viewMode, key);
+        });
+    }
+    if (DOM.reportDownloadPdfBtn) {
+        DOM.reportDownloadPdfBtn.addEventListener('click', () => {
+            const key = getSelectedDateKey();
+            if (!key) { showToast('날짜를 선택해주세요.', true); return; }
+            const activeTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
+            const viewMode = activeTabBtn ? activeTabBtn.dataset.view : 'report-daily';
+            downloadReportPdf(viewMode, key);
+        });
+    }
+
+    // ✅ [신규] 개인 리포트 다운로드 버튼
+    if (DOM.personalReportDownloadExcelBtn) {
+        DOM.personalReportDownloadExcelBtn.addEventListener('click', () => {
+            const key = getSelectedDateKey();
+            const memberName = DOM.personalReportMemberSelect?.value;
+            if (!key || !memberName) { showToast('날짜와 직원을 선택해주세요.', true); return; }
+            const activeTabBtn = DOM.personalReportTabs?.querySelector('button.font-semibold');
+            const viewMode = activeTabBtn ? activeTabBtn.dataset.view : 'personal-daily';
+            downloadPersonalReportExcel(viewMode, key, memberName);
+        });
+    }
+    if (DOM.personalReportDownloadPdfBtn) {
+        DOM.personalReportDownloadPdfBtn.addEventListener('click', () => {
+            const key = getSelectedDateKey();
+            const memberName = DOM.personalReportMemberSelect?.value;
+            if (!key || !memberName) { showToast('날짜와 직원을 선택해주세요.', true); return; }
+            const activeTabBtn = DOM.personalReportTabs?.querySelector('button.font-semibold');
+            const viewMode = activeTabBtn ? activeTabBtn.dataset.view : 'personal-daily';
+            downloadPersonalReportPdf(viewMode, key, memberName);
+        });
+    }
+
 
     const openHistoryModalLogic = async () => {
         if (!State.auth || !State.auth.currentUser) {
@@ -777,7 +824,6 @@ export function setupHistoryModalListeners() {
         if (State.context.activeFilterDropdown) {
             if (!e.target.closest('.filter-dropdown') && !e.target.closest('.filter-icon-btn')) {
                 State.context.activeFilterDropdown = null;
-                // 현재 활성 탭에 맞춰 새로고침
                 if (State.context.activeMainHistoryTab === 'attendance') refreshAttendanceView();
                 else if (State.context.activeMainHistoryTab === 'report') refreshReportView();
                 else if (State.context.activeMainHistoryTab === 'personal') refreshPersonalView();
@@ -816,9 +862,7 @@ function handleExistingAttendanceButtons(e) {
         if (dayDataIndex === -1) { showToast('해당 날짜의 이력 데이터를 찾을 수 없습니다.', true); return; }
         const dayData = State.allHistoryData[dayDataIndex];
 
-        if (!dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
-            showToast('원본 근태 기록을 찾을 수 없습니다.', true); return;
-        }
+        if (!dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) return;
         const record = dayData.onLeaveMembers[index];
 
         if (DOM.editAttendanceMemberName) DOM.editAttendanceMemberName.value = record.member;
@@ -826,8 +870,7 @@ function handleExistingAttendanceButtons(e) {
             DOM.editAttendanceTypeSelect.innerHTML = '';
             State.LEAVE_TYPES.forEach(type => {
                 const option = document.createElement('option');
-                option.value = type;
-                option.textContent = type;
+                option.value = type; option.textContent = type;
                 if (type === record.type) option.selected = true;
                 DOM.editAttendanceTypeSelect.appendChild(option);
             });
@@ -901,6 +944,7 @@ function setupRecordManagerListeners() {
             if(btn) openHistoryRecordManager(btn.dataset.dateKey);
         });
     }
+    // ... 기타 기록 관리 로직은 기존 코드에 이미 포함됨 ...
 }
 
 function setupAttendanceModalButtons() {
