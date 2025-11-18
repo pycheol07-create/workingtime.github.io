@@ -430,12 +430,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
       <div>
         <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
                 data-action="open-history-quantity-modal" data-date-key="${dateKey}">처리량 수정</button>
-        <button class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
-                data-action="open-record-manager" data-date-key="${dateKey}">
-            기록 관리
-        </button>
-        <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
-                data-action="download-history-excel" data-date-key="${dateKey}">엑셀 (전체)</button>
         <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
                 data-action="request-history-deletion" data-date-key="${dateKey}">삭제</button>
       </div>
@@ -512,7 +506,15 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     html += `</div></div>`;
     html += `</div>`;
 
-    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h4 class="text-lg font-bold mb-3 text-gray-700">업무별 시간 비중</h4><div class="space-y-3">`;
+    html += `<div class="bg-white p-4 rounded-lg shadow-sm">
+                <div class="flex justify-between items-center mb-3">
+                    <h4 class="text-lg font-bold text-gray-700">업무별 시간 비중</h4>
+                    <button class="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-semibold py-1 px-2 rounded transition"
+                            data-action="open-record-manager" data-date-key="${dateKey}">
+                        기록 관리
+                    </button>
+                </div>
+                <div class="space-y-3">`;
     Object.entries(taskMetrics)
         .filter(([, metrics]) => metrics.duration > 0)
         .sort(([, a], [, b]) => b.duration - a.duration)

@@ -23,7 +23,9 @@ import {
 
 import {
     downloadHistoryAsExcel,
-    downloadPeriodHistoryAsExcel
+    downloadPeriodHistoryAsExcel,
+    downloadWeeklyHistoryAsExcel, // ✅ [신규] 주간 다운로드 임포트
+    downloadMonthlyHistoryAsExcel // ✅ [신규] 월간 다운로드 임포트
 } from './history-excel.js';
 
 import {
@@ -43,7 +45,7 @@ import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
-    addHistoryWorkRecord // ✅ [신규] 추가 함수 임포트
+    addHistoryWorkRecord
 } from './history-data-manager.js';
 
 let isHistoryMaximized = false;
@@ -139,6 +141,32 @@ export function setupHistoryModalListeners() {
                 return;
             }
             downloadPeriodHistoryAsExcel(startDate, endDate);
+        });
+    }
+    
+    // ✅ [신규] 상단 탭 라인에 있는 엑셀 다운로드 버튼 리스너
+    if (DOM.historyDownloadExcelBtn) {
+        DOM.historyDownloadExcelBtn.addEventListener('click', () => {
+            // 1. 현재 활성화된 뷰(탭) 확인
+            const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
+            const view = activeTabBtn ? activeTabBtn.dataset.view : 'daily';
+            
+            // 2. 현재 선택된 리스트 아이템(날짜/주/월) 키 가져오기
+            const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
+            if (!selectedListBtn) {
+                showToast('목록에서 다운로드할 항목을 선택해주세요.', true);
+                return;
+            }
+            const key = selectedListBtn.dataset.key;
+
+            // 3. 뷰에 따라 적절한 다운로드 함수 호출
+            if (view === 'daily') {
+                downloadHistoryAsExcel(key);
+            } else if (view === 'weekly') {
+                downloadWeeklyHistoryAsExcel(key);
+            } else if (view === 'monthly') {
+                downloadMonthlyHistoryAsExcel(key);
+            }
         });
     }
 
@@ -378,13 +406,10 @@ export function setupHistoryModalListeners() {
             if (action === 'open-history-quantity-modal') {
                 setHistoryMaximized(false); 
                 openHistoryQuantityModal(dateKey);
-            } else if (action === 'download-history-excel') {
-                downloadHistoryAsExcel(dateKey);
             } else if (action === 'request-history-deletion') {
                 setHistoryMaximized(false); 
                 requestHistoryDeletion(dateKey);
             } 
-            // ✅ [신규] 기록 관리 버튼 동작
             else if (action === 'open-record-manager') {
                 setHistoryMaximized(false);
                 openHistoryRecordManager(dateKey);
@@ -436,7 +461,7 @@ export function setupHistoryModalListeners() {
 
             try {
                 let records = [];
-                const todayKey = new Date().toISOString().slice(0, 10); // or getTodayDateString()
+                const todayKey = new Date().toISOString().slice(0, 10);
 
                 if (dateKey === todayKey) {
                     const data = State.allHistoryData.find(d => d.id === dateKey);
@@ -481,13 +506,9 @@ export function setupHistoryModalListeners() {
                 return;
             }
             
-            // 날짜 표시
             if (DOM.historyAddDateDisplay) DOM.historyAddDateDisplay.textContent = dateKey;
-            
-            // 폼 초기화
             if (DOM.historyAddRecordForm) DOM.historyAddRecordForm.reset();
             
-            // Datalist 옵션 채우기 (팀원, 업무)
             if (DOM.historyAddMemberDatalist) {
                 DOM.historyAddMemberDatalist.innerHTML = '';
                 const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
@@ -511,7 +532,6 @@ export function setupHistoryModalListeners() {
                 });
             }
 
-            // 모달 표시
             if (DOM.historyAddRecordModal) DOM.historyAddRecordModal.classList.remove('hidden');
         });
     }
@@ -550,11 +570,9 @@ export function setupHistoryModalListeners() {
                  showToast('기록이 추가되었습니다.');
                  if (DOM.historyAddRecordModal) DOM.historyAddRecordModal.classList.add('hidden');
                  
-                 // 테이블 갱신
                  const data = State.allHistoryData.find(d => d.id === dateKey);
                  renderHistoryRecordsTable(dateKey, data ? data.workRecords : []);
                  
-                 // 메인 상세 화면 갱신 (현재 보고 있는 날짜라면)
                  if (dateKey === document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key) {
                      renderHistoryDetail(dateKey);
                  }
@@ -571,7 +589,6 @@ export function setupHistoryModalListeners() {
         DOM.historyRecordsTableBody.addEventListener('click', async (e) => {
             const target = e.target;
             
-            // 삭제 버튼
             const deleteBtn = target.closest('button[data-action="delete-history-record"]');
             if (deleteBtn) {
                 const dateKey = deleteBtn.dataset.dateKey;
@@ -583,7 +600,6 @@ export function setupHistoryModalListeners() {
                         const data = State.allHistoryData.find(d => d.id === dateKey);
                         renderHistoryRecordsTable(dateKey, data ? data.workRecords : []);
                         
-                        // 메인 상세 화면 리렌더링 (현재 보고 있는 날짜라면)
                         if (dateKey === document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key) {
                              renderHistoryDetail(dateKey);
                         }
@@ -595,7 +611,6 @@ export function setupHistoryModalListeners() {
                 return;
             }
 
-            // 저장 버튼
             const saveBtn = target.closest('button[data-action="save-history-record"]');
             if (saveBtn) {
                 const row = saveBtn.closest('tr');

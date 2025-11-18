@@ -1,6 +1,6 @@
-// === history-excel.js (엑셀 다운로드 로직) ===
+// === js/history-excel.js ===
 
-// ✅ [신규] DOM 요소와 상태 변수를 분리된 파일에서 가져옵니다.
+// DOM 요소와 상태 변수를 분리된 파일에서 가져옵니다.
 import { 
     appState, appConfig, db, auth, 
     allHistoryData
@@ -343,8 +343,9 @@ export const downloadHistoryAsExcel = async (dateKey) => {
 
 /**
  * 선택한 기간의 엑셀을 다운로드하는 함수
+ * ✅ [수정] customFileName 인자 추가
  */
-export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
+export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFileName = null) => {
     if (!startDate || !endDate) {
         return showToast('시작일과 종료일을 모두 선택해야 합니다.', true);
     }
@@ -352,7 +353,7 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
         return showToast('종료일은 시작일보다 이후여야 합니다.', true);
     }
 
-    showToast('선택 기간 엑셀 생성 중... (데이터가 많으면 오래 걸릴 수 있습니다)');
+    showToast('엑셀 생성 중... (데이터가 많으면 오래 걸릴 수 있습니다)');
 
     try {
         // 1. 선택 기간 데이터 필터링
@@ -511,11 +512,59 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate) => {
         XLSX.utils.book_append_sheet(workbook, worksheet3, `근태 기록 (기간)`);
 
 
-        // 6. 파일 저장
-        XLSX.writeFile(workbook, `업무기록_요약_${startDate}_to_${endDate}.xlsx`);
+        // 6. 파일 저장 (파일명 커스터마이징 적용)
+        const fileName = customFileName || `업무기록_요약_${startDate}_to_${endDate}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
 
     } catch (error) {
         console.error('Period Excel export failed:', error);
         showToast('기간 엑셀 파일 생성에 실패했습니다.', true);
     }
+};
+
+/**
+ * ✅ [신규] 주간 이력 엑셀 다운로드
+ */
+export const downloadWeeklyHistoryAsExcel = async (weekKey) => {
+    if (!weekKey) return showToast('주간 정보가 없습니다.', true);
+    
+    // 해당 주차에 해당하는 데이터만 필터링
+    const weekData = allHistoryData.filter(d => {
+        if (!d.id) return false;
+        // getWeekOfYear는 utils.js에서 가져온 함수 사용
+        return getWeekOfYear(new Date(d.id + "T00:00:00")) === weekKey;
+    });
+
+    if (weekData.length === 0) {
+        return showToast(`${weekKey} 데이터가 없습니다.`, true);
+    }
+
+    // 날짜순 정렬 후 시작일과 종료일 추출
+    weekData.sort((a, b) => a.id.localeCompare(b.id));
+    const startDate = weekData[0].id;
+    const endDate = weekData[weekData.length - 1].id;
+
+    // 기간 다운로드 함수 재사용 (파일명 커스텀)
+    await downloadPeriodHistoryAsExcel(startDate, endDate, `주간업무요약_${weekKey}.xlsx`);
+};
+
+/**
+ * ✅ [신규] 월간 이력 엑셀 다운로드
+ */
+export const downloadMonthlyHistoryAsExcel = async (monthKey) => {
+     if (!monthKey) return showToast('월간 정보가 없습니다.', true);
+
+     // 해당 월에 해당하는 데이터 필터링
+     const monthData = allHistoryData.filter(d => d.id.startsWith(monthKey));
+
+     if (monthData.length === 0) {
+         return showToast(`${monthKey} 데이터가 없습니다.`, true);
+     }
+
+     monthData.sort((a, b) => a.id.localeCompare(b.id));
+     const startDate = monthData[0].id;
+     const endDate = monthData[monthData.length - 1].id;
+
+     // 기간 다운로드 함수 재사용 (파일명 커스텀)
+     await downloadPeriodHistoryAsExcel(startDate, endDate, `월간업무요약_${monthKey}.xlsx`);
 };

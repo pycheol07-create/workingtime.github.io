@@ -205,7 +205,7 @@ export const historyRecordsModal = document.getElementById('history-records-moda
 export const historyRecordsTableBody = document.getElementById('history-records-table-body');
 export const historyRecordsDateSpan = document.getElementById('history-records-date');
 
-// ✅ [신규] 기록 추가 모달 관련 요소
+// 기록 추가 모달 관련 요소
 export const historyRecordAddBtn = document.getElementById('history-record-add-btn');
 export const historyAddRecordModal = document.getElementById('history-add-record-modal');
 export const historyAddRecordForm = document.getElementById('history-add-record-form');
@@ -217,3 +217,6 @@ export const historyAddTaskDatalist = document.getElementById('history-add-task-
 export const historyAddStartTimeInput = document.getElementById('history-add-start-time');
 export const historyAddEndTimeInput = document.getElementById('history-add-end-time');
 export const confirmHistoryAddBtn = document.getElementById('confirm-history-add-btn');
+
+// ✅ [신규] 엑셀 다운로드 버튼
+export const historyDownloadExcelBtn = document.getElementById('history-download-excel-btn');
