@@ -100,7 +100,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         return;
     }
 
-    // ✅ [신규] 현재 데이터에 존재하는 멤버 목록 추출 (필터 옵션용)
+    // ✅ 현재 데이터에 존재하는 멤버 목록 추출 (필터 옵션용)
     const allMembers = [...new Set(data.onLeaveMembers.map(e => e.member))].sort();
 
     // --- 1. 필터링 및 정렬 로직 ---
@@ -110,7 +110,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const filterState = context.attendanceFilterState?.daily || { member: '', type: '' };
     const sortState = context.attendanceSortState?.daily || { key: 'member', dir: 'asc' };
 
-    // 1-1. 필터링 (드롭다운 선택값과 정확히 일치하는지 확인)
+    // 1-1. 필터링
     if (filterState.member) {
         leaveEntries = leaveEntries.filter(e => e.member === filterState.member);
     }
@@ -139,7 +139,8 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                         <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-100 transition select-none group relative" data-sort-target="daily" data-sort-key="member">
                             <div class="flex items-center justify-between">
                                 <span class="flex items-center">이름 ${getSortIcon(sortState.key, sortState.dir, 'member')}</span>
-                                ${getFilterDropdown('daily', 'member', filterState.member, allMembers)} </div>
+                                ${getFilterDropdown('daily', 'member', filterState.member, allMembers)}
+                            </div>
                         </th>
                         <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-100 transition select-none group relative" data-sort-target="daily" data-sort-key="type">
                             <div class="flex items-center justify-between">
@@ -285,7 +286,12 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         } else if (type) {
             rec.counts[type] = (rec.counts[type] || 0) + 1;
         }
-        rec.totalCount += 1;
+        
+        // ✅ [수정] '연차'가 아닐 때만 총 횟수에 포함
+        if (type !== '연차') {
+            rec.totalCount += 1;
+        }
+
         if (type === '결근') {
             rec.totalAbsenceDays += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
         } else if (type === '연차') {
@@ -315,7 +321,7 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         return 0;
     });
 
-    // 4. HTML 생성 - ✅ th 함수에 allMembers 전달 추가
+    // 4. HTML 생성
     const th = (key, label, width='') => `
         <th scope="col" class="px-4 py-3 border-b cursor-pointer hover:bg-gray-200 select-none group ${width}" data-sort-target="${mode}" data-sort-key="${key}">
             <div class="flex items-center justify-center relative">
