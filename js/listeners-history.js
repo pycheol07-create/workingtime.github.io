@@ -313,83 +313,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    if (DOM.confirmHistoryDeleteBtn) {
-        DOM.confirmHistoryDeleteBtn.addEventListener('click', async () => {
-            if (State.context.historyKeyToDelete) {
-                const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', State.context.historyKeyToDelete);
-                try {
-                    await deleteDoc(historyDocRef);
-                    showToast(`${State.context.historyKeyToDelete} 이력이 삭제되었습니다.`);
-                    await loadAndRenderHistoryList();
-                } catch (e) {
-                    console.error('Error deleting history:', e);
-                    showToast('이력 삭제 중 오류 발생.', true);
-                }
-            }
-            if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.add('hidden');
-            State.context.historyKeyToDelete = null;
-        });
-    }
-
-    if (DOM.historyMainTabs) {
-        DOM.historyMainTabs.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-main-tab]');
-            if (btn) {
-                const tabName = btn.dataset.mainTab;
-                State.context.activeMainHistoryTab = tabName;
-                State.context.reportSortState = {};
-                State.context.currentReportParams = null;
-
-                document.querySelectorAll('.history-main-tab-btn').forEach(b => {
-                    b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-                    b.classList.add('font-medium', 'text-gray-500');
-                });
-                btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-                btn.classList.remove('font-medium', 'text-gray-500');
-
-                const dateListContainer = document.getElementById('history-date-list-container');
-
-                if (tabName === 'work') {
-                    if (DOM.workHistoryPanel) DOM.workHistoryPanel.classList.remove('hidden');
-                    if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.add('hidden');
-                    if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.add('hidden');
-                    if (DOM.reportPanel) DOM.reportPanel.classList.add('hidden');
-                    if (dateListContainer) dateListContainer.style.display = 'block';
-                    const activeSubTabBtn = DOM.historyTabs?.querySelector('button.font-semibold');
-                    const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-                    switchHistoryView(view);
-
-                } else if (tabName === 'attendance') {
-                    if (DOM.workHistoryPanel) DOM.workHistoryPanel.classList.add('hidden');
-                    if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.remove('hidden');
-                    if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.add('hidden');
-                    if (DOM.reportPanel) DOM.reportPanel.classList.add('hidden');
-                    if (dateListContainer) dateListContainer.style.display = 'block';
-                    const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
-                    const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
-                    switchHistoryView(view);
-
-                } else if (tabName === 'trends') {
-                    if (DOM.workHistoryPanel) DOM.workHistoryPanel.classList.add('hidden');
-                    if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.add('hidden');
-                    if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.remove('hidden');
-                    if (DOM.reportPanel) DOM.reportPanel.classList.add('hidden');
-                    if (dateListContainer) dateListContainer.style.display = 'none';
-                    renderTrendAnalysisCharts(State.allHistoryData, State.appConfig, trendCharts);
-
-                } else if (tabName === 'report') {
-                    if (DOM.workHistoryPanel) DOM.workHistoryPanel.classList.add('hidden');
-                    if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.add('hidden');
-                    if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.add('hidden');
-                    if (DOM.reportPanel) DOM.reportPanel.classList.remove('hidden');
-                    const activeSubTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
-                    const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'report-daily';
-                    switchHistoryView(view);
-                }
-            }
-        });
-    }
-
     if (DOM.attendanceHistoryTabs) {
         DOM.attendanceHistoryTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-view]');
@@ -431,7 +354,362 @@ export function setupHistoryModalListeners() {
                 setHistoryMaximized(false);
                 openHistoryRecordManager(dateKey);
             }
-            // ✅ 엑셀 다운로드 버튼 처리 로직 제거 (상단 리스너로 이동됨)
+        });
+    }
+
+    // ✅ [신규] 근태 이력 뷰 컨테이너 이벤트 위임 (정렬 & 필터)
+    if (DOM.attendanceHistoryViewContainer) {
+        // 1. 클릭 이벤트 (정렬 헤더, 버튼 등)
+        DOM.attendanceHistoryViewContainer.addEventListener('click', (e) => {
+            // 정렬 헤더 클릭
+            const header = e.target.closest('.sortable-attendance-header');
+            if (header) {
+                const sortKey = header.dataset.sortKey;
+                const viewType = header.dataset.viewType; // 'daily', 'weekly', 'monthly'
+
+                if (sortKey && viewType) {
+                    const currentSort = State.context.attendanceSortState[viewType] || { key: 'member', dir: 'asc' };
+                    let newDir = 'asc';
+                    if (currentSort.key === sortKey) {
+                        newDir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+                    }
+                    State.context.attendanceSortState[viewType] = { key: sortKey, dir: newDir };
+
+                    const selectedBtn = document.querySelector('.history-date-btn.bg-blue-100');
+                    if (selectedBtn) {
+                        const key = selectedBtn.dataset.key;
+                        if (viewType === 'daily') renderAttendanceDailyHistory(key, State.allHistoryData);
+                        else if (viewType === 'weekly') renderAttendanceWeeklyHistory(key, State.allHistoryData);
+                        else if (viewType === 'monthly') renderAttendanceMonthlyHistory(key, State.allHistoryData);
+                    }
+                }
+                return;
+            }
+
+            // 기존 버튼 로직 (수정, 삭제, 추가)
+            const editBtn = e.target.closest('button[data-action="edit-attendance"]');
+            if (editBtn) {
+                const dateKey = editBtn.dataset.dateKey;
+                const index = parseInt(editBtn.dataset.index, 10);
+                if (!dateKey || isNaN(index)) { return; }
+                const dayData = State.allHistoryData.find(d => d.id === dateKey);
+                if (!dayData || !dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
+                    showToast('원본 근태 기록을 찾을 수 없습니다.', true); return;
+                }
+                const record = dayData.onLeaveMembers[index];
+                if (DOM.editAttendanceMemberName) DOM.editAttendanceMemberName.value = record.member;
+                if (DOM.editAttendanceTypeSelect) {
+                    DOM.editAttendanceTypeSelect.innerHTML = '';
+                    State.LEAVE_TYPES.forEach(type => {
+                        const option = document.createElement('option');
+                        option.value = type;
+                        option.textContent = type;
+                        if (type === record.type) option.selected = true;
+                        DOM.editAttendanceTypeSelect.appendChild(option);
+                    });
+                }
+                const isTimeBased = (record.type === '외출' || record.type === '조퇴');
+                const isDateBased = (record.type === '연차' || record.type === '출장' || record.type === '결근');
+                const isOuting = (record.type === '외출');
+
+                if (DOM.editAttendanceTimeFields) {
+                    DOM.editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
+                    const endTimeWrapper = document.getElementById('edit-attendance-end-time-wrapper');
+                    if (endTimeWrapper) {
+                        endTimeWrapper.classList.toggle('hidden', !isOuting);
+                    }
+                    if (DOM.editAttendanceStartTimeInput) DOM.editAttendanceStartTimeInput.value = record.startTime || '';
+                    if (DOM.editAttendanceEndTimeInput) DOM.editAttendanceEndTimeInput.value = record.endTime || '';
+                }
+                if (DOM.editAttendanceDateFields) {
+                    DOM.editAttendanceDateFields.classList.toggle('hidden', !isDateBased);
+                    if (DOM.editAttendanceStartDateInput) DOM.editAttendanceStartDateInput.value = record.startDate || '';
+                    if (DOM.editAttendanceEndDateInput) DOM.editAttendanceEndDateInput.value = record.endDate || '';
+                }
+                if (DOM.editAttendanceDateKeyInput) DOM.editAttendanceDateKeyInput.value = dateKey;
+                if (DOM.editAttendanceRecordIndexInput) DOM.editAttendanceRecordIndexInput.value = index;
+
+                setHistoryMaximized(false); 
+                if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.remove('hidden');
+                return;
+            }
+
+            const deleteBtn = e.target.closest('button[data-action="delete-attendance"]');
+            if (deleteBtn) {
+                const dateKey = deleteBtn.dataset.dateKey;
+                const index = parseInt(deleteBtn.dataset.index, 10);
+                if (!dateKey || isNaN(index)) { return; }
+                const dayData = State.allHistoryData.find(d => d.id === dateKey);
+                const record = dayData?.onLeaveMembers?.[index];
+                if (!record) { showToast('삭제할 근태 기록을 찾을 수 없습니다.', true); return; }
+                State.context.deleteMode = 'attendance';
+                State.context.attendanceRecordToDelete = { dateKey, index };
+                const msgEl = document.getElementById('delete-confirm-message');
+                if (msgEl) msgEl.textContent = `${record.member}님의 '${record.type}' 기록을 삭제하시겠습니까?`;
+                setHistoryMaximized(false);
+                if (DOM.deleteConfirmModal) DOM.deleteConfirmModal.classList.remove('hidden');
+                return;
+            }
+
+            const addBtn = e.target.closest('button[data-action="open-add-attendance-modal"]');
+            if (addBtn) {
+                const dateKey = addBtn.dataset.dateKey;
+                if (!dateKey) { showToast('날짜 정보를 찾을 수 없습니다.', true); return; }
+                if (DOM.addAttendanceForm) DOM.addAttendanceForm.reset();
+                if (DOM.addAttendanceDateKeyInput) DOM.addAttendanceDateKeyInput.value = dateKey;
+                if (DOM.addAttendanceStartDateInput) DOM.addAttendanceStartDateInput.value = dateKey;
+                if (DOM.addAttendanceEndDateInput) DOM.addAttendanceEndDateInput.value = '';
+
+                if (DOM.addAttendanceMemberDatalist) {
+                    DOM.addAttendanceMemberDatalist.innerHTML = '';
+                    const staffMembers = (State.appConfig.teamGroups || []).flatMap(g => g.members);
+                    const partTimerMembers = (State.appState.partTimers || []).map(p => p.name);
+                    const allMembers = [...new Set([...staffMembers, ...partTimerMembers])].sort();
+                    allMembers.forEach(member => {
+                        const option = document.createElement('option');
+                        option.value = member;
+                        DOM.addAttendanceMemberDatalist.appendChild(option);
+                    });
+                }
+                if (DOM.addAttendanceTypeSelect) {
+                    DOM.addAttendanceTypeSelect.innerHTML = '';
+                    State.LEAVE_TYPES.forEach((type, index) => {
+                        const option = document.createElement('option');
+                        option.value = type;
+                        option.textContent = type;
+                        if (index === 0) option.selected = true;
+                        DOM.addAttendanceTypeSelect.appendChild(option);
+                    });
+                }
+                const firstType = State.LEAVE_TYPES[0] || '';
+                const isTimeBased = (firstType === '외출' || firstType === '조퇴');
+                const isDateBased = (firstType === '연차' || firstType === '출장' || firstType === '결근');
+                const isOuting = (firstType === '외출');
+                if (DOM.addAttendanceTimeFields) DOM.addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
+                const endTimeWrapper = document.getElementById('add-attendance-end-time-wrapper');
+                if (endTimeWrapper) {
+                    endTimeWrapper.classList.toggle('hidden', !isOuting);
+                }
+                if (DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
+                setHistoryMaximized(false);
+                if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.remove('hidden');
+                return;
+            }
+        });
+
+        // 2. 입력/변경 이벤트 (필터링)
+        const restoreFocus = (id, cursorIndex) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.focus();
+                if (typeof cursorIndex === 'number') {
+                    el.setSelectionRange(cursorIndex, cursorIndex);
+                } else {
+                     // 맨 뒤로 이동
+                    const len = el.value.length;
+                    el.setSelectionRange(len, len);
+                }
+            }
+        };
+
+        DOM.attendanceHistoryViewContainer.addEventListener('input', (e) => {
+            const target = e.target;
+            let viewType = null;
+            let filterType = null;
+
+            if (target.id === 'att-daily-filter-member') { viewType = 'daily'; filterType = 'member'; }
+            else if (target.id === 'att-weekly-filter-member') { viewType = 'weekly'; filterType = 'member'; }
+            else if (target.id === 'att-monthly-filter-member') { viewType = 'monthly'; filterType = 'member'; }
+
+            if (viewType) {
+                // 상태 업데이트
+                State.context.attendanceFilterState[viewType][filterType] = target.value;
+                
+                // 현재 커서 위치 저장
+                const cursorIndex = target.selectionStart;
+                const elementId = target.id;
+
+                const selectedBtn = document.querySelector('.history-date-btn.bg-blue-100');
+                if (selectedBtn) {
+                    const key = selectedBtn.dataset.key;
+                    if (viewType === 'daily') renderAttendanceDailyHistory(key, State.allHistoryData);
+                    else if (viewType === 'weekly') renderAttendanceWeeklyHistory(key, State.allHistoryData);
+                    else if (viewType === 'monthly') renderAttendanceMonthlyHistory(key, State.allHistoryData);
+                    
+                    // 렌더링 후 포커스 복원
+                    requestAnimationFrame(() => restoreFocus(elementId, cursorIndex));
+                }
+            }
+        });
+
+        DOM.attendanceHistoryViewContainer.addEventListener('change', (e) => {
+            const target = e.target;
+            if (target.id === 'att-daily-filter-type') {
+                State.context.attendanceFilterState.daily.type = target.value;
+                const selectedBtn = document.querySelector('.history-date-btn.bg-blue-100');
+                if (selectedBtn) {
+                    renderAttendanceDailyHistory(selectedBtn.dataset.key, State.allHistoryData);
+                }
+            }
+        });
+    }
+
+    const historyHeader = document.getElementById('history-modal-header');
+    if (DOM.historyModal && historyHeader && DOM.historyModalContentBox) {
+        makeDraggable(DOM.historyModal, historyHeader, DOM.historyModalContentBox);
+    }
+
+    const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
+    if (toggleFullscreenBtn && DOM.historyModal && DOM.historyModalContentBox) {
+        const icon = toggleFullscreenBtn.querySelector('svg');
+        if (icon) icon.innerHTML = iconMaximize;
+
+        toggleFullscreenBtn.addEventListener('click', (e) => {
+            e.stopImmediatePropagation();
+            setHistoryMaximized(!isHistoryMaximized);
+        });
+    }
+
+    if (DOM.confirmEditAttendanceBtn) {
+        DOM.confirmEditAttendanceBtn.addEventListener('click', async () => {
+             const dateKey = DOM.editAttendanceDateKeyInput?.value;
+            const indexStr = DOM.editAttendanceRecordIndexInput?.value;
+            if (!dateKey || indexStr === '') { showToast('수정할 기록 정보를 찾을 수 없습니다.', true); return; }
+            const index = parseInt(indexStr, 10);
+            const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
+            if (dayDataIndex === -1) { showToast('해당 날짜의 이력 데이터를 찾을 수 없습니다.', true); return; }
+            const dayData = State.allHistoryData[dayDataIndex];
+            if (!dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) { showToast('수정할 근태 기록을 찾을 수 없습니다.', true); return; }
+            
+            const newType = DOM.editAttendanceTypeSelect?.value;
+            
+            const isTimeBased = (newType === '외출' || newType === '조퇴');
+            const isOuting = (newType === '외출');
+            
+            const updatedRecord = { ...dayData.onLeaveMembers[index], type: newType };
+            
+            if (isTimeBased) {
+                updatedRecord.startTime = DOM.editAttendanceStartTimeInput?.value || null;
+                if (isOuting) {
+                    updatedRecord.endTime = DOM.editAttendanceEndTimeInput?.value || null;
+                } else {
+                    updatedRecord.endTime = null; 
+                }
+                delete updatedRecord.startDate; delete updatedRecord.endDate;
+            } else {
+                updatedRecord.startDate = DOM.editAttendanceStartDateInput?.value || null;
+                updatedRecord.endDate = DOM.editAttendanceEndDateInput?.value || null;
+                delete updatedRecord.startTime; delete updatedRecord.endTime;
+            }
+            
+            if (isTimeBased && !updatedRecord.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
+            if (!isTimeBased && !updatedRecord.startDate) { showToast('시작일을 입력해주세요.', true); return; }
+            
+            dayData.onLeaveMembers[index] = updatedRecord;
+            try {
+                const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+                await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
+                showToast('근태 기록이 수정되었습니다.');
+                if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden');
+                renderAttendanceDailyHistory(dateKey, State.allHistoryData);
+            } catch (e) {
+                console.error('Error updating attendance history:', e);
+                showToast('근태 기록 저장 중 오류가 발생했습니다.', true);
+            }
+        });
+    }
+    if (DOM.cancelEditAttendanceBtn) {
+        DOM.cancelEditAttendanceBtn.addEventListener('click', () => {
+            if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden');
+        });
+    }
+    if (DOM.confirmAddAttendanceBtn) {
+        DOM.confirmAddAttendanceBtn.addEventListener('click', async () => {
+             const dateKey = DOM.addAttendanceDateKeyInput?.value;
+            if (!dateKey) { showToast('날짜 정보를 찾을 수 없습니다.', true); return; }
+            const memberName = DOM.addAttendanceMemberNameInput?.value.trim();
+            const type = DOM.addAttendanceTypeSelect?.value;
+            if (!memberName || !type) { showToast('이름과 유형을 모두 입력해주세요.', true); return; }
+            
+            const isTimeBased = (type === '외출' || type === '조퇴');
+            const isOuting = (type === '외출');
+            
+            const newRecord = { member: memberName, type: type };
+            if (isTimeBased) {
+                newRecord.startTime = DOM.addAttendanceStartTimeInput?.value || null;
+                if (isOuting) {
+                    newRecord.endTime = DOM.addAttendanceEndTimeInput?.value || null;
+                } else {
+                    newRecord.endTime = null;
+                }
+                if (!newRecord.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
+            } else {
+                newRecord.startDate = DOM.addAttendanceStartDateInput?.value || null;
+                newRecord.endDate = DOM.addAttendanceEndDateInput?.value || null;
+                if (!newRecord.startDate) { showToast('시작일을 입력해주세요.', true); return; }
+            }
+            let dayData = State.allHistoryData.find(d => d.id === dateKey);
+            let isNewDay = false;
+            if (!dayData) {
+                dayData = { id: dateKey, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
+                State.allHistoryData.push(dayData);
+                State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
+                isNewDay = true;
+            }
+            if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
+            dayData.onLeaveMembers.push(newRecord);
+            try {
+                const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+                await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
+
+                showToast(`${memberName}님의 근태 기록이 추가되었습니다.`);
+                if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.add('hidden');
+                renderAttendanceDailyHistory(dateKey, State.allHistoryData);
+            } catch (e) {
+                console.error('Error adding attendance history:', e);
+                showToast('근태 기록 추가 중 오류가 발생했습니다.', true);
+                dayData.onLeaveMembers.pop(); 
+                if (isNewDay) { 
+                    State.allHistoryData.shift(); 
+                }
+            }
+        });
+    }
+    if (DOM.cancelAddAttendanceBtn) {
+        DOM.cancelAddAttendanceBtn.addEventListener('click', () => {
+            if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.add('hidden');
+        });
+    }
+    if (DOM.addAttendanceTypeSelect) {
+        DOM.addAttendanceTypeSelect.addEventListener('change', (e) => {
+            const newType = e.target.value;
+            const isTimeBased = (newType === '외출' || newType === '조퇴');
+            const isOuting = (newType === '외출');
+
+            if (DOM.addAttendanceTimeFields) DOM.addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
+            
+            const endTimeWrapper = document.getElementById('add-attendance-end-time-wrapper');
+            if (endTimeWrapper) {
+                endTimeWrapper.classList.toggle('hidden', !isOuting);
+            }
+
+            if (DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', isTimeBased);
+        });
+    }
+    if (DOM.editAttendanceTypeSelect) {
+        DOM.editAttendanceTypeSelect.addEventListener('change', (e) => {
+            const newType = e.target.value;
+            const isTimeBased = (newType === '외출' || newType === '조퇴');
+            const isOuting = (newType === '외출');
+
+            if (DOM.editAttendanceTimeFields) DOM.editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
+            
+            const endTimeWrapper = document.getElementById('edit-attendance-end-time-wrapper');
+            if (endTimeWrapper) {
+                endTimeWrapper.classList.toggle('hidden', !isOuting);
+            }
+
+            if (DOM.editAttendanceDateFields) DOM.editAttendanceDateFields.classList.toggle('hidden', isTimeBased);
         });
     }
 
@@ -666,296 +944,6 @@ export function setupHistoryModalListeners() {
                     showToast('수정 중 오류가 발생했습니다.', true);
                 }
             }
-        });
-    }
-
-    if (DOM.attendanceHistoryViewContainer) {
-        DOM.attendanceHistoryViewContainer.addEventListener('click', (e) => {
-             const editBtn = e.target.closest('button[data-action="edit-attendance"]');
-            if (editBtn) {
-                const dateKey = editBtn.dataset.dateKey;
-                const index = parseInt(editBtn.dataset.index, 10);
-                if (!dateKey || isNaN(index)) { return; }
-
-                const dayData = State.allHistoryData.find(d => d.id === dateKey);
-
-                if (!dayData || !dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
-                    showToast('원본 근태 기록을 찾을 수 없습니다.', true); return;
-                }
-                const record = dayData.onLeaveMembers[index];
-
-                if (DOM.editAttendanceMemberName) DOM.editAttendanceMemberName.value = record.member;
-                if (DOM.editAttendanceTypeSelect) {
-                    DOM.editAttendanceTypeSelect.innerHTML = '';
-                    State.LEAVE_TYPES.forEach(type => {
-                        const option = document.createElement('option');
-                        option.value = type;
-                        option.textContent = type;
-                        if (type === record.type) option.selected = true;
-                        DOM.editAttendanceTypeSelect.appendChild(option);
-                    });
-                }
-                
-                const isTimeBased = (record.type === '외출' || record.type === '조퇴');
-                const isDateBased = (record.type === '연차' || record.type === '출장' || record.type === '결근');
-                const isOuting = (record.type === '외출');
-
-                if (DOM.editAttendanceTimeFields) {
-                    DOM.editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
-                    const endTimeWrapper = document.getElementById('edit-attendance-end-time-wrapper');
-                    if (endTimeWrapper) {
-                        endTimeWrapper.classList.toggle('hidden', !isOuting);
-                    }
-                    if (DOM.editAttendanceStartTimeInput) DOM.editAttendanceStartTimeInput.value = record.startTime || '';
-                    if (DOM.editAttendanceEndTimeInput) DOM.editAttendanceEndTimeInput.value = record.endTime || '';
-                }
-                if (DOM.editAttendanceDateFields) {
-                    DOM.editAttendanceDateFields.classList.toggle('hidden', !isDateBased);
-                    if (DOM.editAttendanceStartDateInput) DOM.editAttendanceStartDateInput.value = record.startDate || '';
-                    if (DOM.editAttendanceEndDateInput) DOM.editAttendanceEndDateInput.value = record.endDate || '';
-                }
-                if (DOM.editAttendanceDateKeyInput) DOM.editAttendanceDateKeyInput.value = dateKey;
-                if (DOM.editAttendanceRecordIndexInput) DOM.editAttendanceRecordIndexInput.value = index;
-
-                setHistoryMaximized(false); 
-                if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.remove('hidden');
-                return;
-            }
-
-            const deleteBtn = e.target.closest('button[data-action="delete-attendance"]');
-            if (deleteBtn) {
-                const dateKey = deleteBtn.dataset.dateKey;
-                const index = parseInt(deleteBtn.dataset.index, 10);
-                if (!dateKey || isNaN(index)) { return; }
-
-                const dayData = State.allHistoryData.find(d => d.id === dateKey);
-                const record = dayData?.onLeaveMembers?.[index];
-
-                if (!record) { showToast('삭제할 근태 기록을 찾을 수 없습니다.', true); return; }
-
-                State.context.deleteMode = 'attendance';
-                State.context.attendanceRecordToDelete = { dateKey, index };
-
-                const msgEl = document.getElementById('delete-confirm-message');
-                if (msgEl) msgEl.textContent = `${record.member}님의 '${record.type}' 기록을 삭제하시겠습니까?`;
-
-                setHistoryMaximized(false);
-                if (DOM.deleteConfirmModal) DOM.deleteConfirmModal.classList.remove('hidden');
-                return;
-            }
-
-            const addBtn = e.target.closest('button[data-action="open-add-attendance-modal"]');
-            if (addBtn) {
-                const dateKey = addBtn.dataset.dateKey;
-                if (!dateKey) { showToast('날짜 정보를 찾을 수 없습니다.', true); return; }
-                if (DOM.addAttendanceForm) DOM.addAttendanceForm.reset();
-                if (DOM.addAttendanceDateKeyInput) DOM.addAttendanceDateKeyInput.value = dateKey;
-                if (DOM.addAttendanceStartDateInput) DOM.addAttendanceStartDateInput.value = dateKey;
-                if (DOM.addAttendanceEndDateInput) DOM.addAttendanceEndDateInput.value = '';
-
-                if (DOM.addAttendanceMemberDatalist) {
-                    DOM.addAttendanceMemberDatalist.innerHTML = '';
-                    const staffMembers = (State.appConfig.teamGroups || []).flatMap(g => g.members);
-                    const partTimerMembers = (State.appState.partTimers || []).map(p => p.name);
-                    const allMembers = [...new Set([...staffMembers, ...partTimerMembers])].sort();
-                    allMembers.forEach(member => {
-                        const option = document.createElement('option');
-                        option.value = member;
-                        DOM.addAttendanceMemberDatalist.appendChild(option);
-                    });
-                }
-
-                if (DOM.addAttendanceTypeSelect) {
-                    DOM.addAttendanceTypeSelect.innerHTML = '';
-                    State.LEAVE_TYPES.forEach((type, index) => {
-                        const option = document.createElement('option');
-                        option.value = type;
-                        option.textContent = type;
-                        if (index === 0) option.selected = true;
-                        DOM.addAttendanceTypeSelect.appendChild(option);
-                    });
-                }
-                const firstType = State.LEAVE_TYPES[0] || '';
-                
-                const isTimeBased = (firstType === '외출' || firstType === '조퇴');
-                const isDateBased = (firstType === '연차' || firstType === '출장' || firstType === '결근');
-                const isOuting = (firstType === '외출');
-
-                if (DOM.addAttendanceTimeFields) DOM.addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
-                
-                const endTimeWrapper = document.getElementById('add-attendance-end-time-wrapper');
-                if (endTimeWrapper) {
-                    endTimeWrapper.classList.toggle('hidden', !isOuting);
-                }
-
-                if (DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', !isDateBased);
-
-                setHistoryMaximized(false);
-                if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.remove('hidden');
-                return;
-            }
-        });
-    }
-
-    // ✅ [삭제] 구버전 엑셀 다운로드 핸들러 제거 (attendanceHistoryViewContainer 내부)
-
-    const historyHeader = document.getElementById('history-modal-header');
-    if (DOM.historyModal && historyHeader && DOM.historyModalContentBox) {
-        makeDraggable(DOM.historyModal, historyHeader, DOM.historyModalContentBox);
-    }
-
-    const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
-    if (toggleFullscreenBtn && DOM.historyModal && DOM.historyModalContentBox) {
-        const icon = toggleFullscreenBtn.querySelector('svg');
-        if (icon) icon.innerHTML = iconMaximize;
-
-        toggleFullscreenBtn.addEventListener('click', (e) => {
-            e.stopImmediatePropagation();
-            setHistoryMaximized(!isHistoryMaximized);
-        });
-    }
-
-    // ... (confirmEditAttendanceBtn 등 나머지 리스너는 그대로 유지) ...
-    if (DOM.confirmEditAttendanceBtn) {
-        DOM.confirmEditAttendanceBtn.addEventListener('click', async () => {
-             const dateKey = DOM.editAttendanceDateKeyInput?.value;
-            const indexStr = DOM.editAttendanceRecordIndexInput?.value;
-            if (!dateKey || indexStr === '') { showToast('수정할 기록 정보를 찾을 수 없습니다.', true); return; }
-            const index = parseInt(indexStr, 10);
-            const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-            if (dayDataIndex === -1) { showToast('해당 날짜의 이력 데이터를 찾을 수 없습니다.', true); return; }
-            const dayData = State.allHistoryData[dayDataIndex];
-            if (!dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) { showToast('수정할 근태 기록을 찾을 수 없습니다.', true); return; }
-            
-            const newType = DOM.editAttendanceTypeSelect?.value;
-            
-            const isTimeBased = (newType === '외출' || newType === '조퇴');
-            const isOuting = (newType === '외출');
-            
-            const updatedRecord = { ...dayData.onLeaveMembers[index], type: newType };
-            
-            if (isTimeBased) {
-                updatedRecord.startTime = DOM.editAttendanceStartTimeInput?.value || null;
-                if (isOuting) {
-                    updatedRecord.endTime = DOM.editAttendanceEndTimeInput?.value || null;
-                } else {
-                    updatedRecord.endTime = null; 
-                }
-                delete updatedRecord.startDate; delete updatedRecord.endDate;
-            } else {
-                updatedRecord.startDate = DOM.editAttendanceStartDateInput?.value || null;
-                updatedRecord.endDate = DOM.editAttendanceEndDateInput?.value || null;
-                delete updatedRecord.startTime; delete updatedRecord.endTime;
-            }
-            
-            if (isTimeBased && !updatedRecord.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
-            if (!isTimeBased && !updatedRecord.startDate) { showToast('시작일을 입력해주세요.', true); return; }
-            
-            dayData.onLeaveMembers[index] = updatedRecord;
-            try {
-                const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
-                showToast('근태 기록이 수정되었습니다.');
-                if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden');
-                renderAttendanceDailyHistory(dateKey, State.allHistoryData);
-            } catch (e) {
-                console.error('Error updating attendance history:', e);
-                showToast('근태 기록 저장 중 오류가 발생했습니다.', true);
-            }
-        });
-    }
-    if (DOM.cancelEditAttendanceBtn) {
-        DOM.cancelEditAttendanceBtn.addEventListener('click', () => {
-            if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden');
-        });
-    }
-    if (DOM.confirmAddAttendanceBtn) {
-        DOM.confirmAddAttendanceBtn.addEventListener('click', async () => {
-             const dateKey = DOM.addAttendanceDateKeyInput?.value;
-            if (!dateKey) { showToast('날짜 정보를 찾을 수 없습니다.', true); return; }
-            const memberName = DOM.addAttendanceMemberNameInput?.value.trim();
-            const type = DOM.addAttendanceTypeSelect?.value;
-            if (!memberName || !type) { showToast('이름과 유형을 모두 입력해주세요.', true); return; }
-            
-            const isTimeBased = (type === '외출' || type === '조퇴');
-            const isOuting = (type === '외출');
-            
-            const newRecord = { member: memberName, type: type };
-            if (isTimeBased) {
-                newRecord.startTime = DOM.addAttendanceStartTimeInput?.value || null;
-                if (isOuting) {
-                    newRecord.endTime = DOM.addAttendanceEndTimeInput?.value || null;
-                } else {
-                    newRecord.endTime = null;
-                }
-                if (!newRecord.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
-            } else {
-                newRecord.startDate = DOM.addAttendanceStartDateInput?.value || null;
-                newRecord.endDate = DOM.addAttendanceEndDateInput?.value || null;
-                if (!newRecord.startDate) { showToast('시작일을 입력해주세요.', true); return; }
-            }
-            let dayData = State.allHistoryData.find(d => d.id === dateKey);
-            let isNewDay = false;
-            if (!dayData) {
-                dayData = { id: dateKey, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
-                State.allHistoryData.push(dayData);
-                State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
-                isNewDay = true;
-            }
-            if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
-            dayData.onLeaveMembers.push(newRecord);
-            try {
-                const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
-
-                showToast(`${memberName}님의 근태 기록이 추가되었습니다.`);
-                if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.add('hidden');
-                renderAttendanceDailyHistory(dateKey, State.allHistoryData);
-            } catch (e) {
-                console.error('Error adding attendance history:', e);
-                showToast('근태 기록 추가 중 오류가 발생했습니다.', true);
-                dayData.onLeaveMembers.pop(); 
-                if (isNewDay) { 
-                    State.allHistoryData.shift(); 
-                }
-            }
-        });
-    }
-    if (DOM.cancelAddAttendanceBtn) {
-        DOM.cancelAddAttendanceBtn.addEventListener('click', () => {
-            if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.add('hidden');
-        });
-    }
-    if (DOM.addAttendanceTypeSelect) {
-        DOM.addAttendanceTypeSelect.addEventListener('change', (e) => {
-            const newType = e.target.value;
-            const isTimeBased = (newType === '외출' || newType === '조퇴');
-            const isOuting = (newType === '외출');
-
-            if (DOM.addAttendanceTimeFields) DOM.addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
-            
-            const endTimeWrapper = document.getElementById('add-attendance-end-time-wrapper');
-            if (endTimeWrapper) {
-                endTimeWrapper.classList.toggle('hidden', !isOuting);
-            }
-
-            if (DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', isTimeBased);
-        });
-    }
-    if (DOM.editAttendanceTypeSelect) {
-        DOM.editAttendanceTypeSelect.addEventListener('change', (e) => {
-            const newType = e.target.value;
-            const isTimeBased = (newType === '외출' || newType === '조퇴');
-            const isOuting = (newType === '외출');
-
-            if (DOM.editAttendanceTimeFields) DOM.editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
-            
-            const endTimeWrapper = document.getElementById('edit-attendance-end-time-wrapper');
-            if (endTimeWrapper) {
-                endTimeWrapper.classList.toggle('hidden', !isOuting);
-            }
-
-            if (DOM.editAttendanceDateFields) DOM.editAttendanceDateFields.classList.toggle('hidden', isTimeBased);
         });
     }
 }

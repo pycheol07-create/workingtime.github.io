@@ -77,7 +77,19 @@ export const context = {
     monthlyRevenues: {},
     memberToAction: null,
     autoPauseForLunch: null,
-    autoResumeFromLunch: null
+    autoResumeFromLunch: null,
+
+    // ✅ [신규] 근태 이력 정렬 및 필터 상태
+    attendanceSortState: {
+        daily: { key: 'member', dir: 'asc' },
+        weekly: { key: 'member', dir: 'asc' },
+        monthly: { key: 'member', dir: 'asc' }
+    },
+    attendanceFilterState: {
+        daily: { member: '', type: '' },
+        weekly: { member: '' },
+        monthly: { member: '' }
+    }
 };
 
 export const appState = {
@@ -91,7 +103,7 @@ export const appState = {
     currentUserRole: 'user',
     confirmedZeroTasks: [],
     dailyAttendance: {},
-    simulationResults: null // ✅ [적용 확인] 이 줄이 있어야 합니다.
+    simulationResults: null 
 };
 
 // --- Data Arrays (Mutated, not re-assigned) ---
