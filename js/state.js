@@ -43,7 +43,7 @@ export const setPersistentLeaveSchedule = (val) => { persistentLeaveSchedule = v
 
 // --- Constants ---
 export const AUTO_SAVE_INTERVAL = 1 * 60 * 1000;
-export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
+export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장', '지각'];
 
 // --- State Objects ---
 export const context = {
@@ -86,15 +86,35 @@ export const context = {
         weekly: { member: '' },
         monthly: { member: '' }
     },
-    activeFilterDropdown: null,
+    
+    // ✅ [신규] 업무 이력(주/월) 정렬/필터 상태
+    workSortState: {
+        weekly: { key: 'task', dir: 'asc' },
+        monthly: { key: 'task', dir: 'asc' }
+    },
+    workFilterState: {
+        weekly: { task: '' },
+        monthly: { task: '' }
+    },
 
-    // ✅ [신규] 개인 리포트 관련 상태
-    personalReportMember: null, // 선택된 직원 이름
-    personalReportSortState: {} // 개인 리포트 테이블 정렬 상태
+    // ✅ [신규] 개인 리포트 정렬/필터 상태
+    personalReportMember: null, 
+    personalReportSortState: {
+        taskStats: { key: 'duration', dir: 'desc' },
+        dailyLogs: { key: 'date', dir: 'asc' },
+        attendanceLogs: { key: 'date', dir: 'asc' }
+    },
+    personalReportFilterState: {
+        taskStats: { task: '' },
+        dailyLogs: { attendance: '', mainTask: '' },
+        attendanceLogs: { type: '' }
+    },
+
+    activeFilterDropdown: null 
 };
 
 export const appState = {
-    workRecords: [], // 로컬 캐시
+    workRecords: [], 
     taskQuantities: {},
     dailyOnLeaveMembers: [],
     dateBasedOnLeaveMembers: [],
