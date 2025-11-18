@@ -17,16 +17,14 @@ const getSortIcon = (currentKey, currentDir, targetKey) => {
  * 헬퍼: 필터 드롭다운 UI 생성 (엑셀 스타일)
  */
 const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
-    const dropdownId = `${mode}-${key}`; // 예: daily-member
+    const dropdownId = `${mode}-${key}`;
     const isActive = context.activeFilterDropdown === dropdownId;
     const hasValue = currentFilterValue && currentFilterValue !== '';
     
-    // 필터 아이콘 색상
     const iconColorClass = hasValue ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:bg-gray-200';
 
     let inputHtml = '';
     if (options.length > 0) {
-        // 셀렉트 박스
         const optionsHtml = options.map(opt => 
             `<option value="${opt}" ${currentFilterValue === opt ? 'selected' : ''}>${opt}</option>`
         ).join('');
@@ -38,7 +36,7 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
                 ${optionsHtml}
             </select>`;
     } else {
-        // 텍스트 입력
+        // 옵션이 없으면 텍스트 입력 (혹시 모를 대비)
         inputHtml = `
             <input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                    placeholder="검색어 입력..." 
@@ -47,7 +45,6 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
                    autocomplete="off">`;
     }
 
-    // ✅ 드롭다운에 z-index 60 적용하여 테이블 헤더 위로 올라오게 함
     return `
         <div class="relative inline-block ml-1 filter-container">
             <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
@@ -56,7 +53,7 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
                 </svg>
             </button>
             
-            <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} cursor-default text-left">
+            <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left">
                 <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
                     <span>필터 조건</span>
                     ${hasValue ? `<button class="text-[10px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input,select'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
@@ -100,34 +97,28 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         return;
     }
 
+    // ✅ [신규] 현재 데이터에 존재하는 멤버 목록 추출 (필터 옵션용)
+    const allMembers = [...new Set(data.onLeaveMembers.map(e => e.member))].sort();
+
     // --- 1. 필터링 및 정렬 로직 ---
     let leaveEntries = [...data.onLeaveMembers];
-    
-    // ✅ 안전한 참조 (state가 아직 초기화 안 됐을 경우 대비)
     const filterState = context.attendanceFilterState?.daily || { member: '', type: '' };
     const sortState = context.attendanceSortState?.daily || { key: 'member', dir: 'asc' };
 
-    // 1-1. 필터링
+    // 1-1. 필터링 (드롭다운 선택값과 정확히 일치하는지 확인)
     if (filterState.member) {
-        const term = filterState.member.toLowerCase();
-        leaveEntries = leaveEntries.filter(e => (e.member || '').toLowerCase().includes(term));
+        leaveEntries = leaveEntries.filter(e => e.member === filterState.member);
     }
     if (filterState.type) {
-        const term = filterState.type; 
-        leaveEntries = leaveEntries.filter(e => e.type === term);
+        leaveEntries = leaveEntries.filter(e => e.type === filterState.type);
     }
 
     // 1-2. 정렬
     leaveEntries.sort((a, b) => {
         let valA = '', valB = '';
-        if (sortState.key === 'member') {
-            valA = a.member || ''; valB = b.member || '';
-        } else if (sortState.key === 'type') {
-            valA = a.type || ''; valB = b.type || '';
-        } else if (sortState.key === 'time') {
-            valA = a.startTime || a.startDate || ''; 
-            valB = b.startTime || b.startDate || '';
-        }
+        if (sortState.key === 'member') { valA = a.member || ''; valB = b.member || ''; }
+        else if (sortState.key === 'type') { valA = a.type || ''; valB = b.type || ''; }
+        else if (sortState.key === 'time') { valA = a.startTime || a.startDate || ''; valB = b.startTime || b.startDate || ''; }
         
         if (valA < valB) return sortState.dir === 'asc' ? -1 : 1;
         if (valA > valB) return sortState.dir === 'asc' ? 1 : -1;
@@ -143,8 +134,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                         <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-100 transition select-none group relative" data-sort-target="daily" data-sort-key="member">
                             <div class="flex items-center justify-between">
                                 <span class="flex items-center">이름 ${getSortIcon(sortState.key, sortState.dir, 'member')}</span>
-                                ${getFilterDropdown('daily', 'member', filterState.member)}
-                            </div>
+                                ${getFilterDropdown('daily', 'member', filterState.member, allMembers)} </div>
                         </th>
                         <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-100 transition select-none group relative" data-sort-target="daily" data-sort-key="type">
                             <div class="flex items-center justify-between">
@@ -170,7 +160,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         return;
     }
 
-    // --- 3. 테이블 바디 생성 ---
+    // --- 3. 테이블 바디 생성 (이름 정렬 시 그룹화) ---
     const isGroupedView = (sortState.key === 'member');
 
     if (isGroupedView) {
@@ -268,9 +258,12 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
     // 1. 집계
     let summary = [];
     const memberMap = {};
+    const allMemberSet = new Set(); // ✅ 멤버 목록 수집용
 
     data.leaveEntries.forEach(entry => {
         const member = entry.member;
+        allMemberSet.add(member); // 멤버 추가
+
         if (!memberMap[member]) {
             memberMap[member] = {
                 member: member,
@@ -296,20 +289,20 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
     });
     summary = Object.values(memberMap);
 
-    // 2. 필터링
+    // ✅ 멤버 리스트 정렬
+    const allMembers = [...allMemberSet].sort();
+
+    // 2. 필터링 (정확히 일치)
     if (filterState.member) {
-        const term = filterState.member.toLowerCase();
-        summary = summary.filter(item => item.member.toLowerCase().includes(term));
+        summary = summary.filter(item => item.member === filterState.member);
     }
 
     // 3. 정렬
     summary.sort((a, b) => {
         let valA = 0, valB = 0;
         const k = sortState.key;
-        if (k === 'member') { valA = a.member; valB = b.member; }
-        else if (k === 'totalCount') { valA = a.totalCount; valB = b.totalCount; }
-        else if (k === 'totalAbsenceDays') { valA = a.totalAbsenceDays; valB = b.totalAbsenceDays; }
-        else if (k === 'totalLeaveDays') { valA = a.totalLeaveDays; valB = b.totalLeaveDays; }
+        if (['member'].includes(k)) { valA = a[k]; valB = b[k]; }
+        else if (['totalCount', 'totalAbsenceDays', 'totalLeaveDays'].includes(k)) { valA = a[k]; valB = b[k]; }
         else { valA = a.counts[k] || 0; valB = b.counts[k] || 0; }
 
         if (valA < valB) return sortState.dir === 'asc' ? -1 : 1;
@@ -328,8 +321,7 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
                                     data-sort-target="${mode}" data-sort-key="member">
                                     <div class="flex items-center justify-between min-w-[100px]">
                                         <span class="flex items-center">이름 ${getSortIcon(sortState.key, sortState.dir, 'member')}</span>
-                                        ${getFilterDropdown(mode, 'member', filterState.member)}
-                                    </div>
+                                        ${getFilterDropdown(mode, 'member', filterState.member, allMembers)} </div>
                                 </th>
                                 <th scope="col" class="px-4 py-3 border-b text-center cursor-pointer hover:bg-gray-200 select-none group" data-sort-target="${mode}" data-sort-key="지각">
                                     <div class="flex items-center justify-center">지각 ${getSortIcon(sortState.key, sortState.dir, '지각')}</div>
