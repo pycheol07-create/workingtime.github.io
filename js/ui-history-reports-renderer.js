@@ -607,7 +607,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     let attDataList = [];
     const attSummaryMap = {};
     
-    // 4-1. 데이터 집계
+    // 4-1. 데이터 집계 (attendanceData가 undefined일 수 있으므로 안전하게 처리)
     (attendanceData || []).forEach(entry => {
         if (!attSummaryMap[entry.member]) {
             attSummaryMap[entry.member] = {
