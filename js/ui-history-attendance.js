@@ -15,6 +15,7 @@ const getSortIcon = (currentKey, currentDir, targetKey) => {
 
 /**
  * 헬퍼: 필터 드롭다운 UI 생성 (엑셀 스타일)
+ * ✅ 수정: inline onclick="event.stopPropagation()" 제거 (리스너에서 처리)
  */
 const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
     const dropdownId = `${mode}-${key}`; // 예: daily-member
@@ -48,14 +49,14 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
     }
 
     return `
-        <div class="relative inline-block ml-1 filter-container" onclick="event.stopPropagation()">
+        <div class="relative inline-block ml-1 filter-container">
             <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                   <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
                 </svg>
             </button>
             
-            <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-3 ${isActive ? '' : 'hidden'} cursor-default">
+            <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-3 ${isActive ? '' : 'hidden'} cursor-default text-left">
                 <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
                     <span>필터 조건</span>
                     ${hasValue ? `<button class="text-[10px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input,select'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
@@ -110,7 +111,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         leaveEntries = leaveEntries.filter(e => (e.member || '').toLowerCase().includes(term));
     }
     if (filterState.type) {
-        const term = filterState.type; // 정확한 매칭을 위해 toLowerCase 제거 (옵션값은 대소문자 구분됨)
+        const term = filterState.type; 
         leaveEntries = leaveEntries.filter(e => e.type === term);
     }
 
