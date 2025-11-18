@@ -17,8 +17,8 @@ import {
     renderHistoryDateListByMode,
     openHistoryQuantityModal,
     requestHistoryDeletion,
-    openHistoryRecordManager, // 기록 관리 모달 열기
-    renderHistoryRecordsTable   // 테이블 리렌더링
+    openHistoryRecordManager, 
+    renderHistoryRecordsTable   
 } from './app-history-logic.js';
 
 import {
@@ -29,6 +29,7 @@ import {
     downloadAttendanceExcel       
 } from './history-excel.js';
 
+// ✅ [수정] renderPersonalReport 추가 임포트
 import {
     renderAttendanceDailyHistory,
     renderAttendanceWeeklyHistory,
@@ -38,7 +39,8 @@ import {
     renderReportDaily,
     renderReportWeekly,
     renderReportMonthly,
-    renderReportYearly
+    renderReportYearly,
+    renderPersonalReport
 } from './ui-history.js';
 
 import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -82,6 +84,7 @@ export function setupHistoryModalListeners() {
         }
     };
     
+    // ✅ [수정] 개인 리포트 탭('personal') 로직 추가
     const getCurrentHistoryListMode = () => {
         let activeSubTabBtn;
         if (State.context.activeMainHistoryTab === 'work') {
@@ -90,6 +93,8 @@ export function setupHistoryModalListeners() {
             activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
         } else if (State.context.activeMainHistoryTab === 'report') {
             activeSubTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
+        } else if (State.context.activeMainHistoryTab === 'personal') {
+            activeSubTabBtn = DOM.personalReportTabs?.querySelector('button.font-semibold');
         }
 
         const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (State.context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
@@ -120,12 +125,9 @@ export function setupHistoryModalListeners() {
         return btn ? btn.dataset.key : null;
     };
 
-    // 뷰 갱신 함수
     const refreshAttendanceView = () => {
         const dateKey = getSelectedDateKey();
         const filteredData = getFilteredHistoryData();
-        
-        // 현재 활성화된 탭 확인
         const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
         const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
 
@@ -135,6 +137,18 @@ export function setupHistoryModalListeners() {
              if (dateKey) renderAttendanceWeeklyHistory(dateKey, filteredData);
         } else if (view === 'attendance-monthly') {
              if (dateKey) renderAttendanceMonthlyHistory(dateKey, filteredData);
+        }
+    };
+    
+    // ✅ [신규] 개인 리포트 뷰 갱신 함수
+    const refreshPersonalView = () => {
+        const dateKey = getSelectedDateKey();
+        const activeSubTabBtn = DOM.personalReportTabs?.querySelector('button.font-semibold');
+        const viewMode = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'personal-daily';
+        const memberName = DOM.personalReportMemberSelect?.value;
+        
+        if (dateKey && memberName) {
+            renderPersonalReport('personal-report-content', viewMode, dateKey, memberName, State.allHistoryData);
         }
     };
 
@@ -272,6 +286,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // --- 날짜 리스트 클릭 리스너 ---
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
@@ -282,7 +297,7 @@ export function setupHistoryModalListeners() {
 
                 let activeMainTab = State.context.activeMainHistoryTab || 'work';
                 State.context.activeFilterDropdown = null; 
-                
+
                 const filteredData = getFilteredHistoryData();
                 State.context.reportSortState = {};
 
@@ -312,6 +327,10 @@ export function setupHistoryModalListeners() {
                     else if (activeView === 'report-weekly') renderReportWeekly(dateKey, filteredData, State.appConfig, State.context);
                     else if (activeView === 'report-monthly') renderReportMonthly(dateKey, filteredData, State.appConfig, State.context);
                     else if (activeView === 'report-yearly') renderReportYearly(dateKey, filteredData, State.appConfig, State.context);
+                } 
+                // ✅ [신규] 개인 리포트 탭일 때
+                else if (activeMainTab === 'personal') {
+                    refreshPersonalView();
                 }
             }
         });
@@ -345,6 +364,40 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // ✅ [신규] 개인 리포트 탭 전환
+    if (DOM.personalReportTabs) {
+        DOM.personalReportTabs.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-view]');
+            if (btn) {
+                // UI 스타일 변경
+                DOM.personalReportTabs.querySelectorAll('button').forEach(b => {
+                     b.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+                     b.classList.add('text-gray-500', 'hover:text-gray-700');
+                });
+                btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+                btn.classList.remove('text-gray-500', 'hover:text-gray-700');
+
+                // 날짜 리스트 모드 변경 및 뷰 갱신
+                const viewMode = btn.dataset.view;
+                let listMode = 'day';
+                if(viewMode.includes('weekly')) listMode = 'week';
+                if(viewMode.includes('monthly')) listMode = 'month';
+                if(viewMode.includes('yearly')) listMode = 'year';
+                
+                renderHistoryDateListByMode(listMode);
+                // (날짜 리스트 렌더링 후 첫 번째 날짜가 자동 클릭되므로 refreshPersonalView는 그 안에서 호출됨)
+            }
+        });
+    }
+
+    // ✅ [신규] 개인 리포트 직원 선택
+    if (DOM.personalReportMemberSelect) {
+        DOM.personalReportMemberSelect.addEventListener('change', (e) => {
+            State.context.personalReportMember = e.target.value;
+            refreshPersonalView();
+        });
+    }
+
     if (DOM.historyMainTabs) {
         DOM.historyMainTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-main-tab]');
@@ -367,6 +420,11 @@ export function setupHistoryModalListeners() {
                 DOM.trendAnalysisPanel.classList.toggle('hidden', tabName !== 'trends');
                 DOM.reportPanel.classList.toggle('hidden', tabName !== 'report');
                 
+                // ✅ [신규] 개인 리포트 패널 토글
+                if (DOM.personalReportPanel) {
+                    DOM.personalReportPanel.classList.toggle('hidden', tabName !== 'personal');
+                }
+                
                 if (dateListContainer) {
                     dateListContainer.style.display = (tabName === 'trends') ? 'none' : 'block';
                 }
@@ -382,6 +440,38 @@ export function setupHistoryModalListeners() {
                      switchHistoryView(view);
                 } else if (tabName === 'trends') {
                      renderTrendAnalysisCharts(State.allHistoryData, State.appConfig, trendCharts);
+                } else if (tabName === 'personal') {
+                     // ✅ [신규] 개인 리포트 탭 초기화 로직
+                     // 직원 드롭다운 채우기 (한 번만)
+                     if (DOM.personalReportMemberSelect && DOM.personalReportMemberSelect.options.length <= 1) {
+                         const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
+                         const partTimers = (State.appState.partTimers || []).map(p => p.name);
+                         const allMembers = [...new Set([...staff, ...partTimers])].sort();
+                         
+                         DOM.personalReportMemberSelect.innerHTML = '<option value="">직원 선택...</option>';
+                         allMembers.forEach(m => {
+                             const op = document.createElement('option');
+                             op.value = m;
+                             op.textContent = m;
+                             DOM.personalReportMemberSelect.appendChild(op);
+                         });
+                         
+                         // 현재 로그인한 사용자 자동 선택
+                         if (State.appState.currentUser && allMembers.includes(State.appState.currentUser)) {
+                             DOM.personalReportMemberSelect.value = State.appState.currentUser;
+                             State.context.personalReportMember = State.appState.currentUser;
+                         }
+                     }
+
+                     const activeSubTabBtn = DOM.personalReportTabs?.querySelector('button.font-semibold');
+                     const viewMode = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'personal-daily';
+                     
+                     let listMode = 'day';
+                     if(viewMode.includes('weekly')) listMode = 'week';
+                     if(viewMode.includes('monthly')) listMode = 'month';
+                     if(viewMode.includes('yearly')) listMode = 'year';
+                     
+                     renderHistoryDateListByMode(listMode);
                 }
             }
         });
@@ -658,12 +748,12 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] 근태 이력 탭의 정렬 & 필터 리스너
+    // 근태 이력 탭의 정렬 & 필터 리스너 (attendanceHistoryViewContainer)
     if (DOM.attendanceHistoryViewContainer) {
         
         DOM.attendanceHistoryViewContainer.addEventListener('click', (e) => {
             
-            // 1. 드롭다운 내부 클릭: 이벤트 중단하여 정렬 방지 및 닫기 방지
+            // 1. 드롭다운 내부 클릭: 이벤트 중단
             if (e.target.closest('.filter-dropdown')) {
                 e.stopPropagation(); 
                 return;
@@ -672,9 +762,8 @@ export function setupHistoryModalListeners() {
             // 2. 필터 아이콘 클릭: 드롭다운 토글
             const filterIconBtn = e.target.closest('.filter-icon-btn');
             if (filterIconBtn) {
-                e.stopPropagation(); // 부모인 th 클릭으로 전파되지 않게 함
+                e.stopPropagation(); 
                 const dropdownId = filterIconBtn.dataset.dropdownId;
-                
                 if (State.context.activeFilterDropdown === dropdownId) {
                     State.context.activeFilterDropdown = null;
                 } else {
@@ -689,7 +778,6 @@ export function setupHistoryModalListeners() {
             if (sortTh) {
                 const mode = sortTh.dataset.sortTarget;
                 const key = sortTh.dataset.sortKey;
-                
                 if (!mode || !key) return;
 
                 const currentSort = State.context.attendanceSortState[mode];
@@ -699,7 +787,6 @@ export function setupHistoryModalListeners() {
                     currentSort.key = key;
                     currentSort.dir = 'asc';
                 }
-
                 refreshAttendanceView();
                 return;
             }
@@ -708,7 +795,7 @@ export function setupHistoryModalListeners() {
             handleExistingAttendanceButtons(e);
         });
 
-        // 5. 필터 입력 이벤트
+        // 5. 필터 입력 이벤트 (검색어/드롭다운 변경)
         DOM.attendanceHistoryViewContainer.addEventListener('input', (e) => {
             const filterInput = e.target.closest('[data-filter-key]');
             if (filterInput) {
@@ -741,7 +828,6 @@ export function setupHistoryModalListeners() {
     // 6. 외부 클릭 시 필터 드롭다운 닫기
     document.addEventListener('click', (e) => {
         if (State.context.activeFilterDropdown) {
-            // 드롭다운 내부나 필터 버튼 클릭이 아니면 닫기
             if (!e.target.closest('.filter-dropdown') && !e.target.closest('.filter-icon-btn')) {
                 State.context.activeFilterDropdown = null;
                 refreshAttendanceView();
@@ -796,7 +882,7 @@ function handleExistingAttendanceButtons(e) {
             });
         }
 
-        const isTimeBased = (record.type === '외출' || record.type === '조퇴');
+        const isTimeBased = (record.type === '외출' || record.type === '조퇴' || record.type === '지각');
         const isDateBased = (record.type === '연차' || record.type === '출장' || record.type === '결근');
         const isOuting = (record.type === '외출');
 
@@ -875,7 +961,7 @@ function handleExistingAttendanceButtons(e) {
         }
         const firstType = State.LEAVE_TYPES[0] || '';
         
-        const isTimeBased = (firstType === '외출' || firstType === '조퇴');
+        const isTimeBased = (firstType === '외출' || firstType === '조퇴' || firstType === '지각');
         const isDateBased = (firstType === '연차' || firstType === '출장' || firstType === '결근');
         const isOuting = (firstType === '외출');
 
@@ -906,7 +992,6 @@ function setupRecordManagerListeners() {
 }
 
 function setupAttendanceModalButtons() {
-    // ✅ [수정됨] confirmEditAttendanceBtn의 dayData 오류 수정 완료
     if (DOM.confirmEditAttendanceBtn) {
         DOM.confirmEditAttendanceBtn.addEventListener('click', async () => {
              const dateKey = DOM.editAttendanceDateKeyInput?.value;
@@ -922,7 +1007,7 @@ function setupAttendanceModalButtons() {
             
             const newType = DOM.editAttendanceTypeSelect?.value;
             
-            const isTimeBased = (newType === '외출' || newType === '조퇴');
+            const isTimeBased = (newType === '외출' || newType === '조퇴' || newType === '지각');
             const isOuting = (newType === '외출');
             
             const updatedRecord = { ...dayData.onLeaveMembers[index], type: newType };
@@ -951,22 +1036,21 @@ function setupAttendanceModalButtons() {
                 showToast('근태 기록이 수정되었습니다.');
                 if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden');
                 
-                // 뷰 갱신
                 const btn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
                 const currentKey = btn ? btn.dataset.key : null;
                 if (currentKey === dateKey) {
-                     const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
-                        ? State.allHistoryData.filter(d => {
-                            const date = d.id;
-                            const start = State.context.historyStartDate;
-                            const end = State.context.historyEndDate;
-                            if (start && end) return date >= start && date <= end;
-                            if (start) return date >= start;
-                            if (end) return date <= end;
-                            return true;
-                        }) : State.allHistoryData;
-                        
-                     renderAttendanceDailyHistory(dateKey, filteredData);
+                    // ✅ 뷰 갱신: 함수 내 로직 직접 수행 대신 renderAttendanceDailyHistory 재호출
+                    const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
+                    ? State.allHistoryData.filter(d => {
+                        const date = d.id;
+                        const start = State.context.historyStartDate;
+                        const end = State.context.historyEndDate;
+                        if (start && end) return date >= start && date <= end;
+                        if (start) return date >= start;
+                        if (end) return date <= end;
+                        return true;
+                    }) : State.allHistoryData;
+                    renderAttendanceDailyHistory(dateKey, filteredData);
                 }
             } catch (e) {
                 console.error('Error updating attendance history:', e);
@@ -989,7 +1073,7 @@ function setupAttendanceModalButtons() {
             const type = DOM.addAttendanceTypeSelect?.value;
             if (!memberName || !type) { showToast('이름과 유형을 모두 입력해주세요.', true); return; }
             
-            const isTimeBased = (type === '외출' || type === '조퇴');
+            const isTimeBased = (type === '외출' || type === '조퇴' || type === '지각');
             const isOuting = (type === '외출');
             
             const newRecord = { member: memberName, type: type };
@@ -1056,7 +1140,7 @@ function setupAttendanceModalButtons() {
     if (DOM.addAttendanceTypeSelect) {
         DOM.addAttendanceTypeSelect.addEventListener('change', (e) => {
             const newType = e.target.value;
-            const isTimeBased = (newType === '외출' || newType === '조퇴');
+            const isTimeBased = (newType === '외출' || newType === '조퇴' || newType === '지각');
             const isOuting = (newType === '외출');
 
             if (DOM.addAttendanceTimeFields) DOM.addAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
@@ -1072,7 +1156,7 @@ function setupAttendanceModalButtons() {
     if (DOM.editAttendanceTypeSelect) {
         DOM.editAttendanceTypeSelect.addEventListener('change', (e) => {
             const newType = e.target.value;
-            const isTimeBased = (newType === '외출' || newType === '조퇴');
+            const isTimeBased = (newType === '외출' || newType === '조퇴' || newType === '지각');
             const isOuting = (newType === '외출');
 
             if (DOM.editAttendanceTimeFields) DOM.editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);

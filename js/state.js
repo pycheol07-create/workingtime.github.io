@@ -42,8 +42,8 @@ export const setAppConfig = (val) => { appConfig = val; };
 export const setPersistentLeaveSchedule = (val) => { persistentLeaveSchedule = val; };
 
 // --- Constants ---
-// ✅ [수정] '지각' 추가
-export const LEAVE_TYPES = ['연차', '지각', '조퇴', '외출', '결근', '출장'];
+export const AUTO_SAVE_INTERVAL = 1 * 60 * 1000;
+export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
 // --- State Objects ---
 export const context = {
@@ -86,7 +86,11 @@ export const context = {
         weekly: { member: '' },
         monthly: { member: '' }
     },
-    activeFilterDropdown: null 
+    activeFilterDropdown: null,
+
+    // ✅ [신규] 개인 리포트 관련 상태
+    personalReportMember: null, // 선택된 직원 이름
+    personalReportSortState: {} // 개인 리포트 테이블 정렬 상태
 };
 
 export const appState = {

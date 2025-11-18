@@ -60,6 +60,13 @@ export const reportWeeklyView = document.getElementById('report-weekly-view');
 export const reportMonthlyView = document.getElementById('report-monthly-view');
 export const reportYearlyView = document.getElementById('report-yearly-view');
 
+// ✅ [신규] 개인 리포트 관련 요소
+export const personalReportPanel = document.getElementById('personal-report-panel');
+export const personalReportTabs = document.getElementById('personal-report-tabs');
+export const personalReportMemberSelect = document.getElementById('personal-report-member-select');
+export const personalReportViewContainer = document.getElementById('personal-report-view-container');
+export const personalReportContent = document.getElementById('personal-report-content');
+
 export const historyAttendanceDailyView = document.getElementById('history-attendance-daily-view');
 export const historyAttendanceWeeklyView = document.getElementById('history-attendance-weekly-view');
 export const historyAttendanceMonthlyView = document.getElementById('history-attendance-monthly-view');
@@ -137,7 +144,6 @@ export const logoutBtn = document.getElementById('logout-btn');
 export const menuToggleBtn = document.getElementById('menu-toggle-btn');
 export const menuDropdown = document.getElementById('menu-dropdown');
 
-// ✅ [신규] 내 연차관리 버튼
 export const openMyLeaveBtn = document.getElementById('open-my-leave-btn');
 export const openMyLeaveBtnMobile = document.getElementById('open-my-leave-btn-mobile');
 

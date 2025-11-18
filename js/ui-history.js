@@ -1,4 +1,5 @@
-// === ui-history.js (분리 완료된 최종 인덱스 파일) ===
+// === js/ui-history.js ===
+// 설명: 이력 보기와 관련된 모든 UI 렌더링 함수를 모아서 내보내는 인덱스 파일입니다.
 
 // 1. 리포트 관련 함수 (일별/주별/월별/연간 리포트)
 import {
@@ -26,6 +27,11 @@ import {
     renderMonthlyHistory
 } from './ui-history-summary.js';
 
+// ✅ [신규] 5. 개인 리포트 관련 함수
+import {
+    renderPersonalReport
+} from './ui-history-personal.js';
+
 
 // --- 모든 함수를 ui.js가 사용할 수 있도록 다시 내보내기 ---
 
@@ -46,5 +52,8 @@ export {
     
     // 업무 이력 요약
     renderWeeklyHistory,
-    renderMonthlyHistory
+    renderMonthlyHistory,
+
+    // ✅ [신규] 개인 리포트
+    renderPersonalReport
 };
