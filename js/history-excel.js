@@ -465,13 +465,13 @@ export const downloadContentAsPdf = (elementId, title) => {
     showToast('PDF 변환을 시작합니다. (잠시만 기다려주세요)');
 
     // 1. 임시 컨테이너 생성 (화면 밖으로 숨김)
-    // A4 가로 너비(약 297mm)에 맞춰 넉넉한 픽셀 너비 설정 (1280px -> 1400px로 증가)
+    // A4 가로 너비(약 297mm)에 맞춰 넉넉한 픽셀 너비 설정 (1400px -> 1500px로 증가)
     const tempContainer = document.createElement('div');
     tempContainer.id = 'pdf-temp-container';
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
     tempContainer.style.top = '0';
-    tempContainer.style.width = '1400px'; // ✅ 1280px -> 1400px로 증가
+    tempContainer.style.width = '1500px'; // ✅ 1400px -> 1500px로 증가
     tempContainer.style.background = 'white';
     tempContainer.style.zIndex = '-9999';
     // 테이블 줄바꿈 방지 스타일 주입
@@ -479,7 +479,10 @@ export const downloadContentAsPdf = (elementId, title) => {
         /* PDF에 캡처될 때 폰트 크기를 줄여 한 페이지에 더 많은 내용을 담고, 테이블 패딩을 줄여 너비를 확보합니다. */
         .pdf-content-wrapper { font-size: 10px !important; }
         .pdf-content-wrapper table { table-layout: fixed; width: 100%; border-collapse: collapse; }
-        .pdf-content-wrapper td, .pdf-content-wrapper th { padding: 4px !important; }
+        .pdf-content-wrapper td, .pdf-content-wrapper th { 
+            padding: 4px !important; 
+            min-width: unset !important; /* 최소 너비 제약 해제 */
+        }
         /* 페이지 분할 방지 */
         table { page-break-inside: auto; }
         tr { page-break-inside: avoid; page-break-after: auto; }
@@ -535,7 +538,7 @@ export const downloadContentAsPdf = (elementId, title) => {
             scale: 2, // scale 2 유지 (고화질)
             useCORS: true,
             scrollY: 0,
-            windowWidth: 1400 // ✅ 컨테이너 너비와 일치 (1400px)
+            windowWidth: 1500 // ✅ 컨테이너 너비와 일치 (1500px)
         },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }, // ✅ 가로 모드
         pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
