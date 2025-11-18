@@ -1,356 +1,648 @@
 // === js/history-excel.js ===
-// 설명: 각종 이력 및 리포트 데이터를 엑셀(.xlsx) 또는 PDF로 다운로드하는 기능을 담당합니다.
 
-import { formatDuration, getWeekOfYear, calculateDateDifference, formatTimeTo24H } from './utils.js';
-import { allHistoryData, appConfig, context, LEAVE_TYPES } from './state.js';
-// 업무 리포트 데이터 생성 로직 재사용
-import { generateReportData } from './ui-history-reports-logic.js'; 
+// DOM 요소와 상태 변수를 분리된 파일에서 가져옵니다.
+import { 
+    appState, appConfig, db, auth, 
+    allHistoryData
+} from './state.js'; 
 
-// --- (기존) 업무 이력 엑셀 다운로드 ---
-export const downloadHistoryAsExcel = (dateKey) => {
-    const dayData = allHistoryData.find(d => d.id === dateKey);
-    if (!dayData) { alert("해당 날짜의 데이터가 없습니다."); return; }
+// utils.js에서 헬퍼 함수들을 가져옵니다.
+import { 
+    formatTimeTo24H, formatDuration, getWeekOfYear, showToast, calculateDateDifference
+} from './utils.js';
 
-    const wb = XLSX.utils.book_new();
-    
-    // 1. 업무 기록 시트
-    const records = (dayData.workRecords || []).map(r => ({
-        '이름': r.member,
-        '업무': r.task,
-        '시작시간': r.startTime,
-        '종료시간': r.endTime || '(진행중)',
-        '소요시간': r.duration ? formatDuration(r.duration) : '-',
-        '상태': r.status === 'completed' ? '완료' : '진행중'
-    }));
-    const wsRecords = XLSX.utils.json_to_sheet(records);
-    XLSX.utils.book_append_sheet(wb, wsRecords, "업무기록");
+// (XLSX는 index.html에서 전역 로드)
 
-    // 2. 처리량 시트
-    const qtys = Object.entries(dayData.taskQuantities || {}).map(([task, qty]) => ({
-        '업무명': task,
-        '처리량': qty
-    }));
-    const wsQtys = XLSX.utils.json_to_sheet(qtys);
-    XLSX.utils.book_append_sheet(wb, wsQtys, "처리량");
-
-    // 3. 근태 시트
-    const leaves = (dayData.onLeaveMembers || []).map(l => ({
-        '이름': l.member,
-        '유형': l.type,
-        '시작': l.startTime || l.startDate || '-',
-        '종료': l.endTime || l.endDate || '-'
-    }));
-    const wsLeaves = XLSX.utils.json_to_sheet(leaves);
-    XLSX.utils.book_append_sheet(wb, wsLeaves, "근태");
-
-    XLSX.writeFile(wb, `업무이력_${dateKey}.xlsx`);
-};
-
-// --- (기존) 기간별 업무 이력 엑셀 다운로드 ---
-export const downloadPeriodHistoryAsExcel = (startDate, endDate) => {
-    const filteredData = allHistoryData.filter(d => d.id >= startDate && d.id <= endDate);
-    if (filteredData.length === 0) { alert("해당 기간의 데이터가 없습니다."); return; }
-
-    const wb = XLSX.utils.book_new();
-    const allRecords = [];
-    
-    filteredData.forEach(day => {
-        (day.workRecords || []).forEach(r => {
-            allRecords.push({
-                '날짜': day.id,
-                '이름': r.member,
-                '업무': r.task,
-                '시작시간': r.startTime,
-                '종료시간': r.endTime || '-',
-                '소요시간': r.duration ? formatDuration(r.duration) : '-'
-            });
+// =================================================================
+// 엑셀 다운로드 함수
+// =================================================================
+const fitToColumn = (ws) => {
+    const objectMaxLength = [];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    if (!data || data.length === 0) return;
+    if (data[0]) {
+        Object.keys(data[0]).forEach((key, index) => {
+            objectMaxLength[index] = String(data[0][key]).length;
+        });
+    }
+    data.slice(1).forEach(row => {
+        Object.keys(row).forEach((key, index) => {
+            const cellLength = String(row[key] ?? '').length;
+            objectMaxLength[index] = Math.max(objectMaxLength[index] || 10, cellLength);
         });
     });
-    
-    const ws = XLSX.utils.json_to_sheet(allRecords);
-    XLSX.utils.book_append_sheet(wb, ws, "기간별_업무이력");
-    XLSX.writeFile(wb, `업무이력_${startDate}_${endDate}.xlsx`);
+    ws['!cols'] = objectMaxLength.map(w => ({ width: w + 2 }));
 };
 
-// --- (기존) 주간/월간 업무 이력 ---
-export const downloadWeeklyHistoryAsExcel = (weekKey) => {
-    alert("주간 업무 이력 엑셀 다운로드는 '기간 엑셀' 기능을 이용해주세요.");
-};
-export const downloadMonthlyHistoryAsExcel = (monthKey) => {
-    alert("월간 업무 이력 엑셀 다운로드는 '기간 엑셀' 기능을 이용해주세요.");
-};
+const appendTotalRow = (ws, data, headers) => {
+    if (!data || data.length === 0) return;
+    const total = {};
+    const sums = {};
 
-
-// --- (기존) 근태 이력 엑셀 다운로드 ---
-export const downloadAttendanceExcel = (viewMode, dateKey) => {
-    let filteredData = [];
-    let fileName = `근태이력_${dateKey}`;
-
-    if (viewMode === 'daily') {
-        const day = allHistoryData.find(d => d.id === dateKey);
-        if (day) filteredData = [day];
-    } else if (viewMode === 'weekly') {
-        filteredData = allHistoryData.filter(d => getWeekOfYear(new Date(d.id)) === dateKey);
-    } else if (viewMode === 'monthly') {
-        filteredData = allHistoryData.filter(d => d.id.startsWith(dateKey));
-    }
-
-    if (filteredData.length === 0) { alert("데이터가 없습니다."); return; }
-
-    const wb = XLSX.utils.book_new();
-    const rows = [];
-
-    filteredData.forEach(day => {
-        (day.onLeaveMembers || []).forEach(l => {
-            rows.push({
-                '날짜': day.id,
-                '이름': l.member,
-                '유형': l.type,
-                '상세': (l.startTime ? `${l.startTime}~${l.endTime||''}` : `${l.startDate}~${l.endDate||''}`)
-            });
-        });
+    headers.forEach(header => {
+        if (header.includes('(분)') || header.includes('(원)') || header.includes('(개)')) {
+            sums[header] = data.reduce((acc, row) => acc + (Number(row[header]) || 0), 0);
+        }
     });
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, "근태기록");
-    XLSX.writeFile(wb, `${fileName}.xlsx`);
-};
-
-
-// =========================================================================================
-// ✅ [신규] 업무 리포트 다운로드 (Excel & PDF)
-// =========================================================================================
-
-export const downloadReportExcel = (viewMode, dateKey) => {
-    const { tMetrics } = generateReportData(allHistoryData, appConfig, viewMode, dateKey);
-    if (!tMetrics.aggr) { alert("데이터가 없습니다."); return; }
-    const aggr = tMetrics.aggr;
-
-    const wb = XLSX.utils.book_new();
-
-    // 1. KPI 시트
-    const kpiRows = [
-        ['지표', '값'],
-        ['총 업무 시간', formatDuration(tMetrics.kpis.totalDuration)],
-        ['총 인건비', tMetrics.kpis.totalCost],
-        ['총 처리량', tMetrics.kpis.totalQuantity],
-        ['분당 처리량', tMetrics.kpis.overallAvgThroughput.toFixed(2)],
-        ['평균 근무 인원', tMetrics.kpis.activeMembersCount.toFixed(1)],
-        ['COQ 비율', `${tMetrics.kpis.coqPercentage.toFixed(1)}%`]
-    ];
-    const wsKPI = XLSX.utils.aoa_to_sheet(kpiRows);
-    XLSX.utils.book_append_sheet(wb, wsKPI, "KPI_요약");
-
-    // 2. 파트별 시트
-    const partRows = Object.entries(aggr.partSummary).map(([name, d]) => ({
-        '파트': name,
-        '총시간': formatDuration(d.duration),
-        '총인건비': d.cost,
-        '인원수': d.members.size
-    }));
-    const wsPart = XLSX.utils.json_to_sheet(partRows);
-    XLSX.utils.book_append_sheet(wb, wsPart, "파트별");
-
-    // 3. 업무별 시트
-    const taskRows = Object.entries(aggr.taskSummary).map(([name, d]) => ({
-        '업무명': name,
-        '총시간': formatDuration(d.duration),
-        '총인건비': d.cost,
-        '처리량': d.quantity,
-        '분당처리량': d.avgThroughput.toFixed(2),
-        '개당비용': d.avgCostPerItem.toFixed(0),
-        '투입인원': d.avgStaff.toFixed(1)
-    }));
-    const wsTask = XLSX.utils.json_to_sheet(taskRows);
-    XLSX.utils.book_append_sheet(wb, wsTask, "업무별");
-
-    // 4. 인원별 시트
-    const memberRows = Object.entries(aggr.memberSummary).map(([name, d]) => ({
-        '이름': name,
-        '총시간': formatDuration(d.duration),
-        '총인건비': d.cost,
-        '수행업무수': d.tasks.size
-    }));
-    const wsMember = XLSX.utils.json_to_sheet(memberRows);
-    XLSX.utils.book_append_sheet(wb, wsMember, "인원별");
-
-    XLSX.writeFile(wb, `업무리포트_${dateKey}.xlsx`);
-};
-
-export const downloadReportPdf = (viewMode, dateKey) => {
-    if (!window.jspdf) {
-        alert("PDF 생성을 위한 라이브러리가 로드되지 않았습니다."); 
-        return;
-    }
-    
-    const { tMetrics } = generateReportData(allHistoryData, appConfig, viewMode, dateKey);
-    if (!tMetrics.aggr) { alert("데이터가 없습니다."); return; }
-
-    const doc = new window.jspdf.jsPDF();
-    const aggr = tMetrics.aggr;
-
-    doc.setFontSize(16);
-    doc.text(`Work Report - ${dateKey}`, 14, 20);
-
-    doc.setFontSize(12);
-    doc.text(`Total Cost: ${Math.round(tMetrics.kpis.totalCost).toLocaleString()}`, 14, 30);
-    doc.text(`Total Time: ${formatDuration(tMetrics.kpis.totalDuration)}`, 14, 38);
-
-    const taskBody = Object.entries(aggr.taskSummary).map(([name, d]) => [
-        name, 
-        formatDuration(d.duration), 
-        Math.round(d.cost).toLocaleString(), 
-        d.quantity, 
-        d.avgThroughput.toFixed(2)
-    ]);
-
-    if (doc.autoTable) {
-        doc.autoTable({
-            startY: 50,
-            head: [['Task', 'Duration', 'Cost', 'Qty', 'Speed']],
-            body: taskBody,
-        });
-    } else {
-        console.warn("jspdf-autotable plugin not found.");
-    }
-
-    doc.save(`Report_${dateKey}.pdf`);
-};
-
-
-// =========================================================================================
-// ✅ [신규] 개인 리포트 다운로드 (Excel & PDF)
-// =========================================================================================
-
-const _aggregatePersonalDataForExcel = (allHistoryData, viewMode, dateKey, memberName) => {
-    const filteredDays = allHistoryData.filter(day => {
-        if (!day.id) return false;
-        if (viewMode === 'personal-daily') return day.id === dateKey;
-        if (viewMode === 'personal-weekly') return getWeekOfYear(new Date(day.id)) === dateKey;
-        if (viewMode === 'personal-monthly') return day.id.startsWith(dateKey);
-        if (viewMode === 'personal-yearly') return day.id.startsWith(dateKey);
-        return false;
+    headers.forEach((header, index) => {
+        if (index === 0) {
+            total[header] = '총 합계';
+        } else if (header.includes('(분)') || header.includes('(원)') || header.includes('(개)')) {
+            if (header === '개당 처리비용(원)') {
+                 const totalCost = sums['총 인건비(원)'] || 0;
+                 const totalQty = sums['총 처리량(개)'] || 0;
+                 const totalCostPerItem = (totalQty > 0) ? (totalCost / totalQty) : 0;
+                 total[header] = Math.round(totalCostPerItem);
+            } else {
+                 total[header] = Math.round(sums[header]);
+            }
+        } else {
+            total[header] = '';
+        }
     });
+    XLSX.utils.sheet_add_json(ws, [total], { skipHeader: true, origin: -1 });
+};
 
-    const stats = {
-        totalWorkMinutes: 0,
-        totalWageCost: 0,
-        workDaysCount: 0,
-        taskStats: {},
-        attendanceCounts: {},
-        dailyLogs: []
-    };
-    LEAVE_TYPES.forEach(t => stats.attendanceCounts[t] = 0);
+// --- [업무 이력] 엑셀 다운로드 ---
 
-    let wage = appConfig.memberWages?.[memberName] || 0;
-    if (wage === 0) wage = appConfig.defaultPartTimerWage || 10000;
-
-    filteredDays.sort((a, b) => a.id.localeCompare(b.id)).forEach(day => {
-        const date = day.id;
-        let dayWorkMinutes = 0;
+export const downloadHistoryAsExcel = async (dateKey) => {
+    try {
+        const data = allHistoryData.find(d => d.id === dateKey);
+        if (!data) {
+            return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
+        }
         
-        const myRecords = (day.workRecords || []).filter(r => r.member === memberName);
-        if (myRecords.length > 0) {
-            stats.workDaysCount++;
-            myRecords.forEach(r => {
-                const duration = Number(r.duration) || 0;
-                const cost = (duration / 60) * wage;
-                
-                dayWorkMinutes += duration;
-                stats.totalWorkMinutes += duration;
-                stats.totalWageCost += cost;
+        const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
+        const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
+                                ? allHistoryData[currentIndex + 1] 
+                                : null;
 
-                if (!stats.taskStats[r.task]) stats.taskStats[r.task] = { count: 0, duration: 0 };
-                stats.taskStats[r.task].count++;
-                stats.taskStats[r.task].duration += duration;
+        const workbook = XLSX.utils.book_new();
+
+        const historyWageMap = {};
+        (allHistoryData || []).forEach(dayData => {
+            (dayData.partTimers || []).forEach(pt => {
+                if (pt && pt.name && !historyWageMap[pt.name]) {
+                     historyWageMap[pt.name] = pt.wage || 0;
+                }
+            });
+        });
+        const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
+
+        // Sheet 1: 상세 기록
+        const dailyRecords = data.workRecords || [];
+        const dailyQuantities = data.taskQuantities || {};
+        
+        const sheet1Headers = ['팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)', '인건비(원)'];
+        const sheet1Data = dailyRecords.map(r => {
+            const duration = Number(r.duration) || 0;
+            const wage = combinedWageMap[r.member] || 0;
+            const cost = (duration / 60) * wage;
+            
+            return {
+                '팀원': r.member || '',
+                '업무 종류': r.task || '',
+                '시작 시간': formatTimeTo24H(r.startTime),
+                '종료 시간': formatTimeTo24H(r.endTime),
+                '소요 시간(분)': Math.round(duration),
+                '인건비(원)': Math.round(cost)
+            };
+        });
+        const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
+        if (sheet1Data.length > 0) appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
+        fitToColumn(worksheet1);
+        XLSX.utils.book_append_sheet(workbook, worksheet1, `상세 기록 (${dateKey})`);
+
+        // Sheet 2: 업무 요약 (전일비 추가)
+        let prevTaskSummary = {};
+        if (previousDayData) {
+            const prevRecords = previousDayData.workRecords || [];
+            (prevRecords).forEach(r => {
+                if (!prevTaskSummary[r.task]) {
+                    prevTaskSummary[r.task] = { totalDuration: 0, totalCost: 0, members: new Set() };
+                }
+                const wage = combinedWageMap[r.member] || 0;
+                const cost = ((Number(r.duration) || 0) / 60) * wage;
+                prevTaskSummary[r.task].totalDuration += (Number(r.duration) || 0);
+                prevTaskSummary[r.task].totalCost += cost;
+                prevTaskSummary[r.task].members.add(r.member);
             });
         }
         
-        const myLeaves = (day.onLeaveMembers || []).filter(l => l.member === memberName);
-        myLeaves.forEach(l => {
-            if (stats.attendanceCounts.hasOwnProperty(l.type)) stats.attendanceCounts[l.type]++;
-            else if (l.type) stats.attendanceCounts[l.type] = (stats.attendanceCounts[l.type] || 0) + 1;
+        const summaryByTask = {};
+        dailyRecords.forEach(r => {
+            if (!summaryByTask[r.task]) {
+                summaryByTask[r.task] = { totalDuration: 0, totalCost: 0, members: new Set() };
+            }
+            const wage = combinedWageMap[r.member] || 0;
+            const cost = ((Number(r.duration) || 0) / 60) * wage;
+            summaryByTask[r.task].totalDuration += (Number(r.duration) || 0);
+            summaryByTask[r.task].totalCost += cost;
+            summaryByTask[r.task].members.add(r.member); 
         });
+        
+        const sheet2Headers = [
+            '업무 종류', '진행 인원수', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)',
+            '진행 인원수(전일비)', '총 시간(전일비)', '총 인건비(전일비)', '총 처리량(전일비)', '개당 처리비용(전일비)'
+        ];
+        
+        const sheet2Data = Object.keys(summaryByTask).sort().map(task => {
+            const taskQty = Number(dailyQuantities[task]) || 0;
+            const taskCost = summaryByTask[task].totalCost;
+            const costPerItem = (taskQty > 0) ? (taskCost / taskQty) : 0;
+            const staffCount = summaryByTask[task].members.size;
+            const duration = summaryByTask[task].totalDuration;
+            
+            const prevSummary = prevTaskSummary[task] || { totalDuration: 0, totalCost: 0, members: new Set() };
+            const prevQty = Number(previousDayData?.taskQuantities?.[task]) || 0;
+            const prevCost = prevSummary.totalCost;
+            const prevCostPerItem = (prevQty > 0) ? (prevCost / prevQty) : 0;
+            const prevStaffCount = prevSummary.members.size;
+            const prevDuration = prevSummary.totalDuration;
 
-        stats.dailyLogs.push({
-            date: date,
-            workTime: dayWorkMinutes,
-            leaves: myLeaves.map(l => l.type).join(', ')
+            return {
+                '업무 종류': task,
+                '진행 인원수': staffCount,
+                '총 소요 시간(분)': Math.round(duration),
+                '총 인건비(원)': Math.round(taskCost),
+                '총 처리량(개)': taskQty,
+                '개당 처리비용(원)': Math.round(costPerItem),
+                '진행 인원수(전일비)': staffCount - prevStaffCount,
+                '총 시간(전일비)': Math.round(duration - prevDuration),
+                '총 인건비(전일비)': Math.round(taskCost - prevCost),
+                '총 처리량(전일비)': taskQty - prevQty,
+                '개당 처리비용(전일비)': Math.round(costPerItem - prevCostPerItem)
+            };
         });
-    });
+        
+        const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
+        if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers); 
+        fitToColumn(worksheet2);
+        XLSX.utils.book_append_sheet(workbook, worksheet2, `업무 요약 (${dateKey})`);
 
-    return stats;
+        // Sheet 3: 파트별 인건비
+        const sheet3Headers = ['파트', '총 인건비(원)'];
+        const memberToPartMap = new Map();
+        (appConfig.teamGroups || []).forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
+        const summaryByPart = {};
+        dailyRecords.forEach(r => {
+            const part = memberToPartMap.get(r.member) || '알바';
+            if (!summaryByPart[part]) summaryByPart[part] = { totalCost: 0 };
+            const wage = combinedWageMap[r.member] || 0;
+            const cost = ((Number(r.duration) || 0) / 60) * wage;
+            summaryByPart[part].totalCost += cost;
+        });
+        const sheet3Data = Object.keys(summaryByPart).sort().map(part => ({
+            '파트': part,
+            '총 인건비(원)': Math.round(summaryByPart[part].totalCost)
+        }));
+        const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
+        if (sheet3Data.length > 0) appendTotalRow(worksheet3, sheet3Data, sheet3Headers);
+        fitToColumn(worksheet3);
+        XLSX.utils.book_append_sheet(workbook, worksheet3, `파트 인건비 (${dateKey})`);
+
+        // Sheet 4: 주별 요약
+        const weeklyData = (allHistoryData || []).reduce((acc, day) => {
+            if (!day || !day.id || !day.workRecords || typeof day.id !== 'string') return acc;
+            try {
+                const dateObj = new Date(day.id);
+                if (isNaN(dateObj.getTime())) return acc;
+                const weekKey = getWeekOfYear(dateObj);
+                if (!weekKey) return acc;
+                if (!acc[weekKey]) acc[weekKey] = { workRecords: [], taskQuantities: {} };
+                acc[weekKey].workRecords.push(...(day.workRecords || []).map(r => ({ ...r, date: day.id })));
+                Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
+                    acc[weekKey].taskQuantities[task] = (acc[weekKey].taskQuantities[task] || 0) + (Number(qty) || 0);
+                });
+            } catch (e) { console.error("Error processing day in weekly aggregation:", day.id, e); }
+            return acc;
+        }, {});
+
+        const sheet4Data = [];
+        const sheet4Headers = ['주(Week)', '업무', '총 시간(분)', '총 인건비(원)', '총 처리량(개)', '평균 처리량(개/분)', '평균 처리비용(원/개)', '총 참여인원(명)', '평균 처리시간(건)'];
+        const sortedWeeks = Object.keys(weeklyData).sort((a,b) => a.localeCompare(b));
+
+        for (const weekKey of sortedWeeks) {
+            const dataset = weeklyData[weekKey];
+            const records = dataset.workRecords || [];
+            const quantities = dataset.taskQuantities || {};
+            const taskSummary = records.reduce((acc, r) => {
+                if (!r || !r.task) return acc;
+                if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 }; 
+                acc[r.task].duration += (Number(r.duration) || 0);
+                const wage = combinedWageMap[r.member] || 0;
+                acc[r.task].cost += ((Number(r.duration) || 0) / 60) * wage;
+                acc[r.task].members.add(r.member); 
+                acc[r.task].recordCount += 1; 
+                return acc;
+            }, {});
+            Object.entries(quantities || {}).forEach(([task, qtyValue]) => {
+                const qty = Number(qtyValue) || 0;
+                if (!taskSummary[task]) taskSummary[task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 }; 
+                taskSummary[task].quantity = (taskSummary[task].quantity || 0) + qty;
+            });
+            Object.keys(taskSummary).sort().forEach(task => {
+                const summary = taskSummary[task];
+                const qty = summary.quantity || 0;
+                const duration = summary.duration || 0;
+                const cost = summary.cost || 0;
+                const avgThroughput = duration > 0 ? (qty / duration).toFixed(2) : '0.00';
+                const avgCostPerItem = qty > 0 ? (cost / qty).toFixed(0) : '0';
+                const avgStaff = summary.members.size;
+                const avgTime = (summary.recordCount > 0) ? (duration / summary.recordCount) : 0;
+                
+                sheet4Data.push({
+                    '주(Week)': weekKey,
+                    '업무': task,
+                    '총 시간(분)': Math.round(duration),
+                    '총 인건비(원)': Math.round(cost),
+                    '총 처리량(개)': qty,
+                    '평균 처리량(개/분)': avgThroughput,
+                    '평균 처리비용(원/개)': avgCostPerItem,
+                    '총 참여인원(명)': avgStaff, 
+                    '평균 처리시간(건)': formatDuration(avgTime) 
+                });
+            });
+        }
+        const worksheet4 = XLSX.utils.json_to_sheet(sheet4Data, { header: sheet4Headers });
+        fitToColumn(worksheet4);
+        XLSX.utils.book_append_sheet(workbook, worksheet4, '주별 업무 요약 (전체)');
+
+        // Sheet 5: 월별 요약
+        const monthlyData = (allHistoryData || []).reduce((acc, day) => {
+            if (!day || !day.id || !day.workRecords || typeof day.id !== 'string' || day.id.length < 7) return acc;
+            try {
+                const monthKey = day.id.substring(0,7);
+                if (!/^\d{4}-\d{2}$/.test(monthKey)) return acc;
+                if (!acc[monthKey]) acc[monthKey] = { workRecords: [], taskQuantities: {} };
+                acc[monthKey].workRecords.push(...(day.workRecords || []).map(r => ({ ...r, date: day.id })));
+                Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
+                    acc[monthKey].taskQuantities[task] = (acc[monthKey].taskQuantities[task] || 0) + (Number(qty) || 0);
+                });
+            } catch (e) { console.error("Error processing day in monthly aggregation:", day.id, e); }
+            return acc;
+        }, {});
+
+        const sheet5Data = [];
+        const sheet5Headers = ['월(Month)', '업무', '총 시간(분)', '총 인건비(원)', '총 처리량(개)', '평균 처리량(개/분)', '평균 처리비용(원/개)', '총 참여인원(명)', '평균 처리시간(건)'];
+        const sortedMonths = Object.keys(monthlyData).sort((a,b) => a.localeCompare(b));
+
+        for (const monthKey of sortedMonths) {
+            const dataset = monthlyData[monthKey];
+            const records = dataset.workRecords || [];
+            const quantities = dataset.taskQuantities || {};
+            const taskSummary = records.reduce((acc, r) => {
+                if (!r || !r.task) return acc;
+                if (!acc[r.task]) acc[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+                acc[r.task].duration += (Number(r.duration) || 0);
+                const wage = combinedWageMap[r.member] || 0;
+                acc[r.task].cost += ((Number(r.duration) || 0) / 60) * wage;
+                acc[r.task].members.add(r.member);
+                acc[r.task].recordCount += 1;
+                return acc;
+            }, {});
+            Object.entries(quantities || {}).forEach(([task, qtyValue]) => {
+                const qty = Number(qtyValue) || 0;
+                if (!taskSummary[task]) taskSummary[task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+                taskSummary[task].quantity = (taskSummary[task].quantity || 0) + qty;
+            });
+            Object.keys(taskSummary).sort().forEach(task => {
+                const summary = taskSummary[task];
+                const qty = summary.quantity || 0;
+                const duration = summary.duration || 0;
+                const cost = summary.cost || 0;
+                const avgThroughput = duration > 0 ? (qty / duration).toFixed(2) : '0.00';
+                const avgCostPerItem = qty > 0 ? (cost / qty).toFixed(0) : '0';
+                const avgStaff = summary.members.size;
+                const avgTime = (summary.recordCount > 0) ? (duration / summary.recordCount) : 0;
+                
+                sheet5Data.push({
+                    '월(Month)': monthKey,
+                    '업무': task,
+                    '총 시간(분)': Math.round(duration),
+                    '총 인건비(원)': Math.round(cost),
+                    '총 처리량(개)': qty,
+                    '평균 처리량(개/분)': avgThroughput,
+                    '평균 처리비용(원/개)': avgCostPerItem,
+                    '총 참여인원(명)': avgStaff,
+                    '평균 처리시간(건)': formatDuration(avgTime)
+                });
+            });
+        }
+        const worksheet5 = XLSX.utils.json_to_sheet(sheet5Data, { header: sheet5Headers });
+        fitToColumn(worksheet5);
+        XLSX.utils.book_append_sheet(workbook, worksheet5, '월별 업무 요약 (전체)');
+
+        XLSX.writeFile(workbook, `업무기록_${dateKey}_및_전체요약.xlsx`);
+
+    } catch (error) {
+        console.error('Excel export failed:', error);
+        showToast('Excel 파일 생성에 실패했습니다.', true);
+    }
 };
 
-export const downloadPersonalReportExcel = (viewMode, dateKey, memberName) => {
-    if (!memberName) { alert("직원이 선택되지 않았습니다."); return; }
-    
-    const stats = _aggregatePersonalDataForExcel(allHistoryData, viewMode, dateKey, memberName);
-    if (stats.workDaysCount === 0 && stats.dailyLogs.length === 0) { alert("데이터가 없습니다."); return; }
 
-    const wb = XLSX.utils.book_new();
-
-    // 1. 요약 시트
-    const summaryRows = [
-        ['항목', '값'],
-        ['이름', memberName],
-        ['기간', dateKey],
-        ['총 근무일', stats.workDaysCount],
-        ['총 근무 시간', formatDuration(stats.totalWorkMinutes)],
-        ['예상 급여', Math.round(stats.totalWageCost)],
-        ...Object.entries(stats.attendanceCounts).filter(([, c]) => c > 0).map(([t, c]) => [t, c])
-    ];
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-    XLSX.utils.book_append_sheet(wb, wsSummary, "요약");
-
-    // 2. 업무 상세 시트
-    const taskRows = Object.entries(stats.taskStats).map(([task, d]) => ({
-        '업무명': task,
-        '횟수': d.count,
-        '시간': formatDuration(d.duration),
-        '비중(%)': stats.totalWorkMinutes > 0 ? ((d.duration / stats.totalWorkMinutes) * 100).toFixed(1) : '0'
-    }));
-    const wsTasks = XLSX.utils.json_to_sheet(taskRows);
-    XLSX.utils.book_append_sheet(wb, wsTasks, "업무별");
-
-    // 3. 일자별 시트
-    const dailyRows = stats.dailyLogs.map(l => ({
-        '날짜': l.date,
-        '근무시간': formatDuration(l.workTime),
-        '근태': l.leaves || '-'
-    }));
-    const wsDaily = XLSX.utils.json_to_sheet(dailyRows);
-    XLSX.utils.book_append_sheet(wb, wsDaily, "일자별");
-
-    XLSX.writeFile(wb, `개인리포트_${memberName}_${dateKey}.xlsx`);
-};
-
-export const downloadPersonalReportPdf = (viewMode, dateKey, memberName) => {
-    if (!window.jspdf) { alert("PDF 라이브러리가 필요합니다."); return; }
-    if (!memberName) { alert("직원이 선택되지 않았습니다."); return; }
-
-    const stats = _aggregatePersonalDataForExcel(allHistoryData, viewMode, dateKey, memberName);
-    const doc = new window.jspdf.jsPDF();
-
-    doc.setFontSize(16);
-    doc.text(`Personal Report: ${memberName} (${dateKey})`, 14, 20);
-
-    doc.setFontSize(12);
-    doc.text(`Total Work Days: ${stats.workDaysCount}`, 14, 30);
-    doc.text(`Total Work Time: ${formatDuration(stats.totalWorkMinutes)}`, 14, 38);
-    doc.text(`Est. Cost: ${Math.round(stats.totalWageCost).toLocaleString()}`, 14, 46);
-
-    const taskBody = Object.entries(stats.taskStats).map(([t, d]) => [
-        t, d.count, formatDuration(d.duration)
-    ]);
-
-    if (doc.autoTable) {
-        doc.autoTable({
-            startY: 55,
-            head: [['Task', 'Count', 'Duration']],
-            body: taskBody
-        });
+/**
+ * 선택한 기간의 엑셀을 다운로드하는 함수
+ * ✅ [수정] customFileName 인자 추가
+ */
+export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFileName = null) => {
+    if (!startDate || !endDate) {
+        return showToast('시작일과 종료일을 모두 선택해야 합니다.', true);
+    }
+    if (endDate < startDate) {
+        return showToast('종료일은 시작일보다 이후여야 합니다.', true);
     }
 
-    doc.save(`Personal_${memberName}_${dateKey}.pdf`);
+    showToast('엑셀 생성 중... (데이터가 많으면 오래 걸릴 수 있습니다)');
+
+    try {
+        // 1. 선택 기간 데이터 필터링
+        const filteredData = allHistoryData.filter(d => {
+            const date = d.id;
+            return date >= startDate && date <= endDate;
+        });
+
+        if (filteredData.length === 0) {
+            return showToast('선택한 기간에 해당하는 이력 데이터가 없습니다.', true);
+        }
+
+        const workbook = XLSX.utils.book_new();
+
+        // 2. WageMap 생성 (전체 이력 기준)
+        const historyWageMap = {};
+        (allHistoryData || []).forEach(dayData => {
+            (dayData.partTimers || []).forEach(pt => {
+                if (pt && pt.name && !historyWageMap[pt.name]) {
+                     historyWageMap[pt.name] = pt.wage || 0;
+                }
+            });
+        });
+        const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
+
+        // 3. (시트 1) 상세 기록 (기간 합산)
+        const sheet1Headers = ['날짜', '팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)', '인건비(원)'];
+        const sheet1Data = filteredData.flatMap(day => {
+            return (day.workRecords || []).map(r => {
+                const duration = Number(r.duration) || 0;
+                const wage = combinedWageMap[r.member] || 0;
+                const cost = (duration / 60) * wage;
+
+                return {
+                    '날짜': day.id,
+                    '팀원': r.member || '',
+                    '업무 종류': r.task || '',
+                    '시작 시간': formatTimeTo24H(r.startTime),
+                    '종료 시간': formatTimeTo24H(r.endTime),
+                    '소요 시간(분)': Math.round(duration),
+                    '인건비(원)': Math.round(cost)
+                };
+            });
+        }).sort((a,b) => { // 날짜순, 그다음 팀원순 정렬
+            if (a['날짜'] !== b['날짜']) return a['날짜'].localeCompare(b['날짜']);
+            return a['팀원'].localeCompare(b['팀원']);
+        });
+
+        const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
+        if (sheet1Data.length > 0) appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
+        fitToColumn(worksheet1);
+        XLSX.utils.book_append_sheet(workbook, worksheet1, `상세 기록 (기간)`);
+
+        // 4. (시트 2) 업무 요약 (✅ 일별, 기간별 정리)
+        const sheet2Data = [];
+        
+        // 날짜별로 순회하며 요약 데이터 생성
+        filteredData.forEach(day => {
+            const dateKey = day.id;
+            const dayRecords = day.workRecords || [];
+            const dayQuantities = day.taskQuantities || {};
+            const dayTaskSummary = {};
+
+            // 해당 일자의 업무 기록 집계
+            dayRecords.forEach(r => {
+                 if (!r || !r.task) return;
+                 if (!dayTaskSummary[r.task]) {
+                     dayTaskSummary[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+                 }
+                 const duration = Number(r.duration) || 0;
+                 const wage = combinedWageMap[r.member] || 0;
+                 dayTaskSummary[r.task].duration += duration;
+                 dayTaskSummary[r.task].cost += (duration / 60) * wage;
+                 dayTaskSummary[r.task].members.add(r.member);
+                 dayTaskSummary[r.task].recordCount += 1;
+            });
+
+            // 해당 일자에 기록이 있거나 수량이 있는 모든 업무에 대해 행 생성
+            const allDayTasks = new Set([...Object.keys(dayTaskSummary), ...Object.keys(dayQuantities)]);
+            
+            allDayTasks.forEach(task => {
+                const summary = dayTaskSummary[task] || { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+                const qty = Number(dayQuantities[task]) || 0;
+                const duration = summary.duration;
+                const cost = summary.cost;
+
+                const avgThroughput = duration > 0 ? (qty / duration).toFixed(2) : '0.00';
+                const avgCostPerItem = qty > 0 ? (cost / qty).toFixed(0) : '0';
+                const avgStaff = summary.members.size;
+                const avgTime = (summary.recordCount > 0) ? (duration / summary.recordCount) : 0;
+
+                sheet2Data.push({
+                    '날짜': dateKey,
+                    '업무 종류': task,
+                    '총 소요 시간(분)': Math.round(duration),
+                    '총 인건비(원)': Math.round(cost),
+                    '총 처리량(개)': qty,
+                    '평균 처리량(개/분)': avgThroughput,
+                    '평균 처리비용(원/개)': avgCostPerItem,
+                    '총 참여인원(명)': avgStaff,
+                    '평균 처리시간(건)': formatDuration(avgTime)
+                });
+            });
+        });
+
+        // 날짜순 -> 업무명순 정렬
+        sheet2Data.sort((a, b) => {
+            if (a['날짜'] !== b['날짜']) return a['날짜'].localeCompare(b['날짜']);
+            return a['업무 종류'].localeCompare(b['업무 종류']);
+        });
+
+        const sheet2Headers = [
+            '날짜',
+            '업무 종류', 
+            '총 소요 시간(분)', 
+            '총 인건비(원)', 
+            '총 처리량(개)', 
+            '평균 처리량(개/분)', 
+            '평균 처리비용(원/개)', 
+            '총 참여인원(명)', 
+            '평균 처리시간(건)'
+        ];
+
+        const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
+        if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers); 
+        fitToColumn(worksheet2);
+        XLSX.utils.book_append_sheet(workbook, worksheet2, `업무 요약 (일별)`);
+        
+        // 5. (시트 3) 근태 기록 (기간 합산)
+        const sheet3Headers = ['날짜', '이름', '유형', '시간 / 기간'];
+        const sheet3Data = filteredData.flatMap(day => {
+            return (day.onLeaveMembers || []).map(entry => {
+                let detailText = '-';
+                if (entry.startTime) {
+                    detailText = formatTimeTo24H(entry.startTime);
+                    if (entry.endTime) detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+                    else if (entry.type === '외출') detailText += ' ~';
+                } else if (entry.startDate) {
+                    detailText = entry.startDate;
+                    if (entry.endDate && entry.endDate !== entry.startDate) detailText += ` ~ ${entry.endDate}`;
+                }
+                return {
+                    '날짜': day.id,
+                    '이름': entry.member || '',
+                    '유형': entry.type || '',
+                    '시간 / 기간': detailText
+                };
+            });
+        }).sort((a,b) => { // 날짜순, 그다음 이름순 정렬
+            if (a['날짜'] !== b['날짜']) return a['날짜'].localeCompare(b['날짜']);
+            return a['이름'].localeCompare(b['이름']);
+        });
+
+        const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
+        fitToColumn(worksheet3);
+        XLSX.utils.book_append_sheet(workbook, worksheet3, `근태 기록 (기간)`);
+
+
+        // 6. 파일 저장 (파일명 커스터마이징 적용)
+        const fileName = customFileName || `업무기록_요약_${startDate}_to_${endDate}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+
+    } catch (error) {
+        console.error('Period Excel export failed:', error);
+        showToast('기간 엑셀 파일 생성에 실패했습니다.', true);
+    }
+};
+
+/**
+ * ✅ [신규] 주간 이력 엑셀 다운로드 (Work History)
+ */
+export const downloadWeeklyHistoryAsExcel = async (weekKey) => {
+    if (!weekKey) return showToast('주간 정보가 없습니다.', true);
+    
+    const weekData = allHistoryData.filter(d => {
+        if (!d.id) return false;
+        return getWeekOfYear(new Date(d.id + "T00:00:00")) === weekKey;
+    });
+
+    if (weekData.length === 0) {
+        return showToast(`${weekKey} 데이터가 없습니다.`, true);
+    }
+
+    weekData.sort((a, b) => a.id.localeCompare(b.id));
+    const startDate = weekData[0].id;
+    const endDate = weekData[weekData.length - 1].id;
+
+    await downloadPeriodHistoryAsExcel(startDate, endDate, `주간업무요약_${weekKey}.xlsx`);
+};
+
+/**
+ * ✅ [신규] 월간 이력 엑셀 다운로드 (Work History)
+ */
+export const downloadMonthlyHistoryAsExcel = async (monthKey) => {
+     if (!monthKey) return showToast('월간 정보가 없습니다.', true);
+
+     const monthData = allHistoryData.filter(d => d.id.startsWith(monthKey));
+
+     if (monthData.length === 0) {
+         return showToast(`${monthKey} 데이터가 없습니다.`, true);
+     }
+
+     monthData.sort((a, b) => a.id.localeCompare(b.id));
+     const startDate = monthData[0].id;
+     const endDate = monthData[monthData.length - 1].id;
+
+     await downloadPeriodHistoryAsExcel(startDate, endDate, `월간업무요약_${monthKey}.xlsx`);
+};
+
+
+// --- [근태 이력] 엑셀 다운로드 ---
+
+// ✅ [신규] 근태 데이터 가공 헬퍼
+const processAttendanceData = (dataList) => {
+    const summary = {};
+
+    dataList.forEach(day => {
+        if (!day.onLeaveMembers) return;
+
+        day.onLeaveMembers.forEach(entry => {
+            const member = entry.member;
+            const type = entry.type;
+
+            if (!summary[member]) {
+                summary[member] = {
+                    '이름': member,
+                    '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0,
+                    '총 횟수': 0, '총 결근일수': 0, '총 연차일수': 0
+                };
+            }
+
+            // 타입별 카운트 (정해진 타입이 아니면 기타로 취급될 수 있음, 여기서는 일단 스킵하거나 추가 처리)
+            if (summary[member].hasOwnProperty(type)) {
+                summary[member][type]++;
+            }
+            summary[member]['총 횟수']++;
+
+            // 일수 계산
+            if (type === '결근') {
+                const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+                summary[member]['총 결근일수'] += days;
+            } else if (type === '연차') {
+                const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+                summary[member]['총 연차일수'] += days;
+            }
+        });
+    });
+    
+    // 이름순 정렬
+    return Object.values(summary).sort((a, b) => a['이름'].localeCompare(b['이름']));
+};
+
+// ✅ [신규] 근태 이력 엑셀 다운로드 (메인 함수)
+export const downloadAttendanceExcel = (viewMode, key) => {
+    let dataList = [];
+    let fileName = '';
+
+    // 1. 데이터 필터링
+    if (viewMode === 'daily') {
+        const day = allHistoryData.find(d => d.id === key);
+        if (day) dataList = [day];
+        fileName = `근태기록_일별_${key}.xlsx`;
+    } else if (viewMode === 'weekly') {
+        dataList = allHistoryData.filter(d => getWeekOfYear(new Date(d.id + "T00:00:00")) === key);
+        fileName = `근태기록_주별_${key}.xlsx`;
+    } else if (viewMode === 'monthly') {
+        dataList = allHistoryData.filter(d => d.id.startsWith(key));
+        fileName = `근태기록_월별_${key}.xlsx`;
+    }
+
+    if (dataList.length === 0) {
+        return showToast('다운로드할 데이터가 없습니다.', true);
+    }
+
+    // 2. 데이터 가공
+    const sheetData = processAttendanceData(dataList);
+    
+    if (sheetData.length === 0) {
+         return showToast('해당 기간에 근태 기록이 없습니다.', true);
+    }
+
+    // 3. 엑셀 생성
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(sheetData); // 객체 키가 자동으로 헤더가 됨
+    
+    fitToColumn(worksheet);
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, '근태 요약');
+    XLSX.writeFile(workbook, fileName);
 };

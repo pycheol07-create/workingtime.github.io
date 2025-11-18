@@ -60,20 +60,12 @@ export const reportWeeklyView = document.getElementById('report-weekly-view');
 export const reportMonthlyView = document.getElementById('report-monthly-view');
 export const reportYearlyView = document.getElementById('report-yearly-view');
 
-// ✅ [신규] 업무 리포트 다운로드 버튼
-export const reportDownloadExcelBtn = document.getElementById('report-download-excel-btn');
-export const reportDownloadPdfBtn = document.getElementById('report-download-pdf-btn');
-
-// 개인 리포트 관련 요소
+// ✅ [신규] 개인 리포트 관련 요소
 export const personalReportPanel = document.getElementById('personal-report-panel');
 export const personalReportTabs = document.getElementById('personal-report-tabs');
 export const personalReportMemberSelect = document.getElementById('personal-report-member-select');
 export const personalReportViewContainer = document.getElementById('personal-report-view-container');
 export const personalReportContent = document.getElementById('personal-report-content');
-
-// ✅ [신규] 개인 리포트 다운로드 버튼
-export const personalReportDownloadExcelBtn = document.getElementById('personal-report-download-excel-btn');
-export const personalReportDownloadPdfBtn = document.getElementById('personal-report-download-pdf-btn');
 
 export const historyAttendanceDailyView = document.getElementById('history-attendance-daily-view');
 export const historyAttendanceWeeklyView = document.getElementById('history-attendance-weekly-view');
@@ -237,6 +229,6 @@ export const historyAddStartTimeInput = document.getElementById('history-add-sta
 export const historyAddEndTimeInput = document.getElementById('history-add-end-time');
 export const confirmHistoryAddBtn = document.getElementById('confirm-history-add-btn');
 
-// 엑셀 다운로드 버튼 (기존 업무 이력)
+// 엑셀 다운로드 버튼
 export const historyDownloadExcelBtn = document.getElementById('history-download-excel-btn');
 export const attendanceDownloadExcelBtn = document.getElementById('attendance-download-excel-btn');
