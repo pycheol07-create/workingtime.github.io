@@ -1,29 +1,22 @@
-// === ui-history-attendance.js (근태 이력 렌더링 담당) ===
+// === js/ui-history-attendance.js (근태 이력 렌더링 담당 - 정렬/필터 추가) ===
 
-import { formatTimeTo24H, calculateDateDifference } from './utils.js';
-import { context } from './state.js'; // ✅ [신규] 상태(정렬/필터) 참조
+import { formatTimeTo24H, formatDuration, getWeekOfYear, calculateDateDifference } from './utils.js';
+// ✅ [신규] 상태(정렬/필터) 참조를 위해 context 임포트
+import { context } from './state.js';
 
-// 헬퍼: 정렬 아이콘이 포함된 헤더 HTML 생성
-const _createSortableHeader = (label, key, currentSortState, viewType) => {
-    let icon = '↕';
-    let activeClass = 'text-gray-300';
-    
-    if (currentSortState.key === key) {
-        icon = currentSortState.dir === 'asc' ? '▲' : '▼';
-        activeClass = 'text-blue-600';
-    }
-
-    return `<th scope="col" class="px-4 py-3 cursor-pointer hover:bg-gray-200 transition select-none sortable-attendance-header group border-b" 
-                data-sort-key="${key}" data-view-type="${viewType}">
-                <div class="flex items-center justify-between gap-1">
-                    <span>${label}</span>
-                    <span class="${activeClass} text-[10px] group-hover:text-gray-500">${icon}</span>
-                </div>
-            </th>`;
+/**
+ * 헬퍼: 정렬 아이콘 생성
+ */
+const getSortIcon = (currentKey, currentDir, targetKey) => {
+    if (currentKey !== targetKey) return '<span class="text-gray-300 text-[10px] ml-1">↕</span>';
+    return currentDir === 'asc' 
+        ? '<span class="text-blue-600 text-[10px] ml-1">▲</span>' 
+        : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
 };
 
 /**
  * 근태 이력 - 일별 상세 렌더링
+ * (ui-history.js -> ui-history-attendance.js)
  */
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-daily-view');
@@ -31,30 +24,10 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
 
     const data = allHistoryData.find(d => d.id === dateKey);
-    
-    // 현재 상태 가져오기
-    const sortState = context.attendanceSortState.daily || { key: 'member', dir: 'asc' };
-    const filterState = context.attendanceFilterState.daily || { member: '', type: '' };
 
-    // 상단 컨트롤 영역 (버튼 + 필터)
     let html = `
-        <div class="mb-4 pb-2 border-b flex flex-wrap justify-between items-end gap-2">
-            <div class="flex items-center gap-4">
-                <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
-                <div class="flex items-center gap-2">
-                    <input type="text" id="att-daily-filter-member" placeholder="이름 검색" value="${filterState.member}" 
-                           class="text-sm border border-gray-300 rounded px-2 py-1 w-32 focus:ring-blue-500 focus:border-blue-500">
-                    <select id="att-daily-filter-type" class="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="">전체 유형</option>
-                        <option value="지각" ${filterState.type === '지각' ? 'selected' : ''}>지각</option>
-                        <option value="외출" ${filterState.type === '외출' ? 'selected' : ''}>외출</option>
-                        <option value="조퇴" ${filterState.type === '조퇴' ? 'selected' : ''}>조퇴</option>
-                        <option value="결근" ${filterState.type === '결근' ? 'selected' : ''}>결근</option>
-                        <option value="연차" ${filterState.type === '연차' ? 'selected' : ''}>연차</option>
-                        <option value="출장" ${filterState.type === '출장' ? 'selected' : ''}>출장</option>
-                    </select>
-                </div>
-            </div>
+        <div class="mb-4 pb-2 border-b flex justify-between items-center">
+            <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
             <div>
                 <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
                         data-action="open-add-attendance-modal" data-date-key="${dateKey}">
@@ -74,20 +47,22 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         return;
     }
 
-    // 1. 데이터 복사 및 필터링
+    // --- 1. 필터링 및 정렬 로직 적용 ---
     let leaveEntries = [...data.onLeaveMembers];
-    
-    // 원본 인덱스 보존 (수정/삭제용)
-    leaveEntries = leaveEntries.map((entry, idx) => ({ ...entry, originalIndex: idx }));
+    const filterState = context.attendanceFilterState.daily;
+    const sortState = context.attendanceSortState.daily;
 
+    // 1-1. 필터링
     if (filterState.member) {
-        leaveEntries = leaveEntries.filter(e => e.member.includes(filterState.member));
+        const term = filterState.member.toLowerCase();
+        leaveEntries = leaveEntries.filter(e => (e.member || '').toLowerCase().includes(term));
     }
     if (filterState.type) {
-        leaveEntries = leaveEntries.filter(e => e.type === filterState.type);
+        const term = filterState.type.toLowerCase();
+        leaveEntries = leaveEntries.filter(e => (e.type || '').toLowerCase().includes(term));
     }
 
-    // 2. 정렬
+    // 1-2. 정렬
     leaveEntries.sort((a, b) => {
         let valA = '', valB = '';
         if (sortState.key === 'member') {
@@ -95,76 +70,121 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         } else if (sortState.key === 'type') {
             valA = a.type || ''; valB = b.type || '';
         } else if (sortState.key === 'time') {
-            valA = a.startTime || a.startDate || '';
+            valA = a.startTime || a.startDate || ''; 
             valB = b.startTime || b.startDate || '';
         }
-        return valA.localeCompare(valB) * (sortState.dir === 'asc' ? 1 : -1);
+        
+        if (valA < valB) return sortState.dir === 'asc' ? -1 : 1;
+        if (valA > valB) return sortState.dir === 'asc' ? 1 : -1;
+        return 0;
     });
 
-    // 3. 테이블 렌더링
+    // --- 2. 테이블 헤더 생성 (정렬/필터 UI 포함) ---
     html += `
-        <div class="bg-white p-4 rounded-lg shadow-sm overflow-hidden">
-            <table class="w-full text-sm text-left text-gray-600 border border-gray-200 rounded-lg">
-                <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+        <div class="bg-white p-4 rounded-lg shadow-sm">
+            <table class="w-full text-sm text-left text-gray-600">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
                     <tr>
-                        ${_createSortableHeader('이름', 'member', sortState, 'daily')}
-                        ${_createSortableHeader('유형', 'type', sortState, 'daily')}
-                        ${_createSortableHeader('시간 / 기간', 'time', sortState, 'daily')}
-                        <th scope="col" class="px-6 py-3 text-right border-b">관리</th>
+                        <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-100 transition select-none" data-sort-target="daily" data-sort-key="member">
+                            이름 ${getSortIcon(sortState.key, sortState.dir, 'member')}
+                        </th>
+                        <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-100 transition select-none" data-sort-target="daily" data-sort-key="type">
+                            유형 ${getSortIcon(sortState.key, sortState.dir, 'type')}
+                        </th>
+                        <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-100 transition select-none" data-sort-target="daily" data-sort-key="time">
+                            시간 / 기간 ${getSortIcon(sortState.key, sortState.dir, 'time')}
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-right">관리</th>
+                    </tr>
+                    <tr class="bg-gray-50 border-b">
+                        <th class="px-6 py-2">
+                            <input type="text" class="w-full p-1 text-xs border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500" 
+                                   placeholder="이름 검색..." 
+                                   value="${filterState.member || ''}"
+                                   data-filter-target="daily" data-filter-key="member">
+                        </th>
+                        <th class="px-6 py-2">
+                            <select class="w-full p-1 text-xs border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                                    data-filter-target="daily" data-filter-key="type">
+                                <option value="">전체</option>
+                                <option value="연차" ${filterState.type === '연차' ? 'selected' : ''}>연차</option>
+                                <option value="외출" ${filterState.type === '외출' ? 'selected' : ''}>외출</option>
+                                <option value="조퇴" ${filterState.type === '조퇴' ? 'selected' : ''}>조퇴</option>
+                                <option value="결근" ${filterState.type === '결근' ? 'selected' : ''}>결근</option>
+                                <option value="출장" ${filterState.type === '출장' ? 'selected' : ''}>출장</option>
+                            </select>
+                        </th>
+                        <th class="px-6 py-2"></th>
+                        <th class="px-6 py-2"></th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200">
+                <tbody>
     `;
 
     if (leaveEntries.length === 0) {
-        html += `<tr><td colspan="4" class="text-center py-8 text-gray-400">조건에 맞는 데이터가 없습니다.</td></tr>`;
+        html += `<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">조건에 맞는 기록이 없습니다.</td></tr>`;
+        html += `</tbody></table></div>`;
+        view.innerHTML = html;
+        return;
+    }
+
+    // --- 3. 테이블 바디 생성 ---
+    // ※ 주의: 이름순 정렬일 때만 'rowspan' 그룹화 적용. 그 외 정렬은 평문 리스트로 표시.
+    const isGroupedView = (sortState.key === 'member');
+
+    if (isGroupedView) {
+        // 그룹화 로직 (기존 유지)
+        const groupedEntries = new Map();
+        leaveEntries.forEach((entry) => {
+            // 원본 배열에서의 인덱스를 찾아야 삭제/수정이 정확함
+            // (필터링된 배열의 인덱스가 아님)
+            const originalIndex = data.onLeaveMembers.indexOf(entry);
+            
+            const member = entry.member || 'N/A';
+            if (!groupedEntries.has(member)) groupedEntries.set(member, []);
+            groupedEntries.get(member).push({ ...entry, originalIndex });
+        });
+
+        let isFirstMemberGroup = true; 
+        groupedEntries.forEach((entries, member) => {
+            const memberEntryCount = entries.length;
+            entries.forEach((entry, entryIndex) => {
+                const detailText = _formatDetailText(entry);
+                const isFirstRowOfGroup = (entryIndex === 0);
+                const rowClass = `bg-white hover:bg-gray-50 ${isFirstRowOfGroup && !isFirstMemberGroup ? 'border-t' : ''}`;
+
+                html += `<tr class="${rowClass}">`;
+                if (isFirstRowOfGroup) {
+                    html += `<td class="px-6 py-4 font-medium text-gray-900 align-top border-r border-gray-100" rowspan="${memberEntryCount}">${member}</td>`;
+                }
+                html += `
+                    <td class="px-6 py-4">${entry.type}</td>
+                    <td class="px-6 py-4 text-gray-600">${detailText}</td>
+                    <td class="px-6 py-4 text-right space-x-2">
+                        <button data-action="edit-attendance" data-date-key="${dateKey}" data-index="${entry.originalIndex}" class="font-medium text-blue-500 hover:underline">수정</button>
+                        <button data-action="delete-attendance" data-date-key="${dateKey}" data-index="${entry.originalIndex}" class="font-medium text-red-500 hover:underline">삭제</button>
+                    </td>
+                </tr>`;
+            });
+            isFirstMemberGroup = false; 
+        });
+
     } else {
-        // 정렬 기준이 '이름(member)'일 때만 그룹화(rowspan) 적용
-        const enableGrouping = (sortState.key === 'member');
-        let lastMember = null;
-        let memberRowSpan = 0;
-
-        // 그룹화를 위해 미리 카운트 (이름 정렬 시에만)
-        const memberCounts = {};
-        if (enableGrouping) {
-            leaveEntries.forEach(e => { memberCounts[e.member] = (memberCounts[e.member] || 0) + 1; });
-        }
-
-        leaveEntries.forEach((entry, index) => {
-            let detailText = '-';
-            if (entry.startTime) {
-                detailText = formatTimeTo24H(entry.startTime);
-                if (entry.type === '외출') {
-                    detailText += entry.endTime ? ` ~ ${formatTimeTo24H(entry.endTime)}` : ' ~';
-                }
-            } else if (entry.startDate) {
-                detailText = entry.startDate;
-                if (entry.endDate && entry.endDate !== entry.startDate) {
-                    detailText += ` ~ ${entry.endDate}`;
-                }
-            }
-
-            html += `<tr class="bg-white hover:bg-gray-50">`;
-
-            // 이름 컬럼 (그룹화 로직)
-            if (enableGrouping) {
-                if (lastMember !== entry.member) {
-                    lastMember = entry.member;
-                    memberRowSpan = memberCounts[entry.member];
-                    html += `<td class="px-6 py-4 font-medium text-gray-900 align-top bg-white" rowspan="${memberRowSpan}">${entry.member}</td>`;
-                }
-            } else {
-                html += `<td class="px-6 py-4 font-medium text-gray-900">${entry.member}</td>`;
-            }
-
+        // 평문 리스트 뷰 (이름 정렬 아닐 때)
+        leaveEntries.forEach((entry) => {
+            const originalIndex = data.onLeaveMembers.indexOf(entry);
+            const detailText = _formatDetailText(entry);
+            
             html += `
-                <td class="px-6 py-4">${entry.type}</td>
-                <td class="px-6 py-4 font-mono text-xs">${detailText}</td>
-                <td class="px-6 py-4 text-right space-x-2">
-                    <button data-action="edit-attendance" data-date-key="${dateKey}" data-index="${entry.originalIndex}" class="font-medium text-blue-500 hover:underline">수정</button>
-                    <button data-action="delete-attendance" data-date-key="${dateKey}" data-index="${entry.originalIndex}" class="font-medium text-red-500 hover:underline">삭제</button>
-                </td>
-            </tr>`;
+                <tr class="bg-white border-b hover:bg-gray-50 last:border-b-0">
+                    <td class="px-6 py-4 font-medium text-gray-900">${entry.member}</td>
+                    <td class="px-6 py-4">${entry.type}</td>
+                    <td class="px-6 py-4 text-gray-600">${detailText}</td>
+                    <td class="px-6 py-4 text-right space-x-2">
+                        <button data-action="edit-attendance" data-date-key="${dateKey}" data-index="${originalIndex}" class="font-medium text-blue-500 hover:underline">수정</button>
+                        <button data-action="delete-attendance" data-date-key="${dateKey}" data-index="${originalIndex}" class="font-medium text-red-500 hover:underline">삭제</button>
+                    </td>
+                </tr>`;
         });
     }
 
@@ -172,59 +192,53 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     view.innerHTML = html;
 };
 
+// 헬퍼: 상세 텍스트 포맷팅
+const _formatDetailText = (entry) => {
+    if (entry.startTime) {
+        let text = formatTimeTo24H(entry.startTime);
+        if (entry.type === '외출') {
+            text += entry.endTime ? ` ~ ${formatTimeTo24H(entry.endTime)}` : ' ~';
+        } else if (entry.endTime) {
+            text += ` ~ ${formatTimeTo24H(entry.endTime)}`;
+        }
+        return text;
+    } else if (entry.startDate) {
+        let text = entry.startDate;
+        if (entry.endDate && entry.endDate !== entry.startDate) {
+            text += ` ~ ${entry.endDate}`;
+        }
+        return text;
+    }
+    return '-';
+};
+
 /**
  * 주별/월별 근태 요약 렌더링 (공통 헬퍼)
- * ✅ [수정] 정렬 및 필터 기능 추가
+ * (ui-history.js -> ui-history-attendance.js)
+ * ✅ [수정] 정렬/필터 적용
  */
-const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKey, viewMode) => {
+const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKey, mode) => {
+    // mode: 'weekly' or 'monthly'
     const data = aggregationMap[periodKey];
-    
-    // 상태 가져오기
-    const sortState = context.attendanceSortState[viewMode] || { key: 'member', dir: 'asc' };
-    const filterState = context.attendanceFilterState[viewMode] || { member: '' };
-
-    // 필터 입력창 ID 생성
-    const filterInputId = `att-${viewMode}-filter-member`;
-
-    let html = `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-                <div class="flex justify-between items-end mb-4">
-                    <h3 class="text-xl font-bold text-gray-800">${periodKey} 근태 요약</h3>
-                    <div class="flex items-center gap-2">
-                        <input type="text" id="${filterInputId}" placeholder="이름 검색" value="${filterState.member}" 
-                               class="text-sm border border-gray-300 rounded px-2 py-1 w-40 focus:ring-blue-500 focus:border-blue-500">
-                    </div>
-                </div>
-                <div class="overflow-x-auto max-h-[60vh]">
-                    <table class="w-full text-sm text-left text-gray-600 border border-gray-200">
-                        <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-20 shadow-sm">
-                            <tr>
-                                ${_createSortableHeader('이름', 'member', sortState, viewMode)}
-                                ${_createSortableHeader('지각', '지각', sortState, viewMode)}
-                                ${_createSortableHeader('외출', '외출', sortState, viewMode)}
-                                ${_createSortableHeader('조퇴', '조퇴', sortState, viewMode)}
-                                ${_createSortableHeader('결근', '결근', sortState, viewMode)}
-                                ${_createSortableHeader('연차', '연차', sortState, viewMode)}
-                                ${_createSortableHeader('출장', '출장', sortState, viewMode)}
-                                ${_createSortableHeader('총 횟수', 'totalCount', sortState, viewMode)}
-                                ${_createSortableHeader('총 결근일수', 'totalAbsenceDays', sortState, viewMode)}
-                                ${_createSortableHeader('총 연차일수', 'totalLeaveDays', sortState, viewMode)}
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">`;
-
     if (!data) {
-        html += `<tr><td colspan="10" class="text-center py-8 text-gray-500">데이터가 없습니다.</td></tr></tbody></table></div></div>`;
-        viewElement.innerHTML = html;
+        viewElement.innerHTML = `<div class="text-center text-gray-500">${periodKey} 기간의 근태 데이터가 없습니다.</div>`;
         return;
     }
 
-    // 1. 데이터 집계
-    const summary = {};
+    const sortState = context.attendanceSortState[mode];
+    const filterState = context.attendanceFilterState[mode];
+
+    // 1. 멤버별 데이터 집계
+    let summary = []; // 배열로 변경 (정렬 용이)
+    const memberMap = {};
+
     data.leaveEntries.forEach(entry => {
         const member = entry.member;
-        const type = entry.type;
-        if (!summary[member]) {
-            summary[member] = {
+        // 필터링 (집계 전 단계에서 필터링하면 통계가 왜곡될 수 있으니, 집계 후 보여줄 때 필터링하는 게 나음.
+        // 하지만 '목록 필터'라면 멤버 이름으로 필터링하는 것이 직관적.)
+        
+        if (!memberMap[member]) {
+            memberMap[member] = {
                 member: member,
                 counts: { '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0 },
                 totalCount: 0,
@@ -232,55 +246,105 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
                 totalLeaveDays: 0
             };
         }
-        if (summary[member].counts.hasOwnProperty(type)) {
-            summary[member].counts[type] += 1;
+
+        const rec = memberMap[member];
+        const type = entry.type;
+
+        if (rec.counts.hasOwnProperty(type)) {
+            rec.counts[type] += 1;
+        } else if (type) {
+            rec.counts[type] = (rec.counts[type] || 0) + 1;
         }
-        summary[member].totalCount += 1;
+        
+        rec.totalCount += 1;
 
         if (type === '결근') {
-            summary[member].totalAbsenceDays += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            rec.totalAbsenceDays += days;
         } else if (type === '연차') {
-            summary[member].totalLeaveDays += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            rec.totalLeaveDays += days;
         }
     });
 
-    // 2. 리스트 변환 및 필터링
-    let summaryList = Object.values(summary);
+    summary = Object.values(memberMap);
+
+    // 2. 필터링
     if (filterState.member) {
-        summaryList = summaryList.filter(item => item.member.includes(filterState.member));
+        const term = filterState.member.toLowerCase();
+        summary = summary.filter(item => item.member.toLowerCase().includes(term));
     }
 
     // 3. 정렬
-    summaryList.sort((a, b) => {
-        let valA, valB;
+    summary.sort((a, b) => {
+        let valA = 0, valB = 0;
+        const k = sortState.key;
         
-        if (sortState.key === 'member') {
+        if (k === 'member') {
             valA = a.member; valB = b.member;
-            return valA.localeCompare(valB) * (sortState.dir === 'asc' ? 1 : -1);
-        } else if (['totalCount', 'totalAbsenceDays', 'totalLeaveDays'].includes(sortState.key)) {
-            valA = a[sortState.key]; valB = b[sortState.key];
+        } else if (k === 'totalCount') {
+            valA = a.totalCount; valB = b.totalCount;
+        } else if (k === 'totalAbsenceDays') {
+            valA = a.totalAbsenceDays; valB = b.totalAbsenceDays;
+        } else if (k === 'totalLeaveDays') {
+            valA = a.totalLeaveDays; valB = b.totalLeaveDays;
         } else {
-            // 카운트 컬럼 (지각, 외출 등)
-            valA = a.counts[sortState.key] || 0;
-            valB = b.counts[sortState.key] || 0;
+            // 개별 타입 카운트 (지각, 외출 등)
+            valA = a.counts[k] || 0; valB = b.counts[k] || 0;
         }
-        
-        return (valA - valB) * (sortState.dir === 'asc' ? 1 : -1);
+
+        if (valA < valB) return sortState.dir === 'asc' ? -1 : 1;
+        if (valA > valB) return sortState.dir === 'asc' ? 1 : -1;
+        return 0;
     });
 
-    if (summaryList.length === 0) {
-         html += `<tr><td colspan="10" class="text-center py-8 text-gray-500">조건에 맞는 데이터가 없습니다.</td></tr>`;
+
+    // 4. HTML 테이블 생성
+    let html = `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">${periodKey} 근태 요약</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-gray-600 border border-gray-200">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 border-b sticky left-0 bg-gray-100 z-10 cursor-pointer hover:bg-gray-200 select-none" 
+                                    data-sort-target="${mode}" data-sort-key="member">
+                                    이름 ${getSortIcon(sortState.key, sortState.dir, 'member')}
+                                </th>
+                                <th scope="col" class="px-4 py-3 border-b text-center cursor-pointer hover:bg-gray-200 select-none" data-sort-target="${mode}" data-sort-key="지각">지각 ${getSortIcon(sortState.key, sortState.dir, '지각')}</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center cursor-pointer hover:bg-gray-200 select-none" data-sort-target="${mode}" data-sort-key="외출">외출 ${getSortIcon(sortState.key, sortState.dir, '외출')}</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center cursor-pointer hover:bg-gray-200 select-none" data-sort-target="${mode}" data-sort-key="조퇴">조퇴 ${getSortIcon(sortState.key, sortState.dir, '조퇴')}</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center cursor-pointer hover:bg-gray-200 select-none" data-sort-target="${mode}" data-sort-key="결근">결근 ${getSortIcon(sortState.key, sortState.dir, '결근')}</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center cursor-pointer hover:bg-gray-200 select-none" data-sort-target="${mode}" data-sort-key="연차">연차 ${getSortIcon(sortState.key, sortState.dir, '연차')}</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center cursor-pointer hover:bg-gray-200 select-none" data-sort-target="${mode}" data-sort-key="출장">출장 ${getSortIcon(sortState.key, sortState.dir, '출장')}</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center font-bold text-indigo-600 cursor-pointer hover:bg-gray-200 select-none" data-sort-target="${mode}" data-sort-key="totalCount">총 횟수 ${getSortIcon(sortState.key, sortState.dir, 'totalCount')}</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center font-bold text-red-600 cursor-pointer hover:bg-gray-200 select-none" data-sort-target="${mode}" data-sort-key="totalAbsenceDays">총 결근일수 ${getSortIcon(sortState.key, sortState.dir, 'totalAbsenceDays')}</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center font-bold text-blue-600 cursor-pointer hover:bg-gray-200 select-none" data-sort-target="${mode}" data-sort-key="totalLeaveDays">총 연차일수 ${getSortIcon(sortState.key, sortState.dir, 'totalLeaveDays')}</th>
+                            </tr>
+                            <tr class="bg-gray-50">
+                                <th class="px-2 py-2 sticky left-0 bg-gray-50 z-10 border-b">
+                                    <input type="text" class="w-full p-1 text-xs border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                                           placeholder="이름 검색..."
+                                           value="${filterState.member || ''}"
+                                           data-filter-target="${mode}" data-filter-key="member">
+                                </th>
+                                <th colspan="9" class="border-b"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">`;
+
+    if (summary.length === 0) {
+         html += `<tr><td colspan="10" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
     } else {
-        summaryList.forEach(item => {
+        summary.forEach(item => {
             html += `
                 <tr class="bg-white hover:bg-gray-50">
-                    <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white border-r">${item.member}</td>
-                    <td class="px-4 py-3 text-center ${item.counts['지각'] > 0 ? 'text-red-500 font-bold' : 'text-gray-300'}">${item.counts['지각']}</td>
-                    <td class="px-4 py-3 text-center ${item.counts['외출'] > 0 ? 'text-gray-800' : 'text-gray-300'}">${item.counts['외출']}</td>
-                    <td class="px-4 py-3 text-center ${item.counts['조퇴'] > 0 ? 'text-gray-800' : 'text-gray-300'}">${item.counts['조퇴']}</td>
-                    <td class="px-4 py-3 text-center ${item.counts['결근'] > 0 ? 'text-red-600 font-bold' : 'text-gray-300'}">${item.counts['결근']}</td>
-                    <td class="px-4 py-3 text-center ${item.counts['연차'] > 0 ? 'text-blue-600 font-bold' : 'text-gray-300'}">${item.counts['연차']}</td>
-                    <td class="px-4 py-3 text-center ${item.counts['출장'] > 0 ? 'text-gray-800' : 'text-gray-300'}">${item.counts['출장']}</td>
+                    <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white">${item.member}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['지각'] > 0 ? 'text-red-500 font-semibold' : 'text-gray-400'}">${item.counts['지각']}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['외출'] > 0 ? 'text-gray-800' : 'text-gray-400'}">${item.counts['외출']}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['조퇴'] > 0 ? 'text-gray-800' : 'text-gray-400'}">${item.counts['조퇴']}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['결근'] > 0 ? 'text-red-600 font-bold' : 'text-gray-400'}">${item.counts['결근']}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['연차'] > 0 ? 'text-blue-600 font-bold' : 'text-gray-400'}">${item.counts['연차']}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['출장'] > 0 ? 'text-gray-800' : 'text-gray-400'}">${item.counts['출장']}</td>
                     <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${item.totalCount}</td>
                     <td class="px-4 py-3 text-center font-bold text-red-600 bg-red-50">${item.totalAbsenceDays}일</td>
                     <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${item.totalLeaveDays}일</td>
@@ -288,20 +352,26 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         });
     }
 
-    html += `</tbody></table></div></div>`;
+    html += `       </tbody>
+                </table>
+            </div>
+        </div>`;
+
     viewElement.innerHTML = html;
 };
 
 /**
  * 근태 이력 - 주별 요약 렌더링
+ * (ui-history.js -> ui-history-attendance.js)
  */
 export const renderAttendanceWeeklyHistory = (selectedWeekKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 근태 데이터 집계 중...</div>';
 
+    // 1. 주별 데이터 집계
     const weeklyData = (allHistoryData || []).reduce((acc, day) => {
-        if (!day || !day.id || !day.onLeaveMembers) return acc;
+        if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string') return acc;
         try {
              const dateObj = new Date(day.id);
              if (isNaN(dateObj.getTime())) return acc;
@@ -311,36 +381,40 @@ export const renderAttendanceWeeklyHistory = (selectedWeekKey, allHistoryData) =
             if (!acc[weekKey]) acc[weekKey] = { leaveEntries: [], dateKeys: new Set() };
 
             day.onLeaveMembers.forEach(entry => {
-                // 기간제 근태(연차 등)가 주차 내에 포함되는지 체크
-                if (entry.startDate) {
-                    const currentDate = day.id;
-                    const startDate = entry.startDate;
-                    const endDate = entry.endDate || entry.startDate;
-                    if (currentDate >= startDate && currentDate <= endDate) {
+                if (entry && entry.type && entry.member) {
+                    if (entry.startDate) {
+                        const currentDate = day.id;
+                        const startDate = entry.startDate;
+                        const endDate = entry.endDate || entry.startDate;
+                        if (currentDate >= startDate && currentDate <= endDate) {
+                            acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
+                        }
+                    } else {
                         acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
                     }
-                } else {
-                    acc[weekKey].leaveEntries.push({ ...entry, date: day.id });
                 }
             });
             acc[weekKey].dateKeys.add(day.id);
-        } catch (e) {}
+        } catch (e) { console.error("Error processing day in attendance weekly aggregation:", day.id, e); }
         return acc;
     }, {});
 
+    // 2. 공통 헬퍼 함수로 렌더링 위임 (mode='weekly' 추가)
     renderAggregatedAttendanceSummary(view, weeklyData, selectedWeekKey, 'weekly');
 };
 
 /**
  * 근태 이력 - 월별 요약 렌더링
+ * (ui-history.js -> ui-history-attendance.js)
  */
 export const renderAttendanceMonthlyHistory = (selectedMonthKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 근태 데이터 집계 중...</div>';
 
+    // 1. 월별 데이터 집계
     const monthlyData = (allHistoryData || []).reduce((acc, day) => {
-        if (!day || !day.id || !day.onLeaveMembers || day.id.length < 7) return acc;
+        if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string' || day.id.length < 7) return acc;
          try {
             const monthKey = day.id.substring(0, 7);
              if (!/^\d{4}-\d{2}$/.test(monthKey)) return acc;
@@ -348,21 +422,24 @@ export const renderAttendanceMonthlyHistory = (selectedMonthKey, allHistoryData)
             if (!acc[monthKey]) acc[monthKey] = { leaveEntries: [], dateKeys: new Set() };
 
             day.onLeaveMembers.forEach(entry => {
-                 if (entry.startDate) {
-                    const currentDate = day.id;
-                    const startDate = entry.startDate;
-                    const endDate = entry.endDate || entry.startDate;
-                    if (currentDate >= startDate && currentDate <= endDate) {
+                 if (entry && entry.type && entry.member) {
+                    if (entry.startDate) {
+                        const currentDate = day.id;
+                        const startDate = entry.startDate;
+                        const endDate = entry.endDate || entry.startDate;
+                        if (currentDate >= startDate && currentDate <= endDate) {
+                            acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
+                        }
+                    } else {
                         acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
                     }
-                } else {
-                    acc[monthKey].leaveEntries.push({ ...entry, date: day.id });
                 }
             });
             acc[monthKey].dateKeys.add(day.id);
-        } catch (e) {}
+        } catch (e) { console.error("Error processing day in attendance monthly aggregation:", day.id, e); }
         return acc;
     }, {});
 
+    // 2. 공통 헬퍼 함수로 렌더링 위임 (mode='monthly' 추가)
     renderAggregatedAttendanceSummary(view, monthlyData, selectedMonthKey, 'monthly');
 };

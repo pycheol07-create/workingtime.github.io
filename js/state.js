@@ -78,7 +78,7 @@ export const context = {
     memberToAction: null,
     autoPauseForLunch: null,
     autoResumeFromLunch: null,
-
+    
     // ✅ [신규] 근태 이력 정렬 및 필터 상태
     attendanceSortState: {
         daily: { key: 'member', dir: 'asc' },
