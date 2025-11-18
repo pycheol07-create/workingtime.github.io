@@ -1,6 +1,6 @@
 // === ui-history-attendance.js (근태 이력 렌더링 담당) ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js';
+import { formatTimeTo24H, formatDuration, getWeekOfYear, calculateDateDifference } from './utils.js';
 
 /**
  * 근태 이력 - 일별 상세 렌더링
@@ -13,6 +13,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
     const data = allHistoryData.find(d => d.id === dateKey);
 
+    // ✅ [수정] 엑셀 다운로드 버튼 제거 (상단으로 이동됨)
     let html = `
         <div class="mb-4 pb-2 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
@@ -20,10 +21,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                 <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
                         data-action="open-add-attendance-modal" data-date-key="${dateKey}">
                     수동 추가
-                </button>
-                <button class="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
-                        data-action="download-attendance-excel" data-date-key="${dateKey}">
-                    근태 엑셀 (전체)
                 </button>
                 <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" 
                         data-action="request-history-deletion" data-date-key="${dateKey}">
@@ -86,7 +83,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
             if (entry.startTime) {
                 detailText = formatTimeTo24H(entry.startTime);
                 
-                // ✅ [수정] '외출'일 때만 종료시간 또는 '~' 표시
                 if (entry.type === '외출') {
                     if (entry.endTime) {
                         detailText += ` ~ ${formatTimeTo24H(entry.endTime)}`;
@@ -94,7 +90,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                         detailText += ' ~';
                     }
                 }
-                // '조퇴'는 시작 시간만 표시됨
 
             } else if (entry.startDate) {
                 detailText = entry.startDate;
@@ -108,12 +103,10 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
             html += `<tr class="${rowClass}">`;
             
-            // 5. 첫 번째 항목일 때만 '이름' 셀에 rowspan 적용
             if (isFirstRowOfGroup) {
                 html += `<td class="px-6 py-4 font-medium text-gray-900 align-top" rowspan="${memberEntryCount}">${member}</td>`;
             }
 
-            // 6. 나머지 셀
             html += `
                 <td class="px-6 py-4">${entry.type}</td>
                 <td class="px-6 py-4">${detailText}</td>
@@ -140,6 +133,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 /**
  * 주별/월별 근태 요약 렌더링 (공통 헬퍼)
  * (ui-history.js -> ui-history-attendance.js)
+ * ✅ [수정] 테이블 포맷 변경 (이름, 지각, 외출, 조퇴, 결근, 연차, 출장, 총 횟수, 총 결근일수, 총 연차일수)
  */
 const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKey) => {
     
@@ -149,67 +143,89 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         return;
     }
 
-    let html = '';
-        
-    // 1. 근태 항목 집계 (member 기준)
-    const summary = data.leaveEntries.reduce((acc, entry) => {
+    // 1. 멤버별 데이터 집계
+    const summary = {};
+
+    data.leaveEntries.forEach(entry => {
         const member = entry.member;
         const type = entry.type;
         
-        if (!acc[member]) {
-            acc[member] = { 
-                member: member, 
-                counts: {} 
+        if (!summary[member]) {
+            summary[member] = {
+                member: member,
+                counts: { '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0 },
+                totalCount: 0,
+                totalAbsenceDays: 0,
+                totalLeaveDays: 0
             };
         }
-        
-        if (!acc[member].counts[type]) {
-            acc[member].counts[type] = 0;
-        }
 
-        if (['연차', '출장', '결근'].includes(type)) {
-             acc[member].counts[type] += 1; // '일'
-        } 
-        else if (['외출', '조퇴'].includes(type)) {
-             acc[member].counts[type] += 1; // '회'
+        // 타입별 카운트 증가
+        if (summary[member].counts.hasOwnProperty(type)) {
+            summary[member].counts[type] += 1;
+        } else if (type) {
+            // 정의되지 않은 타입(예: 커스텀)이 있다면 추가
+            summary[member].counts[type] = (summary[member].counts[type] || 0) + 1;
         }
         
-        return acc;
-    }, {});
+        summary[member].totalCount += 1;
 
-    // 2. HTML 생성
-    html += `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-                <h3 class="text-xl font-bold mb-3">${periodKey}</h3>
-                <div class="space-y-3 max-h-[60vh] overflow-y-auto">`; 
+        // 일수 계산
+        if (type === '결근') {
+            const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            summary[member].totalAbsenceDays += days;
+        } else if (type === '연차') {
+            const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            summary[member].totalLeaveDays += days;
+        }
+    });
+
+    // 2. HTML 테이블 생성
+    let html = `<div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">${periodKey} 근태 요약</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-gray-600 border border-gray-200">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 border-b sticky left-0 bg-gray-100 z-10">이름</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center">지각</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center">외출</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center">조퇴</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center">결근</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center">연차</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center">출장</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center font-bold text-indigo-600">총 횟수</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center font-bold text-red-600">총 결근일수</th>
+                                <th scope="col" class="px-4 py-3 border-b text-center font-bold text-blue-600">총 연차일수</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">`;
 
     if (Object.keys(summary).length === 0) {
-         html += `<p class="text-sm text-gray-500">데이터 없음</p>`;
+         html += `<tr><td colspan="10" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
     } else {
-        // 멤버 이름으로 정렬
-        Object.values(summary).sort((a,b) => a.member.localeCompare(b.member)).forEach(item => {
-            
-            const typesHtml = Object.entries(item.counts)
-                .sort(([typeA], [typeB]) => typeA.localeCompare(typeB)) // 유형별로 정렬
-                .map(([type, count]) => {
-                    const unit = (['연차', '출장', '결근'].includes(type)) ? '일' : '회';
-                    return `<div class="flex justify-between text-sm text-gray-700 pl-4">
-                                <span>${type}</span>
-                                <span class="text-right font-medium">${count}${unit}</span>
-                            </div>`;
-                }).join(''); 
-
-             html += `
-                <div class="border-t pt-2 first:border-t-0">
-                    <div class="flex justify-between text-md mb-1">
-                        <span class="font-semibold text-gray-900">${item.member}</span>
-                    </div>
-                    <div class="space-y-0.5">
-                        ${typesHtml}
-                    </div>
-                </div>`;
+        // 멤버 이름순 정렬
+        Object.values(summary).sort((a, b) => a.member.localeCompare(b.member)).forEach(item => {
+            html += `
+                <tr class="bg-white hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white">${item.member}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['지각'] > 0 ? 'text-red-500 font-semibold' : 'text-gray-400'}">${item.counts['지각']}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['외출'] > 0 ? 'text-gray-800' : 'text-gray-400'}">${item.counts['외출']}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['조퇴'] > 0 ? 'text-gray-800' : 'text-gray-400'}">${item.counts['조퇴']}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['결근'] > 0 ? 'text-red-600 font-bold' : 'text-gray-400'}">${item.counts['결근']}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['연차'] > 0 ? 'text-blue-600 font-bold' : 'text-gray-400'}">${item.counts['연차']}</td>
+                    <td class="px-4 py-3 text-center ${item.counts['출장'] > 0 ? 'text-gray-800' : 'text-gray-400'}">${item.counts['출장']}</td>
+                    <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${item.totalCount}</td>
+                    <td class="px-4 py-3 text-center font-bold text-red-600 bg-red-50">${item.totalAbsenceDays}일</td>
+                    <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${item.totalLeaveDays}일</td>
+                </tr>`;
         });
     }
-    html += `</div></div>`;
+
+    html += `       </tbody>
+                </table>
+            </div>
+        </div>`;
 
     viewElement.innerHTML = html;
 };

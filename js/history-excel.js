@@ -8,7 +8,7 @@ import {
 
 // utils.js에서 헬퍼 함수들을 가져옵니다.
 import { 
-    formatTimeTo24H, formatDuration, getWeekOfYear, showToast 
+    formatTimeTo24H, formatDuration, getWeekOfYear, showToast, calculateDateDifference
 } from './utils.js';
 
 // (XLSX는 index.html에서 전역 로드)
@@ -63,6 +63,8 @@ const appendTotalRow = (ws, data, headers) => {
     });
     XLSX.utils.sheet_add_json(ws, [total], { skipHeader: true, origin: -1 });
 };
+
+// --- [업무 이력] 엑셀 다운로드 ---
 
 export const downloadHistoryAsExcel = async (dateKey) => {
     try {
@@ -523,15 +525,13 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFil
 };
 
 /**
- * ✅ [신규] 주간 이력 엑셀 다운로드
+ * ✅ [신규] 주간 이력 엑셀 다운로드 (Work History)
  */
 export const downloadWeeklyHistoryAsExcel = async (weekKey) => {
     if (!weekKey) return showToast('주간 정보가 없습니다.', true);
     
-    // 해당 주차에 해당하는 데이터만 필터링
     const weekData = allHistoryData.filter(d => {
         if (!d.id) return false;
-        // getWeekOfYear는 utils.js에서 가져온 함수 사용
         return getWeekOfYear(new Date(d.id + "T00:00:00")) === weekKey;
     });
 
@@ -539,22 +539,19 @@ export const downloadWeeklyHistoryAsExcel = async (weekKey) => {
         return showToast(`${weekKey} 데이터가 없습니다.`, true);
     }
 
-    // 날짜순 정렬 후 시작일과 종료일 추출
     weekData.sort((a, b) => a.id.localeCompare(b.id));
     const startDate = weekData[0].id;
     const endDate = weekData[weekData.length - 1].id;
 
-    // 기간 다운로드 함수 재사용 (파일명 커스텀)
     await downloadPeriodHistoryAsExcel(startDate, endDate, `주간업무요약_${weekKey}.xlsx`);
 };
 
 /**
- * ✅ [신규] 월간 이력 엑셀 다운로드
+ * ✅ [신규] 월간 이력 엑셀 다운로드 (Work History)
  */
 export const downloadMonthlyHistoryAsExcel = async (monthKey) => {
      if (!monthKey) return showToast('월간 정보가 없습니다.', true);
 
-     // 해당 월에 해당하는 데이터 필터링
      const monthData = allHistoryData.filter(d => d.id.startsWith(monthKey));
 
      if (monthData.length === 0) {
@@ -565,6 +562,87 @@ export const downloadMonthlyHistoryAsExcel = async (monthKey) => {
      const startDate = monthData[0].id;
      const endDate = monthData[monthData.length - 1].id;
 
-     // 기간 다운로드 함수 재사용 (파일명 커스텀)
      await downloadPeriodHistoryAsExcel(startDate, endDate, `월간업무요약_${monthKey}.xlsx`);
+};
+
+
+// --- [근태 이력] 엑셀 다운로드 ---
+
+// ✅ [신규] 근태 데이터 가공 헬퍼
+const processAttendanceData = (dataList) => {
+    const summary = {};
+
+    dataList.forEach(day => {
+        if (!day.onLeaveMembers) return;
+
+        day.onLeaveMembers.forEach(entry => {
+            const member = entry.member;
+            const type = entry.type;
+
+            if (!summary[member]) {
+                summary[member] = {
+                    '이름': member,
+                    '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0,
+                    '총 횟수': 0, '총 결근일수': 0, '총 연차일수': 0
+                };
+            }
+
+            // 타입별 카운트 (정해진 타입이 아니면 기타로 취급될 수 있음, 여기서는 일단 스킵하거나 추가 처리)
+            if (summary[member].hasOwnProperty(type)) {
+                summary[member][type]++;
+            }
+            summary[member]['총 횟수']++;
+
+            // 일수 계산
+            if (type === '결근') {
+                const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+                summary[member]['총 결근일수'] += days;
+            } else if (type === '연차') {
+                const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+                summary[member]['총 연차일수'] += days;
+            }
+        });
+    });
+    
+    // 이름순 정렬
+    return Object.values(summary).sort((a, b) => a['이름'].localeCompare(b['이름']));
+};
+
+// ✅ [신규] 근태 이력 엑셀 다운로드 (메인 함수)
+export const downloadAttendanceExcel = (viewMode, key) => {
+    let dataList = [];
+    let fileName = '';
+
+    // 1. 데이터 필터링
+    if (viewMode === 'daily') {
+        const day = allHistoryData.find(d => d.id === key);
+        if (day) dataList = [day];
+        fileName = `근태기록_일별_${key}.xlsx`;
+    } else if (viewMode === 'weekly') {
+        dataList = allHistoryData.filter(d => getWeekOfYear(new Date(d.id + "T00:00:00")) === key);
+        fileName = `근태기록_주별_${key}.xlsx`;
+    } else if (viewMode === 'monthly') {
+        dataList = allHistoryData.filter(d => d.id.startsWith(key));
+        fileName = `근태기록_월별_${key}.xlsx`;
+    }
+
+    if (dataList.length === 0) {
+        return showToast('다운로드할 데이터가 없습니다.', true);
+    }
+
+    // 2. 데이터 가공
+    const sheetData = processAttendanceData(dataList);
+    
+    if (sheetData.length === 0) {
+         return showToast('해당 기간에 근태 기록이 없습니다.', true);
+    }
+
+    // 3. 엑셀 생성
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(sheetData); // 객체 키가 자동으로 헤더가 됨
+    
+    fitToColumn(worksheet);
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, '근태 요약');
+    XLSX.writeFile(workbook, fileName);
 };

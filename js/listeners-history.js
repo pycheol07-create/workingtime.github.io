@@ -24,8 +24,9 @@ import {
 import {
     downloadHistoryAsExcel,
     downloadPeriodHistoryAsExcel,
-    downloadWeeklyHistoryAsExcel, // ✅ [신규] 주간 다운로드 임포트
-    downloadMonthlyHistoryAsExcel // ✅ [신규] 월간 다운로드 임포트
+    downloadWeeklyHistoryAsExcel, // ✅ [신규] 주간 업무 다운로드
+    downloadMonthlyHistoryAsExcel, // ✅ [신규] 월간 업무 다운로드
+    downloadAttendanceExcel       // ✅ [신규] 근태 다운로드 (통합)
 } from './history-excel.js';
 
 import {
@@ -144,14 +145,12 @@ export function setupHistoryModalListeners() {
         });
     }
     
-    // ✅ [신규] 상단 탭 라인에 있는 엑셀 다운로드 버튼 리스너
+    // ✅ [신규] 업무 이력 엑셀 다운로드 버튼 (상단 탭)
     if (DOM.historyDownloadExcelBtn) {
         DOM.historyDownloadExcelBtn.addEventListener('click', () => {
-            // 1. 현재 활성화된 뷰(탭) 확인
             const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
             const view = activeTabBtn ? activeTabBtn.dataset.view : 'daily';
             
-            // 2. 현재 선택된 리스트 아이템(날짜/주/월) 키 가져오기
             const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
             if (!selectedListBtn) {
                 showToast('목록에서 다운로드할 항목을 선택해주세요.', true);
@@ -159,7 +158,6 @@ export function setupHistoryModalListeners() {
             }
             const key = selectedListBtn.dataset.key;
 
-            // 3. 뷰에 따라 적절한 다운로드 함수 호출
             if (view === 'daily') {
                 downloadHistoryAsExcel(key);
             } else if (view === 'weekly') {
@@ -167,6 +165,25 @@ export function setupHistoryModalListeners() {
             } else if (view === 'monthly') {
                 downloadMonthlyHistoryAsExcel(key);
             }
+        });
+    }
+
+    // ✅ [신규] 근태 이력 엑셀 다운로드 버튼 (상단 탭)
+    if (DOM.attendanceDownloadExcelBtn) {
+        DOM.attendanceDownloadExcelBtn.addEventListener('click', () => {
+            const activeTabBtn = DOM.attendanceHistoryTabs.querySelector('button.font-semibold');
+            // 뷰 모드 추출 (attendance-daily -> daily)
+            const viewFull = activeTabBtn ? activeTabBtn.dataset.view : 'attendance-daily';
+            const viewMode = viewFull.replace('attendance-', ''); 
+
+            const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
+            if (!selectedListBtn) {
+                showToast('목록에서 다운로드할 항목을 선택해주세요.', true);
+                return;
+            }
+            const key = selectedListBtn.dataset.key;
+
+            downloadAttendanceExcel(viewMode, key);
         });
     }
 
@@ -414,6 +431,7 @@ export function setupHistoryModalListeners() {
                 setHistoryMaximized(false);
                 openHistoryRecordManager(dateKey);
             }
+            // ✅ 엑셀 다운로드 버튼 처리 로직 제거 (상단 리스너로 이동됨)
         });
     }
 
@@ -651,8 +669,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ... (기존 출석부, 리포트 등 나머지 리스너 로직 유지) ...
-
     if (DOM.attendanceHistoryViewContainer) {
         DOM.attendanceHistoryViewContainer.addEventListener('click', (e) => {
              const editBtn = e.target.closest('button[data-action="edit-attendance"]');
@@ -781,61 +797,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    if (DOM.reportViewContainer) {
-        DOM.reportViewContainer.addEventListener('click', (e) => {
-             const coqButton = e.target.closest('div[data-action="show-coq-modal"]');
-            if (coqButton) {
-                e.stopPropagation();
-                setHistoryMaximized(false);
-                if (DOM.coqExplanationModal) {
-                    DOM.coqExplanationModal.classList.remove('hidden');
-                }
-                return;
-            }
-
-            const applyRevenueBtn = e.target.closest('#report-apply-revenue-btn');
-            if (applyRevenueBtn) {
-                const revenueInput = document.getElementById('report-monthly-revenue-input');
-                if (revenueInput && State.context.currentReportParams && State.context.currentReportParams.monthKey) {
-                    const rawRevenue = revenueInput.value.replace(/,/g, '');
-                    const revenue = Number(rawRevenue) || 0;
-                    const monthKey = State.context.currentReportParams.monthKey;
-                    State.context.monthlyRevenues = State.context.monthlyRevenues || {};
-                    State.context.monthlyRevenues[monthKey] = revenue;
-                    renderReportMonthly(monthKey, State.allHistoryData, State.appConfig, State.context);
-                    showToast('매출액 분석이 적용되었습니다.');
-                }
-                return;
-            }
-            const header = e.target.closest('.sortable-header');
-            if (header) {
-                e.stopPropagation();
-                const sortKey = header.dataset.sortKey;
-                if (!sortKey) return;
-                const tableId = header.closest('table')?.id;
-                let tableKey;
-                if (tableId === 'report-table-part') tableKey = 'partSummary';
-                else if (tableId === 'report-table-member') tableKey = 'memberSummary';
-                else if (tableId === 'report-table-task') tableKey = 'taskSummary';
-                else return;
-                const currentSort = State.context.reportSortState[tableKey] || { key: null, dir: 'asc' };
-                let newDir = 'desc';
-                if (currentSort.key === sortKey) {
-                    newDir = (currentSort.dir === 'desc') ? 'asc' : 'desc';
-                }
-                State.context.reportSortState[tableKey] = { key: sortKey, dir: newDir };
-                if (!State.context.currentReportParams) return;
-                const { dateKey, weekKey, monthKey, yearKey } = State.context.currentReportParams;
-                
-                const activeView = DOM.reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
-                if (activeView === 'report-daily') renderReportDaily(dateKey, State.allHistoryData, State.appConfig, State.context);
-                else if (activeView === 'report-weekly') renderReportWeekly(weekKey, State.allHistoryData, State.appConfig, State.context);
-                else if (activeView === 'report-monthly') renderReportMonthly(monthKey, State.allHistoryData, State.appConfig, State.context);
-                else if (activeView === 'report-yearly') renderReportYearly(yearKey, State.allHistoryData, State.appConfig, State.context);
-                return;
-            }
-        });
-    }
+    // ✅ [삭제] 구버전 엑셀 다운로드 핸들러 제거 (attendanceHistoryViewContainer 내부)
 
     const historyHeader = document.getElementById('history-modal-header');
     if (DOM.historyModal && historyHeader && DOM.historyModalContentBox) {
@@ -853,6 +815,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // ... (confirmEditAttendanceBtn 등 나머지 리스너는 그대로 유지) ...
     if (DOM.confirmEditAttendanceBtn) {
         DOM.confirmEditAttendanceBtn.addEventListener('click', async () => {
              const dateKey = DOM.editAttendanceDateKeyInput?.value;
@@ -995,7 +958,6 @@ export function setupHistoryModalListeners() {
             if (DOM.editAttendanceDateFields) DOM.editAttendanceDateFields.classList.toggle('hidden', isTimeBased);
         });
     }
-
 }
 
 function makeDraggable(modalOverlay, header, contentBox) {

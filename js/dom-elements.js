@@ -220,3 +220,5 @@ export const confirmHistoryAddBtn = document.getElementById('confirm-history-add
 
 // ✅ [신규] 엑셀 다운로드 버튼
 export const historyDownloadExcelBtn = document.getElementById('history-download-excel-btn');
+// ✅ [신규] 근태 엑셀 다운로드 버튼
+export const attendanceDownloadExcelBtn = document.getElementById('attendance-download-excel-btn');
