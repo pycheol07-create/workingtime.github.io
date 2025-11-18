@@ -11,7 +11,7 @@ import {
     formatTimeTo24H, formatDuration, getWeekOfYear, showToast, calculateDateDifference
 } from './utils.js';
 
-// (XLSX는 index.html에서 전역 로드)
+// (XLSX와 html2pdf는 index.html에서 전역 로드됨)
 
 // =================================================================
 // 엑셀 다운로드 헬퍼 함수
@@ -456,19 +456,58 @@ export const downloadPersonalReportExcel = (reportData) => {
 
 
 // =================================================================
-// ✅ [신규] PDF 다운로드 (인쇄 기능 활용)
+// ✅ [수정] PDF 다운로드 (html2pdf 사용)
 // =================================================================
 export const downloadContentAsPdf = (elementId, title) => {
     const element = document.getElementById(elementId);
     if (!element) return showToast('출력할 내용을 찾을 수 없습니다.', true);
 
-    // 화면 깜빡임 방지를 위해 스타일 백업 및 프린트 전용 스타일 적용
-    const originalTitle = document.title;
-    document.title = title; // PDF 파일명으로 사용됨
+    showToast('PDF 변환을 시작합니다. 잠시만 기다려주세요...');
 
-    // 프린트 이벤트 호출
-    window.print();
+    // 1. 캡처를 위한 옵션 설정
+    const opt = {
+        margin:       [10, 10, 10, 10], // top, left, bottom, right
+        filename:     `${title}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { 
+            scale: 2, 
+            useCORS: true, 
+            scrollY: 0, // 스크롤 위치 초기화하여 전체 캡처 유도
+            windowHeight: element.scrollHeight // 전체 높이 지정
+        },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // 페이지 넘김 최적화
+    };
 
-    // 복원
-    document.title = originalTitle;
+    // 2. 스타일 임시 변경 (스크롤 영역 전체 표시를 위해)
+    // 캡처 대상 요소뿐만 아니라, 그 내부의 스크롤 가능한 테이블/컨테이너들도 펼쳐야 함.
+    const scrollables = element.querySelectorAll('.overflow-y-auto, .overflow-x-auto, .max-h-48, .max-h-60, .max-h-96, .max-h-[60vh], .max-h-[70vh]');
+    const originalStyles = [];
+
+    scrollables.forEach(el => {
+        originalStyles.push({
+            el: el,
+            maxHeight: el.style.maxHeight,
+            overflow: el.style.overflow,
+            height: el.style.height
+        });
+        el.style.maxHeight = 'none';
+        el.style.overflow = 'visible';
+        el.style.height = 'auto';
+    });
+
+    // 3. PDF 생성 및 저장
+    html2pdf().set(opt).from(element).save().then(() => {
+        showToast('PDF 저장이 완료되었습니다.');
+    }).catch(err => {
+        console.error(err);
+        showToast('PDF 저장 중 오류가 발생했습니다.', true);
+    }).finally(() => {
+        // 4. 스타일 복원
+        originalStyles.forEach(item => {
+            item.el.style.maxHeight = item.maxHeight;
+            item.el.style.overflow = item.overflow;
+            item.el.style.height = item.height;
+        });
+    });
 };
