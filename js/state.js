@@ -68,14 +68,16 @@ export const context = {
     isMobileMemberViewExpanded: false,
     historyStartDate: null,
     historyEndDate: null,
-    reportSortState: {},
-    currentReportParams: null,
+    
+    // 현재 열려있는 필터 드롭다운 ID
+    activeFilterDropdown: null,
+
     monthlyRevenues: {},
     memberToAction: null,
     autoPauseForLunch: null,
     autoResumeFromLunch: null,
     
-    // 근태 이력 정렬/필터 상태
+    // 1. 근태 이력 상태
     attendanceSortState: {
         daily: { key: 'member', dir: 'asc' },
         weekly: { key: 'member', dir: 'asc' },
@@ -87,17 +89,19 @@ export const context = {
         monthly: { member: '' }
     },
     
-    // ✅ [신규] 업무 이력(주/월) 정렬/필터 상태
-    workSortState: {
-        weekly: { key: 'task', dir: 'asc' },
-        monthly: { key: 'task', dir: 'asc' }
+    // 2. 업무 리포트 상태
+    reportSortState: {
+        partSummary: { key: 'partName', dir: 'asc' },
+        memberSummary: { key: 'memberName', dir: 'asc' },
+        taskSummary: { key: 'taskName', dir: 'asc' }
     },
-    workFilterState: {
-        weekly: { task: '' },
-        monthly: { task: '' }
+    reportFilterState: {
+        partSummary: { partName: '' },
+        memberSummary: { memberName: '', part: '' },
+        taskSummary: { taskName: '' }
     },
 
-    // ✅ [신규] 개인 리포트 정렬/필터 상태
+    // 3. 개인 리포트 상태
     personalReportMember: null, 
     personalReportSortState: {
         taskStats: { key: 'duration', dir: 'desc' },
@@ -108,9 +112,7 @@ export const context = {
         taskStats: { task: '' },
         dailyLogs: { attendance: '', mainTask: '' },
         attendanceLogs: { type: '' }
-    },
-
-    activeFilterDropdown: null 
+    }
 };
 
 export const appState = {
@@ -127,5 +129,4 @@ export const appState = {
     simulationResults: null 
 };
 
-// --- Data Arrays ---
 export const allHistoryData = [];

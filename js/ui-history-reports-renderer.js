@@ -2,6 +2,49 @@
 
 import { formatDuration } from './utils.js';
 import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js';
+// ✅ [신규] 상태 참조를 위해 context 임포트
+import { context } from './state.js';
+
+// --- 헬퍼: 정렬 아이콘 ---
+const getSortIcon = (currentKey, currentDir, targetKey) => {
+    if (currentKey !== targetKey) return '<span class="text-gray-300 text-[10px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
+    return currentDir === 'asc' 
+        ? '<span class="text-blue-600 text-[10px] ml-1">▲</span>' 
+        : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
+};
+
+// --- 헬퍼: 필터 드롭다운 ---
+const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
+    const dropdownId = `${target}-${key}`;
+    const isActive = context.activeFilterDropdown === dropdownId;
+    const hasValue = currentFilterValue && currentFilterValue !== '';
+    const iconColorClass = hasValue ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:bg-gray-200';
+
+    let inputHtml = '';
+    if (options.length > 0) {
+        const optionsHtml = options.map(opt => 
+            `<option value="${opt}" ${currentFilterValue === opt ? 'selected' : ''}>${opt}</option>`
+        ).join('');
+        inputHtml = `<select class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer" data-filter-target="${target}" data-filter-key="${key}"><option value="">(전체)</option>${optionsHtml}</select>`;
+    } else {
+        inputHtml = `<input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="검색..." value="${currentFilterValue || ''}" data-filter-target="${target}" data-filter-key="${key}" autocomplete="off">`;
+    }
+
+    return `
+        <div class="relative inline-block ml-1 filter-container">
+            <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" /></svg>
+            </button>
+            <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left cursor-default">
+                <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
+                    <span>필터 조건</span>
+                    ${hasValue ? `<button class="text-[10px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input,select'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
+                </div>
+                ${inputHtml}
+            </div>
+        </div>
+    `;
+};
 
 const _generateKPIHTML = (tKPIs, pKPIs) => {
     return `
@@ -418,94 +461,137 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
     return html;
 };
 
-// ✅ [수정] standardThroughputs 인자 추가 및 테이블 컬럼 추가
+// 헬퍼: th 생성 (정렬/필터 포함)
+const th = (target, key, label, filterValue, options=[], width='') => {
+    const sortState = context.reportSortState?.[target] || { key: '', dir: 'asc' };
+    return `
+        <th class="px-4 py-3 cursor-pointer hover:bg-gray-100 select-none group ${width}" data-sort-target="${target}" data-sort-key="${key}">
+            <div class="flex items-center justify-between min-w-[100px]">
+                <span class="flex items-center">${label} ${getSortIcon(sortState.key, sortState.dir, key)}</span>
+                ${getFilterDropdown(target, key, filterValue, options)}
+            </div>
+        </th>`;
+};
+
 const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMap, attendanceData, standardThroughputs = {}) => {
     let html = '';
+    
+    const filterState = context.reportFilterState || {};
 
     // 1. 파트별 요약
-    const partSort = sortState.partSummary || { key: 'partName', dir: 'asc' };
-    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">파트별 요약</h3><div class="overflow-x-auto max-h-[60vh]"><table class="w-full text-sm text-left text-gray-600" id="report-table-part"><thead>${createTableRow([
-        { content: '파트', sortKey: 'partName' }, { content: '총 업무시간', sortKey: 'duration' }, { content: '총 인건비', sortKey: 'cost' }, { content: '참여 인원 (명)', sortKey: 'members' }
-    ], true, partSort)}</thead><tbody>`;
+    let partData = Object.keys(tAggr.partSummary).map(part => ({
+        partName: part,
+        ...tAggr.partSummary[part],
+        p: pAggr.partSummary[part] || {}
+    }));
+    // 필터
+    if (filterState.partSummary?.partName) {
+        partData = partData.filter(d => d.partName.includes(filterState.partSummary.partName));
+    }
+    // 정렬
+    const pSort = sortState.partSummary || { key: 'partName', dir: 'asc' };
+    partData.sort((a, b) => {
+        let vA = a[pSort.key] ?? 0, vB = b[pSort.key] ?? 0;
+        if(pSort.key==='members') { vA=a.members.size; vB=b.members.size; }
+        if (typeof vA === 'string') return vA.localeCompare(vB) * (pSort.dir === 'asc' ? 1 : -1);
+        return (vA - vB) * (pSort.dir === 'asc' ? 1 : -1);
+    });
 
-    const allParts = Array.from(new Set([...Object.keys(tAggr.partSummary), ...Object.keys(pAggr.partSummary)]));
-    allParts.sort((a, b) => {
-        const d1 = tAggr.partSummary[a] || { duration: 0, cost: 0, members: new Set() };
-        const d2 = tAggr.partSummary[b] || { duration: 0, cost: 0, members: new Set() };
-        let v1 = (partSort.key === 'partName') ? a : (partSort.key === 'members' ? d1.members.size : d1[partSort.key]);
-        let v2 = (partSort.key === 'partName') ? b : (partSort.key === 'members' ? d2.members.size : d2[partSort.key]);
-        return (typeof v1 === 'string' ? v1.localeCompare(v2) : v1 - v2) * (partSort.dir === 'asc' ? 1 : -1);
-    }).forEach(part => {
-        const d = tAggr.partSummary[part] || { duration: 0, cost: 0, members: new Set() }, p = pAggr.partSummary[part] || { duration: 0, cost: 0, members: new Set() };
-        html += createTableRow([part, { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p.duration) }, { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, p.cost) }, { content: d.members.size, diff: getDiffHtmlForMetric('activeMembersCount', d.members.size, p.members.size) }]);
+    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">파트별 요약</h3><div class="overflow-x-auto max-h-[60vh]"><table class="w-full text-sm text-left text-gray-600">
+        <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0"><tr>
+            ${th('partSummary', 'partName', '파트', filterState.partSummary?.partName)}
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="partSummary" data-sort-key="duration">총 업무시간 ${getSortIcon(pSort.key, pSort.dir, 'duration')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="partSummary" data-sort-key="cost">총 인건비 ${getSortIcon(pSort.key, pSort.dir, 'cost')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="partSummary" data-sort-key="members">참여 인원 ${getSortIcon(pSort.key, pSort.dir, 'members')}</th>
+        </tr></thead><tbody>`;
+    partData.forEach(d => {
+        html += createTableRow([d.partName, { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, d.p.duration) }, { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, d.p.cost) }, { content: d.members.size, diff: getDiffHtmlForMetric('activeMembersCount', d.members.size, d.p.members?.size) }]);
     });
     html += `</tbody></table></div></div>`;
+
 
     // 2. 인원별 상세
-    const memberSort = sortState.memberSummary || { key: 'memberName', dir: 'asc' };
-    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">인원별 상세</h3><div class="overflow-x-auto max-h-[60vh]"><table class="w-full text-sm text-left text-gray-600" id="report-table-member"><thead>${createTableRow([
-        { content: '이름', sortKey: 'memberName' }, { content: '파트', sortKey: 'part' }, { content: '총 업무시간', sortKey: 'duration' }, { content: '총 인건비', sortKey: 'cost' }, { content: '수행 업무 수', sortKey: 'taskCount' }, { content: '수행 업무', sortKey: null }
-    ], true, memberSort)}</thead><tbody>`;
+    let memberData = Object.keys(tAggr.memberSummary).map(m => ({
+        memberName: m,
+        part: memberToPartMap.get(m) || '알바',
+        ...tAggr.memberSummary[m],
+        p: pAggr.memberSummary[m] || {}
+    }));
+    // 필터
+    if (filterState.memberSummary?.memberName) memberData = memberData.filter(d => d.memberName.includes(filterState.memberSummary.memberName));
+    if (filterState.memberSummary?.part) memberData = memberData.filter(d => d.part.includes(filterState.memberSummary.part));
+    // 정렬
+    const mSort = sortState.memberSummary || { key: 'memberName', dir: 'asc' };
+    memberData.sort((a, b) => {
+        let vA = a[mSort.key] ?? 0, vB = b[mSort.key] ?? 0;
+        if(mSort.key==='taskCount') { vA=a.tasks.size; vB=b.tasks.size; }
+        if (typeof vA === 'string') return vA.localeCompare(vB) * (mSort.dir === 'asc' ? 1 : -1);
+        return (vA - vB) * (mSort.dir === 'asc' ? 1 : -1);
+    });
 
-    const allMembers = Array.from(new Set([...Object.keys(tAggr.memberSummary), ...Object.keys(pAggr.memberSummary)]));
-    allMembers.sort((a, b) => {
-        const d1 = tAggr.memberSummary[a] || { duration: 0, cost: 0, tasks: new Set(), part: memberToPartMap.get(a) || '알바' };
-        const d2 = tAggr.memberSummary[b] || { duration: 0, cost: 0, tasks: new Set(), part: memberToPartMap.get(b) || '알바' };
-        let v1 = (memberSort.key === 'memberName') ? a : (memberSort.key === 'part' ? d1.part : (memberSort.key === 'taskCount' ? d1.tasks.size : d1[memberSort.key]));
-        let v2 = (memberSort.key === 'memberName') ? b : (memberSort.key === 'part' ? d2.part : (memberSort.key === 'taskCount' ? d2.tasks.size : d2[memberSort.key]));
-        return (typeof v1 === 'string' ? v1.localeCompare(v2) : v1 - v2) * (memberSort.dir === 'asc' ? 1 : -1);
-    }).forEach(member => {
-        const d = tAggr.memberSummary[member] || { duration: 0, cost: 0, tasks: new Set(), part: memberToPartMap.get(member) || '알바' }, p = pAggr.memberSummary[member] || { duration: 0, cost: 0, tasks: new Set() };
-        html += createTableRow([member, d.part, { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p.duration) }, { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, p.cost) }, { content: d.tasks.size, diff: getDiffHtmlForMetric('quantity', d.tasks.size, p.tasks.size) }, { content: Array.from(d.tasks).join(', '), class: "text-xs" }]);
+    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">인원별 상세</h3><div class="overflow-x-auto max-h-[60vh]"><table class="w-full text-sm text-left text-gray-600">
+        <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0"><tr>
+            ${th('memberSummary', 'memberName', '이름', filterState.memberSummary?.memberName)}
+            ${th('memberSummary', 'part', '파트', filterState.memberSummary?.part)}
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="memberSummary" data-sort-key="duration">총 업무시간 ${getSortIcon(mSort.key, mSort.dir, 'duration')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="memberSummary" data-sort-key="cost">총 인건비 ${getSortIcon(mSort.key, mSort.dir, 'cost')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="memberSummary" data-sort-key="taskCount">수행 업무 수 ${getSortIcon(mSort.key, mSort.dir, 'taskCount')}</th>
+            <th class="px-4 py-2">수행 업무</th>
+        </tr></thead><tbody>`;
+    memberData.forEach(d => {
+        html += createTableRow([d.memberName, d.part, { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, d.p.duration) }, { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, d.p.cost) }, { content: d.tasks.size, diff: getDiffHtmlForMetric('quantity', d.tasks.size, d.p.tasks?.size) }, { content: Array.from(d.tasks).join(', '), class: "text-xs" }]);
     });
     html += `</tbody></table></div></div>`;
 
-    // 3. ✅ 업무별 상세 (컬럼 추가됨)
-    const taskSort = sortState.taskSummary || { key: 'taskName', dir: 'asc' };
-    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 이전 ${periodText} 대비)</h3><div class="overflow-x-auto max-h-[70vh]"><table class="w-full text-sm text-left text-gray-600" id="report-table-task"><thead>${createTableRow([
-        { content: '업무', sortKey: 'taskName' }, 
-        { content: '총 시간', sortKey: 'duration' }, 
-        { content: '총 인건비', sortKey: 'cost' }, 
-        { content: '총 처리량', sortKey: 'quantity' }, 
-        { content: '분당 처리량(Avg)', sortKey: 'avgThroughput' },
-        { content: '표준 속도 (Top3)', title: '과거 이력 중 가장 빨랐던 상위 3일의 평균 속도입니다.', class: 'text-indigo-600' }, // ✨ 신규 컬럼
-        { content: '개당 처리비용(Avg)', sortKey: 'avgCostPerItem' }, 
-        { content: '총 참여인원', sortKey: 'avgStaff' }, 
-        { content: '평균 처리시간(건)', sortKey: 'avgTime' }, 
-        { content: '인당 분당 처리량(효율)', sortKey: 'efficiency', title: '계산: (분당 처리량) / (총 참여인원)' }
-    ], true, taskSort)}</thead><tbody>`;
 
-    const allTasks = Array.from(new Set([...Object.keys(tAggr.taskSummary), ...Object.keys(pAggr.taskSummary)]));
-    allTasks.sort((a, b) => {
-        const d1 = tAggr.taskSummary[a] || { duration: 0, cost: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
-        const d2 = tAggr.taskSummary[b] || { duration: 0, cost: 0, quantity: 0, avgThroughput: 0, avgCostPerItem: 0, avgStaff: 0, avgTime: 0, efficiency: 0 };
-        let v1 = (taskSort.key === 'taskName') ? a : d1[taskSort.key];
-        let v2 = (taskSort.key === 'taskName') ? b : d2[taskSort.key];
-        return (typeof v1 === 'string' ? v1.localeCompare(v2) : v1 - v2) * (taskSort.dir === 'asc' ? 1 : -1);
-    }).forEach(task => {
-        const d = tAggr.taskSummary[task], p = pAggr.taskSummary[task] || {};
-        if (!d || (d.duration === 0 && d.quantity === 0)) return;
-        
-        // ✨ 표준 속도 가져오기
-        const stdSpeed = standardThroughputs[task] || 0;
-        const stdSpeedDisplay = stdSpeed > 0 ? stdSpeed.toFixed(2) : '-';
+    // 3. 업무별 상세
+    let taskData = Object.keys(tAggr.taskSummary).map(t => ({
+        taskName: t,
+        ...tAggr.taskSummary[t],
+        p: pAggr.taskSummary[t] || {}
+    }));
+    // 필터
+    if (filterState.taskSummary?.taskName) taskData = taskData.filter(d => d.taskName.includes(filterState.taskSummary.taskName));
+    // 정렬
+    const tSort = sortState.taskSummary || { key: 'taskName', dir: 'asc' };
+    taskData.sort((a, b) => {
+        let vA = a[tSort.key] ?? 0, vB = b[tSort.key] ?? 0;
+        if (typeof vA === 'string') return vA.localeCompare(vB) * (tSort.dir === 'asc' ? 1 : -1);
+        return (vA - vB) * (tSort.dir === 'asc' ? 1 : -1);
+    });
 
+    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 이전 ${periodText} 대비)</h3><div class="overflow-x-auto max-h-[70vh]"><table class="w-full text-sm text-left text-gray-600">
+        <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0"><tr>
+            ${th('taskSummary', 'taskName', '업무', filterState.taskSummary?.taskName)}
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="duration">총 시간 ${getSortIcon(tSort.key, tSort.dir, 'duration')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="cost">총 인건비 ${getSortIcon(tSort.key, tSort.dir, 'cost')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="quantity">총 처리량 ${getSortIcon(tSort.key, tSort.dir, 'quantity')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgThroughput">분당 처리량 ${getSortIcon(tSort.key, tSort.dir, 'avgThroughput')}</th>
+            <th class="px-4 py-2">표준 속도 (Top3)</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgCostPerItem">개당 처리비용 ${getSortIcon(tSort.key, tSort.dir, 'avgCostPerItem')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgStaff">총 인원 ${getSortIcon(tSort.key, tSort.dir, 'avgStaff')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgTime">평균 시간 ${getSortIcon(tSort.key, tSort.dir, 'avgTime')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="efficiency">인당 효율 ${getSortIcon(tSort.key, tSort.dir, 'efficiency')}</th>
+        </tr></thead><tbody>`;
+    taskData.forEach(d => {
+        const stdSpeed = standardThroughputs[d.taskName] || 0;
         html += createTableRow([
-            { content: task, class: "font-medium text-gray-900" }, 
-            { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, p.duration) }, 
-            { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, p.cost) }, 
-            { content: d.quantity.toLocaleString(), diff: getDiffHtmlForMetric('quantity', d.quantity, p.quantity) }, 
-            { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, p.avgThroughput) }, 
-            { content: stdSpeedDisplay, class: "text-indigo-600 font-mono bg-indigo-50" }, // ✨ 신규 데이터 셀
-            { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, p.avgCostPerItem) }, 
-            { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, p.avgStaff) }, 
-            { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, p.avgTime) }, 
-            { content: d.efficiency.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.efficiency, p.efficiency), class: "font-bold" }
+            { content: d.taskName, class: "font-medium text-gray-900" }, 
+            { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, d.p.duration) }, 
+            { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, d.p.cost) }, 
+            { content: d.quantity.toLocaleString(), diff: getDiffHtmlForMetric('quantity', d.quantity, d.p.quantity) }, 
+            { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, d.p.avgThroughput) }, 
+            { content: stdSpeed > 0 ? stdSpeed.toFixed(2) : '-', class: "text-indigo-600 font-mono bg-indigo-50" },
+            { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, d.p.avgCostPerItem) }, 
+            { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, d.p.avgStaff) }, 
+            { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, d.p.avgTime) }, 
+            { content: d.efficiency.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.efficiency, d.p.efficiency), class: "font-bold" }
         ]);
     });
     html += `</tbody></table></div></div>`;
 
-    // 4. 근태 현황
+
+    // 4. 근태 현황 (기존 유지)
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3><div class="space-y-3 max-h-[60vh] overflow-y-auto">`;
     const attSummary = (attendanceData || []).reduce((acc, e) => {
         if (!acc[e.member]) acc[e.member] = { member: e.member, counts: {} };
@@ -525,7 +611,6 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     return html;
 };
 
-// ✅ [수정] benchmarkOEE, standardThroughputs 인자 추가
 export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, appConfig, sortState, periodText, prevRevenue = 0, benchmarkOEE = null, standardThroughputs = {}) => {
     const view = document.getElementById(targetId);
     if (!view) return;
@@ -537,7 +622,6 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
     html += _generateProductivityAnalysisHTML(tMetrics, pMetrics, periodText, benchmarkOEE);
     html += _generateRevenueAnalysisHTML(periodText, tMetrics.revenueAnalysis, tMetrics.revenueTrend, currentRevenue, prevRevenue);
     html += _generateInsightsHTML(tMetrics.aggr, pMetrics.aggr, appConfig, periodText);
-    // ✅ 전달
     html += _generateTablesHTML(tMetrics.aggr, pMetrics.aggr, periodText, sortState, tData.memberToPartMap, tData.raw.onLeaveMembers, standardThroughputs);
     html += `</div>`;
 
