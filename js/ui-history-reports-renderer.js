@@ -2,7 +2,6 @@
 
 import { formatDuration } from './utils.js';
 import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js';
-// ✅ [신규] 상태 참조를 위해 context 임포트
 import { context } from './state.js';
 
 // --- 헬퍼: 정렬 아이콘 ---
@@ -21,12 +20,13 @@ const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
     const iconColorClass = hasValue ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:bg-gray-200';
 
     let inputHtml = '';
-    if (options.length > 0) {
+    if (options && options.length > 0) {
         const optionsHtml = options.map(opt => 
             `<option value="${opt}" ${currentFilterValue === opt ? 'selected' : ''}>${opt}</option>`
         ).join('');
         inputHtml = `<select class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer" data-filter-target="${target}" data-filter-key="${key}"><option value="">(전체)</option>${optionsHtml}</select>`;
     } else {
+        // 옵션이 없는 경우 텍스트 입력 (예외 처리)
         inputHtml = `<input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="검색..." value="${currentFilterValue || ''}" data-filter-target="${target}" data-filter-key="${key}" autocomplete="off">`;
     }
 
@@ -461,7 +461,7 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
     return html;
 };
 
-// 헬퍼: th 생성 (정렬/필터 포함)
+// 헬퍼: th 생성 (정렬/필터 포함) - options 파라미터 추가
 const th = (target, key, label, filterValue, options=[], width='') => {
     const sortState = context.reportSortState?.[target] || { key: '', dir: 'asc' };
     return `
@@ -484,9 +484,13 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
         ...tAggr.partSummary[part],
         p: pAggr.partSummary[part] || {}
     }));
+    
+    // ✅ 필터 옵션 추출
+    const allPartNames = [...new Set(partData.map(d => d.partName))].sort();
+    
     // 필터
     if (filterState.partSummary?.partName) {
-        partData = partData.filter(d => d.partName.includes(filterState.partSummary.partName));
+        partData = partData.filter(d => d.partName === filterState.partSummary.partName);
     }
     // 정렬
     const pSort = sortState.partSummary || { key: 'partName', dir: 'asc' };
@@ -499,7 +503,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
 
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">파트별 요약</h3><div class="overflow-x-auto max-h-[60vh]"><table class="w-full text-sm text-left text-gray-600">
         <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0"><tr>
-            ${th('partSummary', 'partName', '파트', filterState.partSummary?.partName)}
+            ${th('partSummary', 'partName', '파트', filterState.partSummary?.partName, allPartNames)}
             <th class="px-4 py-2 cursor-pointer" data-sort-target="partSummary" data-sort-key="duration">총 업무시간 ${getSortIcon(pSort.key, pSort.dir, 'duration')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="partSummary" data-sort-key="cost">총 인건비 ${getSortIcon(pSort.key, pSort.dir, 'cost')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="partSummary" data-sort-key="members">참여 인원 ${getSortIcon(pSort.key, pSort.dir, 'members')}</th>
@@ -517,9 +521,14 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
         ...tAggr.memberSummary[m],
         p: pAggr.memberSummary[m] || {}
     }));
+    
+    // ✅ 필터 옵션 추출
+    const allMemberNames = [...new Set(memberData.map(d => d.memberName))].sort();
+    const allMemberParts = [...new Set(memberData.map(d => d.part))].sort();
+
     // 필터
-    if (filterState.memberSummary?.memberName) memberData = memberData.filter(d => d.memberName.includes(filterState.memberSummary.memberName));
-    if (filterState.memberSummary?.part) memberData = memberData.filter(d => d.part.includes(filterState.memberSummary.part));
+    if (filterState.memberSummary?.memberName) memberData = memberData.filter(d => d.memberName === filterState.memberSummary.memberName);
+    if (filterState.memberSummary?.part) memberData = memberData.filter(d => d.part === filterState.memberSummary.part);
     // 정렬
     const mSort = sortState.memberSummary || { key: 'memberName', dir: 'asc' };
     memberData.sort((a, b) => {
@@ -531,8 +540,8 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
 
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">인원별 상세</h3><div class="overflow-x-auto max-h-[60vh]"><table class="w-full text-sm text-left text-gray-600">
         <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0"><tr>
-            ${th('memberSummary', 'memberName', '이름', filterState.memberSummary?.memberName)}
-            ${th('memberSummary', 'part', '파트', filterState.memberSummary?.part)}
+            ${th('memberSummary', 'memberName', '이름', filterState.memberSummary?.memberName, allMemberNames)}
+            ${th('memberSummary', 'part', '파트', filterState.memberSummary?.part, allMemberParts)}
             <th class="px-4 py-2 cursor-pointer" data-sort-target="memberSummary" data-sort-key="duration">총 업무시간 ${getSortIcon(mSort.key, mSort.dir, 'duration')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="memberSummary" data-sort-key="cost">총 인건비 ${getSortIcon(mSort.key, mSort.dir, 'cost')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="memberSummary" data-sort-key="taskCount">수행 업무 수 ${getSortIcon(mSort.key, mSort.dir, 'taskCount')}</th>
@@ -550,8 +559,12 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
         ...tAggr.taskSummary[t],
         p: pAggr.taskSummary[t] || {}
     }));
+    
+    // ✅ 필터 옵션 추출
+    const allTaskNames = [...new Set(taskData.map(d => d.taskName))].sort();
+
     // 필터
-    if (filterState.taskSummary?.taskName) taskData = taskData.filter(d => d.taskName.includes(filterState.taskSummary.taskName));
+    if (filterState.taskSummary?.taskName) taskData = taskData.filter(d => d.taskName === filterState.taskSummary.taskName);
     // 정렬
     const tSort = sortState.taskSummary || { key: 'taskName', dir: 'asc' };
     taskData.sort((a, b) => {
@@ -562,7 +575,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
 
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 이전 ${periodText} 대비)</h3><div class="overflow-x-auto max-h-[70vh]"><table class="w-full text-sm text-left text-gray-600">
         <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0"><tr>
-            ${th('taskSummary', 'taskName', '업무', filterState.taskSummary?.taskName)}
+            ${th('taskSummary', 'taskName', '업무', filterState.taskSummary?.taskName, allTaskNames)}
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="duration">총 시간 ${getSortIcon(tSort.key, tSort.dir, 'duration')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="cost">총 인건비 ${getSortIcon(tSort.key, tSort.dir, 'cost')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="quantity">총 처리량 ${getSortIcon(tSort.key, tSort.dir, 'quantity')}</th>

@@ -20,7 +20,7 @@ const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
     const iconColorClass = hasValue ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:bg-gray-200';
 
     let inputHtml = '';
-    if (options.length > 0) {
+    if (options && options.length > 0) {
         const optionsHtml = options.map(opt => 
             `<option value="${opt}" ${currentFilterValue === opt ? 'selected' : ''}>${opt}</option>`
         ).join('');
@@ -29,6 +29,7 @@ const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
         inputHtml = `<input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="검색..." value="${currentFilterValue || ''}" data-filter-target="${target}" data-filter-key="${key}" autocomplete="off">`;
     }
 
+    // ✅ 드롭다운 z-index 상향 조정 (테이블 헤더 위로 오게)
     return `
         <div class="relative inline-block ml-1 filter-container">
             <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
@@ -66,7 +67,7 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
         workDaysCount: 0,
         taskStats: {}, // { taskName: { count, duration, cost } }
         attendanceCounts: {}, // { type: count }
-        attendanceDays: {}, // { type: days } (연차, 결근 등)
+        attendanceDays: {}, // { type: days } (연차, 결근 등 일수 집계용)
         attendanceLogs: [], 
         dailyLogs: []
     };
@@ -116,9 +117,11 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
         const myLeaves = (day.onLeaveMembers || []).filter(l => l.member === memberName);
         myLeaves.forEach(leave => {
             const type = leave.type;
+            
+            // 횟수 집계
             stats.attendanceCounts[type] = (stats.attendanceCounts[type] || 0) + 1;
 
-            // 일수 계산
+            // 일수 계산 (연차, 결근, 출장 등 기간이 있는 근태)
             if (type === '연차' || type === '결근' || type === '출장') {
                 const days = calculateDateDifference(leave.startDate, leave.endDate || leave.startDate);
                 stats.attendanceDays[type] = (stats.attendanceDays[type] || 0) + days;
@@ -189,9 +192,12 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
         avgTime: data.count > 0 ? data.duration / data.count : 0
     }));
     
+    // ✅ 필터 옵션 추출
+    const allTaskNames = [...new Set(taskStatsArray.map(t => t.task))].sort();
+
     // 필터 (업무)
     if (filterState.taskStats?.task) {
-        taskStatsArray = taskStatsArray.filter(t => t.task.includes(filterState.taskStats.task));
+        taskStatsArray = taskStatsArray.filter(t => t.task === filterState.taskStats.task);
     }
     // 정렬 (업무)
     const tsSort = sortState.taskStats || { key: 'duration', dir: 'desc' };
@@ -203,6 +209,10 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
 
     // 2. 근태 로그
     let attLogs = [...stats.attendanceLogs];
+    
+    // ✅ 필터 옵션 추출
+    const allAttTypes = [...new Set(attLogs.map(l => l.type))].sort();
+
     // 필터 (근태)
     if (filterState.attendanceLogs?.type) {
         attLogs = attLogs.filter(l => l.type === filterState.attendanceLogs.type);
@@ -213,12 +223,13 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
 
     // 3. 일별 로그
     let dailyLogs = [...stats.dailyLogs];
+
+    // ✅ 필터 옵션 추출
+    const allDailyAttStatus = [...new Set(dailyLogs.map(l => l.attendance))].sort();
+    
     // 필터 (일별)
     if (filterState.dailyLogs?.attendance) {
-        dailyLogs = dailyLogs.filter(l => l.attendance.includes(filterState.dailyLogs.attendance));
-    }
-    if (filterState.dailyLogs?.mainTask) {
-        dailyLogs = dailyLogs.filter(l => l.mainTask.includes(filterState.dailyLogs.mainTask));
+        dailyLogs = dailyLogs.filter(l => l.attendance === filterState.dailyLogs.attendance);
     }
     // 정렬 (일별)
     const dlSort = sortState.dailyLogs || { key: 'date', dir: 'asc' };
@@ -255,7 +266,6 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
     `;
 
     // 2. 업무별 상세 통계 (필터/정렬 적용)
-    const allTaskNames = Object.keys(stats.taskStats).sort();
     const th_task = (key, label, w='') => `<th class="px-4 py-3 cursor-pointer hover:bg-gray-100 select-none group ${w}" data-sort-target="taskStats" data-sort-key="${key}"><div class="flex items-center justify-end ${w?'justify-start':''}"><span>${label} ${getSortIcon(tsSort.key, tsSort.dir, key)}</span></div></th>`;
 
     html += `
@@ -303,10 +313,10 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
             const count = stats.attendanceCounts[type] || 0;
             if (count === 0) return '';
             let text = `${type}: <strong>${count}회</strong>`;
-            if (type === '연차' || type === '결근') {
+            if (type === '연차' || type === '결근' || type === '출장') {
                 text += ` <span class="text-xs text-gray-500">(${stats.attendanceDays[type]}일)</span>`;
             }
-            return `<div class="bg-gray-50 rounded px-3 py-2 text-sm text-gray-700 border border-gray-200">${text}</div>`;
+            return `<div class="bg-gray-50 rounded px-3 py-2 text-sm text-gray-700 border border-gray-200 shadow-sm">${text}</div>`;
         }).join('');
 
         const th_att = (key, label) => `<th class="px-4 py-2 cursor-pointer hover:bg-gray-100 select-none group" data-sort-target="attendanceLogs" data-sort-key="${key}"><div class="flex items-center"><span>${label} ${getSortIcon(alSort.key, alSort.dir, key)}</span></div></th>`;
@@ -327,7 +337,7 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                                 <th class="px-4 py-2 cursor-pointer hover:bg-gray-100 select-none group" data-sort-target="attendanceLogs" data-sort-key="type">
                                     <div class="flex items-center justify-between">
                                         <span>유형 ${getSortIcon(alSort.key, alSort.dir, 'type')}</span>
-                                        ${getFilterDropdown('attendanceLogs', 'type', filterState.attendanceLogs?.type, LEAVE_TYPES)}
+                                        ${getFilterDropdown('attendanceLogs', 'type', filterState.attendanceLogs?.type, allAttTypes)}
                                     </div>
                                 </th>
                                 <th class="px-4 py-2">상세 시간/기간</th>
@@ -364,15 +374,10 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                                 <th class="px-4 py-3 cursor-pointer hover:bg-gray-100 select-none group" data-sort-target="dailyLogs" data-sort-key="attendance">
                                     <div class="flex items-center justify-between">
                                         <span>근태 ${getSortIcon(dlSort.key, dlSort.dir, 'attendance')}</span>
-                                        ${getFilterDropdown('dailyLogs', 'attendance', filterState.dailyLogs?.attendance)}
+                                        ${getFilterDropdown('dailyLogs', 'attendance', filterState.dailyLogs?.attendance, allDailyAttStatus)}
                                     </div>
                                 </th>
-                                <th class="px-4 py-3 cursor-pointer hover:bg-gray-100 select-none group" data-sort-target="dailyLogs" data-sort-key="mainTask">
-                                    <div class="flex items-center justify-between">
-                                        <span>주요 업무 ${getSortIcon(dlSort.key, dlSort.dir, 'mainTask')}</span>
-                                        ${getFilterDropdown('dailyLogs', 'mainTask', filterState.dailyLogs?.mainTask)}
-                                    </div>
-                                </th>
+                                <th class="px-4 py-3">주요 업무</th>
                                 ${th_daily('workTime', '총 근무 시간')}
                             </tr>
                         </thead>
