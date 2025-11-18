@@ -465,24 +465,24 @@ export const downloadContentAsPdf = (elementId, title) => {
     showToast('PDF 변환을 시작합니다. (잠시만 기다려주세요)');
 
     // 1. 임시 컨테이너 생성 (화면 밖으로 숨김)
-    // A4 가로 너비(약 297mm)에 맞춰 넉넉한 픽셀 너비 설정 (1500px -> 1600px로 증가)
+    // A4 가로 너비(약 297mm)에 맞춰 넉넉한 픽셀 너비 설정 (1600px -> 1800px로 증가)
     const tempContainer = document.createElement('div');
     tempContainer.id = 'pdf-temp-container';
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
     tempContainer.style.top = '0';
-    tempContainer.style.width = '1600px'; // ✅ 1600px로 확장
+    tempContainer.style.width = '1800px'; // ✅ 1800px로 확장
     tempContainer.style.background = 'white';
     tempContainer.style.zIndex = '-9999';
     // 테이블 줄바꿈 방지 스타일 주입
     tempContainer.innerHTML = `<style>
         /* PDF에 캡처될 때 폰트 크기를 줄여 한 페이지에 더 많은 내용을 담고, 테이블 패딩을 줄여 너비를 확보합니다. */
-        .pdf-content-wrapper { font-size: 10px !important; }
-        .pdf-content-wrapper table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+        .pdf-content-wrapper { font-size: 9px !important; } /* ✅ 9px로 추가 축소 */
+        .pdf-content-wrapper table { table-layout: fixed !important; width: 100% !important; border-collapse: collapse; }
         .pdf-content-wrapper td, .pdf-content-wrapper th { 
-            padding: 4px !important; 
-            min-width: unset !important; /* 최소 너비 제약 해제 */
-            white-space: nowrap; /* 줄바꿈 방지 강화 */
+            padding: 3px !important; /* ✅ 3px로 추가 축소 */
+            min-width: unset !important; 
+            white-space: nowrap !important; /* ✅ !important 적용 */
         }
         /* 페이지 분할 방지 */
         table { page-break-inside: auto; }
@@ -532,14 +532,14 @@ export const downloadContentAsPdf = (elementId, title) => {
 
     // 5. PDF 생성 옵션 (가로 모드 설정)
     const opt = {
-        margin:       [10, 10, 10, 10],
+        margin:       [5, 5, 5, 5], // ✅ 마진 추가 축소
         filename:     `${title}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { 
             scale: 2, // scale 2 유지 (고화질)
             useCORS: true,
             scrollY: 0,
-            windowWidth: 1600 // ✅ 컨테이너 너비와 일치 (1600px)
+            windowWidth: 1800 // ✅ 컨테이너 너비와 일치 (1800px)
         },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }, // ✅ 가로 모드
         pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
