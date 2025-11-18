@@ -456,58 +456,83 @@ export const downloadPersonalReportExcel = (reportData) => {
 
 
 // =================================================================
-// ✅ [수정] PDF 다운로드 (html2pdf 사용)
+// ✅ [수정] PDF 다운로드 (복제 & 펼치기 방식)
 // =================================================================
 export const downloadContentAsPdf = (elementId, title) => {
-    const element = document.getElementById(elementId);
-    if (!element) return showToast('출력할 내용을 찾을 수 없습니다.', true);
+    const originalElement = document.getElementById(elementId);
+    if (!originalElement) return showToast('출력할 내용을 찾을 수 없습니다.', true);
 
-    showToast('PDF 변환을 시작합니다. 잠시만 기다려주세요...');
+    showToast('PDF 생성을 시작합니다. 잠시만 기다려주세요...');
 
-    // 1. 캡처를 위한 옵션 설정
+    // 1. 임시 컨테이너 생성 (화면 밖으로 숨김)
+    const tempContainer = document.createElement('div');
+    tempContainer.id = 'pdf-temp-container';
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.top = '0';
+    tempContainer.style.width = '1000px'; // A4 너비에 맞춰 고정
+    tempContainer.style.background = 'white';
+    tempContainer.style.zIndex = '-9999';
+    document.body.appendChild(tempContainer);
+
+    // 2. 콘텐츠 복제
+    const clonedElement = originalElement.cloneNode(true);
+    tempContainer.appendChild(clonedElement);
+
+    // 3. 복제된 콘텐츠의 스크롤/높이 제한 제거 (전체 펼치기)
+    const allElements = clonedElement.querySelectorAll('*');
+    allElements.forEach(el => {
+        // Tailwind 등 클래스로 인한 높이 제한 제거
+        if (el.classList.contains('overflow-y-auto') || el.classList.contains('overflow-x-auto') || 
+            el.classList.contains('max-h-48') || el.classList.contains('max-h-60') || 
+            el.classList.contains('max-h-96') || el.classList.contains('max-h-[60vh]') || 
+            el.classList.contains('max-h-[70vh]')) {
+            
+            el.style.maxHeight = 'none';
+            el.style.height = 'auto';
+            el.style.overflow = 'visible';
+        }
+        // 인라인 스타일 강제 제거
+        el.style.maxHeight = 'none';
+        el.style.overflow = 'visible';
+    });
+
+    // 4. Canvas(차트) 복구 (CloneNode는 캔버스 내용을 복사하지 않음)
+    const originalCanvases = originalElement.querySelectorAll('canvas');
+    const clonedCanvases = clonedElement.querySelectorAll('canvas');
+    originalCanvases.forEach((origCanvas, index) => {
+        if (clonedCanvases[index]) {
+            const ctx = clonedCanvases[index].getContext('2d');
+            if (ctx) ctx.drawImage(origCanvas, 0, 0);
+        }
+    });
+
+    // 5. PDF 생성 옵션
     const opt = {
-        margin:       [10, 10, 10, 10], // top, left, bottom, right
+        margin:       [10, 10, 10, 10],
         filename:     `${title}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { 
             scale: 2, 
-            useCORS: true, 
-            scrollY: 0, // 스크롤 위치 초기화하여 전체 캡처 유도
-            windowHeight: element.scrollHeight // 전체 높이 지정
+            useCORS: true,
+            scrollY: 0,
+            windowWidth: 1000 // 컨테이너 너비와 맞춤
         },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // 페이지 넘김 최적화
+        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
-    // 2. 스타일 임시 변경 (스크롤 영역 전체 표시를 위해)
-    // 캡처 대상 요소뿐만 아니라, 그 내부의 스크롤 가능한 테이블/컨테이너들도 펼쳐야 함.
-    const scrollables = element.querySelectorAll('.overflow-y-auto, .overflow-x-auto, .max-h-48, .max-h-60, .max-h-96, .max-h-[60vh], .max-h-[70vh]');
-    const originalStyles = [];
-
-    scrollables.forEach(el => {
-        originalStyles.push({
-            el: el,
-            maxHeight: el.style.maxHeight,
-            overflow: el.style.overflow,
-            height: el.style.height
+    // 6. 변환 실행
+    html2pdf().from(clonedElement).set(opt).save()
+        .then(() => {
+            showToast('PDF 저장이 완료되었습니다.');
+        })
+        .catch(err => {
+            console.error('PDF generation error:', err);
+            showToast('PDF 생성 중 오류가 발생했습니다.', true);
+        })
+        .finally(() => {
+            // 7. 임시 컨테이너 제거
+            document.body.removeChild(tempContainer);
         });
-        el.style.maxHeight = 'none';
-        el.style.overflow = 'visible';
-        el.style.height = 'auto';
-    });
-
-    // 3. PDF 생성 및 저장
-    html2pdf().set(opt).from(element).save().then(() => {
-        showToast('PDF 저장이 완료되었습니다.');
-    }).catch(err => {
-        console.error(err);
-        showToast('PDF 저장 중 오류가 발생했습니다.', true);
-    }).finally(() => {
-        // 4. 스타일 복원
-        originalStyles.forEach(item => {
-            item.el.style.maxHeight = item.maxHeight;
-            item.el.style.overflow = item.overflow;
-            item.el.style.height = item.height;
-        });
-    });
 };
