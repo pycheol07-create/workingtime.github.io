@@ -120,7 +120,7 @@ export function setupHistoryModalListeners() {
         return btn ? btn.dataset.key : null;
     };
 
-    // ✅ [수정] 현재 보고 있는 근태 뷰를 다시 그리는 함수
+    // 뷰 갱신 함수
     const refreshAttendanceView = () => {
         const dateKey = getSelectedDateKey();
         const filteredData = getFilteredHistoryData();
@@ -303,16 +303,7 @@ export function setupHistoryModalListeners() {
                     }
 
                 } else if (activeMainTab === 'attendance') {
-                    const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
-                    const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
-
-                    if (activeView === 'attendance-daily') {
-                        renderAttendanceDailyHistory(dateKey, filteredData);
-                    } else if (activeView === 'attendance-weekly') {
-                        renderAttendanceWeeklyHistory(dateKey, filteredData);
-                    } else if (activeView === 'attendance-monthly') {
-                        renderAttendanceMonthlyHistory(dateKey, filteredData);
-                    }
+                    refreshAttendanceView(); // 함수 호출로 간소화
                 }
                 else if (activeMainTab === 'report') {
                     const activeSubTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
@@ -673,10 +664,16 @@ export function setupHistoryModalListeners() {
         // 1. 클릭 이벤트 (필터 아이콘, 정렬 헤더, 기존 버튼)
         DOM.attendanceHistoryViewContainer.addEventListener('click', (e) => {
             
-            // A. 필터 아이콘 클릭 -> 드롭다운 토글
+            // A. ⚠️ [최우선] 드롭다운 내부 클릭 -> 정렬 방지 및 닫기 방지
+            if (e.target.closest('.filter-dropdown')) {
+                e.stopPropagation(); // 상위 전파 방지 (정렬 헤더 클릭으로 인식되지 않도록)
+                return;
+            }
+
+            // B. 필터 아이콘 클릭 -> 드롭다운 토글
             const filterIconBtn = e.target.closest('.filter-icon-btn');
             if (filterIconBtn) {
-                e.stopPropagation(); 
+                e.stopPropagation(); // 상위 전파 방지
                 const dropdownId = filterIconBtn.dataset.dropdownId;
                 
                 if (State.context.activeFilterDropdown === dropdownId) {
@@ -688,10 +685,10 @@ export function setupHistoryModalListeners() {
                 return;
             }
 
-            // B. 정렬 헤더 클릭 -> 정렬
+            // C. 정렬 헤더 클릭 -> 정렬
             const sortTh = e.target.closest('th[data-sort-key]');
             if (sortTh) {
-                // 만약 필터 아이콘을 클릭한 경우라면 filterIconBtn 조건에서 처리되고 return되므로 여기까지 안 옴
+                // 위에서 드롭다운/아이콘 클릭은 return 되었으므로, 여기는 순수 헤더 영역 클릭임
                 const mode = sortTh.dataset.sortTarget;
                 const key = sortTh.dataset.sortKey;
                 
@@ -709,12 +706,6 @@ export function setupHistoryModalListeners() {
                 return;
             }
 
-            // C. 드롭다운 내부 클릭 -> 닫기 방지
-            if (e.target.closest('.filter-dropdown')) {
-                e.stopPropagation();
-                return;
-            }
-
             // D. 기존 버튼 (수정/삭제/추가 등)
             handleExistingAttendanceButtons(e);
         });
@@ -729,8 +720,10 @@ export function setupHistoryModalListeners() {
 
                 if (!mode || !key) return;
 
+                // 상태 업데이트
                 State.context.attendanceFilterState[mode][key] = value;
 
+                // 다시 그리기
                 refreshAttendanceView();
 
                 // 포커스 복원
@@ -738,6 +731,7 @@ export function setupHistoryModalListeners() {
                     const newInput = document.querySelector(`[data-filter-target="${mode}"][data-filter-key="${key}"]`);
                     if(newInput) {
                         newInput.focus();
+                        // select가 아닌 경우에만 커서 조정
                         if (newInput.tagName === 'INPUT') {
                             const val = newInput.value;
                             newInput.value = '';
@@ -752,6 +746,7 @@ export function setupHistoryModalListeners() {
     // 3. 외부 클릭 시 필터 드롭다운 닫기
     document.addEventListener('click', (e) => {
         if (State.context.activeFilterDropdown) {
+            // 드롭다운 내부나 필터 버튼 클릭이 아니면 닫기
             if (!e.target.closest('.filter-dropdown') && !e.target.closest('.filter-icon-btn')) {
                 State.context.activeFilterDropdown = null;
                 refreshAttendanceView();
@@ -785,9 +780,14 @@ function handleExistingAttendanceButtons(e) {
         const index = parseInt(editBtn.dataset.index, 10);
         if (!dateKey || isNaN(index)) return;
         
-        const dayData = State.allHistoryData.find(d => d.id === dateKey);
-        const record = dayData?.onLeaveMembers?.[index];
-        if (!record) return;
+        const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
+        if (dayDataIndex === -1) { showToast('해당 날짜의 이력 데이터를 찾을 수 없습니다.', true); return; }
+        const dayData = State.allHistoryData[dayDataIndex];
+
+        if (!dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
+            showToast('원본 근태 기록을 찾을 수 없습니다.', true); return;
+        }
+        const record = dayData.onLeaveMembers[index];
 
         if (DOM.editAttendanceMemberName) DOM.editAttendanceMemberName.value = record.member;
         if (DOM.editAttendanceTypeSelect) {
@@ -878,8 +878,8 @@ function handleExistingAttendanceButtons(e) {
                 DOM.addAttendanceTypeSelect.appendChild(option);
             });
         }
-        
         const firstType = State.LEAVE_TYPES[0] || '';
+        
         const isTimeBased = (firstType === '외출' || firstType === '조퇴');
         const isDateBased = (firstType === '연차' || firstType === '출장' || firstType === '결근');
         const isOuting = (firstType === '외출');
@@ -959,9 +959,6 @@ function setupAttendanceModalButtons() {
                 const btn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
                 const currentKey = btn ? btn.dataset.key : null;
                 if (currentKey === dateKey) {
-                     // 단순하게 현재 탭을 다시 렌더링하는 방식이 가장 안전함.
-                     // 여기서는 refreshAttendanceView가 내부 함수이므로, 
-                     // dateKey와 filteredData를 구해서 직접 렌더링 함수 호출
                      const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
                         ? State.allHistoryData.filter(d => {
                             const date = d.id;
