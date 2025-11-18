@@ -15,19 +15,18 @@ const getSortIcon = (currentKey, currentDir, targetKey) => {
 
 /**
  * 헬퍼: 필터 드롭다운 UI 생성 (엑셀 스타일)
- * ✅ 수정: inline onclick="event.stopPropagation()" 제거 (리스너에서 처리)
  */
 const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
     const dropdownId = `${mode}-${key}`; // 예: daily-member
     const isActive = context.activeFilterDropdown === dropdownId;
     const hasValue = currentFilterValue && currentFilterValue !== '';
     
-    // 필터 아이콘 색상 (값이 있으면 파란색, 없으면 회색)
+    // 필터 아이콘 색상
     const iconColorClass = hasValue ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:bg-gray-200';
 
     let inputHtml = '';
     if (options.length > 0) {
-        // 셀렉트 박스 (유형 등)
+        // 셀렉트 박스
         const optionsHtml = options.map(opt => 
             `<option value="${opt}" ${currentFilterValue === opt ? 'selected' : ''}>${opt}</option>`
         ).join('');
@@ -39,7 +38,7 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
                 ${optionsHtml}
             </select>`;
     } else {
-        // 텍스트 입력 (이름 등)
+        // 텍스트 입력
         inputHtml = `
             <input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                    placeholder="검색어 입력..." 
@@ -48,6 +47,7 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
                    autocomplete="off">`;
     }
 
+    // ✅ 드롭다운에 z-index 60 적용하여 테이블 헤더 위로 올라오게 함
     return `
         <div class="relative inline-block ml-1 filter-container">
             <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
@@ -56,7 +56,7 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
                 </svg>
             </button>
             
-            <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-3 ${isActive ? '' : 'hidden'} cursor-default text-left">
+            <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} cursor-default text-left">
                 <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
                     <span>필터 조건</span>
                     ${hasValue ? `<button class="text-[10px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input,select'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
@@ -102,8 +102,10 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
     // --- 1. 필터링 및 정렬 로직 ---
     let leaveEntries = [...data.onLeaveMembers];
-    const filterState = context.attendanceFilterState.daily;
-    const sortState = context.attendanceSortState.daily;
+    
+    // ✅ 안전한 참조 (state가 아직 초기화 안 됐을 경우 대비)
+    const filterState = context.attendanceFilterState?.daily || { member: '', type: '' };
+    const sortState = context.attendanceSortState?.daily || { key: 'member', dir: 'asc' };
 
     // 1-1. 필터링
     if (filterState.member) {
@@ -132,7 +134,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         return 0;
     });
 
-    // --- 2. 테이블 헤더 생성 (엑셀 스타일 필터 적용) ---
+    // --- 2. 테이블 헤더 생성 ---
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm min-h-[400px]">
             <table class="w-full text-sm text-left text-gray-600">
@@ -169,7 +171,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     }
 
     // --- 3. 테이블 바디 생성 ---
-    // ※ 이름순 정렬일 때만 그룹화
     const isGroupedView = (sortState.key === 'member');
 
     if (isGroupedView) {
@@ -252,7 +253,7 @@ const _formatDetailText = (entry) => {
 };
 
 /**
- * 주별/월별 근태 요약 렌더링 (엑셀 스타일 필터 적용)
+ * 주별/월별 근태 요약 렌더링
  */
 const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKey, mode) => {
     const data = aggregationMap[periodKey];
@@ -261,8 +262,8 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         return;
     }
 
-    const sortState = context.attendanceSortState[mode];
-    const filterState = context.attendanceFilterState[mode];
+    const sortState = context.attendanceSortState?.[mode] || { key: 'member', dir: 'asc' };
+    const filterState = context.attendanceFilterState?.[mode] || { member: '' };
 
     // 1. 집계
     let summary = [];
@@ -295,7 +296,7 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
     });
     summary = Object.values(memberMap);
 
-    // 2. 필터링 (이름)
+    // 2. 필터링
     if (filterState.member) {
         const term = filterState.member.toLowerCase();
         summary = summary.filter(item => item.member.toLowerCase().includes(term));
@@ -367,7 +368,7 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         summary.forEach(item => {
             html += `
                 <tr class="bg-white hover:bg-gray-50">
-                    <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-[1px_0_3px_rgba(0,0,0,0.05)]">${item.member}</td>
+                    <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${item.member}</td>
                     <td class="px-4 py-3 text-center ${item.counts['지각'] > 0 ? 'text-red-500 font-semibold' : 'text-gray-300'}">${item.counts['지각']}</td>
                     <td class="px-4 py-3 text-center ${item.counts['외출'] > 0 ? 'text-gray-800' : 'text-gray-300'}">${item.counts['외출']}</td>
                     <td class="px-4 py-3 text-center ${item.counts['조퇴'] > 0 ? 'text-gray-800' : 'text-gray-300'}">${item.counts['조퇴']}</td>
@@ -389,9 +390,6 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
     viewElement.innerHTML = html;
 };
 
-/**
- * 근태 이력 - 주별 요약 렌더링
- */
 export const renderAttendanceWeeklyHistory = (selectedWeekKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-weekly-view');
     if (!view) return;
@@ -429,9 +427,6 @@ export const renderAttendanceWeeklyHistory = (selectedWeekKey, allHistoryData) =
     renderAggregatedAttendanceSummary(view, weeklyData, selectedWeekKey, 'weekly');
 };
 
-/**
- * 근태 이력 - 월별 요약 렌더링
- */
 export const renderAttendanceMonthlyHistory = (selectedMonthKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-monthly-view');
     if (!view) return;

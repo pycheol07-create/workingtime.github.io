@@ -1,9 +1,7 @@
 // === js/state.js ===
 // 설명: 앱의 모든 전역 상태, 컨텍스트, 설정 변수를 정의하고 export합니다.
-// (수정: app.js에서 값을 할당할 수 있도록 setter 함수 추가)
 
 // --- Firebase/App State (Re-assigned variables) ---
-// 이 변수들은 app.js에서 초기화되거나 재할당됩니다.
 export let db = null;
 export let auth = null;
 export let unsubscribeToday = null;
@@ -29,8 +27,7 @@ export let persistentLeaveSchedule = {
     onLeaveMembers: []
 };
 
-// --- Setters for Re-assigned variables ---
-// app.js가 이 함수들을 호출하여 위의 변수 값을 변경합니다.
+// --- Setters ---
 export const setDb = (val) => { db = val; };
 export const setAuth = (val) => { auth = val; };
 export const setUnsubscribeToday = (val) => { unsubscribeToday = val; };
@@ -48,8 +45,7 @@ export const setPersistentLeaveSchedule = (val) => { persistentLeaveSchedule = v
 export const AUTO_SAVE_INTERVAL = 1 * 60 * 1000;
 export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
 
-// --- State Objects (Mutated, not re-assigned) ---
-// 이 객체들은 재할당되지 않고 내부 속성만 변경되므로 const로 선언합니다.
+// --- State Objects ---
 export const context = {
     recordCounter: 0,
     recordIdOrGroupIdToEdit: null,
@@ -79,7 +75,7 @@ export const context = {
     autoPauseForLunch: null,
     autoResumeFromLunch: null,
     
-    // ✅ [유지] 근태 이력 정렬 및 필터 상태
+    // ✅ [필수] 근태 이력 정렬/필터 상태
     attendanceSortState: {
         daily: { key: 'member', dir: 'asc' },
         weekly: { key: 'member', dir: 'asc' },
@@ -108,5 +104,5 @@ export const appState = {
     simulationResults: null 
 };
 
-// --- Data Arrays (Mutated, not re-assigned) ---
+// --- Data Arrays ---
 export const allHistoryData = [];
