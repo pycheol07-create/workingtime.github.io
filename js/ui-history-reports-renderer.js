@@ -1,6 +1,5 @@
 // === js/ui-history-reports-renderer.js ===
 
-// ✅ [수정] calculateDateDifference 추가 임포트
 import { formatDuration, calculateDateDifference } from './utils.js';
 import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js';
 import { context } from './state.js';
@@ -604,72 +603,99 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     html += `</tbody></table></div></div>`;
 
 
-    // ✅ [수정] 4. 근태 현황 (테이블 형식으로 완전 변경)
-    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3><div class="overflow-x-auto max-h-[60vh]">`;
-
-    // 데이터 집계
-    const attSummary = {};
+    // ✅ [수정] 4. 근태 현황 (테이블 형식으로 변경 + 정렬/필터)
+    let attDataList = [];
+    const attSummaryMap = {};
+    
+    // 4-1. 데이터 집계
     (attendanceData || []).forEach(entry => {
-        if (!attSummary[entry.member]) {
-            attSummary[entry.member] = {
+        if (!attSummaryMap[entry.member]) {
+            attSummaryMap[entry.member] = {
                 member: entry.member,
                 counts: { '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0 },
                 totalCount: 0,
-                totalLeaveDays: 0
+                totalLeaveDays: 0,
+                totalAbsenceDays: 0 // 결근 일수 별도
             };
         }
-        const rec = attSummary[entry.member];
+        const rec = attSummaryMap[entry.member];
         const type = entry.type;
 
         if (rec.counts.hasOwnProperty(type)) {
             rec.counts[type]++;
         } else {
-            // Handle unexpected types
             rec.counts[type] = (rec.counts[type] || 0) + 1;
         }
 
-        // Total Count (연차 제외)
+        // 연차 외 총 횟수
         if (type !== '연차') rec.totalCount++;
 
-        // 연차/결근 일수 합산
-        if (type === '연차' || type === '결근') {
-             let days = 1;
-             if(entry.startDate && entry.endDate) {
-                 days = calculateDateDifference(entry.startDate, entry.endDate);
-             }
+        // 일수 계산
+        if (type === '연차') {
+             const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
              rec.totalLeaveDays += days;
+        } else if (type === '결근') {
+             const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+             rec.totalAbsenceDays += days;
         }
     });
+    
+    attDataList = Object.values(attSummaryMap);
 
-    const sortedMembers = Object.values(attSummary).sort((a, b) => a.member.localeCompare(b.member));
+    // 4-2. 필터 옵션 추출
+    const allAttMembers = [...new Set(attDataList.map(d => d.member))].sort();
+    
+    // 4-3. 필터링
+    if (filterState.attendanceSummary?.member) {
+        attDataList = attDataList.filter(d => d.member === filterState.attendanceSummary.member);
+    }
 
-    if (sortedMembers.length === 0) {
+    // 4-4. 정렬
+    const aSort = sortState.attendanceSummary || { key: 'member', dir: 'asc' };
+    attDataList.sort((a, b) => {
+        let vA = 0, vB = 0;
+        if (aSort.key === 'member') { vA = a.member; vB = b.member; }
+        else if (['totalCount', 'totalLeaveDays', 'totalAbsenceDays'].includes(aSort.key)) { vA = a[aSort.key]; vB = b[aSort.key]; }
+        else { vA = a.counts[aSort.key] || 0; vB = b.counts[aSort.key] || 0; } // 지각, 조퇴 등
+
+        if (typeof vA === 'string') return vA.localeCompare(vB) * (aSort.dir === 'asc' ? 1 : -1);
+        return (vA - vB) * (aSort.dir === 'asc' ? 1 : -1);
+    });
+
+    // 4-5. 렌더링
+    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3><div class="overflow-x-auto max-h-[60vh]">`;
+
+    if (attDataList.length === 0) {
         html += `<p class="text-sm text-gray-500 text-center py-4">데이터 없음</p>`;
     } else {
+        // 헤더 생성 (th 헬퍼 사용)
+        const th_att = (key, label, width='') => th('attendanceSummary', key, label, (key==='member'?filterState.attendanceSummary?.member:null), (key==='member'?allAttMembers:[]), width);
+
         html += `
         <table class="w-full text-sm text-left text-gray-600 border border-gray-200">
             <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
                 <tr>
-                    <th class="px-4 py-3 border-b">이름</th>
-                    <th class="px-4 py-3 border-b text-center">지각</th>
-                    <th class="px-4 py-3 border-b text-center">외출</th>
-                    <th class="px-4 py-3 border-b text-center">조퇴</th>
-                    <th class="px-4 py-3 border-b text-center">결근</th>
-                    <th class="px-4 py-3 border-b text-center">연차</th>
-                    <th class="px-4 py-3 border-b text-center">출장</th>
-                    <th class="px-4 py-3 border-b text-center bg-indigo-50">총 횟수(연차제외)</th>
-                    <th class="px-4 py-3 border-b text-center bg-blue-50">총 연차/결근일</th>
+                    ${th_att('member', '이름', 'sticky left-0 bg-gray-100 z-10')}
+                    ${th_att('지각', '지각')}
+                    ${th_att('외출', '외출')}
+                    ${th_att('조퇴', '조퇴')}
+                    ${th_att('결근', '결근')}
+                    ${th_att('연차', '연차')}
+                    ${th_att('출장', '출장')}
+                    ${th_att('totalCount', '총 횟수')}
+                    ${th_att('totalAbsenceDays', '총 결근일')}
+                    ${th_att('totalLeaveDays', '총 연차일')}
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
         `;
 
-        sortedMembers.forEach(item => {
+        attDataList.forEach(item => {
             const cell = (k, color='text-gray-400') => `<td class="px-4 py-3 text-center ${item.counts[k]>0 ? 'text-gray-800 font-medium' : color}">${item.counts[k]||0}</td>`;
 
             html += `
                 <tr class="bg-white hover:bg-gray-50">
-                    <td class="px-4 py-3 font-medium text-gray-900">${item.member}</td>
+                    <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${item.member}</td>
                     ${cell('지각', 'text-gray-300')}
                     ${cell('외출', 'text-gray-300')}
                     ${cell('조퇴', 'text-gray-300')}
@@ -677,7 +703,8 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
                     <td class="px-4 py-3 text-center ${item.counts['연차']>0?'text-blue-600 font-bold':'text-gray-300'}">${item.counts['연차']||0}</td>
                     ${cell('출장', 'text-gray-300')}
                     <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${item.totalCount}</td>
-                    <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${item.totalLeaveDays}일</td>
+                    <td class="px-4 py-3 text-center font-bold text-red-600 bg-red-50">${item.totalAbsenceDays}</td>
+                    <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${item.totalLeaveDays}</td>
                 </tr>
             `;
         });
@@ -694,8 +721,6 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
 
     const currentRevenue = tData.revenue || 0;
     
-    // ✅ [신규] 제목과 다운로드 버튼을 포함하는 헤더 HTML 생성
-    // ✅ data-html2canvas-ignore="true" 속성 추가하여 PDF 변환 시 버튼 숨김
     const headerHtml = `
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-800">${title}</h2>
