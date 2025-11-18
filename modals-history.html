@@ -1,0 +1,250 @@
+<div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+    <div id="history-modal-content-box" class="bg-white rounded-2xl shadow-2xl w-[1400px] h-[880px] flex flex-col relative">
+
+        <div id="history-modal-header" class="p-6 border-b border-gray-200 flex justify-between items-center cursor-move bg-white rounded-t-2xl">
+            <h2 class="text-xl font-bold text-gray-900">데이터 관리</h2>
+            
+            <button id="toggle-history-fullscreen-btn" class="modal-close-btn mr-10" title="전체화면">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />
+                </svg>
+            </button>
+            <button id="close-history-btn" class="modal-close-btn">&times;</button>
+        </div>
+
+        <div class="px-6 border-b border-gray-200 bg-gray-50 flex flex-wrap justify-between items-end gap-4 pt-2">
+            
+            <div id="history-main-tabs" class="flex gap-6 -mb-px">
+                <button data-main-tab="work" class="history-main-tab-btn py-4 font-semibold text-blue-600 border-b-2 border-blue-600 transition">업무 이력</button>
+                <button data-main-tab="attendance" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition">근태 이력</button>
+                <button data-main-tab="trends" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition">📈 트렌드 분석</button>
+                <button data-main-tab="report" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition">📊 업무 리포트</button>
+            </div>
+
+            <div class="flex items-center gap-3 pb-3">
+                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-md border border-gray-200 shadow-sm">
+                    <label for="history-start-date" class="text-xs font-medium text-gray-600">기간:</label>
+                    <input type="date" id="history-start-date" class="p-1 border border-gray-300 rounded text-xs focus:ring-blue-500 focus:border-blue-500 h-7">
+                    <span class="text-gray-400 text-xs">~</span>
+                    <input type="date" id="history-end-date" class="p-1 border border-gray-300 rounded text-xs focus:ring-blue-500 focus:border-blue-500 h-7">
+                    
+                    <div class="w-px h-4 bg-gray-300 mx-1"></div>
+                    
+                    <button id="history-filter-btn" class="text-blue-600 hover:text-blue-800 font-bold text-xs px-1 transition">조회</button>
+                    <button id="history-clear-filter-btn" class="text-gray-400 hover:text-gray-600 text-xs px-1 transition">초기화</button>
+                </div>
+
+                <button id="history-download-period-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-medium py-1.5 px-3 rounded-md text-xs shadow-sm flex items-center gap-1 transition h-[34px]">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    기간 엑셀
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-grow flex overflow-hidden">
+            <div id="history-date-list-container" class="w-[160px] border-r border-gray-200 overflow-y-auto bg-gray-50 flex-shrink-0">
+                <ul id="history-date-list" class="p-2"></ul>
+            </div>
+            
+            <div class="flex-1 flex flex-col overflow-hidden min-w-0">
+                <div id="work-history-panel" class="flex flex-col h-full">
+                    <div class="p-4 border-b border-gray-200 flex-shrink-0 flex justify-between items-center">
+                        <div id="history-tabs" class="flex gap-4">
+                            <button data-view="daily" class="history-tab-btn pb-2">일별 상세</button>
+                            <button data-view="weekly" class="history-tab-btn pb-2">주별 요약</button>
+                            <button data-view="monthly" class="history-tab-btn pb-2">월별 요약</button>
+                        </div>
+                        <button id="history-download-excel-btn" class="bg-white hover:bg-green-50 text-green-600 border border-green-200 font-semibold py-1 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm" title="현재 보고 있는 내용 엑셀 다운로드">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                               <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                             </svg>
+                             엑셀 저장
+                        </button>
+                    </div>
+                    <div id="history-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                        <div id="history-daily-view" class="hidden"></div>
+                        <div id="history-weekly-view" class="hidden space-y-6"></div>
+                        <div id="history-monthly-view" class="hidden space-y-6"></div>
+                    </div>
+                </div>
+                <div id="attendance-history-panel" class="hidden flex flex-col h-full">
+                    <div class="p-4 border-b border-gray-200 flex-shrink-0 flex justify-between items-center">
+                        <div id="attendance-history-tabs" class="flex gap-4">
+                            <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2">일별 상세</button>
+                            <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2">주별 요약</button>
+                            <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2">월별 요약</button>
+                        </div>
+                        <button id="attendance-download-excel-btn" class="bg-white hover:bg-green-50 text-green-600 border border-green-200 font-semibold py-1 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm" title="현재 근태 현황 엑셀 다운로드">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                               <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                             </svg>
+                             엑셀 저장
+                        </button>
+                    </div>
+                    <div id="attendance-history-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                        <div id="history-attendance-daily-view" class="hidden space-y-4"></div>
+                        <div id="history-attendance-weekly-view" class="hidden space-y-4"></div>
+                        <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
+                    </div>
+                </div>
+
+                <div id="trend-analysis-panel" class="hidden flex flex-col h-full p-6 overflow-y-auto bg-gray-50 space-y-8">
+                    <div>
+                        <h3 class="text-xl font-bold mb-4 text-gray-800">주요 지표 트렌드 (최근 30일)</h3>
+                        <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                            <h4 class="text-lg font-semibold text-gray-700 mb-2">📊 분당 평균 처리량 (개/분)</h4>
+                            <div class="h-64"><canvas id="kpi-chart-throughput"></canvas></div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                            <h4 class="text-lg font-semibold text-gray-700 mb-2">💰 개당 평균 처리비용 (원/개)</h4>
+                            <div class="h-64"><canvas id="kpi-chart-cost"></canvas></div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm">
+                            <h4 class="text-lg font-semibold text-gray-700 mb-2">⏳ 총 비업무시간 (분)</h4>
+                            <div class="h-64"><canvas id="kpi-chart-nonwork"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="report-panel" class="hidden flex flex-col h-full">
+                    <div class="p-4 border-b border-gray-200 flex-shrink-0">
+                        <div id="report-tabs" class="flex gap-4">
+                            <button data-view="report-daily" class="report-tab-btn pb-2 font-semibold text-blue-600 border-blue-600 border-b-2">일별 리포트</button>
+                            <button data-view="report-weekly" class="report-tab-btn pb-2 text-gray-500">주별 리포트</button>
+                            <button data-view="report-monthly" class="report-tab-btn pb-2 text-gray-500">월별 리포트</button>
+                            <button data-view="report-yearly" class="report-tab-btn pb-2 text-gray-500">연간 리포트</button>
+                        </div>
+                    </div>
+                    <div id="report-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                        <div id="report-daily-view" class=""></div>
+                        <div id="report-weekly-view" class="hidden space-y-6"></div>
+                        <div id="report-monthly-view" class="hidden space-y-6"></div>
+                        <div id="report-yearly-view" class="hidden space-y-6"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
+                <div class="p-6 text-center">
+                    <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                    <h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 날짜의 모든 기록을 삭제하시겠습니까?</h3>
+                    <p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p>
+                    <button type="button" id="confirm-history-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button>
+                    <button type="button" id="cancel-history-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div id="history-records-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[70] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl relative flex flex-col max-h-[90vh]">
+        
+        <div class="p-5 border-b border-gray-200 flex flex-col gap-4 bg-white rounded-t-2xl z-20">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-900"><span id="history-records-date"></span> 업무 기록 관리</h2>
+                <button class="modal-close-btn top-5 right-5" onclick="document.getElementById('history-records-modal').classList.add('hidden')">&times;</button>
+            </div>
+
+            <div class="flex flex-wrap items-end gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <button id="history-record-add-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm shadow-sm flex items-center gap-1 transition active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    기록 추가
+                </button>
+
+                <div class="w-px h-8 bg-gray-300 mx-1"></div>
+
+                <div>
+                    <label for="history-record-filter-member" class="block text-xs font-bold text-gray-500 mb-1">이름 필터</label>
+                    <select id="history-record-filter-member" class="p-2 border border-gray-300 rounded text-sm w-32 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">전체</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="history-record-filter-task" class="block text-xs font-bold text-gray-500 mb-1">업무 필터</label>
+                    <select id="history-record-filter-task" class="p-2 border border-gray-300 rounded text-sm w-40 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">전체</option>
+                    </select>
+                </div>
+
+                <div id="history-record-batch-edit-area" class="hidden flex items-center gap-3 pl-4 border-l border-gray-300 ml-2">
+                    <div class="flex flex-col">
+                        <label class="text-[10px] text-blue-600 font-bold mb-0.5">일괄 시작시간</label>
+                        <input type="time" id="history-batch-start-time" class="p-1.5 border border-blue-300 rounded text-sm bg-white focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="text-[10px] text-blue-600 font-bold mb-0.5">일괄 종료시간</label>
+                        <input type="time" id="history-batch-end-time" class="p-1.5 border border-blue-300 rounded text-sm bg-white focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <button id="history-batch-apply-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm mt-3.5 shadow-sm transition active:scale-95">
+                        일괄 적용
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-0 overflow-y-auto flex-grow bg-gray-50">
+            <table class="w-full text-sm text-left text-gray-600">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10 shadow-sm">
+                    <tr>
+                        <th class="px-6 py-3 w-[15%]">이름</th>
+                        <th class="px-6 py-3 w-[20%]">업무</th>
+                        <th class="px-6 py-3 w-[15%]">시작</th>
+                        <th class="px-6 py-3 w-[15%]">종료</th>
+                        <th class="px-6 py-3 w-[15%]">시간</th>
+                        <th class="px-6 py-3 w-[20%] text-right">관리</th>
+                    </tr>
+                </thead>
+                <tbody id="history-records-table-body" class="divide-y divide-gray-200 bg-white">
+                    </tbody>
+            </table>
+        </div>
+        <div class="p-4 border-t border-gray-200 bg-white rounded-b-2xl flex justify-end">
+            <button class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition" onclick="document.getElementById('history-records-modal').classList.add('hidden')">닫기</button>
+        </div>
+    </div>
+</div>
+
+<div id="history-add-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[80] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-gray-900"><span id="history-add-date-display"></span> 기록 추가</h2>
+            <button class="modal-close-btn" onclick="document.getElementById('history-add-record-modal').classList.add('hidden')">&times;</button>
+        </div>
+        <form id="history-add-record-form">
+            <div class="p-6 space-y-4">
+                <div>
+                    <label for="history-add-member" class="block text-sm font-medium text-gray-700">이름 (선택 또는 입력)</label>
+                    <input type="text" id="history-add-member" list="history-add-member-list" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" autocomplete="off" placeholder="이름 검색 또는 입력...">
+                    <datalist id="history-add-member-list"></datalist>
+                </div>
+                <div>
+                    <label for="history-add-task" class="block text-sm font-medium text-gray-700">업무 (선택 또는 입력)</label>
+                    <input type="text" id="history-add-task" list="history-add-task-list" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" autocomplete="off" placeholder="업무 검색 또는 입력...">
+                    <datalist id="history-add-task-list"></datalist>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="history-add-start-time" class="block text-sm font-medium text-gray-700">시작 시간</label>
+                        <input type="time" id="history-add-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" required>
+                    </div>
+                    <div>
+                        <label for="history-add-end-time" class="block text-sm font-medium text-gray-700">종료 시간</label>
+                        <input type="time" id="history-add-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" required>
+                    </div>
+                </div>
+            </div>
+        </form>
+        <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+            <button type="button" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition" onclick="document.getElementById('history-add-record-modal').classList.add('hidden')">취소</button>
+            <button type="button" id="confirm-history-add-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-sm">추가</button>
+        </div>
+    </div>
+</div>
