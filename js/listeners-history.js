@@ -24,9 +24,9 @@ import {
 import {
     downloadHistoryAsExcel,
     downloadPeriodHistoryAsExcel,
-    downloadWeeklyHistoryAsExcel, // ✅ [신규] 주간 업무 다운로드
-    downloadMonthlyHistoryAsExcel, // ✅ [신규] 월간 업무 다운로드
-    downloadAttendanceExcel       // ✅ [신규] 근태 다운로드 (통합)
+    downloadWeeklyHistoryAsExcel, 
+    downloadMonthlyHistoryAsExcel, 
+    downloadAttendanceExcel       
 } from './history-excel.js';
 
 import {
@@ -100,7 +100,7 @@ export function setupHistoryModalListeners() {
         return 'day';
     };
 
-    // --- 헬퍼: 현재 필터링된 데이터 가져오기 ---
+    // --- 헬퍼 함수들 ---
     const getFilteredHistoryData = () => {
         return (State.context.historyStartDate || State.context.historyEndDate)
             ? State.allHistoryData.filter(d => {
@@ -115,16 +115,17 @@ export function setupHistoryModalListeners() {
             : State.allHistoryData;
     };
 
-    // --- 헬퍼: 현재 선택된 날짜키 가져오기 ---
     const getSelectedDateKey = () => {
         const btn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
         return btn ? btn.dataset.key : null;
     };
 
-    // --- 헬퍼: 뷰 다시 그리기 ---
-    const refreshCurrentView = () => {
+    // ✅ [수정] 현재 보고 있는 근태 뷰를 다시 그리는 함수
+    const refreshAttendanceView = () => {
         const dateKey = getSelectedDateKey();
         const filteredData = getFilteredHistoryData();
+        
+        // 현재 활성화된 탭 확인
         const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
         const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
 
@@ -136,6 +137,8 @@ export function setupHistoryModalListeners() {
              if (dateKey) renderAttendanceMonthlyHistory(dateKey, filteredData);
         }
     };
+
+    // --- 이벤트 리스너 등록 ---
 
     if (DOM.historyFilterBtn) {
         DOM.historyFilterBtn.addEventListener('click', () => {
@@ -182,7 +185,6 @@ export function setupHistoryModalListeners() {
         });
     }
     
-    // ✅ [신규] 업무 이력 엑셀 다운로드 버튼 (상단 탭)
     if (DOM.historyDownloadExcelBtn) {
         DOM.historyDownloadExcelBtn.addEventListener('click', () => {
             const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
@@ -205,11 +207,9 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [신규] 근태 이력 엑셀 다운로드 버튼 (상단 탭)
     if (DOM.attendanceDownloadExcelBtn) {
         DOM.attendanceDownloadExcelBtn.addEventListener('click', () => {
             const activeTabBtn = DOM.attendanceHistoryTabs.querySelector('button.font-semibold');
-            // 뷰 모드 추출 (attendance-daily -> daily)
             const viewFull = activeTabBtn ? activeTabBtn.dataset.view : 'attendance-daily';
             const viewMode = viewFull.replace('attendance-', ''); 
 
@@ -280,22 +280,16 @@ export function setupHistoryModalListeners() {
                 btn.classList.add('bg-blue-100', 'font-bold');
                 const dateKey = btn.dataset.key;
 
-                let activeSubTabBtn;
-                if (State.context.activeMainHistoryTab === 'work') {
-                    activeSubTabBtn = DOM.historyTabs?.querySelector('button.font-semibold');
-                } else if (State.context.activeMainHistoryTab === 'attendance') {
-                    activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
-                } else if (State.context.activeMainHistoryTab === 'report') {
-                    activeSubTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
-                }
-
-                const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (State.context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
+                let activeMainTab = State.context.activeMainHistoryTab || 'work';
+                State.context.activeFilterDropdown = null; 
 
                 const filteredData = getFilteredHistoryData();
-
                 State.context.reportSortState = {};
 
-                if (State.context.activeMainHistoryTab === 'work') {
+                if (activeMainTab === 'work') {
+                    const activeSubTabBtn = DOM.historyTabs?.querySelector('button.font-semibold');
+                    const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
+
                     if (activeView === 'daily') {
                         const currentIndex = filteredData.findIndex(d => d.id === dateKey);
                         const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length)
@@ -307,8 +301,11 @@ export function setupHistoryModalListeners() {
                     } else if (activeView === 'monthly') {
                         renderMonthlyHistory(dateKey, filteredData, State.appConfig);
                     }
-                } else if (State.context.activeMainHistoryTab === 'attendance') {
-                    // ✅ 뷰 전환 시 정렬/필터 초기화는 하지 않음 (사용자 경험 유지)
+
+                } else if (activeMainTab === 'attendance') {
+                    const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
+                    const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
+
                     if (activeView === 'attendance-daily') {
                         renderAttendanceDailyHistory(dateKey, filteredData);
                     } else if (activeView === 'attendance-weekly') {
@@ -317,16 +314,13 @@ export function setupHistoryModalListeners() {
                         renderAttendanceMonthlyHistory(dateKey, filteredData);
                     }
                 }
-                else if (State.context.activeMainHistoryTab === 'report') {
-                    if (activeView === 'report-daily') {
-                        renderReportDaily(dateKey, filteredData, State.appConfig, State.context);
-                    } else if (activeView === 'report-weekly') {
-                        renderReportWeekly(dateKey, filteredData, State.appConfig, State.context);
-                    } else if (activeView === 'report-monthly') {
-                        renderReportMonthly(dateKey, filteredData, State.appConfig, State.context);
-                    } else if (activeView === 'report-yearly') {
-                        renderReportYearly(dateKey, filteredData, State.appConfig, State.context);
-                    }
+                else if (activeMainTab === 'report') {
+                    const activeSubTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
+                    const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'report-daily';
+                    if (activeView === 'report-daily') renderReportDaily(dateKey, filteredData, State.appConfig, State.context);
+                    else if (activeView === 'report-weekly') renderReportWeekly(dateKey, filteredData, State.appConfig, State.context);
+                    else if (activeView === 'report-monthly') renderReportMonthly(dateKey, filteredData, State.appConfig, State.context);
+                    else if (activeView === 'report-yearly') renderReportYearly(dateKey, filteredData, State.appConfig, State.context);
                 }
             }
         });
@@ -335,86 +329,7 @@ export function setupHistoryModalListeners() {
     if (DOM.historyTabs) {
         DOM.historyTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-view]');
-            if (btn) {
-                switchHistoryView(btn.dataset.view);
-            }
-        });
-    }
-
-    if (DOM.confirmHistoryDeleteBtn) {
-        DOM.confirmHistoryDeleteBtn.addEventListener('click', async () => {
-            if (State.context.historyKeyToDelete) {
-                const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', State.context.historyKeyToDelete);
-                try {
-                    await deleteDoc(historyDocRef);
-                    showToast(`${State.context.historyKeyToDelete} 이력이 삭제되었습니다.`);
-                    await loadAndRenderHistoryList();
-                } catch (e) {
-                    console.error('Error deleting history:', e);
-                    showToast('이력 삭제 중 오류 발생.', true);
-                }
-            }
-            if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.add('hidden');
-            State.context.historyKeyToDelete = null;
-        });
-    }
-
-    if (DOM.historyMainTabs) {
-        DOM.historyMainTabs.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-main-tab]');
-            if (btn) {
-                const tabName = btn.dataset.mainTab;
-                State.context.activeMainHistoryTab = tabName;
-                State.context.reportSortState = {};
-                State.context.currentReportParams = null;
-
-                document.querySelectorAll('.history-main-tab-btn').forEach(b => {
-                    b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-                    b.classList.add('font-medium', 'text-gray-500');
-                });
-                btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-                btn.classList.remove('font-medium', 'text-gray-500');
-
-                const dateListContainer = document.getElementById('history-date-list-container');
-
-                if (tabName === 'work') {
-                    if (DOM.workHistoryPanel) DOM.workHistoryPanel.classList.remove('hidden');
-                    if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.add('hidden');
-                    if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.add('hidden');
-                    if (DOM.reportPanel) DOM.reportPanel.classList.add('hidden');
-                    if (dateListContainer) dateListContainer.style.display = 'block';
-                    const activeSubTabBtn = DOM.historyTabs?.querySelector('button.font-semibold');
-                    const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-                    switchHistoryView(view);
-
-                } else if (tabName === 'attendance') {
-                    if (DOM.workHistoryPanel) DOM.workHistoryPanel.classList.add('hidden');
-                    if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.remove('hidden');
-                    if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.add('hidden');
-                    if (DOM.reportPanel) DOM.reportPanel.classList.add('hidden');
-                    if (dateListContainer) dateListContainer.style.display = 'block';
-                    const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
-                    const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
-                    switchHistoryView(view);
-
-                } else if (tabName === 'trends') {
-                    if (DOM.workHistoryPanel) DOM.workHistoryPanel.classList.add('hidden');
-                    if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.add('hidden');
-                    if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.remove('hidden');
-                    if (DOM.reportPanel) DOM.reportPanel.classList.add('hidden');
-                    if (dateListContainer) dateListContainer.style.display = 'none';
-                    renderTrendAnalysisCharts(State.allHistoryData, State.appConfig, trendCharts);
-
-                } else if (tabName === 'report') {
-                    if (DOM.workHistoryPanel) DOM.workHistoryPanel.classList.add('hidden');
-                    if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.add('hidden');
-                    if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.add('hidden');
-                    if (DOM.reportPanel) DOM.reportPanel.classList.remove('hidden');
-                    const activeSubTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
-                    const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'report-daily';
-                    switchHistoryView(view);
-                }
-            }
+            if (btn) switchHistoryView(btn.dataset.view);
         });
     }
 
@@ -422,6 +337,7 @@ export function setupHistoryModalListeners() {
         DOM.attendanceHistoryTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-view]');
             if (btn) {
+                State.context.activeFilterDropdown = null; 
                 switchHistoryView(btn.dataset.view);
             }
         });
@@ -434,6 +350,48 @@ export function setupHistoryModalListeners() {
                 State.context.reportSortState = {};
                 State.context.currentReportParams = null;
                 switchHistoryView(btn.dataset.view);
+            }
+        });
+    }
+
+    if (DOM.historyMainTabs) {
+        DOM.historyMainTabs.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-main-tab]');
+            if (btn) {
+                const tabName = btn.dataset.mainTab;
+                State.context.activeMainHistoryTab = tabName;
+                State.context.activeFilterDropdown = null; 
+                
+                document.querySelectorAll('.history-main-tab-btn').forEach(b => {
+                    b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
+                    b.classList.add('font-medium', 'text-gray-500');
+                });
+                btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
+                btn.classList.remove('font-medium', 'text-gray-500');
+
+                const dateListContainer = document.getElementById('history-date-list-container');
+                
+                DOM.workHistoryPanel.classList.toggle('hidden', tabName !== 'work');
+                DOM.attendanceHistoryPanel.classList.toggle('hidden', tabName !== 'attendance');
+                DOM.trendAnalysisPanel.classList.toggle('hidden', tabName !== 'trends');
+                DOM.reportPanel.classList.toggle('hidden', tabName !== 'report');
+                
+                if (dateListContainer) {
+                    dateListContainer.style.display = (tabName === 'trends') ? 'none' : 'block';
+                }
+
+                if (tabName === 'work') {
+                     const view = DOM.historyTabs?.querySelector('button.font-semibold')?.dataset.view || 'daily';
+                     switchHistoryView(view);
+                } else if (tabName === 'attendance') {
+                     const view = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold')?.dataset.view || 'attendance-daily';
+                     switchHistoryView(view);
+                } else if (tabName === 'report') {
+                     const view = DOM.reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
+                     switchHistoryView(view);
+                } else if (tabName === 'trends') {
+                     renderTrendAnalysisCharts(State.allHistoryData, State.appConfig, trendCharts);
+                }
             }
         });
     }
@@ -462,7 +420,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 필터 변경 리스너 (이름, 업무)
     const memberFilter = document.getElementById('history-record-filter-member');
     const taskFilter = document.getElementById('history-record-filter-task');
 
@@ -479,7 +436,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 일괄 적용 버튼 리스너
     const batchApplyBtn = document.getElementById('history-batch-apply-btn');
     if (batchApplyBtn) {
         batchApplyBtn.addEventListener('click', async () => {
@@ -542,7 +498,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 이력 기록 관리 모달: '기록 추가' 버튼 클릭 시
     if (DOM.historyRecordAddBtn) {
         DOM.historyRecordAddBtn.addEventListener('click', () => {
             const dateKey = document.getElementById('history-records-date').textContent;
@@ -581,7 +536,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // '기록 추가' 모달 내 '추가' 버튼 클릭 시
     if (DOM.confirmHistoryAddBtn) {
         DOM.confirmHistoryAddBtn.addEventListener('click', async () => {
              const dateKey = document.getElementById('history-records-date').textContent;
@@ -629,7 +583,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 기록 관리 모달 내부 버튼 리스너 (개별 저장/삭제)
     if (DOM.historyRecordsTableBody) {
         DOM.historyRecordsTableBody.addEventListener('click', async (e) => {
             const target = e.target;
@@ -696,38 +649,54 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // --- ✅ [신규] 근태 이력 탭의 정렬 & 필터 드롭다운 & 입력 리스너 ---
+    if (DOM.confirmHistoryDeleteBtn) {
+        DOM.confirmHistoryDeleteBtn.addEventListener('click', async () => {
+            if (State.context.historyKeyToDelete) {
+                const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', State.context.historyKeyToDelete);
+                try {
+                    await deleteDoc(historyDocRef);
+                    showToast(`${State.context.historyKeyToDelete} 이력이 삭제되었습니다.`);
+                    await loadAndRenderHistoryList();
+                } catch (e) {
+                    console.error(e);
+                    showToast('이력 삭제 중 오류 발생.', true);
+                }
+            }
+            if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.add('hidden');
+            State.context.historyKeyToDelete = null;
+        });
+    }
+
+    // ✅ [신규/수정] 근태 이력 탭의 정렬 & 필터 리스너 (attendanceHistoryViewContainer)
     if (DOM.attendanceHistoryViewContainer) {
         
-        // 1. 정렬 헤더 및 필터 아이콘 클릭
+        // 1. 클릭 이벤트 (필터 아이콘, 정렬 헤더, 기존 버튼)
         DOM.attendanceHistoryViewContainer.addEventListener('click', (e) => {
             
-            // A. 필터 아이콘 클릭 (드롭다운 토글)
+            // A. 필터 아이콘 클릭 -> 드롭다운 토글
             const filterIconBtn = e.target.closest('.filter-icon-btn');
             if (filterIconBtn) {
-                e.stopPropagation(); // 외부 클릭 닫기 방지
+                e.stopPropagation(); 
                 const dropdownId = filterIconBtn.dataset.dropdownId;
                 
-                // 현재 열려있는 것과 같으면 닫기(null), 아니면 열기(dropdownId)
                 if (State.context.activeFilterDropdown === dropdownId) {
                     State.context.activeFilterDropdown = null;
                 } else {
                     State.context.activeFilterDropdown = dropdownId;
                 }
-                refreshCurrentView();
+                refreshAttendanceView();
                 return;
             }
 
-            // B. 정렬 헤더 클릭
+            // B. 정렬 헤더 클릭 -> 정렬
             const sortTh = e.target.closest('th[data-sort-key]');
             if (sortTh) {
-                // 만약 필터 아이콘을 눌렀다면 여기로 오지 않음 (위에서 처리)
+                // 만약 필터 아이콘을 클릭한 경우라면 filterIconBtn 조건에서 처리되고 return되므로 여기까지 안 옴
                 const mode = sortTh.dataset.sortTarget;
                 const key = sortTh.dataset.sortKey;
                 
                 if (!mode || !key) return;
 
-                // 정렬 상태 업데이트
                 const currentSort = State.context.attendanceSortState[mode];
                 if (currentSort.key === key) {
                     currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
@@ -736,21 +705,21 @@ export function setupHistoryModalListeners() {
                     currentSort.dir = 'asc';
                 }
 
-                refreshCurrentView();
+                refreshAttendanceView();
                 return;
             }
 
-            // C. 드롭다운 내부 클릭 시 닫기 방지
+            // C. 드롭다운 내부 클릭 -> 닫기 방지
             if (e.target.closest('.filter-dropdown')) {
                 e.stopPropagation();
                 return;
             }
 
-            // D. 기존 버튼 (수정/삭제/추가) 로직...
+            // D. 기존 버튼 (수정/삭제/추가 등)
             handleExistingAttendanceButtons(e);
         });
 
-        // 2. 필터 입력/변경 (검색어, 체크박스, 셀렉트 등)
+        // 2. 입력 이벤트 (필터링)
         DOM.attendanceHistoryViewContainer.addEventListener('input', (e) => {
             const filterInput = e.target.closest('[data-filter-key]');
             if (filterInput) {
@@ -760,44 +729,36 @@ export function setupHistoryModalListeners() {
 
                 if (!mode || !key) return;
 
-                // 상태 업데이트
                 State.context.attendanceFilterState[mode][key] = value;
 
-                // 다시 그리기
-                refreshCurrentView();
+                refreshAttendanceView();
 
                 // 포커스 복원
                 setTimeout(() => {
-                    // 드롭다운이 열려있는 상태이므로, 다시 그려진 DOM에서 input을 찾아 포커스
-                    // (ID 또는 data 속성으로 식별)
-                    // 주의: activeFilterDropdown이 유지되므로 UI에서 드롭다운은 열려있음.
                     const newInput = document.querySelector(`[data-filter-target="${mode}"][data-filter-key="${key}"]`);
                     if(newInput) {
                         newInput.focus();
-                        // 커서 맨 뒤로
-                        const val = newInput.value;
-                        newInput.value = '';
-                        newInput.value = val;
+                        if (newInput.tagName === 'INPUT') {
+                            const val = newInput.value;
+                            newInput.value = '';
+                            newInput.value = val;
+                        }
                     }
                 }, 0);
             }
         });
     }
 
-    // 3. 문서 전체 클릭 시 열려있는 필터 드롭다운 닫기
+    // 3. 외부 클릭 시 필터 드롭다운 닫기
     document.addEventListener('click', (e) => {
-        // 드롭다운 내부나 필터 버튼 클릭이 아니면 닫기
-        if (State.context.activeFilterDropdown && 
-            !e.target.closest('.filter-dropdown') && 
-            !e.target.closest('.filter-icon-btn')) {
-            
-            State.context.activeFilterDropdown = null;
-            refreshCurrentView();
+        if (State.context.activeFilterDropdown) {
+            if (!e.target.closest('.filter-dropdown') && !e.target.closest('.filter-icon-btn')) {
+                State.context.activeFilterDropdown = null;
+                refreshAttendanceView();
+            }
         }
     });
 
-
-    // --- (기존 코드) 드래그, 전체화면, 모달 버튼 등 ---
     const historyHeader = document.getElementById('history-modal-header');
     if (DOM.historyModal && historyHeader && DOM.historyModalContentBox) {
         makeDraggable(DOM.historyModal, historyHeader, DOM.historyModalContentBox);
@@ -807,35 +768,26 @@ export function setupHistoryModalListeners() {
     if (toggleFullscreenBtn && DOM.historyModal && DOM.historyModalContentBox) {
         const icon = toggleFullscreenBtn.querySelector('svg');
         if (icon) icon.innerHTML = iconMaximize;
-
         toggleFullscreenBtn.addEventListener('click', (e) => {
             e.stopImmediatePropagation();
             setHistoryMaximized(!isHistoryMaximized);
         });
     }
-    
-    // --- (기존 코드) 모달 내부 버튼 리스너들 ---
+
     setupAttendanceModalButtons();
 }
 
-
-// --- 헬퍼: 기존 근태 버튼(수정/삭제/추가) 처리 분리 ---
+// --- 헬퍼: 기존 근태 버튼 처리 ---
 function handleExistingAttendanceButtons(e) {
     const editBtn = e.target.closest('button[data-action="edit-attendance"]');
     if (editBtn) {
         const dateKey = editBtn.dataset.dateKey;
         const index = parseInt(editBtn.dataset.index, 10);
         if (!dateKey || isNaN(index)) return;
-
-        // 변수명 수정됨 (dayDataIndex 사용)
-        const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-        if (dayDataIndex === -1) { showToast('해당 날짜의 이력 데이터를 찾을 수 없습니다.', true); return; }
-        const dayData = State.allHistoryData[dayDataIndex];
-
-        if (!dayData || !dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
-            showToast('원본 근태 기록을 찾을 수 없습니다.', true); return;
-        }
-        const record = dayData.onLeaveMembers[index];
+        
+        const dayData = State.allHistoryData.find(d => d.id === dateKey);
+        const record = dayData?.onLeaveMembers?.[index];
+        if (!record) return;
 
         if (DOM.editAttendanceMemberName) DOM.editAttendanceMemberName.value = record.member;
         if (DOM.editAttendanceTypeSelect) {
@@ -848,7 +800,7 @@ function handleExistingAttendanceButtons(e) {
                 DOM.editAttendanceTypeSelect.appendChild(option);
             });
         }
-        
+
         const isTimeBased = (record.type === '외출' || record.type === '조퇴');
         const isDateBased = (record.type === '연차' || record.type === '출장' || record.type === '결근');
         const isOuting = (record.type === '외출');
@@ -926,8 +878,8 @@ function handleExistingAttendanceButtons(e) {
                 DOM.addAttendanceTypeSelect.appendChild(option);
             });
         }
-        const firstType = State.LEAVE_TYPES[0] || '';
         
+        const firstType = State.LEAVE_TYPES[0] || '';
         const isTimeBased = (firstType === '외출' || firstType === '조퇴');
         const isDateBased = (firstType === '연차' || firstType === '출장' || firstType === '결근');
         const isOuting = (firstType === '외출');
@@ -946,11 +898,19 @@ function handleExistingAttendanceButtons(e) {
     }
 }
 
-// --- 헬퍼: 근태 모달 내부 버튼(저장/취소 등) 설정 ---
+function setupRecordManagerListeners() {
+    if (DOM.historyViewContainer) {
+        DOM.historyViewContainer.addEventListener('click', (e) => {
+             const button = e.target.closest('button[data-action="open-record-manager"]');
+             if (button) {
+                 const dateKey = button.dataset.dateKey;
+                 openHistoryRecordManager(dateKey);
+             }
+        });
+    }
+}
+
 function setupAttendanceModalButtons() {
-    // ... (기존 코드 유지 - confirmEditAttendanceBtn, cancelEditAttendanceBtn 등) ...
-    // 아래 코드는 이전 답변의 내용과 동일하며, dayDataIndex 오류가 수정된 버전입니다.
-    
     if (DOM.confirmEditAttendanceBtn) {
         DOM.confirmEditAttendanceBtn.addEventListener('click', async () => {
              const dateKey = DOM.editAttendanceDateKeyInput?.value;
@@ -995,10 +955,25 @@ function setupAttendanceModalButtons() {
                 showToast('근태 기록이 수정되었습니다.');
                 if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden');
                 
-                // 뷰 갱신 (현재 보고 있는 뷰에 맞춰서)
-                const dateKeyForRender = getSelectedDateKey(); // 현재 선택된 날짜(일별일 경우)
-                if (dateKeyForRender === dateKey) {
-                     renderAttendanceDailyHistory(dateKey, getFilteredHistoryData());
+                // 뷰 갱신 (직접 호출하지 않고 함수 재사용)
+                const btn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
+                const currentKey = btn ? btn.dataset.key : null;
+                if (currentKey === dateKey) {
+                     // 단순하게 현재 탭을 다시 렌더링하는 방식이 가장 안전함.
+                     // 여기서는 refreshAttendanceView가 내부 함수이므로, 
+                     // dateKey와 filteredData를 구해서 직접 렌더링 함수 호출
+                     const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
+                        ? State.allHistoryData.filter(d => {
+                            const date = d.id;
+                            const start = State.context.historyStartDate;
+                            const end = State.context.historyEndDate;
+                            if (start && end) return date >= start && date <= end;
+                            if (start) return date >= start;
+                            if (end) return date <= end;
+                            return true;
+                        }) : State.allHistoryData;
+                        
+                     renderAttendanceDailyHistory(dateKey, filteredData);
                 }
             } catch (e) {
                 console.error('Error updating attendance history:', e);
@@ -1007,12 +982,12 @@ function setupAttendanceModalButtons() {
         });
     }
     
-    // (나머지 cancelEdit, confirmAdd, cancelAdd, typeSelect change 이벤트 등은 기존과 동일하게 유지)
     if (DOM.cancelEditAttendanceBtn) {
         DOM.cancelEditAttendanceBtn.addEventListener('click', () => {
             if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden');
         });
     }
+    
     if (DOM.confirmAddAttendanceBtn) {
         DOM.confirmAddAttendanceBtn.addEventListener('click', async () => {
              const dateKey = DOM.addAttendanceDateKeyInput?.value;
@@ -1055,10 +1030,20 @@ function setupAttendanceModalButtons() {
                 showToast(`${memberName}님의 근태 기록이 추가되었습니다.`);
                 if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.add('hidden');
                 
-                // 뷰 갱신
-                 const dateKeyForRender = getSelectedDateKey();
-                if (dateKeyForRender === dateKey) {
-                     renderAttendanceDailyHistory(dateKey, getFilteredHistoryData());
+                 const btn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
+                 const currentKey = btn ? btn.dataset.key : null;
+                if (currentKey === dateKey) {
+                     const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
+                        ? State.allHistoryData.filter(d => {
+                            const date = d.id;
+                            const start = State.context.historyStartDate;
+                            const end = State.context.historyEndDate;
+                            if (start && end) return date >= start && date <= end;
+                            if (start) return date >= start;
+                            if (end) return date <= end;
+                            return true;
+                        }) : State.allHistoryData;
+                     renderAttendanceDailyHistory(dateKey, filteredData);
                 }
             } catch (e) {
                 console.error('Error adding attendance history:', e);
