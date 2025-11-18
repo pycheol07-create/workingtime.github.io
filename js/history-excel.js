@@ -313,7 +313,7 @@ export const downloadAttendanceExcel = (viewMode, key) => {
 
 
 // =================================================================
-// ✅ [신규] 업무 리포트(Report) 엑셀 다운로드
+// ✅ 업무 리포트(Report) 엑셀 다운로드
 // =================================================================
 export const downloadReportExcel = (reportData) => {
     if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
@@ -388,7 +388,7 @@ export const downloadReportExcel = (reportData) => {
 
 
 // =================================================================
-// ✅ [신규] 개인 리포트 엑셀 다운로드
+// ✅ 개인 리포트 엑셀 다운로드
 // =================================================================
 export const downloadPersonalReportExcel = (reportData) => {
     if (!reportData) return showToast('개인 리포트 데이터가 없습니다.', true);
@@ -456,23 +456,31 @@ export const downloadPersonalReportExcel = (reportData) => {
 
 
 // =================================================================
-// ✅ [수정] PDF 다운로드 (복제 & 펼치기 방식)
+// ✅ [수정] PDF 다운로드 (가로 모드 + 전체 내용 펼치기)
 // =================================================================
 export const downloadContentAsPdf = (elementId, title) => {
     const originalElement = document.getElementById(elementId);
     if (!originalElement) return showToast('출력할 내용을 찾을 수 없습니다.', true);
 
-    showToast('PDF 생성을 시작합니다. 잠시만 기다려주세요...');
+    showToast('PDF 변환을 시작합니다. (잠시만 기다려주세요)');
 
     // 1. 임시 컨테이너 생성 (화면 밖으로 숨김)
+    // A4 가로 너비(약 297mm)에 맞춰 넉넉한 픽셀 너비 설정 (1280px)
     const tempContainer = document.createElement('div');
     tempContainer.id = 'pdf-temp-container';
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
     tempContainer.style.top = '0';
-    tempContainer.style.width = '1000px'; // A4 너비에 맞춰 고정
+    tempContainer.style.width = '1280px'; // 가로 모드에 맞춘 너비
     tempContainer.style.background = 'white';
     tempContainer.style.zIndex = '-9999';
+    // 테이블 줄바꿈 방지 스타일 주입
+    tempContainer.innerHTML = `<style>
+        table { page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+    </style>`;
     document.body.appendChild(tempContainer);
 
     // 2. 콘텐츠 복제
@@ -503,11 +511,14 @@ export const downloadContentAsPdf = (elementId, title) => {
     originalCanvases.forEach((origCanvas, index) => {
         if (clonedCanvases[index]) {
             const ctx = clonedCanvases[index].getContext('2d');
-            if (ctx) ctx.drawImage(origCanvas, 0, 0);
+            // 캔버스 크기도 복사
+            clonedCanvases[index].width = origCanvas.width;
+            clonedCanvases[index].height = origCanvas.height;
+            ctx.drawImage(origCanvas, 0, 0);
         }
     });
 
-    // 5. PDF 생성 옵션
+    // 5. PDF 생성 옵션 (가로 모드 설정)
     const opt = {
         margin:       [10, 10, 10, 10],
         filename:     `${title}.pdf`,
@@ -516,9 +527,9 @@ export const downloadContentAsPdf = (elementId, title) => {
             scale: 2, 
             useCORS: true,
             scrollY: 0,
-            windowWidth: 1000 // 컨테이너 너비와 맞춤
+            windowWidth: 1280 // 컨테이너 너비와 일치
         },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }, // ✅ 가로 모드
         pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
