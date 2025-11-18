@@ -79,7 +79,7 @@ export const context = {
     autoPauseForLunch: null,
     autoResumeFromLunch: null,
     
-    // ✅ [신규] 근태 이력 정렬 및 필터 상태
+    // ✅ [유지] 근태 이력 정렬 및 필터 상태
     attendanceSortState: {
         daily: { key: 'member', dir: 'asc' },
         weekly: { key: 'member', dir: 'asc' },
@@ -89,7 +89,9 @@ export const context = {
         daily: { member: '', type: '' },
         weekly: { member: '' },
         monthly: { member: '' }
-    }
+    },
+    // ✅ [신규] 현재 열려있는 필터 드롭다운 ID (예: 'daily-member')
+    activeFilterDropdown: null 
 };
 
 export const appState = {
