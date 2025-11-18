@@ -42,7 +42,8 @@ import { doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12
 
 import {
     updateHistoryWorkRecord,
-    deleteHistoryWorkRecord
+    deleteHistoryWorkRecord,
+    addHistoryWorkRecord // ✅ [신규] 추가 함수 임포트
 } from './history-data-manager.js';
 
 let isHistoryMaximized = false;
@@ -438,10 +439,6 @@ export function setupHistoryModalListeners() {
                 const todayKey = new Date().toISOString().slice(0, 10); // or getTodayDateString()
 
                 if (dateKey === todayKey) {
-                    // 오늘 데이터라면 실시간 로컬 상태 사용 권장 (또는 DB)
-                    // history-data-manager가 로컬 상태를 동기화하므로 State.appState 사용 가능하지만,
-                    // 일관성을 위해 allHistoryData에서 찾거나, syncTodayToHistory() 호출 후 사용
-                    // 여기서는 allHistoryData에서 찾습니다 (syncTodayToHistory가 주기적으로 됨)
                     const data = State.allHistoryData.find(d => d.id === dateKey);
                     records = data ? data.workRecords : [];
                 } else {
@@ -455,7 +452,6 @@ export function setupHistoryModalListeners() {
                     return;
                 }
 
-                // 병렬 업데이트 수행
                 const updatePromises = targets.map(r => {
                     const updateData = {};
                     if (newStart) updateData.startTime = newStart;
@@ -467,12 +463,106 @@ export function setupHistoryModalListeners() {
                 
                 showToast(`${targets.length}건의 기록이 일괄 수정되었습니다.`);
                 renderHistoryRecordsTable(dateKey);
-                renderHistoryDetail(dateKey); // 메인 화면 갱신
+                renderHistoryDetail(dateKey); 
 
             } catch (e) {
                 console.error(e);
                 showToast('일괄 수정 중 오류가 발생했습니다.', true);
             }
+        });
+    }
+
+    // ✅ [신규] 이력 기록 관리 모달: '기록 추가' 버튼 클릭 시
+    if (DOM.historyRecordAddBtn) {
+        DOM.historyRecordAddBtn.addEventListener('click', () => {
+            const dateKey = document.getElementById('history-records-date').textContent;
+            if (!dateKey) {
+                showToast('날짜 정보를 찾을 수 없습니다.', true);
+                return;
+            }
+            
+            // 날짜 표시
+            if (DOM.historyAddDateDisplay) DOM.historyAddDateDisplay.textContent = dateKey;
+            
+            // 폼 초기화
+            if (DOM.historyAddRecordForm) DOM.historyAddRecordForm.reset();
+            
+            // Datalist 옵션 채우기 (팀원, 업무)
+            if (DOM.historyAddMemberDatalist) {
+                DOM.historyAddMemberDatalist.innerHTML = '';
+                const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
+                const partTimers = (State.appState.partTimers || []).map(p => p.name);
+                const allMembers = [...new Set([...staff, ...partTimers])].sort();
+                allMembers.forEach(m => {
+                    const op = document.createElement('option');
+                    op.value = m;
+                    DOM.historyAddMemberDatalist.appendChild(op);
+                });
+            }
+            
+            if (DOM.historyAddTaskDatalist) {
+                DOM.historyAddTaskDatalist.innerHTML = '';
+                const allTasks = (State.appConfig.taskGroups || []).flatMap(g => g.tasks).sort();
+                const uniqueTasks = [...new Set(allTasks)];
+                uniqueTasks.forEach(t => {
+                    const op = document.createElement('option');
+                    op.value = t;
+                    DOM.historyAddTaskDatalist.appendChild(op);
+                });
+            }
+
+            // 모달 표시
+            if (DOM.historyAddRecordModal) DOM.historyAddRecordModal.classList.remove('hidden');
+        });
+    }
+
+    // ✅ [신규] '기록 추가' 모달 내 '추가' 버튼 클릭 시
+    if (DOM.confirmHistoryAddBtn) {
+        DOM.confirmHistoryAddBtn.addEventListener('click', async () => {
+             const dateKey = document.getElementById('history-records-date').textContent;
+             const member = DOM.historyAddMemberInput.value.trim();
+             const task = DOM.historyAddTaskInput.value.trim();
+             const startTime = DOM.historyAddStartTimeInput.value;
+             const endTime = DOM.historyAddEndTimeInput.value;
+
+             if (!member || !task || !startTime || !endTime) {
+                 showToast('모든 필드를 입력해주세요.', true);
+                 return;
+             }
+             if (startTime >= endTime) {
+                 showToast('종료 시간은 시작 시간보다 늦어야 합니다.', true);
+                 return;
+             }
+
+             try {
+                 const newRecord = {
+                     id: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                     member,
+                     task,
+                     startTime,
+                     endTime,
+                     status: 'completed', 
+                     pauses: []
+                 };
+
+                 await addHistoryWorkRecord(dateKey, newRecord);
+                 
+                 showToast('기록이 추가되었습니다.');
+                 if (DOM.historyAddRecordModal) DOM.historyAddRecordModal.classList.add('hidden');
+                 
+                 // 테이블 갱신
+                 const data = State.allHistoryData.find(d => d.id === dateKey);
+                 renderHistoryRecordsTable(dateKey, data ? data.workRecords : []);
+                 
+                 // 메인 상세 화면 갱신 (현재 보고 있는 날짜라면)
+                 if (dateKey === document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key) {
+                     renderHistoryDetail(dateKey);
+                 }
+                 
+             } catch (e) {
+                 console.error(e);
+                 showToast('기록 추가 중 오류가 발생했습니다.', true);
+             }
         });
     }
 

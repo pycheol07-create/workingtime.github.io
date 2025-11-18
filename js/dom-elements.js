@@ -200,7 +200,20 @@ export const openCostSimulationBtnMobile = document.getElementById('open-cost-si
 export const openHistoryBtnMobile = document.getElementById('open-history-btn-mobile');
 export const endShiftBtnMobile = document.getElementById('end-shift-btn-mobile');
 
-// ✅ [신규] 이력 기록 관리 모달 관련 요소
+// 이력 기록 관리 모달 관련 요소
 export const historyRecordsModal = document.getElementById('history-records-modal');
 export const historyRecordsTableBody = document.getElementById('history-records-table-body');
 export const historyRecordsDateSpan = document.getElementById('history-records-date');
+
+// ✅ [신규] 기록 추가 모달 관련 요소
+export const historyRecordAddBtn = document.getElementById('history-record-add-btn');
+export const historyAddRecordModal = document.getElementById('history-add-record-modal');
+export const historyAddRecordForm = document.getElementById('history-add-record-form');
+export const historyAddDateDisplay = document.getElementById('history-add-date-display');
+export const historyAddMemberInput = document.getElementById('history-add-member');
+export const historyAddMemberDatalist = document.getElementById('history-add-member-list');
+export const historyAddTaskInput = document.getElementById('history-add-task');
+export const historyAddTaskDatalist = document.getElementById('history-add-task-list');
+export const historyAddStartTimeInput = document.getElementById('history-add-start-time');
+export const historyAddEndTimeInput = document.getElementById('history-add-end-time');
+export const confirmHistoryAddBtn = document.getElementById('confirm-history-add-btn');

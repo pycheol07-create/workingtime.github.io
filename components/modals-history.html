@@ -130,17 +130,26 @@
             </div>
 
             <div class="flex flex-wrap items-end gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <button id="history-record-add-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm shadow-sm flex items-center gap-1 transition active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    기록 추가
+                </button>
+
+                <div class="w-px h-8 bg-gray-300 mx-1"></div>
+
                 <div>
                     <label for="history-record-filter-member" class="block text-xs font-bold text-gray-500 mb-1">이름 필터</label>
                     <select id="history-record-filter-member" class="p-2 border border-gray-300 rounded text-sm w-32 focus:ring-blue-500 focus:border-blue-500">
                         <option value="">전체</option>
-                        </select>
+                    </select>
                 </div>
                 <div>
                     <label for="history-record-filter-task" class="block text-xs font-bold text-gray-500 mb-1">업무 필터</label>
                     <select id="history-record-filter-task" class="p-2 border border-gray-300 rounded text-sm w-40 focus:ring-blue-500 focus:border-blue-500">
                         <option value="">전체</option>
-                        </select>
+                    </select>
                 </div>
 
                 <div id="history-record-batch-edit-area" class="hidden flex items-center gap-3 pl-4 border-l border-gray-300 ml-2">
@@ -177,6 +186,43 @@
         </div>
         <div class="p-4 border-t border-gray-200 bg-white rounded-b-2xl flex justify-end">
             <button class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition" onclick="document.getElementById('history-records-modal').classList.add('hidden')">닫기</button>
+        </div>
+    </div>
+</div>
+
+<div id="history-add-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[80] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-gray-900"><span id="history-add-date-display"></span> 기록 추가</h2>
+            <button class="modal-close-btn" onclick="document.getElementById('history-add-record-modal').classList.add('hidden')">&times;</button>
+        </div>
+        <form id="history-add-record-form">
+            <div class="p-6 space-y-4">
+                <div>
+                    <label for="history-add-member" class="block text-sm font-medium text-gray-700">이름 (선택 또는 입력)</label>
+                    <input type="text" id="history-add-member" list="history-add-member-list" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" autocomplete="off" placeholder="이름 검색 또는 입력...">
+                    <datalist id="history-add-member-list"></datalist>
+                </div>
+                <div>
+                    <label for="history-add-task" class="block text-sm font-medium text-gray-700">업무 (선택 또는 입력)</label>
+                    <input type="text" id="history-add-task" list="history-add-task-list" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" autocomplete="off" placeholder="업무 검색 또는 입력...">
+                    <datalist id="history-add-task-list"></datalist>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="history-add-start-time" class="block text-sm font-medium text-gray-700">시작 시간</label>
+                        <input type="time" id="history-add-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" required>
+                    </div>
+                    <div>
+                        <label for="history-add-end-time" class="block text-sm font-medium text-gray-700">종료 시간</label>
+                        <input type="time" id="history-add-end-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2" required>
+                    </div>
+                </div>
+            </div>
+        </form>
+        <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+            <button type="button" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition" onclick="document.getElementById('history-add-record-modal').classList.add('hidden')">취소</button>
+            <button type="button" id="confirm-history-add-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-sm">추가</button>
         </div>
     </div>
 </div>
