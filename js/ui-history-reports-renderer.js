@@ -623,8 +623,8 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
 
         if (rec.counts.hasOwnProperty(type)) {
             rec.counts[type]++;
-        } else {
-            rec.counts[type] = (rec.counts[type] || 0) + 1;
+        } else if (type) {
+             rec.counts[type] = (rec.counts[type] || 0) + 1;
         }
 
         // 연차 외 총 횟수
