@@ -1,7 +1,7 @@
 // === js/ui-history-reports-logic.js ===
 // 설명: 업무 리포트의 데이터 집계, 분석, 비교 로직 및 공통 헬퍼 함수들을 담당합니다.
 
-import { getWeekOfYear, calculateDateDifference } from './utils.js';
+import { getWeekOfYear, calculateDateDifference, isWeekday } from './utils.js';
 
 // --- 1. UI 헬퍼 함수 (Renderer에서 사용) ---
 
@@ -10,14 +10,13 @@ export const getDiffHtmlForMetric = (metricKey, currentVal, prevVal) => {
     
     const diff = currentVal - prevVal;
     const rate = (diff / prevVal) * 100;
-    const isPositiveGood = !['overallAvgCostPerItem', 'nonWorkTime', 'coqPercentage'].includes(metricKey); // 비용, 비업무, COQ는 낮을수록 좋음
+    // 비용, 비업무, COQ는 낮을수록 좋음 (값이 커지면 부정적)
+    const isPositiveGood = !['overallAvgCostPerItem', 'nonWorkTime', 'coqPercentage'].includes(metricKey);
     
     let colorClass = 'text-gray-500';
     let icon = '';
 
     if (diff > 0) {
-        // 일반적: 증가(파랑/초록), 감소(빨강). 단, 비용은 반대.
-        // 여기서는 Tailwind 색상 기준: 긍정(Blue/Green), 부정(Red)
         colorClass = isPositiveGood ? 'text-blue-600' : 'text-red-600';
         icon = '▲';
     } else if (diff < 0) {
@@ -50,6 +49,50 @@ export const PRODUCTIVITY_METRIC_DESCRIPTIONS = {
 
 // --- 2. 데이터 집계 및 분석 로직 (Core Logic) ---
 
+// 내부 헬퍼: 인력 효율성(Staffing) 심층 분석
+const _calculateStaffingMetrics = (kpis, daysData, appConfig) => {
+    const totalWorkMinutes = kpis.totalDuration;
+    
+    // 표준 근무 시간 계산 (평일/주말 구분)
+    let totalStandardAvailableMinutes = 0;
+    daysData.forEach(day => {
+        // 해당 일자의 활성 인원 수 (간단히 KPI의 전체 활성 인원 평균으로 추정하거나, 일별로 정확히 계산 가능)
+        // 여기서는 KPI의 전체 활성 인원 사용 (근사치)
+        const activeStaff = kpis.activeMembersCount || 0;
+        if (activeStaff > 0) {
+             const standardHours = appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
+             const hoursPerPerson = isWeekday(day.id) ? (standardHours.weekday || 8) : (standardHours.weekend || 4);
+             totalStandardAvailableMinutes += (activeStaff * hoursPerPerson * 60);
+        }
+    });
+
+    const utilizationRate = totalStandardAvailableMinutes > 0 ? (totalWorkMinutes / totalStandardAvailableMinutes) * 100 : 0;
+    const efficiencyRatio = 100; // (임시) 표준 속도 대비 효율은 별도 로직 필요
+    const qualityRatio = 100 - kpis.coqPercentage;
+    const oee = (utilizationRate / 100) * (efficiencyRatio / 100) * (qualityRatio / 100) * 100;
+
+    const avgActiveStaff = kpis.activeMembersCount;
+    
+    return {
+        utilizationRate: utilizationRate,
+        efficiencyRatio: efficiencyRatio,
+        qualityRatio: qualityRatio,
+        oee: oee,
+        availableFTE: avgActiveStaff,
+        workedFTE: avgActiveStaff * (utilizationRate / 100),
+        requiredFTE: avgActiveStaff * (utilizationRate / 100), 
+        qualityFTE: avgActiveStaff * (utilizationRate / 100) * (qualityRatio / 100),
+        
+        totalLossCost: 0, 
+        availabilityLossCost: 0,
+        performanceLossCost: 0,
+        qualityLossCost: kpis.totalQualityCost,
+        topPerformanceLossTasks: [],
+        topQualityLossTasks: [],
+        avgCostPerMinute: totalWorkMinutes > 0 ? kpis.totalCost / totalWorkMinutes : 0
+    };
+};
+
 // 내부 헬퍼: 특정 기간의 데이터 필터링 및 집계
 const _calculatePeriodMetrics = (allHistoryData, appConfig, mode, dateKey) => {
     // 1. 기간 필터링
@@ -80,7 +123,8 @@ const _calculatePeriodMetrics = (allHistoryData, appConfig, mode, dateKey) => {
         totalQuantity: 0,
         totalQualityCost: 0,
         nonWorkMinutes: 0,
-        activeMembers: new Set()
+        activeMembers: new Set(),
+        activeMembersCount: 0
     };
     
     // 멤버별 소속 매핑
@@ -90,9 +134,7 @@ const _calculatePeriodMetrics = (allHistoryData, appConfig, mode, dateKey) => {
     // 3. 데이터 순회 및 집계
     targetData.forEach(day => {
         const dailyWageMap = {};
-        // 알바 시급 정보
         (day.partTimers || []).forEach(pt => dailyWageMap[pt.name] = pt.wage);
-        // 정직원 시급 정보 (설정값)
         Object.assign(dailyWageMap, appConfig.memberWages || {});
 
         // A. 업무 기록 집계
@@ -130,7 +172,7 @@ const _calculatePeriodMetrics = (allHistoryData, appConfig, mode, dateKey) => {
             aggr.taskSummary[task].duration += duration;
             aggr.taskSummary[task].cost += cost;
             aggr.taskSummary[task].members.add(member);
-            aggr.taskSummary[task].count += 1; // 레코드 수
+            aggr.taskSummary[task].count += 1;
         });
 
         // B. 처리량 집계
@@ -140,70 +182,40 @@ const _calculatePeriodMetrics = (allHistoryData, appConfig, mode, dateKey) => {
             if (aggr.taskSummary[task]) {
                 aggr.taskSummary[task].quantity += quantity;
             } else {
-                // 업무 기록은 없지만 처리량만 있는 경우 (드물지만 처리)
                 if (!aggr.taskSummary[task]) aggr.taskSummary[task] = { duration: 0, cost: 0, quantity: 0, members: new Set(), count: 0 };
                 aggr.taskSummary[task].quantity += quantity;
             }
         });
-        
-        // C. 비업무 시간 집계 (간단 계산: 총 출근시간 - 총 업무시간 등 정교화 가능하나 여기선 로그기반으로 추정 불가시 0)
-        // (기존 로직에 비업무 시간 계산이 있다면 추가)
     });
 
-    // 4. 파생 지표 계산 (평균 등)
-    const activeMembersCount = kpis.activeMembers.size || 1; // 0 방지
-    
-    kpis.overallAvgThroughput = kpis.totalDuration > 0 ? kpis.totalQuantity / kpis.totalDuration : 0; // 분당 처리량
+    // 4. 파생 지표 계산
+    kpis.activeMembersCount = kpis.activeMembers.size || 0;
+    kpis.overallAvgThroughput = kpis.totalDuration > 0 ? kpis.totalQuantity / kpis.totalDuration : 0;
     kpis.overallAvgCostPerItem = kpis.totalQuantity > 0 ? kpis.totalCost / kpis.totalQuantity : 0;
     kpis.coqPercentage = kpis.totalCost > 0 ? (kpis.totalQualityCost / kpis.totalCost) * 100 : 0;
-    kpis.activeMembersCount = activeMembersCount;
 
     // 업무별 파생 지표
     Object.values(aggr.taskSummary).forEach(task => {
-        task.avgThroughput = task.duration > 0 ? task.quantity / task.duration : 0; // 분당
+        task.avgThroughput = task.duration > 0 ? task.quantity / task.duration : 0;
         task.avgCostPerItem = task.quantity > 0 ? task.cost / task.quantity : 0;
         task.avgStaff = task.members.size;
         task.avgTime = task.count > 0 ? task.duration / task.count : 0;
-        // 효율성 지표 (예시: 분당 처리량 / 투입 인원)
         task.efficiency = task.avgStaff > 0 ? task.avgThroughput / task.avgStaff : 0;
     });
 
-    return { kpis, aggr, staffing: _calculateStaffingMetrics(kpis, targetData) };
+    return { kpis, aggr, staffing: _calculateStaffingMetrics(kpis, targetData, appConfig) };
 };
 
-// 내부 헬퍼: 인력 효율성(Staffing) 심층 분석
-const _calculateStaffingMetrics = (kpis, daysData) => {
-    // (간단한 추정 로직)
-    const totalWorkMinutes = kpis.totalDuration;
-    const totalAttendanceMinutes = daysData.length * 8 * 60 * kpis.activeMembers.size; // 예: 하루 8시간 기준
-    const utilizationRate = totalAttendanceMinutes > 0 ? (totalWorkMinutes / totalAttendanceMinutes) * 100 : 0;
-
-    return {
-        utilizationRate: utilizationRate,
-        efficiencyRatio: 100, // 기준 대비 효율 (여기선 임시 100)
-        qualityRatio: 100 - kpis.coqPercentage,
-        oee: (utilizationRate * (100 - kpis.coqPercentage)) / 100,
-        availableFTE: kpis.activeMembers.size,
-        workedFTE: (totalWorkMinutes / (daysData.length * 8 * 60)),
-        requiredFTE: (totalWorkMinutes / (daysData.length * 8 * 60)), // 목표 효율에 따라 달라짐
-        qualityFTE: ((totalWorkMinutes - (totalWorkMinutes * kpis.coqPercentage/100)) / (daysData.length * 8 * 60)),
-        
-        totalLossCost: 0, // 추후 구현
-        availabilityLossCost: 0,
-        performanceLossCost: 0,
-        qualityLossCost: kpis.totalQualityCost
-    };
-};
 
 // ✅ [핵심] 외부에서 호출하는 메인 데이터 생성 함수
 export const generateReportData = (allHistoryData, appConfig, viewMode, dateKey) => {
     // 1. 현재 기간(Target) 계산
-    let tMode = viewMode; // report-daily, report-weekly ...
+    let tMode = viewMode;
     let tMetrics = _calculatePeriodMetrics(allHistoryData, appConfig, tMode, dateKey);
 
-    if (!tMetrics) return { tMetrics: {}, pMetrics: {} }; // 데이터 없음
+    if (!tMetrics) return { tMetrics: {}, pMetrics: {} };
 
-    // 2. 이전 기간(Previous) 계산 (증감 비교용)
+    // 2. 이전 기간(Previous) 계산
     let prevDateKey = null;
     
     if (tMode === 'report-daily') {
@@ -212,31 +224,27 @@ export const generateReportData = (allHistoryData, appConfig, viewMode, dateKey)
         prevDateKey = d.toISOString().split('T')[0];
     } else if (tMode === 'report-monthly') {
         const [y, m] = dateKey.split('-');
-        const d = new Date(y, m - 1 - 1, 1); // 이전 달
+        const d = new Date(y, m - 1 - 1, 1);
         prevDateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    } 
-    // (주간, 연간은 로직 복잡성상 생략하거나 추가 구현 가능)
+    }
+    // (주간/연간 로직은 간소화)
 
     let pMetrics = prevDateKey ? _calculatePeriodMetrics(allHistoryData, appConfig, tMode, prevDateKey) : null;
     
-    // pMetrics가 없으면 0으로 채워진 더미 객체 반환
     if (!pMetrics) {
         pMetrics = { kpis: {}, aggr: { partSummary: {}, memberSummary: {}, taskSummary: {} }, staffing: {} };
     }
 
-    // 3. 원본 데이터(Raw Data)도 일부 포함 (렌더링 시 필요할 수 있음)
+    // 3. 원본 데이터 및 메타정보 포함
     const tData = {
         raw: { 
-            onLeaveMembers: allHistoryData // 전체 데이터를 넘기거나 필터링된 데이터를 넘김. 
-            // 여기서는 편의상 전체 중 필터링된 날짜의 근태만 뽑아서 넘기는 게 좋음.
-            // (renderer에서 tData.raw.onLeaveMembers를 사용함)
-            .filter(d => {
+            onLeaveMembers: allHistoryData.filter(d => {
                 if(tMode==='report-daily') return d.id === dateKey;
                 if(tMode==='report-monthly') return d.id.startsWith(dateKey);
                 return false;
-            }) 
+            }).flatMap(d => d.onLeaveMembers || [])
         },
-        revenue: 0, // 매출 정보가 있다면 추가
+        revenue: 0, 
         memberToPartMap: new Map()
     };
     (appConfig.teamGroups || []).forEach(g => g.members.forEach(m => tData.memberToPartMap.set(m, g.name)));
@@ -244,8 +252,11 @@ export const generateReportData = (allHistoryData, appConfig, viewMode, dateKey)
     return { tMetrics, pMetrics, tData };
 };
 
+
 // --- 3. 진단 로직 ---
 export const generateProductivityDiagnosis = (curr, prev, benchmarkOEE) => {
+    if (!curr) return { diagnosis: {}, commentHtml: '' };
+    
     const score = curr.oee;
     let diagnosis = { title: '', desc: '', icon: '', color: '', bg: '' };
     
@@ -257,9 +268,8 @@ export const generateProductivityDiagnosis = (curr, prev, benchmarkOEE) => {
         diagnosis = { title: '개선 필요 (Attention)', desc: '비효율 요소(대기, 재작업 등)가 발견되었습니다.', icon: '⚠️', color: 'text-red-700', bg: 'bg-red-50 border-red-200' };
     }
 
-    // 코멘트 생성
     let comments = [];
-    if (curr.qualityRatio < 95) comments.push(`품질 손실(COQ)이 ${curr.qualityLossCost.toLocaleString()}원으로 다소 높습니다.`);
+    if (curr.qualityRatio < 95) comments.push(`품질 손실(COQ)이 다소 높습니다.`);
     if (curr.utilizationRate < 80) comments.push(`유휴 시간이 발생하고 있습니다. 업무 배분 최적화가 필요합니다.`);
 
     return { diagnosis, commentHtml: comments.length > 0 ? comments.join('<br>') : '특별한 이슈가 없습니다.' };
