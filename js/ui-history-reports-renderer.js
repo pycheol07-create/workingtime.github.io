@@ -604,10 +604,10 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     html += `</tbody></table></div></div>`;
 
 
-    // 4. 근태 현황 (Table Format Conversion)
+    // ✅ [수정] 4. 근태 현황 (테이블 형식으로 완전 변경)
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3><div class="overflow-x-auto max-h-[60vh]">`;
 
-    // Aggregate Data
+    // 데이터 집계
     const attSummary = {};
     (attendanceData || []).forEach(entry => {
         if (!attSummary[entry.member]) {
@@ -628,13 +628,11 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             rec.counts[type] = (rec.counts[type] || 0) + 1;
         }
 
-        // Total Count (excluding '연차' usually in the reference logic)
+        // Total Count (연차 제외)
         if (type !== '연차') rec.totalCount++;
 
-        // Calculate Days for Annual Leave / Absence
+        // 연차/결근 일수 합산
         if (type === '연차' || type === '결근') {
-             // Need to calculate days based on start/end date
-             // If start/end date are missing, assume 1 day
              let days = 1;
              if(entry.startDate && entry.endDate) {
                  days = calculateDateDifference(entry.startDate, entry.endDate);
