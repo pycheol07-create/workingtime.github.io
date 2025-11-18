@@ -1,8 +1,6 @@
 // === js/ui-history-reports-logic.js ===
 
 import { formatDuration, isWeekday, getWeekOfYear } from './utils.js';
-
-// ✅ [신규] app.js 대신 state.js에서 직접 appConfig를 가져옵니다.
 import { appConfig } from './state.js';
 
 // ================== [ 1. 헬퍼 함수 ] ==================
@@ -239,6 +237,7 @@ export const calculateReportAggregations = (data, appConfig, wageMap, memberToPa
     return { partSummary, memberSummary, taskSummary };
 };
 
+// ✅ [복구] 누락되었던 함수 추가
 export const aggregateDaysToSingleData = (daysData, id) => {
     const aggregated = {
         id: id,
@@ -269,9 +268,9 @@ export const aggregateDaysToSingleData = (daysData, id) => {
     return aggregated;
 };
 
+
 // ================== [ 3. ✨ 고급 분석 로직 ] ==================
 
-// ✅ [수정] 표준 속도 계산 로직 변경 (전체 평균 -> TOP 3 평균)
 export const calculateStandardThroughputs = (allHistoryData) => {
     const taskDailySpeeds = {}; // { taskName: [speed1, speed2, ...] }
 
