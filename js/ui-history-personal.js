@@ -29,7 +29,6 @@ const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
         inputHtml = `<input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="검색..." value="${currentFilterValue || ''}" data-filter-target="${target}" data-filter-key="${key}" autocomplete="off">`;
     }
 
-    // ✅ 드롭다운 z-index 상향 조정 (테이블 헤더 위로 오게)
     return `
         <div class="relative inline-block ml-1 filter-container">
             <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
@@ -180,6 +179,18 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
         return;
     }
 
+    // ✅ [신규] 엑셀/PDF 다운로드를 위한 데이터 컨텍스트 저장
+    context.lastReportData = {
+        type: 'personal',
+        title: `${memberName}님의 ${dateKey} 리포트`,
+        stats: stats,
+        filteredDays: filteredDays,
+        wage: wage,
+        memberName: memberName,
+        dateKey: dateKey,
+        viewMode: viewMode
+    };
+
     // --- 데이터 가공 및 정렬/필터 적용 ---
     const sortState = context.personalReportSortState || {};
     const filterState = context.personalReportFilterState || {};
@@ -242,11 +253,23 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
     // --- HTML 생성 ---
     let html = `<div class="space-y-6 animate-fade-in">`;
 
-    // 1. 상단 요약 카드
+    // 1. 상단 요약 카드 & 다운로드 버튼
     html += `
         <div class="flex flex-col md:flex-row justify-between items-center mb-2">
-            <h3 class="text-xl font-bold text-gray-800"><span class="text-blue-600">${memberName}</span>님의 ${dateKey} 리포트</h3>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">적용 시급: ${wage.toLocaleString()}원</span>
+            <div class="flex items-center gap-4">
+                <h3 class="text-xl font-bold text-gray-800"><span class="text-blue-600">${memberName}</span>님의 ${dateKey} 리포트</h3>
+                <div class="flex gap-2">
+                    <button data-action="download-personal-excel" class="bg-white hover:bg-green-50 text-green-600 border border-green-200 font-semibold py-1 px-2 rounded-md text-xs flex items-center gap-1 transition shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Excel
+                    </button>
+                    <button data-action="download-personal-pdf" class="bg-white hover:bg-red-50 text-red-600 border border-red-200 font-semibold py-1 px-2 rounded-md text-xs flex items-center gap-1 transition shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                        PDF
+                    </button>
+                </div>
+            </div>
+            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded mt-2 md:mt-0">적용 시급: ${wage.toLocaleString()}원</span>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
@@ -306,9 +329,8 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
         </div>
     `;
 
-    // 3. ✅ [신규] 근태 요약 및 상세 기록
+    // 3. 근태 요약 및 상세 기록
     if (attLogs.length > 0 || Object.values(stats.attendanceCounts).some(c=>c>0)) {
-        // 요약 데이터 HTML 생성
         const summaryHtml = LEAVE_TYPES.map(type => {
             const count = stats.attendanceCounts[type] || 0;
             if (count === 0) return '';

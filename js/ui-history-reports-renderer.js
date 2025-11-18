@@ -26,7 +26,6 @@ const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
         ).join('');
         inputHtml = `<select class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer" data-filter-target="${target}" data-filter-key="${key}"><option value="">(전체)</option>${optionsHtml}</select>`;
     } else {
-        // 옵션이 없는 경우 텍스트 입력 (예외 처리)
         inputHtml = `<input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="검색..." value="${currentFilterValue || ''}" data-filter-target="${target}" data-filter-key="${key}" autocomplete="off">`;
     }
 
@@ -629,8 +628,25 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
     if (!view) return;
 
     const currentRevenue = tData.revenue || 0;
+    
+    // ✅ [신규] 제목과 다운로드 버튼을 포함하는 헤더 HTML 생성
+    const headerHtml = `
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">${title}</h2>
+            <div class="flex gap-2">
+                <button data-action="download-report-excel" class="bg-white hover:bg-green-50 text-green-600 border border-green-200 font-semibold py-1.5 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    Excel
+                </button>
+                <button data-action="download-report-pdf" class="bg-white hover:bg-red-50 text-red-600 border border-red-200 font-semibold py-1.5 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                    PDF
+                </button>
+            </div>
+        </div>
+    `;
 
-    let html = `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800">${title}</h2>`;
+    let html = `<div class="space-y-6">${headerHtml}`;
     html += _generateKPIHTML(tMetrics.kpis, pMetrics.kpis);
     html += _generateProductivityAnalysisHTML(tMetrics, pMetrics, periodText, benchmarkOEE);
     html += _generateRevenueAnalysisHTML(periodText, tMetrics.revenueAnalysis, tMetrics.revenueTrend, currentRevenue, prevRevenue);

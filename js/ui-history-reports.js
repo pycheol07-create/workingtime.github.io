@@ -85,6 +85,16 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
 
     const sortState = context.reportSortState || {};
 
+    // ✅ [신규] 엑셀 다운로드를 위해 계산된 데이터를 context에 저장
+    context.lastReportData = {
+        type: 'daily',
+        title: `${dateKey} 업무 리포트`,
+        tData: { raw: data, memberToPartMap },
+        tMetrics: { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
+        pMetrics: { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
+        standardThroughputs
+    };
+
     renderGenericReport(
         'report-daily-view',
         `${dateKey} 업무 리포트 (이전 기록 대비)`,
@@ -136,6 +146,16 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
 
     const sortState = context.reportSortState || {};
+
+    // ✅ [신규] 엑셀 다운로드를 위해 계산된 데이터를 context에 저장
+    context.lastReportData = {
+        type: 'weekly',
+        title: `${weekKey} 주별 업무 리포트`,
+        tData: { raw: todayData, memberToPartMap },
+        tMetrics: { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
+        pMetrics: { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
+        standardThroughputs
+    };
 
     renderGenericReport(
         'report-weekly-view',
@@ -208,6 +228,16 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
 
     const sortState = context.reportSortState || {};
 
+    // ✅ [신규] 엑셀 다운로드를 위해 계산된 데이터를 context에 저장
+    context.lastReportData = {
+        type: 'monthly',
+        title: `${monthKey} 월별 업무 리포트`,
+        tData: { raw: todayData, memberToPartMap, revenue: currentRevenue },
+        tMetrics: { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing, revenueAnalysis, revenueTrend: revenueTrendAnalysis },
+        pMetrics: { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
+        standardThroughputs
+    };
+
     renderGenericReport(
         'report-monthly-view',
         `${monthKey} 월별 업무 리포트 (이전 월 대비)`,
@@ -257,6 +287,16 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     const prevStaffing = calculateAdvancedProductivity(prevYearDays, prevAggr, standardThroughputs, appConfig, wageMap);
 
     const sortState = context.reportSortState || {};
+
+    // ✅ [신규] 엑셀 다운로드를 위해 계산된 데이터를 context에 저장
+    context.lastReportData = {
+        type: 'yearly',
+        title: `${yearKey} 연간 업무 리포트`,
+        tData: { raw: todayData, memberToPartMap },
+        tMetrics: { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
+        pMetrics: { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
+        standardThroughputs
+    };
 
     renderGenericReport(
         'report-yearly-view',

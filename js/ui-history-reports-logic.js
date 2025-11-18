@@ -1,6 +1,8 @@
 // === js/ui-history-reports-logic.js ===
 
 import { formatDuration, isWeekday, getWeekOfYear } from './utils.js';
+
+// ✅ [신규] app.js 대신 state.js에서 직접 appConfig를 가져옵니다.
 import { appConfig } from './state.js';
 
 // ================== [ 1. 헬퍼 함수 ] ==================

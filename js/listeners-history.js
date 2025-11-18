@@ -26,7 +26,11 @@ import {
     downloadPeriodHistoryAsExcel,
     downloadWeeklyHistoryAsExcel, 
     downloadMonthlyHistoryAsExcel, 
-    downloadAttendanceExcel       
+    downloadAttendanceExcel,
+    // ✅ [신규] 리포트 다운로드 함수 임포트
+    downloadReportExcel,
+    downloadPersonalReportExcel,
+    downloadContentAsPdf
 } from './history-excel.js';
 
 import {
@@ -246,6 +250,57 @@ export function setupHistoryModalListeners() {
             const key = selectedListBtn.dataset.key;
 
             downloadAttendanceExcel(viewMode, key);
+        });
+    }
+
+    // ✅ [신규] 업무 리포트 다운로드 (엑셀/PDF)
+    if (DOM.reportViewContainer) {
+        DOM.reportViewContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-action]');
+            if (!btn) return;
+
+            const action = btn.dataset.action;
+            if (action === 'download-report-excel') {
+                if (State.context.lastReportData && State.context.lastReportData.type !== 'personal') {
+                    downloadReportExcel(State.context.lastReportData);
+                } else {
+                    showToast('다운로드할 리포트 데이터가 없습니다.', true);
+                }
+            } else if (action === 'download-report-pdf') {
+                 const title = State.context.lastReportData?.title || '업무_리포트';
+                 // 현재 보이는 리포트 뷰 ID 찾기 (display:block인 요소)
+                 let targetId = '';
+                 const tabs = document.querySelectorAll('#report-view-container > div');
+                 tabs.forEach(div => {
+                     if (!div.classList.contains('hidden')) targetId = div.id;
+                 });
+
+                 if (targetId) {
+                     downloadContentAsPdf(targetId, title);
+                 } else {
+                     showToast('출력할 리포트 화면을 찾을 수 없습니다.', true);
+                 }
+            }
+        });
+    }
+
+    // ✅ [신규] 개인 리포트 다운로드 (엑셀/PDF)
+    if (DOM.personalReportViewContainer) {
+        DOM.personalReportViewContainer.addEventListener('click', (e) => {
+             const btn = e.target.closest('button[data-action]');
+            if (!btn) return;
+
+            const action = btn.dataset.action;
+            if (action === 'download-personal-excel') {
+                if (State.context.lastReportData && State.context.lastReportData.type === 'personal') {
+                    downloadPersonalReportExcel(State.context.lastReportData);
+                } else {
+                    showToast('다운로드할 개인 리포트 데이터가 없습니다.', true);
+                }
+            } else if (action === 'download-personal-pdf') {
+                 const title = State.context.lastReportData?.title || '개인_리포트';
+                 downloadContentAsPdf('personal-report-content', title);
+            }
         });
     }
 
@@ -697,7 +752,7 @@ export function setupHistoryModalListeners() {
 
 
     // ====================================================================================
-    // ✅ [핵심] 각 탭별(근태/업무/개인) 정렬 & 필터 이벤트 리스너
+    // ✅ 각 탭별(근태/업무/개인) 정렬 & 필터 이벤트 리스너
     // ====================================================================================
 
     // 1. 공통 필터 처리 로직
