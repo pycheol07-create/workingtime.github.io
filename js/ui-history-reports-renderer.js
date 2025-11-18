@@ -99,7 +99,7 @@ const _renderTooltip = (metricKey) => {
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 inline">
           <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM8.94 6.94a.75.75 0 11-1.061-1.061 3 3 0 112.871 5.026v.345a.75.75 0 01-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 108.94 6.94zM10 15a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
         </svg>
-        <span class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition bg-gray-800 text-white text-xs rounded p-2 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 break-keep leading-tight text-center shadow-lg">
+        <span class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition bg-gray-800 text-white text-xs rounded p-2 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 break-keep leading-tight text-center shadow-lg" data-html2canvas-ignore="true">
             <strong class="block mb-1 text-yellow-300">${info.title}</strong>
             ${info.desc}
             <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
@@ -630,10 +630,11 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
     const currentRevenue = tData.revenue || 0;
     
     // ✅ [신규] 제목과 다운로드 버튼을 포함하는 헤더 HTML 생성
+    // ✅ data-html2canvas-ignore="true" 속성 추가하여 PDF 변환 시 버튼 숨김
     const headerHtml = `
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-800">${title}</h2>
-            <div class="flex gap-2">
+            <div class="flex gap-2" data-html2canvas-ignore="true">
                 <button data-action="download-report-excel" class="bg-white hover:bg-green-50 text-green-600 border border-green-200 font-semibold py-1.5 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Excel

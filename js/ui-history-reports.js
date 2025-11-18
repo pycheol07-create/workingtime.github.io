@@ -85,7 +85,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
 
     const sortState = context.reportSortState || {};
 
-    // ✅ [신규] 엑셀 다운로드를 위해 계산된 데이터를 context에 저장
+    // ✅ [신규] 엑셀/PDF 다운로드를 위해 계산된 데이터를 context에 저장
     context.lastReportData = {
         type: 'daily',
         title: `${dateKey} 업무 리포트`,
@@ -106,7 +106,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         '기록',
         0,
         benchmarkOEE,
-        standardThroughputs // ✅ [수정] 표준값 전달
+        standardThroughputs
     );
 };
 
@@ -147,7 +147,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
 
     const sortState = context.reportSortState || {};
 
-    // ✅ [신규] 엑셀 다운로드를 위해 계산된 데이터를 context에 저장
+    // ✅ [신규] 엑셀/PDF 다운로드를 위해 계산된 데이터를 context에 저장
     context.lastReportData = {
         type: 'weekly',
         title: `${weekKey} 주별 업무 리포트`,
@@ -168,7 +168,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         '주',
         0,
         benchmarkOEE,
-        standardThroughputs // ✅ [수정] 표준값 전달
+        standardThroughputs
     );
 };
 
@@ -228,7 +228,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
 
     const sortState = context.reportSortState || {};
 
-    // ✅ [신규] 엑셀 다운로드를 위해 계산된 데이터를 context에 저장
+    // ✅ [신규] 엑셀/PDF 다운로드를 위해 계산된 데이터를 context에 저장
     context.lastReportData = {
         type: 'monthly',
         title: `${monthKey} 월별 업무 리포트`,
@@ -249,7 +249,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         '월',
         prevRevenue,
         benchmarkOEE,
-        standardThroughputs // ✅ [수정] 표준값 전달
+        standardThroughputs
     );
 };
 
@@ -288,7 +288,7 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
 
     const sortState = context.reportSortState || {};
 
-    // ✅ [신규] 엑셀 다운로드를 위해 계산된 데이터를 context에 저장
+    // ✅ [신규] 엑셀/PDF 다운로드를 위해 계산된 데이터를 context에 저장
     context.lastReportData = {
         type: 'yearly',
         title: `${yearKey} 연간 업무 리포트`,
@@ -309,6 +309,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         '연도',
         0,
         null,
-        standardThroughputs // ✅ [수정] 표준값 전달
+        standardThroughputs
     );
 };
