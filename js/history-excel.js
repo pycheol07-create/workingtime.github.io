@@ -465,17 +465,22 @@ export const downloadContentAsPdf = (elementId, title) => {
     showToast('PDF 변환을 시작합니다. (잠시만 기다려주세요)');
 
     // 1. 임시 컨테이너 생성 (화면 밖으로 숨김)
-    // A4 가로 너비(약 297mm)에 맞춰 넉넉한 픽셀 너비 설정 (1280px)
+    // A4 가로 너비(약 297mm)에 맞춰 넉넉한 픽셀 너비 설정 (1280px -> 1400px로 증가)
     const tempContainer = document.createElement('div');
     tempContainer.id = 'pdf-temp-container';
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
     tempContainer.style.top = '0';
-    tempContainer.style.width = '1280px'; // 가로 모드에 맞춘 너비
+    tempContainer.style.width = '1400px'; // ✅ 1280px -> 1400px로 증가
     tempContainer.style.background = 'white';
     tempContainer.style.zIndex = '-9999';
     // 테이블 줄바꿈 방지 스타일 주입
     tempContainer.innerHTML = `<style>
+        /* PDF에 캡처될 때 폰트 크기를 줄여 한 페이지에 더 많은 내용을 담고, 테이블 패딩을 줄여 너비를 확보합니다. */
+        .pdf-content-wrapper { font-size: 10px !important; }
+        .pdf-content-wrapper table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+        .pdf-content-wrapper td, .pdf-content-wrapper th { padding: 4px !important; }
+        /* 페이지 분할 방지 */
         table { page-break-inside: auto; }
         tr { page-break-inside: avoid; page-break-after: auto; }
         thead { display: table-header-group; }
@@ -485,6 +490,8 @@ export const downloadContentAsPdf = (elementId, title) => {
 
     // 2. 콘텐츠 복제
     const clonedElement = originalElement.cloneNode(true);
+    // ✅ 복제된 최상위 요소에 폰트 크기 조절을 위한 클래스 추가
+    clonedElement.classList.add('pdf-content-wrapper');
     tempContainer.appendChild(clonedElement);
 
     // 3. 복제된 콘텐츠의 스크롤/높이 제한 제거 (전체 펼치기)
@@ -503,6 +510,7 @@ export const downloadContentAsPdf = (elementId, title) => {
         // 인라인 스타일 강제 제거
         el.style.maxHeight = 'none';
         el.style.overflow = 'visible';
+        el.style.minWidth = 'unset'; // 테이블 강제 줄바꿈 방지를 위해 min-width 해제
     });
 
     // 4. Canvas(차트) 복구 (CloneNode는 캔버스 내용을 복사하지 않음)
@@ -524,10 +532,10 @@ export const downloadContentAsPdf = (elementId, title) => {
         filename:     `${title}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { 
-            scale: 2, 
+            scale: 2, // scale 2 유지 (고화질)
             useCORS: true,
             scrollY: 0,
-            windowWidth: 1280 // 컨테이너 너비와 일치
+            windowWidth: 1400 // ✅ 컨테이너 너비와 일치 (1400px)
         },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }, // ✅ 가로 모드
         pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
