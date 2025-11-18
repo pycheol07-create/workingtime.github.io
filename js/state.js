@@ -42,8 +42,8 @@ export const setAppConfig = (val) => { appConfig = val; };
 export const setPersistentLeaveSchedule = (val) => { persistentLeaveSchedule = val; };
 
 // --- Constants ---
-export const AUTO_SAVE_INTERVAL = 1 * 60 * 1000;
-export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장'];
+// ✅ [수정] '지각' 추가
+export const LEAVE_TYPES = ['연차', '지각', '조퇴', '외출', '결근', '출장'];
 
 // --- State Objects ---
 export const context = {
@@ -75,7 +75,7 @@ export const context = {
     autoPauseForLunch: null,
     autoResumeFromLunch: null,
     
-    // ✅ [필수] 근태 이력 정렬/필터 상태
+    // 근태 이력 정렬/필터 상태
     attendanceSortState: {
         daily: { key: 'member', dir: 'asc' },
         weekly: { key: 'member', dir: 'asc' },
@@ -86,7 +86,6 @@ export const context = {
         weekly: { member: '' },
         monthly: { member: '' }
     },
-    // ✅ [신규] 현재 열려있는 필터 드롭다운 ID (예: 'daily-member')
     activeFilterDropdown: null 
 };
 

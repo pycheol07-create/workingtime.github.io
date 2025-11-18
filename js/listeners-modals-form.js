@@ -367,7 +367,7 @@ export function setupFormModalListeners() {
         });
     }
 
-    // ✅ [수정] 근태 저장 리스너 (연차 사용일 수 계산 및 안내 메시지 추가)
+    // ✅ [수정] 근태 저장 리스너 (지각 추가)
     if (DOM.confirmLeaveBtn) {
         DOM.confirmLeaveBtn.addEventListener('click', () => {
             const memberName = State.context.memberToSetLeave;
@@ -388,7 +388,7 @@ export function setupFormModalListeners() {
                     return;
                 }
 
-                // ✅ [신규] 사용 일수 계산
+                // 사용 일수 계산
                 const diffDays = calculateDateDifference(startDate, endDate);
 
                 const newEntry = {
@@ -401,17 +401,18 @@ export function setupFormModalListeners() {
                 State.persistentLeaveSchedule.onLeaveMembers.push(newEntry);
                 saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
                 
-                // ✅ [신규] 연차 차감 안내 메시지
+                // 연차 차감 안내 메시지
                 if (type === '연차') {
                      showToast(`${memberName}님 ${diffDays}일 연차 처리 완료. (현황 탭에서 잔여일 확인 가능)`);
                 } else {
                      showToast(`${memberName}님 ${type} 처리 완료.`);
                 }
             } else {
+                // ✅ '지각' 추가 (시간 기반, 시작시간만 기록)
                 const newDailyEntry = {
                     member: memberName,
                     type: type,
-                    startTime: (type === '외출' || type === '조퇴') ? getCurrentTime() : null,
+                    startTime: (type === '외출' || type === '조퇴' || type === '지각') ? getCurrentTime() : null,
                     endTime: null
                 };
                 State.appState.dailyOnLeaveMembers.push(newDailyEntry);
@@ -564,7 +565,8 @@ export function setupFormModalListeners() {
                 const newStartDate = document.getElementById('edit-leave-start-date').value;
                 const newEndDate = document.getElementById('edit-leave-end-date').value;
 
-                const isNewTimeBased = (newType === '외출' || newType === '조퇴');
+                // ✅ [수정] '지각' 추가
+                const isNewTimeBased = (newType === '외출' || newType === '조퇴' || newType === '지각');
 
                 // 3. 원본 기록 찾아서 제거
                 let dailyChanged = false;
@@ -606,6 +608,7 @@ export function setupFormModalListeners() {
                         member: memberName,
                         type: newType,
                         startTime: newStartTime,
+                        // ✅ [수정] '지각'은 종료 시간 없음
                         endTime: (newType === '외출') ? newEndTime : null 
                     });
                     dailyChanged = true;
@@ -646,7 +649,8 @@ export function setupFormModalListeners() {
         if (editLeaveTypeSelect) {
             editLeaveTypeSelect.addEventListener('change', (e) => {
                 const newType = e.target.value;
-                const isTimeBased = (newType === '외출' || newType === '조퇴');
+                // ✅ [수정] '지각' 추가
+                const isTimeBased = (newType === '외출' || newType === '조퇴' || newType === '지각');
                 const isOuting = (newType === '외출');
                 
                 document.getElementById('edit-leave-time-fields').classList.toggle('hidden', !isTimeBased);
