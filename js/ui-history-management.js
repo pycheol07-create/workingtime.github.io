@@ -1,7 +1,7 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear } from './utils.js';
+import { formatDuration, getWeekOfYear, isWeekday } from './utils.js';
 import { getDiffHtmlForMetric } from './ui-history-reports-logic.js';
 
 // 헬퍼: 숫자를 통화 형식(콤마)으로 변환
@@ -9,8 +9,13 @@ const formatCurrency = (num) => {
     return (Number(num) || 0).toLocaleString();
 };
 
+// 헬퍼: 요일 구하기
+const getDayOfWeek = (dateStr) => {
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    return days[new Date(dateStr).getDay()];
+};
+
 // 헬퍼: 재고 순환율 계산 (기간 매출 합계 / 기간 평균 재고 금액)
-// * 일반적인 회전율 공식: 매출액 / 평균재고고
 const calculateTurnoverRatio = (totalRevenue, avgInventoryAmt) => {
     if (!avgInventoryAmt || avgInventoryAmt <= 0) return 0;
     return totalRevenue / avgInventoryAmt;
@@ -188,6 +193,9 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
         if (viewMode === 'management-yearly') return d.id.startsWith(key);
         return false;
     });
+    
+    // 날짜순 정렬 (과거 -> 최신)
+    filteredData.sort((a, b) => a.id.localeCompare(b.id));
 
     if (filteredData.length === 0) {
         container.innerHTML = `<div class="text-center text-gray-500 py-10">해당 기간(${key})에 입력된 경영 지표 데이터가 없습니다.</div>`;
@@ -199,7 +207,6 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
 
     // 3. 이전 기간 데이터 찾기 및 집계 (비교용)
     let prevKey = null;
-    // 간단하게 이전 키 추정 로직 (정확한 날짜 연산보다는 문자열 기반 처리)
     if (viewMode === 'management-monthly') {
         const [y, m] = key.split('-').map(Number);
         const prevDate = new Date(y, m - 2, 1); // 한 달 전
@@ -207,7 +214,6 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     } else if (viewMode === 'management-yearly') {
         prevKey = String(Number(key) - 1);
     }
-    // (주간 비교는 복잡하므로 생략하거나 필요한 경우 추가 구현)
 
     let prevStats = null;
     if (prevKey) {
@@ -225,14 +231,79 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     const turnoverRatio = calculateTurnoverRatio(currentStats.revenue, currentStats.avgInventoryAmt);
     const prevTurnoverRatio = prevStats ? calculateTurnoverRatio(prevStats.revenue, prevStats.avgInventoryAmt) : 0;
     
-    const avgOrderPrice = currentStats.orderCount > 0 ? currentStats.revenue / currentStats.orderCount : 0;
-    const prevAvgOrderPrice = (prevStats && prevStats.orderCount > 0) ? prevStats.revenue / prevStats.orderCount : 0;
+    // 5. 일자별 테이블 생성 (월간/주간 뷰일 때 유용)
+    let dailyTableHtml = '';
+    if (viewMode === 'management-monthly' || viewMode === 'management-weekly') {
+        const tableRows = filteredData.map(day => {
+            const m = day.management || {};
+            const rev = Number(m.revenue) || 0;
+            const orders = Number(m.orderCount) || 0;
+            const invAmt = Number(m.inventoryAmt) || 0;
+            const invQty = Number(m.inventoryQty) || 0;
+            
+            const avgPrice = orders > 0 ? rev / orders : 0;
+            const dailyTurnover = invAmt > 0 ? (rev / invAmt) * 100 : 0;
+            
+            // 주말 색상 처리
+            const dateColor = isWeekday(day.id) ? 'text-gray-900' : 'text-red-500 font-medium';
 
-    // 5. 렌더링
+            return `
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-4 py-3 ${dateColor}">${day.id} <span class="text-xs text-gray-400 ml-1">(${getDayOfWeek(day.id)})</span></td>
+                    <td class="px-4 py-3 text-right font-bold text-blue-600">${rev > 0 ? formatCurrency(rev) : '-'}</td>
+                    <td class="px-4 py-3 text-right">${orders > 0 ? formatCurrency(orders) : '-'}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">${avgPrice > 0 ? formatCurrency(Math.round(avgPrice)) : '-'}</td>
+                    <td class="px-4 py-3 text-right">${invAmt > 0 ? formatCurrency(invAmt) : '-'}</td>
+                    <td class="px-4 py-3 text-right">${invQty > 0 ? formatCurrency(invQty) : '-'}</td>
+                    <td class="px-4 py-3 text-right font-mono text-purple-600">${dailyTurnover > 0 ? dailyTurnover.toFixed(1) + '%' : '-'}</td>
+                </tr>
+            `;
+        }).join('');
+
+        dailyTableHtml = `
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mt-8 shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                    <h4 class="font-bold text-gray-800">📅 일자별 상세 내역</h4>
+                    <span class="text-xs text-gray-500">일별 회전율은 (매출/재고금액)% 로 계산됩니다.</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                            <tr>
+                                <th class="px-4 py-3">날짜</th>
+                                <th class="px-4 py-3 text-right">매출액</th>
+                                <th class="px-4 py-3 text-right">주문수</th>
+                                <th class="px-4 py-3 text-right">객단가</th>
+                                <th class="px-4 py-3 text-right">재고금액</th>
+                                <th class="px-4 py-3 text-right">재고량</th>
+                                <th class="px-4 py-3 text-right">회전율(%)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            ${tableRows}
+                        </tbody>
+                        <tfoot class="bg-gray-50 font-bold text-gray-700">
+                            <tr>
+                                <td class="px-4 py-3">합계 / 평균</td>
+                                <td class="px-4 py-3 text-right text-blue-700">${formatCurrency(currentStats.revenue)}</td>
+                                <td class="px-4 py-3 text-right">${formatCurrency(currentStats.orderCount)}</td>
+                                <td class="px-4 py-3 text-right">-</td>
+                                <td class="px-4 py-3 text-right">${formatCurrency(Math.round(currentStats.avgInventoryAmt))} (평균)</td>
+                                <td class="px-4 py-3 text-right">${formatCurrency(Math.round(currentStats.avgInventoryQty))} (평균)</td>
+                                <td class="px-4 py-3 text-right">-</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    // 6. 렌더링
     let comparisonTitle = prevKey ? `(vs ${prevKey})` : '(이전 데이터 없음)';
 
     container.innerHTML = `
-        <div class="max-w-5xl mx-auto">
+        <div class="max-w-6xl mx-auto">
             <h3 class="text-xl font-bold text-gray-800 mb-6 text-center">
                 📊 ${key} 경영 성과 요약 <span class="text-sm font-normal text-gray-500 ml-2">${comparisonTitle}</span>
             </h3>
@@ -279,38 +350,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <table class="w-full text-sm text-left text-gray-600">
-                    <thead class="bg-gray-50 text-gray-700 font-bold border-b">
-                        <tr>
-                            <th class="px-6 py-3">지표 항목</th>
-                            <th class="px-6 py-3 text-right">이번 기간 (${key})</th>
-                            <th class="px-6 py-3 text-right">이전 기간 (${prevKey || '-'})</th>
-                            <th class="px-6 py-3 text-right">증감</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-3 font-medium">객단가 (건당 평균 매출)</td>
-                            <td class="px-6 py-3 text-right font-bold">${Math.round(avgOrderPrice).toLocaleString()} 원</td>
-                            <td class="px-6 py-3 text-right text-gray-500">${Math.round(prevAvgOrderPrice).toLocaleString()} 원</td>
-                            <td class="px-6 py-3 text-right">${getDiffHtmlForMetric('totalCost', avgOrderPrice, prevAvgOrderPrice)}</td>
-                        </tr>
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-3 font-medium">평균 재고 금액</td>
-                            <td class="px-6 py-3 text-right font-bold">${Math.round(currentStats.avgInventoryAmt).toLocaleString()} 원</td>
-                            <td class="px-6 py-3 text-right text-gray-500">${Math.round(prevStats?.avgInventoryAmt || 0).toLocaleString()} 원</td>
-                            <td class="px-6 py-3 text-right">${getDiffHtmlForMetric('totalCost', currentStats.avgInventoryAmt, prevStats?.avgInventoryAmt)}</td>
-                        </tr>
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-3 font-medium">평균 재고 수량</td>
-                            <td class="px-6 py-3 text-right font-bold">${Math.round(currentStats.avgInventoryQty).toLocaleString()} 개</td>
-                            <td class="px-6 py-3 text-right text-gray-500">${Math.round(prevStats?.avgInventoryQty || 0).toLocaleString()} 개</td>
-                            <td class="px-6 py-3 text-right">${getDiffHtmlForMetric('quantity', currentStats.avgInventoryQty, prevStats?.avgInventoryQty)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            ${dailyTableHtml}
         </div>
     `;
 };
