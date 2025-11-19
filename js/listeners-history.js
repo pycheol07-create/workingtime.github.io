@@ -44,24 +44,25 @@ import {
     renderReportMonthly,
     renderReportYearly,
     renderPersonalReport,
-    renderManagementDaily,
-    renderManagementSummary
+    renderManagementDaily,   // ✅ [신규] 경영 지표 렌더링 함수
+    renderManagementSummary  // ✅ [신규] 경영 지표 요약 함수
 } from './ui-history.js';
 
-import { doc, deleteDoc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, deleteDoc, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord,
     syncTodayToHistory,
-    saveManagementData
+    saveManagementData // ✅ [신규] 경영 지표 저장 함수
 } from './history-data-manager.js';
 
 let isHistoryMaximized = false;
 
 export function setupHistoryModalListeners() {
 
+    // --- [신규] DOM 요소 참조 (management 패널용) ---
     const managementPanel = document.getElementById('management-panel');
     const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
@@ -105,7 +106,7 @@ export function setupHistoryModalListeners() {
             activeSubTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
         } else if (State.context.activeMainHistoryTab === 'personal') {
             activeSubTabBtn = DOM.personalReportTabs?.querySelector('button.font-semibold');
-        } else if (State.context.activeMainHistoryTab === 'management') {
+        } else if (State.context.activeMainHistoryTab === 'management') { // ✅ [신규] 경영 탭 처리
             activeSubTabBtn = managementTabs?.querySelector('button.font-semibold');
         }
 
@@ -181,6 +182,7 @@ export function setupHistoryModalListeners() {
         }
     };
 
+    // ✅ [신규] 경영 지표 뷰 갱신 함수
     const refreshManagementView = () => {
         const dateKey = getSelectedDateKey();
         const activeSubTabBtn = managementTabs?.querySelector('button.font-semibold');
@@ -243,7 +245,10 @@ export function setupHistoryModalListeners() {
         });
     }
     
-    // 통합 다운로드 로직
+    // ====================================================================================
+    // ✅ 통합 다운로드 로직
+    // ====================================================================================
+
     const openDownloadFormatModal = (targetType, contextData = {}) => {
         State.context.downloadContext = { targetType, ...contextData };
         const modal = document.getElementById('download-format-modal');
@@ -256,6 +261,7 @@ export function setupHistoryModalListeners() {
         
         const { targetType } = ctx;
 
+        // 1. 업무 이력
         if (targetType === 'work') {
             const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
             const view = activeTabBtn ? activeTabBtn.dataset.view : 'daily';
@@ -274,7 +280,9 @@ export function setupHistoryModalListeners() {
                 else if (view === 'weekly') await downloadWeeklyHistoryAsExcel(key, format);
                 else if (view === 'monthly') await downloadMonthlyHistoryAsExcel(key, format);
             }
-        } else if (targetType === 'attendance') {
+        }
+        // 2. 근태 이력
+        else if (targetType === 'attendance') {
             const activeTabBtn = DOM.attendanceHistoryTabs.querySelector('button.font-semibold');
             const viewFull = activeTabBtn ? activeTabBtn.dataset.view : 'attendance-daily';
             const viewMode = viewFull.replace('attendance-', ''); 
@@ -291,7 +299,9 @@ export function setupHistoryModalListeners() {
             } else {
                 downloadAttendanceExcel(viewMode, key, format);
             }
-        } else if (targetType === 'report') {
+        }
+        // 3. 업무 리포트
+        else if (targetType === 'report') {
             const reportData = State.context.lastReportData;
             if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
 
@@ -304,7 +314,9 @@ export function setupHistoryModalListeners() {
             } else {
                 downloadReportExcel(reportData, format);
             }
-        } else if (targetType === 'personal') {
+        }
+        // 4. 개인 리포트
+        else if (targetType === 'personal') {
             const reportData = State.context.lastReportData;
             if (!reportData || reportData.type !== 'personal') return showToast('개인 리포트 데이터가 없습니다.', true);
 
@@ -331,7 +343,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // --- 다운로드 버튼 연결 ---
+    // --- 각 탭별 통합 다운로드 버튼 연결 ---
     const historyDownloadBtn = document.getElementById('history-download-btn');
     if (historyDownloadBtn) {
         historyDownloadBtn.addEventListener('click', () => {
@@ -374,7 +386,7 @@ export function setupHistoryModalListeners() {
         });
     }
     
-    // --- 메인 로직 ---
+    // --- (이하 기존 로직 + 신규 탭 로직 통합) ---
 
     const openHistoryModalLogic = async () => {
         if (!State.auth || !State.auth.currentUser) {
@@ -424,6 +436,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // --- 날짜 리스트 클릭 리스너 ---
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
@@ -435,10 +448,11 @@ export function setupHistoryModalListeners() {
                 let activeMainTab = State.context.activeMainHistoryTab || 'work';
                 State.context.activeFilterDropdown = null; 
 
+                // ✅ 탭 전환 시 데이터 동기화가 먼저 이루어지도록 함
                 if (activeMainTab === 'attendance') {
                     refreshAttendanceView(); 
                     return; 
-                } else if (activeMainTab === 'management') {
+                } else if (activeMainTab === 'management') { // ✅ [신규] 경영 탭
                     refreshManagementView();
                     return;
                 }
@@ -461,6 +475,7 @@ export function setupHistoryModalListeners() {
                     } else if (activeView === 'monthly') {
                         renderMonthlyHistory(dateKey, filteredData, State.appConfig);
                     }
+
                 } 
                 else if (activeMainTab === 'report') {
                     refreshReportView();
@@ -501,6 +516,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // 개인 리포트 탭 전환
     if (DOM.personalReportTabs) {
         DOM.personalReportTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-view]');
@@ -524,6 +540,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // 개인 리포트 직원 선택
     if (DOM.personalReportMemberSelect) {
         DOM.personalReportMemberSelect.addEventListener('change', (e) => {
             State.context.personalReportMember = e.target.value;
@@ -531,6 +548,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // ✅ [신규] 경영 지표 탭 전환 및 저장
     if (managementTabs) {
         managementTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-view]');
@@ -558,16 +576,16 @@ export function setupHistoryModalListeners() {
             const dateKey = managementSaveBtn.dataset.dateKey;
             if (!dateKey) return;
 
-            const revenueVal = document.getElementById('mgmt-input-revenue')?.value || '0';
-            const orderCountVal = document.getElementById('mgmt-input-orderCount')?.value || '0';
-            const inventoryQtyVal = document.getElementById('mgmt-input-inventoryQty')?.value || '0';
-            const inventoryAmtVal = document.getElementById('mgmt-input-inventoryAmt')?.value || '0';
+            const revenue = document.getElementById('mgmt-input-revenue')?.value || 0;
+            const orderCount = document.getElementById('mgmt-input-orderCount')?.value || 0;
+            const inventoryQty = document.getElementById('mgmt-input-inventoryQty')?.value || 0;
+            const inventoryAmt = document.getElementById('mgmt-input-inventoryAmt')?.value || 0;
 
             const managementData = {
-                revenue: Number(revenueVal.replace(/,/g, '')),
-                orderCount: Number(orderCountVal.replace(/,/g, '')),
-                inventoryQty: Number(inventoryQtyVal.replace(/,/g, '')),
-                inventoryAmt: Number(inventoryAmtVal.replace(/,/g, ''))
+                revenue: Number(revenue),
+                orderCount: Number(orderCount),
+                inventoryQty: Number(inventoryQty),
+                inventoryAmt: Number(inventoryAmt)
             };
 
             try {
@@ -575,6 +593,7 @@ export function setupHistoryModalListeners() {
                 managementSaveBtn.textContent = '저장 중...';
                 await saveManagementData(dateKey, managementData);
                 showToast('경영 지표가 저장되었습니다.');
+                // 화면 갱신 (차이값 업데이트 등)
                 refreshManagementView();
             } catch (e) {
                 showToast('저장 중 오류가 발생했습니다.', true);
@@ -607,7 +626,7 @@ export function setupHistoryModalListeners() {
                 DOM.trendAnalysisPanel.classList.toggle('hidden', tabName !== 'trends');
                 DOM.reportPanel.classList.toggle('hidden', tabName !== 'report');
                 if (DOM.personalReportPanel) DOM.personalReportPanel.classList.toggle('hidden', tabName !== 'personal');
-                if (managementPanel) managementPanel.classList.toggle('hidden', tabName !== 'management');
+                if (managementPanel) managementPanel.classList.toggle('hidden', tabName !== 'management'); // ✅ [신규]
                 
                 if (dateListContainer) {
                     dateListContainer.style.display = (tabName === 'trends') ? 'none' : 'block';
@@ -625,6 +644,7 @@ export function setupHistoryModalListeners() {
                 } else if (tabName === 'trends') {
                      renderTrendAnalysisCharts(State.allHistoryData, State.appConfig, trendCharts);
                 } else if (tabName === 'personal') {
+                     // (기존 개인 리포트 직원 목록 채우기 로직...)
                      if (DOM.personalReportMemberSelect && DOM.personalReportMemberSelect.options.length <= 1) {
                          const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
                          const partTimers = (State.appState.partTimers || []).map(p => p.name);
@@ -653,7 +673,7 @@ export function setupHistoryModalListeners() {
                      if(viewMode.includes('yearly')) listMode = 'year';
                      
                      renderHistoryDateListByMode(listMode);
-                } else if (tabName === 'management') {
+                } else if (tabName === 'management') { // ✅ [신규] 경영 지표 탭 초기화
                      const activeSubTabBtn = managementTabs?.querySelector('button.font-semibold');
                      const viewMode = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'management-daily';
                      let listMode = 'day';
@@ -691,6 +711,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // 필터 UI (하단 기록 관리 모달용)
     const memberFilter = document.getElementById('history-record-filter-member');
     const taskFilter = document.getElementById('history-record-filter-task');
 
@@ -707,6 +728,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // 일괄 적용 버튼
     const batchApplyBtn = document.getElementById('history-batch-apply-btn');
     if (batchApplyBtn) {
         batchApplyBtn.addEventListener('click', async () => {
@@ -883,6 +905,11 @@ export function setupHistoryModalListeners() {
         });
     }
 
+
+    // ====================================================================================
+    // ✅ 각 탭별(근태/업무/개인) 정렬 & 필터 이벤트 리스너
+    // ====================================================================================
+
     const setupFilterListeners = (container, stateKeySort, stateKeyFilter, refreshFunc) => {
         if (!container) return;
 
@@ -958,6 +985,7 @@ export function setupHistoryModalListeners() {
             }
         }
     });
+
 
     const historyHeader = document.getElementById('history-modal-header');
     if (DOM.historyModal && historyHeader && DOM.historyModalContentBox) {
@@ -1069,6 +1097,7 @@ function setupRecordManagerListeners() {
 }
 
 function setupAttendanceModalButtons() {
+    // ✅ [신규] 근태 수정 저장 버튼 리스너
     if (DOM.confirmEditAttendanceBtn) {
         DOM.confirmEditAttendanceBtn.addEventListener('click', async () => {
             const dateKey = DOM.editAttendanceDateKeyInput.value;
@@ -1096,12 +1125,16 @@ function setupAttendanceModalButtons() {
             try {
                 const todayKey = getTodayDateString();
                 
+                // 1. 로컬 데이터 업데이트
                 const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
                 if (dayDataIndex > -1) {
                      State.allHistoryData[dayDataIndex].onLeaveMembers[index] = newEntry;
                 }
 
+                // 2. DB 저장
                 if (dateKey === todayKey) {
+                     // 오늘 날짜: daily_data 업데이트
+                     // (전체 배열을 덮어써야 함, index 수정이므로)
                      const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
                      const docSnap = await getDoc(dailyDocRef);
                      if (docSnap.exists()) {
@@ -1110,6 +1143,7 @@ function setupAttendanceModalButtons() {
                          await updateDoc(dailyDocRef, { onLeaveMembers: currentLeaves });
                      }
                 } else {
+                     // 과거 날짜: history 업데이트
                      const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                      const docSnap = await getDoc(historyDocRef);
                      if (docSnap.exists()) {
@@ -1122,6 +1156,7 @@ function setupAttendanceModalButtons() {
                 showToast('근태 기록이 수정되었습니다.');
                 DOM.editAttendanceRecordModal.classList.add('hidden');
                 
+                // UI 갱신
                 const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
                     ? State.allHistoryData.filter(d => {
                         const date = d.id;
@@ -1144,6 +1179,7 @@ function setupAttendanceModalButtons() {
 
     if (DOM.cancelEditAttendanceBtn) DOM.cancelEditAttendanceBtn.addEventListener('click', ()=>{ if(DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden'); });
     
+    // ✅ [신규] 근태 추가 저장 버튼 리스너
     if (DOM.confirmAddAttendanceBtn) {
         DOM.confirmAddAttendanceBtn.addEventListener('click', async () => {
             const dateKey = DOM.addAttendanceDateKeyInput.value;
@@ -1156,7 +1192,7 @@ function setupAttendanceModalButtons() {
             const newEntry = {
                 member,
                 type,
-                id: `manual-leave-${Date.now()}`
+                id: `manual-leave-${Date.now()}` // 고유 ID 부여
             };
 
             if (isTimeBased) {
@@ -1172,6 +1208,7 @@ function setupAttendanceModalButtons() {
             try {
                 const todayKey = getTodayDateString();
                 
+                // 1. 로컬 데이터 업데이트
                 const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
                 if (dayDataIndex > -1) {
                     if (!State.allHistoryData[dayDataIndex].onLeaveMembers) {
@@ -1179,14 +1216,17 @@ function setupAttendanceModalButtons() {
                     }
                     State.allHistoryData[dayDataIndex].onLeaveMembers.push(newEntry);
                 } else if (dateKey !== todayKey) {
+                    // 과거 데이터가 로컬에 없으면 새로 생성 (드문 케이스)
                     State.allHistoryData.push({
                         id: dateKey,
                         onLeaveMembers: [newEntry],
                         workRecords: [],
-                        taskQuantities: {}
+                        taskQuantities: {},
+                        management: {}
                     });
                 }
 
+                // 2. DB 저장
                 if (dateKey === todayKey) {
                     const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
                     const docSnap = await getDoc(dailyDocRef);
@@ -1205,6 +1245,7 @@ function setupAttendanceModalButtons() {
                         currentLeaves.push(newEntry);
                         await updateDoc(historyDocRef, { onLeaveMembers: currentLeaves });
                     } else {
+                         // 이력이 아예 없는 날짜에 추가하는 경우
                         await setDoc(historyDocRef, { id: dateKey, onLeaveMembers: [newEntry] });
                     }
                 }
@@ -1212,6 +1253,7 @@ function setupAttendanceModalButtons() {
                 showToast('근태 기록이 추가되었습니다.');
                 DOM.addAttendanceRecordModal.classList.add('hidden');
 
+                // UI 갱신
                  const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
                     ? State.allHistoryData.filter(d => {
                         const date = d.id;

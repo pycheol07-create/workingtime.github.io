@@ -4,10 +4,9 @@
 import { formatDuration, getWeekOfYear, isWeekday } from './utils.js';
 import { getDiffHtmlForMetric } from './ui-history-reports-logic.js';
 
-// 헬퍼: 숫자를 통화 형식(콤마)으로 변환 (빈 값은 빈 문자열 반환)
+// 헬퍼: 숫자를 통화 형식(콤마)으로 변환
 const formatCurrency = (num) => {
-    if (num === undefined || num === null || num === '') return '';
-    return Number(num).toLocaleString();
+    return (Number(num) || 0).toLocaleString();
 };
 
 // 헬퍼: 요일 구하기
@@ -83,9 +82,6 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
 
     const getValue = (val) => (val !== undefined && val !== null) ? val : '';
 
-    // 입력 필드용 공통 속성 (콤마 자동 적용)
-    const inputProps = `type="text" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');"`;
-
     container.innerHTML = `
         <div class="max-w-4xl mx-auto">
             <div class="mb-6 flex items-center justify-between">
@@ -106,8 +102,8 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">일 매출액 (원)</label>
                             <div class="flex items-center gap-2">
-                                <input id="mgmt-input-revenue" ${inputProps} class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${formatCurrency(getValue(mgmt.revenue))}">
+                                <input type="number" id="mgmt-input-revenue" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800" 
+                                    placeholder="0" value="${getValue(mgmt.revenue)}">
                                 <span class="text-sm font-medium w-20 text-right">
                                     ${getDiffHtmlForMetric('totalCost', mgmt.revenue, prevMgmt.revenue)}
                                 </span>
@@ -116,8 +112,8 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">주문 건수 (건)</label>
                             <div class="flex items-center gap-2">
-                                <input id="mgmt-input-orderCount" ${inputProps} class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${formatCurrency(getValue(mgmt.orderCount))}">
+                                <input type="number" id="mgmt-input-orderCount" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800" 
+                                    placeholder="0" value="${getValue(mgmt.orderCount)}">
                                 <span class="text-sm font-medium w-20 text-right">
                                     ${getDiffHtmlForMetric('quantity', mgmt.orderCount, prevMgmt.orderCount)}
                                 </span>
@@ -142,8 +138,8 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">총 재고량 (개)</label>
                             <div class="flex items-center gap-2">
-                                <input id="mgmt-input-inventoryQty" ${inputProps} class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${formatCurrency(getValue(mgmt.inventoryQty))}">
+                                <input type="number" id="mgmt-input-inventoryQty" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right font-bold text-gray-800" 
+                                    placeholder="0" value="${getValue(mgmt.inventoryQty)}">
                                 <span class="text-sm font-medium w-20 text-right">
                                     ${getDiffHtmlForMetric('quantity', mgmt.inventoryQty, prevMgmt.inventoryQty)}
                                 </span>
@@ -152,8 +148,8 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">재고 금액 (원)</label>
                             <div class="flex items-center gap-2">
-                                <input id="mgmt-input-inventoryAmt" ${inputProps} class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${formatCurrency(getValue(mgmt.inventoryAmt))}">
+                                <input type="number" id="mgmt-input-inventoryAmt" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right font-bold text-gray-800" 
+                                    placeholder="0" value="${getValue(mgmt.inventoryAmt)}">
                                 <span class="text-sm font-medium w-20 text-right">
                                     ${getDiffHtmlForMetric('totalCost', mgmt.inventoryAmt, prevMgmt.inventoryAmt)}
                                 </span>
@@ -235,10 +231,6 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     const turnoverRatio = calculateTurnoverRatio(currentStats.revenue, currentStats.avgInventoryAmt);
     const prevTurnoverRatio = prevStats ? calculateTurnoverRatio(prevStats.revenue, prevStats.avgInventoryAmt) : 0;
     
-    // ✅ [수정] 누락된 변수(avgOrderPrice) 계산 로직 추가
-    const avgOrderPrice = currentStats.orderCount > 0 ? currentStats.revenue / currentStats.orderCount : 0;
-    const prevAvgOrderPrice = (prevStats && prevStats.orderCount > 0) ? prevStats.revenue / prevStats.orderCount : 0;
-
     // 5. 일자별 테이블 생성 (월간/주간 뷰일 때 유용)
     let dailyTableHtml = '';
     if (viewMode === 'management-monthly' || viewMode === 'management-weekly') {
@@ -358,39 +350,6 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <table class="w-full text-sm text-left text-gray-600">
-                    <thead class="bg-gray-50 text-gray-700 font-bold border-b">
-                        <tr>
-                            <th class="px-6 py-3">지표 항목</th>
-                            <th class="px-6 py-3 text-right">이번 기간 (${key})</th>
-                            <th class="px-6 py-3 text-right">이전 기간 (${prevKey || '-'})</th>
-                            <th class="px-6 py-3 text-right">증감</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-3 font-medium">객단가 (건당 평균 매출)</td>
-                            <td class="px-6 py-3 text-right font-bold">${Math.round(avgOrderPrice).toLocaleString()} 원</td>
-                            <td class="px-6 py-3 text-right text-gray-500">${Math.round(prevAvgOrderPrice).toLocaleString()} 원</td>
-                            <td class="px-6 py-3 text-right">${getDiffHtmlForMetric('totalCost', avgOrderPrice, prevAvgOrderPrice)}</td>
-                        </tr>
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-3 font-medium">평균 재고 금액</td>
-                            <td class="px-6 py-3 text-right font-bold">${Math.round(currentStats.avgInventoryAmt).toLocaleString()} 원</td>
-                            <td class="px-6 py-3 text-right text-gray-500">${Math.round(prevStats?.avgInventoryAmt || 0).toLocaleString()} 원</td>
-                            <td class="px-6 py-3 text-right">${getDiffHtmlForMetric('totalCost', currentStats.avgInventoryAmt, prevStats?.avgInventoryAmt)}</td>
-                        </tr>
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-3 font-medium">평균 재고 수량</td>
-                            <td class="px-6 py-3 text-right font-bold">${Math.round(currentStats.avgInventoryQty).toLocaleString()} 개</td>
-                            <td class="px-6 py-3 text-right text-gray-500">${Math.round(prevStats?.avgInventoryQty || 0).toLocaleString()} 개</td>
-                            <td class="px-6 py-3 text-right">${getDiffHtmlForMetric('quantity', currentStats.avgInventoryQty, prevStats?.avgInventoryQty)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            
             ${dailyTableHtml}
         </div>
     `;
