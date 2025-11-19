@@ -1,4 +1,9 @@
+{
+type: uploaded file
+fileName: v.1119-테스트/js/app-history-logic.js
+fullContent:
 // === js/app-history-logic.js ===
+// 설명: '이력 보기' 모달의 UI 렌더링과 상태 관리를 담당합니다.
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
@@ -38,8 +43,8 @@ import {
     getDailyDocRef
 } from './history-data-manager.js';
 
-// ✅ [수정] 내부 헬퍼 함수: 지속성 근태 기록 주입 (없는 날짜 생성 포함)
-function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
+// ✅ [수정] 다른 파일에서 사용할 수 있도록 export 추가
+export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     if (!leaveSchedule || !leaveSchedule.onLeaveMembers || leaveSchedule.onLeaveMembers.length === 0) {
         return historyData;
     }
@@ -51,18 +56,15 @@ function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     if (persistentLeaves.length === 0) return historyData;
 
     const existingEntriesMap = new Map();
-    
     historyData.forEach(day => {
         const entries = new Set();
         (day.onLeaveMembers || []).forEach(entry => {
-            if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
-                entries.add(`${entry.member}::${entry.type}::${entry.startDate}`);
+            if (entry.startDate || entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+                entries.add(`${entry.member}::${entry.type}`);
             }
         });
         existingEntriesMap.set(day.id, entries);
     });
-
-    let addedNewDay = false;
 
     persistentLeaves.forEach(pLeave => {
         if (!pLeave.startDate) return;
@@ -76,52 +78,34 @@ function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
 
         for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
             const dateKey = d.toISOString().slice(0, 10);
-            
-            let dayData = historyData.find(day => day.id === dateKey);
-            if (!dayData) {
-                dayData = {
-                    id: dateKey,
-                    workRecords: [],
-                    taskQuantities: {},
-                    onLeaveMembers: [],
-                    partTimers: [],
-                    confirmedZeroTasks: []
-                };
-                historyData.push(dayData);
-                existingEntriesMap.set(dateKey, new Set());
-                addedNewDay = true;
-            }
-
+            const dayData = historyData.find(day => day.id === dateKey);
             const existingEntries = existingEntriesMap.get(dateKey);
-            const entryKey = `${pLeave.member}::${pLeave.type}::${pLeave.startDate}`;
 
-            if (existingEntries && !existingEntries.has(entryKey)) {
-                if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
-                dayData.onLeaveMembers.push({ ...pLeave });
-                existingEntries.add(entryKey);
+            if (dayData && existingEntries) {
+                const entryKey = `${pLeave.member}::${pLeave.type}`;
+                if (!existingEntries.has(entryKey)) {
+                    if (!dayData.onLeaveMembers) {
+                        dayData.onLeaveMembers = [];
+                    }
+                    dayData.onLeaveMembers.push({ ...pLeave });
+                    existingEntries.add(entryKey);
+                }
             }
         }
     });
 
-    if (addedNewDay) {
-        historyData.sort((a, b) => b.id.localeCompare(a.id));
-    }
-
     return historyData;
 }
 
-// ✅ [신규] 오늘 데이터 동기화 + 연차 병합을 한 번에 수행하는 래퍼 함수
-export const syncAndAugmentToday = async () => {
-    await syncTodayToHistory(); // Firestore daily_data -> allHistoryData (이때 연차정보 날아감)
-    augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule); // 연차정보 재주입
-};
 
 export const loadAndRenderHistoryList = async () => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
 
     await fetchAllHistoryData(); 
-    await syncAndAugmentToday(); // ✅ 수정됨
+    await syncTodayToHistory(); 
+
+    augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
 
     if (State.allHistoryData.length === 0) {
         DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
@@ -137,7 +121,6 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
-    // ... (탭 스타일 초기화 코드는 기존과 동일하므로 생략 가능하지만, 안전하게 포함) ...
     document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
         btn.classList.remove('font-medium', 'text-gray-500');
@@ -146,6 +129,7 @@ export const loadAndRenderHistoryList = async () => {
         btn.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
         btn.classList.add('font-medium', 'text-gray-500');
     });
+
     document.querySelectorAll('#history-tabs button[data-view="daily"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
         btn.classList.remove('text-gray-500');
@@ -159,7 +143,6 @@ export const loadAndRenderHistoryList = async () => {
     if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.add('hidden');
     if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.add('hidden');
     if (DOM.reportPanel) DOM.reportPanel.classList.add('hidden');
-    if (DOM.personalReportPanel) DOM.personalReportPanel.classList.add('hidden');
 
     document.getElementById('history-daily-view')?.classList.remove('hidden');
     document.getElementById('history-weekly-view')?.classList.add('hidden');
@@ -183,7 +166,9 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '';
 
-    await syncAndAugmentToday(); // ✅ 수정됨: 리스트 렌더링 전에도 연차 병합
+    await syncTodayToHistory(); 
+    
+    augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
 
     const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
         ? State.allHistoryData.filter(d => {
@@ -793,3 +778,4 @@ export const renderHistoryRecordsTable = (dateKey) => {
         DOM.historyRecordsTableBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">조건에 맞는 기록이 없습니다.</td></tr>';
     }
 };
+}
