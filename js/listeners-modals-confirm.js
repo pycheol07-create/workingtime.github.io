@@ -14,7 +14,6 @@ import {
     doc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// (내부 헬퍼) 개별 업무 기록 삭제
 const deleteWorkRecordDocument = async (recordId) => {
     if (!recordId) return;
     try {
@@ -27,7 +26,6 @@ const deleteWorkRecordDocument = async (recordId) => {
     }
 };
 
-// (내부 헬퍼) 여러 업무 기록 삭제
 const deleteWorkRecordDocuments = async (recordIds) => {
     if (!recordIds || recordIds.length === 0) return;
     try {
@@ -80,9 +78,21 @@ export function setupConfirmationModalListeners() {
 
                 if (dayData && dayData.onLeaveMembers && dayData.onLeaveMembers[index]) {
                     const deletedRecord = dayData.onLeaveMembers.splice(index, 1)[0];
+                    
+                    // ✅ 만약 삭제하는 기록이 '오늘' 날짜라면 메인 상태도 동기화
+                    if (dateKey === getTodayDateString()) {
+                        State.appState.dailyOnLeaveMembers = [...dayData.onLeaveMembers];
+                    }
+
                     try {
                         const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                         await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
+
+                        // 오늘 날짜라면 daily_data도 업데이트
+                        if (dateKey === getTodayDateString()) {
+                             const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey);
+                             await updateDoc(dailyDocRef, { onLeaveMembers: dayData.onLeaveMembers });
+                        }
 
                         showToast(`${deletedRecord.member}님의 '${deletedRecord.type}' 기록이 삭제되었습니다.`);
                         
@@ -92,12 +102,11 @@ export function setupConfirmationModalListeners() {
                     } catch (e) {
                          console.error('Error deleting attendance record:', e);
                          showToast('근태 기록 삭제 중 오류 발생', true);
-                         dayData.onLeaveMembers.splice(index, 0, deletedRecord);
+                         dayData.onLeaveMembers.splice(index, 0, deletedRecord); // 롤백
                     }
                 }
                 State.context.attendanceRecordToDelete = null;
             } else if (State.context.deleteMode === 'leave-record') {
-                // [기존] 메인 화면 근태 기록 삭제 (수정 모달에서 삭제 시)
                 const { memberName, startIdentifier, type, displayType } = State.context.attendanceRecordToDelete;
                 let dailyChanged = false;
                 let persistentChanged = false;
@@ -182,7 +191,7 @@ export function setupConfirmationModalListeners() {
         });
     }
     
-    // ✅ [수정] 외출 복귀 시 기록 삭제 방지 및 종료시간 저장 로직
+    // ✅ [수정] 외출 복귀 로직 (삭제 대신 종료시간 기록)
     if (DOM.confirmCancelLeaveBtn) {
         DOM.confirmCancelLeaveBtn.addEventListener('click', () => {
             const memberName = State.context.memberToCancelLeave;
@@ -192,30 +201,29 @@ export function setupConfirmationModalListeners() {
             let persistentChanged = false;
             let message = '';
 
-            // 1. 오늘 날짜 (일일 근태) 확인
+            // 1. 오늘 근태(일일) 확인
             const todayIndex = State.appState.dailyOnLeaveMembers.findIndex(entry => 
-                entry.member === memberName && !entry.endTime // 아직 종료되지 않은 기록 찾기
+                entry.member === memberName && !entry.endTime // 종료되지 않은 항목
             );
 
             if (todayIndex > -1) {
                 const entry = State.appState.dailyOnLeaveMembers[todayIndex];
                 
                 if (entry.type === '외출') {
-                    // ✅ 외출 복귀: 종료 시간 기록 (삭제 X)
+                    // ✅ 외출은 종료시간 기록 (기록 보존)
                     entry.endTime = getCurrentTime();
                     dailyChanged = true;
-                    message = `${memberName}님 외출 복귀 처리되었습니다. (기록 저장됨)`;
+                    message = `${memberName}님 외출 복귀 처리되었습니다.`;
                 } else {
-                    // 조퇴 등 기타 취소: 기록 삭제
+                    // 조퇴 등은 취소 시 삭제 (기존 방식)
                     State.appState.dailyOnLeaveMembers.splice(todayIndex, 1);
                     dailyChanged = true;
-                    message = `${memberName}님 근태 기록이 취소(삭제)되었습니다.`;
+                    message = `${memberName}님 근태 기록이 취소되었습니다.`;
                 }
             }
 
-            // 2. 영구 일정 (연차 등) 확인 - 기존 로직 유지 (삭제)
+            // 2. 영구 일정(연차 등) 확인 - 취소 시 삭제
             const today = getTodayDateString();
-            const persistentOriginalLength = (State.persistentLeaveSchedule.onLeaveMembers || []).length;
             State.persistentLeaveSchedule.onLeaveMembers = (State.persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
                 if (entry.member === memberName) {
                     const endDate = entry.endDate || entry.startDate;
