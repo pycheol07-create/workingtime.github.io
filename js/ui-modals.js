@@ -1,821 +1,542 @@
-// === js/listeners-modals-form.js ===
-// 설명: '폼 입력' 또는 '선택'이 필요한 모달 리스너를 담당합니다.
+// === js/ui-modals.js ===
 
-import * as DOM from './dom-elements.js';
-import * as State from './state.js';
+import { appState, appConfig, persistentLeaveSchedule } from './state.js';
+import { calculateDateDifference } from './utils.js';
 
-import {
-    generateId,
-    debouncedSaveState,
-    updateDailyData,
-    saveStateToFirestore 
-} from './app-data.js';
-
-import { getTodayDateString, getCurrentTime, showToast, calcElapsedMinutes, calculateDateDifference } from './utils.js';
-import {
-    renderTeamSelectionModalContent,
-    renderLeaveTypeModalOptions // ✅ [추가] 연차 현황 리렌더링을 위해 임포트
-} from './ui-modals.js';
-import {
-    startWorkGroup,
-    addMembersToWorkGroup
-} from './app-logic.js';
-import { saveLeaveSchedule } from './config.js';
-import {
-    doc, updateDoc, collection, query, where, getDocs, writeBatch, setDoc 
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-// 헬퍼 변수
-const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
-const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
-
-// 헬퍼: 버튼을 선택 상태로 만듦
-const selectMemberBtn = (btn) => {
-    btn.classList.remove(...UNSELECTED_CLASSES);
-    btn.classList.add(...SELECTED_CLASSES);
-};
-// 헬퍼: 버튼을 선택 해제 상태로 만듦
-const deselectMemberBtn = (btn) => {
-    btn.classList.remove(...SELECTED_CLASSES);
-    btn.classList.add(...UNSELECTED_CLASSES);
-};
-
-// ✅ [신규] 로컬 이력(allHistoryData)에서 특정 연차 ID 제거/업데이트 헬퍼
-const updateLocalHistoryForLeave = (leaveEntry, action = 'add') => {
-    // action: 'add' | 'remove'
-    const startDt = new Date(leaveEntry.startDate);
-    const endDt = new Date(leaveEntry.endDate || leaveEntry.startDate);
-
-    for(let dt = new Date(startDt); dt <= endDt; dt.setDate(dt.getDate() + 1)) {
-        const dateKey = dt.toISOString().slice(0, 10);
-        let dayData = State.allHistoryData.find(d => d.id === dateKey);
-        
-        if (action === 'add') {
-            if (!dayData) {
-                dayData = { id: dateKey, onLeaveMembers: [], workRecords: [], taskQuantities: {} };
-                State.allHistoryData.push(dayData);
-                State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
-            }
-            if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
-            // 중복 없으면 추가
-            const exists = dayData.onLeaveMembers.some(l => l.id === leaveEntry.id);
-            if (!exists) {
-                dayData.onLeaveMembers.push({ ...leaveEntry });
-            }
-        } else if (action === 'remove') {
-            if (dayData && dayData.onLeaveMembers) {
-                dayData.onLeaveMembers = dayData.onLeaveMembers.filter(l => l.id !== leaveEntry.id);
-            }
-        }
-    }
-};
-
-
-export function setupFormModalListeners() {
-
-    if (DOM.confirmQuantityBtn) {
-        DOM.confirmQuantityBtn.addEventListener('click', async () => {
-            const newQuantities = {};
-            const confirmedZeroTasks = [];
-
-            document.querySelectorAll('#modal-task-quantity-inputs input[type="number"]').forEach(input => {
-                const taskName = input.dataset.task;
-                if (taskName) {
-                    newQuantities[taskName] = Number(input.value) || 0;
-                }
-            });
-
-            document.querySelectorAll('#modal-task-quantity-inputs .confirm-zero-checkbox').forEach(checkbox => {
-                if (checkbox.checked) {
-                    confirmedZeroTasks.push(checkbox.dataset.task);
-                }
-            });
-
-            if (State.context.quantityModalContext && typeof State.context.quantityModalContext.onConfirm === 'function') {
-                await State.context.quantityModalContext.onConfirm(newQuantities, confirmedZeroTasks);
-            }
-
-            if (DOM.quantityModal) DOM.quantityModal.classList.add('hidden');
-        });
-    }
-
-    if (DOM.cancelQuantityBtn) {
-        DOM.cancelQuantityBtn.addEventListener('click', () => {
-            if (State.context.quantityModalContext && typeof State.context.quantityModalContext.onCancel === 'function') {
-                State.context.quantityModalContext.onCancel();
-            }
-            if (DOM.quantityModal) DOM.quantityModal.classList.add('hidden');
-        });
-    }
-
-    if (DOM.cancelTeamSelectBtn) {
-        DOM.cancelTeamSelectBtn.addEventListener('click', () => {
-            if (DOM.teamSelectModal) DOM.teamSelectModal.classList.add('hidden');
-        });
-    }
-
-    if (DOM.taskSelectModal) {
-        DOM.taskSelectModal.addEventListener('click', (e) => {
-            const taskButton = e.target.closest('.task-select-btn');
-            if (taskButton) {
-                const taskName = taskButton.dataset.task;
-                State.context.selectedTaskForStart = taskName;
-                State.context.selectedGroupForAdd = null;
-                State.context.tempSelectedMembers = [];
-                DOM.taskSelectModal.classList.add('hidden');
-
-                renderTeamSelectionModalContent(taskName, State.appState, State.appConfig.teamGroups);
-
-                const titleEl = document.getElementById('team-select-modal-title');
-                const confirmBtn = document.getElementById('confirm-team-select-btn');
-                if (titleEl) titleEl.textContent = `'${taskName}' 업무 시작`;
-                if (confirmBtn) confirmBtn.textContent = '선택 완료 및 업무 시작';
-
-                if (DOM.teamSelectModal) DOM.teamSelectModal.classList.remove('hidden');
-            }
-        });
-    }
-
-    if (DOM.teamSelectModal) {
-        DOM.teamSelectModal.addEventListener('click', async (e) => {
-            const target = e.target; 
-
-            const memberButton = target.closest('.member-select-btn');
-            if (memberButton && !memberButton.disabled) {
-                const memberName = memberButton.dataset.memberName;
-                const isCurrentlySelected = memberButton.classList.contains('bg-blue-600');
-
-                if (!isCurrentlySelected) {
-                    selectMemberBtn(memberButton);
-                    if (!State.context.tempSelectedMembers.includes(memberName)) {
-                        State.context.tempSelectedMembers.push(memberName);
-                    }
-                } else {
-                    deselectMemberBtn(memberButton);
-                    State.context.tempSelectedMembers = State.context.tempSelectedMembers.filter(m => m !== memberName);
-                }
-            }
-
-            const selectAllBtn = target.closest('.group-select-all-btn');
-            if (selectAllBtn) {
-                const groupName = selectAllBtn.dataset.groupName;
-                const memberListDiv = DOM.teamSelectModal.querySelector(`.space-y-2[data-group-name="${groupName}"]`);
-                if (memberListDiv) {
-                    const availableButtons = Array.from(memberListDiv.querySelectorAll('.member-select-btn:not(:disabled)'));
-                    const allSelected = availableButtons.length > 0 && availableButtons.every(btn => btn.classList.contains('bg-blue-600'));
-
-                    availableButtons.forEach(btn => {
-                        const memberName = btn.dataset.memberName;
-                        if (allSelected) {
-                            deselectMemberBtn(btn);
-                            State.context.tempSelectedMembers = State.context.tempSelectedMembers.filter(m => m !== memberName);
-                        } else {
-                             if (!btn.classList.contains('bg-blue-600')) {
-                                selectMemberBtn(btn);
-                                if (!State.context.tempSelectedMembers.includes(memberName)) {
-                                    State.context.tempSelectedMembers.push(memberName);
-                                }
-                            }
-                        }
-                    });
-                }
-            }
-
-            const editPartTimerBtn = target.closest('.edit-part-timer-btn');
-            if (editPartTimerBtn) {
-                const partTimerId = editPartTimerBtn.dataset.partTimerId;
-                const partTimer = (State.appState.partTimers || []).find(p => p.id === partTimerId);
-                if (partTimer) {
-                    document.querySelector('#edit-part-timer-modal h2').textContent = '알바 이름 수정';
-                    document.getElementById('part-timer-edit-id').value = partTimer.id;
-                    document.getElementById('part-timer-new-name').value = partTimer.name;
-                    document.getElementById('edit-part-timer-modal').classList.remove('hidden');
-                    setTimeout(() => document.getElementById('part-timer-new-name').focus(), 50);
-                }
-                return; 
-            }
-
-            const deletePartTimerBtn = target.closest('.delete-part-timer-btn');
-            if (deletePartTimerBtn) {
-                const partTimerId = deletePartTimerBtn.dataset.partTimerId;
-                const partTimer = (State.appState.partTimers || []).find(p => p.id === partTimerId);
-
-                if (partTimer) {
-                    State.appState.partTimers = State.appState.partTimers.filter(p => p.id !== partTimerId);
-                    
-                    if (State.appState.dailyAttendance && State.appState.dailyAttendance[partTimer.name]) {
-                        delete State.appState.dailyAttendance[partTimer.name];
-                    }
-
-                    debouncedSaveState();
-                    renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
-                    showToast(`${partTimer.name}님이 삭제되었습니다.`);
-                }
-                return; 
-            }
-
-             if (target.closest('#add-part-timer-modal-btn')) {
-                if (!State.appState.partTimers) State.appState.partTimers = [];
-
-                const existingNames = new Set(State.appState.partTimers.map(p => p.name));
-                let nextNum = 1;
-                while (existingNames.has(`알바${nextNum}`)) {
-                    nextNum++;
-                }
-                const newName = `알바${nextNum}`;
-
-                const newPartTimer = {
-                    id: generateId(),
-                    name: newName,
-                    wage: State.appConfig.defaultPartTimerWage || 10000
-                };
-
-                if (!State.appState.dailyAttendance) State.appState.dailyAttendance = {};
-                State.appState.dailyAttendance[newName] = {
-                    inTime: getCurrentTime(),
-                    outTime: null,
-                    status: 'active'
-                };
-                State.appState.partTimers.push(newPartTimer);
-                
-                debouncedSaveState(); 
-
-                renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
-                showToast(`'${newName}'이(가) 추가되고 출근 처리되었습니다.`);
-                return; 
-            }
-
-            const confirmTeamSelectBtn = target.closest('#confirm-team-select-btn');
-            if (confirmTeamSelectBtn) {
-                 if (State.context.tempSelectedMembers.length === 0) {
-                    showToast('최소 1명 이상의 팀원을 선택해주세요.', true);
-                    return;
-                }
-
-                const btn = confirmTeamSelectBtn;
-                btn.disabled = true;
-                btn.textContent = '처리 중...';
-
-                try {
-                    if (State.context.selectedGroupForAdd) {
-                        await addMembersToWorkGroup(State.context.tempSelectedMembers, State.context.selectedTaskForStart, State.context.selectedGroupForAdd);
-                    } else {
-                        await startWorkGroup(State.context.tempSelectedMembers, State.context.selectedTaskForStart);
-                    }
-                    DOM.teamSelectModal.classList.add('hidden');
-                } catch (error) {
-                    console.error("업무 시작 중 오류:", error);
-                    showToast("오류가 발생했습니다. 다시 시도해주세요.", true);
-                } finally {
-                    btn.disabled = false;
-                    btn.textContent = '선택 완료 및 업무 시작';
-                }
-             }
-        });
-    }
-
-    if (DOM.confirmEditBtn) {
-        DOM.confirmEditBtn.addEventListener('click', async () => {
-            const recordId = State.context.recordToEditId;
-            const task = document.getElementById('edit-task-type').value;
-            const member = document.getElementById('edit-member-name').value;
-            const startTime = document.getElementById('edit-start-time').value;
-            const endTime = document.getElementById('edit-end-time').value;
-
-            const record = (State.appState.workRecords || []).find(r => r.id === recordId);
-            if (!record) {
-                showToast('수정할 기록을 찾을 수 없습니다.', true);
-                return;
-            }
-
-            if (startTime && endTime && startTime >= endTime) {
-                showToast('시작 시간이 종료 시간보다 늦거나 같을 수 없습니다.', true);
-                return;
-            }
-
-            try {
-                const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords', recordId);
-
-                const updates = {
-                    task,
-                    member,
-                    startTime
-                };
-
-                if (endTime) {
-                    updates.endTime = endTime;
-                    updates.status = 'completed';
-                    updates.duration = calcElapsedMinutes(startTime, endTime, record.pauses || []);
-                } else {
-                    updates.endTime = null;
-                    updates.status = record.status === 'completed' ? 'ongoing' : record.status;
-                    updates.duration = null;
-                }
-
-                await updateDoc(docRef, updates);
-
-                showToast('업무 기록이 수정되었습니다.');
-                DOM.editRecordModal.classList.add('hidden');
-            } catch (e) {
-                console.error("Error updating work record: ", e);
-                showToast("기록 수정 중 오류 발생", true);
-            }
-        });
-    }
-
-    if (DOM.confirmEditPartTimerBtn) {
-        DOM.confirmEditPartTimerBtn.addEventListener('click', async () => {
-            const partTimerId = document.getElementById('part-timer-edit-id').value;
-            const newName = document.getElementById('part-timer-new-name').value.trim();
-
-            if (!newName) {
-                showToast('이름을 입력해주세요.', true); return;
-            }
-
-            const isNameTaken = (State.appConfig.teamGroups || []).flatMap(g => g.members).includes(newName) ||
-                                (State.appState.partTimers || []).some(p => p.name === newName && p.id !== partTimerId);
-
-            if (isNameTaken) {
-                showToast(`'${newName}'(이)라는 이름은 이미 사용 중입니다.`, true); return;
-            }
-
-            if (!partTimerId) {
-                const newPartTimer = {
-                    id: generateId(),
-                    name: newName,
-                    wage: State.appConfig.defaultPartTimerWage || 10000
-                };
-                if (!State.appState.partTimers) State.appState.partTimers = [];
-                State.appState.partTimers.push(newPartTimer);
-                
-                debouncedSaveState();
-                renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
-                showToast(`알바 '${newName}'님이 추가되었습니다.`);
-            } else {
-                const partTimer = (State.appState.partTimers || []).find(p => p.id === partTimerId);
-                if (!partTimer) {
-                    showToast('수정할 알바 정보를 찾을 수 없습니다.', true); return;
-                }
-                const oldName = partTimer.name;
-                if (oldName === newName) {
-                     document.getElementById('edit-part-timer-modal').classList.add('hidden'); return;
-                }
-
-                partTimer.name = newName;
-
-                (State.appState.workRecords || []).forEach(record => {
-                    if (record.member === oldName) record.member = newName;
-                });
-
-                try {
-                    const today = getTodayDateString();
-                    const workRecordsColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
-                    const q = query(workRecordsColRef, where("member", "==", oldName));
-                    const querySnapshot = await getDocs(q);
-                    if (!querySnapshot.empty) {
-                        const batch = writeBatch(State.db);
-                        querySnapshot.forEach(doc => batch.update(doc.ref, { member: newName }));
-                        await batch.commit();
-                    }
-                    debouncedSaveState(); 
-                    showToast(`'${oldName}'님을 '${newName}'(으)로 수정했습니다.`);
-                } catch (e) {
-                    console.error("알바 이름 변경 중 DB 오류: ", e);
-                    showToast("이름 변경 중 DB 저장에 실패했습니다.", true);
-                    partTimer.name = oldName;
-                }
-            }
-            document.getElementById('edit-part-timer-modal').classList.add('hidden');
-            renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
-        });
-    }
-
-    // ✅ [수정] 연차 현황(내 연차관리) 모달 리스너 (리스트 내 수정/삭제 버튼 처리 추가)
-    if (DOM.leaveTypeModal) {
-        DOM.leaveTypeModal.addEventListener('click', async (e) => {
-            // 1. 연차 삭제 버튼
-            const delBtn = e.target.closest('.btn-delete-leave-history');
-            if (delBtn) {
-                if(!confirm('정말 이 내역을 삭제하시겠습니까? (병합된 내역은 모두 삭제됩니다)')) return;
-                
-                // data-ids에 쉼표로 구분된 ID 목록이 있음 (병합된 경우 대비)
-                const idsString = delBtn.dataset.ids || '';
-                const idsToDelete = idsString.split(',').filter(Boolean);
-                
-                // 1) Persistent 저장소에서 삭제
-                State.persistentLeaveSchedule.onLeaveMembers = State.persistentLeaveSchedule.onLeaveMembers.filter(l => !idsToDelete.includes(l.id));
-                await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
-
-                // 2) 로컬 이력 데이터에서 삭제
-                const today = getTodayDateString();
-                
-                // 삭제 대상 ID들에 대해 반복 처리
-                // (주의: targetEntry 정보를 미리 백업해둬야 함)
-                idsToDelete.forEach(id => {
-                    // 로컬 이력에서 해당 ID를 가진 데이터를 찾아서 제거하는 헬퍼는 없으므로
-                    // 여기서는 '해당 날짜'를 추정하기 어렵기 때문에, 
-                    // 전체 로컬 이력을 순회하며 해당 ID를 가진 onLeaveMembers 항목 제거
-                     State.allHistoryData.forEach(dayData => {
-                        if (dayData.onLeaveMembers) {
-                            const initialLen = dayData.onLeaveMembers.length;
-                            dayData.onLeaveMembers = dayData.onLeaveMembers.filter(l => l.id !== id);
-                        }
-                    });
-                });
-
-                // 3) 오늘 날짜 실시간 근태 배열에서도 제거
-                State.appState.dateBasedOnLeaveMembers = State.appState.dateBasedOnLeaveMembers.filter(l => !idsToDelete.includes(l.id));
-
-                // 4) 리스트 갱신
-                renderLeaveTypeModalOptions(State.LEAVE_TYPES, 'status');
-                showToast('삭제되었습니다.');
-                return;
-            }
-
-            // 2. 연차 수정 버튼
-            const editBtn = e.target.closest('.btn-edit-leave-history');
-            if (editBtn) {
-                const id = editBtn.dataset.id;
-                const entry = State.persistentLeaveSchedule.onLeaveMembers.find(l => l.id === id);
-                if (entry) {
-                    // 설정 탭으로 이동
-                    document.getElementById('tab-leave-setting').click();
-                    
-                    // 값 채우기
-                    const radio = document.querySelector(`input[name="leave-type"][value="${entry.type}"]`);
-                    if(radio) radio.checked = true;
-                    document.getElementById('leave-type-options').dispatchEvent(new Event('change')); // 입력창 표시 트리거
-                    
-                    document.getElementById('leave-start-date-input').value = entry.startDate;
-                    document.getElementById('leave-end-date-input').value = entry.endDate || entry.startDate;
-                    
-                    // 버튼을 수정 모드로 변경
-                    DOM.confirmLeaveBtn.dataset.editingId = id;
-                    DOM.confirmLeaveBtn.textContent = '수정 저장';
-                }
-            }
-        });
-    }
-
-    // ✅ [수정] 근태 저장 버튼 리스너 (수정 모드 지원 및 중복 체크 강화)
-    if (DOM.confirmLeaveBtn) {
-        DOM.confirmLeaveBtn.addEventListener('click', async () => {
-            const memberName = State.context.memberToSetLeave;
-            const selectedTypeRadio = document.querySelector('input[name="leave-type"]:checked');
-            if (!memberName || !selectedTypeRadio) {
-                showToast('선택이 필요합니다.', true);
-                return;
-            }
-
-            const type = selectedTypeRadio.value;
-            const today = getTodayDateString();
-            const startDate = document.getElementById('leave-start-date-input').value || today;
-            const endDate = document.getElementById('leave-end-date-input').value || startDate;
-
-            if (type === '연차' || type === '출장' || type === '결근') {
-                if (startDate > endDate) {
-                    showToast('종료 날짜는 시작 날짜보다 빠를 수 없습니다.', true);
-                    return;
-                }
-
-                // 수정 모드 확인
-                const editingId = DOM.confirmLeaveBtn.dataset.editingId;
-
-                // ✅ 중복 체크 (수정 시 자기 자신은 제외)
-                // 입력된 날짜 범위(startDate ~ endDate) 내에 이미 기록이 있는지 확인
-                // (날짜 문자열 비교만으로는 범위 중복 체크가 어려우므로, 날짜를 순회하며 확인)
-                let isDuplicate = false;
-                const startDt = new Date(startDate);
-                const endDt = new Date(endDate);
-                
-                for(let dt = new Date(startDt); dt <= endDt; dt.setDate(dt.getDate() + 1)) {
-                    const checkDate = dt.toISOString().slice(0, 10);
-                    const conflict = State.persistentLeaveSchedule.onLeaveMembers.some(l => {
-                        const lStart = l.startDate;
-                        const lEnd = l.endDate || l.startDate;
-                        // ID가 같으면(수정 중인 자기 자신) 중복 아님
-                        if (l.id === editingId) return false;
-                        // 멤버와 타입이 같고, 날짜가 겹치면 중복
-                        return l.member === memberName && l.type === type && (checkDate >= lStart && checkDate <= lEnd);
-                    });
-
-                    if (conflict) {
-                        isDuplicate = true;
-                        break;
-                    }
-                }
-
-                if (isDuplicate) {
-                    showToast('이미 해당 기간에 동일한 유형의 기록이 존재합니다.', true);
-                    return;
-                }
-
-                let leaveEntry;
-                let isEdit = false;
-
-                if (editingId) {
-                    // 수정
-                    leaveEntry = State.persistentLeaveSchedule.onLeaveMembers.find(l => l.id === editingId);
-                    if (leaveEntry) {
-                        // 기존 데이터 이력에서 제거 (날짜가 바뀔 수 있으므로)
-                        updateLocalHistoryForLeave(leaveEntry, 'remove');
-                        
-                        // 값 업데이트
-                        leaveEntry.type = type;
-                        leaveEntry.startDate = startDate;
-                        leaveEntry.endDate = endDate;
-                        isEdit = true;
-                        
-                        // 수정 모드 해제
-                        delete DOM.confirmLeaveBtn.dataset.editingId;
-                        DOM.confirmLeaveBtn.textContent = '설정 저장';
-                    }
-                } else {
-                    // 신규 생성
-                    leaveEntry = {
-                        id: `leave-${Date.now()}`,
-                        member: memberName,
-                        type,
-                        startDate,
-                        endDate
-                    };
-                    State.persistentLeaveSchedule.onLeaveMembers.push(leaveEntry);
-                }
-
-                // 1. Persistent 저장소 업데이트
-                await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
-                
-                // 2. 로컬 이력 데이터 반영 (추가/수정된 내용 반영)
-                updateLocalHistoryForLeave(leaveEntry, 'add');
-
-                // 3. 오늘 날짜에 해당하면 실시간 반영
-                // (단순 필터링으로 갱신)
-                const todayLeaves = State.persistentLeaveSchedule.onLeaveMembers.filter(entry => {
-                    const ed = entry.endDate || entry.startDate;
-                    return today >= entry.startDate && today <= ed;
-                });
-                State.appState.dateBasedOnLeaveMembers = todayLeaves;
-
-                const diffDays = calculateDateDifference(startDate, endDate);
-                
-                if (isEdit) {
-                    showToast('수정되었습니다.');
-                    // 목록으로 돌아가기
-                    renderLeaveTypeModalOptions(State.LEAVE_TYPES, 'status');
-                    
-                    // 입력 폼 초기화
-                    document.getElementById('leave-start-date-input').value = '';
-                    document.getElementById('leave-end-date-input').value = '';
-
-                } else {
-                    if (type === '연차') {
-                         showToast(`${memberName}님 ${diffDays}일 연차 처리 완료.`);
-                    } else {
-                         showToast(`${memberName}님 ${type} 처리 완료.`);
-                    }
-                    DOM.leaveTypeModal.classList.add('hidden');
-                }
-
-            } else {
-                // '지각', '외출', '조퇴' 등 Daily 근태
-                const newDailyEntry = {
-                    member: memberName,
-                    type: type,
-                    startTime: (type === '외출' || type === '조퇴' || type === '지각') ? getCurrentTime() : null,
-                    endTime: null
-                };
-                State.appState.dailyOnLeaveMembers.push(newDailyEntry);
-                debouncedSaveState();
-                showToast(`${memberName}님 ${type} 처리 완료.`);
-                DOM.leaveTypeModal.classList.add('hidden');
-            }
-        });
-    }
-
-    if (DOM.confirmManualAddBtn) {
-        DOM.confirmManualAddBtn.addEventListener('click', async () => {
-            const member = document.getElementById('manual-add-member').value;
-            const task = document.getElementById('manual-add-task').value;
-            const startTime = document.getElementById('manual-add-start-time').value;
-            const endTime = document.getElementById('manual-add-end-time').value;
-            const pauses = [];
-
-            if (!member || !task || !startTime || !endTime) {
-                showToast('모든 필드를 입력해야 합니다.', true);
-                return;
-            }
-            if (startTime >= endTime) {
-                showToast('시작 시간이 종료 시간보다 늦거나 같을 수 없습니다.', true);
-                return;
-            }
-
-            try {
-                const recordId = generateId();
-                const duration = calcElapsedMinutes(startTime, endTime, pauses);
-
-                const newRecordData = {
-                    id: recordId,
-                    member,
-                    task,
-                    startTime,
-                    endTime,
-                    duration,
-                    status: 'completed',
-                    groupId: `manual-${generateId()}`,
-                    pauses: []
-                };
-
-                const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords', recordId);
-                await setDoc(docRef, newRecordData);
-
-                showToast('수동 기록이 추가되었습니다.');
-                DOM.manualAddRecordModal.classList.add('hidden');
-                DOM.manualAddForm.reset();
-
-            } catch (e) {
-                console.error("Error adding manual work record: ", e);
-                showToast("수동 기록 추가 중 오류 발생", true);
-            }
-        });
-    }
-
-    if (DOM.confirmEditStartTimeBtn) {
-        DOM.confirmEditStartTimeBtn.addEventListener('click', async () => {
-            const contextId = document.getElementById('edit-start-time-context-id').value;
-            const contextType = document.getElementById('edit-start-time-context-type').value;
-            const newStartTime = document.getElementById('edit-start-time-input').value;
-
-            if (!contextId || !contextType || !newStartTime) {
-                showToast('정보가 누락되었습니다.', true);
-                return;
-            }
-
-            try {
-                const today = getTodayDateString();
-                const workRecordsColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
-
-                if (contextType === 'individual') {
-                    const docRef = doc(workRecordsColRef, contextId);
-                    await updateDoc(docRef, { startTime: newStartTime });
-
-                } else if (contextType === 'group') {
-                    const q = query(workRecordsColRef, where("groupId", "==", contextId), where("status", "in", ["ongoing", "paused"]));
-                    const querySnapshot = await getDocs(q);
-
-                    if (!querySnapshot.empty) {
-                        const batch = writeBatch(State.db);
-                        querySnapshot.forEach(doc => {
-                            batch.update(doc.ref, { startTime: newStartTime });
-                        });
-                        await batch.commit();
-                    }
-                }
-
-                showToast('시작 시간이 수정되었습니다.');
-                DOM.editStartTimeModal.classList.add('hidden');
-
-            } catch (e) {
-                 console.error("Error updating start time: ", e);
-                 showToast("시작 시간 수정 중 오류가 발생했습니다.", true);
-            }
-        });
-    }
+// 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
+const calculateTenure = (joinDateStr) => {
+    if (!joinDateStr || joinDateStr === '-') return '';
     
-    const editLeaveModal = document.getElementById('edit-leave-record-modal');
+    const start = new Date(joinDateStr);
+    const now = new Date();
+    
+    if (start > now) return '입사 예정';
 
-    if (editLeaveModal) {
+    let years = now.getFullYear() - start.getFullYear();
+    let months = now.getMonth() - start.getMonth();
+    let days = now.getDate() - start.getDate();
+
+    if (days < 0) {
+        months--;
+        const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+        days += prevMonth.getDate();
+    }
+
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    // "일째" 표현을 위해 +1
+    return `${years}년 ${months}개월 ${days + 1}일째`;
+};
+
+// ✅ [수정] 연차 사용 내역 계산 & 자동 병합 로직
+const calculateLeaveUsage = (memberName) => {
+    const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-' };
+    const totalLeave = leaveSettings.totalLeave;
+    const joinDate = leaveSettings.joinDate;
+
+    // 1. 해당 멤버의 '연차' 기록 필터링 & 날짜순 정렬
+    const rawHistory = (persistentLeaveSchedule.onLeaveMembers || [])
+        .filter(item => item.member === memberName && item.type === '연차')
+        .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+
+    // 2. 중복/연속된 날짜 병합 (Merge Intervals)
+    const mergedHistory = [];
+    if (rawHistory.length > 0) {
+        // 첫 번째 기록으로 초기화
+        let current = {
+            ...rawHistory[0],
+            startDate: rawHistory[0].startDate,
+            endDate: rawHistory[0].endDate || rawHistory[0].startDate,
+            ids: [rawHistory[0].id] // 원본 ID들을 배열로 관리 (삭제 시 사용)
+        };
         
-        const cancelEditLeaveBtn = document.getElementById('cancel-edit-leave-record-btn');
-        if (cancelEditLeaveBtn) {
-            cancelEditLeaveBtn.addEventListener('click', () => {
-                editLeaveModal.classList.add('hidden');
-            });
-        }
+        // 날짜 비교를 위한 Date 객체 생성
+        let currentEndObj = new Date(current.endDate);
 
-        const deleteLeaveBtn = document.getElementById('delete-leave-record-btn');
-        if (deleteLeaveBtn) {
-            deleteLeaveBtn.addEventListener('click', () => {
-                const memberName = document.getElementById('edit-leave-original-member-name').value;
-                const type = document.getElementById('edit-leave-type').value; 
-                
-                State.context.deleteMode = 'leave-record';
-                State.context.attendanceRecordToDelete = { 
-                    memberName: memberName,
-                    startIdentifier: document.getElementById('edit-leave-original-start-identifier').value,
-                    type: document.getElementById('edit-leave-original-type').value,
-                    displayType: type
+        for (let i = 1; i < rawHistory.length; i++) {
+            const next = rawHistory[i];
+            const nextStartObj = new Date(next.startDate);
+            const nextEndObj = new Date(next.endDate || next.startDate);
+            
+            // '현재 구간의 끝 + 1일' 계산 (연속된 날짜 판별용)
+            const dayAfterCurrentEnd = new Date(currentEndObj);
+            dayAfterCurrentEnd.setDate(dayAfterCurrentEnd.getDate() + 1);
+
+            // 겹치거나(Overlap) 바로 이어지는(Adjacent) 경우 병합
+            if (nextStartObj <= dayAfterCurrentEnd) {
+                // 종료일 연장 (더 늦은 날짜로)
+                if (nextEndObj > currentEndObj) {
+                    currentEndObj = nextEndObj;
+                    current.endDate = next.endDate || next.startDate;
+                }
+                // ID 병합
+                current.ids.push(next.id);
+            } else {
+                // 끊기면 현재 구간 저장 후 새로 시작
+                mergedHistory.push(current);
+                current = {
+                    ...next,
+                    startDate: next.startDate,
+                    endDate: next.endDate || next.startDate,
+                    ids: [next.id]
                 };
+                currentEndObj = new Date(current.endDate);
+            }
+        }
+        mergedHistory.push(current);
+    }
 
-                const msgEl = document.getElementById('delete-confirm-message');
-                if (msgEl) msgEl.textContent = `${memberName}님의 '${type}' 기록을 삭제하시겠습니까?`;
-                
-                editLeaveModal.classList.add('hidden');
-                if (DOM.deleteConfirmModal) DOM.deleteConfirmModal.classList.remove('hidden');
-            });
+    // 3. 차수(Nth) 및 총 사용일 계산
+    let realUsedCount = 0;
+    let cumulativeDays = 0;
+
+    const finalHistory = mergedHistory.map((item) => {
+        const days = calculateDateDifference(item.startDate, item.endDate);
+        realUsedCount += days;
+        
+        const startNth = cumulativeDays + 1;
+        const endNth = cumulativeDays + days;
+        cumulativeDays += days;
+
+        // 1일이면 "1", 2일 이상이면 "1~3" 형태로 표시
+        const nthStr = (days > 1) ? `${startNth}~${endNth}` : `${startNth}`;
+
+        return {
+            ...item,
+            days,
+            nth: nthStr,
+            isMerged: item.ids.length > 1 // 병합된 기록인지 여부
+        };
+    });
+
+    return {
+        total: totalLeave,
+        used: realUsedCount,
+        remaining: totalLeave - realUsedCount,
+        joinDate: joinDate,
+        history: finalHistory.reverse() // 최신순 정렬
+    };
+};
+
+export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
+    const container = document.getElementById('modal-task-quantity-inputs');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const missingTaskSet = new Set(missingTasksList);
+    const confirmedZeroSet = new Set(confirmedZeroTasks);
+
+    quantityTaskTypes.forEach(task => {
+        const div = document.createElement('div');
+        const isConfirmed = confirmedZeroSet.has(task);
+        const isMissing = missingTaskSet.has(task) && !isConfirmed;
+        const warningClass = isMissing ? 'warning-missing-quantity' : '';
+
+        div.innerHTML = `
+            <div class="flex justify-between items-end mb-1">
+                <label for="modal-quantity-${task}" class="block text-sm font-medium text-gray-700 ${isMissing ? 'text-yellow-700 font-bold' : ''}">
+                    ${task} ${isMissing ? '(누락됨)' : ''}
+                </label>
+                 <div class="flex items-center">
+                    <input type="checkbox" id="modal-confirm-zero-${task}" data-task="${task}"
+                           class="confirm-zero-checkbox w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 transition"
+                           ${isConfirmed ? 'checked' : ''}>
+                    <label for="modal-confirm-zero-${task}" class="ml-1 text-xs text-gray-500 cursor-pointer select-none">0건 확인</label>
+                </div>
+            </div>
+            <input type="number" id="modal-quantity-${task}" data-task="${task}" value="${sourceQuantities[task] || 0}" min="0"
+                   class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition ${warningClass}">
+        `;
+        container.appendChild(div);
+    });
+
+    container.querySelectorAll('.confirm-zero-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+            const task = e.target.dataset.task;
+            const input = container.querySelector(`#modal-quantity-${task}`);
+            const label = container.querySelector(`label[for="modal-quantity-${task}"]`);
+
+            if (e.target.checked) {
+                input.classList.remove('warning-missing-quantity');
+                label.classList.remove('text-yellow-700', 'font-bold');
+                label.textContent = task;
+            } else {
+                if (Number(input.value) <= 0 && missingTaskSet.has(task)) {
+                     input.classList.add('warning-missing-quantity');
+                     label.classList.add('text-yellow-700', 'font-bold');
+                     if (!label.textContent.includes('(누락됨)')) {
+                         label.textContent = `${task} (누락됨)`;
+                     }
+                }
+            }
+        });
+    });
+};
+
+export const renderTaskSelectionModal = (taskGroups = []) => {
+    const container = document.getElementById('task-modal-content');
+    if (!container) return;
+    container.innerHTML = '';
+
+    taskGroups.forEach((group) => {
+        const groupName = group.name;
+        const tasks = group.tasks || [];
+
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'flex-1';
+
+        let tasksHtml = tasks.map(task => `<button type="button" data-task="${task}" class="task-select-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:ring-2 focus:ring-blue-300">${task}</button>`).join('');
+
+        groupDiv.innerHTML = `
+            <div class="bg-gray-50 rounded-lg border">
+                <h3 class="text-lg font-bold text-gray-800 mb-0 p-3 border-b bg-gray-100 rounded-t-lg">${groupName}</h3>
+                <div class="p-3 grid grid-cols-1 gap-2">${tasksHtml}</div>
+            </div>
+        `;
+        container.appendChild(groupDiv);
+    });
+};
+
+export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
+    const titleEl = document.getElementById('team-select-modal-title');
+    const container = document.getElementById('team-select-modal-content');
+    if (!titleEl || !container) return;
+
+    titleEl.textContent = `'${task || '기타 업무'}' 팀원 선택`;
+    container.innerHTML = '';
+
+    const ongoingMembers = new Set(
+        (appState.workRecords || []).filter(r => r.status === 'ongoing').map(r => r.member)
+    );
+    const pausedMembers = new Set(
+        (appState.workRecords || []).filter(r => r.status === 'paused').map(r => r.member)
+    );
+
+    const combinedOnLeaveMembers = [
+        ...(appState.dailyOnLeaveMembers || []),
+        ...(appState.dateBasedOnLeaveMembers || [])
+    ];
+
+    const onLeaveMemberMap = new Map(
+        combinedOnLeaveMembers
+            .filter(item => !(item.type === '외출' && item.endTime))
+            .map(item => [item.member, item])
+    );
+
+    const baseClasses = "member-select-btn w-full p-2 rounded-lg border-2 text-center transition-all duration-200 min-h-[50px] flex flex-col justify-center";
+    const disabledClasses = "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60";
+    const unselectedClasses = "bg-white border-gray-300 text-gray-900 hover:bg-blue-50 hover:border-blue-300";
+
+    const orderedTeamGroups = [
+        teamGroups.find(g => g.name === '관리'),
+        teamGroups.find(g => g.name === '공통파트'),
+        teamGroups.find(g => g.name === '담당파트'),
+        teamGroups.find(g => g.name === '제작파트'),
+    ].filter(Boolean);
+
+    orderedTeamGroups.forEach(group => {
+        const groupContainer = document.createElement('div');
+        groupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
+        groupContainer.innerHTML = `
+            <div class="flex justify-between items-center p-2 border-b border-gray-200">
+                <h4 class="text-md font-bold text-gray-800">${group.name}</h4>
+                <button type="button" class="group-select-all-btn text-xs bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 px-2 py-1 rounded shadow-sm transition-all" data-group-name="${group.name}">전체</button>
+            </div>`;
+
+        const memberList = document.createElement('div');
+        memberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
+        memberList.dataset.groupName = group.name;
+
+        [...new Set(group.members)].forEach(member => {
+            const isOngoing = ongoingMembers.has(member);
+            const isPaused = pausedMembers.has(member);
+            const leaveEntry = onLeaveMemberMap.get(member);
+            const isOnLeave = !!leaveEntry;
+            
+            const attendance = appState.dailyAttendance?.[member];
+            const isClockedIn = attendance && attendance.status === 'active';
+            const isReturned = attendance && attendance.status === 'returned';
+
+            const isDisabled = isOngoing || isPaused || isOnLeave || !isClockedIn;
+
+            const card = document.createElement('button');
+            card.type = 'button';
+            card.dataset.memberName = member;
+            card.className = `${baseClasses} ${isDisabled ? disabledClasses : unselectedClasses}`;
+            if (isDisabled) card.disabled = true;
+
+            let statusLabel = '';
+            if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
+            else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
+            else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
+            else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; }
+            else if (!isClockedIn) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; }
+            
+            card.innerHTML = `<div class="font-bold">${member}</div>${statusLabel}`;
+
+            memberList.appendChild(card);
+        });
+        groupContainer.appendChild(memberList);
+        container.appendChild(groupContainer);
+    });
+
+    // 알바 그룹
+    const albaGroupContainer = document.createElement('div');
+    albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
+    albaGroupContainer.innerHTML = `<div class="flex justify-between items-center p-2 border-b border-gray-200">
+                                         <h4 class="text-md font-bold text-gray-800">알바</h4>
+                                         <div>
+                                             <button type="button" class="group-select-all-btn text-xs bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 px-2 py-1 rounded shadow-sm transition-all" data-group-name="알바">전체</button>
+                                             <button id="add-part-timer-modal-btn" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded ml-1 transition-all">+ 추가</button>
+                                         </div>
+                                    </div>`;
+    const albaMemberList = document.createElement('div');
+    albaMemberList.className = 'space-y-2 flex-grow overflow-y-auto p-2';
+    albaMemberList.dataset.groupName = '알바';
+
+    (appState.partTimers || []).forEach(pt => {
+        const isOngoing = ongoingMembers.has(pt.name);
+        const isPaused = pausedMembers.has(pt.name);
+        const leaveEntry = onLeaveMemberMap.get(pt.name);
+        const isOnLeave = !!leaveEntry;
+
+        const attendance = appState.dailyAttendance?.[pt.name];
+        const isClockedIn = attendance && attendance.status === 'active';
+        const isReturned = attendance && attendance.status === 'returned';
+        const isDisabled = isOngoing || isPaused || isOnLeave || !isClockedIn;
+
+        const cardWrapper = document.createElement('div');
+        cardWrapper.className = 'relative';
+
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.dataset.memberName = pt.name;
+        card.className = `${baseClasses} ${isDisabled ? disabledClasses : unselectedClasses}`;
+        if (isDisabled) card.disabled = true;
+
+        let statusLabel = '';
+        if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
+        else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
+        else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
+        else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; }
+        else if (!isClockedIn) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; }
+
+        card.innerHTML = `<div class="font-bold">${pt.name}</div>${statusLabel}`;
+
+        cardWrapper.appendChild(card);
+
+        const editBtn = document.createElement('button');
+        editBtn.dataset.partTimerId = pt.id;
+        editBtn.className = 'edit-part-timer-btn absolute top-1 right-6 p-1 text-gray-400 hover:text-blue-600 transition-colors';
+        editBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L13.196 5.2z" /></svg>`;
+        cardWrapper.appendChild(editBtn);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.dataset.partTimerId = pt.id;
+        deleteBtn.className = 'delete-part-timer-btn absolute top-1 right-1 p-1 text-gray-400 hover:text-red-600 transition-colors';
+        deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
+        cardWrapper.appendChild(deleteBtn);
+
+        albaMemberList.appendChild(cardWrapper);
+    });
+
+    albaGroupContainer.appendChild(albaMemberList);
+    container.appendChild(albaGroupContainer);
+};
+
+export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setting') => {
+    const container = document.getElementById('leave-type-options');
+    const dateInputsDiv = document.getElementById('leave-date-inputs');
+    const confirmBtn = document.getElementById('confirm-leave-btn');
+    
+    // 탭 요소들
+    const tabSetting = document.getElementById('tab-leave-setting');
+    const tabStatus = document.getElementById('tab-leave-status');
+    const panelSetting = document.getElementById('panel-leave-setting');
+    const panelStatus = document.getElementById('panel-leave-status');
+    const memberNameEl = document.getElementById('leave-member-name');
+    
+    if (!container || !dateInputsDiv) return;
+
+    const memberName = memberNameEl ? memberNameEl.textContent : '';
+
+    // --- 현황판 데이터 업데이트 함수 ---
+    const updateStatusView = () => {
+        const stats = calculateLeaveUsage(memberName);
+        
+        const totalEl = document.getElementById('status-total-days');
+        const usedEl = document.getElementById('status-used-days');
+        const remainEl = document.getElementById('status-remaining-days');
+        const joinDateEl = document.getElementById('status-join-date');
+        const historyListEl = document.getElementById('status-history-list');
+
+        if (totalEl) totalEl.textContent = `${stats.total}일`;
+        if (usedEl) usedEl.textContent = `${stats.used}일`;
+        
+        if (remainEl) {
+            remainEl.textContent = `${stats.remaining}일`;
+            remainEl.className = stats.remaining < 0 ? "text-3xl font-bold text-red-600" : "text-3xl font-bold text-blue-600";
+        }
+        
+        if (joinDateEl) {
+            const tenureText = calculateTenure(stats.joinDate);
+            if (stats.joinDate && stats.joinDate !== '-') {
+                joinDateEl.innerHTML = `${stats.joinDate} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>`;
+            } else {
+                joinDateEl.textContent = '-';
+            }
         }
 
-        const confirmEditLeaveBtn = document.getElementById('confirm-edit-leave-record-btn');
-        if (confirmEditLeaveBtn) {
-            confirmEditLeaveBtn.addEventListener('click', async () => {
-                const memberName = document.getElementById('edit-leave-original-member-name').value;
-                const originalStart = document.getElementById('edit-leave-original-start-identifier').value;
-                const originalType = document.getElementById('edit-leave-original-type').value;
+        if (historyListEl) {
+            historyListEl.innerHTML = '';
+            if (stats.history.length === 0) {
+                historyListEl.innerHTML = '<li class="text-center text-gray-400 py-4">사용 내역이 없습니다.</li>';
+            } else {
+                stats.history.forEach(h => {
+                    // ✅ [수정] 병합된 기록은 수정 버튼을 비활성화하거나 숨길 수도 있지만, 
+                    // 우선 '삭제'는 여러 ID를 처리하도록, '수정'은 막거나 첫번째 ID만 처리하도록 해야함.
+                    // 여기서는 "삭제"는 data-ids로 처리, "수정"은 병합된 건인 경우 숨김 처리
+                    
+                    const idsString = h.ids.join(',');
+                    const mergedBadge = h.isMerged ? '<span class="text-[9px] text-purple-600 bg-purple-50 border border-purple-200 px-1 rounded ml-1">병합됨</span>' : '';
 
-                const newType = document.getElementById('edit-leave-type').value;
-                const newStartTime = document.getElementById('edit-leave-start-time').value;
-                const newEndTime = document.getElementById('edit-leave-end-time').value;
-                const newStartDate = document.getElementById('edit-leave-start-date').value;
-                const newEndDate = document.getElementById('edit-leave-end-date').value;
+                    // 병합된 건은 개별 수정이 복잡하므로 삭제 후 재등록 유도 (수정 버튼 숨김)
+                    const editBtnHtml = h.isMerged ? '' : `<button type="button" class="text-xs text-gray-400 hover:text-blue-600 underline transition btn-edit-leave-history" data-id="${h.ids[0]}" data-member="${h.member}">수정</button>`;
 
-                const isNewTimeBased = (newType === '외출' || newType === '조퇴' || newType === '지각');
-
-                let dailyChanged = false;
-                let persistentChanged = false;
-                let foundAndRemoved = false;
-
-                if (originalType === 'daily') {
-                    const index = State.appState.dailyOnLeaveMembers.findIndex(
-                        r => r.member === memberName && (r.startTime || '') === originalStart
-                    );
-                    if (index > -1) {
-                        State.appState.dailyOnLeaveMembers.splice(index, 1);
-                        dailyChanged = true;
-                        foundAndRemoved = true;
-                    }
-                } else { 
-                    const index = State.persistentLeaveSchedule.onLeaveMembers.findIndex(
-                        r => r.member === memberName && (r.startDate || '') === originalStart
-                    );
-                    if (index > -1) {
-                        State.persistentLeaveSchedule.onLeaveMembers.splice(index, 1);
-                        persistentChanged = true;
-                        foundAndRemoved = true;
-                    }
-                }
-
-                if (!foundAndRemoved) {
-                    showToast('수정할 원본 기록을 찾지 못했습니다.', true);
-                    return;
-                }
-
-                if (isNewTimeBased) {
-                    if (!newStartTime) {
-                        showToast('시간 기반 근태는 시작 시간이 필수입니다.', true);
-                        return;
-                    }
-                    State.appState.dailyOnLeaveMembers.push({
-                        member: memberName,
-                        type: newType,
-                        startTime: newStartTime,
-                        endTime: (newType === '외출') ? newEndTime : null 
-                    });
-                    dailyChanged = true;
-                } else { 
-                    if (!newStartDate) {
-                        showToast('날짜 기반 근태는 시작일이 필수입니다.', true);
-                        return;
-                    }
-                    State.persistentLeaveSchedule.onLeaveMembers.push({
-                        id: `leave-${Date.now()}`,
-                        member: memberName,
-                        type: newType,
-                        startDate: newStartDate,
-                        endDate: newEndDate || newStartDate
-                    });
-                    persistentChanged = true;
-                }
-
-                try {
-                    if (dailyChanged) {
-                        await saveStateToFirestore();
-                    }
-                    if (persistentChanged) {
-                        await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
-                    }
-                    showToast('근태 기록이 수정되었습니다.');
-                    editLeaveModal.classList.add('hidden');
-                } catch (e) {
-                    console.error("Error saving updated leave record:", e);
-                    showToast('기록 저장 중 오류가 발생했습니다.', true);
-                }
-            });
+                    historyListEl.innerHTML += `
+                        <li class="flex justify-between items-center bg-white p-2 rounded border border-gray-100 shadow-sm">
+                            <div>
+                                <span class="font-semibold text-gray-700 text-xs block flex items-center">
+                                    <span class="text-blue-500 mr-1">[${h.nth}차]</span> ${h.startDate} ${h.endDate && h.endDate !== h.startDate ? '~ ' + h.endDate.slice(5) : ''}
+                                    ${mergedBadge}
+                                </span>
+                                <span class="text-[10px] text-gray-400">-${h.days}일 차감</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                ${editBtnHtml}
+                                <button type="button" class="text-xs text-gray-400 hover:text-red-600 underline transition btn-delete-leave-history" data-ids="${idsString}" data-member="${h.member}">삭제</button>
+                            </div>
+                        </li>`;
+                });
+            }
         }
+    };
 
-        const editLeaveTypeSelect = document.getElementById('edit-leave-type');
-        if (editLeaveTypeSelect) {
-            editLeaveTypeSelect.addEventListener('change', (e) => {
-                const newType = e.target.value;
-                const isTimeBased = (newType === '외출' || newType === '조퇴' || newType === '지각');
-                const isOuting = (newType === '외출');
-                
-                document.getElementById('edit-leave-time-fields').classList.toggle('hidden', !isTimeBased);
-                document.getElementById('edit-leave-date-fields').classList.toggle('hidden', isTimeBased);
-                
-                const endTimeWrapper = document.getElementById('edit-leave-end-time-wrapper');
-                if (endTimeWrapper) {
-                    endTimeWrapper.classList.toggle('hidden', !isOuting);
-                }
-            });
+    // --- 탭 UI 활성화 헬퍼 ---
+    const activateTab = (tab) => {
+        if (tab === 'status') {
+            tabStatus.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
+            tabSetting.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
+            panelStatus.classList.remove('hidden');
+            panelSetting.classList.add('hidden');
+            if(confirmBtn) confirmBtn.classList.add('hidden'); 
+            updateStatusView();
+        } else {
+            tabSetting.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
+            tabStatus.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
+            panelSetting.classList.remove('hidden');
+            panelStatus.classList.add('hidden');
+            if(confirmBtn) {
+                confirmBtn.classList.remove('hidden');
+                // 탭 전환 시 수정 모드 해제 (기본 생성 모드로 리셋)
+                confirmBtn.textContent = '설정 저장';
+                delete confirmBtn.dataset.editingId;
+                const sInput = document.getElementById('leave-start-date-input');
+                const eInput = document.getElementById('leave-end-date-input');
+                if(sInput) sInput.value = '';
+                if(eInput) eInput.value = '';
+                document.querySelectorAll('input[name="leave-type"]').forEach((r,i) => r.checked = i===0);
+            }
+        }
+    };
+
+    // --- 탭 클릭 리스너 ---
+    if (tabSetting) tabSetting.onclick = () => activateTab('setting');
+    if (tabStatus) tabStatus.onclick = () => activateTab('status');
+
+    // --- 초기 탭 설정 ---
+    activateTab(initialTab);
+
+    // --- 라디오 버튼 렌더링 ---
+    container.innerHTML = '';
+    leaveTypes.forEach((type, index) => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center';
+        div.innerHTML = `
+            <input id="leave-type-${index}" name="leave-type" type="radio" value="${type}" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500 leave-type-radio">
+            <label for="leave-type-${index}" class="ml-2 block text-sm font-medium text-gray-700">${type}</label>
+        `;
+        container.appendChild(div);
+    });
+
+    container.addEventListener('change', (e) => {
+        if (e.target.classList.contains('leave-type-radio')) {
+            const selectedType = e.target.value;
+            if (selectedType === '연차' || selectedType === '출장' || selectedType === '결근') {
+                dateInputsDiv.classList.remove('hidden');
+            } else {
+                dateInputsDiv.classList.add('hidden');
+            }
+        }
+    });
+
+    const firstRadio = container.querySelector('input[type="radio"]');
+    if (firstRadio) {
+        firstRadio.checked = true;
+        if (firstRadio.value === '연차' || firstRadio.value === '출장' || firstRadio.value === '결근') {
+            dateInputsDiv.classList.remove('hidden');
+        } else {
+            dateInputsDiv.classList.add('hidden');
         }
     }
-}
+
+    // 날짜 선택 시 차감 일수 미리보기
+    const sInput = document.getElementById('leave-start-date-input');
+    const eInput = document.getElementById('leave-end-date-input');
+    const preview = document.getElementById('leave-count-preview');
+    
+    const updatePreview = () => {
+        if (!preview) return;
+        if (sInput.value && eInput.value) {
+            const diff = calculateDateDifference(sInput.value, eInput.value);
+            preview.textContent = `총 ${diff}일 차감 예정`;
+        } else if (sInput.value) {
+            preview.textContent = `1일 차감 예정`;
+        } else {
+            preview.textContent = '';
+        }
+    };
+    if (sInput) sInput.addEventListener('change', updatePreview);
+    if (eInput) eInput.addEventListener('change', updatePreview);
+};
+
+export const renderManualAddModalDatalists = (appState, appConfig) => {
+    const memberDatalist = document.getElementById('manual-add-member-list');
+    const taskDatalist = document.getElementById('manual-add-task-list');
+
+    if (!memberDatalist || !taskDatalist) return;
+
+    memberDatalist.innerHTML = '';
+    const staffMembers = (appConfig.teamGroups || []).flatMap(g => g.members);
+    const partTimerMembers = (appState.partTimers || []).map(p => p.name);
+
+    const allMembers = [...new Set([...staffMembers, ...partTimerMembers])].sort();
+
+    allMembers.forEach(member => {
+        const option = document.createElement('option');
+        option.value = member;
+        memberDatalist.appendChild(option);
+    });
+
+    taskDatalist.innerHTML = '';
+    const allTasks = [...new Set((appConfig.taskGroups || []).flatMap(group => group.tasks))].sort();
+
+    allTasks.forEach(task => {
+        const option = document.createElement('option');
+        option.value = task;
+        taskDatalist.appendChild(option);
+    });
+};

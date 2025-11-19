@@ -396,29 +396,35 @@ export function setupFormModalListeners() {
             // 1. 연차 삭제 버튼
             const delBtn = e.target.closest('.btn-delete-leave-history');
             if (delBtn) {
-                if(!confirm('정말 이 내역을 삭제하시겠습니까?')) return;
+                if(!confirm('정말 이 내역을 삭제하시겠습니까? (병합된 내역은 모두 삭제됩니다)')) return;
                 
-                const id = delBtn.dataset.id;
-                const member = delBtn.dataset.member;
-                const targetEntry = State.persistentLeaveSchedule.onLeaveMembers.find(l => l.id === id);
-
+                // data-ids에 쉼표로 구분된 ID 목록이 있음 (병합된 경우 대비)
+                const idsString = delBtn.dataset.ids || '';
+                const idsToDelete = idsString.split(',').filter(Boolean);
+                
                 // 1) Persistent 저장소에서 삭제
-                State.persistentLeaveSchedule.onLeaveMembers = State.persistentLeaveSchedule.onLeaveMembers.filter(l => l.id !== id);
+                State.persistentLeaveSchedule.onLeaveMembers = State.persistentLeaveSchedule.onLeaveMembers.filter(l => !idsToDelete.includes(l.id));
                 await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
 
                 // 2) 로컬 이력 데이터에서 삭제
-                if (targetEntry) {
-                    updateLocalHistoryForLeave(targetEntry, 'remove');
-                }
-
-                // 3) 오늘 날짜 실시간 근태 반영
                 const today = getTodayDateString();
-                if (targetEntry && today >= targetEntry.startDate && today <= (targetEntry.endDate || targetEntry.startDate)) {
-                    State.appState.dateBasedOnLeaveMembers = State.persistentLeaveSchedule.onLeaveMembers.filter(entry => {
-                        const ed = entry.endDate || entry.startDate;
-                        return today >= entry.startDate && today <= ed;
+                
+                // 삭제 대상 ID들에 대해 반복 처리
+                // (주의: targetEntry 정보를 미리 백업해둬야 함)
+                idsToDelete.forEach(id => {
+                    // 로컬 이력에서 해당 ID를 가진 데이터를 찾아서 제거하는 헬퍼는 없으므로
+                    // 여기서는 '해당 날짜'를 추정하기 어렵기 때문에, 
+                    // 전체 로컬 이력을 순회하며 해당 ID를 가진 onLeaveMembers 항목 제거
+                     State.allHistoryData.forEach(dayData => {
+                        if (dayData.onLeaveMembers) {
+                            const initialLen = dayData.onLeaveMembers.length;
+                            dayData.onLeaveMembers = dayData.onLeaveMembers.filter(l => l.id !== id);
+                        }
                     });
-                }
+                });
+
+                // 3) 오늘 날짜 실시간 근태 배열에서도 제거
+                State.appState.dateBasedOnLeaveMembers = State.appState.dateBasedOnLeaveMembers.filter(l => !idsToDelete.includes(l.id));
 
                 // 4) 리스트 갱신
                 renderLeaveTypeModalOptions(State.LEAVE_TYPES, 'status');
@@ -476,16 +482,31 @@ export function setupFormModalListeners() {
                 const editingId = DOM.confirmLeaveBtn.dataset.editingId;
 
                 // ✅ 중복 체크 (수정 시 자기 자신은 제외)
-                const isDuplicate = State.persistentLeaveSchedule.onLeaveMembers.some(l => 
-                    l.member === memberName && 
-                    l.type === type && 
-                    l.startDate === startDate && 
-                    (l.endDate || l.startDate) === endDate &&
-                    l.id !== editingId // 자기 자신 제외
-                );
+                // 입력된 날짜 범위(startDate ~ endDate) 내에 이미 기록이 있는지 확인
+                // (날짜 문자열 비교만으로는 범위 중복 체크가 어려우므로, 날짜를 순회하며 확인)
+                let isDuplicate = false;
+                const startDt = new Date(startDate);
+                const endDt = new Date(endDate);
+                
+                for(let dt = new Date(startDt); dt <= endDt; dt.setDate(dt.getDate() + 1)) {
+                    const checkDate = dt.toISOString().slice(0, 10);
+                    const conflict = State.persistentLeaveSchedule.onLeaveMembers.some(l => {
+                        const lStart = l.startDate;
+                        const lEnd = l.endDate || l.startDate;
+                        // ID가 같으면(수정 중인 자기 자신) 중복 아님
+                        if (l.id === editingId) return false;
+                        // 멤버와 타입이 같고, 날짜가 겹치면 중복
+                        return l.member === memberName && l.type === type && (checkDate >= lStart && checkDate <= lEnd);
+                    });
+
+                    if (conflict) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
 
                 if (isDuplicate) {
-                    showToast('이미 동일한 날짜에 등록된 내역이 있습니다.', true);
+                    showToast('이미 해당 기간에 동일한 유형의 기록이 존재합니다.', true);
                     return;
                 }
 
@@ -528,12 +549,12 @@ export function setupFormModalListeners() {
                 updateLocalHistoryForLeave(leaveEntry, 'add');
 
                 // 3. 오늘 날짜에 해당하면 실시간 반영
-                if (today >= startDate && today <= endDate) {
-                    State.appState.dateBasedOnLeaveMembers = State.persistentLeaveSchedule.onLeaveMembers.filter(entry => {
-                        const ed = entry.endDate || entry.startDate;
-                        return today >= entry.startDate && today <= ed;
-                    });
-                }
+                // (단순 필터링으로 갱신)
+                const todayLeaves = State.persistentLeaveSchedule.onLeaveMembers.filter(entry => {
+                    const ed = entry.endDate || entry.startDate;
+                    return today >= entry.startDate && today <= ed;
+                });
+                State.appState.dateBasedOnLeaveMembers = todayLeaves;
 
                 const diffDays = calculateDateDifference(startDate, endDate);
                 
@@ -541,6 +562,11 @@ export function setupFormModalListeners() {
                     showToast('수정되었습니다.');
                     // 목록으로 돌아가기
                     renderLeaveTypeModalOptions(State.LEAVE_TYPES, 'status');
+                    
+                    // 입력 폼 초기화
+                    document.getElementById('leave-start-date-input').value = '';
+                    document.getElementById('leave-end-date-input').value = '';
+
                 } else {
                     if (type === '연차') {
                          showToast(`${memberName}님 ${diffDays}일 연차 처리 완료.`);
