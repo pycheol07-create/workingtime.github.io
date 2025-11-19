@@ -336,6 +336,7 @@ export const downloadReportExcel = (reportData, format = 'xlsx') => {
             '총 처리량(개)': taskSummary[t].quantity,
             '분당 처리량': taskSummary[t].avgThroughput.toFixed(2),
             '개당 처리비용(원)': Math.round(taskSummary[t].avgCostPerItem),
+            '평균 투입인원': (taskSummary[t].avgDailyStaff || 0).toFixed(1),
             '총 인원(명)': taskSummary[t].avgStaff,
             '인당 효율': taskSummary[t].efficiency.toFixed(2)
         }));
@@ -404,7 +405,7 @@ export const downloadReportExcel = (reportData, format = 'xlsx') => {
 
 
 // =================================================================
-// ✅ 개인 리포트 엑셀/CSV 다운로드
+// ✅ 개인 리포트 엑셀/CSV 다운로드 (수정: 출퇴근 시간 포함)
 // =================================================================
 export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
     if (!reportData) return showToast('개인 리포트 데이터가 없습니다.', true);
@@ -419,6 +420,8 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
             logData = stats.dailyLogs.map(log => ({
                 '날짜': log.date,
                 '근태 상태': log.attendance,
+                '출근': log.inTime ? formatTimeTo24H(log.inTime) : '-', // ✅ 추가
+                '퇴근': log.outTime ? formatTimeTo24H(log.outTime) : '-', // ✅ 추가
                 '주요 업무': log.mainTask,
                 '총 근무 시간': formatDuration(log.workTime)
             }));
