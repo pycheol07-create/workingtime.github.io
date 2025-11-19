@@ -691,6 +691,9 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    const memberFilter = document.getElementById('history-record-filter-member');
+    const taskFilter = document.getElementById('history-record-filter-task');
+
     if (memberFilter) {
         memberFilter.addEventListener('change', () => {
             const dateKey = document.getElementById('history-records-date').textContent;
@@ -704,6 +707,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    const batchApplyBtn = document.getElementById('history-batch-apply-btn');
     if (batchApplyBtn) {
         batchApplyBtn.addEventListener('click', async () => {
             const dateKey = document.getElementById('history-records-date').textContent;
@@ -879,7 +883,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // --- 정렬/필터 로직 등록 ---
     const setupFilterListeners = (container, stateKeySort, stateKeyFilter, refreshFunc) => {
         if (!container) return;
 
@@ -956,7 +959,6 @@ export function setupHistoryModalListeners() {
         }
     });
 
-
     const historyHeader = document.getElementById('history-modal-header');
     if (DOM.historyModal && historyHeader && DOM.historyModalContentBox) {
         makeDraggable(DOM.historyModal, historyHeader, DOM.historyModalContentBox);
@@ -974,8 +976,6 @@ export function setupHistoryModalListeners() {
     setupRecordManagerListeners();
     setupAttendanceModalButtons();
 }
-
-// === 헬퍼 함수 (외부) ===
 
 function handleExistingAttendanceButtons(e) {
     const editBtn = e.target.closest('button[data-action="edit-attendance"]');
@@ -1069,7 +1069,6 @@ function setupRecordManagerListeners() {
 }
 
 function setupAttendanceModalButtons() {
-    // ✅ [신규] 근태 수정 저장 버튼 리스너
     if (DOM.confirmEditAttendanceBtn) {
         DOM.confirmEditAttendanceBtn.addEventListener('click', async () => {
             const dateKey = DOM.editAttendanceDateKeyInput.value;
@@ -1097,13 +1096,11 @@ function setupAttendanceModalButtons() {
             try {
                 const todayKey = getTodayDateString();
                 
-                // 1. 로컬 데이터 업데이트
                 const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
                 if (dayDataIndex > -1) {
                      State.allHistoryData[dayDataIndex].onLeaveMembers[index] = newEntry;
                 }
 
-                // 2. DB 저장
                 if (dateKey === todayKey) {
                      const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
                      const docSnap = await getDoc(dailyDocRef);
@@ -1125,7 +1122,6 @@ function setupAttendanceModalButtons() {
                 showToast('근태 기록이 수정되었습니다.');
                 DOM.editAttendanceRecordModal.classList.add('hidden');
                 
-                // UI 갱신
                 const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
                     ? State.allHistoryData.filter(d => {
                         const date = d.id;
@@ -1148,7 +1144,6 @@ function setupAttendanceModalButtons() {
 
     if (DOM.cancelEditAttendanceBtn) DOM.cancelEditAttendanceBtn.addEventListener('click', ()=>{ if(DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden'); });
     
-    // ✅ [신규] 근태 추가 저장 버튼 리스너
     if (DOM.confirmAddAttendanceBtn) {
         DOM.confirmAddAttendanceBtn.addEventListener('click', async () => {
             const dateKey = DOM.addAttendanceDateKeyInput.value;
@@ -1161,7 +1156,7 @@ function setupAttendanceModalButtons() {
             const newEntry = {
                 member,
                 type,
-                id: `manual-leave-${Date.now()}` // 고유 ID 부여
+                id: `manual-leave-${Date.now()}`
             };
 
             if (isTimeBased) {
@@ -1177,7 +1172,6 @@ function setupAttendanceModalButtons() {
             try {
                 const todayKey = getTodayDateString();
                 
-                // 1. 로컬 데이터 업데이트
                 const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
                 if (dayDataIndex > -1) {
                     if (!State.allHistoryData[dayDataIndex].onLeaveMembers) {
@@ -1193,7 +1187,6 @@ function setupAttendanceModalButtons() {
                     });
                 }
 
-                // 2. DB 저장
                 if (dateKey === todayKey) {
                     const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
                     const docSnap = await getDoc(dailyDocRef);
@@ -1219,7 +1212,6 @@ function setupAttendanceModalButtons() {
                 showToast('근태 기록이 추가되었습니다.');
                 DOM.addAttendanceRecordModal.classList.add('hidden');
 
-                // UI 갱신
                  const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
                     ? State.allHistoryData.filter(d => {
                         const date = d.id;

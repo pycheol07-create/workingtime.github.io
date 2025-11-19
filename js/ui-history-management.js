@@ -83,8 +83,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
 
     const getValue = (val) => (val !== undefined && val !== null) ? val : '';
 
-    // ✅ [신규] 입력 필드용 공통 속성 (콤마 자동 적용)
-    // oninput: 숫자 외 제거 -> 콤마 포맷팅
+    // 입력 필드용 공통 속성 (콤마 자동 적용)
     const inputProps = `type="text" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');"`;
 
     container.innerHTML = `
@@ -236,6 +235,10 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     const turnoverRatio = calculateTurnoverRatio(currentStats.revenue, currentStats.avgInventoryAmt);
     const prevTurnoverRatio = prevStats ? calculateTurnoverRatio(prevStats.revenue, prevStats.avgInventoryAmt) : 0;
     
+    // ✅ [수정] 누락된 변수(avgOrderPrice) 계산 로직 추가
+    const avgOrderPrice = currentStats.orderCount > 0 ? currentStats.revenue / currentStats.orderCount : 0;
+    const prevAvgOrderPrice = (prevStats && prevStats.orderCount > 0) ? prevStats.revenue / prevStats.orderCount : 0;
+
     // 5. 일자별 테이블 생성 (월간/주간 뷰일 때 유용)
     let dailyTableHtml = '';
     if (viewMode === 'management-monthly' || viewMode === 'management-weekly') {
