@@ -64,8 +64,6 @@ const calculateLeaveUsage = (memberName) => {
         for (let i = 1; i < ranges.length; i++) {
             const next = ranges[i];
             // 현재 구간의 끝과 다음 구간의 시작이 겹치거나 이어지면 병합
-            // (하루 단위이므로 end + 1일 == next.start 인 경우도 이어지는 걸로 볼 수 있으나, 
-            //  여기서는 날짜 중복 '차감' 방지가 목적이므로 겹치는 것만 처리)
             if (next.start <= current.end) {
                 current.end = Math.max(current.end, next.end);
             } else {
@@ -83,13 +81,22 @@ const calculateLeaveUsage = (memberName) => {
         }, 0);
     }
 
-    // 표시용 히스토리 데이터 가공 (개별 내역은 그대로 보여줌)
-    const usageHistory = history.map((item, index) => {
+    // ✅ [수정] 표시용 차수(Nth)를 누적 일수 기준으로 계산
+    let cumulativeDays = 0;
+    const usageHistory = history.map((item) => {
         const days = calculateDateDifference(item.startDate, item.endDate);
+        
+        const startNth = cumulativeDays + 1;
+        const endNth = cumulativeDays + days;
+        cumulativeDays += days;
+
+        // 1일이면 "1", 2일 이상이면 "1~3" 형태로 표시
+        const nthStr = (days > 1) ? `${startNth}~${endNth}` : `${startNth}`;
+
         return {
             ...item,
             days,
-            nth: index + 1 // 몇 번째 연차인지
+            nth: nthStr 
         };
     });
 
@@ -242,10 +249,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             const isReturned = attendance && attendance.status === 'returned';
             const isBeforeWork = !isClockedIn;
 
-            // ✅ [수정] 퇴근 완료자나 출근 전인 사람도 선택 가능하도록 수정 (필요시 주석 해제 또는 조건 변경)
-            // 현재 로직: 업무 중, 일시정지, 휴가 중, 출근 안 한 사람은 선택 불가
-            // 단, 관리자가 강제로 넣고 싶을 수 있으므로 '선택 불가' 로직은 유지하되, 시각적 표현만 처리
-            
             // 기본: 출근해야만 선택 가능
             const isDisabled = isOngoing || isPaused || isOnLeave || !isClockedIn;
 
