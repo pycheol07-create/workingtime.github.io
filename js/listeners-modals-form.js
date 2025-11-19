@@ -11,10 +11,10 @@ import {
     saveStateToFirestore 
 } from './app-data.js';
 
-import { getTodayDateString, getCurrentTime, showToast, calcElapsedMinutes, calculateDateDifference } from './utils.js';
+import { getTodayDateString, getCurrentTime, showToast, calcElapsedMinutes, calculateDateDifference, formatDuration, calcTotalPauseMinutes } from './utils.js';
 import {
     renderTeamSelectionModalContent,
-    renderLeaveTypeModalOptions // ✅ [추가] 연차 현황 리렌더링을 위해 임포트
+    renderLeaveTypeModalOptions
 } from './ui-modals.js';
 import {
     startWorkGroup,
@@ -70,8 +70,94 @@ const updateLocalHistoryForLeave = (leaveEntry, action = 'add') => {
     }
 };
 
+// ✅ [신규] 휴식 시간 관리 상태 변수 및 렌더링 함수
+let currentEditingPauses = [];
+
+const renderPauseListInModal = () => {
+    const listEl = document.getElementById('edit-pause-list');
+    const totalEl = document.getElementById('edit-total-pause-time');
+    if (!listEl) return;
+
+    listEl.innerHTML = '';
+    
+    // 시간순 정렬
+    currentEditingPauses.sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+
+    if (currentEditingPauses.length === 0) {
+        listEl.innerHTML = '<div class="text-center text-gray-400 py-4 text-xs">기록된 휴식 시간이 없습니다.</div>';
+    } else {
+        currentEditingPauses.forEach((p, index) => {
+            const row = document.createElement('div');
+            row.className = 'flex justify-between items-center bg-white p-2 rounded border border-gray-200';
+            row.innerHTML = `
+                <span class="text-gray-700 font-mono">${p.start} ~ ${p.end || '진행중'}</span>
+                <button type="button" class="text-xs text-red-500 hover:text-red-700 delete-pause-btn underline" data-index="${index}">삭제</button>
+            `;
+            listEl.appendChild(row);
+        });
+    }
+    
+    // 총 휴식 시간 업데이트
+    const totalMin = calcTotalPauseMinutes(currentEditingPauses);
+    if (totalEl) totalEl.textContent = `총 ${formatDuration(totalMin)}`;
+};
+
 
 export function setupFormModalListeners() {
+
+    // 1. 수정 버튼 클릭 시 휴식 시간 데이터 초기화 (Delegation)
+    document.addEventListener('click', (e) => {
+         const editBtn = e.target.closest('button[data-action="edit"]');
+         if (editBtn) {
+             const recordId = editBtn.dataset.recordId;
+             const record = (State.appState.workRecords || []).find(r => String(r.id) === String(recordId));
+             if (record) {
+                 // 기존 기록의 휴식 데이터를 복사
+                 currentEditingPauses = JSON.parse(JSON.stringify(record.pauses || []));
+                 renderPauseListInModal();
+             }
+         }
+    });
+
+    // 2. 휴식 시간 추가 버튼
+    const addPauseBtn = document.getElementById('edit-pause-add-btn');
+    if (addPauseBtn) {
+        addPauseBtn.addEventListener('click', () => {
+            const startInput = document.getElementById('edit-pause-add-start');
+            const endInput = document.getElementById('edit-pause-add-end');
+            const start = startInput.value;
+            const end = endInput.value;
+
+            if (!start) {
+                showToast('휴식 시작 시간을 입력해주세요.', true);
+                return;
+            }
+            // 종료 시간이 있으면 유효성 검사
+            if (end && start >= end) {
+                showToast('종료 시간은 시작 시간보다 늦어야 합니다.', true);
+                return;
+            }
+
+            currentEditingPauses.push({ start, end: end || null, type: 'break' });
+            renderPauseListInModal();
+            
+            // 입력 초기화
+            startInput.value = '';
+            endInput.value = '';
+        });
+    }
+
+    // 3. 휴식 시간 삭제 버튼 (Delegation)
+    const pauseListEl = document.getElementById('edit-pause-list');
+    if (pauseListEl) {
+        pauseListEl.addEventListener('click', (e) => {
+            if (e.target.classList.contains('delete-pause-btn')) {
+                const index = parseInt(e.target.dataset.index, 10);
+                currentEditingPauses.splice(index, 1);
+                renderPauseListInModal();
+            }
+        });
+    }
 
     if (DOM.confirmQuantityBtn) {
         DOM.confirmQuantityBtn.addEventListener('click', async () => {
@@ -274,6 +360,7 @@ export function setupFormModalListeners() {
         });
     }
 
+    // ✅ [수정] 업무 기록 수정 저장 리스너
     if (DOM.confirmEditBtn) {
         DOM.confirmEditBtn.addEventListener('click', async () => {
             const recordId = State.context.recordToEditId;
@@ -299,13 +386,15 @@ export function setupFormModalListeners() {
                 const updates = {
                     task,
                     member,
-                    startTime
+                    startTime,
+                    pauses: currentEditingPauses // ✅ 수정된 휴식 시간 반영
                 };
 
                 if (endTime) {
                     updates.endTime = endTime;
                     updates.status = 'completed';
-                    updates.duration = calcElapsedMinutes(startTime, endTime, record.pauses || []);
+                    // ✅ 휴식 시간을 반영하여 소요 시간 재계산
+                    updates.duration = calcElapsedMinutes(startTime, endTime, currentEditingPauses);
                 } else {
                     updates.endTime = null;
                     updates.status = record.status === 'completed' ? 'ongoing' : record.status;
@@ -410,14 +499,9 @@ export function setupFormModalListeners() {
                 const today = getTodayDateString();
                 
                 // 삭제 대상 ID들에 대해 반복 처리
-                // (주의: targetEntry 정보를 미리 백업해둬야 함)
                 idsToDelete.forEach(id => {
-                    // 로컬 이력에서 해당 ID를 가진 데이터를 찾아서 제거하는 헬퍼는 없으므로
-                    // 여기서는 '해당 날짜'를 추정하기 어렵기 때문에, 
-                    // 전체 로컬 이력을 순회하며 해당 ID를 가진 onLeaveMembers 항목 제거
                      State.allHistoryData.forEach(dayData => {
                         if (dayData.onLeaveMembers) {
-                            const initialLen = dayData.onLeaveMembers.length;
                             dayData.onLeaveMembers = dayData.onLeaveMembers.filter(l => l.id !== id);
                         }
                     });
@@ -482,8 +566,6 @@ export function setupFormModalListeners() {
                 const editingId = DOM.confirmLeaveBtn.dataset.editingId;
 
                 // ✅ 중복 체크 (수정 시 자기 자신은 제외)
-                // 입력된 날짜 범위(startDate ~ endDate) 내에 이미 기록이 있는지 확인
-                // (날짜 문자열 비교만으로는 범위 중복 체크가 어려우므로, 날짜를 순회하며 확인)
                 let isDuplicate = false;
                 const startDt = new Date(startDate);
                 const endDt = new Date(endDate);
@@ -549,7 +631,6 @@ export function setupFormModalListeners() {
                 updateLocalHistoryForLeave(leaveEntry, 'add');
 
                 // 3. 오늘 날짜에 해당하면 실시간 반영
-                // (단순 필터링으로 갱신)
                 const todayLeaves = State.persistentLeaveSchedule.onLeaveMembers.filter(entry => {
                     const ed = entry.endDate || entry.startDate;
                     return today >= entry.startDate && today <= ed;

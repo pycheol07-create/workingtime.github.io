@@ -20,7 +20,7 @@ import {
 
 import {
     formatDuration, isWeekday, getWeekOfYear,
-    getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast, formatTimeTo24H, calcTotalPauseMinutes // ✅ [수정] calcTotalPauseMinutes 추가
+    getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast, formatTimeTo24H, calcTotalPauseMinutes // ✅ [수정] 임포트 추가
 } from './utils.js';
 
 import {
@@ -755,6 +755,10 @@ export const renderHistoryRecordsTable = (dateKey) => {
             taskOptions += `<option value="${t}" ${t === r.task ? 'selected' : ''}>${t}</option>`;
         });
 
+        // ✅ [수정] 휴식 시간 계산 및 표시
+        const pauseMinutes = calcTotalPauseMinutes(r.pauses);
+        const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴: ${formatDuration(pauseMinutes)})</span>` : '';
+
         tr.innerHTML = `
             <td class="px-6 py-4 font-medium text-gray-900 w-[15%]">${r.member}</td>
             <td class="px-6 py-4 w-[20%]">
@@ -769,7 +773,7 @@ export const renderHistoryRecordsTable = (dateKey) => {
                 <input type="time" class="history-record-end w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.endTime || ''}">
             </td>
             <td class="px-6 py-4 text-gray-500 text-xs w-[15%]">
-                ${formatDuration(r.duration)}
+                ${formatDuration(r.duration)}${pauseText}
             </td>
             <td class="px-6 py-4 text-right space-x-2 w-[20%]">
                 <button class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 
