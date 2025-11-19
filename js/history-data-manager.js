@@ -52,9 +52,7 @@ export const syncTodayToHistory = async () => {
             confirmedZeroTasks: dailyData.confirmedZeroTasks || [],
             onLeaveMembers: dailyData.onLeaveMembers || [],
             partTimers: dailyData.partTimers || [],
-            dailyAttendance: dailyData.dailyAttendance || {},
-            // ✅ [신규] 경영 지표 동기화 추가
-            management: dailyData.management || {}
+            dailyAttendance: dailyData.dailyAttendance || {}
         };
 
         const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
@@ -109,8 +107,6 @@ export async function saveProgress(isAutoSave = false) {
             onLeaveMembers: dailyData.onLeaveMembers || [],
             partTimers: dailyData.partTimers || [],
             dailyAttendance: dailyData.dailyAttendance || {},
-            // ✅ [신규] 경영 지표 저장 추가
-            management: dailyData.management || {},
             savedAt: now
         };
 
@@ -219,7 +215,7 @@ export async function fetchAllHistoryData() {
 }
 
 
-// 이력(또는 오늘)에 새 업무 기록 추가
+// ✅ [신규] 이력(또는 오늘)에 새 업무 기록 추가
 export async function addHistoryWorkRecord(dateKey, newRecordData) {
     const todayKey = getTodayDateString();
 
@@ -340,45 +336,4 @@ export async function deleteHistoryWorkRecord(dateKey, recordId) {
 
     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
     await setDoc(historyDocRef, { workRecords: newRecords }, { merge: true });
-}
-
-// ✅ [신규] 경영 지표 저장 함수
-export async function saveManagementData(dateKey, managementData) {
-    const todayKey = getTodayDateString();
-
-    // 1. 로컬 상태 업데이트
-    const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-    if (dayIndex > -1) {
-        State.allHistoryData[dayIndex].management = managementData;
-    } else {
-        // 날짜 데이터가 아예 없는 경우 생성 (드문 케이스)
-        State.allHistoryData.push({
-            id: dateKey,
-            workRecords: [],
-            taskQuantities: {},
-            onLeaveMembers: [],
-            partTimers: [],
-            management: managementData
-        });
-        State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
-    }
-
-    // 2. Firestore 업데이트
-    const updates = { management: managementData };
-
-    try {
-        // 오늘 날짜라면 daily_data에도 저장 (실시간 동기화 유지)
-        if (dateKey === todayKey) {
-            const dailyDocRef = getDailyDocRef();
-            await setDoc(dailyDocRef, updates, { merge: true });
-        }
-
-        // history 컬렉션에 저장 (영구 보관)
-        const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-        await setDoc(historyDocRef, updates, { merge: true });
-
-    } catch (e) {
-        console.error("Error saving management data:", e);
-        throw e; 
-    }
 }

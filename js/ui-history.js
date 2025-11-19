@@ -27,16 +27,10 @@ import {
     renderMonthlyHistory
 } from './ui-history-summary.js';
 
-// 5. 개인 리포트 관련 함수
+// ✅ [신규] 5. 개인 리포트 관련 함수
 import {
     renderPersonalReport
 } from './ui-history-personal.js';
-
-// ✅ [신규] 6. 경영 지표 관련 함수
-import {
-    renderManagementDaily,
-    renderManagementSummary
-} from './ui-history-management.js';
 
 
 // --- 모든 함수를 ui.js가 사용할 수 있도록 다시 내보내기 ---
@@ -60,10 +54,6 @@ export {
     renderWeeklyHistory,
     renderMonthlyHistory,
 
-    // 개인 리포트
-    renderPersonalReport,
-
-    // ✅ [신규] 경영 지표
-    renderManagementDaily,
-    renderManagementSummary
+    // ✅ [신규] 개인 리포트
+    renderPersonalReport
 };

@@ -138,11 +138,6 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
             dayAttendanceStatus.push(type);
         });
 
-        // [신규] 출퇴근 시간 추출
-        const attRecord = day.dailyAttendance && day.dailyAttendance[memberName];
-        const inTime = attRecord ? attRecord.inTime : null;
-        const outTime = attRecord ? attRecord.outTime : null;
-
         // C. 일별 로그
         let mainTask = '-';
         let maxDuration = -1;
@@ -154,9 +149,7 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
             date: date,
             workTime: dayWorkMinutes,
             mainTask: mainTask !== '-' ? `${mainTask} 외` : '-',
-            attendance: dayAttendanceStatus.length > 0 ? dayAttendanceStatus.join(', ') : (dayWorkMinutes > 0 ? '정상근무' : '-'),
-            inTime: inTime, // ✅ 추가
-            outTime: outTime // ✅ 추가
+            attendance: dayAttendanceStatus.length > 0 ? dayAttendanceStatus.join(', ') : (dayWorkMinutes > 0 ? '정상근무' : '-')
         });
     });
 
@@ -402,17 +395,17 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                                         ${getFilterDropdown('dailyLogs', 'attendance', filterState.dailyLogs?.attendance, allDailyAttStatus)}
                                     </div>
                                 </th>
-                                <th class="px-4 py-3">출근</th> <th class="px-4 py-3">퇴근</th> <th class="px-4 py-3">주요 업무</th>
+                                <th class="px-4 py-3">주요 업무</th>
                                 ${th_daily('workTime', '총 근무 시간')}
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                             ${dailyLogs.length === 0 ? '<tr><td colspan="6" class="px-4 py-4 text-center text-gray-400">조건에 맞는 기록 없음</td></tr>' : ''}
+                             ${dailyLogs.length === 0 ? '<tr><td colspan="4" class="px-4 py-4 text-center text-gray-400">조건에 맞는 기록 없음</td></tr>' : ''}
                              ${dailyLogs.map(log => `
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-4 py-3 font-medium text-gray-900">${log.date} (${getDayOfWeek(log.date)})</td>
                                     <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs ${log.attendance==='정상근무'?'bg-green-100 text-green-700':'bg-yellow-100 text-yellow-800'}">${log.attendance}</span></td>
-                                    <td class="px-4 py-3 text-gray-600 font-mono text-xs">${log.inTime ? formatTimeTo24H(log.inTime) : '-'}</td> <td class="px-4 py-3 text-gray-600 font-mono text-xs">${log.outTime ? formatTimeTo24H(log.outTime) : '-'}</td> <td class="px-4 py-3 text-gray-600">${log.mainTask}</td>
+                                    <td class="px-4 py-3 text-gray-600">${log.mainTask}</td>
                                     <td class="px-4 py-3 text-right font-bold text-blue-600">${formatDuration(log.workTime)}</td>
                                 </tr>
                             `).join('')}
