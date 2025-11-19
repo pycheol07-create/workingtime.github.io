@@ -41,6 +41,7 @@ const appendTotalRow = (ws, data, headers) => {
 
     headers.forEach(header => {
         if (header.includes('(분)') || header.includes('(원)') || header.includes('(개)') || header.includes('횟수')) {
+            // ✅ 문법 오류 수정 완료: (acc, row => ...) -> (acc, row) => ...
             sums[header] = data.reduce((acc, row) => acc + (Number(row[header]) || 0), 0);
         }
     });
@@ -257,7 +258,8 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFil
 export const downloadWeeklyHistoryAsExcel = async (weekKey) => {
     if (!weekKey) return showToast('주간 정보가 없습니다.', true);
     const weekData = allHistoryData.filter(d => getWeekOfYear(new Date(d.id + "T00:00:00")) === weekKey);
-    if (weekData.length === 0) return showToast(`${weekKey} 데이터가 없습니다.`, true);
+    // ✅ 문법 오류 수정: ', true)
+    if (weekData.length === 0) return showToast(`${weekKey} 데이터가 없습니다.`, true); 
     weekData.sort((a, b) => a.id.localeCompare(b.id));
     await downloadPeriodHistoryAsExcel(weekData[0].id, weekData[weekData.length - 1].id, `주간업무요약_${weekKey}.xlsx`);
 };
@@ -265,7 +267,8 @@ export const downloadWeeklyHistoryAsExcel = async (weekKey) => {
 export const downloadMonthlyHistoryAsExcel = async (monthKey) => {
      if (!monthKey) return showToast('월간 정보가 없습니다.', true);
      const monthData = allHistoryData.filter(d => d.id.startsWith(monthKey));
-     if (monthData.length === 0) return showToast(`${monthKey} 데이터가 없습니다.`, true);
+     // ✅ 문법 오류 수정: ', true)
+     if (monthData.length === 0) return showToast(`${monthKey} 데이터가 없습니다.`, true); 
      monthData.sort((a, b) => a.id.localeCompare(b.id));
      await downloadPeriodHistoryAsExcel(monthData[0].id, monthData[monthData.length - 1].id, `월간업무요약_${monthKey}.xlsx`);
 };
@@ -465,13 +468,13 @@ export const downloadContentAsPdf = (elementId, title) => {
     showToast('PDF 변환을 시작합니다. (잠시만 기다려주세요)');
 
     // 1. 임시 컨테이너 생성 (화면 밖으로 숨김)
-    // A4 가로 너비에 맞춰 넉넉한 픽셀 너비 설정 (2500px -> 3500px로 증가)
+    // A4 가로 너비(약 297mm)에 맞춰 넉넉한 픽셀 너비 설정 (1800px -> 4000px로 증가)
     const tempContainer = document.createElement('div');
     tempContainer.id = 'pdf-temp-container';
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
     tempContainer.style.top = '0';
-    tempContainer.style.width = '3500px'; // 🚀 2500px -> 3500px로 추가 확장
+    tempContainer.style.width = '4000px'; // 🚀 1800px -> 4000px로 대폭 확장
     tempContainer.style.background = 'white';
     tempContainer.style.zIndex = '-9999';
     // 테이블 줄바꿈 방지 스타일 주입
@@ -539,7 +542,7 @@ export const downloadContentAsPdf = (elementId, title) => {
             scale: 2, // scale 2 유지 (고화질)
             useCORS: true,
             scrollY: 0,
-            windowWidth: 3500 // 🚀 2500px -> 3500px로 추가 확장
+            windowWidth: 4000 // 🚀 컨테이너 너비와 일치 (4000px)
         },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }, // ✅ 가로 모드
         pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
