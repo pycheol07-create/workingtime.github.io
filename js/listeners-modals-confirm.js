@@ -1,22 +1,20 @@
 // === js/listeners-modals-confirm.js ===
-// 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
 
-// ✅ [수정] 모든 import 구문을 파일 최상단으로 이동
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast, getTodayDateString } from './utils.js';
+import { showToast, getTodayDateString, getCurrentTime } from './utils.js';
 import { finalizeStopGroup, stopWorkIndividual } from './app-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
 import { switchHistoryView } from './app-history-logic.js';
-import { render } from './app.js'; // 'render'는 app.js에서
-import { debouncedSaveState, saveStateToFirestore } from './app-data.js'; // 'debouncedSaveState'는 app-data.js에서
-import { saveLeaveSchedule } from './config.js'; // 'saveLeaveSchedule'는 config.js에서
+import { render } from './app.js';
+import { debouncedSaveState, saveStateToFirestore } from './app-data.js';
+import { saveLeaveSchedule } from './config.js';
 
 import { 
     doc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// (listeners-modals.js -> listeners-modals-confirm.js)
+// (내부 헬퍼) 개별 업무 기록 삭제
 const deleteWorkRecordDocument = async (recordId) => {
     if (!recordId) return;
     try {
@@ -29,7 +27,7 @@ const deleteWorkRecordDocument = async (recordId) => {
     }
 };
 
-// (listeners-modals.js -> listeners-modals-confirm.js)
+// (내부 헬퍼) 여러 업무 기록 삭제
 const deleteWorkRecordDocuments = async (recordIds) => {
     if (!recordIds || recordIds.length === 0) return;
     try {
@@ -49,13 +47,10 @@ const deleteWorkRecordDocuments = async (recordIds) => {
     }
 };
 
-
 export function setupConfirmationModalListeners() {
 
-    // (listeners-modals.js -> listeners-modals-confirm.js)
     if (DOM.confirmDeleteBtn) {
         DOM.confirmDeleteBtn.addEventListener('click', async () => {
-
             if (State.context.deleteMode === 'group') {
                 const groupMembers = (State.appState.workRecords || [])
                     .filter(r => String(r.groupId) === String(State.context.recordToDeleteId) && (r.status === 'ongoing' || r.status === 'paused'))
@@ -79,8 +74,7 @@ export function setupConfirmationModalListeners() {
                 } else {
                     showToast('삭제할 완료된 업무가 없습니다.');
                 }
-            }
-            else if (State.context.deleteMode === 'attendance') {
+            } else if (State.context.deleteMode === 'attendance') {
                 const { dateKey, index } = State.context.attendanceRecordToDelete;
                 const dayData = State.allHistoryData.find(d => d.id === dateKey);
 
@@ -91,10 +85,9 @@ export function setupConfirmationModalListeners() {
                         await setDoc(historyDocRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
 
                         showToast(`${deletedRecord.member}님의 '${deletedRecord.type}' 기록이 삭제되었습니다.`);
-
+                        
                         const activeAttendanceTab = document.querySelector('#attendance-history-tabs button.font-semibold');
                         const view = activeAttendanceTab ? activeAttendanceTab.dataset.view : 'attendance-daily';
-
                         await switchHistoryView(view);
                     } catch (e) {
                          console.error('Error deleting attendance record:', e);
@@ -103,15 +96,13 @@ export function setupConfirmationModalListeners() {
                     }
                 }
                 State.context.attendanceRecordToDelete = null;
-            }
-            // ✅ [신규] 메인 화면 근태 기록 삭제 로직
-            else if (State.context.deleteMode === 'leave-record') {
+            } else if (State.context.deleteMode === 'leave-record') {
+                // [기존] 메인 화면 근태 기록 삭제 (수정 모달에서 삭제 시)
                 const { memberName, startIdentifier, type, displayType } = State.context.attendanceRecordToDelete;
                 let dailyChanged = false;
                 let persistentChanged = false;
                 
                 if (type === 'daily') {
-                    // ✅ [수정] (r.startTime || '')을 사용하여 null/undefined와 ""를 동일하게 비교
                     const index = State.appState.dailyOnLeaveMembers.findIndex(
                         r => r.member === memberName && (r.startTime || '') === startIdentifier
                     );
@@ -119,8 +110,7 @@ export function setupConfirmationModalListeners() {
                         State.appState.dailyOnLeaveMembers.splice(index, 1);
                         dailyChanged = true;
                     }
-                } else { // 'persistent'
-                    // ✅ [수정] (r.startDate || '')을 사용하여 null/undefined와 ""를 동일하게 비교
+                } else {
                     const index = State.persistentLeaveSchedule.onLeaveMembers.findIndex(
                         r => r.member === memberName && (r.startDate || '') === startIdentifier
                     );
@@ -132,18 +122,16 @@ export function setupConfirmationModalListeners() {
 
                 if (dailyChanged || persistentChanged) {
                     try {
-                        if (dailyChanged) await saveStateToFirestore(); // ✅ [수정] 일일 근태 즉시 저장
-                        if (persistentChanged) await saveLeaveSchedule(State.db, State.persistentLeaveSchedule); // 영구 근태 즉시 저장
+                        if (dailyChanged) await saveStateToFirestore();
+                        if (persistentChanged) await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
                         showToast(`${memberName}님의 '${displayType}' 기록이 삭제되었습니다.`);
                     } catch (e) {
                         console.error("Error deleting leave record:", e);
                         showToast('기록 삭제 중 오류가 발생했습니다.', true);
-                        // (TODO: Rollback)
                     }
                 } else {
                     showToast('삭제할 기록을 찾지 못했습니다.', true);
                 }
-                
                 State.context.attendanceRecordToDelete = null;
             }
 
@@ -153,7 +141,6 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-confirm.js)
     if (DOM.confirmQuantityOnStopBtn) {
         DOM.confirmQuantityOnStopBtn.addEventListener('click', async () => {
             const quantity = document.getElementById('quantity-on-stop-input').value;
@@ -162,7 +149,6 @@ export function setupConfirmationModalListeners() {
             State.context.groupToStopId = null;
         });
     }
-    // (listeners-modals.js -> listeners-modals-confirm.js)
     if (DOM.cancelQuantityOnStopBtn) {
         DOM.cancelQuantityOnStopBtn.addEventListener('click', async () => {
             await finalizeStopGroup(State.context.groupToStopId, null);
@@ -171,7 +157,6 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-confirm.js)
     if (DOM.confirmStopIndividualBtn) {
         DOM.confirmStopIndividualBtn.addEventListener('click', async () => {
             await stopWorkIndividual(State.context.recordToStopId);
@@ -180,7 +165,6 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-confirm.js)
     if (DOM.confirmStopGroupBtn) {
         DOM.confirmStopGroupBtn.addEventListener('click', async () => {
             if (State.context.groupToStopId) {
@@ -191,7 +175,6 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-confirm.js)
     if (DOM.cancelStopGroupBtn) {
         DOM.cancelStopGroupBtn.addEventListener('click', () => {
             if (DOM.stopGroupConfirmModal) DOM.stopGroupConfirmModal.classList.add('hidden');
@@ -199,7 +182,7 @@ export function setupConfirmationModalListeners() {
         });
     }
     
-    // (listeners-modals.js -> listeners-modals-confirm.js)
+    // ✅ [수정] 외출 복귀 시 기록 삭제 방지 및 종료시간 저장 로직
     if (DOM.confirmCancelLeaveBtn) {
         DOM.confirmCancelLeaveBtn.addEventListener('click', () => {
             const memberName = State.context.memberToCancelLeave;
@@ -207,20 +190,38 @@ export function setupConfirmationModalListeners() {
 
             let dailyChanged = false;
             let persistentChanged = false;
+            let message = '';
 
-            const originalLength = State.appState.dailyOnLeaveMembers.length;
-            State.appState.dailyOnLeaveMembers = State.appState.dailyOnLeaveMembers.filter(entry => entry.member !== memberName);
-            if (State.appState.dailyOnLeaveMembers.length !== originalLength) {
-                dailyChanged = true;
+            // 1. 오늘 날짜 (일일 근태) 확인
+            const todayIndex = State.appState.dailyOnLeaveMembers.findIndex(entry => 
+                entry.member === memberName && !entry.endTime // 아직 종료되지 않은 기록 찾기
+            );
+
+            if (todayIndex > -1) {
+                const entry = State.appState.dailyOnLeaveMembers[todayIndex];
+                
+                if (entry.type === '외출') {
+                    // ✅ 외출 복귀: 종료 시간 기록 (삭제 X)
+                    entry.endTime = getCurrentTime();
+                    dailyChanged = true;
+                    message = `${memberName}님 외출 복귀 처리되었습니다. (기록 저장됨)`;
+                } else {
+                    // 조퇴 등 기타 취소: 기록 삭제
+                    State.appState.dailyOnLeaveMembers.splice(todayIndex, 1);
+                    dailyChanged = true;
+                    message = `${memberName}님 근태 기록이 취소(삭제)되었습니다.`;
+                }
             }
 
+            // 2. 영구 일정 (연차 등) 확인 - 기존 로직 유지 (삭제)
             const today = getTodayDateString();
+            const persistentOriginalLength = (State.persistentLeaveSchedule.onLeaveMembers || []).length;
             State.persistentLeaveSchedule.onLeaveMembers = (State.persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
                 if (entry.member === memberName) {
                     const endDate = entry.endDate || entry.startDate;
                     if (today >= entry.startDate && today <= (endDate || entry.startDate)) {
                         persistentChanged = true;
-                        return false;
+                        return false; // 삭제
                     }
                 }
                 return true;
@@ -231,12 +232,13 @@ export function setupConfirmationModalListeners() {
             }
             if (persistentChanged) {
                 saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+                if (!message) message = `${memberName}님 연차/일정이 취소되었습니다.`;
             }
 
             if (dailyChanged || persistentChanged) {
-                showToast(`${memberName}님 근태 기록(오늘)이 취소되었습니다.`);
+                showToast(message);
             } else {
-                showToast('취소할 근태 기록이 없습니다.');
+                showToast('취소할 진행 중인 근태 기록이 없습니다.');
             }
 
             DOM.cancelLeaveConfirmModal.classList.add('hidden');
@@ -244,7 +246,6 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-confirm.js)
     if (DOM.confirmEndShiftBtn) {
         DOM.confirmEndShiftBtn.addEventListener('click', async () => {
             await saveDayDataToHistory(false);
@@ -252,24 +253,18 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // (listeners-modals.js -> listeners-modals-confirm.js)
     if (DOM.confirmResetAppBtn) {
         DOM.confirmResetAppBtn.addEventListener('click', async () => {
             const today = getTodayDateString();
-
             try {
                 const workRecordsColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
                 const q = query(workRecordsColRef);
                 const querySnapshot = await getDocs(q);
-
                 if (!querySnapshot.empty) {
                     const batch = writeBatch(State.db);
-                    querySnapshot.forEach(doc => {
-                        batch.delete(doc.ref);
-                    });
+                    querySnapshot.forEach(doc => batch.delete(doc.ref));
                     await batch.commit();
                 }
-
                 const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
                 await setDoc(docRef, {});
 
@@ -280,10 +275,8 @@ export function setupConfirmationModalListeners() {
                 State.appState.dailyAttendance = {};
 
                 render();
-
                 showToast('오늘 데이터가 모두 초기화되었습니다.');
                 DOM.resetAppModal.classList.add('hidden');
-
             } catch (e) {
                 console.error("오늘 데이터 초기화 실패: ", e);
                 showToast("데이터 초기화 중 오류가 발생했습니다.", true);
