@@ -1,7 +1,3 @@
-{
-type: uploaded file
-fileName: v.1119-테스트/js/app-history-logic.js
-fullContent:
 // === js/app-history-logic.js ===
 // 설명: '이력 보기' 모달의 UI 렌더링과 상태 관리를 담당합니다.
 
@@ -778,4 +774,3 @@ export const renderHistoryRecordsTable = (dateKey) => {
         DOM.historyRecordsTableBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">조건에 맞는 기록이 없습니다.</td></tr>';
     }
 };
-}
