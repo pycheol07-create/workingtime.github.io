@@ -9,7 +9,8 @@ import {
     analyzeRevenueBasedStaffing,
     analyzeRevenueWorkloadTrend,
     calculateAdvancedProductivity,
-    calculateBenchmarkOEE
+    calculateBenchmarkOEE,
+    calculateAverageStaffing // ✅ [추가] 평균 인원 계산 함수 임포트
 } from './ui-history-reports-logic.js';
 
 import {
@@ -75,7 +76,17 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     const prevKPIs = calculateReportKPIs(previousDayData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(previousDayData, appConfig, wageMap, memberToPartMap);
 
-    // ✅ [수정] 표준값 계산
+    // ✅ [신규] 업무별 평균 투입인원 계산 및 병합
+    const todayAvgStaff = calculateAverageStaffing([data]);
+    const prevAvgStaff = previousDayData ? calculateAverageStaffing([previousDayData]) : {};
+
+    Object.keys(todayAggr.taskSummary).forEach(t => {
+        todayAggr.taskSummary[t].avgDailyStaff = todayAvgStaff[t] || 0;
+    });
+    Object.keys(prevAggr.taskSummary).forEach(t => {
+        prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
+    });
+
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
     const todayStaffing = calculateAdvancedProductivity([data], todayAggr, standardThroughputs, appConfig, wageMap);
@@ -85,7 +96,6 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
 
     const sortState = context.reportSortState || {};
 
-    // ✅ [신규] 엑셀/PDF 다운로드를 위해 계산된 데이터를 context에 저장
     context.lastReportData = {
         type: 'daily',
         title: `${dateKey} 업무 리포트`,
@@ -137,7 +147,17 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentWeekDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevWeekDays, appConfig, wageMap);
 
-    // ✅ [수정] 표준값 계산
+    // ✅ [신규] 업무별 평균 투입인원 계산 및 병합
+    const todayAvgStaff = calculateAverageStaffing(currentWeekDays);
+    const prevAvgStaff = calculateAverageStaffing(prevWeekDays);
+
+    Object.keys(todayAggr.taskSummary).forEach(t => {
+        todayAggr.taskSummary[t].avgDailyStaff = todayAvgStaff[t] || 0;
+    });
+    Object.keys(prevAggr.taskSummary).forEach(t => {
+        prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
+    });
+
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
     const todayStaffing = calculateAdvancedProductivity(currentWeekDays, todayAggr, standardThroughputs, appConfig, wageMap);
@@ -147,7 +167,6 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
 
     const sortState = context.reportSortState || {};
 
-    // ✅ [신규] 엑셀/PDF 다운로드를 위해 계산된 데이터를 context에 저장
     context.lastReportData = {
         type: 'weekly',
         title: `${weekKey} 주별 업무 리포트`,
@@ -199,7 +218,17 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentMonthDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevMonthDays, appConfig, wageMap);
 
-    // ✅ [수정] 표준값 계산
+    // ✅ [신규] 업무별 평균 투입인원 계산 및 병합
+    const todayAvgStaff = calculateAverageStaffing(currentMonthDays);
+    const prevAvgStaff = calculateAverageStaffing(prevMonthDays);
+
+    Object.keys(todayAggr.taskSummary).forEach(t => {
+        todayAggr.taskSummary[t].avgDailyStaff = todayAvgStaff[t] || 0;
+    });
+    Object.keys(prevAggr.taskSummary).forEach(t => {
+        prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
+    });
+
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
     const todayStaffing = calculateAdvancedProductivity(currentMonthDays, todayAggr, standardThroughputs, appConfig, wageMap);
@@ -228,7 +257,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
 
     const sortState = context.reportSortState || {};
 
-    // ✅ [신규] 엑셀/PDF 다운로드를 위해 계산된 데이터를 context에 저장
     context.lastReportData = {
         type: 'monthly',
         title: `${monthKey} 월별 업무 리포트`,
@@ -280,7 +308,17 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentYearDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevYearDays, appConfig, wageMap);
 
-    // ✅ [수정] 표준값 계산
+    // ✅ [신규] 업무별 평균 투입인원 계산 및 병합
+    const todayAvgStaff = calculateAverageStaffing(currentYearDays);
+    const prevAvgStaff = calculateAverageStaffing(prevYearDays);
+
+    Object.keys(todayAggr.taskSummary).forEach(t => {
+        todayAggr.taskSummary[t].avgDailyStaff = todayAvgStaff[t] || 0;
+    });
+    Object.keys(prevAggr.taskSummary).forEach(t => {
+        prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
+    });
+
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
     const todayStaffing = calculateAdvancedProductivity(currentYearDays, todayAggr, standardThroughputs, appConfig, wageMap);
@@ -288,7 +326,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
 
     const sortState = context.reportSortState || {};
 
-    // ✅ [신규] 엑셀/PDF 다운로드를 위해 계산된 데이터를 context에 저장
     context.lastReportData = {
         type: 'yearly',
         title: `${yearKey} 연간 업무 리포트`,

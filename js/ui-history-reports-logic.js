@@ -33,6 +33,8 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
             diffStr = Math.round(Math.abs(currValue)).toLocaleString();
         } else if (['availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
             diffStr = Math.abs(currValue).toFixed(1) + ' FTE';
+        } else if (metric === 'avgDailyStaff') { // ✅ [추가] 평균 투입인원 포맷
+            diffStr = Math.abs(currValue).toFixed(1) + ' 명';
         } else {
             diffStr = Math.abs(currValue).toFixed(1);
         }
@@ -48,7 +50,8 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
 
     let colorClass = 'text-gray-500';
-    if (['avgThroughput', 'quantity', 'avgStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee', 'qualityFTE'].includes(metric)) {
+    // ✅ [수정] avgDailyStaff 추가 (증가는 긍정적)
+    if (['avgThroughput', 'quantity', 'avgStaff', 'avgDailyStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee', 'qualityFTE'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     }
     else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'coqPercentage', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost'].includes(metric)) {
@@ -67,6 +70,9 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     } else if (['availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
         diffStr = Math.abs(diff).toFixed(1) + ' FTE';
         prevStr = prevValue.toFixed(1) + ' FTE';
+    } else if (metric === 'avgDailyStaff') { // ✅ [추가] 평균 투입인원 포맷
+        diffStr = Math.abs(diff).toFixed(1);
+        prevStr = prevValue.toFixed(1);
     } else {
         diffStr = Math.abs(diff).toFixed(1);
         prevStr = prevValue.toFixed(1);
