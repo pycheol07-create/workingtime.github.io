@@ -1,3 +1,5 @@
+// === js/utils.js ===
+
 export const showToast = (message, isError = false) => {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -24,6 +26,30 @@ export const calcElapsedMinutes = (start, end, pauses = []) => {
         }
     });
     return Math.max(0, total / 60000);
+};
+
+// ✅ [신규] 총 휴식 시간(분) 계산 함수
+export const calcTotalPauseMinutes = (pauses = []) => {
+    if (!pauses || pauses.length === 0) return 0;
+    let total = 0;
+    
+    // 현재 시간 (진행 중인 휴식 계산용)
+    const now = new Date();
+    const nowTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    
+    pauses.forEach(p => {
+        if (p.start) {
+            const s = new Date(`1970-01-01T${p.start}:00Z`).getTime();
+            // 종료 시간이 없으면(현재 휴식 중) 현재 시간을 종료 시간으로 간주
+            const endTimeStr = p.end || nowTimeStr;
+            const e = new Date(`1970-01-01T${endTimeStr}:00Z`).getTime();
+            
+            if (e > s) {
+                total += (e - s);
+            }
+        }
+    });
+    return Math.floor(total / 60000);
 };
 
 export const formatTimeTo24H = (timeStr) => {

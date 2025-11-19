@@ -3,7 +3,8 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 
-import { showToast, getTodayDateString } from './utils.js';
+// ✅ [수정] formatDuration, calcTotalPauseMinutes 추가 임포트
+import { showToast, getTodayDateString, formatDuration, calcTotalPauseMinutes } from './utils.js';
 
 import {
     renderTrendAnalysisCharts,
@@ -567,7 +568,6 @@ export function setupHistoryModalListeners() {
             const dateKey = managementSaveBtn.dataset.dateKey;
             if (!dateKey) return;
 
-            // ✅ [수정] 저장 전 콤마(,) 제거 후 숫자로 변환
             const revenue = document.getElementById('mgmt-input-revenue')?.value.replace(/,/g, '') || 0;
             const orderCount = document.getElementById('mgmt-input-orderCount')?.value.replace(/,/g, '') || 0;
             const inventoryQty = document.getElementById('mgmt-input-inventoryQty')?.value.replace(/,/g, '') || 0;
@@ -1317,7 +1317,6 @@ export const renderHistoryRecordsTable = (dateKey) => {
     
     // 필터링
     const filtered = records.filter(r => {
-        // ✅ [수정] 변경된 변수명 사용
         if (memberFilterVal && r.member !== memberFilterVal) return false;
         if (taskFilterVal && r.task !== taskFilterVal) return false;
         return true;
@@ -1338,6 +1337,10 @@ export const renderHistoryRecordsTable = (dateKey) => {
             taskOptions += `<option value="${t}" ${t === r.task ? 'selected' : ''}>${t}</option>`;
         });
 
+        // ✅ [수정] 휴식 시간 계산
+        const pauseMinutes = calcTotalPauseMinutes(r.pauses);
+        const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴: ${formatDuration(pauseMinutes)})</span>` : '';
+
         tr.innerHTML = `
             <td class="px-6 py-4 font-medium text-gray-900 w-[15%]">${r.member}</td>
             <td class="px-6 py-4 w-[20%]">
@@ -1352,7 +1355,7 @@ export const renderHistoryRecordsTable = (dateKey) => {
                 <input type="time" class="history-record-end w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.endTime || ''}">
             </td>
             <td class="px-6 py-4 text-gray-500 text-xs w-[15%]">
-                ${formatDuration(r.duration)}
+                ${formatDuration(r.duration)}${pauseText}
             </td>
             <td class="px-6 py-4 text-right space-x-2 w-[20%]">
                 <button class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 

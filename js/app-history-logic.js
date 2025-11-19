@@ -20,7 +20,7 @@ import {
 
 import {
     formatDuration, isWeekday, getWeekOfYear,
-    getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast, formatTimeTo24H
+    getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast, formatTimeTo24H, calcTotalPauseMinutes // ✅ [수정] calcTotalPauseMinutes 추가
 } from './utils.js';
 
 import {
@@ -340,6 +340,12 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 
     const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (Number(rec.duration) || 0); return acc; }, {});
 
+    // ✅ [신규] 각 업무별 총 휴식 시간 집계
+    const taskPauses = records.reduce((acc, rec) => {
+        acc[rec.task] = (acc[rec.task] || 0) + calcTotalPauseMinutes(rec.pauses);
+        return acc;
+    }, {});
+
     const taskCosts = records.reduce((acc, rec) => {
         const wage = wageMap[rec.member] || 0;
         const cost = ((Number(rec.duration) || 0) / 60) * wage;
@@ -353,9 +359,12 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         const duration = taskDurations[task] || 0;
         const cost = taskCosts[task] || 0;
         const qty = Number(quantities[task]) || 0;
+        // ✅ [신규] 휴식 시간 가져오기
+        const pauseDuration = taskPauses[task] || 0;
 
         taskMetrics[task] = {
             duration: duration,
+            pauseDuration: pauseDuration, // 저장
             cost: cost,
             quantity: qty,
             avgThroughput: duration > 0 ? (qty / duration) : 0,
@@ -523,12 +532,18 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
             const prevMetric = prevTaskMetrics[task] || null;
             const diffHtml = getDiffHtmlForMetric('duration', metrics.duration, prevMetric?.duration);
             const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
+            
+            // ✅ [수정] 휴식 시간 텍스트 추가
+            const pauseText = metrics.pauseDuration > 0 ? ` <span class="text-xs text-gray-400 ml-2">(휴: ${formatDuration(metrics.pauseDuration)})</span>` : '';
 
             html += `
         <div>
           <div class="flex justify-between items-center mb-1 text-sm">
             <span class="font-semibold text-gray-600">${task}</span>
-            <span>${formatDuration(metrics.duration)} (${percentage}%) ${diffHtml} ${dateSpan}</span>
+            <div>
+                <span>${formatDuration(metrics.duration)} (${percentage}%) ${diffHtml} ${dateSpan}</span>
+                ${pauseText}
+            </div>
           </div>
           <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${percentage}%"></div></div>
         </div>`;

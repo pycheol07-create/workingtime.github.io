@@ -1,6 +1,6 @@
 // === js/ui-main.js ===
 
-import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday, calculateDateDifference } from './utils.js';
+import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday, calculateDateDifference, calcTotalPauseMinutes } from './utils.js';
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 
 // State 전체 임포트
@@ -446,13 +446,18 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-64 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 const isRecPaused = rec.status === 'paused';
+                
+                // ✅ [수정] 개별 멤버의 누적 휴식 시간 계산
+                const pauseMin = calcTotalPauseMinutes(rec.pauses);
+                const memberPauseText = pauseMin > 0 ? ` <span class="text-xs text-gray-400">(휴: ${formatDuration(pauseMin)})</span>` : '';
+
                 const pauseResumeButtonHtml = rec.status === 'ongoing' 
                     ? `<button data-action="pause-individual" title="정지" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-yellow-100 hover:bg-yellow-200 text-yellow-700 transition"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg></button>`
                     : `<button data-action="resume-individual" title="재개" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-green-100 hover:bg-green-200 text-green-700 transition"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg></button>`;
                 
                 membersHtml += `<div class="text-sm ${isRecPaused ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50'} rounded p-1 group flex justify-between items-center member-row">
                     <span class="font-semibold ${isRecPaused ? 'text-yellow-800' : 'text-gray-800'} break-keep mr-1 inline-block text-left" title="${rec.member}">${rec.member}</span>
-                    <span class="text-xs ${isRecPaused ? 'text-yellow-600' : 'text-gray-500'} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}</span>
+                    <span class="text-xs ${isRecPaused ? 'text-yellow-600' : 'text-gray-500'} flex-grow text-center">(${formatTimeTo24H(rec.startTime)}) ${isRecPaused ? '(휴식중)' : ''}${memberPauseText}</span>
                     <div class="flex-shrink-0 flex items-center space-x-1 member-actions">
                         ${pauseResumeButtonHtml}
                         <button data-action="stop-individual" title="종료" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-full bg-red-100 hover:bg-red-200 text-red-700 transition"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
@@ -464,8 +469,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const earliestStartTime = groupRecords.reduce((earliest, current) => ((current.startTime && (!earliest || current.startTime < earliest)) ? current.startTime : earliest), null);
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
             const pausesJson = JSON.stringify(representativeRecord.pauses || []);
+            
+            // ✅ [수정] 그룹 카드의 총 휴식 시간 표시
+            const totalPauseMinutes = calcTotalPauseMinutes(representativeRecord.pauses);
+            const pauseDisplay = totalPauseMinutes > 0 ? ` <span class="text-xs text-gray-400">(휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
 
-            card.innerHTML = `<div class="flex flex-col h-full"><div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div><div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span></div><div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div><div class="flex-grow">${membersHtml}</div><div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions"><button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">${isPaused ? '전체 재개' : '전체 정지'}</button><button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">전체 종료</button></div></div>`;
+            card.innerHTML = `<div class="flex flex-col h-full"><div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div><div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>${pauseDisplay}</div><div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div><div class="flex-grow">${membersHtml}</div><div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions"><button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">${isPaused ? '전체 재개' : '전체 정지'}</button><button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">전체 종료</button></div></div>`;
         } else {
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
             card.dataset.action = 'start-task';
@@ -526,7 +535,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = leaveInfo.type; card.dataset.startTime = leaveInfo.startTime || ''; card.dataset.startDate = leaveInfo.startDate || ''; card.dataset.endTime = leaveInfo.endTime || ''; card.dataset.endDate = leaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 
-                // ✅ [수정] 연차 차수 표시 및 색상 적용 (text-gray-600)
                 const displayLabel = getLeaveDisplayLabel(member, leaveInfo);
                 const labelHtml = `<div class="text-xs font-bold text-gray-600">${displayLabel}</div>`;
 
@@ -581,7 +589,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 
-                // ✅ [수정] 알바생도 연차 상세 표시 및 색상 적용
                 const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
                 const labelHtml = `<div class="text-xs font-bold text-gray-600">${displayLabel}</div>`;
 
@@ -657,11 +664,17 @@ export const renderCompletedWorkLog = (appState) => {
             let endTimeText = formatTimeTo24H(record.endTime);
             let durationText = formatDuration(record.duration);
 
+            // ✅ [수정] 휴식 시간 계산 및 표시
+            const pauseMinutes = calcTotalPauseMinutes(record.pauses);
+            const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴식: ${formatDuration(pauseMinutes)})</span>` : '';
+
             if (!isCompleted) {
                 statusClass = record.status === 'ongoing' ? 'bg-red-50 hover:bg-red-100' : 'bg-yellow-50 hover:bg-yellow-100';
                 endTimeText = `<span class="${record.status === 'ongoing' ? 'text-red-600' : 'text-yellow-600'} font-semibold">${record.status === 'ongoing' ? '진행 중' : '휴식 중'}</span>`;
                 const elapsed = calcElapsedMinutes(record.startTime, now, record.pauses);
-                durationText = `<span class="font-semibold">${formatDuration(elapsed)}</span>`;
+                durationText = `<span class="font-semibold">${formatDuration(elapsed)}</span>${pauseText}`;
+            } else {
+                durationText = `${formatDuration(record.duration)}${pauseText}`;
             }
 
             row.className = `${statusClass} border-b border-gray-200`;
