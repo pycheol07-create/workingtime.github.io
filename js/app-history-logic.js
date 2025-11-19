@@ -39,7 +39,7 @@ import {
     getDailyDocRef
 } from './history-data-manager.js';
 
-// 지속성 근태 기록 주입 헬퍼
+// ✅ [수정] 지속성 근태 기록 주입 헬퍼 (없는 날짜 생성 로직 추가)
 function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     if (!leaveSchedule || !leaveSchedule.onLeaveMembers || leaveSchedule.onLeaveMembers.length === 0) {
         return historyData;
@@ -52,15 +52,20 @@ function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     if (persistentLeaves.length === 0) return historyData;
 
     const existingEntriesMap = new Map();
+    
+    // 기존 이력 데이터 맵핑
     historyData.forEach(day => {
         const entries = new Set();
         (day.onLeaveMembers || []).forEach(entry => {
-            if (entry.startDate || entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
-                entries.add(`${entry.member}::${entry.type}`);
+            // 이미 존재하는 기록 식별 키 생성 (멤버+타입+시작일)
+            if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+                entries.add(`${entry.member}::${entry.type}::${entry.startDate}`);
             }
         });
         existingEntriesMap.set(day.id, entries);
     });
+
+    let addedNewDay = false;
 
     persistentLeaves.forEach(pLeave => {
         if (!pLeave.startDate) return;
@@ -74,21 +79,42 @@ function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
 
         for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
             const dateKey = d.toISOString().slice(0, 10);
-            const dayData = historyData.find(day => day.id === dateKey);
-            const existingEntries = existingEntriesMap.get(dateKey);
+            
+            // ✅ 1. 해당 날짜의 데이터가 있는지 확인하고, 없으면 생성
+            let dayData = historyData.find(day => day.id === dateKey);
+            if (!dayData) {
+                dayData = {
+                    id: dateKey,
+                    workRecords: [],
+                    taskQuantities: {},
+                    onLeaveMembers: [],
+                    partTimers: [],
+                    confirmedZeroTasks: []
+                };
+                historyData.push(dayData);
+                existingEntriesMap.set(dateKey, new Set());
+                addedNewDay = true;
+            }
 
-            if (dayData && existingEntries) {
-                const entryKey = `${pLeave.member}::${pLeave.type}`;
-                if (!existingEntries.has(entryKey)) {
-                    if (!dayData.onLeaveMembers) {
-                        dayData.onLeaveMembers = [];
-                    }
-                    dayData.onLeaveMembers.push({ ...pLeave });
-                    existingEntries.add(entryKey);
+            // ✅ 2. 중복 확인 후 근태 기록 추가
+            const existingEntries = existingEntriesMap.get(dateKey);
+            const entryKey = `${pLeave.member}::${pLeave.type}::${pLeave.startDate}`;
+
+            if (existingEntries && !existingEntries.has(entryKey)) {
+                if (!dayData.onLeaveMembers) {
+                    dayData.onLeaveMembers = [];
                 }
+                // 원본 참조를 끊고 복사본을 넣음
+                dayData.onLeaveMembers.push({ ...pLeave });
+                existingEntries.add(entryKey);
             }
         }
     });
+
+    // ✅ 3. 새로운 날짜가 추가되었다면 날짜순(내림차순) 재정렬
+    if (addedNewDay) {
+        historyData.sort((a, b) => b.id.localeCompare(a.id));
+    }
 
     return historyData;
 }
@@ -101,6 +127,7 @@ export const loadAndRenderHistoryList = async () => {
     await fetchAllHistoryData(); 
     await syncTodayToHistory(); 
 
+    // ✅ [수정] 데이터 로드 후 반드시 연차 정보 병합 실행
     augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
 
     if (State.allHistoryData.length === 0) {
@@ -164,6 +191,7 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
 
     await syncTodayToHistory(); 
     
+    // ✅ [수정] 리스트 렌더링 직전에도 연차 정보 병합 (필터링 누락 방지)
     augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
 
     const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
