@@ -552,7 +552,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     html += `</tbody></table></div></div>`;
 
 
-    // 3. 업무별 상세
+    // 3. 업무별 상세 (평균 투입인원 추가)
     let taskData = Object.keys(tAggr.taskSummary).map(t => ({
         taskName: t,
         ...tAggr.taskSummary[t],
@@ -581,12 +581,17 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgThroughput">분당 처리량 ${getSortIcon(tSort.key, tSort.dir, 'avgThroughput')}</th>
             <th class="px-4 py-2">표준 속도 (Top3)</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgCostPerItem">개당 처리비용 ${getSortIcon(tSort.key, tSort.dir, 'avgCostPerItem')}</th>
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgDailyStaff">평균 투입인원 ${getSortIcon(tSort.key, tSort.dir, 'avgDailyStaff')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgStaff">총 인원 ${getSortIcon(tSort.key, tSort.dir, 'avgStaff')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgTime">평균 시간 ${getSortIcon(tSort.key, tSort.dir, 'avgTime')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="efficiency">인당 효율 ${getSortIcon(tSort.key, tSort.dir, 'efficiency')}</th>
         </tr></thead><tbody>`;
+    
     taskData.forEach(d => {
         const stdSpeed = standardThroughputs[d.taskName] || 0;
+        // ✅ [신규] 평균 투입인원 데이터 바인딩 (d.avgDailyStaff)
+        const avgDailyStaff = d.avgDailyStaff || 0;
+        
         html += createTableRow([
             { content: d.taskName, class: "font-medium text-gray-900" }, 
             { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, d.p.duration) }, 
@@ -595,6 +600,8 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, d.p.avgThroughput) }, 
             { content: stdSpeed > 0 ? stdSpeed.toFixed(2) : '-', class: "text-indigo-600 font-mono bg-indigo-50" },
             { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, d.p.avgCostPerItem) }, 
+            // ✅ [신규] 평균 투입인원 값 표시
+            { content: avgDailyStaff.toFixed(1), diff: getDiffHtmlForMetric('avgDailyStaff', avgDailyStaff, d.p.avgDailyStaff) },
             { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, d.p.avgStaff) }, 
             { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, d.p.avgTime) }, 
             { content: d.efficiency.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.efficiency, d.p.efficiency), class: "font-bold" }
@@ -603,11 +610,10 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     html += `</tbody></table></div></div>`;
 
 
-    // ✅ [수정] 4. 근태 현황 (테이블 형식으로 변경 + 정렬/필터)
+    // 4. 근태 현황
     let attDataList = [];
     const attSummaryMap = {};
     
-    // 4-1. 데이터 집계 (attendanceData가 undefined일 수 있으므로 안전하게 처리)
     (attendanceData || []).forEach(entry => {
         if (!attSummaryMap[entry.member]) {
             attSummaryMap[entry.member] = {
@@ -615,7 +621,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
                 counts: { '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0 },
                 totalCount: 0,
                 totalLeaveDays: 0,
-                totalAbsenceDays: 0 // 결근 일수 별도
+                totalAbsenceDays: 0
             };
         }
         const rec = attSummaryMap[entry.member];
@@ -627,10 +633,8 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
              rec.counts[type] = (rec.counts[type] || 0) + 1;
         }
 
-        // 연차 외 총 횟수
         if (type !== '연차') rec.totalCount++;
 
-        // 일수 계산
         if (type === '연차') {
              const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
              rec.totalLeaveDays += days;
@@ -641,34 +645,28 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     });
     
     attDataList = Object.values(attSummaryMap);
-
-    // 4-2. 필터 옵션 추출
     const allAttMembers = [...new Set(attDataList.map(d => d.member))].sort();
     
-    // 4-3. 필터링
     if (filterState.attendanceSummary?.member) {
         attDataList = attDataList.filter(d => d.member === filterState.attendanceSummary.member);
     }
 
-    // 4-4. 정렬
     const aSort = sortState.attendanceSummary || { key: 'member', dir: 'asc' };
     attDataList.sort((a, b) => {
         let vA = 0, vB = 0;
         if (aSort.key === 'member') { vA = a.member; vB = b.member; }
         else if (['totalCount', 'totalLeaveDays', 'totalAbsenceDays'].includes(aSort.key)) { vA = a[aSort.key]; vB = b[aSort.key]; }
-        else { vA = a.counts[aSort.key] || 0; vB = b.counts[aSort.key] || 0; } // 지각, 조퇴 등
+        else { vA = a.counts[aSort.key] || 0; vB = b.counts[aSort.key] || 0; }
 
         if (typeof vA === 'string') return vA.localeCompare(vB) * (aSort.dir === 'asc' ? 1 : -1);
         return (vA - vB) * (aSort.dir === 'asc' ? 1 : -1);
     });
 
-    // 4-5. 렌더링
     html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">근태 현황</h3><div class="overflow-x-auto max-h-[60vh]">`;
 
     if (attDataList.length === 0) {
         html += `<p class="text-sm text-gray-500 text-center py-4">데이터 없음</p>`;
     } else {
-        // 헤더 생성 (th 헬퍼 사용)
         const th_att = (key, label, width='') => th('attendanceSummary', key, label, (key==='member'?filterState.attendanceSummary?.member:null), (key==='member'?allAttMembers:[]), width);
 
         html += `
