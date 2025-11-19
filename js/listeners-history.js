@@ -133,17 +133,19 @@ export function setupHistoryModalListeners() {
     // 뷰 갱신 함수들
     const refreshAttendanceView = async () => {
         const dateKey = getSelectedDateKey();
-        const filteredData = getFilteredHistoryData();
-        const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
-        const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
         
-        // 데이터 최신화 (필요 시)
+        // ✅ [수정] 데이터 최신화 로직을 filteredData 가져오기 전으로 이동
         if (dateKey === getTodayDateString()) {
             await syncTodayToHistory();
-            // ✅ [수정] 동기화 후 연차 정보 다시 병합 (매우 중요!)
             augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
         }
 
+        // ✅ [수정] 최신화된 State.allHistoryData를 바탕으로 filteredData를 가져옴
+        const filteredData = getFilteredHistoryData();
+        
+        const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
+        const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
+        
         if (view === 'attendance-daily') {
             if (dateKey) renderAttendanceDailyHistory(dateKey, filteredData);
         } else if (view === 'attendance-weekly') {
@@ -373,6 +375,12 @@ export function setupHistoryModalListeners() {
                 let activeMainTab = State.context.activeMainHistoryTab || 'work';
                 State.context.activeFilterDropdown = null; 
 
+                // ✅ [수정] 탭 전환 시 데이터 동기화가 먼저 이루어지도록 함
+                if (activeMainTab === 'attendance') {
+                    refreshAttendanceView(); 
+                    return; // refreshAttendanceView 내부에서 렌더링하므로 리턴
+                }
+
                 const filteredData = getFilteredHistoryData();
                 State.context.reportSortState = {};
 
@@ -392,9 +400,7 @@ export function setupHistoryModalListeners() {
                         renderMonthlyHistory(dateKey, filteredData, State.appConfig);
                     }
 
-                } else if (activeMainTab === 'attendance') {
-                    refreshAttendanceView(); 
-                }
+                } 
                 else if (activeMainTab === 'report') {
                     refreshReportView();
                 } 
