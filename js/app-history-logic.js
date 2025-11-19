@@ -1,5 +1,4 @@
 // === js/app-history-logic.js ===
-// 설명: '이력 보기' 모달의 UI 렌더링과 상태 관리를 담당합니다.
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
@@ -39,7 +38,7 @@ import {
     getDailyDocRef
 } from './history-data-manager.js';
 
-// ✅ [수정] 지속성 근태 기록 주입 헬퍼 (없는 날짜 생성 로직 추가)
+// ✅ [수정] 내부 헬퍼 함수: 지속성 근태 기록 주입 (없는 날짜 생성 포함)
 function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     if (!leaveSchedule || !leaveSchedule.onLeaveMembers || leaveSchedule.onLeaveMembers.length === 0) {
         return historyData;
@@ -53,11 +52,9 @@ function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
 
     const existingEntriesMap = new Map();
     
-    // 기존 이력 데이터 맵핑
     historyData.forEach(day => {
         const entries = new Set();
         (day.onLeaveMembers || []).forEach(entry => {
-            // 이미 존재하는 기록 식별 키 생성 (멤버+타입+시작일)
             if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
                 entries.add(`${entry.member}::${entry.type}::${entry.startDate}`);
             }
@@ -80,7 +77,6 @@ function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
         for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
             const dateKey = d.toISOString().slice(0, 10);
             
-            // ✅ 1. 해당 날짜의 데이터가 있는지 확인하고, 없으면 생성
             let dayData = historyData.find(day => day.id === dateKey);
             if (!dayData) {
                 dayData = {
@@ -96,22 +92,17 @@ function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
                 addedNewDay = true;
             }
 
-            // ✅ 2. 중복 확인 후 근태 기록 추가
             const existingEntries = existingEntriesMap.get(dateKey);
             const entryKey = `${pLeave.member}::${pLeave.type}::${pLeave.startDate}`;
 
             if (existingEntries && !existingEntries.has(entryKey)) {
-                if (!dayData.onLeaveMembers) {
-                    dayData.onLeaveMembers = [];
-                }
-                // 원본 참조를 끊고 복사본을 넣음
+                if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
                 dayData.onLeaveMembers.push({ ...pLeave });
                 existingEntries.add(entryKey);
             }
         }
     });
 
-    // ✅ 3. 새로운 날짜가 추가되었다면 날짜순(내림차순) 재정렬
     if (addedNewDay) {
         historyData.sort((a, b) => b.id.localeCompare(a.id));
     }
@@ -119,16 +110,18 @@ function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     return historyData;
 }
 
+// ✅ [신규] 오늘 데이터 동기화 + 연차 병합을 한 번에 수행하는 래퍼 함수
+export const syncAndAugmentToday = async () => {
+    await syncTodayToHistory(); // Firestore daily_data -> allHistoryData (이때 연차정보 날아감)
+    augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule); // 연차정보 재주입
+};
 
 export const loadAndRenderHistoryList = async () => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">이력 로딩 중...</div></li>';
 
     await fetchAllHistoryData(); 
-    await syncTodayToHistory(); 
-
-    // ✅ [수정] 데이터 로드 후 반드시 연차 정보 병합 실행
-    augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
+    await syncAndAugmentToday(); // ✅ 수정됨
 
     if (State.allHistoryData.length === 0) {
         DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">저장된 이력이 없습니다.</div></li>';
@@ -144,6 +137,7 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
+    // ... (탭 스타일 초기화 코드는 기존과 동일하므로 생략 가능하지만, 안전하게 포함) ...
     document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
         btn.classList.remove('font-medium', 'text-gray-500');
@@ -152,7 +146,6 @@ export const loadAndRenderHistoryList = async () => {
         btn.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
         btn.classList.add('font-medium', 'text-gray-500');
     });
-
     document.querySelectorAll('#history-tabs button[data-view="daily"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
         btn.classList.remove('text-gray-500');
@@ -166,6 +159,7 @@ export const loadAndRenderHistoryList = async () => {
     if (DOM.attendanceHistoryPanel) DOM.attendanceHistoryPanel.classList.add('hidden');
     if (DOM.trendAnalysisPanel) DOM.trendAnalysisPanel.classList.add('hidden');
     if (DOM.reportPanel) DOM.reportPanel.classList.add('hidden');
+    if (DOM.personalReportPanel) DOM.personalReportPanel.classList.add('hidden');
 
     document.getElementById('history-daily-view')?.classList.remove('hidden');
     document.getElementById('history-weekly-view')?.classList.add('hidden');
@@ -189,10 +183,7 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '';
 
-    await syncTodayToHistory(); 
-    
-    // ✅ [수정] 리스트 렌더링 직전에도 연차 정보 병합 (필터링 누락 방지)
-    augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
+    await syncAndAugmentToday(); // ✅ 수정됨: 리스트 렌더링 전에도 연차 병합
 
     const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
         ? State.allHistoryData.filter(d => {
