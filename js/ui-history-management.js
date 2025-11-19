@@ -241,7 +241,8 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
             const invAmt = Number(m.inventoryAmt) || 0;
             const invQty = Number(m.inventoryQty) || 0;
             
-            const avgPrice = orders > 0 ? rev / orders : 0;
+            // ✅ [수정] avgPrice -> avgOrderPrice 변수명 일치
+            const avgOrderPrice = orders > 0 ? rev / orders : 0;
             const dailyTurnover = invAmt > 0 ? (rev / invAmt) * 100 : 0;
             
             // 주말 색상 처리
@@ -252,7 +253,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                     <td class="px-4 py-3 ${dateColor}">${day.id} <span class="text-xs text-gray-400 ml-1">(${getDayOfWeek(day.id)})</span></td>
                     <td class="px-4 py-3 text-right font-bold text-blue-600">${rev > 0 ? formatCurrency(rev) : '-'}</td>
                     <td class="px-4 py-3 text-right">${orders > 0 ? formatCurrency(orders) : '-'}</td>
-                    <td class="px-4 py-3 text-right text-gray-600">${avgPrice > 0 ? formatCurrency(Math.round(avgPrice)) : '-'}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">${avgOrderPrice > 0 ? formatCurrency(Math.round(avgOrderPrice)) : '-'}</td>
                     <td class="px-4 py-3 text-right">${invAmt > 0 ? formatCurrency(invAmt) : '-'}</td>
                     <td class="px-4 py-3 text-right">${invQty > 0 ? formatCurrency(invQty) : '-'}</td>
                     <td class="px-4 py-3 text-right font-mono text-purple-600">${dailyTurnover > 0 ? dailyTurnover.toFixed(1) + '%' : '-'}</td>
