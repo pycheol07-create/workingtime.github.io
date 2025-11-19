@@ -259,13 +259,9 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
             <div class="flex items-center gap-4">
                 <h3 class="text-xl font-bold text-gray-800"><span class="text-blue-600">${memberName}</span>님의 ${dateKey} 리포트</h3>
                 <div class="flex gap-2">
-                    <button data-action="download-personal-excel" class="bg-white hover:bg-green-50 text-green-600 border border-green-200 font-semibold py-1 px-2 rounded-md text-xs flex items-center gap-1 transition shadow-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        Excel
-                    </button>
-                    <button data-action="download-personal-pdf" class="bg-white hover:bg-red-50 text-red-600 border border-red-200 font-semibold py-1 px-2 rounded-md text-xs flex items-center gap-1 transition shadow-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                        PDF
+                    <button id="personal-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-1 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        다운로드
                     </button>
                 </div>
             </div>

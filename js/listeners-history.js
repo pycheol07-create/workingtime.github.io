@@ -3,14 +3,13 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 
-import { showToast, getTodayDateString } from './utils.js'; // getTodayDateString 추가
+import { showToast, getTodayDateString } from './utils.js';
 
 import {
     renderTrendAnalysisCharts,
     trendCharts
 } from './ui.js';
 
-// ✅ [수정] augmentHistoryWithPersistentLeave 함수 임포트 추가
 import {
     loadAndRenderHistoryList,
     renderHistoryDetail,
@@ -47,14 +46,13 @@ import {
     renderPersonalReport
 } from './ui-history.js';
 
-// ✅ [수정] getDoc, updateDoc 추가
-import { doc, setDoc, deleteDoc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, deleteDoc, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord,
-    syncTodayToHistory // syncTodayToHistory 추가
+    syncTodayToHistory
 } from './history-data-manager.js';
 
 let isHistoryMaximized = false;
@@ -133,19 +131,15 @@ export function setupHistoryModalListeners() {
     // 뷰 갱신 함수들
     const refreshAttendanceView = async () => {
         const dateKey = getSelectedDateKey();
-        
-        // ✅ [수정] 데이터 최신화 로직을 filteredData 가져오기 전으로 이동
         if (dateKey === getTodayDateString()) {
             await syncTodayToHistory();
             augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
         }
-
-        // ✅ [수정] 최신화된 State.allHistoryData를 바탕으로 filteredData를 가져옴
         const filteredData = getFilteredHistoryData();
         
         const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
         const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
-        
+
         if (view === 'attendance-daily') {
             if (dateKey) renderAttendanceDailyHistory(dateKey, filteredData);
         } else if (view === 'attendance-weekly') {
@@ -213,6 +207,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // 기간 엑셀 다운로드 (이건 별도로 유지)
     if (DOM.historyDownloadPeriodExcelBtn) {
         DOM.historyDownloadPeriodExcelBtn.addEventListener('click', () => {
             const startDate = State.context.historyStartDate;
@@ -226,94 +221,163 @@ export function setupHistoryModalListeners() {
         });
     }
     
-    if (DOM.historyDownloadExcelBtn) {
-        DOM.historyDownloadExcelBtn.addEventListener('click', () => {
+    // ====================================================================================
+    // ✅ [수정] 통합 다운로드 로직 (모달 띄우기 -> 포맷 선택 -> 실행)
+    // ====================================================================================
+
+    const openDownloadFormatModal = (targetType, contextData = {}) => {
+        State.context.downloadContext = { targetType, ...contextData };
+        const modal = document.getElementById('download-format-modal');
+        if (modal) modal.classList.remove('hidden');
+    };
+
+    const executeDownload = async (format) => {
+        const ctx = State.context.downloadContext;
+        if (!ctx) return;
+        
+        const { targetType } = ctx;
+
+        // 1. 업무 이력
+        if (targetType === 'work') {
             const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
             const view = activeTabBtn ? activeTabBtn.dataset.view : 'daily';
-            
-            const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
-            if (!selectedListBtn) {
-                showToast('목록에서 다운로드할 항목을 선택해주세요.', true);
-                return;
-            }
-            const key = selectedListBtn.dataset.key;
+            const key = getSelectedDateKey();
 
-            if (view === 'daily') {
-                downloadHistoryAsExcel(key);
-            } else if (view === 'weekly') {
-                downloadWeeklyHistoryAsExcel(key);
-            } else if (view === 'monthly') {
-                downloadMonthlyHistoryAsExcel(key);
-            }
-        });
-    }
+            if (!key) return showToast('날짜를 선택해주세요.', true);
 
-    if (DOM.attendanceDownloadExcelBtn) {
-        DOM.attendanceDownloadExcelBtn.addEventListener('click', () => {
+            // PDF는 화면 캡처
+            if (format === 'pdf') {
+                let targetId = 'history-daily-view';
+                let title = `업무이력_일별_${key}`;
+                if (view === 'weekly') { targetId = 'history-weekly-view'; title = `업무이력_주별_${key}`; }
+                else if (view === 'monthly') { targetId = 'history-monthly-view'; title = `업무이력_월별_${key}`; }
+                
+                downloadContentAsPdf(targetId, title);
+            } 
+            // Excel/CSV는 데이터 다운로드
+            else {
+                if (view === 'daily') await downloadHistoryAsExcel(key, format);
+                else if (view === 'weekly') await downloadWeeklyHistoryAsExcel(key, format);
+                else if (view === 'monthly') await downloadMonthlyHistoryAsExcel(key, format);
+            }
+        }
+        // 2. 근태 이력
+        else if (targetType === 'attendance') {
             const activeTabBtn = DOM.attendanceHistoryTabs.querySelector('button.font-semibold');
             const viewFull = activeTabBtn ? activeTabBtn.dataset.view : 'attendance-daily';
             const viewMode = viewFull.replace('attendance-', ''); 
+            const key = getSelectedDateKey();
 
-            const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
-            if (!selectedListBtn) {
-                showToast('목록에서 다운로드할 항목을 선택해주세요.', true);
-                return;
+            if (!key) return showToast('날짜를 선택해주세요.', true);
+
+            if (format === 'pdf') {
+                let targetId = 'history-attendance-daily-view';
+                let title = `근태이력_일별_${key}`;
+                if (viewMode === 'weekly') { targetId = 'history-attendance-weekly-view'; title = `근태이력_주별_${key}`; }
+                else if (viewMode === 'monthly') { targetId = 'history-attendance-monthly-view'; title = `근태이력_월별_${key}`; }
+                
+                downloadContentAsPdf(targetId, title);
+            } else {
+                downloadAttendanceExcel(viewMode, key, format);
             }
-            const key = selectedListBtn.dataset.key;
+        }
+        // 3. 업무 리포트
+        else if (targetType === 'report') {
+            const reportData = State.context.lastReportData;
+            if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
 
-            downloadAttendanceExcel(viewMode, key);
+            if (format === 'pdf') {
+                // 현재 보이는 리포트 뷰 찾기
+                let targetId = '';
+                const tabs = document.querySelectorAll('#report-view-container > div');
+                tabs.forEach(div => { if (!div.classList.contains('hidden')) targetId = div.id; });
+                
+                if (targetId) downloadContentAsPdf(targetId, reportData.title || '업무_리포트');
+                else showToast('출력할 리포트 화면을 찾을 수 없습니다.', true);
+            } else {
+                downloadReportExcel(reportData, format);
+            }
+        }
+        // 4. 개인 리포트
+        else if (targetType === 'personal') {
+            const reportData = State.context.lastReportData;
+            if (!reportData || reportData.type !== 'personal') return showToast('개인 리포트 데이터가 없습니다.', true);
+
+            if (format === 'pdf') {
+                downloadContentAsPdf('personal-report-content', reportData.title || '개인_리포트');
+            } else {
+                downloadPersonalReportExcel(reportData, format);
+            }
+        }
+
+        // 모달 닫기
+        const modal = document.getElementById('download-format-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+
+    // 다운로드 형식 선택 버튼 리스너 (Modal 내부)
+    const formatModal = document.getElementById('download-format-modal');
+    if (formatModal) {
+        formatModal.addEventListener('click', (e) => {
+            const btn = e.target.closest('.download-option-btn');
+            if (btn) {
+                const format = btn.dataset.format; // 'excel', 'csv', 'pdf'
+                // 엑셀 라이브러리는 'xlsx' 사용
+                const fileFormat = format === 'excel' ? 'xlsx' : format;
+                executeDownload(fileFormat);
+            }
         });
     }
 
-    // 업무 리포트 다운로드 (엑셀/PDF)
+    // --- [수정] 각 탭별 통합 다운로드 버튼 연결 ---
+
+    // 1. 업무 이력 통합 다운로드 버튼
+    const historyDownloadBtn = document.getElementById('history-download-btn');
+    if (historyDownloadBtn) {
+        historyDownloadBtn.addEventListener('click', () => {
+             const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
+             if (!selectedListBtn) return showToast('목록에서 날짜를 선택해주세요.', true);
+             openDownloadFormatModal('work');
+        });
+    }
+
+    // 2. 근태 이력 통합 다운로드 버튼
+    const attendanceDownloadBtn = document.getElementById('attendance-download-btn');
+    if (attendanceDownloadBtn) {
+        attendanceDownloadBtn.addEventListener('click', () => {
+             const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
+             if (!selectedListBtn) return showToast('목록에서 날짜를 선택해주세요.', true);
+             openDownloadFormatModal('attendance');
+        });
+    }
+
+    // 3. 업무 리포트 통합 다운로드 버튼 (렌더링된 HTML 내부)
     if (DOM.reportViewContainer) {
         DOM.reportViewContainer.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-action]');
-            if (!btn) return;
-
-            const action = btn.dataset.action;
-            if (action === 'download-report-excel') {
+            if (e.target.closest('#report-download-btn')) {
                 if (State.context.lastReportData && State.context.lastReportData.type !== 'personal') {
-                    downloadReportExcel(State.context.lastReportData);
+                    openDownloadFormatModal('report');
                 } else {
                     showToast('다운로드할 리포트 데이터가 없습니다.', true);
                 }
-            } else if (action === 'download-report-pdf') {
-                 const title = State.context.lastReportData?.title || '업무_리포트';
-                 let targetId = '';
-                 const tabs = document.querySelectorAll('#report-view-container > div');
-                 tabs.forEach(div => {
-                     if (!div.classList.contains('hidden')) targetId = div.id;
-                 });
-
-                 if (targetId) {
-                     downloadContentAsPdf(targetId, title);
-                 } else {
-                     showToast('출력할 리포트 화면을 찾을 수 없습니다.', true);
-                 }
             }
         });
     }
 
-    // 개인 리포트 다운로드 (엑셀/PDF)
+    // 4. 개인 리포트 통합 다운로드 버튼 (렌더링된 HTML 내부)
     if (DOM.personalReportViewContainer) {
         DOM.personalReportViewContainer.addEventListener('click', (e) => {
-             const btn = e.target.closest('button[data-action]');
-            if (!btn) return;
-
-            const action = btn.dataset.action;
-            if (action === 'download-personal-excel') {
+             if (e.target.closest('#personal-download-btn')) {
                 if (State.context.lastReportData && State.context.lastReportData.type === 'personal') {
-                    downloadPersonalReportExcel(State.context.lastReportData);
+                    openDownloadFormatModal('personal');
                 } else {
                     showToast('다운로드할 개인 리포트 데이터가 없습니다.', true);
                 }
-            } else if (action === 'download-personal-pdf') {
-                 const title = State.context.lastReportData?.title || '개인_리포트';
-                 downloadContentAsPdf('personal-report-content', title);
             }
         });
     }
+    
+    // --- (이하 기존 로직 유지) ---
 
     const openHistoryModalLogic = async () => {
         if (!State.auth || !State.auth.currentUser) {
@@ -375,10 +439,10 @@ export function setupHistoryModalListeners() {
                 let activeMainTab = State.context.activeMainHistoryTab || 'work';
                 State.context.activeFilterDropdown = null; 
 
-                // ✅ [수정] 탭 전환 시 데이터 동기화가 먼저 이루어지도록 함
+                // ✅ 탭 전환 시 데이터 동기화가 먼저 이루어지도록 함
                 if (activeMainTab === 'attendance') {
                     refreshAttendanceView(); 
-                    return; // refreshAttendanceView 내부에서 렌더링하므로 리턴
+                    return; 
                 }
 
                 const filteredData = getFilteredHistoryData();

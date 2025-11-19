@@ -65,10 +65,10 @@ const appendTotalRow = (ws, data, headers) => {
 };
 
 // =================================================================
-// [기존] 업무 이력 엑셀 다운로드
+// [기존] 업무 이력 엑셀/CSV 다운로드
 // =================================================================
 
-export const downloadHistoryAsExcel = async (dateKey) => {
+export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
     try {
         const data = allHistoryData.find(d => d.id === dateKey);
         if (!data) {
@@ -92,7 +92,7 @@ export const downloadHistoryAsExcel = async (dateKey) => {
         });
         const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
-        // Sheet 1: 상세 기록
+        // Sheet 1: 상세 기록 (CSV일 경우 이것만 저장됨)
         const dailyRecords = data.workRecords || [];
         const dailyQuantities = data.taskQuantities || {};
         
@@ -116,103 +116,106 @@ export const downloadHistoryAsExcel = async (dateKey) => {
         fitToColumn(worksheet1);
         XLSX.utils.book_append_sheet(workbook, worksheet1, `상세 기록 (${dateKey})`);
 
-        // Sheet 2: 업무 요약
-        let prevTaskSummary = {};
-        if (previousDayData) {
-            const prevRecords = previousDayData.workRecords || [];
-            (prevRecords).forEach(r => {
-                if (!prevTaskSummary[r.task]) {
-                    prevTaskSummary[r.task] = { totalDuration: 0, totalCost: 0, members: new Set() };
+        // Excel인 경우에만 추가 시트 생성
+        if (format === 'xlsx') {
+            // Sheet 2: 업무 요약
+            let prevTaskSummary = {};
+            if (previousDayData) {
+                const prevRecords = previousDayData.workRecords || [];
+                (prevRecords).forEach(r => {
+                    if (!prevTaskSummary[r.task]) {
+                        prevTaskSummary[r.task] = { totalDuration: 0, totalCost: 0, members: new Set() };
+                    }
+                    const wage = combinedWageMap[r.member] || 0;
+                    const cost = ((Number(r.duration) || 0) / 60) * wage;
+                    prevTaskSummary[r.task].totalDuration += (Number(r.duration) || 0);
+                    prevTaskSummary[r.task].totalCost += cost;
+                    prevTaskSummary[r.task].members.add(r.member);
+                });
+            }
+            
+            const summaryByTask = {};
+            dailyRecords.forEach(r => {
+                if (!summaryByTask[r.task]) {
+                    summaryByTask[r.task] = { totalDuration: 0, totalCost: 0, members: new Set() };
                 }
                 const wage = combinedWageMap[r.member] || 0;
                 const cost = ((Number(r.duration) || 0) / 60) * wage;
-                prevTaskSummary[r.task].totalDuration += (Number(r.duration) || 0);
-                prevTaskSummary[r.task].totalCost += cost;
-                prevTaskSummary[r.task].members.add(r.member);
+                summaryByTask[r.task].totalDuration += (Number(r.duration) || 0);
+                summaryByTask[r.task].totalCost += cost;
+                summaryByTask[r.task].members.add(r.member); 
             });
-        }
-        
-        const summaryByTask = {};
-        dailyRecords.forEach(r => {
-            if (!summaryByTask[r.task]) {
-                summaryByTask[r.task] = { totalDuration: 0, totalCost: 0, members: new Set() };
-            }
-            const wage = combinedWageMap[r.member] || 0;
-            const cost = ((Number(r.duration) || 0) / 60) * wage;
-            summaryByTask[r.task].totalDuration += (Number(r.duration) || 0);
-            summaryByTask[r.task].totalCost += cost;
-            summaryByTask[r.task].members.add(r.member); 
-        });
-        
-        const sheet2Headers = [
-            '업무 종류', '진행 인원수', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)',
-            '진행 인원수(전일비)', '총 시간(전일비)', '총 인건비(전일비)', '총 처리량(전일비)', '개당 처리비용(전일비)'
-        ];
-        
-        const sheet2Data = Object.keys(summaryByTask).sort().map(task => {
-            const taskQty = Number(dailyQuantities[task]) || 0;
-            const taskCost = summaryByTask[task].totalCost;
-            const costPerItem = (taskQty > 0) ? (taskCost / taskQty) : 0;
-            const staffCount = summaryByTask[task].members.size;
-            const duration = summaryByTask[task].totalDuration;
             
-            const prevSummary = prevTaskSummary[task] || { totalDuration: 0, totalCost: 0, members: new Set() };
-            const prevQty = Number(previousDayData?.taskQuantities?.[task]) || 0;
-            const prevCost = prevSummary.totalCost;
-            const prevCostPerItem = (prevQty > 0) ? (prevCost / prevQty) : 0;
-            const prevStaffCount = prevSummary.members.size;
-            const prevDuration = prevSummary.totalDuration;
+            const sheet2Headers = [
+                '업무 종류', '진행 인원수', '총 소요 시간(분)', '총 인건비(원)', '총 처리량(개)', '개당 처리비용(원)',
+                '진행 인원수(전일비)', '총 시간(전일비)', '총 인건비(전일비)', '총 처리량(전일비)', '개당 처리비용(전일비)'
+            ];
+            
+            const sheet2Data = Object.keys(summaryByTask).sort().map(task => {
+                const taskQty = Number(dailyQuantities[task]) || 0;
+                const taskCost = summaryByTask[task].totalCost;
+                const costPerItem = (taskQty > 0) ? (taskCost / taskQty) : 0;
+                const staffCount = summaryByTask[task].members.size;
+                const duration = summaryByTask[task].totalDuration;
+                
+                const prevSummary = prevTaskSummary[task] || { totalDuration: 0, totalCost: 0, members: new Set() };
+                const prevQty = Number(previousDayData?.taskQuantities?.[task]) || 0;
+                const prevCost = prevSummary.totalCost;
+                const prevCostPerItem = (prevQty > 0) ? (prevCost / prevQty) : 0;
+                const prevStaffCount = prevSummary.members.size;
+                const prevDuration = prevSummary.totalDuration;
 
-            return {
-                '업무 종류': task,
-                '진행 인원수': staffCount,
-                '총 소요 시간(분)': Math.round(duration),
-                '총 인건비(원)': Math.round(taskCost),
-                '총 처리량(개)': taskQty,
-                '개당 처리비용(원)': Math.round(costPerItem),
-                '진행 인원수(전일비)': staffCount - prevStaffCount,
-                '총 시간(전일비)': Math.round(duration - prevDuration),
-                '총 인건비(전일비)': Math.round(taskCost - prevCost),
-                '총 처리량(전일비)': taskQty - prevQty,
-                '개당 처리비용(전일비)': Math.round(costPerItem - prevCostPerItem)
-            };
-        });
-        
-        const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
-        if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers); 
-        fitToColumn(worksheet2);
-        XLSX.utils.book_append_sheet(workbook, worksheet2, `업무 요약 (${dateKey})`);
+                return {
+                    '업무 종류': task,
+                    '진행 인원수': staffCount,
+                    '총 소요 시간(분)': Math.round(duration),
+                    '총 인건비(원)': Math.round(taskCost),
+                    '총 처리량(개)': taskQty,
+                    '개당 처리비용(원)': Math.round(costPerItem),
+                    '진행 인원수(전일비)': staffCount - prevStaffCount,
+                    '총 시간(전일비)': Math.round(duration - prevDuration),
+                    '총 인건비(전일비)': Math.round(taskCost - prevCost),
+                    '총 처리량(전일비)': taskQty - prevQty,
+                    '개당 처리비용(전일비)': Math.round(costPerItem - prevCostPerItem)
+                };
+            });
+            
+            const worksheet2 = XLSX.utils.json_to_sheet(sheet2Data, { header: sheet2Headers });
+            if (sheet2Data.length > 0) appendTotalRow(worksheet2, sheet2Data, sheet2Headers); 
+            fitToColumn(worksheet2);
+            XLSX.utils.book_append_sheet(workbook, worksheet2, `업무 요약 (${dateKey})`);
 
-        // Sheet 3: 파트별 인건비
-        const sheet3Headers = ['파트', '총 인건비(원)'];
-        const memberToPartMap = new Map();
-        (appConfig.teamGroups || []).forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
-        const summaryByPart = {};
-        dailyRecords.forEach(r => {
-            const part = memberToPartMap.get(r.member) || '알바';
-            if (!summaryByPart[part]) summaryByPart[part] = { totalCost: 0 };
-            const wage = combinedWageMap[r.member] || 0;
-            const cost = ((Number(r.duration) || 0) / 60) * wage;
-            summaryByPart[part].totalCost += cost;
-        });
-        const sheet3Data = Object.keys(summaryByPart).sort().map(part => ({
-            '파트': part,
-            '총 인건비(원)': Math.round(summaryByPart[part].totalCost)
-        }));
-        const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
-        if (sheet3Data.length > 0) appendTotalRow(worksheet3, sheet3Data, sheet3Headers);
-        fitToColumn(worksheet3);
-        XLSX.utils.book_append_sheet(workbook, worksheet3, `파트 인건비 (${dateKey})`);
+            // Sheet 3: 파트별 인건비
+            const sheet3Headers = ['파트', '총 인건비(원)'];
+            const memberToPartMap = new Map();
+            (appConfig.teamGroups || []).forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
+            const summaryByPart = {};
+            dailyRecords.forEach(r => {
+                const part = memberToPartMap.get(r.member) || '알바';
+                if (!summaryByPart[part]) summaryByPart[part] = { totalCost: 0 };
+                const wage = combinedWageMap[r.member] || 0;
+                const cost = ((Number(r.duration) || 0) / 60) * wage;
+                summaryByPart[part].totalCost += cost;
+            });
+            const sheet3Data = Object.keys(summaryByPart).sort().map(part => ({
+                '파트': part,
+                '총 인건비(원)': Math.round(summaryByPart[part].totalCost)
+            }));
+            const worksheet3 = XLSX.utils.json_to_sheet(sheet3Data, { header: sheet3Headers });
+            if (sheet3Data.length > 0) appendTotalRow(worksheet3, sheet3Data, sheet3Headers);
+            fitToColumn(worksheet3);
+            XLSX.utils.book_append_sheet(workbook, worksheet3, `파트 인건비 (${dateKey})`);
+        }
 
-        XLSX.writeFile(workbook, `업무기록_${dateKey}.xlsx`);
+        XLSX.writeFile(workbook, `업무기록_${dateKey}.${format}`);
 
     } catch (error) {
-        console.error('Excel export failed:', error);
-        showToast('Excel 파일 생성에 실패했습니다.', true);
+        console.error('Export failed:', error);
+        showToast('파일 생성에 실패했습니다.', true);
     }
 };
 
-export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFileName = null) => {
+export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFileName = null, format = 'xlsx') => {
     if (!startDate || !endDate) return showToast('기간을 선택해주세요.', true);
 
     try {
@@ -222,7 +225,7 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFil
         const workbook = XLSX.utils.book_new();
         const historyWageMap = { ...(appConfig.memberWages || {}) };
 
-        // Sheet 1: 상세 기록 (기간)
+        // Sheet 1: 상세 기록 (기간) - CSV 시 이것만 저장
         const sheet1Headers = ['날짜', '팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)', '인건비(원)'];
         const sheet1Data = filteredData.flatMap(day => 
             (day.workRecords || []).map(r => {
@@ -245,44 +248,44 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFil
         fitToColumn(worksheet1);
         XLSX.utils.book_append_sheet(workbook, worksheet1, `상세 기록 (기간)`);
 
-        const fileName = customFileName || `업무기록_기간_${startDate}_${endDate}.xlsx`;
+        const fileName = customFileName || `업무기록_기간_${startDate}_${endDate}.${format}`;
         XLSX.writeFile(workbook, fileName);
 
     } catch (error) {
-        console.error('Period Excel export failed:', error);
-        showToast('기간 엑셀 생성 실패', true);
+        console.error('Period export failed:', error);
+        showToast('기간 데이터 다운로드 실패', true);
     }
 };
 
-export const downloadWeeklyHistoryAsExcel = async (weekKey) => {
+export const downloadWeeklyHistoryAsExcel = async (weekKey, format = 'xlsx') => {
     if (!weekKey) return showToast('주간 정보가 없습니다.', true);
     const weekData = allHistoryData.filter(d => getWeekOfYear(new Date(d.id + "T00:00:00")) === weekKey);
     if (weekData.length === 0) return showToast(`${weekKey} 데이터가 없습니다.`, true);
     weekData.sort((a, b) => a.id.localeCompare(b.id));
-    await downloadPeriodHistoryAsExcel(weekData[0].id, weekData[weekData.length - 1].id, `주간업무요약_${weekKey}.xlsx`);
+    await downloadPeriodHistoryAsExcel(weekData[0].id, weekData[weekData.length - 1].id, `주간업무요약_${weekKey}.${format}`, format);
 };
 
-export const downloadMonthlyHistoryAsExcel = async (monthKey) => {
+export const downloadMonthlyHistoryAsExcel = async (monthKey, format = 'xlsx') => {
      if (!monthKey) return showToast('월간 정보가 없습니다.', true);
      const monthData = allHistoryData.filter(d => d.id.startsWith(monthKey));
      if (monthData.length === 0) return showToast(`${monthKey} 데이터가 없습니다.`, true);
      monthData.sort((a, b) => a.id.localeCompare(b.id));
-     await downloadPeriodHistoryAsExcel(monthData[0].id, monthData[monthData.length - 1].id, `월간업무요약_${monthKey}.xlsx`);
+     await downloadPeriodHistoryAsExcel(monthData[0].id, monthData[monthData.length - 1].id, `월간업무요약_${monthKey}.${format}`, format);
 };
 
-export const downloadAttendanceExcel = (viewMode, key) => {
+export const downloadAttendanceExcel = (viewMode, key, format = 'xlsx') => {
     let dataList = [];
     let fileName = '';
     if (viewMode === 'daily') {
         const day = allHistoryData.find(d => d.id === key);
         if (day) dataList = [day];
-        fileName = `근태기록_일별_${key}.xlsx`;
+        fileName = `근태기록_일별_${key}.${format}`;
     } else if (viewMode === 'weekly') {
         dataList = allHistoryData.filter(d => getWeekOfYear(new Date(d.id + "T00:00:00")) === key);
-        fileName = `근태기록_주별_${key}.xlsx`;
+        fileName = `근태기록_주별_${key}.${format}`;
     } else if (viewMode === 'monthly') {
         dataList = allHistoryData.filter(d => d.id.startsWith(key));
-        fileName = `근태기록_월별_${key}.xlsx`;
+        fileName = `근태기록_월별_${key}.${format}`;
     }
 
     if (dataList.length === 0) return showToast('다운로드할 데이터가 없습니다.', true);
@@ -295,7 +298,7 @@ export const downloadAttendanceExcel = (viewMode, key) => {
             }
             const rec = summary[entry.member];
             if (rec.hasOwnProperty(entry.type)) rec[entry.type]++;
-            rec['총 횟수']++;
+            if (entry.type !== '연차') rec['총 횟수']++;
             if (entry.type === '결근') rec['총 결근일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
             if (entry.type === '연차') rec['총 연차일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
         });
@@ -313,16 +316,42 @@ export const downloadAttendanceExcel = (viewMode, key) => {
 
 
 // =================================================================
-// ✅ 업무 리포트(Report) 엑셀 다운로드
+// ✅ 업무 리포트(Report) 엑셀/CSV 다운로드
 // =================================================================
-export const downloadReportExcel = (reportData) => {
+export const downloadReportExcel = (reportData, format = 'xlsx') => {
     if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
 
     try {
         const workbook = XLSX.utils.book_new();
         const { type, title, tMetrics, tData } = reportData;
 
-        // 1. KPI 요약 시트
+        // --- 각 시트 데이터 준비 ---
+        
+        // 4. 업무별 상세 (CSV일 경우 이것을 메인으로 사용)
+        const taskSummary = tMetrics.aggr.taskSummary;
+        const taskData = Object.keys(taskSummary).map(t => ({
+            '업무': t,
+            '총 시간': formatDuration(taskSummary[t].duration),
+            '총 인건비(원)': Math.round(taskSummary[t].cost),
+            '총 처리량(개)': taskSummary[t].quantity,
+            '분당 처리량': taskSummary[t].avgThroughput.toFixed(2),
+            '개당 처리비용(원)': Math.round(taskSummary[t].avgCostPerItem),
+            '총 인원(명)': taskSummary[t].avgStaff,
+            '인당 효율': taskSummary[t].efficiency.toFixed(2)
+        }));
+        const wsTask = XLSX.utils.json_to_sheet(taskData);
+        fitToColumn(wsTask);
+
+        // CSV인 경우 업무별 상세만 저장
+        if (format === 'csv') {
+            XLSX.utils.book_append_sheet(workbook, wsTask, '업무별 상세');
+            XLSX.writeFile(workbook, `${title.replace(/ /g, '_')}.csv`);
+            return;
+        }
+
+        // Excel인 경우 모든 시트 추가
+        
+        // 1. KPI 요약
         const kpis = tMetrics.kpis;
         const kpiData = [
             { '항목': '총 업무 시간', '값': formatDuration(kpis.totalDuration) },
@@ -338,7 +367,7 @@ export const downloadReportExcel = (reportData) => {
         fitToColumn(wsKPI);
         XLSX.utils.book_append_sheet(workbook, wsKPI, '주요 지표(KPI)');
 
-        // 2. 파트별 요약 시트
+        // 2. 파트별 요약
         const partSummary = tMetrics.aggr.partSummary;
         const partData = Object.keys(partSummary).map(part => ({
             '파트': part,
@@ -350,7 +379,7 @@ export const downloadReportExcel = (reportData) => {
         fitToColumn(wsPart);
         XLSX.utils.book_append_sheet(workbook, wsPart, '파트별 요약');
 
-        // 3. 인원별 상세 시트
+        // 3. 인원별 상세
         const memberSummary = tMetrics.aggr.memberSummary;
         const memberData = Object.keys(memberSummary).map(m => ({
             '이름': m,
@@ -363,41 +392,52 @@ export const downloadReportExcel = (reportData) => {
         fitToColumn(wsMember);
         XLSX.utils.book_append_sheet(workbook, wsMember, '인원별 상세');
 
-        // 4. 업무별 상세 시트
-        const taskSummary = tMetrics.aggr.taskSummary;
-        const taskData = Object.keys(taskSummary).map(t => ({
-            '업무': t,
-            '총 시간': formatDuration(taskSummary[t].duration),
-            '총 인건비(원)': Math.round(taskSummary[t].cost),
-            '총 처리량(개)': taskSummary[t].quantity,
-            '분당 처리량': taskSummary[t].avgThroughput.toFixed(2),
-            '개당 처리비용(원)': Math.round(taskSummary[t].avgCostPerItem),
-            '총 인원(명)': taskSummary[t].avgStaff,
-            '인당 효율': taskSummary[t].efficiency.toFixed(2)
-        }));
-        const wsTask = XLSX.utils.json_to_sheet(taskData);
-        fitToColumn(wsTask);
+        // 4. 업무별 상세 (위에서 생성함)
         XLSX.utils.book_append_sheet(workbook, wsTask, '업무별 상세');
 
         XLSX.writeFile(workbook, `${title.replace(/ /g, '_')}.xlsx`);
     } catch (e) {
         console.error(e);
-        showToast('리포트 엑셀 변환 중 오류 발생', true);
+        showToast('리포트 다운로드 중 오류 발생', true);
     }
 };
 
 
 // =================================================================
-// ✅ 개인 리포트 엑셀 다운로드
+// ✅ 개인 리포트 엑셀/CSV 다운로드
 // =================================================================
-export const downloadPersonalReportExcel = (reportData) => {
+export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
     if (!reportData) return showToast('개인 리포트 데이터가 없습니다.', true);
 
     try {
         const workbook = XLSX.utils.book_new();
         const { title, stats, memberName, dateKey } = reportData;
 
-        // 1. 요약 시트
+        // 3. 일자별 활동 로그 (CSV일 경우 이것을 메인으로)
+        let logData = [];
+        if (stats.dailyLogs.length > 0) {
+            logData = stats.dailyLogs.map(log => ({
+                '날짜': log.date,
+                '근태 상태': log.attendance,
+                '주요 업무': log.mainTask,
+                '총 근무 시간': formatDuration(log.workTime)
+            }));
+        } else {
+             logData = [{'결과': '기록 없음'}];
+        }
+        const wsLog = XLSX.utils.json_to_sheet(logData);
+        fitToColumn(wsLog);
+
+        // CSV인 경우 일자별 활동만 저장
+        if (format === 'csv') {
+            XLSX.utils.book_append_sheet(workbook, wsLog, '일자별 활동');
+            XLSX.writeFile(workbook, `${title.replace(/ /g, '_')}.csv`);
+            return;
+        }
+
+        // Excel인 경우 모든 시트 추가
+        
+        // 1. 요약
         const summaryData = [
             { '항목': '이름', '값': memberName },
             { '항목': '기간/날짜', '값': dateKey },
@@ -410,7 +450,7 @@ export const downloadPersonalReportExcel = (reportData) => {
         fitToColumn(wsSummary);
         XLSX.utils.book_append_sheet(workbook, wsSummary, '개인 요약');
 
-        // 2. 업무별 통계 시트
+        // 2. 업무별 통계
         const taskData = Object.entries(stats.taskStats).map(([task, data]) => ({
             '업무명': task,
             '수행 횟수': data.count,
@@ -422,20 +462,10 @@ export const downloadPersonalReportExcel = (reportData) => {
         fitToColumn(wsTask);
         XLSX.utils.book_append_sheet(workbook, wsTask, '업무별 통계');
 
-        // 3. 일자별 활동 로그 시트
-        if (stats.dailyLogs.length > 0) {
-            const logData = stats.dailyLogs.map(log => ({
-                '날짜': log.date,
-                '근태 상태': log.attendance,
-                '주요 업무': log.mainTask,
-                '총 근무 시간': formatDuration(log.workTime)
-            }));
-            const wsLog = XLSX.utils.json_to_sheet(logData);
-            fitToColumn(wsLog);
-            XLSX.utils.book_append_sheet(workbook, wsLog, '일자별 활동');
-        }
+        // 3. 일자별 활동 (위에서 생성)
+        XLSX.utils.book_append_sheet(workbook, wsLog, '일자별 활동');
 
-        // 4. 근태 상세 기록 시트
+        // 4. 근태 상세 기록
         if (stats.attendanceLogs.length > 0) {
             const attData = stats.attendanceLogs.map(log => ({
                 '날짜': log.date,
@@ -450,13 +480,13 @@ export const downloadPersonalReportExcel = (reportData) => {
         XLSX.writeFile(workbook, `${title.replace(/ /g, '_')}.xlsx`);
     } catch (e) {
         console.error(e);
-        showToast('개인 리포트 엑셀 변환 중 오류 발생', true);
+        showToast('개인 리포트 다운로드 중 오류 발생', true);
     }
 };
 
 
 // =================================================================
-// ✅ [수정] PDF 다운로드 (가로 모드 + 전체 내용 펼치기)
+// ✅ [유지] PDF 다운로드 (가로 모드 + 전체 내용 펼치기)
 // =================================================================
 export const downloadContentAsPdf = (elementId, title) => {
     const originalElement = document.getElementById(elementId);
