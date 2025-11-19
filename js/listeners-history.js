@@ -10,6 +10,7 @@ import {
     trendCharts
 } from './ui.js';
 
+// ✅ [수정] augmentHistoryWithPersistentLeave 함수 임포트 추가
 import {
     loadAndRenderHistoryList,
     renderHistoryDetail,
@@ -18,7 +19,8 @@ import {
     openHistoryQuantityModal,
     requestHistoryDeletion,
     openHistoryRecordManager, 
-    renderHistoryRecordsTable   
+    renderHistoryRecordsTable,
+    augmentHistoryWithPersistentLeave 
 } from './app-history-logic.js';
 
 import {
@@ -138,6 +140,8 @@ export function setupHistoryModalListeners() {
         // 데이터 최신화 (필요 시)
         if (dateKey === getTodayDateString()) {
             await syncTodayToHistory();
+            // ✅ [수정] 동기화 후 연차 정보 다시 병합 (매우 중요!)
+            augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
         }
 
         if (view === 'attendance-daily') {

@@ -39,8 +39,8 @@ import {
     getDailyDocRef
 } from './history-data-manager.js';
 
-// 지속성 근태 기록 주입 헬퍼
-function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
+// ✅ [수정] export 키워드 추가 (외부에서 호출 가능하도록 변경)
+export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     if (!leaveSchedule || !leaveSchedule.onLeaveMembers || leaveSchedule.onLeaveMembers.length === 0) {
         return historyData;
     }
