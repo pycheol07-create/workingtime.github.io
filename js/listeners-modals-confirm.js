@@ -77,25 +77,26 @@ export function setupConfirmationModalListeners() {
                 }
             }
             else if (State.context.deleteMode === 'attendance') {
-                // ✅ [수정] 근태 기록 삭제 로직 개선 (오늘/과거, Daily/Persistent 구분 처리)
+                // ✅ [수정] 이력 탭에서의 근태 삭제 로직 강화
                 const { dateKey, index } = State.context.attendanceRecordToDelete;
                 const todayKey = getTodayDateString();
                 
-                // 1. 로컬 데이터에서 삭제 대상 찾기
+                // 1. 로컬 데이터에서 삭제 대상 확인
                 const dayData = State.allHistoryData.find(d => d.id === dateKey);
                 if (dayData && dayData.onLeaveMembers && dayData.onLeaveMembers[index]) {
                     const recordToDelete = dayData.onLeaveMembers[index];
                     const isPersistentType = ['연차', '출장', '결근'].includes(recordToDelete.type);
                     
-                    // 2. Persistent(영구) 저장소(leaveSchedule) 확인 및 삭제 시도
-                    // (화면에 보이는 연차가 persistent 데이터에서 온 것인지 확인)
+                    // 2. 영구 저장소(leaveSchedule) 삭제 시도 (연차 등인 경우)
                     let deletedFromPersistent = false;
                     if (isPersistentType) {
-                        const pIndex = State.persistentLeaveSchedule.onLeaveMembers.findIndex(p => 
-                            p.member === recordToDelete.member && 
-                            p.startDate === recordToDelete.startDate && 
-                            p.type === recordToDelete.type
-                        );
+                        const pIndex = State.persistentLeaveSchedule.onLeaveMembers.findIndex(p => {
+                            // ID가 있으면 ID로 비교, 없으면 필드값으로 비교
+                            if (recordToDelete.id && p.id) return p.id === recordToDelete.id;
+                            return p.member === recordToDelete.member && 
+                                   p.startDate === recordToDelete.startDate && 
+                                   p.type === recordToDelete.type;
+                        });
                         
                         if (pIndex > -1) {
                             State.persistentLeaveSchedule.onLeaveMembers.splice(pIndex, 1);
@@ -108,53 +109,39 @@ export function setupConfirmationModalListeners() {
                         }
                     }
 
-                    // 3. Daily/History 저장소 삭제 (Persistent에서 삭제 안 된 경우만)
-                    if (!deletedFromPersistent) {
-                        try {
-                            let docRef;
-                            if (dateKey === todayKey) {
-                                // 오늘 날짜는 daily_data 컬렉션
-                                docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
-                            } else {
-                                // 과거 날짜는 history 컬렉션
-                                docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                            }
+                    // 3. 로컬 데이터 및 DB 문서(daily_data/history) 업데이트
+                    // (영구 일정에서 삭제했더라도, 이미 날짜별 문서에 복사된 데이터는 별도로 지워야 함)
+                    dayData.onLeaveMembers.splice(index, 1); // 로컬 즉시 반영
 
-                            // 최신 데이터 가져와서 필터링 후 업데이트
-                            const docSnap = await getDoc(docRef);
-                            if (docSnap.exists()) {
-                                const currentLeaves = docSnap.data().onLeaveMembers || [];
-                                // ID가 있으면 ID로, 없으면 모든 필드 비교로 삭제 대상 찾기
-                                const newLeaves = currentLeaves.filter(l => {
-                                    if (recordToDelete.id && l.id) return l.id !== recordToDelete.id;
-                                    // ID가 없는 레거시 데이터 비교
-                                    return !(l.member === recordToDelete.member && 
-                                             l.type === recordToDelete.type && 
-                                             l.startTime === recordToDelete.startTime &&
-                                             l.startDate === recordToDelete.startDate);
-                                });
-                                
-                                await updateDoc(docRef, { onLeaveMembers: newLeaves });
-                            }
-                        } catch (e) {
-                             console.error('Error deleting attendance record from DB:', e);
-                             showToast('근태 기록 삭제 중 오류 발생', true);
+                    try {
+                        let docRef;
+                        if (dateKey === todayKey) {
+                            docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
+                        } else {
+                            docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                         }
-                    }
-                    
-                    showToast(`${recordToDelete.member}님의 '${recordToDelete.type}' 기록이 삭제되었습니다.`);
 
-                    // 4. UI 갱신
-                    const activeAttendanceTab = document.querySelector('#attendance-history-tabs button.font-semibold');
-                    const view = activeAttendanceTab ? activeAttendanceTab.dataset.view : 'attendance-daily';
-                    await switchHistoryView(view);
+                        // 배열 전체를 덮어쓰는 방식으로 업데이트 (확실한 동기화)
+                        await updateDoc(docRef, { onLeaveMembers: dayData.onLeaveMembers });
+                        
+                        showToast(`${recordToDelete.member}님의 '${recordToDelete.type}' 기록이 삭제되었습니다.`);
+                        
+                        // 4. 화면 갱신
+                        const activeAttendanceTab = document.querySelector('#attendance-history-tabs button.font-semibold');
+                        const view = activeAttendanceTab ? activeAttendanceTab.dataset.view : 'attendance-daily';
+                        await switchHistoryView(view);
+
+                    } catch (e) {
+                         console.error('Error updating attendance doc:', e);
+                         showToast('삭제 내용을 저장하는 중 오류가 발생했습니다.', true);
+                    }
                 } else {
                     showToast('삭제할 기록을 찾을 수 없습니다.', true);
                 }
                 
                 State.context.attendanceRecordToDelete = null;
             }
-            // 메인 화면 근태 삭제
+            // 메인 화면에서의 근태 삭제 (아이콘 클릭 등)
             else if (State.context.deleteMode === 'leave-record') {
                 const { memberName, startIdentifier, type, displayType } = State.context.attendanceRecordToDelete;
                 let dailyChanged = false;
@@ -261,7 +248,7 @@ export function setupConfirmationModalListeners() {
 
             if (dailyEntry) {
                 if (dailyEntry.type === '외출') {
-                    // ✅ 외출은 삭제하지 않고 종료 시간을 기록 (이력 유지)
+                    // 외출은 종료 시간 기록 (이력 유지)
                     dailyEntry.endTime = now;
                     dailyChanged = true;
                     actionMessage = '복귀 완료';

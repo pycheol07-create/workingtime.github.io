@@ -4,7 +4,6 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 
-// ✅ [수정] app.js 대신 app-data.js에서 데이터 함수 임포트
 import {
     generateId,
     debouncedSaveState,
@@ -12,7 +11,6 @@ import {
     saveStateToFirestore 
 } from './app-data.js';
 
-// ✅ [수정] calculateDateDifference 임포트 추가
 import { getTodayDateString, getCurrentTime, showToast, calcElapsedMinutes, calculateDateDifference } from './utils.js';
 import {
     renderTeamSelectionModalContent
@@ -111,7 +109,6 @@ export function setupFormModalListeners() {
         DOM.teamSelectModal.addEventListener('click', async (e) => {
             const target = e.target; 
 
-            // 1. 개별 멤버 버튼 클릭
             const memberButton = target.closest('.member-select-btn');
             if (memberButton && !memberButton.disabled) {
                 const memberName = memberButton.dataset.memberName;
@@ -128,7 +125,6 @@ export function setupFormModalListeners() {
                 }
             }
 
-            // 2. 전체 선택/해제 버튼 클릭
             const selectAllBtn = target.closest('.group-select-all-btn');
             if (selectAllBtn) {
                 const groupName = selectAllBtn.dataset.groupName;
@@ -154,7 +150,6 @@ export function setupFormModalListeners() {
                 }
             }
 
-            // 3. 알바 수정 버튼 클릭 핸들러
             const editPartTimerBtn = target.closest('.edit-part-timer-btn');
             if (editPartTimerBtn) {
                 const partTimerId = editPartTimerBtn.dataset.partTimerId;
@@ -169,7 +164,6 @@ export function setupFormModalListeners() {
                 return; 
             }
 
-            // 4. 알바 삭제 버튼 클릭 핸들러
             const deletePartTimerBtn = target.closest('.delete-part-timer-btn');
             if (deletePartTimerBtn) {
                 const partTimerId = deletePartTimerBtn.dataset.partTimerId;
@@ -189,7 +183,6 @@ export function setupFormModalListeners() {
                 return; 
             }
 
-            // 5. 알바 추가 버튼 핸들러
              if (target.closest('#add-part-timer-modal-btn')) {
                 if (!State.appState.partTimers) State.appState.partTimers = [];
 
@@ -221,7 +214,6 @@ export function setupFormModalListeners() {
                 return; 
             }
 
-            // 6. 확인 버튼 (업무 시작/추가)
             const confirmTeamSelectBtn = target.closest('#confirm-team-select-btn');
             if (confirmTeamSelectBtn) {
                  if (State.context.tempSelectedMembers.length === 0) {
@@ -367,7 +359,7 @@ export function setupFormModalListeners() {
         });
     }
 
-    // ✅ [수정] 근태 저장 리스너 (지각 추가)
+    // ✅ [수정] 근태 저장 리스너 (연차 등 Persistent 기록의 메모리 동기화 추가)
     if (DOM.confirmLeaveBtn) {
         DOM.confirmLeaveBtn.addEventListener('click', () => {
             const memberName = State.context.memberToSetLeave;
@@ -398,17 +390,49 @@ export function setupFormModalListeners() {
                     startDate,
                     endDate
                 };
+                // 1. Persistent 저장소(설정값)에 저장
                 State.persistentLeaveSchedule.onLeaveMembers.push(newEntry);
                 saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
                 
-                // 연차 차감 안내 메시지
+                // 2. ✅ [신규] 로컬 이력 데이터(allHistoryData)에도 즉시 반영 (화면 갱신용)
+                // 기간 내의 모든 날짜에 대해 이력 데이터가 존재하면 추가
+                const startDt = new Date(startDate);
+                const endDt = new Date(endDate);
+                
+                for(let dt = new Date(startDt); dt <= endDt; dt.setDate(dt.getDate() + 1)) {
+                    const dateKey = dt.toISOString().slice(0, 10);
+                    // 해당 날짜의 데이터 찾기 (없으면 생성)
+                    let dayData = State.allHistoryData.find(d => d.id === dateKey);
+                    if (!dayData) {
+                        dayData = { id: dateKey, onLeaveMembers: [], workRecords: [], taskQuantities: {} };
+                        State.allHistoryData.push(dayData);
+                        // 날짜순 정렬 유지
+                        State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
+                    }
+                    
+                    if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
+                    // 중복 체크 후 추가
+                    const exists = dayData.onLeaveMembers.some(l => l.member === memberName && l.type === type);
+                    if (!exists) {
+                        dayData.onLeaveMembers.push({ ...newEntry });
+                    }
+                }
+
+                // 3. 오늘 날짜에 해당하면 실시간 근태 배열에도 업데이트 (메인화면 반영용)
+                if (today >= startDate && today <= endDate) {
+                    State.appState.dateBasedOnLeaveMembers = State.persistentLeaveSchedule.onLeaveMembers.filter(entry => {
+                        const ed = entry.endDate || entry.startDate;
+                        return today >= entry.startDate && today <= ed;
+                    });
+                }
+
                 if (type === '연차') {
                      showToast(`${memberName}님 ${diffDays}일 연차 처리 완료. (현황 탭에서 잔여일 확인 가능)`);
                 } else {
                      showToast(`${memberName}님 ${type} 처리 완료.`);
                 }
             } else {
-                // ✅ '지각' 추가 (시간 기반, 시작시간만 기록)
+                // '지각', '외출', '조퇴' 등 Daily 근태
                 const newDailyEntry = {
                     member: memberName,
                     type: type,
@@ -513,12 +537,10 @@ export function setupFormModalListeners() {
         });
     }
     
-    // 메인 화면 근태 수정 모달 리스너
     const editLeaveModal = document.getElementById('edit-leave-record-modal');
 
     if (editLeaveModal) {
         
-        // 1. 취소 버튼
         const cancelEditLeaveBtn = document.getElementById('cancel-edit-leave-record-btn');
         if (cancelEditLeaveBtn) {
             cancelEditLeaveBtn.addEventListener('click', () => {
@@ -526,7 +548,6 @@ export function setupFormModalListeners() {
             });
         }
 
-        // 2. 삭제 버튼 (확인 모달 열기)
         const deleteLeaveBtn = document.getElementById('delete-leave-record-btn');
         if (deleteLeaveBtn) {
             deleteLeaveBtn.addEventListener('click', () => {
@@ -549,26 +570,21 @@ export function setupFormModalListeners() {
             });
         }
 
-        // 3. 저장 버튼
         const confirmEditLeaveBtn = document.getElementById('confirm-edit-leave-record-btn');
         if (confirmEditLeaveBtn) {
             confirmEditLeaveBtn.addEventListener('click', async () => {
-                // 1. 원본 데이터 가져오기
                 const memberName = document.getElementById('edit-leave-original-member-name').value;
                 const originalStart = document.getElementById('edit-leave-original-start-identifier').value;
                 const originalType = document.getElementById('edit-leave-original-type').value;
 
-                // 2. 새 데이터 가져오기
                 const newType = document.getElementById('edit-leave-type').value;
                 const newStartTime = document.getElementById('edit-leave-start-time').value;
                 const newEndTime = document.getElementById('edit-leave-end-time').value;
                 const newStartDate = document.getElementById('edit-leave-start-date').value;
                 const newEndDate = document.getElementById('edit-leave-end-date').value;
 
-                // ✅ [수정] '지각' 추가
                 const isNewTimeBased = (newType === '외출' || newType === '조퇴' || newType === '지각');
 
-                // 3. 원본 기록 찾아서 제거
                 let dailyChanged = false;
                 let persistentChanged = false;
                 let foundAndRemoved = false;
@@ -582,7 +598,7 @@ export function setupFormModalListeners() {
                         dailyChanged = true;
                         foundAndRemoved = true;
                     }
-                } else { // 'persistent'
+                } else { 
                     const index = State.persistentLeaveSchedule.onLeaveMembers.findIndex(
                         r => r.member === memberName && (r.startDate || '') === originalStart
                     );
@@ -598,7 +614,6 @@ export function setupFormModalListeners() {
                     return;
                 }
 
-                // 4. 새/수정된 기록 추가
                 if (isNewTimeBased) {
                     if (!newStartTime) {
                         showToast('시간 기반 근태는 시작 시간이 필수입니다.', true);
@@ -608,11 +623,10 @@ export function setupFormModalListeners() {
                         member: memberName,
                         type: newType,
                         startTime: newStartTime,
-                        // ✅ [수정] '지각'은 종료 시간 없음
                         endTime: (newType === '외출') ? newEndTime : null 
                     });
                     dailyChanged = true;
-                } else { // Date based
+                } else { 
                     if (!newStartDate) {
                         showToast('날짜 기반 근태는 시작일이 필수입니다.', true);
                         return;
@@ -627,7 +641,6 @@ export function setupFormModalListeners() {
                     persistentChanged = true;
                 }
 
-                // 5. 변경사항 Firestore에 저장
                 try {
                     if (dailyChanged) {
                         await saveStateToFirestore();
@@ -644,12 +657,10 @@ export function setupFormModalListeners() {
             });
         }
 
-        // 4. 유형 변경 시 UI 토글
         const editLeaveTypeSelect = document.getElementById('edit-leave-type');
         if (editLeaveTypeSelect) {
             editLeaveTypeSelect.addEventListener('change', (e) => {
                 const newType = e.target.value;
-                // ✅ [수정] '지각' 추가
                 const isTimeBased = (newType === '외출' || newType === '조퇴' || newType === '지각');
                 const isOuting = (newType === '외출');
                 
