@@ -31,7 +31,7 @@ const calculateTenure = (joinDateStr) => {
     return `${years}년 ${months}개월 ${days + 1}일째`;
 };
 
-// 연차 사용 내역 계산 헬퍼 함수
+// ✅ [수정] 연차 사용 내역 계산 헬퍼 함수 (중복/겹침 날짜 스마트 합산)
 const calculateLeaveUsage = (memberName) => {
     // 설정값 가져오기 (없으면 기본값)
     const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-' };
@@ -43,11 +43,49 @@ const calculateLeaveUsage = (memberName) => {
         .filter(item => item.member === memberName && item.type === '연차')
         .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '')); // 날짜순 정렬
 
-    let usedCount = 0;
+    // --- [신규] 실제 사용일수 계산 (중복/겹침 제거 로직) ---
+    let realUsedCount = 0;
+    if (history.length > 0) {
+        // 1. 날짜 범위로 변환
+        const ranges = history.map(h => {
+            // YYYY-MM-DD 문자열을 비교 가능한 값으로 변환 (UTC 기준)
+            const start = new Date(h.startDate);
+            const end = new Date(h.endDate || h.startDate);
+            return { 
+                start: Date.UTC(start.getFullYear(), start.getMonth(), start.getDate()), 
+                end: Date.UTC(end.getFullYear(), end.getMonth(), end.getDate()) 
+            };
+        });
+
+        // 2. 범위 병합 (Merge Overlapping Intervals)
+        const merged = [];
+        let current = ranges[0];
+
+        for (let i = 1; i < ranges.length; i++) {
+            const next = ranges[i];
+            // 현재 구간의 끝과 다음 구간의 시작이 겹치거나 이어지면 병합
+            // (하루 단위이므로 end + 1일 == next.start 인 경우도 이어지는 걸로 볼 수 있으나, 
+            //  여기서는 날짜 중복 '차감' 방지가 목적이므로 겹치는 것만 처리)
+            if (next.start <= current.end) {
+                current.end = Math.max(current.end, next.end);
+            } else {
+                merged.push(current);
+                current = next;
+            }
+        }
+        merged.push(current);
+
+        // 3. 병합된 구간의 일수 합산
+        realUsedCount = merged.reduce((sum, range) => {
+            const diffTime = range.end - range.start;
+            const days = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            return sum + days;
+        }, 0);
+    }
+
+    // 표시용 히스토리 데이터 가공 (개별 내역은 그대로 보여줌)
     const usageHistory = history.map((item, index) => {
-        // 시작일~종료일 차이 계산
         const days = calculateDateDifference(item.startDate, item.endDate);
-        usedCount += days;
         return {
             ...item,
             days,
@@ -57,8 +95,8 @@ const calculateLeaveUsage = (memberName) => {
 
     return {
         total: totalLeave,
-        used: usedCount,
-        remaining: totalLeave - usedCount,
+        used: realUsedCount, // ✅ 중복 제거된 실제 사용일수 사용
+        remaining: totalLeave - realUsedCount,
         joinDate: joinDate,
         history: usageHistory.reverse() // 보여줄 때는 최신순(역순)으로
     };
@@ -202,7 +240,13 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             const attendance = appState.dailyAttendance?.[member];
             const isClockedIn = attendance && attendance.status === 'active';
             const isReturned = attendance && attendance.status === 'returned';
+            const isBeforeWork = !isClockedIn;
 
+            // ✅ [수정] 퇴근 완료자나 출근 전인 사람도 선택 가능하도록 수정 (필요시 주석 해제 또는 조건 변경)
+            // 현재 로직: 업무 중, 일시정지, 휴가 중, 출근 안 한 사람은 선택 불가
+            // 단, 관리자가 강제로 넣고 싶을 수 있으므로 '선택 불가' 로직은 유지하되, 시각적 표현만 처리
+            
+            // 기본: 출근해야만 선택 가능
             const isDisabled = isOngoing || isPaused || isOnLeave || !isClockedIn;
 
             const card = document.createElement('button');
@@ -216,7 +260,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
             else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
             else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; }
-            else if (!isClockedIn) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; }
+            else if (isBeforeWork) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; }
             
             card.innerHTML = `<div class="font-bold">${member}</div>${statusLabel}`;
 
@@ -340,12 +384,19 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
                 historyListEl.innerHTML = '<li class="text-center text-gray-400 py-4">사용 내역이 없습니다.</li>';
             } else {
                 stats.history.forEach(h => {
+                    // ✅ [수정] 내역 리스트에 수정/삭제 버튼 추가
                     historyListEl.innerHTML += `
                         <li class="flex justify-between items-center bg-white p-2 rounded border border-gray-100 shadow-sm">
-                            <span class="font-semibold text-gray-700 text-xs">
-                                <span class="text-blue-500 mr-1">[${h.nth}차]</span> ${h.startDate} ${h.endDate && h.endDate !== h.startDate ? '~ ' + h.endDate.slice(5) : ''}
-                            </span>
-                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">-${h.days}일</span>
+                            <div>
+                                <span class="font-semibold text-gray-700 text-xs block">
+                                    <span class="text-blue-500 mr-1">[${h.nth}차]</span> ${h.startDate} ${h.endDate && h.endDate !== h.startDate ? '~ ' + h.endDate.slice(5) : ''}
+                                </span>
+                                <span class="text-[10px] text-gray-400">-${h.days}일 차감</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" class="text-xs text-gray-400 hover:text-blue-600 underline transition btn-edit-leave-history" data-id="${h.id}" data-member="${h.member}">수정</button>
+                                <button type="button" class="text-xs text-gray-400 hover:text-red-600 underline transition btn-delete-leave-history" data-id="${h.id}" data-member="${h.member}">삭제</button>
+                            </div>
                         </li>`;
                 });
             }
@@ -366,7 +417,17 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             tabStatus.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
             panelSetting.classList.remove('hidden');
             panelStatus.classList.add('hidden');
-            if(confirmBtn) confirmBtn.classList.remove('hidden'); 
+            if(confirmBtn) {
+                confirmBtn.classList.remove('hidden');
+                // 탭 전환 시 수정 모드 해제 (기본 생성 모드로 리셋)
+                confirmBtn.textContent = '설정 저장';
+                delete confirmBtn.dataset.editingId;
+                const sInput = document.getElementById('leave-start-date-input');
+                const eInput = document.getElementById('leave-end-date-input');
+                if(sInput) sInput.value = '';
+                if(eInput) eInput.value = '';
+                document.querySelectorAll('input[name="leave-type"]').forEach((r,i) => r.checked = i===0);
+            }
         }
     };
 
