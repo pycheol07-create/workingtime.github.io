@@ -53,7 +53,6 @@ export const syncTodayToHistory = async () => {
             onLeaveMembers: dailyData.onLeaveMembers || [],
             partTimers: dailyData.partTimers || [],
             dailyAttendance: dailyData.dailyAttendance || {},
-            // ✅ [신규] 경영 지표 동기화 추가
             management: dailyData.management || {}
         };
 
@@ -109,7 +108,6 @@ export async function saveProgress(isAutoSave = false) {
             onLeaveMembers: dailyData.onLeaveMembers || [],
             partTimers: dailyData.partTimers || [],
             dailyAttendance: dailyData.dailyAttendance || {},
-            // ✅ [신규] 경영 지표 저장 추가
             management: dailyData.management || {},
             savedAt: now
         };
@@ -132,7 +130,7 @@ export async function saveProgress(isAutoSave = false) {
 }
 
 // (app-history-logic.js -> history-data-manager.js)
-// 업무 마감 (전체 강제 종료 포함)
+// 업무 마감 (전체 강제 종료 포함) - ✅ 0분 이하 기록 자동 삭제 적용
 export async function saveDayDataToHistory(shouldReset) {
     const workRecordsColRef = getWorkRecordsCollectionRef();
     const endTime = getCurrentTime();
@@ -143,6 +141,9 @@ export async function saveDayDataToHistory(shouldReset) {
 
         if (!querySnapshot.empty) {
             const batch = writeBatch(State.db);
+            let removedCount = 0;
+            let completedCount = 0;
+
             querySnapshot.forEach(docSnap => {
                 const record = docSnap.data();
                 let pauses = record.pauses || [];
@@ -154,15 +155,29 @@ export async function saveDayDataToHistory(shouldReset) {
                 }
                 const duration = calcElapsedMinutes(record.startTime, endTime, pauses);
 
-                batch.update(docSnap.ref, {
-                    status: 'completed',
-                    endTime: endTime,
-                    duration: duration,
-                    pauses: pauses
-                });
+                // ✅ [신규] 0분 이하 자동 삭제
+                if (Math.round(duration) <= 0) {
+                    batch.delete(docSnap.ref);
+                    removedCount++;
+                } else {
+                    batch.update(docSnap.ref, {
+                        status: 'completed',
+                        endTime: endTime,
+                        duration: duration,
+                        pauses: pauses
+                    });
+                    completedCount++;
+                }
             });
+            
             await batch.commit();
-            console.log(`${querySnapshot.size}개의 진행 중인 업무를 강제 종료했습니다.`);
+            
+            if (completedCount > 0) {
+                console.log(`${completedCount}개의 진행 중인 업무를 강제 종료했습니다.`);
+            }
+            if (removedCount > 0) {
+                showToast(`소요 시간이 0분인 ${removedCount}건의 기록이 자동 삭제되었습니다.`);
+            }
         }
     } catch (e) {
          console.error("Error finalizing ongoing tasks during shift end: ", e);
@@ -219,19 +234,24 @@ export async function fetchAllHistoryData() {
 }
 
 
-// 이력(또는 오늘)에 새 업무 기록 추가
+// 이력(또는 오늘)에 새 업무 기록 추가 - ✅ 0분 이하 자동 차단
 export async function addHistoryWorkRecord(dateKey, newRecordData) {
     const todayKey = getTodayDateString();
+
+    // duration 자동 계산 (필요시)
+    if (newRecordData.startTime && newRecordData.endTime && !newRecordData.duration) {
+        newRecordData.duration = calcElapsedMinutes(newRecordData.startTime, newRecordData.endTime, newRecordData.pauses || []);
+    }
+    
+    // ✅ [신규] 0분 이하인지 확인
+    if (Math.round(newRecordData.duration || 0) <= 0) {
+        showToast('소요 시간이 0분이어 기록이 저장되지 않았습니다.', true);
+        return;
+    }
 
     // 1. 오늘 날짜인 경우 -> daily_data 컬렉션에 추가
     if (dateKey === todayKey) {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey, 'workRecords', newRecordData.id);
-        
-        // duration 자동 계산 (필요시)
-        if (newRecordData.startTime && newRecordData.endTime && !newRecordData.duration) {
-            newRecordData.duration = calcElapsedMinutes(newRecordData.startTime, newRecordData.endTime, []);
-        }
-
         await setDoc(docRef, newRecordData);
         await syncTodayToHistory();
         return;
@@ -240,7 +260,6 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
     // 2. 과거 날짜인 경우 -> history 문서의 배열에 추가
     const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
     
-    // 만약 해당 날짜의 이력이 아예 없다면 생성해야 함 (드문 케이스지만 처리)
     let dayData = dayIndex > -1 ? State.allHistoryData[dayIndex] : null;
     
     if (!dayData) {
@@ -257,11 +276,6 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
 
     if (!dayData.workRecords) dayData.workRecords = [];
 
-    // duration 계산
-    if (newRecordData.startTime && newRecordData.endTime && !newRecordData.duration) {
-        newRecordData.duration = calcElapsedMinutes(newRecordData.startTime, newRecordData.endTime, []);
-    }
-
     dayData.workRecords.push(newRecordData);
 
     // Firestore 업데이트
@@ -270,27 +284,44 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
 }
 
 
-// 이력(또는 오늘)의 특정 업무 기록 수정
+// 이력(또는 오늘)의 특정 업무 기록 수정 - ✅ 0분 이하 시 삭제 처리
 export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
     const todayKey = getTodayDateString();
 
-    // 1. 오늘 날짜인 경우 -> 실제 daily_data 컬렉션을 수정
+    // 1. 오늘 날짜인 경우
     if (dateKey === todayKey) {
-        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey, 'workRecords', recordId);
+        // 기존 기록 조회 (duration 재계산을 위해 필요)
+        const localRecord = (State.appState.workRecords || []).find(r => r.id === recordId);
+        if (!localRecord) throw new Error("기록을 찾을 수 없습니다.");
+
+        let newDuration = localRecord.duration;
         
-        if (updateData.startTime && updateData.endTime) {
-            const localRecord = (State.appState.workRecords || []).find(r => r.id === recordId);
-            if (localRecord) {
-                updateData.duration = calcElapsedMinutes(updateData.startTime, updateData.endTime, localRecord.pauses || []);
+        // 시작/종료/휴식 변경 시 duration 재계산
+        if (updateData.startTime || updateData.endTime || updateData.pauses) {
+            const start = updateData.startTime || localRecord.startTime;
+            const end = updateData.endTime || localRecord.endTime;
+            const pauses = updateData.pauses || localRecord.pauses || [];
+            
+            if (end) {
+                newDuration = calcElapsedMinutes(start, end, pauses);
+                updateData.duration = newDuration;
             }
         }
+
+        // ✅ [신규] 0분 이하이면 삭제 처리
+        if (newDuration !== null && Math.round(newDuration) <= 0) {
+            await deleteHistoryWorkRecord(dateKey, recordId);
+            showToast('수정 후 소요 시간이 0분이 되어 기록이 삭제되었습니다.');
+            return;
+        }
         
+        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey, 'workRecords', recordId);
         await updateDoc(docRef, updateData);
         await syncTodayToHistory(); 
         return;
     }
 
-    // 2. 과거 날짜인 경우 -> history 문서의 배열을 수정
+    // 2. 과거 날짜인 경우
     const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
     if (dayIndex === -1) throw new Error("해당 날짜의 이력을 찾을 수 없습니다.");
 
@@ -301,10 +332,18 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
     const originalRecord = dayData.workRecords[recordIndex];
     const updatedRecord = { ...originalRecord, ...updateData };
 
-    if (updateData.startTime || updateData.endTime) {
+    if (updateData.startTime || updateData.endTime || updateData.pauses) {
         const start = updateData.startTime || originalRecord.startTime;
         const end = updateData.endTime || originalRecord.endTime;
-        updatedRecord.duration = calcElapsedMinutes(start, end, originalRecord.pauses || []);
+        const pauses = updateData.pauses || originalRecord.pauses || [];
+        updatedRecord.duration = calcElapsedMinutes(start, end, pauses);
+    }
+
+    // ✅ [신규] 0분 이하이면 삭제 처리
+    if (Math.round(updatedRecord.duration || 0) <= 0) {
+        await deleteHistoryWorkRecord(dateKey, recordId);
+        showToast('수정 후 소요 시간이 0분이 되어 기록이 삭제되었습니다.');
+        return;
     }
 
     dayData.workRecords[recordIndex] = updatedRecord;

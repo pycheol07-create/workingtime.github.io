@@ -22,7 +22,7 @@ import {
 } from './app-logic.js';
 import { saveLeaveSchedule } from './config.js';
 import {
-    doc, updateDoc, collection, query, where, getDocs, writeBatch, setDoc 
+    doc, updateDoc, collection, query, where, getDocs, writeBatch, setDoc, deleteDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 헬퍼 변수
@@ -360,7 +360,7 @@ export function setupFormModalListeners() {
         });
     }
 
-    // ✅ [수정] 업무 기록 수정 저장 리스너
+    // ✅ [수정] 업무 기록 수정 저장 리스너 (0분 이하 삭제 기능 추가)
     if (DOM.confirmEditBtn) {
         DOM.confirmEditBtn.addEventListener('click', async () => {
             const recordId = State.context.recordToEditId;
@@ -381,29 +381,38 @@ export function setupFormModalListeners() {
             }
 
             try {
-                const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords', recordId);
+                const recordRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords', recordId);
 
                 const updates = {
                     task,
                     member,
                     startTime,
-                    pauses: currentEditingPauses // ✅ 수정된 휴식 시간 반영
+                    pauses: currentEditingPauses // 수정된 휴식 시간 반영
                 };
+
+                let newDuration = null;
 
                 if (endTime) {
                     updates.endTime = endTime;
                     updates.status = 'completed';
-                    // ✅ 휴식 시간을 반영하여 소요 시간 재계산
-                    updates.duration = calcElapsedMinutes(startTime, endTime, currentEditingPauses);
+                    // 휴식 시간을 반영하여 소요 시간 재계산
+                    newDuration = calcElapsedMinutes(startTime, endTime, currentEditingPauses);
+                    updates.duration = newDuration;
                 } else {
                     updates.endTime = null;
                     updates.status = record.status === 'completed' ? 'ongoing' : record.status;
                     updates.duration = null;
                 }
 
-                await updateDoc(docRef, updates);
+                // ✅ [신규] 소요 시간이 0분 이하라면 삭제
+                if (newDuration !== null && Math.round(newDuration) <= 0) {
+                    await deleteDoc(recordRef);
+                    showToast('수정 후 소요 시간이 0분이 되어 기록이 삭제되었습니다.');
+                } else {
+                    await updateDoc(recordRef, updates);
+                    showToast('업무 기록이 수정되었습니다.');
+                }
 
-                showToast('업무 기록이 수정되었습니다.');
                 DOM.editRecordModal.classList.add('hidden');
             } catch (e) {
                 console.error("Error updating work record: ", e);
@@ -673,6 +682,7 @@ export function setupFormModalListeners() {
         });
     }
 
+    // ✅ [수정] 수동 기록 추가 리스너 (0분 이하 차단 추가)
     if (DOM.confirmManualAddBtn) {
         DOM.confirmManualAddBtn.addEventListener('click', async () => {
             const member = document.getElementById('manual-add-member').value;
@@ -690,10 +700,15 @@ export function setupFormModalListeners() {
                 return;
             }
 
+            const duration = calcElapsedMinutes(startTime, endTime, pauses);
+            // ✅ [신규] 0분 이하인지 확인
+            if (Math.round(duration) <= 0) {
+                showToast('소요 시간이 0분이어 기록이 저장되지 않았습니다.', true);
+                return;
+            }
+
             try {
                 const recordId = generateId();
-                const duration = calcElapsedMinutes(startTime, endTime, pauses);
-
                 const newRecordData = {
                     id: recordId,
                     member,
