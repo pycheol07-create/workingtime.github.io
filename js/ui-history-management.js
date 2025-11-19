@@ -82,6 +82,15 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
 
     const getValue = (val) => (val !== undefined && val !== null) ? val : '';
 
+    // ✅ [수정] 콤마 포맷팅 헬퍼 함수 (화면 표시용)
+    const formatVal = (val) => {
+        const v = getValue(val);
+        return v === '' ? '' : Number(v).toLocaleString();
+    };
+    
+    // ✅ [수정] 입력 시 실시간 콤마 적용 스크립트 (숫자 이외 제거 후 콤마 추가)
+    const onInputHandler = "this.value = this.value.replace(/[^0-9]/g, '').replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');";
+
     container.innerHTML = `
         <div class="max-w-4xl mx-auto">
             <div class="mb-6 flex items-center justify-between">
@@ -102,8 +111,8 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">일 매출액 (원)</label>
                             <div class="flex items-center gap-2">
-                                <input type="number" id="mgmt-input-revenue" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${getValue(mgmt.revenue)}">
+                                <input type="text" id="mgmt-input-revenue" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800" 
+                                    placeholder="0" value="${formatVal(mgmt.revenue)}" oninput="${onInputHandler}">
                                 <span class="text-sm font-medium w-20 text-right">
                                     ${getDiffHtmlForMetric('totalCost', mgmt.revenue, prevMgmt.revenue)}
                                 </span>
@@ -112,8 +121,8 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">주문 건수 (건)</label>
                             <div class="flex items-center gap-2">
-                                <input type="number" id="mgmt-input-orderCount" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${getValue(mgmt.orderCount)}">
+                                <input type="text" id="mgmt-input-orderCount" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800" 
+                                    placeholder="0" value="${formatVal(mgmt.orderCount)}" oninput="${onInputHandler}">
                                 <span class="text-sm font-medium w-20 text-right">
                                     ${getDiffHtmlForMetric('quantity', mgmt.orderCount, prevMgmt.orderCount)}
                                 </span>
@@ -138,8 +147,8 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">총 재고량 (개)</label>
                             <div class="flex items-center gap-2">
-                                <input type="number" id="mgmt-input-inventoryQty" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${getValue(mgmt.inventoryQty)}">
+                                <input type="text" id="mgmt-input-inventoryQty" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right font-bold text-gray-800" 
+                                    placeholder="0" value="${formatVal(mgmt.inventoryQty)}" oninput="${onInputHandler}">
                                 <span class="text-sm font-medium w-20 text-right">
                                     ${getDiffHtmlForMetric('quantity', mgmt.inventoryQty, prevMgmt.inventoryQty)}
                                 </span>
@@ -148,8 +157,8 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">재고 금액 (원)</label>
                             <div class="flex items-center gap-2">
-                                <input type="number" id="mgmt-input-inventoryAmt" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${getValue(mgmt.inventoryAmt)}">
+                                <input type="text" id="mgmt-input-inventoryAmt" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right font-bold text-gray-800" 
+                                    placeholder="0" value="${formatVal(mgmt.inventoryAmt)}" oninput="${onInputHandler}">
                                 <span class="text-sm font-medium w-20 text-right">
                                     ${getDiffHtmlForMetric('totalCost', mgmt.inventoryAmt, prevMgmt.inventoryAmt)}
                                 </span>
@@ -165,10 +174,10 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="mt-8 p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800">
-                💡 <strong>Tip:</strong> 입력한 데이터는 우측 상단 <strong>[저장]</strong> 버튼을 눌러야 반영됩니다. 저장된 데이터는 주간/월간 리포트에서 합산되어 분석됩니다.
+                <div class="mt-8 p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800">
+                    💡 <strong>Tip:</strong> 입력한 데이터는 우측 상단 <strong>[저장]</strong> 버튼을 눌러야 반영됩니다. 저장된 데이터는 주간/월간 리포트에서 합산되어 분석됩니다.
+                </div>
             </div>
         </div>
     `;
@@ -241,7 +250,6 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
             const invAmt = Number(m.inventoryAmt) || 0;
             const invQty = Number(m.inventoryQty) || 0;
             
-            // ✅ [수정] avgPrice -> avgOrderPrice 변수명 일치
             const avgOrderPrice = orders > 0 ? rev / orders : 0;
             const dailyTurnover = invAmt > 0 ? (rev / invAmt) * 100 : 0;
             

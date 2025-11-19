@@ -18,7 +18,6 @@ import {
     openHistoryQuantityModal,
     requestHistoryDeletion,
     openHistoryRecordManager,
-    // renderHistoryRecordsTable, // ⛔️ 여기서 import 하지 않고 아래에서 정의
     augmentHistoryWithPersistentLeave 
 } from './app-history-logic.js';
 
@@ -562,15 +561,17 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // ✅ [수정] 경영 지표 저장 버튼 리스너 (콤마 제거 추가)
     if (managementSaveBtn) {
         managementSaveBtn.addEventListener('click', async () => {
             const dateKey = managementSaveBtn.dataset.dateKey;
             if (!dateKey) return;
 
-            const revenue = document.getElementById('mgmt-input-revenue')?.value || 0;
-            const orderCount = document.getElementById('mgmt-input-orderCount')?.value || 0;
-            const inventoryQty = document.getElementById('mgmt-input-inventoryQty')?.value || 0;
-            const inventoryAmt = document.getElementById('mgmt-input-inventoryAmt')?.value || 0;
+            // ✅ [수정] 저장 전 콤마(,) 제거 후 숫자로 변환
+            const revenue = document.getElementById('mgmt-input-revenue')?.value.replace(/,/g, '') || 0;
+            const orderCount = document.getElementById('mgmt-input-orderCount')?.value.replace(/,/g, '') || 0;
+            const inventoryQty = document.getElementById('mgmt-input-inventoryQty')?.value.replace(/,/g, '') || 0;
+            const inventoryAmt = document.getElementById('mgmt-input-inventoryAmt')?.value.replace(/,/g, '') || 0;
 
             const managementData = {
                 revenue: Number(revenue),
@@ -1211,7 +1212,6 @@ function setupAttendanceModalButtons() {
 
                 if (dateKey === todayKey) {
                     const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
-                    // arrayUnion would be better, but we read-modify-write for safety with augment
                     const docSnap = await getDoc(dailyDocRef).catch(() => null);
                     if (docSnap && docSnap.exists()) {
                         const currentLeaves = docSnap.data().onLeaveMembers || [];
@@ -1291,10 +1291,6 @@ function makeDraggable(modalOverlay, header, contentBox) {
 }
 
 // ✅ [신규] 기록 관리 테이블 렌더링 (필터링 및 일괄수정 포함)
-// [중요] 함수 이름을 변경하여 export하지 않고, 외부에서 필요하다면 app-history-logic.js 등의 적절한 곳으로 옮기거나, 
-// 여기서는 이 파일 내에서만 사용되도록 합니다. 하지만 만약 다른 파일에서 호출해야 한다면 export 해야 합니다.
-// 여기서는 listeners-history.js 파일 내에서만 사용되는 것으로 보이나, 혹시 모르니 export는 유지하되, 
-// 내부 변수명 충돌을 방지하기 위해 변수명을 수정했습니다.
 export const renderHistoryRecordsTable = (dateKey) => {
     if (!DOM.historyRecordsTableBody) return;
     
