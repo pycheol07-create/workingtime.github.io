@@ -91,17 +91,6 @@ function setupEventListeners() {
     // 상단 메인 버튼
     document.getElementById('save-all-btn')?.addEventListener('click', handleSaveAll);
     
-    // ✅ [추가] 모달 닫기 버튼 공통 리스너
-    document.querySelectorAll('.modal-close-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const modalId = btn.dataset.modalId;
-            if (modalId) {
-                const modal = document.getElementById(modalId);
-                if (modal) modal.classList.add('hidden');
-            }
-        });
-    });
-    
     // 추가 버튼들
     document.getElementById('add-team-group-btn')?.addEventListener('click', addTeamGroup);
     document.getElementById('add-task-group-btn')?.addEventListener('click', addTaskGroup);

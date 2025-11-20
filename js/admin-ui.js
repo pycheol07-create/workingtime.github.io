@@ -47,12 +47,13 @@ export function renderAdminUI(config) {
         workHoursInput.value = config.standardMonthlyWorkHours || 209;
     }
 
+    // ✅ [수정] renderTeamGroups에 memberLeaveSettings 전달
     renderTeamGroups(
         config.teamGroups || [], 
         config.memberWages || {}, 
         config.memberEmails || {}, 
         config.memberRoles || {}, 
-        config.memberLeaveSettings || {}
+        config.memberLeaveSettings || {} // 연차 설정 추가
     );
     
     renderDashboardItemsConfig(config.dashboardItems || [], config);
@@ -60,59 +61,9 @@ export function renderAdminUI(config) {
     renderTaskGroups(config.taskGroups || []);
     renderQuantityTasks(config.quantityTaskTypes || []);
     renderQuantityToDashboardMapping(config);
-    
-    // ✅ [신규] 원가 분석 설정 렌더링
-    renderCostAnalysisConfig(config);
 }
 
-// ✅ [수정] 상품 원가 및 손익 분석 설정 UI 렌더링 (화물비 추가)
-export function renderCostAnalysisConfig(config) {
-    // 1. 고정비 설정
-    const materialInput = document.getElementById('fixed-material-cost');
-    if (materialInput) {
-        materialInput.value = config.fixedMaterialCost || 0;
-    }
-    const shippingInput = document.getElementById('fixed-shipping-cost');
-    if (shippingInput) {
-        shippingInput.value = config.fixedShippingCost || 0;
-    }
-    // [신규] 직진배송 화물비
-    const directDeliveryInput = document.getElementById('fixed-direct-delivery-cost');
-    if (directDeliveryInput) {
-        directDeliveryInput.value = config.fixedDirectDeliveryCost || 0;
-    }
-
-    // 2. 원가 계산 업무 선택 (체크박스 렌더링)
-    const container = document.getElementById('cost-calc-tasks-container');
-    if (container) {
-        container.innerHTML = '';
-        
-        // 현재 설정된 모든 업무 목록 가져오기 (Config 기반)
-        const allTasks = new Set();
-        (config.taskGroups || []).forEach(group => {
-            (group.tasks || []).forEach(task => allTasks.add(task));
-        });
-
-        // 이미 선택된 업무 목록
-        const savedTasks = new Set(config.costCalcTasks || []);
-
-        if (allTasks.size === 0) {
-             container.innerHTML = '<p class="text-xs text-gray-400 col-span-full text-center">등록된 업무가 없습니다.</p>';
-        } else {
-            Array.from(allTasks).sort().forEach(taskName => {
-                const isChecked = savedTasks.has(taskName) ? 'checked' : '';
-                const div = document.createElement('div');
-                div.className = 'flex items-center p-1';
-                div.innerHTML = `
-                    <input type="checkbox" id="cost-task-${taskName}" value="${taskName}" class="cost-calc-task-checkbox w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" ${isChecked}>
-                    <label for="cost-task-${taskName}" class="ml-2 text-sm text-gray-700 cursor-pointer select-none">${taskName}</label>
-                `;
-                container.appendChild(div);
-            });
-        }
-    }
-}
-
+// ✅ [수정] 연차 관리 필드(입사일, 총연차) 추가된 함수
 export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}) {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
@@ -125,10 +76,13 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
 
         const membersHtml = group.members.map((member, mIndex) => {
             const memberEmail = memberEmails[member] || '';
+            // 이메일 키는 소문자로 통일하여 역할 확인
             const currentRole = (memberEmail && memberRoles[memberEmail.toLowerCase()]) ? memberRoles[memberEmail.toLowerCase()] : 'user';
+
+            // ✅ [신규] 연차 설정 데이터 가져오기
             const settings = memberLeaveSettings[member] || {};
             const joinDate = settings.joinDate || '';
-            const totalLeave = settings.totalLeave !== undefined ? settings.totalLeave : 15;
+            const totalLeave = settings.totalLeave !== undefined ? settings.totalLeave : 15; // 기본값 15
 
             return `
             <div class="flex flex-wrap items-center gap-2 mb-2 p-2 rounded hover:bg-gray-100 member-item border-b border-gray-200 pb-2">
@@ -290,6 +244,7 @@ export function renderQuantityToDashboardMapping(config) {
     const dashboardOptions = [];
     dashboardOptions.push(`<option value="">-- 연동 안 함 --</option>`);
 
+    // 현재 화면에 렌더링된 현황판 항목 중 '수량(isQuantity=true)'인 것만 옵션으로 제공
     document.querySelectorAll('#dashboard-items-container .dashboard-item-name').forEach(itemSpan => {
         const id = itemSpan.dataset.id;
         const def = allDefinitions[id];
@@ -314,7 +269,7 @@ export function renderQuantityToDashboardMapping(config) {
         row.innerHTML = `
             <label class="w-1/3 font-semibold text-gray-700">${taskName}</label>
             <span class="text-gray-400">&rarr;</span>
-            <select class="dashboard-mapping-select w-2.3 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+            <select class="dashboard-mapping-select w-2/3 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
                 ${dashboardOptions.join('')}
             </select>
         `;

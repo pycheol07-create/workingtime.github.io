@@ -489,7 +489,7 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
 
 
 // =================================================================
-// ✅ [수정] PDF 다운로드 (Tailwind 스타일 충돌 방지)
+// ✅ [유지] PDF 다운로드 (가로 모드 + 전체 내용 펼치기)
 // =================================================================
 export const downloadContentAsPdf = (elementId, title) => {
     const originalElement = document.getElementById(elementId);
@@ -523,19 +523,19 @@ export const downloadContentAsPdf = (elementId, title) => {
     // 3. 복제된 콘텐츠의 스크롤/높이 제한 제거 (전체 펼치기)
     const allElements = clonedElement.querySelectorAll('*');
     allElements.forEach(el => {
-        // 1) 인라인 스타일 강제 초기화 (가장 강력함)
+        // Tailwind 등 클래스로 인한 높이 제한 제거
+        if (el.classList.contains('overflow-y-auto') || el.classList.contains('overflow-x-auto') || 
+            el.classList.contains('max-h-48') || el.classList.contains('max-h-60') || 
+            el.classList.contains('max-h-96') || el.classList.contains('max-h-[60vh]') || 
+            el.classList.contains('max-h-[70vh]')) {
+            
+            el.style.maxHeight = 'none';
+            el.style.height = 'auto';
+            el.style.overflow = 'visible';
+        }
+        // 인라인 스타일 강제 제거
         el.style.maxHeight = 'none';
-        el.style.height = 'auto';
         el.style.overflow = 'visible';
-
-        // 2) Tailwind 클래스 제거 (CSS 우선순위 문제 해결)
-        // 스크롤바를 유발하거나 높이를 제한하는 클래스들을 제거합니다.
-        el.classList.remove(
-            'overflow-y-auto', 'overflow-x-auto', 'overflow-hidden', 'overflow-auto',
-            'max-h-40', 'max-h-48', 'max-h-60', 'max-h-96', 
-            'max-h-screen', 
-            'max-h-[60vh]', 'max-h-[70vh]', 'max-h-[85vh]', 'max-h-[90vh]'
-        );
     });
 
     // 4. Canvas(차트) 복구 (CloneNode는 캔버스 내용을 복사하지 않음)

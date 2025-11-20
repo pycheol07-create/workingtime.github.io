@@ -14,8 +14,8 @@ import {
 } from './state.js';
 
 import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
-// ✅ [수정] deleteDoc 추가 임포트
-import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ✅ [필수] increment, updateDoc 등 원자적 연산 함수 임포트
+import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
 // ✅ [신규] workRecords 컬렉션 참조를 반환하는 헬퍼 함수
@@ -231,10 +231,11 @@ export const stopWorkGroup = (groupId) => {
     finalizeStopGroup(groupId, null);
 };
 
-// ✅ [수정] 그룹 종료 시 처리량 업데이트에 'increment' 사용 및 0분 자동 삭제 적용
+// ✅ [수정] 그룹 종료 시 처리량 업데이트에 'increment' 사용
 export const finalizeStopGroup = async (groupId, quantity) => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
+        // 1. 화면 상태(appState) 대신 Firestore에서 직접 '진행 중' 또는 '일시정지'인 그룹 데이터를 찾습니다.
         const q = query(workRecordsColRef, where("groupId", "==", String(groupId)), where("status", "in", ["ongoing", "paused"]));
         const querySnapshot = await getDocs(q);
 
@@ -246,12 +247,11 @@ export const finalizeStopGroup = async (groupId, quantity) => {
         const batch = writeBatch(db);
         const endTime = getCurrentTime();
         let taskName = '';
-        let removedCount = 0;
 
-        // 2. 찾아낸 모든 문서를 'completed'로 일괄 업데이트 (0분 이하는 삭제)
+        // 2. 찾아낸 모든 문서를 'completed'로 일괄 업데이트합니다.
         querySnapshot.forEach(docSnap => {
             const record = docSnap.data();
-            taskName = record.task;
+            taskName = record.task; // 처리량 저장을 위해 업무명 확보
 
             let pauses = record.pauses || [];
             if (record.status === 'paused') {
@@ -262,28 +262,19 @@ export const finalizeStopGroup = async (groupId, quantity) => {
             }
             const duration = calcElapsedMinutes(record.startTime, endTime, pauses);
 
-            // ✅ [신규] 0분 이하 자동 삭제 로직
-            if (Math.round(duration) <= 0) {
-                batch.delete(docSnap.ref);
-                removedCount++;
-            } else {
-                batch.update(docSnap.ref, {
-                    status: 'completed',
-                    endTime: endTime,
-                    duration: duration,
-                    pauses: pauses
-                });
-            }
+            batch.update(docSnap.ref, {
+                status: 'completed',
+                endTime: endTime,
+                duration: duration,
+                pauses: pauses
+            });
         });
 
         await batch.commit();
-        
-        if (removedCount > 0) {
-             showToast(`${removedCount}건의 기록이 0분 소요로 인해 자동 삭제되었습니다.`);
-        }
 
         // ✨ 3. 처리량 원자적 증가 (increment 사용)
         if (quantity !== null && taskName && Number(quantity) > 0) {
+             // updateDoc을 사용하여 'taskQuantities.{taskName}' 필드만 원자적으로 증가시킵니다.
              await updateDoc(getDailyDocRef(), {
                 [`taskQuantities.${taskName}`]: increment(Number(quantity))
             });
@@ -295,7 +286,7 @@ export const finalizeStopGroup = async (groupId, quantity) => {
     }
 };
 
-// ✅ [수정] Firestore 문서를 직접 업데이트 (async 추가) 및 0분 자동 삭제 적용
+// ✅ [수정] Firestore 문서를 직접 업데이트 (async 추가)
 export const stopWorkIndividual = async (recordId) => {
     try {
         const record = (appState.workRecords || []).find(r => String(r.id) === String(recordId));
@@ -313,19 +304,14 @@ export const stopWorkIndividual = async (recordId) => {
             }
             const duration = calcElapsedMinutes(record.startTime, endTime, pauses);
 
-            // ✅ [신규] 0분 이하 자동 삭제 로직
-            if (Math.round(duration) <= 0) {
-                await deleteDoc(recordRef);
-                showToast(`${record.member}님의 '${record.task}' 기록이 0분 소요로 인해 삭제되었습니다.`);
-            } else {
-                await updateDoc(recordRef, {
-                    status: 'completed',
-                    endTime: endTime,
-                    duration: duration,
-                    pauses: pauses
-                });
-                showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
-            }
+            await updateDoc(recordRef, {
+                status: 'completed',
+                endTime: endTime,
+                duration: duration,
+                pauses: pauses
+            });
+
+            showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
         } else {
             showToast('이미 완료되었거나 찾을 수 없는 기록입니다.', true);
         }

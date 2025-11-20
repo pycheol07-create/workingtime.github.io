@@ -126,10 +126,7 @@ export const appState = {
     currentUserRole: 'user',
     confirmedZeroTasks: [],
     dailyAttendance: {},
-    simulationResults: null,
-    lunchPauseExecuted: false,
-    lunchResumeExecuted: false,
-    shiftEndAlertExecuted: false // ✅ [신규] 업무 종료 알림 실행 여부
+    simulationResults: null 
 };
 
 export const allHistoryData = [];
