@@ -137,6 +137,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
             `;
         }
 
+        // ✅ [수정] 화물비 항목이 포함된 HTML 구조
         analysisHtml = `
             <div class="mt-8">
                 <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
@@ -158,6 +159,12 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                                 <span class="text-gray-600">고정 택배비</span>
                                 <span class="font-semibold">${costs.shipping.toLocaleString()}원</span>
                             </div>
+                            
+                            <div class="flex justify-between items-center text-sm text-purple-700">
+                                <span>직진배송 화물비 <span class="text-xs">(${costs.directDeliveryCount}회)</span></span>
+                                <span class="font-semibold">+ ${Math.round(costs.directDelivery).toLocaleString()}원</span>
+                            </div>
+
                             <div class="flex justify-between items-center pt-2 border-t border-orange-200 mt-1">
                                 <span class="font-bold text-orange-900">총 출고 원가</span>
                                 <span class="text-xl font-extrabold text-orange-600">${Math.round(costs.total).toLocaleString()}원</span>
