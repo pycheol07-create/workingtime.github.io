@@ -1,8 +1,6 @@
 // === js/ui-history-reports-logic.js ===
 
 import { formatDuration, isWeekday, getWeekOfYear } from './utils.js';
-
-// ✅ [신규] app.js 대신 state.js에서 직접 appConfig를 가져옵니다.
 import { appConfig } from './state.js';
 
 // ================== [ 1. 헬퍼 함수 ] ==================
@@ -29,11 +27,12 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
         let diffStr = '';
         if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration' || metric === 'nonWorkTime') {
             diffStr = formatDuration(Math.abs(currValue));
-        } else if (['avgStaff', 'avgCostPerItem', 'quantity', 'totalQuantity', 'totalCost', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost', 'unitTotalCost', 'unitMargin'].includes(metric)) {
+        // ✅ [수정] workDays(진행 횟수) 추가
+        } else if (['workDays', 'avgStaff', 'avgCostPerItem', 'quantity', 'totalQuantity', 'totalCost', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost', 'unitTotalCost', 'unitMargin'].includes(metric)) {
             diffStr = Math.round(Math.abs(currValue)).toLocaleString();
         } else if (['availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
             diffStr = Math.abs(currValue).toFixed(1) + ' FTE';
-        } else if (metric === 'avgDailyStaff') { // ✅ [추가] 평균 투입인원 포맷
+        } else if (metric === 'avgDailyStaff') { 
             diffStr = Math.abs(currValue).toFixed(1) + ' 명';
         } else {
             diffStr = Math.abs(currValue).toFixed(1);
@@ -50,8 +49,8 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     const sign = diff > 0 ? '↑' : '↓';
 
     let colorClass = 'text-gray-500';
-    // ✅ [수정] unitMargin(마진)은 높을수록 좋음, unitTotalCost(원가)는 낮을수록 좋음
-    if (['avgThroughput', 'quantity', 'avgStaff', 'avgDailyStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee', 'qualityFTE', 'unitMargin'].includes(metric)) {
+    // ✅ [수정] workDays 추가
+    if (['workDays', 'avgThroughput', 'quantity', 'avgStaff', 'avgDailyStaff', 'totalQuantity', 'efficiencyRatio', 'utilizationRate', 'qualityRatio', 'oee', 'qualityFTE', 'unitMargin'].includes(metric)) {
         colorClass = diff > 0 ? 'text-green-600' : 'text-red-600';
     }
     else if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'coqPercentage', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost', 'unitTotalCost'].includes(metric)) {
@@ -64,7 +63,8 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
     if (metric === 'avgTime' || metric === 'duration' || metric === 'totalDuration' || metric === 'nonWorkTime') {
         diffStr = formatDuration(Math.abs(diff));
         prevStr = formatDuration(prevValue);
-    } else if (['avgStaff', 'avgCostPerItem', 'quantity', 'totalQuantity', 'totalCost', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost', 'unitTotalCost', 'unitMargin'].includes(metric)) {
+    // ✅ [수정] workDays 추가
+    } else if (['workDays', 'avgStaff', 'avgCostPerItem', 'quantity', 'totalQuantity', 'totalCost', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost', 'unitTotalCost', 'unitMargin'].includes(metric)) {
         diffStr = Math.round(Math.abs(diff)).toLocaleString();
         prevStr = Math.round(prevValue).toLocaleString();
     } else if (['availableFTE', 'workedFTE', 'requiredFTE', 'qualityFTE'].includes(metric)) {
@@ -133,6 +133,7 @@ export const createTableRow = (columns, isHeader = false, sortState = null) => {
 
 // ================== [ 2. 계산/집계 로직 ] ==================
 
+// ... (calculateReportKPIs 함수는 기존과 동일) ...
 export const calculateReportKPIs = (data, appConfig, wageMap) => {
     if (!data) {
         return {
@@ -219,17 +220,26 @@ export const calculateReportAggregations = (data, appConfig, wageMap, memberToPa
         memberSummary[r.member].cost += cost;
         memberSummary[r.member].tasks.add(r.task);
 
-        if (!taskSummary[r.task]) taskSummary[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+        // ✅ [수정] 날짜 집계를 위한 uniqueDays Set 초기화
+        if (!taskSummary[r.task]) {
+            taskSummary[r.task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0, uniqueDays: new Set() };
+        }
         taskSummary[r.task].duration += duration;
         taskSummary[r.task].cost += cost;
         taskSummary[r.task].members.add(r.member);
         taskSummary[r.task].recordCount += 1;
+        
+        // ✅ [수정] 기록의 날짜를 확인하여 uniqueDays에 추가 (일별: data.id 사용 / 주월별: r.date 사용)
+        const recordDate = r.date || data.id;
+        if (recordDate) {
+            taskSummary[r.task].uniqueDays.add(recordDate);
+        }
     });
 
     const allTaskKeys = new Set([...Object.keys(taskSummary), ...Object.keys(quantities)]);
     allTaskKeys.forEach(task => {
         if (!taskSummary[task]) {
-            taskSummary[task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0 };
+            taskSummary[task] = { duration: 0, cost: 0, members: new Set(), recordCount: 0, uniqueDays: new Set() };
         }
         const summary = taskSummary[task];
         const qty = Number(quantities[task]) || 0;
@@ -240,12 +250,16 @@ export const calculateReportAggregations = (data, appConfig, wageMap, memberToPa
         summary.avgStaff = summary.members.size;
         summary.avgTime = (summary.recordCount > 0) ? (summary.duration / summary.recordCount) : 0;
         summary.efficiency = summary.avgStaff > 0 ? (summary.avgThroughput / summary.avgStaff) : 0;
+        // ✅ [수정] 고유 진행 일수 계산
+        summary.workDays = summary.uniqueDays.size;
+        // 수량만 있고 기록이 없는 경우(보정값 입력 등) 최소 1일로 간주할지, 0일로 할지 결정 필요. 
+        // 여기서는 기록 기반이므로 0일로 둠 (기록이 없으면 언제 했는지 모르므로)
     });
 
     return { partSummary, memberSummary, taskSummary };
 };
 
-// ✅ [수정] management 데이터(매출, 주문수 등)도 합산하도록 개선
+// ✅ [수정] aggregateDaysToSingleData 수정 (날짜 정보 보존)
 export const aggregateDaysToSingleData = (daysData, id) => {
     const aggregated = {
         id: id,
@@ -253,14 +267,17 @@ export const aggregateDaysToSingleData = (daysData, id) => {
         taskQuantities: {},
         onLeaveMembers: [],
         partTimers: [],
-        // [신규] 경영 지표 합계
         management: { revenue: 0, orderCount: 0, inventoryQty: 0, inventoryAmt: 0 }
     };
 
     const partTimerNames = new Set();
 
     daysData.forEach(day => {
-        (day.workRecords || []).forEach(r => aggregated.workRecords.push(r));
+        // ✅ [수정] r.date 속성에 원래 날짜(day.id)를 추가하여 저장
+        (day.workRecords || []).forEach(r => {
+            aggregated.workRecords.push({ ...r, date: day.id });
+        });
+        
         (day.onLeaveMembers || []).forEach(o => aggregated.onLeaveMembers.push(o));
 
         (day.partTimers || []).forEach(p => {
@@ -274,12 +291,9 @@ export const aggregateDaysToSingleData = (daysData, id) => {
             aggregated.taskQuantities[task] = (aggregated.taskQuantities[task] || 0) + (Number(qty) || 0);
         });
 
-        // [신규] 경영 지표 합산
         const m = day.management || {};
         aggregated.management.revenue += (Number(m.revenue) || 0);
         aggregated.management.orderCount += (Number(m.orderCount) || 0);
-        // 재고는 합산하기 애매하므로 (평균을 내야 할 수도 있지만) 우선 단순 합산하거나, 
-        // 리포트에서는 주로 매출/주문건수만 쓰이므로 0으로 둬도 무방하나 확장성을 위해 합산함.
         aggregated.management.inventoryQty += (Number(m.inventoryQty) || 0);
         aggregated.management.inventoryAmt += (Number(m.inventoryAmt) || 0);
     });
@@ -288,8 +302,7 @@ export const aggregateDaysToSingleData = (daysData, id) => {
 };
 
 
-// ================== [ 3. ✨ 고급 분석 로직 ] ==================
-
+// ... (나머지 함수들은 기존과 동일) ...
 export const calculateStandardThroughputs = (allHistoryData) => {
     const taskDailySpeeds = {}; // { taskName: [speed1, speed2, ...] }
 
@@ -297,7 +310,6 @@ export const calculateStandardThroughputs = (allHistoryData) => {
         const records = day.workRecords || [];
         const quantities = day.taskQuantities || {};
         
-        // 해당 일자의 업무별 총 시간/수량 집계
         const dailyTaskStats = {};
         
         records.forEach(r => {
@@ -316,9 +328,7 @@ export const calculateStandardThroughputs = (allHistoryData) => {
             }
         });
 
-        // 일별 속도(분당 처리량) 계산 및 수집
         Object.entries(dailyTaskStats).forEach(([task, stats]) => {
-            // ✨ 노이즈 제거: 하루 10분 이상 진행된 업무만 유효 샘플로 인정
             if (stats.duration >= 10 && stats.quantity > 0) {
                 const speed = stats.quantity / stats.duration;
                 if (!taskDailySpeeds[task]) taskDailySpeeds[task] = [];
@@ -330,11 +340,9 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     const standards = {};
     Object.keys(taskDailySpeeds).forEach(task => {
         const speeds = taskDailySpeeds[task];
-        // ✨ 내림차순 정렬 후 상위 3개 추출
         const top3 = speeds.sort((a, b) => b - a).slice(0, 3);
         
         if (top3.length > 0) {
-            // 상위 3개 값의 평균을 표준으로 설정
             const avgTop3 = top3.reduce((a, b) => a + b, 0) / top3.length;
             standards[task] = avgTop3;
         } else {
@@ -452,15 +460,13 @@ export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, current
     };
 };
 
-// ✅ [신규] 상품 개당 원가 및 마진 분석 로직
 export const analyzeUnitCost = (data, appConfig, wageMap, totalRevenue = 0) => {
     const costCalcTasks = new Set(appConfig.costCalcTasks || []);
     const fixedMaterialCost = Number(appConfig.fixedMaterialCost) || 0;
     const fixedShippingCost = Number(appConfig.fixedShippingCost) || 0;
 
-    // 1. 타겟 업무들의 총 인건비 및 수량 집계
     let targetLaborCost = 0;
-    let maxTaskQuantity = 0; // 대표 물동량 (선택된 업무 중 가장 큰 수량 사용)
+    let maxTaskQuantity = 0;
     
     const records = data.workRecords || [];
     const quantities = data.taskQuantities || {};
@@ -478,13 +484,9 @@ export const analyzeUnitCost = (data, appConfig, wageMap, totalRevenue = 0) => {
         if (qty > maxTaskQuantity) maxTaskQuantity = qty;
     });
 
-    // 2. 개당 원가 계산
-    // (물동량이 0이면 계산 불가, 0 처리)
     const perItemLaborCost = maxTaskQuantity > 0 ? (targetLaborCost / maxTaskQuantity) : 0;
     const totalUnitCost = perItemLaborCost + fixedMaterialCost + fixedShippingCost;
 
-    // 3. 마진 분석 (매출액이 있을 경우)
-    // 우선순위: 1. Management OrderCount, 2. MaxTaskQuantity
     let salesCount = Number(data.management?.orderCount) || 0;
     if (salesCount === 0) salesCount = maxTaskQuantity; 
 
