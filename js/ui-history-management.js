@@ -2,7 +2,10 @@
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
 import { formatDuration, getWeekOfYear, isWeekday } from './utils.js';
-import { getDiffHtmlForMetric } from './ui-history-reports-logic.js';
+// ✅ [수정] analyzeUnitCost 추가 임포트
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js';
+// ✅ [신규] appConfig 임포트 (원가 설정 및 시급 정보 접근용)
+import { appConfig } from './state.js';
 
 // 헬퍼: 숫자를 통화 형식(콤마)으로 변환
 const formatCurrency = (num) => {
@@ -15,7 +18,7 @@ const getDayOfWeek = (dateStr) => {
     return days[new Date(dateStr).getDay()];
 };
 
-// 헬퍼: 재고 순환율 계산 (기간 매출 합계 / 기간 평균 재고 금액)
+// 헬퍼: 재고 순환율 계산
 const calculateTurnoverRatio = (totalRevenue, avgInventoryAmt) => {
     if (!avgInventoryAmt || avgInventoryAmt <= 0) return 0;
     return totalRevenue / avgInventoryAmt;
@@ -74,7 +77,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
     const dayData = allHistoryData.find(d => d.id === dateKey);
     const mgmt = (dayData && dayData.management) ? dayData.management : {};
 
-    // 이전 데이터 찾기 (전일 대비 비교용)
+    // 이전 데이터 찾기
     const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
     const prevDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
                         ? allHistoryData[currentIndex + 1] : null;
@@ -82,14 +85,101 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
 
     const getValue = (val) => (val !== undefined && val !== null) ? val : '';
 
-    // ✅ [수정] 콤마 포맷팅 헬퍼 함수 (화면 표시용)
+    // 콤마 포맷팅 헬퍼
     const formatVal = (val) => {
         const v = getValue(val);
         return v === '' ? '' : Number(v).toLocaleString();
     };
     
-    // ✅ [수정] 입력 시 실시간 콤마 적용 스크립트 (숫자 이외 제거 후 콤마 추가)
     const onInputHandler = "this.value = this.value.replace(/[^0-9]/g, '').replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');";
+
+    // ✅ [신규] 원가 및 마진 분석 로직 실행
+    let analysisHtml = '';
+    
+    // 시급 정보 준비 (설정값 + 당일 알바 정보 병합)
+    const wageMap = { ...appConfig.memberWages };
+    (dayData?.partTimers || []).forEach(pt => {
+        if (pt.name) wageMap[pt.name] = pt.wage || 0;
+    });
+
+    // 분석 실행
+    const analysis = analyzeUnitCost(
+        dayData || { workRecords: [], taskQuantities: {} }, 
+        appConfig, 
+        wageMap, 
+        Number(mgmt.revenue) || 0
+    );
+
+    if (analysis.isValid) {
+        const { costs, profit, targetTasks } = analysis;
+        
+        let profitHtml = '';
+        if (profit.revenuePerItem > 0) {
+            const marginColor = profit.margin > 0 ? 'text-blue-600' : 'text-red-600';
+            profitHtml = `
+                <div class="flex-1 bg-green-50 p-4 rounded-lg border border-green-100">
+                    <h5 class="text-sm font-bold text-green-800 mb-2">💰 예상 손익 (1개당)</h5>
+                    <div class="flex justify-between items-center text-sm mb-1">
+                        <span class="text-gray-600">객단가 (매출/수량)</span>
+                        <span class="font-semibold">${Math.round(profit.revenuePerItem).toLocaleString()}원</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm border-t border-green-200 pt-2 mt-1">
+                        <span class="text-gray-800 font-bold">공헌이익 (마진)</span>
+                        <span class="text-xl font-extrabold ${marginColor}">${Math.round(profit.margin).toLocaleString()}원 <span class="text-xs font-normal">(${profit.marginRate.toFixed(1)}%)</span></span>
+                    </div>
+                </div>
+            `;
+        } else {
+            profitHtml = `
+                <div class="flex-1 bg-gray-50 p-4 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 text-sm">
+                    매출액과 주문건수를 입력하면<br>예상 마진이 계산됩니다.
+                </div>
+            `;
+        }
+
+        analysisHtml = `
+            <div class="mt-8">
+                <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    💸 상품 1개당 원가 및 손익 분석 (추정)
+                </h4>
+                <div class="flex flex-col md:flex-row gap-6">
+                    <div class="flex-1 bg-orange-50 p-4 rounded-lg border border-orange-100">
+                        <h5 class="text-sm font-bold text-orange-800 mb-2">📦 출고 원가 구성 (1개당)</h5>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-gray-600">인건비 <span class="text-xs text-gray-400">(${targetTasks.length}개 업무)</span></span>
+                                <span class="font-semibold">${Math.round(costs.labor).toLocaleString()}원</span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-gray-600">고정 부자재비</span>
+                                <span class="font-semibold">${costs.material.toLocaleString()}원</span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-gray-600">고정 택배비</span>
+                                <span class="font-semibold">${costs.shipping.toLocaleString()}원</span>
+                            </div>
+                            <div class="flex justify-between items-center pt-2 border-t border-orange-200 mt-1">
+                                <span class="font-bold text-orange-900">총 출고 원가</span>
+                                <span class="text-xl font-extrabold text-orange-600">${Math.round(costs.total).toLocaleString()}원</span>
+                            </div>
+                        </div>
+                    </div>
+                    ${profitHtml}
+                </div>
+                <p class="text-xs text-gray-500 mt-2 text-right">
+                    * 인건비 계산 포함 업무: ${targetTasks.join(', ')}<br>
+                    * 기준 수량: ${analysis.baseQuantity.toLocaleString()}개 (주문건수 또는 최대 작업량 기준)
+                </p>
+            </div>
+        `;
+    } else {
+        analysisHtml = `
+            <div class="mt-8 p-6 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-center text-gray-500">
+                <p class="mb-2">📉 <strong>원가 분석 데이터를 표시할 수 없습니다.</strong></p>
+                <p class="text-xs">관리자 페이지에서 '원가 계산 업무' 및 '고정 비용'을 설정하고,<br>오늘의 업무 기록(처리량)이 있어야 분석이 가능합니다.</p>
+            </div>
+        `;
+    }
 
     container.innerHTML = `
         <div class="max-w-4xl mx-auto">
@@ -179,6 +269,8 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                     💡 <strong>Tip:</strong> 입력한 데이터는 우측 상단 <strong>[저장]</strong> 버튼을 눌러야 반영됩니다. 저장된 데이터는 주간/월간 리포트에서 합산되어 분석됩니다.
                 </div>
             </div>
+
+            ${analysisHtml}
         </div>
     `;
 };

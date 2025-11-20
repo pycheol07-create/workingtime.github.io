@@ -82,3 +82,26 @@
         </div>
     </div>
 </div>
+
+<div id="shift-end-alert-modal" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center hidden z-[200] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden">
+        <div class="p-6 text-center">
+            <div class="mx-auto mb-4 flex items-center justify-center w-16 h-16 rounded-full bg-blue-100">
+                <svg class="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h3 class="mb-2 text-xl font-bold text-gray-900">업무 종료 시간 알림</h3>
+            <p class="mb-6 text-gray-500 leading-relaxed">
+                업무 종료 시간이 되었습니다.<br>
+                <span class="font-semibold text-gray-700">금일 업무를 마감하시겠습니까?</span>
+            </p>
+            <div class="flex flex-col gap-3">
+                <button type="button" id="confirm-shift-end-alert-btn" class="w-full text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl text-lg px-5 py-3 transition shadow-md active:scale-[0.98]">
+                    네, 업무 마감합니다 🏁
+                </button>
+                <button type="button" id="cancel-shift-end-alert-btn" class="w-full text-gray-700 bg-gray-100 hover:bg-gray-200 font-semibold rounded-xl text-base px-5 py-3 transition active:scale-[0.98]">
+                    아니요, 계속 근무하겠습니다
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

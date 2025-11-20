@@ -344,4 +344,29 @@ export function setupConfirmationModalListeners() {
             }
         });
     }
+
+    // ✅ [신규] 업무 종료 알림 - "네, 마감합니다" 버튼
+    if (DOM.confirmShiftEndAlertBtn) {
+        DOM.confirmShiftEndAlertBtn.addEventListener('click', async () => {
+            // 1. 브라우저 종료 방지 해제
+            window.onbeforeunload = null;
+            
+            // 2. 모달 닫기
+            if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden');
+
+            // 3. 마감 처리 (Reset: true)
+            await saveDayDataToHistory(true);
+        });
+    }
+
+    // ✅ [신규] 업무 종료 알림 - "아니요, 계속 근무" 버튼
+    if (DOM.cancelShiftEndAlertBtn) {
+        DOM.cancelShiftEndAlertBtn.addEventListener('click', () => {
+            // 1. 브라우저 종료 방지 해제 (사용자가 의도적으로 남음)
+            window.onbeforeunload = null;
+
+            // 2. 모달 닫기
+            if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden');
+        });
+    }
 }

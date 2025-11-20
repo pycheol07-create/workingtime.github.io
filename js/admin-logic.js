@@ -16,7 +16,7 @@ export function collectConfigFromDOM(currentConfig) {
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
-        memberLeaveSettings: {}, // ✅ [신규] 연차 설정 초기화
+        memberLeaveSettings: {},
         dashboardItems: [],
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
@@ -29,8 +29,12 @@ export function collectConfigFromDOM(currentConfig) {
         revenueIncrementUnit: 10000000,
         standardMonthlyWorkHours: 209,
 
-        // ✅ [수정] UI에서 수정하지 않는 중요 설정값 보존
-        // currentConfig에서 이 값들을 가져와서 newConfig에 미리 넣어줍니다.
+        // ✅ [신규] 상품 원가 및 손익 분석 설정 초기화
+        fixedMaterialCost: 0,
+        fixedShippingCost: 0,
+        costCalcTasks: [],
+
+        // UI에서 수정하지 않는 중요 설정값 보존
         simulationTaskLinks: currentConfig.simulationTaskLinks || {},
         qualityCostTasks: currentConfig.qualityCostTasks || [],
         systemAccounts: currentConfig.systemAccounts || [],
@@ -54,7 +58,6 @@ export function collectConfigFromDOM(currentConfig) {
             const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
             const memberRole = memberItem.querySelector('.member-role').value || 'user';
 
-            // ✅ [신규] 입사일 및 연차 정보 수집
             const joinDate = memberItem.querySelector('.member-join-date').value;
             const totalLeave = Number(memberItem.querySelector('.member-total-leave').value) || 0;
 
@@ -63,7 +66,6 @@ export function collectConfigFromDOM(currentConfig) {
             newGroup.members.push(memberName);
             newConfig.memberWages[memberName] = memberWage;
 
-            // ✅ [신규] 연차 설정 저장
             newConfig.memberLeaveSettings[memberName] = {
                 joinDate: joinDate,
                 totalLeave: totalLeave
@@ -71,13 +73,11 @@ export function collectConfigFromDOM(currentConfig) {
 
             if (memberEmail) {
                 const emailLower = memberEmail.toLowerCase();
-                // 다른 사람이 이미 이 이메일을 사용 중인지 확인
                 if (emailCheck.has(emailLower) && emailCheck.get(emailLower) !== memberName) {
                     duplicateEmailError = memberEmail;
                 }
                 emailCheck.set(emailLower, memberName);
                 newConfig.memberEmails[memberName] = memberEmail;
-                // 이메일 키를 소문자로 저장하여 대소문자 구분 없이 체크하도록 함
                 newConfig.memberRoles[emailLower] = memberRole;
             }
         });
@@ -89,7 +89,6 @@ export function collectConfigFromDOM(currentConfig) {
     }
 
     // 2. 현황판 항목 수집
-    // 기존 설정에서 정의된 항목들을 참조하기 위해 getAllDashboardDefinitions 사용
     const allDefinitions = getAllDashboardDefinitions(currentConfig);
     document.querySelectorAll('#dashboard-items-container .dashboard-item-config').forEach(item => {
         const nameSpan = item.querySelector('.dashboard-item-name');
@@ -97,7 +96,6 @@ export function collectConfigFromDOM(currentConfig) {
             const id = nameSpan.dataset.id;
             newConfig.dashboardItems.push(id);
             
-            // 커스텀 항목인 경우, 정의도 함께 저장해야 함
             if (id.startsWith('custom-') && allDefinitions[id]) {
                 newConfig.dashboardCustomItems[id] = {
                     title: allDefinitions[id].title,
@@ -143,6 +141,18 @@ export function collectConfigFromDOM(currentConfig) {
     const workHoursInput = document.getElementById('standard-monthly-work-hours');
     if (workHoursInput) newConfig.standardMonthlyWorkHours = Number(workHoursInput.value) || 209;
 
+    // ✅ [신규] 상품 원가 및 손익 분석 설정 수집
+    const materialCostInput = document.getElementById('fixed-material-cost');
+    if (materialCostInput) newConfig.fixedMaterialCost = Number(materialCostInput.value) || 0;
+
+    const shippingCostInput = document.getElementById('fixed-shipping-cost');
+    if (shippingCostInput) newConfig.fixedShippingCost = Number(shippingCostInput.value) || 0;
+
+    // 체크박스로 선택된 업무들 수집
+    document.querySelectorAll('.cost-calc-task-checkbox:checked').forEach(checkbox => {
+        newConfig.costCalcTasks.push(checkbox.value);
+    });
+
     // 7. 처리량-현황판 매핑 정보 수집
     document.querySelectorAll('#quantity-mapping-container .mapping-row').forEach(row => {
         const taskName = row.dataset.taskName;
@@ -166,17 +176,23 @@ export function validateConfig(newConfig) {
         newConfig.taskGroups.flatMap(group => group.tasks).map(t => t.trim().toLowerCase())
     );
 
-    // '주요 업무'와 '처리량 업무'가 '업무 관리'에 실제로 존재하는지 확인
+    // '주요 업무', '처리량 업무', '원가 계산 업무'가 '업무 관리'에 실제로 존재하는지 확인
     const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
     const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
+    // ✅ [신규] 원가 계산 업무 유효성 검사 추가
+    const invalidCostTasks = newConfig.costCalcTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
 
-    if (invalidKeyTasks.length > 0 || invalidQuantityTasks.length > 0) {
+    if (invalidKeyTasks.length > 0 || invalidQuantityTasks.length > 0 || invalidCostTasks.length > 0) {
         let errorMsg = "[저장 실패] '업무 관리' 목록에 존재하지 않는 업무 이름이 포함되어 있습니다.\n\n";
         if (invalidKeyTasks.length > 0) {
             errorMsg += `▶ 주요 업무 오류:\n- ${invalidKeyTasks.join('\n- ')}\n\n`;
         }
         if (invalidQuantityTasks.length > 0) {
             errorMsg += `▶ 처리량 집계 오류:\n- ${invalidQuantityTasks.join('\n- ')}\n\n`;
+        }
+        // ✅ [신규] 에러 메시지 추가
+        if (invalidCostTasks.length > 0) {
+            errorMsg += `▶ 원가 계산 업무 오류:\n- ${invalidCostTasks.join('\n- ')}\n\n`;
         }
         errorMsg += "오타를 수정하거나 '업무 관리' 섹션에 해당 업무를 먼저 추가해주세요.";
         throw new Error(errorMsg);
