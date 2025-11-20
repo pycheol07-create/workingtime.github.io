@@ -22,8 +22,11 @@ import {
 } from './app-logic.js';
 import { saveLeaveSchedule } from './config.js';
 import {
-    doc, updateDoc, collection, query, where, getDocs, writeBatch, setDoc, deleteDoc 
+    doc, updateDoc, collection, query, where, getDocs, writeBatch, setDoc, deleteDoc, getDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ✅ [신규] 검수 로직 임포트
+import * as InspectionLogic from './inspection-logic.js';
 
 // 헬퍼 변수
 const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
@@ -40,7 +43,7 @@ const deselectMemberBtn = (btn) => {
     btn.classList.add(...UNSELECTED_CLASSES);
 };
 
-// ✅ [신규] 로컬 이력(allHistoryData)에서 특정 연차 ID 제거/업데이트 헬퍼
+// 로컬 이력(allHistoryData)에서 특정 연차 ID 제거/업데이트 헬퍼
 const updateLocalHistoryForLeave = (leaveEntry, action = 'add') => {
     // action: 'add' | 'remove'
     const startDt = new Date(leaveEntry.startDate);
@@ -70,7 +73,7 @@ const updateLocalHistoryForLeave = (leaveEntry, action = 'add') => {
     }
 };
 
-// ✅ [신규] 휴식 시간 관리 상태 변수 및 렌더링 함수
+// 휴식 시간 관리 상태 변수 및 렌더링 함수
 let currentEditingPauses = [];
 
 const renderPauseListInModal = () => {
@@ -360,7 +363,7 @@ export function setupFormModalListeners() {
         });
     }
 
-    // ✅ [수정] 업무 기록 수정 저장 리스너 (0분 이하 삭제 기능 추가)
+    // 업무 기록 수정 저장 리스너 (0분 이하 삭제 기능 추가)
     if (DOM.confirmEditBtn) {
         DOM.confirmEditBtn.addEventListener('click', async () => {
             const recordId = State.context.recordToEditId;
@@ -404,7 +407,7 @@ export function setupFormModalListeners() {
                     updates.duration = null;
                 }
 
-                // ✅ [신규] 소요 시간이 0분 이하라면 삭제
+                // 소요 시간이 0분 이하라면 삭제
                 if (newDuration !== null && Math.round(newDuration) <= 0) {
                     await deleteDoc(recordRef);
                     showToast('수정 후 소요 시간이 0분이 되어 기록이 삭제되었습니다.');
@@ -488,7 +491,7 @@ export function setupFormModalListeners() {
         });
     }
 
-    // ✅ [수정] 연차 현황(내 연차관리) 모달 리스너 (리스트 내 수정/삭제 버튼 처리 추가)
+    // 연차 현황(내 연차관리) 모달 리스너 (리스트 내 수정/삭제 버튼 처리 추가)
     if (DOM.leaveTypeModal) {
         DOM.leaveTypeModal.addEventListener('click', async (e) => {
             // 1. 연차 삭제 버튼
@@ -505,8 +508,6 @@ export function setupFormModalListeners() {
                 await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
 
                 // 2) 로컬 이력 데이터에서 삭제
-                const today = getTodayDateString();
-                
                 // 삭제 대상 ID들에 대해 반복 처리
                 idsToDelete.forEach(id => {
                      State.allHistoryData.forEach(dayData => {
@@ -550,7 +551,7 @@ export function setupFormModalListeners() {
         });
     }
 
-    // ✅ [수정] 근태 저장 버튼 리스너 (수정 모드 지원 및 중복 체크 강화)
+    // 근태 저장 버튼 리스너 (수정 모드 지원 및 중복 체크 강화)
     if (DOM.confirmLeaveBtn) {
         DOM.confirmLeaveBtn.addEventListener('click', async () => {
             const memberName = State.context.memberToSetLeave;
@@ -682,7 +683,7 @@ export function setupFormModalListeners() {
         });
     }
 
-    // ✅ [수정] 수동 기록 추가 리스너 (0분 이하 차단 추가)
+    // 수동 기록 추가 리스너 (0분 이하 차단 추가)
     if (DOM.confirmManualAddBtn) {
         DOM.confirmManualAddBtn.addEventListener('click', async () => {
             const member = document.getElementById('manual-add-member').value;
@@ -701,7 +702,7 @@ export function setupFormModalListeners() {
             }
 
             const duration = calcElapsedMinutes(startTime, endTime, pauses);
-            // ✅ [신규] 0분 이하인지 확인
+            // 0분 이하인지 확인
             if (Math.round(duration) <= 0) {
                 showToast('소요 시간이 0분이어 기록이 저장되지 않았습니다.', true);
                 return;
@@ -913,5 +914,34 @@ export function setupFormModalListeners() {
                 }
             });
         }
+    }
+
+    // ✅ [신규] 검수 매니저 모달 관련 리스너
+    if (DOM.inspSearchBtn) {
+        DOM.inspSearchBtn.addEventListener('click', () => {
+            InspectionLogic.searchProductHistory();
+        });
+    }
+
+    if (DOM.inspProductNameInput) {
+        DOM.inspProductNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                InspectionLogic.searchProductHistory();
+            }
+        });
+    }
+
+    if (DOM.inspSaveNextBtn) {
+        DOM.inspSaveNextBtn.addEventListener('click', () => {
+            InspectionLogic.saveInspectionAndNext();
+        });
+    }
+
+    if (DOM.inspClearListBtn) {
+        DOM.inspClearListBtn.addEventListener('click', () => {
+            if(confirm('오늘의 검수 목록(화면 표시)을 초기화하시겠습니까? (데이터는 삭제되지 않음)')) {
+                InspectionLogic.clearTodayList();
+            }
+        });
     }
 }

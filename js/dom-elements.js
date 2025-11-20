@@ -60,7 +60,7 @@ export const reportWeeklyView = document.getElementById('report-weekly-view');
 export const reportMonthlyView = document.getElementById('report-monthly-view');
 export const reportYearlyView = document.getElementById('report-yearly-view');
 
-// ✅ [신규] 개인 리포트 관련 요소
+// 개인 리포트 관련 요소
 export const personalReportPanel = document.getElementById('personal-report-panel');
 export const personalReportTabs = document.getElementById('personal-report-tabs');
 export const personalReportMemberSelect = document.getElementById('personal-report-member-select');
@@ -233,7 +233,45 @@ export const confirmHistoryAddBtn = document.getElementById('confirm-history-add
 export const historyDownloadExcelBtn = document.getElementById('history-download-excel-btn');
 export const attendanceDownloadExcelBtn = document.getElementById('attendance-download-excel-btn');
 
-// ✅ [신규] 업무 종료 알림 모달
+// 업무 종료 알림 모달
 export const shiftEndAlertModal = document.getElementById('shift-end-alert-modal');
 export const confirmShiftEndAlertBtn = document.getElementById('confirm-shift-end-alert-btn');
 export const cancelShiftEndAlertBtn = document.getElementById('cancel-shift-end-alert-btn');
+
+// ✅ [신규] 검수 매니저 모달 관련 요소
+export const inspectionManagerModal = document.getElementById('inspection-manager-modal');
+export const inspProductNameInput = document.getElementById('insp-product-name');
+export const inspSearchBtn = document.getElementById('insp-search-btn');
+
+// 과거 이력 리포트 영역
+export const inspHistoryReport = document.getElementById('insp-history-report');
+export const inspReportTitle = document.getElementById('insp-report-title');
+export const inspReportCount = document.getElementById('insp-report-count');
+export const inspReportDate = document.getElementById('insp-report-date');
+export const inspAlertBox = document.getElementById('insp-alert-box');
+export const inspAlertMsg = document.getElementById('insp-alert-msg');
+
+// 금일 입력 영역
+export const inspCurrentInputArea = document.getElementById('insp-current-input-area');
+export const inspPackingNoInput = document.getElementById('insp-packing-no');
+export const inspInboundQtyInput = document.getElementById('insp-inbound-qty');
+export const inspNotesInput = document.getElementById('insp-notes');
+export const inspSaveNextBtn = document.getElementById('insp-save-next-btn');
+
+// 13가지 체크리스트 항목
+export const inspCheckThickness = document.getElementById('insp-check-thickness');
+export const inspCheckFabric = document.getElementById('insp-check-fabric');
+export const inspCheckColor = document.getElementById('insp-check-color');
+export const inspCheckDistortion = document.getElementById('insp-check-distortion');
+export const inspCheckUnraveling = document.getElementById('insp-check-unraveling');
+export const inspCheckFinishing = document.getElementById('insp-check-finishing');
+export const inspCheckZipper = document.getElementById('insp-check-zipper');
+export const inspCheckButton = document.getElementById('insp-check-button');
+export const inspCheckLining = document.getElementById('insp-check-lining');
+export const inspCheckPilling = document.getElementById('insp-check-pilling');
+export const inspCheckDye = document.getElementById('insp-check-dye');
+
+// 하단 금일 리스트 영역
+export const inspTodayCount = document.getElementById('insp-today-count');
+export const inspClearListBtn = document.getElementById('insp-clear-list-btn');
+export const inspTodayListBody = document.getElementById('insp-today-list-body');

@@ -14,7 +14,9 @@ import {
     addMembersToWorkGroup,
 } from './app-logic.js';
 
-// (listeners-main.js -> listeners-main-board.js)
+// ✅ [신규] 검수 로직 임포트 (리스트 렌더링용)
+import { renderTodayInspectionList } from './inspection-logic.js';
+
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
     if (DOM.leaveMemberNameSpan) DOM.leaveMemberNameSpan.textContent = memberName;
@@ -23,7 +25,6 @@ const openLeaveModal = (memberName) => {
     if (DOM.leaveTypeModal) DOM.leaveTypeModal.classList.remove('hidden');
 };
 
-// (listeners-main.js -> listeners-main-board.js)
 // 관리자 액션 모달 열기 헬퍼 함수
 const openAdminMemberActionModal = (memberName) => {
     State.context.memberToAction = memberName;
@@ -70,7 +71,28 @@ const openAdminMemberActionModal = (memberName) => {
 
 export function setupMainBoardListeners() {
 
-    // (listeners-main.js -> listeners-main-board.js)
+    // ✅ [신규] '업무 시작' 버튼 클릭 시 '검수' 업무라면 자동으로 검수 모달 띄우기
+    // (listeners-modals-form.js의 리스너와 병행 실행됨)
+    if (DOM.confirmTeamSelectBtn) {
+        DOM.confirmTeamSelectBtn.addEventListener('click', () => {
+            if (State.context.selectedTaskForStart === '검수') {
+                setTimeout(() => {
+                    // 폼 초기화 (상품명 등)
+                    if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
+                    if (DOM.inspHistoryReport) DOM.inspHistoryReport.classList.add('hidden');
+                    if (DOM.inspCurrentInputArea) DOM.inspCurrentInputArea.classList.add('hidden');
+                    
+                    // 리스트 갱신
+                    renderTodayInspectionList();
+
+                    // 모달 열기
+                    if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
+                    if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
+                }, 300); // 업무 시작 처리 시간 고려하여 약간 지연
+            }
+        });
+    }
+
     if (DOM.teamStatusBoard) {
         DOM.teamStatusBoard.addEventListener('click', (e) => {
 
@@ -256,7 +278,7 @@ export function setupMainBoardListeners() {
                     showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
                 }
 
-                // ✅ 관리자일 경우 관리자 전용 모달 열기
+                // 관리자일 경우 관리자 전용 모달 열기
                 if (role === 'admin' && memberName !== selfName) {
                      openAdminMemberActionModal(memberName);
                      return;
@@ -298,6 +320,15 @@ export function setupMainBoardListeners() {
                     return;
 
                 } else if (groupId && task) {
+                    // ✅ [수정] '검수' 업무 클릭 시 검수 매니저 모달 재진입
+                    if (task === '검수') {
+                        renderTodayInspectionList();
+                        if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
+                        if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
+                        return;
+                    }
+
+                    // 그 외 업무는 인원 추가 모달
                     State.context.selectedTaskForStart = task;
                     State.context.selectedGroupForAdd = groupId;
                     State.context.tempSelectedMembers = [];
@@ -312,7 +343,6 @@ export function setupMainBoardListeners() {
         });
     }
     
-    // (listeners-main.js -> listeners-main-board.js)
     // 관리자 액션 모달 내부 버튼 리스너
     if (DOM.adminClockInBtn) {
         DOM.adminClockInBtn.addEventListener('click', () => {
