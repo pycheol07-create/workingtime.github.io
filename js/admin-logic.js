@@ -29,9 +29,10 @@ export function collectConfigFromDOM(currentConfig) {
         revenueIncrementUnit: 10000000,
         standardMonthlyWorkHours: 209,
 
-        // ✅ [신규] 상품 원가 및 손익 분석 설정 초기화
+        // ✅ [수정] 상품 원가 및 손익 분석 설정 초기화 (화물비 추가)
         fixedMaterialCost: 0,
         fixedShippingCost: 0,
+        fixedDirectDeliveryCost: 0,
         costCalcTasks: [],
 
         // UI에서 수정하지 않는 중요 설정값 보존
@@ -141,12 +142,16 @@ export function collectConfigFromDOM(currentConfig) {
     const workHoursInput = document.getElementById('standard-monthly-work-hours');
     if (workHoursInput) newConfig.standardMonthlyWorkHours = Number(workHoursInput.value) || 209;
 
-    // ✅ [신규] 상품 원가 및 손익 분석 설정 수집
+    // ✅ [수정] 상품 원가 및 손익 분석 설정 수집 (화물비 추가)
     const materialCostInput = document.getElementById('fixed-material-cost');
     if (materialCostInput) newConfig.fixedMaterialCost = Number(materialCostInput.value) || 0;
 
     const shippingCostInput = document.getElementById('fixed-shipping-cost');
     if (shippingCostInput) newConfig.fixedShippingCost = Number(shippingCostInput.value) || 0;
+    
+    // [신규]
+    const directDeliveryCostInput = document.getElementById('fixed-direct-delivery-cost');
+    if (directDeliveryCostInput) newConfig.fixedDirectDeliveryCost = Number(directDeliveryCostInput.value) || 0;
 
     // 체크박스로 선택된 업무들 수집
     document.querySelectorAll('.cost-calc-task-checkbox:checked').forEach(checkbox => {
@@ -179,7 +184,6 @@ export function validateConfig(newConfig) {
     // '주요 업무', '처리량 업무', '원가 계산 업무'가 '업무 관리'에 실제로 존재하는지 확인
     const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
     const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
-    // ✅ [신규] 원가 계산 업무 유효성 검사 추가
     const invalidCostTasks = newConfig.costCalcTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
 
     if (invalidKeyTasks.length > 0 || invalidQuantityTasks.length > 0 || invalidCostTasks.length > 0) {
@@ -190,7 +194,6 @@ export function validateConfig(newConfig) {
         if (invalidQuantityTasks.length > 0) {
             errorMsg += `▶ 처리량 집계 오류:\n- ${invalidQuantityTasks.join('\n- ')}\n\n`;
         }
-        // ✅ [신규] 에러 메시지 추가
         if (invalidCostTasks.length > 0) {
             errorMsg += `▶ 원가 계산 업무 오류:\n- ${invalidCostTasks.join('\n- ')}\n\n`;
         }
