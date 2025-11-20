@@ -65,7 +65,7 @@ export function renderAdminUI(config) {
     renderCostAnalysisConfig(config);
 }
 
-// ✅ [수정] 상품 원가 및 손익 분석 설정 UI 렌더링 (화물비 추가)
+// ✅ [신규] 상품 원가 및 손익 분석 설정 UI 렌더링
 export function renderCostAnalysisConfig(config) {
     // 1. 고정비 설정
     const materialInput = document.getElementById('fixed-material-cost');
@@ -75,11 +75,6 @@ export function renderCostAnalysisConfig(config) {
     const shippingInput = document.getElementById('fixed-shipping-cost');
     if (shippingInput) {
         shippingInput.value = config.fixedShippingCost || 0;
-    }
-    // [신규] 직진배송 화물비
-    const directDeliveryInput = document.getElementById('fixed-direct-delivery-cost');
-    if (directDeliveryInput) {
-        directDeliveryInput.value = config.fixedDirectDeliveryCost || 0;
     }
 
     // 2. 원가 계산 업무 선택 (체크박스 렌더링)
