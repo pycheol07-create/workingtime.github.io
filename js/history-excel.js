@@ -502,20 +502,35 @@ export const downloadContentAsPdf = (elementId, title) => {
     // 렌더링 시 우측이 잘리지 않도록 함.
     const tempContainer = document.createElement('div');
     tempContainer.id = 'pdf-temp-container';
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.left = '-9999px';
+    tempContainer.style.position = 'fixed'; // Use fixed to take it out of flow completely
     tempContainer.style.top = '0';
+    tempContainer.style.left = '0';
     tempContainer.style.width = '1120px'; // ✅ 중요: A4 가로 너비(약 1123px)에 맞춤
+    tempContainer.style.height = 'auto';
     tempContainer.style.background = 'white';
     tempContainer.style.zIndex = '-9999';
+    tempContainer.style.overflow = 'visible'; // Allow content to expand
     
     // 2. 인쇄용 CSS 주입 (줄바꿈 방지, 배경색, 폰트 크기 조정)
     tempContainer.innerHTML = `<style>
+        #pdf-temp-container * {
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+            scrollbar-width: none !important;
+        }
         /* 페이지 넘김 시 테이블/행 잘림 방지 */
-        table { page-break-inside: auto; width: 100% !important; table-layout: fixed; }
-        tr { page-break-inside: avoid; page-break-after: auto; }
-        thead { display: table-header-group; }
-        tfoot { display: table-footer-group; }
+        #pdf-temp-container table { 
+            page-break-inside: auto; 
+            width: 100% !important; 
+            table-layout: fixed !important; 
+        }
+        #pdf-temp-container tr { 
+            page-break-inside: avoid; 
+            page-break-after: auto; 
+        }
+        #pdf-temp-container thead { display: table-header-group; }
+        #pdf-temp-container tfoot { display: table-footer-group; }
         
         /* 카드나 주요 구획도 잘리지 않게 */
         .break-inside-avoid, .p-4, .p-5, .p-6 { page-break-inside: avoid !important; }
@@ -524,14 +539,6 @@ export const downloadContentAsPdf = (elementId, title) => {
         body, .bg-gray-50 { background: white !important; }
         .bg-white { background: white !important; box-shadow: none !important; border: 1px solid #e5e7eb !important; }
         
-        /* 모든 스크롤 제거 및 높이 자동 확장 */
-        * { 
-            overflow: visible !important; 
-            height: auto !important; 
-            max-height: none !important; 
-            scrollbar-width: none !important;
-        }
-        
         /* 텍스트 줄바꿈 강제 (잘림 방지) */
         th, td, p, div { 
             word-wrap: break-word; 
@@ -539,31 +546,37 @@ export const downloadContentAsPdf = (elementId, title) => {
         }
     </style>`;
     
-    document.body.appendChild(tempContainer);
-
     // 3. 콘텐츠 복제
     const clonedElement = originalElement.cloneNode(true);
-    tempContainer.appendChild(clonedElement);
+    
+    // Remove interactive elements that look bad in PDF
+    clonedElement.querySelectorAll('button, input, select, .no-print').forEach(el => el.remove());
 
     // 4. 복제된 콘텐츠 정리 (DOM 조작)
     // 스크롤을 유발하거나 높이를 제한하는 클래스를 모두 제거합니다.
     const allElements = clonedElement.querySelectorAll('*');
     allElements.forEach(el => {
-        // 인라인 스타일 초기화
-        el.style.maxHeight = 'none';
-        el.style.height = 'auto';
-        el.style.overflow = 'visible';
-        el.style.width = ''; // 너비 제한 해제 (상위 컨테이너 1120px 따름)
-
         // Tailwind 클래스 제거
         el.classList.remove(
             'overflow-y-auto', 'overflow-x-auto', 'overflow-hidden', 'overflow-auto',
             'max-h-40', 'max-h-48', 'max-h-60', 'max-h-96', 
             'max-h-screen', 
             'max-h-[60vh]', 'max-h-[70vh]', 'max-h-[85vh]', 'max-h-[90vh]',
-            'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-2xl' // 그림자 제거
+            'h-full', 'h-screen',
+            'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-2xl', // 그림자 제거
+            'fixed', 'absolute', 'sticky' // Positioning can mess up flow
         );
+        
+        // 인라인 스타일 초기화
+        el.style.maxHeight = 'none';
+        el.style.height = 'auto';
+        el.style.overflow = 'visible';
+        el.style.position = 'static'; // Force static flow
+        el.style.width = ''; // 너비 제한 해제 (상위 컨테이너 1120px 따름)
     });
+
+    tempContainer.appendChild(clonedElement);
+    document.body.appendChild(tempContainer);
 
     // 5. Canvas(차트) 복구 (CloneNode는 캔버스 내용을 복사하지 않음)
     const originalCanvases = originalElement.querySelectorAll('canvas');
@@ -589,14 +602,15 @@ export const downloadContentAsPdf = (elementId, title) => {
             scale: 2, // 해상도 2배 (선명하게)
             useCORS: true,
             scrollY: 0,
-            windowWidth: 1120 // ✅ 렌더링할 가상 창 너비 (A4 가로 픽셀 근사치)
+            windowWidth: 1120, // ✅ 렌더링할 가상 창 너비 (A4 가로 픽셀 근사치)
+            height: tempContainer.scrollHeight // Capture full height
         },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }, // 가로 모드
         pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // 페이지 넘김 최적화
     };
 
     // 7. 변환 실행
-    html2pdf().from(clonedElement).set(opt).save()
+    html2pdf().from(tempContainer).set(opt).save()
         .then(() => {
             showToast('PDF 저장이 완료되었습니다.');
         })
