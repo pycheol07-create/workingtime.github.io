@@ -87,6 +87,8 @@ export async function saveProgress(isAutoSave = false) {
 
         const workRecordsColRef = getWorkRecordsCollectionRef();
         const recordsSnapshot = await getDocs(workRecordsColRef);
+        
+        // ✅ [수정] 저장 시점에도 0분 이하인 완료된 기록은 제외하고 저장 (필터링)
         const liveWorkRecords = recordsSnapshot.docs.map(doc => {
             const data = doc.data();
             if (data.status === 'ongoing' || data.status === 'paused') {
@@ -94,6 +96,11 @@ export async function saveProgress(isAutoSave = false) {
                 data.endTime = now;
             }
             return data;
+        }).filter(record => {
+            // 진행 중인 업무는 0분이어도 저장 (아직 안 끝났으니까)
+            if (record.status !== 'completed') return true;
+            // 완료된 업무는 0분 초과인 것만 저장
+            return Math.round(record.duration || 0) > 0;
         });
 
         if (liveWorkRecords.length === 0 && Object.keys(dailyData.taskQuantities || {}).length === 0) {
@@ -130,14 +137,14 @@ export async function saveProgress(isAutoSave = false) {
 }
 
 // (app-history-logic.js -> history-data-manager.js)
-// 업무 마감 (전체 강제 종료 포함) - ✅ 0분 이하 기록 자동 삭제 적용
+// 업무 마감 (전체 강제 종료 및 정리) - ✅ 0분 이하 기록 완전 박멸
 export async function saveDayDataToHistory(shouldReset) {
     const workRecordsColRef = getWorkRecordsCollectionRef();
     const endTime = getCurrentTime();
 
     try {
-        const q = query(workRecordsColRef, where('status', 'in', ['ongoing', 'paused']));
-        const querySnapshot = await getDocs(q);
+        // ✅ [수정] 상태와 상관없이 '모든' 기록을 가져와서 검사
+        const querySnapshot = await getDocs(workRecordsColRef);
 
         if (!querySnapshot.empty) {
             const batch = writeBatch(State.db);
@@ -146,27 +153,41 @@ export async function saveDayDataToHistory(shouldReset) {
 
             querySnapshot.forEach(docSnap => {
                 const record = docSnap.data();
+                let duration = record.duration || 0;
                 let pauses = record.pauses || [];
-                if (record.status === 'paused') {
-                    const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
-                    if (lastPause && lastPause.end === null) {
-                        lastPause.end = endTime;
-                    }
-                }
-                const duration = calcElapsedMinutes(record.startTime, endTime, pauses);
+                let needsUpdate = false;
 
-                // ✅ [신규] 0분 이하 자동 삭제
+                // 1. 진행 중이거나 일시정지 상태라면 종료 처리
+                if (record.status === 'ongoing' || record.status === 'paused') {
+                    if (record.status === 'paused') {
+                        const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
+                        if (lastPause && lastPause.end === null) {
+                            lastPause.end = endTime;
+                        }
+                    }
+                    duration = calcElapsedMinutes(record.startTime, endTime, pauses);
+                    record.status = 'completed';
+                    record.endTime = endTime;
+                    record.duration = duration;
+                    record.pauses = pauses;
+                    needsUpdate = true;
+                    completedCount++;
+                }
+
+                // 2. (완료된 것도 포함하여) 소요 시간이 0분 이하라면 삭제
+                // ⚠️ 주의: 여기서 완료된 상태(completed)가 된 것들만 삭제 대상입니다.
+                // 'End Shift'는 모든 업무를 종료하는 것이므로, 여기서 삭제되는 것은 맞습니다.
                 if (Math.round(duration) <= 0) {
                     batch.delete(docSnap.ref);
                     removedCount++;
-                } else {
+                } else if (needsUpdate) {
+                    // 삭제 대상이 아니고 업데이트가 필요하면 업데이트
                     batch.update(docSnap.ref, {
                         status: 'completed',
                         endTime: endTime,
                         duration: duration,
                         pauses: pauses
                     });
-                    completedCount++;
                 }
             });
             
@@ -176,12 +197,12 @@ export async function saveDayDataToHistory(shouldReset) {
                 console.log(`${completedCount}개의 진행 중인 업무를 강제 종료했습니다.`);
             }
             if (removedCount > 0) {
-                showToast(`소요 시간이 0분인 ${removedCount}건의 기록이 자동 삭제되었습니다.`);
+                showToast(`소요 시간이 0분인 기록 ${removedCount}건을 정리(삭제)했습니다.`);
             }
         }
     } catch (e) {
-         console.error("Error finalizing ongoing tasks during shift end: ", e);
-         showToast("업무 마감 중 진행 업무 종료 실패. (이력 저장은 계속 진행합니다)", true);
+         console.error("Error finalizing tasks during shift end: ", e);
+         showToast("업무 마감 중 오류 발생 (이력 저장은 시도합니다)", true);
     }
 
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -234,7 +255,7 @@ export async function fetchAllHistoryData() {
 }
 
 
-// 이력(또는 오늘)에 새 업무 기록 추가 - ✅ 0분 이하 자동 차단
+// 이력(또는 오늘)에 새 업무 기록 추가 - ✅ 완료된 기록에 한해서만 0분 체크
 export async function addHistoryWorkRecord(dateKey, newRecordData) {
     const todayKey = getTodayDateString();
 
@@ -243,8 +264,8 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
         newRecordData.duration = calcElapsedMinutes(newRecordData.startTime, newRecordData.endTime, newRecordData.pauses || []);
     }
     
-    // ✅ [신규] 0분 이하인지 확인
-    if (Math.round(newRecordData.duration || 0) <= 0) {
+    // ✅ [수정] 상태가 'completed'일 때만 0분 이하 저장을 막음
+    if (newRecordData.status === 'completed' && Math.round(newRecordData.duration || 0) <= 0) {
         showToast('소요 시간이 0분이어 기록이 저장되지 않았습니다.', true);
         return;
     }
@@ -284,7 +305,7 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
 }
 
 
-// 이력(또는 오늘)의 특정 업무 기록 수정 - ✅ 0분 이하 시 삭제 처리
+// 이력(또는 오늘)의 특정 업무 기록 수정 - ✅ 완료된 기록에 한해서만 0분 체크
 export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
     const todayKey = getTodayDateString();
 
@@ -295,7 +316,8 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
         if (!localRecord) throw new Error("기록을 찾을 수 없습니다.");
 
         let newDuration = localRecord.duration;
-        
+        let newStatus = updateData.status || localRecord.status;
+
         // 시작/종료/휴식 변경 시 duration 재계산
         if (updateData.startTime || updateData.endTime || updateData.pauses) {
             const start = updateData.startTime || localRecord.startTime;
@@ -308,8 +330,8 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
             }
         }
 
-        // ✅ [신규] 0분 이하이면 삭제 처리
-        if (newDuration !== null && Math.round(newDuration) <= 0) {
+        // ✅ [수정] '완료(completed)' 상태인 경우에만 0분 이하 삭제
+        if (newStatus === 'completed' && newDuration !== null && Math.round(newDuration) <= 0) {
             await deleteHistoryWorkRecord(dateKey, recordId);
             showToast('수정 후 소요 시간이 0분이 되어 기록이 삭제되었습니다.');
             return;
@@ -339,8 +361,9 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
         updatedRecord.duration = calcElapsedMinutes(start, end, pauses);
     }
 
-    // ✅ [신규] 0분 이하이면 삭제 처리
-    if (Math.round(updatedRecord.duration || 0) <= 0) {
+    // ✅ [수정] '완료(completed)' 상태인 경우에만 0분 이하 삭제
+    // (과거 데이터는 보통 다 completed이지만, 혹시 모르니 체크)
+    if (updatedRecord.status === 'completed' && Math.round(updatedRecord.duration || 0) <= 0) {
         await deleteHistoryWorkRecord(dateKey, recordId);
         showToast('수정 후 소요 시간이 0분이 되어 기록이 삭제되었습니다.');
         return;

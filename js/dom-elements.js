@@ -232,3 +232,8 @@ export const confirmHistoryAddBtn = document.getElementById('confirm-history-add
 // 엑셀 다운로드 버튼
 export const historyDownloadExcelBtn = document.getElementById('history-download-excel-btn');
 export const attendanceDownloadExcelBtn = document.getElementById('attendance-download-excel-btn');
+
+// ✅ [신규] 업무 종료 알림 모달
+export const shiftEndAlertModal = document.getElementById('shift-end-alert-modal');
+export const confirmShiftEndAlertBtn = document.getElementById('confirm-shift-end-alert-btn');
+export const cancelShiftEndAlertBtn = document.getElementById('cancel-shift-end-alert-btn');

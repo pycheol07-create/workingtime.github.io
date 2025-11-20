@@ -6,7 +6,7 @@ import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, 
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // --- 2. 모듈 임포트 ---
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js'; // ✅ saveLeaveSchedule 추가
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes, debounce } from './utils.js';
 import {
     renderDashboardLayout,
@@ -105,6 +105,7 @@ async function applyHistoricalLeaveData() {
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     
+    // 1. 점심시간 자동 일시정지 (12:30)
     if (now === '12:30' && !State.appState.lunchPauseExecuted) {
         State.appState.lunchPauseExecuted = true;
         if (State.context.autoPauseForLunch) {
@@ -120,6 +121,7 @@ export const updateElapsedTimes = async () => {
         saveStateToFirestore(); 
     }
 
+    // 2. 점심시간 자동 재개 (13:30)
     if (now === '13:30' && !State.appState.lunchResumeExecuted) {
         State.appState.lunchResumeExecuted = true;
         if (State.context.autoResumeFromLunch) {
@@ -133,6 +135,32 @@ export const updateElapsedTimes = async () => {
             }
         }
         saveStateToFirestore(); 
+    }
+
+    // ✅ [신규] 업무 종료 시간 알림 (평일 17:30, 주말 15:45)
+    if (!State.appState.shiftEndAlertExecuted) {
+        const todayDate = getTodayDateString();
+        const isWeekend = !isWeekday(todayDate);
+        const targetTime = isWeekend ? '15:45' : '17:30';
+        
+        if (now === targetTime) {
+            State.appState.shiftEndAlertExecuted = true;
+
+            // 1) 브라우저 닫기 방지 활성화
+            window.onbeforeunload = (e) => {
+                e.preventDefault();
+                e.returnValue = ''; // Chrome requires returnValue to be set
+                return ''; 
+            };
+
+            // 2) 알림 모달 표시
+            if (DOM.shiftEndAlertModal) {
+                DOM.shiftEndAlertModal.classList.remove('hidden');
+            }
+
+            // 3) 상태 저장 (재실행 방지)
+            saveStateToFirestore();
+        }
     }
 
     document.querySelectorAll('.ongoing-duration').forEach(el => {
@@ -434,6 +462,8 @@ async function startAppAfterLogin(user) {
             State.appState.dailyOnLeaveMembers = data.onLeaveMembers || legacyState.onLeaveMembers || [];
             State.appState.lunchPauseExecuted = data.lunchPauseExecuted ?? legacyState.lunchPauseExecuted ?? false;
             State.appState.lunchResumeExecuted = data.lunchResumeExecuted ?? legacyState.lunchResumeExecuted ?? false;
+            // ✅ [신규] 종료 알림 플래그 동기화
+            State.appState.shiftEndAlertExecuted = data.shiftEndAlertExecuted ?? legacyState.shiftEndAlertExecuted ?? false;
             State.appState.confirmedZeroTasks = data.confirmedZeroTasks || legacyState.confirmedZeroTasks || [];
             State.appState.dailyAttendance = data.dailyAttendance || legacyState.dailyAttendance || {};
 
