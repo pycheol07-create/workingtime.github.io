@@ -578,7 +578,9 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="duration">총 시간 ${getSortIcon(tSort.key, tSort.dir, 'duration')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="cost">총 인건비 ${getSortIcon(tSort.key, tSort.dir, 'cost')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="quantity">총 처리량 ${getSortIcon(tSort.key, tSort.dir, 'quantity')}</th>
-            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="workDays">진행 횟수(일) ${getSortIcon(tSort.key, tSort.dir, 'workDays')}</th>
+            
+            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="workDays">진행 일수 ${getSortIcon(tSort.key, tSort.dir, 'workDays')}</th>
+            
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgThroughput">분당 처리량 ${getSortIcon(tSort.key, tSort.dir, 'avgThroughput')}</th>
             <th class="px-4 py-2">표준 속도 (Top3)</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgCostPerItem">개당 처리비용 ${getSortIcon(tSort.key, tSort.dir, 'avgCostPerItem')}</th>
@@ -597,8 +599,10 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, d.p.duration) }, 
             { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, d.p.cost) }, 
             { content: d.quantity.toLocaleString(), diff: getDiffHtmlForMetric('quantity', d.quantity, d.p.quantity) }, 
-            // ✅ [추가] 진행 횟수(일) 표시
-            { content: (d.workDays || 0) + '일', diff: getDiffHtmlForMetric('workDays', d.workDays, d.p.workDays) },
+            
+            // ✅ [수정] 진행 일수 데이터 바인딩 (0일이면 - 표시)
+            { content: (d.workDays || 0) > 0 ? `${d.workDays}일` : '-', diff: getDiffHtmlForMetric('workDays', d.workDays, d.p.workDays) },
+            
             { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, d.p.avgThroughput) }, 
             { content: stdSpeed > 0 ? stdSpeed.toFixed(2) : '-', class: "text-indigo-600 font-mono bg-indigo-50" },
             { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, d.p.avgCostPerItem) }, 
