@@ -405,7 +405,7 @@ export const downloadReportExcel = (reportData, format = 'xlsx') => {
 
 
 // =================================================================
-// ✅ 개인 리포트 엑셀/CSV 다운로드 (수정: 출퇴근 시간 포함)
+// ✅ 개인 리포트 엑셀/CSV 다운로드
 // =================================================================
 export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
     if (!reportData) return showToast('개인 리포트 데이터가 없습니다.', true);
@@ -420,8 +420,8 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
             logData = stats.dailyLogs.map(log => ({
                 '날짜': log.date,
                 '근태 상태': log.attendance,
-                '출근': log.inTime ? formatTimeTo24H(log.inTime) : '-', // ✅ 추가
-                '퇴근': log.outTime ? formatTimeTo24H(log.outTime) : '-', // ✅ 추가
+                '출근': log.inTime ? formatTimeTo24H(log.inTime) : '-',
+                '퇴근': log.outTime ? formatTimeTo24H(log.outTime) : '-',
                 '주요 업무': log.mainTask,
                 '총 근무 시간': formatDuration(log.workTime)
             }));
@@ -489,7 +489,7 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
 
 
 // =================================================================
-// ✅ [수정] PDF 다운로드 (Tailwind 스타일 충돌 방지)
+// ✅ [수정] PDF 다운로드 (레이아웃 최적화 및 잘림 방지)
 // =================================================================
 export const downloadContentAsPdf = (elementId, title) => {
     const originalElement = document.getElementById(elementId);
@@ -498,75 +498,104 @@ export const downloadContentAsPdf = (elementId, title) => {
     showToast('PDF 변환을 시작합니다. (잠시만 기다려주세요)');
 
     // 1. 임시 컨테이너 생성 (화면 밖으로 숨김)
-    // A4 가로 너비(약 297mm)에 맞춰 넉넉한 픽셀 너비 설정 (1280px)
+    // A4 가로 너비(297mm)에 근접한 픽셀 값(1120px)을 강제로 설정하여
+    // 렌더링 시 우측이 잘리지 않도록 함.
     const tempContainer = document.createElement('div');
     tempContainer.id = 'pdf-temp-container';
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
     tempContainer.style.top = '0';
-    tempContainer.style.width = '1280px'; // 가로 모드에 맞춘 너비
+    tempContainer.style.width = '1120px'; // ✅ 중요: A4 가로 너비(약 1123px)에 맞춤
     tempContainer.style.background = 'white';
     tempContainer.style.zIndex = '-9999';
-    // 테이블 줄바꿈 방지 스타일 주입
+    
+    // 2. 인쇄용 CSS 주입 (줄바꿈 방지, 배경색, 폰트 크기 조정)
     tempContainer.innerHTML = `<style>
-        table { page-break-inside: auto; }
+        /* 페이지 넘김 시 테이블/행 잘림 방지 */
+        table { page-break-inside: auto; width: 100% !important; table-layout: fixed; }
         tr { page-break-inside: avoid; page-break-after: auto; }
         thead { display: table-header-group; }
         tfoot { display: table-footer-group; }
+        
+        /* 카드나 주요 구획도 잘리지 않게 */
+        .break-inside-avoid, .p-4, .p-5, .p-6 { page-break-inside: avoid !important; }
+
+        /* 배경색 및 텍스트 강제 설정 (가독성) */
+        body, .bg-gray-50 { background: white !important; }
+        .bg-white { background: white !important; box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+        
+        /* 모든 스크롤 제거 및 높이 자동 확장 */
+        * { 
+            overflow: visible !important; 
+            height: auto !important; 
+            max-height: none !important; 
+            scrollbar-width: none !important;
+        }
+        
+        /* 텍스트 줄바꿈 강제 (잘림 방지) */
+        th, td, p, div { 
+            word-wrap: break-word; 
+            white-space: normal !important; 
+        }
     </style>`;
+    
     document.body.appendChild(tempContainer);
 
-    // 2. 콘텐츠 복제
+    // 3. 콘텐츠 복제
     const clonedElement = originalElement.cloneNode(true);
     tempContainer.appendChild(clonedElement);
 
-    // 3. 복제된 콘텐츠의 스크롤/높이 제한 제거 (전체 펼치기)
+    // 4. 복제된 콘텐츠 정리 (DOM 조작)
+    // 스크롤을 유발하거나 높이를 제한하는 클래스를 모두 제거합니다.
     const allElements = clonedElement.querySelectorAll('*');
     allElements.forEach(el => {
-        // 1) 인라인 스타일 강제 초기화 (가장 강력함)
+        // 인라인 스타일 초기화
         el.style.maxHeight = 'none';
         el.style.height = 'auto';
         el.style.overflow = 'visible';
+        el.style.width = ''; // 너비 제한 해제 (상위 컨테이너 1120px 따름)
 
-        // 2) Tailwind 클래스 제거 (CSS 우선순위 문제 해결)
-        // 스크롤바를 유발하거나 높이를 제한하는 클래스들을 제거합니다.
+        // Tailwind 클래스 제거
         el.classList.remove(
             'overflow-y-auto', 'overflow-x-auto', 'overflow-hidden', 'overflow-auto',
             'max-h-40', 'max-h-48', 'max-h-60', 'max-h-96', 
             'max-h-screen', 
-            'max-h-[60vh]', 'max-h-[70vh]', 'max-h-[85vh]', 'max-h-[90vh]'
+            'max-h-[60vh]', 'max-h-[70vh]', 'max-h-[85vh]', 'max-h-[90vh]',
+            'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-2xl' // 그림자 제거
         );
     });
 
-    // 4. Canvas(차트) 복구 (CloneNode는 캔버스 내용을 복사하지 않음)
+    // 5. Canvas(차트) 복구 (CloneNode는 캔버스 내용을 복사하지 않음)
     const originalCanvases = originalElement.querySelectorAll('canvas');
     const clonedCanvases = clonedElement.querySelectorAll('canvas');
     originalCanvases.forEach((origCanvas, index) => {
         if (clonedCanvases[index]) {
             const ctx = clonedCanvases[index].getContext('2d');
-            // 캔버스 크기도 복사
             clonedCanvases[index].width = origCanvas.width;
             clonedCanvases[index].height = origCanvas.height;
             ctx.drawImage(origCanvas, 0, 0);
+            // 차트 크기 스타일 강제 조정
+            clonedCanvases[index].style.width = '100%';
+            clonedCanvases[index].style.height = 'auto';
         }
     });
 
-    // 5. PDF 생성 옵션 (가로 모드 설정)
+    // 6. html2pdf 설정 (A4 가로)
     const opt = {
-        margin:       [10, 10, 10, 10],
+        margin:       [10, 10, 10, 10], // 여백 (mm)
         filename:     `${title}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { 
-            scale: 2, 
+            scale: 2, // 해상도 2배 (선명하게)
             useCORS: true,
             scrollY: 0,
-            windowWidth: 1280 // 컨테이너 너비와 일치
+            windowWidth: 1120 // ✅ 렌더링할 가상 창 너비 (A4 가로 픽셀 근사치)
         },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }, // ✅ 가로 모드
-        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }, // 가로 모드
+        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // 페이지 넘김 최적화
     };
 
-    // 6. 변환 실행
+    // 7. 변환 실행
     html2pdf().from(clonedElement).set(opt).save()
         .then(() => {
             showToast('PDF 저장이 완료되었습니다.');
@@ -576,7 +605,7 @@ export const downloadContentAsPdf = (elementId, title) => {
             showToast('PDF 생성 중 오류가 발생했습니다.', true);
         })
         .finally(() => {
-            // 7. 임시 컨테이너 제거
+            // 8. 임시 컨테이너 정리
             document.body.removeChild(tempContainer);
         });
 };
