@@ -113,14 +113,10 @@ export const renderInspectionHistoryTable = (historyData) => {
                     <td class="px-6 py-4">
                         ${formatDefectSummary(item.defectSummary)}
                     </td>
-                    <td class="px-6 py-4 text-right space-x-2">
+                    <td class="px-6 py-4 text-right">
                         <button class="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-200 rounded px-3 py-1.5 hover:bg-indigo-50 transition btn-view-detail" 
                                 data-product-name="${item.id}">
                             상세보기
-                        </button>
-                        <button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-3 py-1.5 hover:bg-red-50 transition btn-delete-product" 
-                                data-product-name="${item.id}">
-                            삭제
                         </button>
                     </td>
                 </tr>
@@ -134,6 +130,8 @@ export const renderInspectionHistoryTable = (historyData) => {
 
 /**
  * ✅ [신규] 상품별 상세 검수 로그(logs) 테이블 렌더링
+ * @param {Array} logs - 특정 상품의 logs 배열
+ * @param {String} productName - 상품명
  */
 export const renderInspectionLogTable = (logs, productName) => {
     const tbody = DOM.inspectionLogTableBody;
@@ -172,11 +170,7 @@ export const renderInspectionLogTable = (logs, productName) => {
             defectText = `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>`;
         }
         const noteText = item.note || '';
-        let fullText = (defectText + noteText) || '<span class="text-gray-300">-</span>';
-        
-        if (item.image) {
-            fullText += ` <span class="text-xs text-blue-500 border border-blue-200 rounded px-1 ml-1">📷 사진</span>`;
-        }
+        const fullText = (defectText + noteText) || '<span class="text-gray-300">-</span>';
 
         tr.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-mono text-xs">
