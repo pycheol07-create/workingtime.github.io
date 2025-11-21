@@ -1,29 +1,36 @@
 // === js/inspection-logic.js ===
-// 설명: 검수 이력 조회, 저장, 리스트 관리, 수정/삭제 등 핵심 로직을 담당합니다.
+// 설명: 검수 관련 핵심 비즈니스 로직 (검색, 저장, 삭제, 엑셀, 스캔, 이미지)
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
+import { showToast, getCurrentTime, getTodayDateString, compressImage } from './utils.js';
 
 import { 
-    doc, getDoc, setDoc, updateDoc, arrayUnion, increment, serverTimestamp, collection, getDocs 
+    doc, getDoc, setDoc, updateDoc, arrayUnion, increment, serverTimestamp, collection, getDocs, deleteDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 렌더링 함수 임포트
 import { renderInspectionHistoryTable, renderInspectionLogTable } from './ui-history-inspection.js';
 
-// 로컬 상태 변수
+// 로컬 상태
 let todayInspectionList = [];
-let currentProductLogs = []; // 상세보기를 위한 임시 저장소
+let currentProductLogs = [];
+let plannedInspectionList = []; // [신규] 엑셀로 불러온 검수 예정 리스트
+let html5QrCode = null; // [신규] 바코드 스캐너 인스턴스
 
-/**
- * 1. 상품명으로 과거 검수 이력 조회 (입력 모달용)
- */
-export const searchProductHistory = async () => {
-    const productNameInput = DOM.inspProductNameInput.value.trim();
+// ---------------------------------------------------------
+// 1. 상품 검색 및 조회
+// ---------------------------------------------------------
+export const searchProductHistory = async (productNameOverride = null) => {
+    const productNameInput = productNameOverride || DOM.inspProductNameInput.value.trim();
+    
     if (!productNameInput) {
         showToast('상품명을 입력해주세요.', true);
         return;
+    }
+    
+    // 검색창 값 동기화 (버튼 클릭이나 스캔으로 호출된 경우)
+    if (DOM.inspProductNameInput.value !== productNameInput) {
+        DOM.inspProductNameInput.value = productNameInput;
     }
 
     DOM.inspHistoryReport.classList.remove('hidden');
@@ -32,6 +39,9 @@ export const searchProductHistory = async () => {
     DOM.inspReportTitle.textContent = productNameInput;
     DOM.inspReportCount.textContent = '0';
     DOM.inspReportDate.textContent = '-';
+    
+    // 이미지 프리뷰 초기화
+    clearImagePreview();
     
     resetInspectionForm(false); 
 
@@ -61,9 +71,9 @@ export const searchProductHistory = async () => {
     }
 };
 
-/**
- * 2. 검수 데이터 저장 및 다음 상품 준비
- */
+// ---------------------------------------------------------
+// 2. 검수 저장 (이미지 포함)
+// ---------------------------------------------------------
 export const saveInspectionAndNext = async () => {
     const productName = DOM.inspProductNameInput.value.trim();
     if (!productName) {
@@ -74,6 +84,7 @@ export const saveInspectionAndNext = async () => {
     const packingNo = DOM.inspPackingNoInput.value.trim();
     const inboundQty = DOM.inspInboundQtyInput.value.trim();
 
+    // 체크리스트 수집
     const checklist = {
         thickness: DOM.inspCheckThickness.value,
         fabric: DOM.inspCheckFabric.value,
@@ -107,6 +118,19 @@ export const saveInspectionAndNext = async () => {
     const today = getTodayDateString();
     const nowTime = getCurrentTime();
 
+    // ✅ [신규] 이미지 처리
+    let imageBase64 = null;
+    const imageInput = document.getElementById('insp-image-upload');
+    if (imageInput && imageInput.files && imageInput.files[0]) {
+        try {
+            // 800px로 리사이징하여 압축 (utils.js에 추가한 함수)
+            imageBase64 = await compressImage(imageInput.files[0], 800, 0.7);
+        } catch (e) {
+            console.error("Image compression failed", e);
+            showToast("이미지 처리에 실패했습니다. 이미지 제외하고 저장합니다.", true);
+        }
+    }
+
     const inspectionRecord = {
         date: today,
         time: nowTime,
@@ -116,7 +140,8 @@ export const saveInspectionAndNext = async () => {
         checklist,
         defects: defectsFound,
         note,
-        status
+        status,
+        image: imageBase64 // 이미지 데이터 (Base64)
     };
 
     const btn = document.getElementById('insp-save-next-btn');
@@ -145,13 +170,19 @@ export const saveInspectionAndNext = async () => {
             status,
             defects: defectsFound,
             note,
-            time: nowTime
+            time: nowTime,
+            hasImage: !!imageBase64
         });
 
         renderTodayInspectionList();
         showToast(`'${productName}' 검수 기록 저장 완료!`);
         
+        // 예정 리스트에서 해당 항목 제거 (선택사항)
+        removeFromPlannedList(productName);
+
         resetInspectionForm(true);
+        clearImagePreview();
+        
         DOM.inspProductNameInput.focus();
         DOM.inspHistoryReport.classList.add('hidden');
         DOM.inspCurrentInputArea.classList.add('hidden');
@@ -164,9 +195,170 @@ export const saveInspectionAndNext = async () => {
     }
 };
 
-/**
- * 3. 금일 검수 리스트 렌더링
- */
+// ---------------------------------------------------------
+// 3. 엑셀 업로드 및 예정 리스트 관리
+// ---------------------------------------------------------
+export const handleExcelUpload = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // JSON 변환 (헤더가 있다고 가정)
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        // 데이터 파싱 (첫 줄은 헤더로 간주하고 스킵)
+        if (jsonData.length > 1) {
+            plannedInspectionList = jsonData.slice(1).map(row => {
+                // 엑셀 컬럼 순서 가정: [0]상품명, [1]옵션, [2]코드, [3]수량 (필요시 수정)
+                // 유연하게 텍스트가 있는 첫 번째 컬럼을 상품명으로 간주
+                const name = row[0] || row[1] || '알수없음'; 
+                return { name: String(name).trim(), scanned: false };
+            }).filter(item => item.name !== '알수없음');
+            
+            renderPlannedList();
+            showToast(`${plannedInspectionList.length}건의 예정 리스트를 불러왔습니다.`);
+        } else {
+            showToast('유효한 데이터가 없습니다.', true);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+};
+
+export const renderPlannedList = () => {
+    const container = document.getElementById('insp-planned-list-container');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    if (plannedInspectionList.length === 0) {
+        container.innerHTML = '<span class="text-xs text-gray-400 py-2">업로드된 예정 내역이 없습니다.</span>';
+        return;
+    }
+
+    plannedInspectionList.forEach((item, index) => {
+        const btn = document.createElement('button');
+        btn.className = `flex-shrink-0 px-3 py-1.5 rounded-md text-xs border transition ${item.scanned ? 'bg-gray-100 text-gray-400 border-gray-200 line-through' : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 shadow-sm'}`;
+        btn.textContent = item.name;
+        
+        if (!item.scanned) {
+            btn.addEventListener('click', () => {
+                DOM.inspProductNameInput.value = item.name;
+                searchProductHistory(item.name);
+            });
+        }
+        container.appendChild(btn);
+    });
+};
+
+const removeFromPlannedList = (productName) => {
+    const targetIndex = plannedInspectionList.findIndex(item => item.name === productName && !item.scanned);
+    if (targetIndex > -1) {
+        plannedInspectionList[targetIndex].scanned = true;
+        renderPlannedList();
+    }
+};
+
+// ---------------------------------------------------------
+// 4. 바코드/QR 스캔 (html5-qrcode)
+// ---------------------------------------------------------
+export const toggleScanner = () => {
+    const scannerContainer = document.getElementById('insp-scanner-container');
+    
+    if (!scannerContainer.classList.contains('hidden')) {
+        // 닫기
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                scannerContainer.classList.add('hidden');
+            }).catch(err => console.error(err));
+        } else {
+            scannerContainer.classList.add('hidden');
+        }
+        return;
+    }
+
+    // 열기
+    scannerContainer.classList.remove('hidden');
+    
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("qr-reader");
+    }
+
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    html5QrCode.start(
+        { facingMode: "environment" }, // 후면 카메라
+        config,
+        (decodedText, decodedResult) => {
+            // 스캔 성공
+            console.log(`Scan result: ${decodedText}`, decodedResult);
+            
+            // 1. 상품명 입력창에 넣기
+            DOM.inspProductNameInput.value = decodedText;
+            
+            // 2. 스캐너 닫기
+            html5QrCode.stop().then(() => {
+                scannerContainer.classList.add('hidden');
+                // 3. 자동 조회
+                searchProductHistory(decodedText);
+            });
+        },
+        (errorMessage) => {
+            // 스캔 실패 (계속 시도중임) - 로그 너무 많이 찍히니 무시
+        }
+    ).catch(err => {
+        console.error("Scanner start failed", err);
+        showToast("카메라를 시작할 수 없습니다.", true);
+        scannerContainer.classList.add('hidden');
+    });
+};
+
+// ---------------------------------------------------------
+// 5. 이미지 프리뷰 관리
+// ---------------------------------------------------------
+const clearImagePreview = () => {
+    const previewDiv = document.getElementById('insp-image-preview');
+    const fileInput = document.getElementById('insp-image-upload');
+    if(previewDiv) previewDiv.classList.add('hidden');
+    if(fileInput) fileInput.value = ''; // 파일 선택 초기화
+};
+
+// (DOM 리스너에서 호출)
+export const handleImageSelect = (file) => {
+    const previewDiv = document.getElementById('insp-image-preview');
+    const imgEl = previewDiv.querySelector('img');
+    
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imgEl.src = e.target.result;
+            previewDiv.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+};
+
+// ---------------------------------------------------------
+// 6. 기타 헬퍼 (삭제, 목록 렌더링)
+// ---------------------------------------------------------
+
+// ✅ [신규] 상품 전체 삭제 (이력 탭용)
+export const deleteProductHistory = async (productId) => {
+    if (!productId) return;
+    if (!confirm(`'${productId}' 상품의 모든 검수 이력과 데이터를 영구 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)`)) return;
+
+    try {
+        await deleteDoc(doc(State.db, 'product_history', productId));
+        showToast(`'${productId}' 상품이 삭제되었습니다.`);
+        return true; // 성공 리턴
+    } catch (e) {
+        console.error("Error deleting product:", e);
+        showToast("삭제 중 오류가 발생했습니다.", true);
+        return false;
+    }
+};
+
 export const renderTodayInspectionList = () => {
     if (!DOM.inspTodayListBody) return;
     DOM.inspTodayCount.textContent = todayInspectionList.length;
@@ -189,6 +381,9 @@ export const renderTodayInspectionList = () => {
         if (item.defects.length > 0) {
             detailText = `<span class="text-red-600 font-bold">${item.defects.join(', ')}</span> ` + detailText;
         }
+        if (item.hasImage) {
+            detailText += ` <span class="text-blue-500 text-xs">📷 사진</span>`;
+        }
         if (!detailText) detailText = '<span class="text-gray-300">-</span>';
 
         tr.innerHTML = `
@@ -201,11 +396,18 @@ export const renderTodayInspectionList = () => {
     });
 };
 
+export const clearTodayList = () => {
+    todayInspectionList = [];
+    renderTodayInspectionList();
+};
+
 const resetInspectionForm = (clearProductName = false) => {
     if (clearProductName) DOM.inspProductNameInput.value = '';
     DOM.inspPackingNoInput.value = '';
     DOM.inspInboundQtyInput.value = '';
     DOM.inspNotesInput.value = '';
+    
+    // 체크리스트 초기화
     const selects = [
         DOM.inspCheckThickness, DOM.inspCheckFabric, DOM.inspCheckColor,
         DOM.inspCheckDistortion, DOM.inspCheckUnraveling, DOM.inspCheckFinishing,
@@ -215,47 +417,9 @@ const resetInspectionForm = (clearProductName = false) => {
     selects.forEach(sel => { if(sel) sel.selectedIndex = 0; });
 };
 
-export const clearTodayList = () => {
-    todayInspectionList = [];
-    renderTodayInspectionList();
-};
-
-/**
- * 4. 전체 검수 이력 불러오기 (데이터 관리 탭용)
- */
-export const loadAllInspectionHistory = async () => {
-    const container = DOM.inspectionHistoryViewContainer;
-    if (!container) return;
-    
-    container.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>검수 이력을 불러오는 중입니다...</div>';
-
-    try {
-        const colRef = collection(State.db, 'product_history');
-        const snapshot = await getDocs(colRef);
-        
-        const historyData = [];
-        snapshot.forEach(doc => {
-            historyData.push({
-                id: doc.id, 
-                ...doc.data()
-            });
-        });
-
-        renderInspectionHistoryTable(historyData);
-    } catch (e) {
-        console.error("Error loading all inspection history:", e);
-        container.innerHTML = '<div class="text-center text-red-500 py-10">데이터를 불러오는 중 오류가 발생했습니다.</div>';
-        showToast("검수 이력 로딩 실패", true);
-    }
-};
-
-/**
- * ✅ [신규] 특정 상품의 상세 로그 불러오기 (상세보기 모달용)
- */
 export const loadInspectionLogs = async (productName) => {
     if (!productName) return;
     
-    // 모달 띄우기
     if (DOM.inspectionLogManagerModal) DOM.inspectionLogManagerModal.classList.remove('hidden');
     if (DOM.inspectionLogProductName) DOM.inspectionLogProductName.textContent = productName;
     if (DOM.inspectionLogTableBody) DOM.inspectionLogTableBody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-gray-500">로딩 중...</td></tr>';
@@ -266,7 +430,7 @@ export const loadInspectionLogs = async (productName) => {
 
         if (docSnap.exists()) {
             const data = docSnap.data();
-            currentProductLogs = data.logs || []; // 로컬 저장
+            currentProductLogs = data.logs || []; 
             renderInspectionLogTable(currentProductLogs, productName);
         } else {
             currentProductLogs = [];
@@ -278,21 +442,13 @@ export const loadInspectionLogs = async (productName) => {
     }
 };
 
-/**
- * ✅ [신규] 검수 기록 수정을 위한 데이터 준비 (수정 모달 띄우기)
- */
 export const prepareEditInspectionLog = (productName, index) => {
-    // 현재 로드된 logs에서 데이터 찾기
-    // (주의: UI는 최신순이지만 currentProductLogs 배열 순서는 DB 저장 순서(과거->최신)일 수 있음.
-    //  renderInspectionLogTable에서 originalIndex를 매핑해두었으므로 index는 배열의 실제 인덱스여야 함)
-    
     const log = currentProductLogs[index];
     if (!log) {
         showToast("해당 기록을 찾을 수 없습니다.", true);
         return;
     }
 
-    // 수정 모달 DOM 채우기
     if (DOM.editInspProductName) DOM.editInspProductName.value = productName;
     if (DOM.editInspDateTime) DOM.editInspDateTime.value = `${log.date} ${log.time}`;
     if (DOM.editInspPackingNo) DOM.editInspPackingNo.value = log.packingNo || '';
@@ -300,7 +456,6 @@ export const prepareEditInspectionLog = (productName, index) => {
     if (DOM.editInspNotes) DOM.editInspNotes.value = log.note || '';
     if (DOM.editInspLogIndex) DOM.editInspLogIndex.value = index;
     
-    // 체크리스트 채우기
     const checklist = log.checklist || {};
     const setSelect = (dom, val) => { if (dom) dom.value = val || (dom.options[0].value); };
     
@@ -319,16 +474,12 @@ export const prepareEditInspectionLog = (productName, index) => {
     if (DOM.inspectionLogEditorModal) DOM.inspectionLogEditorModal.classList.remove('hidden');
 };
 
-/**
- * ✅ [신규] 검수 기록 수정 및 저장
- */
 export const updateInspectionLog = async () => {
     const productName = DOM.editInspProductName.value;
     const index = parseInt(DOM.editInspLogIndex.value, 10);
     
     if (!productName || isNaN(index) || !currentProductLogs[index]) return;
 
-    // 1. 폼 데이터 수집
     const checklist = {
         thickness: DOM.editInspCheckThickness.value,
         fabric: DOM.editInspCheckFabric.value,
@@ -357,7 +508,7 @@ export const updateInspectionLog = async () => {
     });
 
     const updatedLog = {
-        ...currentProductLogs[index], // 기존 데이터(작성자, 날짜 등) 유지
+        ...currentProductLogs[index], 
         packingNo: DOM.editInspPackingNo.value,
         inboundQty: Number(DOM.editInspInboundQty.value) || 0,
         checklist: checklist,
@@ -366,15 +517,11 @@ export const updateInspectionLog = async () => {
         status: defectsFound.length > 0 ? '불량' : '정상'
     };
 
-    // 2. 로컬 데이터 업데이트
     currentProductLogs[index] = updatedLog;
 
-    // 3. DB 업데이트
     try {
         const docRef = doc(State.db, 'product_history', productName);
         
-        // logs 전체 덮어쓰기 (Firestore 배열 수정의 한계)
-        // + defectSummary 재계산
         const newDefectSummary = currentProductLogs
             .filter(l => l.defects && l.defects.length > 0)
             .map(l => `${l.date}: ${l.defects.join(', ')}`);
@@ -386,12 +533,8 @@ export const updateInspectionLog = async () => {
 
         showToast("기록이 수정되었습니다.");
         
-        // UI 갱신
         DOM.inspectionLogEditorModal.classList.add('hidden');
         renderInspectionLogTable(currentProductLogs, productName);
-        
-        // 메인 이력 테이블도 갱신 (최근 불량 내역 등이 바뀔 수 있으므로)
-        // loadAllInspectionHistory(); // 이건 너무 무거우니 생략하거나 필요시 호출
 
     } catch (e) {
         console.error("Error updating log:", e);
@@ -399,9 +542,6 @@ export const updateInspectionLog = async () => {
     }
 };
 
-/**
- * ✅ [신규] 검수 기록 삭제
- */
 export const deleteInspectionLog = async () => {
     const productName = DOM.editInspProductName.value;
     const index = parseInt(DOM.editInspLogIndex.value, 10);
@@ -410,10 +550,8 @@ export const deleteInspectionLog = async () => {
 
     if (!confirm("정말 이 기록을 삭제하시겠습니까?")) return;
 
-    // 1. 로컬 데이터 제거
     currentProductLogs.splice(index, 1);
 
-    // 2. DB 업데이트
     try {
         const docRef = doc(State.db, 'product_history', productName);
         
@@ -424,7 +562,7 @@ export const deleteInspectionLog = async () => {
         await updateDoc(docRef, {
             logs: currentProductLogs,
             defectSummary: newDefectSummary,
-            totalInbound: increment(-1) // 입고 횟수 차감
+            totalInbound: increment(-1) 
         });
 
         showToast("기록이 삭제되었습니다.");

@@ -1,5 +1,5 @@
 // === js/listeners-history-inspection.js ===
-// 설명: 이력 보기의 '검수 이력' 탭 관련 리스너(조회, 정렬, 상세, 수정)를 담당합니다.
+// 설명: 이력 보기의 '검수 이력' 탭 관련 리스너(조회, 정렬, 상세, 수정, 삭제)를 담당합니다.
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
@@ -14,7 +14,8 @@ import {
     loadInspectionLogs,
     prepareEditInspectionLog,
     updateInspectionLog,
-    deleteInspectionLog
+    deleteInspectionLog,
+    deleteProductHistory // ✅ 추가됨
 } from './inspection-logic.js';
 
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -68,9 +69,9 @@ export function setupHistoryInspectionListeners() {
         });
     }
 
-    // 3. 테이블 헤더 정렬 및 상세보기 버튼 (이벤트 위임)
+    // 3. 테이블 헤더 정렬, 상세보기, 삭제 버튼 (이벤트 위임)
     if (DOM.inspectionHistoryViewContainer) {
-        DOM.inspectionHistoryViewContainer.addEventListener('click', (e) => {
+        DOM.inspectionHistoryViewContainer.addEventListener('click', async (e) => {
             // A. 정렬 클릭
             const th = e.target.closest('th[data-sort-key]');
             if (th) {
@@ -85,6 +86,18 @@ export function setupHistoryInspectionListeners() {
             if (detailBtn) {
                 const productName = detailBtn.dataset.productName;
                 loadInspectionLogs(productName);
+                return;
+            }
+
+            // ✅ C. 삭제 버튼 (신규 기능)
+            const deleteBtn = e.target.closest('.btn-delete-product');
+            if (deleteBtn) {
+                const productName = deleteBtn.dataset.productName;
+                const success = await deleteProductHistory(productName);
+                if (success) {
+                    fetchAndRenderInspectionHistory(); // 리스트 갱신
+                }
+                return;
             }
         });
     }
