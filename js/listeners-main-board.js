@@ -12,9 +12,11 @@ import {
     processClockIn, processClockOut, cancelClockOut,
     startWorkGroup,
     addMembersToWorkGroup,
+    // ✅ [신규] 일괄 제어 함수 임포트
+    pauseWorkByTask, resumeWorkByTask
 } from './app-logic.js';
 
-// ✅ [신규] 검수 로직 임포트 (리스트 렌더링용)
+// 검수 로직 임포트
 import { renderTodayInspectionList } from './inspection-logic.js';
 
 // 근태 설정 모달 열기 헬퍼 함수
@@ -71,8 +73,7 @@ const openAdminMemberActionModal = (memberName) => {
 
 export function setupMainBoardListeners() {
 
-    // ✅ [신규] '업무 시작' 버튼 클릭 시 '검수' 업무라면 자동으로 검수 모달 띄우기
-    // (listeners-modals-form.js의 리스너와 병행 실행됨)
+    // '업무 시작' 버튼 클릭 시 '검수' 업무라면 자동으로 검수 모달 띄우기
     if (DOM.confirmTeamSelectBtn) {
         DOM.confirmTeamSelectBtn.addEventListener('click', () => {
             if (State.context.selectedTaskForStart === '검수') {
@@ -112,24 +113,42 @@ export function setupMainBoardListeners() {
                 return;
             }
 
+            // ✅ [수정] 그룹 종료 버튼 클릭 시 Task 기준으로 종료 준비
             const stopGroupButton = e.target.closest('.stop-work-group-btn');
             if (stopGroupButton) {
-                State.context.groupToStopId = stopGroupButton.dataset.groupId;
+                const taskName = stopGroupButton.dataset.task;
+                
+                // 그룹ID 대신 업무명(Task)을 컨텍스트에 저장
+                State.context.taskToStop = taskName; 
+                State.context.groupToStopId = null; // 기존 그룹 ID 초기화
+
+                // 확인 모달 메시지 업데이트
+                const msgEl = document.getElementById('stop-group-confirm-message');
+                if (msgEl) msgEl.textContent = `'${taskName}' 업무를 전체 종료하시겠습니까? (모든 참여 인원)`;
+                
                 if (DOM.stopGroupConfirmModal) {
                     DOM.stopGroupConfirmModal.classList.remove('hidden');
                 }
                 return;
             }
+
+            // ✅ [수정] 그룹 일시정지 버튼 (Task 기준)
             const pauseGroupButton = e.target.closest('.pause-work-group-btn');
             if (pauseGroupButton) {
-                pauseWorkGroup(pauseGroupButton.dataset.groupId);
+                const taskName = pauseGroupButton.dataset.task;
+                pauseWorkByTask(taskName);
                 return;
             }
+
+            // ✅ [수정] 그룹 재개 버튼 (Task 기준)
             const resumeGroupButton = e.target.closest('.resume-work-group-btn');
             if (resumeGroupButton) {
-                resumeWorkGroup(resumeGroupButton.dataset.groupId);
+                const taskName = resumeGroupButton.dataset.task;
+                resumeWorkByTask(taskName);
                 return;
             }
+
+            // --- 개별 버튼 액션 ---
             const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
             if (individualPauseBtn) {
                 pauseWorkIndividual(individualPauseBtn.dataset.recordId);
@@ -148,25 +167,6 @@ export function setupMainBoardListeners() {
                     DOM.stopIndividualConfirmMessage.textContent = `${record.member}님의 '${record.task}' 업무를 종료하시겠습니까?`;
                 }
                 if (DOM.stopIndividualConfirmModal) DOM.stopIndividualConfirmModal.classList.remove('hidden');
-                return;
-            }
-
-            const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
-            if (groupTimeDisplay) {
-                const groupId = groupTimeDisplay.dataset.groupId;
-                const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
-                if (!groupId || !currentStartTime) return;
-
-                State.context.recordIdOrGroupIdToEdit = groupId;
-                State.context.editType = 'group';
-
-                if (DOM.editStartTimeModalTitle) DOM.editStartTimeModalTitle.textContent = '그룹 시작 시간 변경';
-                if (DOM.editStartTimeModalMessage) DOM.editStartTimeModalMessage.textContent = '이 그룹의 모든 팀원의 시작 시간이 변경됩니다.';
-                if (DOM.editStartTimeInput) DOM.editStartTimeInput.value = currentStartTime;
-                if (DOM.editStartTimeContextIdInput) DOM.editStartTimeContextIdInput.value = groupId;
-                if (DOM.editStartTimeContextTypeInput) DOM.editStartTimeContextTypeInput.value = 'group';
-
-                if (DOM.editStartTimeModal) DOM.editStartTimeModal.classList.remove('hidden');
                 return;
             }
 
@@ -190,6 +190,27 @@ export function setupMainBoardListeners() {
                 return;
             }
 
+            // --- 그룹 시간 일괄 변경 (기존 로직 유지 - 그룹 ID 기준) ---
+            const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
+            if (groupTimeDisplay) {
+                const groupId = groupTimeDisplay.dataset.groupId;
+                const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
+                if (!groupId || !currentStartTime) return;
+
+                State.context.recordIdOrGroupIdToEdit = groupId;
+                State.context.editType = 'group';
+
+                if (DOM.editStartTimeModalTitle) DOM.editStartTimeModalTitle.textContent = '그룹 시작 시간 변경';
+                if (DOM.editStartTimeModalMessage) DOM.editStartTimeModalMessage.textContent = '이 그룹의 모든 팀원의 시작 시간이 변경됩니다.';
+                if (DOM.editStartTimeInput) DOM.editStartTimeInput.value = currentStartTime;
+                if (DOM.editStartTimeContextIdInput) DOM.editStartTimeContextIdInput.value = groupId;
+                if (DOM.editStartTimeContextTypeInput) DOM.editStartTimeContextTypeInput.value = 'group';
+
+                if (DOM.editStartTimeModal) DOM.editStartTimeModal.classList.remove('hidden');
+                return;
+            }
+
+            // --- 근태 관련 버튼 ---
             const editLeaveCard = e.target.closest('[data-action="edit-leave-record"]');
             if (editLeaveCard) {
                 const memberName = editLeaveCard.dataset.memberName;
@@ -320,7 +341,7 @@ export function setupMainBoardListeners() {
                     return;
 
                 } else if (groupId && task) {
-                    // ✅ [수정] '검수' 업무 클릭 시 검수 매니저 모달 재진입
+                    // '검수' 업무 클릭 시 검수 매니저 모달 재진입
                     if (task === '검수') {
                         renderTodayInspectionList();
                         if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');

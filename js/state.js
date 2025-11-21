@@ -54,10 +54,14 @@ export const context = {
     selectedGroupForAdd: null,
     recordToDeleteId: null,
     recordToStopId: null,
+    groupToStopId: null,
+    
+    // ✅ [신규] 업무명 기준 종료를 위한 컨텍스트
+    taskToStop: null,
+
     historyKeyToDelete: null,
     recordToEditId: null,
     deleteMode: 'single',
-    groupToStopId: null,
     quantityModalContext: { mode: 'today', dateKey: null, onConfirm: null, onCancel: null },
     tempSelectedMembers: [],
     memberToSetLeave: null,
@@ -129,7 +133,7 @@ export const appState = {
     simulationResults: null,
     lunchPauseExecuted: false,
     lunchResumeExecuted: false,
-    shiftEndAlertExecuted: false // ✅ [신규] 업무 종료 알림 실행 여부
+    shiftEndAlertExecuted: false // 업무 종료 알림 실행 여부
 };
 
 export const allHistoryData = [];

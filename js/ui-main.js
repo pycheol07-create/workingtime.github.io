@@ -7,7 +7,7 @@ import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './u
 import * as State from './state.js';
 
 /**
- * ✅ [신규] 연차 표시 라벨 생성 헬퍼 (예: "연차16" or "연차16-18")
+ * 연차 표시 라벨 생성 헬퍼 (예: "연차16" or "연차16-18")
  */
 const getLeaveDisplayLabel = (member, leaveEntry) => {
     // 연차가 아니면 원래 타입 그대로 표시 (예: '출장', '결근', '외출')
@@ -284,7 +284,6 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
         const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember && !(m.type === '외출' && m.endTime));
         if (leaveInfo) {
-             // ✅ [수정] 개인별 분석에서도 상세 연차 라벨 적용
              const label = getLeaveDisplayLabel(selectedMember, leaveInfo);
              currentStatusHtml = `<span class="text-sm font-semibold text-gray-600">${label} 중</span>`;
         } else {
@@ -382,8 +381,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 };
 
 /**
- * ✅ [위치 이동] 개인 출퇴근 토글 스위치 상태 렌더링 함수
- * (renderRealtimeStatus에서 호출하므로 먼저 정의되어야 함)
+ * 개인 출퇴근 토글 스위치 상태 렌더링 함수
  */
 export const renderAttendanceToggle = (appState) => {
     const currentUser = appState.currentUser;
@@ -440,14 +438,14 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover} cursor-pointer`;
-            card.dataset.groupId = firstRecord.groupId;
-            card.dataset.task = firstRecord.task;
+            
+            // ✅ [수정] 그룹 ID 대신 업무명(Task)을 데이터 속성으로 설정 (중요)
+            card.dataset.task = task; 
+            card.dataset.groupId = firstRecord.groupId; // 호환성 유지용
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-64 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 const isRecPaused = rec.status === 'paused';
-                
-                // ✅ [수정] 개별 멤버의 누적 휴식 시간 계산
                 const pauseMin = calcTotalPauseMinutes(rec.pauses);
                 const memberPauseText = pauseMin > 0 ? ` <span class="text-xs text-gray-400">(휴: ${formatDuration(pauseMin)})</span>` : '';
 
@@ -470,11 +468,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
             const pausesJson = JSON.stringify(representativeRecord.pauses || []);
             
-            // ✅ [수정] 그룹 카드의 총 휴식 시간 표시
             const totalPauseMinutes = calcTotalPauseMinutes(representativeRecord.pauses);
             const pauseDisplay = totalPauseMinutes > 0 ? ` <span class="text-xs text-gray-400">(휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
 
-            card.innerHTML = `<div class="flex flex-col h-full"><div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div><div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>${pauseDisplay}</div><div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div><div class="flex-grow">${membersHtml}</div><div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions"><button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">${isPaused ? '전체 재개' : '전체 정지'}</button><button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">전체 종료</button></div></div>`;
+            // ✅ [수정] 버튼에 data-task 속성 추가
+            card.innerHTML = `<div class="flex flex-col h-full"><div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div><div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>${pauseDisplay}</div><div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div><div class="flex-grow">${membersHtml}</div><div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions"><button data-task="${task}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">${isPaused ? '전체 재개' : '전체 정지'}</button><button data-task="${task}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">전체 종료</button></div></div>`;
         } else {
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
             card.dataset.action = 'start-task';
@@ -664,7 +662,7 @@ export const renderCompletedWorkLog = (appState) => {
             let endTimeText = formatTimeTo24H(record.endTime);
             let durationText = formatDuration(record.duration);
 
-            // ✅ [수정] 휴식 시간 계산 및 표시
+            // 휴식 시간 계산 및 표시
             const pauseMinutes = calcTotalPauseMinutes(record.pauses);
             const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴식: ${formatDuration(pauseMinutes)})</span>` : '';
 
