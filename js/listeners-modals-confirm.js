@@ -1,20 +1,19 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
+// 수정사항: 그룹(전체) 업무 종료 시 처리량 입력 단계를 생략하고 즉시 종료하도록 변경
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast, getTodayDateString, getCurrentTime, calculateDateDifference } from './utils.js'; 
+import { showToast, getTodayDateString } from './utils.js'; 
 import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js';
-import { saveDayDataToHistory } from './history-data-manager.js';
-import { switchHistoryView } from './app-history-logic.js';
-import { render } from './app.js'; 
-import { debouncedSaveState, saveStateToFirestore } from './app-data.js'; 
 import { saveLeaveSchedule } from './config.js'; 
+import { switchHistoryView } from './app-history-logic.js';
 
 import { 
-    doc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc, getDoc, updateDoc
+    doc, deleteDoc, writeBatch, collection, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// 헬퍼: 단일 업무 기록 문서 삭제
 const deleteWorkRecordDocument = async (recordId) => {
     if (!recordId) return;
     try {
@@ -27,6 +26,7 @@ const deleteWorkRecordDocument = async (recordId) => {
     }
 };
 
+// 헬퍼: 여러 업무 기록 문서 일괄 삭제
 const deleteWorkRecordDocuments = async (recordIds) => {
     if (!recordIds || recordIds.length === 0) return;
     try {
@@ -49,6 +49,7 @@ const deleteWorkRecordDocuments = async (recordIds) => {
 
 export function setupConfirmationModalListeners() {
 
+    // 1. 삭제 확인 모달 (Delete Confirm)
     if (DOM.confirmDeleteBtn) {
         DOM.confirmDeleteBtn.addEventListener('click', async () => {
 
@@ -77,6 +78,7 @@ export function setupConfirmationModalListeners() {
                 }
             }
             else if (State.context.deleteMode === 'attendance') {
+                // 근태 기록 삭제
                 const { dateKey, index } = State.context.attendanceRecordToDelete;
                 const todayKey = getTodayDateString();
                 
@@ -134,6 +136,7 @@ export function setupConfirmationModalListeners() {
                 State.context.attendanceRecordToDelete = null;
             }
             else if (State.context.deleteMode === 'leave-record') {
+                // 모달을 통한 근태 기록 삭제 (상세 수정 팝업에서 호출됨)
                 const { memberName, startIdentifier, type, displayType } = State.context.attendanceRecordToDelete;
                 let dailyChanged = false;
                 let persistentChanged = false;
@@ -178,6 +181,8 @@ export function setupConfirmationModalListeners() {
         });
     }
 
+    // 2. 처리량 입력 모달 확인 (Quantity On Stop)
+    // 참고: 그룹 종료 시에는 이제 이 모달을 띄우지 않으므로, 이 리스너는 개별 종료 등 다른 로직에서 호출될 때만 사용됩니다.
     if (DOM.confirmQuantityOnStopBtn) {
         DOM.confirmQuantityOnStopBtn.addEventListener('click', async () => {
             const quantity = document.getElementById('quantity-on-stop-input').value;
@@ -205,6 +210,7 @@ export function setupConfirmationModalListeners() {
         });
     }
 
+    // 3. 개별 업무 종료 확인
     if (DOM.confirmStopIndividualBtn) {
         DOM.confirmStopIndividualBtn.addEventListener('click', async () => {
             await stopWorkIndividual(State.context.recordToStopId);
@@ -213,15 +219,15 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // ✅ [수정됨] 그룹(업무) 종료 확인 버튼 리스너
-    // 처리량 입력 여부를 묻지 않고, 바로 종료합니다.
+    // 4. 그룹(전체) 업무 종료 확인 (수정된 부분)
+    // ✅ 처리량 입력 모달을 띄우지 않고 즉시 종료
     if (DOM.confirmStopGroupBtn) {
         DOM.confirmStopGroupBtn.addEventListener('click', async () => {
             if (DOM.stopGroupConfirmModal) DOM.stopGroupConfirmModal.classList.add('hidden');
 
             // 1. Task 기준 일괄 종료 (우선순위)
             if (State.context.taskToStop) {
-                // ✅ [수정] 처리량 입력 로직 제거 -> 바로 종료 호출 (quantity: null)
+                // quantity에 null을 전달하여 처리량 입력을 건너뛰고 종료
                 await stopWorkByTask(State.context.taskToStop, null);
                 State.context.taskToStop = null;
             }
@@ -241,6 +247,7 @@ export function setupConfirmationModalListeners() {
         });
     }
     
+    // 5. 근태 취소(복귀) 확인
     if (DOM.confirmCancelLeaveBtn) {
         DOM.confirmCancelLeaveBtn.addEventListener('click', async () => {
             const memberName = State.context.memberToCancelLeave;
@@ -248,7 +255,6 @@ export function setupConfirmationModalListeners() {
 
             let dailyChanged = false;
             let persistentChanged = false;
-            const now = getCurrentTime();
             let actionMessage = '취소';
 
             const dailyEntry = State.appState.dailyOnLeaveMembers.find(entry => 
@@ -304,6 +310,7 @@ export function setupConfirmationModalListeners() {
         });
     }
 
+    // 6. 업무 마감 확인
     if (DOM.confirmEndShiftBtn) {
         DOM.confirmEndShiftBtn.addEventListener('click', async () => {
             await saveDayDataToHistory(false);
@@ -311,6 +318,7 @@ export function setupConfirmationModalListeners() {
         });
     }
 
+    // 7. 앱 초기화 확인
     if (DOM.confirmResetAppBtn) {
         DOM.confirmResetAppBtn.addEventListener('click', async () => {
             const today = getTodayDateString();
@@ -337,8 +345,6 @@ export function setupConfirmationModalListeners() {
                 State.appState.dailyOnLeaveMembers = [];
                 State.appState.dailyAttendance = {};
 
-                render();
-
                 showToast('오늘 데이터가 모두 초기화되었습니다.');
                 DOM.resetAppModal.classList.add('hidden');
 
@@ -349,6 +355,7 @@ export function setupConfirmationModalListeners() {
         });
     }
 
+    // 8. 업무 종료 알림 확인
     if (DOM.confirmShiftEndAlertBtn) {
         DOM.confirmShiftEndAlertBtn.addEventListener('click', async () => {
             window.onbeforeunload = null;
