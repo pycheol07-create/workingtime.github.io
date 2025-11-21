@@ -1,12 +1,13 @@
 // === js/inspection-logic.js ===
-// 설명: 검수 이력 조회, 저장, 리스트 관리, 수정/삭제 등 핵심 로직을 담당합니다.
+// 설명: 검수 이력 조회, 저장, 리스트 관리, 수정/삭제(상세/전체) 등 핵심 로직을 담당합니다.
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
 
+// ✅ [수정] deleteDoc 추가 임포트
 import { 
-    doc, getDoc, setDoc, updateDoc, arrayUnion, increment, serverTimestamp, collection, getDocs 
+    doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, increment, serverTimestamp, collection, getDocs 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 렌더링 함수 임포트
@@ -250,7 +251,7 @@ export const loadAllInspectionHistory = async () => {
 };
 
 /**
- * ✅ [신규] 특정 상품의 상세 로그 불러오기 (상세보기 모달용)
+ * ✅ 상품별 상세 로그 불러오기
  */
 export const loadInspectionLogs = async (productName) => {
     if (!productName) return;
@@ -279,13 +280,9 @@ export const loadInspectionLogs = async (productName) => {
 };
 
 /**
- * ✅ [신규] 검수 기록 수정을 위한 데이터 준비 (수정 모달 띄우기)
+ * ✅ 검수 기록 수정을 위한 데이터 준비
  */
 export const prepareEditInspectionLog = (productName, index) => {
-    // 현재 로드된 logs에서 데이터 찾기
-    // (주의: UI는 최신순이지만 currentProductLogs 배열 순서는 DB 저장 순서(과거->최신)일 수 있음.
-    //  renderInspectionLogTable에서 originalIndex를 매핑해두었으므로 index는 배열의 실제 인덱스여야 함)
-    
     const log = currentProductLogs[index];
     if (!log) {
         showToast("해당 기록을 찾을 수 없습니다.", true);
@@ -320,7 +317,7 @@ export const prepareEditInspectionLog = (productName, index) => {
 };
 
 /**
- * ✅ [신규] 검수 기록 수정 및 저장
+ * ✅ 검수 기록 수정 및 저장
  */
 export const updateInspectionLog = async () => {
     const productName = DOM.editInspProductName.value;
@@ -328,7 +325,6 @@ export const updateInspectionLog = async () => {
     
     if (!productName || isNaN(index) || !currentProductLogs[index]) return;
 
-    // 1. 폼 데이터 수집
     const checklist = {
         thickness: DOM.editInspCheckThickness.value,
         fabric: DOM.editInspCheckFabric.value,
@@ -357,7 +353,7 @@ export const updateInspectionLog = async () => {
     });
 
     const updatedLog = {
-        ...currentProductLogs[index], // 기존 데이터(작성자, 날짜 등) 유지
+        ...currentProductLogs[index], 
         packingNo: DOM.editInspPackingNo.value,
         inboundQty: Number(DOM.editInspInboundQty.value) || 0,
         checklist: checklist,
@@ -366,15 +362,10 @@ export const updateInspectionLog = async () => {
         status: defectsFound.length > 0 ? '불량' : '정상'
     };
 
-    // 2. 로컬 데이터 업데이트
     currentProductLogs[index] = updatedLog;
 
-    // 3. DB 업데이트
     try {
         const docRef = doc(State.db, 'product_history', productName);
-        
-        // logs 전체 덮어쓰기 (Firestore 배열 수정의 한계)
-        // + defectSummary 재계산
         const newDefectSummary = currentProductLogs
             .filter(l => l.defects && l.defects.length > 0)
             .map(l => `${l.date}: ${l.defects.join(', ')}`);
@@ -385,13 +376,8 @@ export const updateInspectionLog = async () => {
         });
 
         showToast("기록이 수정되었습니다.");
-        
-        // UI 갱신
         DOM.inspectionLogEditorModal.classList.add('hidden');
         renderInspectionLogTable(currentProductLogs, productName);
-        
-        // 메인 이력 테이블도 갱신 (최근 불량 내역 등이 바뀔 수 있으므로)
-        // loadAllInspectionHistory(); // 이건 너무 무거우니 생략하거나 필요시 호출
 
     } catch (e) {
         console.error("Error updating log:", e);
@@ -400,7 +386,7 @@ export const updateInspectionLog = async () => {
 };
 
 /**
- * ✅ [신규] 검수 기록 삭제
+ * ✅ 검수 상세 기록 삭제 (배열에서 1개만 삭제)
  */
 export const deleteInspectionLog = async () => {
     const productName = DOM.editInspProductName.value;
@@ -408,15 +394,12 @@ export const deleteInspectionLog = async () => {
 
     if (!productName || isNaN(index)) return;
 
-    if (!confirm("정말 이 기록을 삭제하시겠습니까?")) return;
+    if (!confirm("정말 이 상세 기록을 삭제하시겠습니까?")) return;
 
-    // 1. 로컬 데이터 제거
     currentProductLogs.splice(index, 1);
 
-    // 2. DB 업데이트
     try {
         const docRef = doc(State.db, 'product_history', productName);
-        
         const newDefectSummary = currentProductLogs
             .filter(l => l.defects && l.defects.length > 0)
             .map(l => `${l.date}: ${l.defects.join(', ')}`);
@@ -428,12 +411,30 @@ export const deleteInspectionLog = async () => {
         });
 
         showToast("기록이 삭제되었습니다.");
-        
         DOM.inspectionLogEditorModal.classList.add('hidden');
         renderInspectionLogTable(currentProductLogs, productName);
 
     } catch (e) {
         console.error("Error deleting log:", e);
         showToast("삭제 중 오류가 발생했습니다.", true);
+    }
+};
+
+/**
+ * ✅ [신규] 상품 자체(전체 이력) 삭제
+ */
+export const deleteProductHistory = async (productName) => {
+    if (!productName) return false;
+    if (!confirm(`정말 '${productName}' 상품의 모든 검수 이력을 삭제하시겠습니까?\n(이 작업은 복구할 수 없습니다)`)) return false;
+
+    try {
+        const docRef = doc(State.db, 'product_history', productName);
+        await deleteDoc(docRef);
+        showToast(`'${productName}' 상품 및 이력이 모두 삭제되었습니다.`);
+        return true; // 성공 신호
+    } catch (e) {
+        console.error("Error deleting product:", e);
+        showToast("상품 삭제 중 오류가 발생했습니다.", true);
+        return false;
     }
 };

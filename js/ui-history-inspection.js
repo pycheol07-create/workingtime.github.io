@@ -1,5 +1,5 @@
 // === js/ui-history-inspection.js ===
-// 설명: 검수 이력 데이터를 테이블 형태로 렌더링합니다.
+// 설명: 검수 이력 데이터를 테이블 형태로 렌더링합니다. (상품 삭제 버튼 추가)
 
 import * as DOM from './dom-elements.js';
 
@@ -98,7 +98,7 @@ export const renderInspectionHistoryTable = (historyData) => {
     } else {
         filteredData.forEach(item => {
             html += `
-                <tr class="hover:bg-gray-50 transition">
+                <tr class="hover:bg-gray-50 transition group">
                     <td class="px-6 py-4 font-medium text-gray-900">
                         ${item.id}
                     </td>
@@ -113,10 +113,14 @@ export const renderInspectionHistoryTable = (historyData) => {
                     <td class="px-6 py-4">
                         ${formatDefectSummary(item.defectSummary)}
                     </td>
-                    <td class="px-6 py-4 text-right">
+                    <td class="px-6 py-4 text-right space-x-1">
                         <button class="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-200 rounded px-3 py-1.5 hover:bg-indigo-50 transition btn-view-detail" 
                                 data-product-name="${item.id}">
                             상세보기
+                        </button>
+                        <button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-3 py-1.5 hover:bg-red-50 transition btn-delete-product opacity-0 group-hover:opacity-100" 
+                                data-product-name="${item.id}" title="상품 전체 삭제">
+                            삭제
                         </button>
                     </td>
                 </tr>
