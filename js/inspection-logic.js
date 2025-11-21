@@ -256,10 +256,9 @@ export const searchProductHistory = async () => {
     DOM.inspAlertBox.classList.add('hidden');
     DOM.inspReportTitle.textContent = productNameInput;
     
-    // 조회 시에는 이미지를 초기화하지 않음 (입력 중일 수 있으므로)
-    // 단, 폼의 체크리스트는 초기화 (이전 상품 값 잔류 방지)
+    // 조회 시에는 이미지를 초기화하지 않음
     const selects = document.querySelectorAll('#insp-current-input-area select');
-    selects.forEach(sel => sel.value = ""); // [수정] 빈 값으로 초기화
+    selects.forEach(sel => sel.value = ""); 
 
     try {
         const docRef = doc(State.db, 'product_history', productNameInput);
@@ -270,10 +269,17 @@ export const searchProductHistory = async () => {
             DOM.inspReportCount.textContent = data.totalInbound || 0;
             DOM.inspReportDate.textContent = data.lastInspectionDate || '-';
 
+            // ✅ [수정] 특이사항(불량 이력)이 있을 경우 팝업 알림
             if (data.defectSummary && data.defectSummary.length > 0) {
                 DOM.inspAlertBox.classList.remove('hidden');
-                const recentDefects = data.defectSummary.slice(-5).join(', ');
-                DOM.inspAlertMsg.textContent = `과거 불량: ${recentDefects}`;
+                const recentDefects = data.defectSummary.slice(-5);
+                const recentDefectsStr = recentDefects.join(', ');
+                DOM.inspAlertMsg.textContent = `과거 불량: ${recentDefectsStr}`;
+                
+                // 브라우저 팝업 띄우기
+                setTimeout(() => {
+                    alert(`🚨 [특이사항 알림] 🚨\n\n이 상품은 과거 ${data.defectSummary.length}회의 특이사항(불량) 기록이 있습니다.\n검수 시 아래 내역을 놓치지 않도록 주의해주세요.\n\n[최근 5건]\n- ${recentDefects.join('\n- ')}`);
+                }, 100); // UI 렌더링 후 살짝 지연 실행
             }
         } else {
             DOM.inspReportCount.textContent = '0 (신규)';
@@ -307,7 +313,6 @@ export const saveInspectionAndNext = async () => {
         dye: DOM.inspCheckDye.value
     };
 
-    // 두께는 숫자이므로 빈 값 체크, 나머지는 select
     if (checklist.thickness === '' || Object.values(checklist).some(v => v === "" || v === null)) {
         alert("⚠️ 모든 품질 체크리스트 항목을 확인하고 선택해주세요.");
         return;
@@ -317,7 +322,7 @@ export const saveInspectionAndNext = async () => {
     const inboundQty = DOM.inspInboundQtyInput.value.trim();
     const note = DOM.inspNotesInput.value.trim();
 
-    // 리스트에 있는 정보 가져오기 (옵션/코드 저장용)
+    // 리스트에 있는 정보 가져오기
     let currentItem = null;
     if (currentTodoIndex >= 0 && State.appState.inspectionList[currentTodoIndex]) {
         currentItem = State.appState.inspectionList[currentTodoIndex];
@@ -326,7 +331,6 @@ export const saveInspectionAndNext = async () => {
     const defectsFound = [];
     const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
     
-    // 두께 제외하고 나머지 불량 체크
     const labelMap = {
         fabric: '원단', color: '컬러', distortion: '뒤틀림',
         unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
@@ -334,7 +338,7 @@ export const saveInspectionAndNext = async () => {
     };
 
     Object.entries(checklist).forEach(([key, value]) => {
-        if (key === 'thickness') return; // 두께는 별도 처리 안함 (수치 기록만 함)
+        if (key === 'thickness') return;
         if (!NORMAL_VALUES.includes(value)) {
             defectsFound.push(`${labelMap[key] || key}(${value})`);
         }
@@ -348,10 +352,9 @@ export const saveInspectionAndNext = async () => {
         date: today,
         time: nowTime,
         inspector: State.appState.currentUser || 'Unknown',
-        inboundDate: inboundDate, // 패킹번호 대신 입고일자
+        inboundDate: inboundDate, 
         inboundQty: Number(inboundQty) || 0,
         
-        // [신규] 옵션, 코드 저장
         option: currentItem ? currentItem.option : '-',
         code: currentItem ? currentItem.code : '-',
         
@@ -382,8 +385,8 @@ export const saveInspectionAndNext = async () => {
 
         await setDoc(docRef, updates, { merge: true });
 
-        // [수정] 리스트 상태 업데이트 (현재 선택된 항목 완료 처리)
-        const list = [...State.appState.inspectionList]; // 복사본
+        // 리스트 상태 업데이트
+        const list = [...State.appState.inspectionList];
         if (currentTodoIndex >= 0 && list[currentTodoIndex]) {
             list[currentTodoIndex].status = '완료';
             await updateDailyData({ inspectionList: list });
@@ -401,18 +404,17 @@ export const saveInspectionAndNext = async () => {
         renderTodayInspectionList();
         showToast(`'${productName}' 저장 완료!`);
         
-        // 폼 및 이미지 초기화
         resetInspectionForm(true);
         clearImageState();
         
-        // [신규] 다음 상품 자동 선택
+        // 다음 상품 자동 선택
         if (currentTodoIndex >= 0 && currentTodoIndex < list.length - 1) {
             selectTodoItem(currentTodoIndex + 1);
         } else {
             showToast("리스트의 마지막 상품입니다.");
             DOM.inspHistoryReport.classList.add('hidden');
             DOM.inspCurrentInputArea.classList.add('hidden');
-            currentTodoIndex = -1; // 리셋
+            currentTodoIndex = -1;
         }
 
     } catch (e) {
@@ -425,12 +427,11 @@ export const saveInspectionAndNext = async () => {
 
 const resetInspectionForm = (clearProductName = false) => {
     if (clearProductName) DOM.inspProductNameInput.value = '';
-    // 패킹번호 대신 입고일자지만, 입고일자는 보통 유지하거나 자동입력이므로 둠.
     DOM.inspInboundQtyInput.value = '';
     DOM.inspNotesInput.value = '';
-    DOM.inspCheckThickness.value = ''; // 숫자 입력창 초기화
+    DOM.inspCheckThickness.value = ''; 
     const selects = document.querySelectorAll('#insp-current-input-area select');
-    selects.forEach(sel => sel.value = ""); // 빈 값으로 초기화 (유효성 검사 걸리게)
+    selects.forEach(sel => sel.value = ""); 
 };
 
 // 금일 목록 렌더링
@@ -530,19 +531,13 @@ export const loadInspectionLogs = async (productName) => {
     }
 };
 
-// (이하 updateInspectionLog, deleteInspectionLog, prepareEditInspectionLog, deleteProductHistory 함수들은 기존 로직 유지하되, 필요한 경우 inboundDate 등으로 필드명 업데이트 필요. 일단 핵심 로직인 저장 부분 위주로 수정함)
 export const prepareEditInspectionLog = (productName, index) => {
-    // ... (기존 로직 유지, 필요시 패킹번호 -> 입고일자로 라벨 변경 등 대응)
-    // 여기서는 일단 생략하고 저장 로직 위주로 변경함.
-    // 실제 구현 시 수정 모달(inspectionLogEditorModal)의 DOM ID도 packingNo -> inboundDate 등으로 맞춰줘야 함.
-    // (이번 요청 범위인 logic.js에서는 저장 로직에 집중)
     const log = currentProductLogs[index];
     if (!log) return;
 
     if (DOM.editInspProductName) DOM.editInspProductName.value = productName;
     if (DOM.editInspDateTime) DOM.editInspDateTime.value = `${log.date} ${log.time}`;
     
-    // 패킹번호 필드를 입고일자 필드로 재사용 (ID는 그대로 두고 값만 바꿈)
     if (DOM.editInspPackingNo) DOM.editInspPackingNo.value = log.inboundDate || log.packingNo || '';
     
     if (DOM.editInspInboundQty) DOM.editInspInboundQty.value = log.inboundQty || 0;
@@ -552,7 +547,6 @@ export const prepareEditInspectionLog = (productName, index) => {
     const checklist = log.checklist || {};
     const setSelect = (dom, val) => { if (dom) dom.value = val || (dom.options[0]?.value || ''); };
     
-    // 두께는 input type=number
     if (DOM.editInspCheckThickness) DOM.editInspCheckThickness.value = checklist.thickness || ''; 
     
     setSelect(DOM.editInspCheckFabric, checklist.fabric);
@@ -570,7 +564,6 @@ export const prepareEditInspectionLog = (productName, index) => {
 };
 
 export const updateInspectionLog = async () => {
-    // ... (기존 updateInspectionLog 로직에서 checklist.thickness 처리 및 packingNo -> inboundDate 매핑 주의)
     const productName = DOM.editInspProductName.value;
     const index = parseInt(DOM.editInspLogIndex.value, 10);
     
@@ -590,7 +583,6 @@ export const updateInspectionLog = async () => {
         dye: DOM.editInspCheckDye.value
     };
 
-    // 불량 판정 로직 (두께 제외)
     const defectsFound = [];
     const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
     const labelMap = {
@@ -607,7 +599,7 @@ export const updateInspectionLog = async () => {
 
     const updatedLog = {
         ...currentProductLogs[index], 
-        inboundDate: DOM.editInspPackingNo.value, // ID 재사용
+        inboundDate: DOM.editInspPackingNo.value, 
         inboundQty: Number(DOM.editInspInboundQty.value) || 0,
         checklist: checklist,
         defects: defectsFound,
@@ -639,7 +631,6 @@ export const updateInspectionLog = async () => {
 };
 
 export const deleteInspectionLog = async () => {
-    // ... (기존 로직 동일)
     const productName = DOM.editInspProductName.value;
     const index = parseInt(DOM.editInspLogIndex.value, 10);
 
@@ -650,7 +641,6 @@ export const deleteInspectionLog = async () => {
 
     try {
         const docRef = doc(State.db, 'product_history', productName);
-        // 결함 요약 재생성
         const newDefectSummary = currentProductLogs
             .filter(l => l.defects && l.defects.length > 0)
             .map(l => `${l.date}: ${l.defects.join(', ')}`);
@@ -672,7 +662,6 @@ export const deleteInspectionLog = async () => {
 };
 
 export const deleteProductHistory = async (productName) => {
-    // ... (기존 로직 동일)
     if (!productName) return false;
     if (!confirm(`정말 '${productName}' 상품의 모든 검수 이력을 삭제하시겠습니까?\n(이 작업은 복구할 수 없습니다)`)) return false;
 
