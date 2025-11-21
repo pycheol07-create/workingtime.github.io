@@ -7,11 +7,13 @@ import { render } from './app.js';
 import { showToast, formatTimeTo24H } from './utils.js';
 import { renderTeamSelectionModalContent, renderLeaveTypeModalOptions } from './ui.js';
 import {
-    stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
+    stopWorkIndividual,
     pauseWorkIndividual, resumeWorkIndividual,
     processClockIn, processClockOut, cancelClockOut,
     startWorkGroup,
     addMembersToWorkGroup,
+    // ✅ [신규] 업무별 제어 함수 임포트
+    pauseWorkByTask, resumeWorkByTask
 } from './app-logic.js';
 
 // ✅ [신규] 검수 로직 임포트 (리스트 렌더링용)
@@ -112,24 +114,34 @@ export function setupMainBoardListeners() {
                 return;
             }
 
+            // ✅ [수정] 그룹 단위 -> 업무 단위 제어로 변경
             const stopGroupButton = e.target.closest('.stop-work-group-btn');
             if (stopGroupButton) {
-                State.context.groupToStopId = stopGroupButton.dataset.groupId;
+                // dataset.task를 사용하여 업무명으로 식별
+                State.context.taskToStop = stopGroupButton.dataset.task;
+                
+                // 확인 모달 메시지 업데이트
+                const msgEl = document.getElementById('stop-group-confirm-message');
+                if(msgEl) msgEl.textContent = `'${State.context.taskToStop}' 업무를 전체 종료하시겠습니까?`;
+
                 if (DOM.stopGroupConfirmModal) {
                     DOM.stopGroupConfirmModal.classList.remove('hidden');
                 }
                 return;
             }
+            
             const pauseGroupButton = e.target.closest('.pause-work-group-btn');
             if (pauseGroupButton) {
-                pauseWorkGroup(pauseGroupButton.dataset.groupId);
+                pauseWorkByTask(pauseGroupButton.dataset.task);
                 return;
             }
+            
             const resumeGroupButton = e.target.closest('.resume-work-group-btn');
             if (resumeGroupButton) {
-                resumeWorkGroup(resumeGroupButton.dataset.groupId);
+                resumeWorkByTask(resumeGroupButton.dataset.task);
                 return;
             }
+
             const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
             if (individualPauseBtn) {
                 pauseWorkIndividual(individualPauseBtn.dataset.recordId);

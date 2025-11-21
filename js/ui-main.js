@@ -7,14 +7,11 @@ import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './u
 import * as State from './state.js';
 
 /**
- * ✅ [신규] 연차 표시 라벨 생성 헬퍼 (예: "연차16" or "연차16-18")
+ * 연차 표시 라벨 생성 헬퍼 (예: "연차16" or "연차16-18")
  */
 const getLeaveDisplayLabel = (member, leaveEntry) => {
-    // 연차가 아니면 원래 타입 그대로 표시 (예: '출장', '결근', '외출')
     if (leaveEntry.type !== '연차') return leaveEntry.type;
 
-    // 1. 해당 멤버의 모든 연차 기록을 가져와 날짜순 정렬
-    // persistentLeaveSchedule 데이터를 직접 참조하여 최신 상태 보장
     const allLeaves = (State.persistentLeaveSchedule.onLeaveMembers || [])
         .filter(l => l.member === member && l.type === '연차')
         .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
@@ -22,14 +19,10 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     let cumulativeDays = 0;
     
     for (const entry of allLeaves) {
-        // 이 기록의 일수 계산
         const days = calculateDateDifference(entry.startDate, entry.endDate);
-        
         const startNth = cumulativeDays + 1;
         const endNth = cumulativeDays + days;
 
-        // 2. 현재 카드에 표시하려는 기록(leaveEntry)과 일치하는지 확인
-        // ID가 있으면 ID로, 없으면 시작 날짜로 비교 (가장 확실한 키)
         const isMatch = (leaveEntry.id && entry.id === leaveEntry.id) ||
                         (entry.startDate === leaveEntry.startDate);
 
@@ -40,12 +33,8 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
                 return `연차${startNth}-${endNth}`;
             }
         }
-        
-        // 3. 누적 일수 업데이트 (매칭되지 않은 과거 기록들의 일수 누적)
         cumulativeDays += days;
     }
-    
-    // 매칭되는 기록을 못 찾은 경우 기본값
     return '연차';
 };
 
@@ -111,7 +100,6 @@ export const updateSummary = (appState, appConfig) => {
     );
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
-    // '근무(Active)' 인원은 실제 '출근(active)' 상태인 사람만 집계
     const attendanceMap = appState.dailyAttendance || {};
     const currentlyClockedIn = new Set(
         Object.keys(attendanceMap).filter(member => attendanceMap[member].status === 'active')
@@ -284,7 +272,6 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
         const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember && !(m.type === '외출' && m.endTime));
         if (leaveInfo) {
-             // ✅ [수정] 개인별 분석에서도 상세 연차 라벨 적용
              const label = getLeaveDisplayLabel(selectedMember, leaveInfo);
              currentStatusHtml = `<span class="text-sm font-semibold text-gray-600">${label} 중</span>`;
         } else {
@@ -382,8 +369,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 };
 
 /**
- * ✅ [위치 이동] 개인 출퇴근 토글 스위치 상태 렌더링 함수
- * (renderRealtimeStatus에서 호출하므로 먼저 정의되어야 함)
+ * 개인 출퇴근 토글 스위치 상태 렌더링 함수
  */
 export const renderAttendanceToggle = (appState) => {
     const currentUser = appState.currentUser;
@@ -447,7 +433,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 const isRecPaused = rec.status === 'paused';
                 
-                // ✅ [수정] 개별 멤버의 누적 휴식 시간 계산
                 const pauseMin = calcTotalPauseMinutes(rec.pauses);
                 const memberPauseText = pauseMin > 0 ? ` <span class="text-xs text-gray-400">(휴: ${formatDuration(pauseMin)})</span>` : '';
 
@@ -470,11 +455,14 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
             const pausesJson = JSON.stringify(representativeRecord.pauses || []);
             
-            // ✅ [수정] 그룹 카드의 총 휴식 시간 표시
             const totalPauseMinutes = calcTotalPauseMinutes(representativeRecord.pauses);
             const pauseDisplay = totalPauseMinutes > 0 ? ` <span class="text-xs text-gray-400">(휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
 
-            card.innerHTML = `<div class="flex flex-col h-full"><div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div><div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>${pauseDisplay}</div><div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div><div class="flex-grow">${membersHtml}</div><div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions"><button data-group-id="${firstRecord.groupId}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">${isPaused ? '전체 재개' : '전체 정지'}</button><button data-group-id="${firstRecord.groupId}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">전체 종료</button></div></div>`;
+            // ✅ [수정] 버튼에 data-task 추가
+            card.innerHTML = `<div class="flex flex-col h-full"><div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div><div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>${pauseDisplay}</div><div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div><div class="flex-grow">${membersHtml}</div><div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions">
+                <button data-group-id="${firstRecord.groupId}" data-task="${firstRecord.task}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">${isPaused ? '전체 재개' : '전체 정지'}</button>
+                <button data-group-id="${firstRecord.groupId}" data-task="${firstRecord.task}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">전체 종료</button>
+            </div></div>`;
         } else {
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
             card.dataset.action = 'start-task';
@@ -503,7 +491,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const pausedMembers = new Set(ongoingRecords.filter(r => r.status === 'paused').map(r => r.member));
     const workingMembersMap = new Map(ongoingRecords.map(r => [r.member, r.task]));
     
-    const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
     const onLeaveStatusMap = new Map(combinedOnLeaveMembers.filter(item => !(item.type === '외출' && item.endTime)).map(item => [item.member, item]));
 
     const orderedTeamGroups = [
@@ -664,7 +651,6 @@ export const renderCompletedWorkLog = (appState) => {
             let endTimeText = formatTimeTo24H(record.endTime);
             let durationText = formatDuration(record.duration);
 
-            // ✅ [수정] 휴식 시간 계산 및 표시
             const pauseMinutes = calcTotalPauseMinutes(record.pauses);
             const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴식: ${formatDuration(pauseMinutes)})</span>` : '';
 
