@@ -9,6 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -256,7 +257,6 @@
         // 2. 앱 시작 (순차 실행 보장)
         async function initApp() {
             // (1) 모달 HTML 파일들을 먼저 불러와서 DOM에 삽입합니다.
-            // ✅ [수정] 모든 분리된 모달 파일을 병렬로 로드
             await Promise.all([
                 loadComponent('components/modals-auth.html', 'modals-container-auth'),
                 loadComponent('components/modals-simulation.html', 'modals-container-simulation'),

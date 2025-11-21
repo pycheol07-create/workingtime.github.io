@@ -3,6 +3,25 @@
 
 export const loadingSpinner = document.getElementById('loading-spinner');
 
+// [신규] 검수 리스트(엑셀) 업로드 관련
+export const inspExcelUploadInput = document.getElementById('insp-excel-upload');
+export const inspExcelUploadBtn = document.getElementById('insp-excel-upload-btn');
+export const inspTodoListArea = document.getElementById('insp-todo-list-area');
+export const inspTodoListBody = document.getElementById('insp-todo-list-body');
+
+// [신규] 바코드 스캐너 관련
+export const inspScanBtn = document.getElementById('insp-scan-btn'); // 스캔 토글 버튼
+export const inspScannerContainer = document.getElementById('insp-scanner-container'); // 카메라 화면 영역
+export const inspScannerReader = document.getElementById('reader'); // 실제 카메라 뷰
+export const inspCloseScannerBtn = document.getElementById('insp-close-scanner-btn');
+
+// [신규] 이미지 업로드 관련
+export const inspImageInput = document.getElementById('insp-image-upload');
+export const inspImagePreviewBox = document.getElementById('insp-image-preview-box');
+export const inspImagePreviewImg = document.getElementById('insp-image-preview-img');
+export const inspRemoveImageBtn = document.getElementById('insp-remove-image-btn');
+
+// --- 기존 요소들 ---
 export const addAttendanceRecordModal = document.getElementById('add-attendance-record-modal');
 export const addAttendanceForm = document.getElementById('add-attendance-form');
 export const confirmAddAttendanceBtn = document.getElementById('confirm-add-attendance-btn');
@@ -283,12 +302,12 @@ export const inspectionHistoryRefreshBtn = document.getElementById('inspection-h
 export const inspectionTotalProductCount = document.getElementById('inspection-total-product-count');
 export const inspectionHistoryViewContainer = document.getElementById('inspection-history-view-container');
 
-// ✅ [신규] 검수 이력 관리 모달 (상세보기)
+// 검수 이력 관리 모달 (상세보기)
 export const inspectionLogManagerModal = document.getElementById('inspection-log-manager-modal');
 export const inspectionLogProductName = document.getElementById('inspection-log-product-name');
 export const inspectionLogTableBody = document.getElementById('inspection-log-table-body');
 
-// ✅ [신규] 검수 기록 수정 모달 (편집)
+// 검수 기록 수정 모달 (편집)
 export const inspectionLogEditorModal = document.getElementById('inspection-log-editor-modal');
 export const editInspProductName = document.getElementById('edit-insp-product-name');
 export const editInspDateTime = document.getElementById('edit-insp-date-time');
