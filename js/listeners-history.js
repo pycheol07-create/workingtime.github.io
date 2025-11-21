@@ -1,10 +1,15 @@
 // === js/listeners-history.js ===
+// 설명: 이력 보기 모달의 메인 진입점으로, 하위 리스너 모듈을 통합하고 탭/필터/윈도우 제어를 담당합니다.
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
+import { showToast, getTodayDateString } from './utils.js';
 
-// ✅ [수정] formatDuration, calcTotalPauseMinutes 추가 임포트
-import { showToast, getTodayDateString, formatDuration, calcTotalPauseMinutes } from './utils.js';
+// 분리된 하위 리스너 모듈 임포트
+import { setupHistoryDownloadListeners } from './listeners-history-download.js';
+import { setupHistoryRecordListeners } from './listeners-history-records.js';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js';
+import { setupHistoryInspectionListeners, fetchAndRenderInspectionHistory } from './listeners-history-inspection.js';
 
 import {
     renderTrendAnalysisCharts,
@@ -18,20 +23,8 @@ import {
     renderHistoryDateListByMode,
     openHistoryQuantityModal,
     requestHistoryDeletion,
-    openHistoryRecordManager,
     augmentHistoryWithPersistentLeave 
 } from './app-history-logic.js';
-
-import {
-    downloadHistoryAsExcel,
-    downloadPeriodHistoryAsExcel,
-    downloadWeeklyHistoryAsExcel, 
-    downloadMonthlyHistoryAsExcel, 
-    downloadAttendanceExcel,
-    downloadReportExcel,
-    downloadPersonalReportExcel,
-    downloadContentAsPdf
-} from './history-excel.js';
 
 import {
     renderAttendanceDailyHistory,
@@ -45,48 +38,37 @@ import {
     renderReportYearly,
     renderPersonalReport,
     renderManagementDaily,
-    renderManagementSummary,
-    // ✅ [신규] 검수 이력 렌더링 함수 임포트
-    renderInspectionHistoryTable 
+    renderManagementSummary
 } from './ui-history.js';
 
-// ✅ [신규] 검수 관련 로직 및 정렬 상태 설정 임포트
-import { setSortState } from './ui-history-inspection.js';
-import { 
-    loadInspectionLogs, 
-    prepareEditInspectionLog, 
-    updateInspectionLog, 
-    deleteInspectionLog 
-} from './inspection-logic.js';
-
-import { doc, deleteDoc, updateDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
 import {
-    updateHistoryWorkRecord,
-    deleteHistoryWorkRecord,
-    addHistoryWorkRecord,
     syncTodayToHistory,
     saveManagementData 
 } from './history-data-manager.js';
 
+import { doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
 let isHistoryMaximized = false;
 
-// ✅ [신규] 검수 이력 데이터 캐싱용 변수
-let cachedInspectionData = [];
-
 export function setupHistoryModalListeners() {
+    
+    // 1. 하위 모듈 리스너 초기화
+    setupHistoryDownloadListeners();
+    setupHistoryRecordListeners();
+    setupHistoryAttendanceListeners();
+    setupHistoryInspectionListeners();
 
-    // --- [신규] DOM 요소 참조 (management 패널용) ---
+    // --- DOM 요소 참조 ---
     const managementPanel = document.getElementById('management-panel');
     const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
-    
-    // ✅ [신규] DOM 요소 참조 (검수 이력 패널용)
     const inspectionPanel = document.getElementById('inspection-history-panel');
 
+    // --- 아이콘 SVG ---
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
 
+    // --- 전체화면 제어 ---
     const setHistoryMaximized = (maximized) => {
         isHistoryMaximized = maximized;
         const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
@@ -99,15 +81,12 @@ export function setupHistoryModalListeners() {
             DOM.historyModal.classList.remove('flex', 'items-center', 'justify-center', 'p-4');
             DOM.historyModalContentBox.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
             DOM.historyModalContentBox.classList.remove('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
-            
             if (toggleBtn) toggleBtn.title = "기본 크기로";
             if (icon) icon.innerHTML = iconMinimize;
-
         } else {
             DOM.historyModal.classList.add('flex', 'items-center', 'justify-center', 'p-4');
             DOM.historyModalContentBox.classList.remove('fixed', 'inset-0', 'h-full', 'z-[150]', 'rounded-none');
             DOM.historyModalContentBox.classList.add('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
-
             if (toggleBtn) toggleBtn.title = "전체화면";
             if (icon) icon.innerHTML = iconMaximize;
         }
@@ -163,7 +142,6 @@ export function setupHistoryModalListeners() {
             augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
         }
         const filteredData = getFilteredHistoryData();
-        
         const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
         const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
 
@@ -203,7 +181,6 @@ export function setupHistoryModalListeners() {
         const dateKey = getSelectedDateKey();
         const activeSubTabBtn = managementTabs?.querySelector('button.font-semibold');
         const viewMode = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'management-daily';
-        
         if (!dateKey) return;
 
         if (viewMode === 'management-daily') {
@@ -213,50 +190,16 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    // ✅ [신규] 검수 이력 데이터 로드 및 렌더링
-    const fetchAndRenderInspectionHistory = async () => {
-        const container = DOM.inspectionHistoryViewContainer;
-        if (!container) return;
-        
-        container.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>검수 이력을 불러오는 중입니다...</div>';
-
-        try {
-            const colRef = collection(State.db, 'product_history');
-            const snapshot = await getDocs(colRef);
-            
-            cachedInspectionData = []; // 초기화
-            snapshot.forEach(doc => {
-                cachedInspectionData.push({
-                    id: doc.id, 
-                    ...doc.data()
-                });
-            });
-
-            // 초기 렌더링
-            renderInspectionHistoryTable(cachedInspectionData);
-
-        } catch (e) {
-            console.error("Error loading inspection history:", e);
-            container.innerHTML = '<div class="text-center text-red-500 py-10">데이터를 불러오는 중 오류가 발생했습니다.</div>';
-            showToast("검수 이력 로딩 실패", true);
-        }
-    };
-
-    // --- 이벤트 리스너 등록 ---
-
+    // --- 이벤트 리스너: 필터 & 조회 ---
     if (DOM.historyFilterBtn) {
         DOM.historyFilterBtn.addEventListener('click', () => {
             const startDate = DOM.historyStartDateInput.value;
             const endDate = DOM.historyEndDateInput.value;
-
             if (startDate && endDate && endDate < startDate) {
-                showToast('종료일은 시작일보다 이후여야 합니다.', true);
-                return;
+                showToast('종료일은 시작일보다 이후여야 합니다.', true); return;
             }
-
             State.context.historyStartDate = startDate || null;
             State.context.historyEndDate = endDate || null;
-
             State.context.reportSortState = {};
             renderHistoryDateListByMode(getCurrentHistoryListMode());
             showToast('이력 목록을 필터링했습니다.');
@@ -269,182 +212,27 @@ export function setupHistoryModalListeners() {
             DOM.historyEndDateInput.value = '';
             State.context.historyStartDate = null;
             State.context.historyEndDate = null;
-
             State.context.reportSortState = {};
             renderHistoryDateListByMode(getCurrentHistoryListMode());
             showToast('필터를 초기화했습니다.');
         });
     }
 
-    if (DOM.historyDownloadPeriodExcelBtn) {
-        DOM.historyDownloadPeriodExcelBtn.addEventListener('click', () => {
-            const startDate = State.context.historyStartDate;
-            const endDate = State.context.historyEndDate;
-
-            if (!startDate || !endDate) {
-                showToast('엑셀 다운로드를 위해 시작일과 종료일을 모두 설정(조회)해주세요.', true);
-                return;
-            }
-            downloadPeriodHistoryAsExcel(startDate, endDate);
-        });
-    }
-    
-    // ====================================================================================
-    // ✅ 통합 다운로드 로직
-    // ====================================================================================
-
-    const openDownloadFormatModal = (targetType, contextData = {}) => {
-        State.context.downloadContext = { targetType, ...contextData };
-        const modal = document.getElementById('download-format-modal');
-        if (modal) modal.classList.remove('hidden');
-    };
-
-    const executeDownload = async (format) => {
-        const ctx = State.context.downloadContext;
-        if (!ctx) return;
-        
-        const { targetType } = ctx;
-
-        if (targetType === 'work') {
-            const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
-            const view = activeTabBtn ? activeTabBtn.dataset.view : 'daily';
-            const key = getSelectedDateKey();
-
-            if (!key) return showToast('날짜를 선택해주세요.', true);
-
-            if (format === 'pdf') {
-                let targetId = 'history-daily-view';
-                let title = `업무이력_일별_${key}`;
-                if (view === 'weekly') { targetId = 'history-weekly-view'; title = `업무이력_주별_${key}`; }
-                else if (view === 'monthly') { targetId = 'history-monthly-view'; title = `업무이력_월별_${key}`; }
-                downloadContentAsPdf(targetId, title);
-            } else {
-                if (view === 'daily') await downloadHistoryAsExcel(key, format);
-                else if (view === 'weekly') await downloadWeeklyHistoryAsExcel(key, format);
-                else if (view === 'monthly') await downloadMonthlyHistoryAsExcel(key, format);
-            }
-        }
-        else if (targetType === 'attendance') {
-            const activeTabBtn = DOM.attendanceHistoryTabs.querySelector('button.font-semibold');
-            const viewFull = activeTabBtn ? activeTabBtn.dataset.view : 'attendance-daily';
-            const viewMode = viewFull.replace('attendance-', ''); 
-            const key = getSelectedDateKey();
-
-            if (!key) return showToast('날짜를 선택해주세요.', true);
-
-            if (format === 'pdf') {
-                let targetId = 'history-attendance-daily-view';
-                let title = `근태이력_일별_${key}`;
-                if (viewMode === 'weekly') { targetId = 'history-attendance-weekly-view'; title = `근태이력_주별_${key}`; }
-                else if (viewMode === 'monthly') { targetId = 'history-attendance-monthly-view'; title = `근태이력_월별_${key}`; }
-                downloadContentAsPdf(targetId, title);
-            } else {
-                downloadAttendanceExcel(viewMode, key, format);
-            }
-        }
-        else if (targetType === 'report') {
-            const reportData = State.context.lastReportData;
-            if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
-
-            if (format === 'pdf') {
-                let targetId = '';
-                const tabs = document.querySelectorAll('#report-view-container > div');
-                tabs.forEach(div => { if (!div.classList.contains('hidden')) targetId = div.id; });
-                if (targetId) downloadContentAsPdf(targetId, reportData.title || '업무_리포트');
-                else showToast('출력할 리포트 화면을 찾을 수 없습니다.', true);
-            } else {
-                downloadReportExcel(reportData, format);
-            }
-        }
-        else if (targetType === 'personal') {
-            const reportData = State.context.lastReportData;
-            if (!reportData || reportData.type !== 'personal') return showToast('개인 리포트 데이터가 없습니다.', true);
-
-            if (format === 'pdf') {
-                downloadContentAsPdf('personal-report-content', reportData.title || '개인_리포트');
-            } else {
-                downloadPersonalReportExcel(reportData, format);
-            }
-        }
-
-        const modal = document.getElementById('download-format-modal');
-        if (modal) modal.classList.add('hidden');
-    };
-
-    const formatModal = document.getElementById('download-format-modal');
-    if (formatModal) {
-        formatModal.addEventListener('click', (e) => {
-            const btn = e.target.closest('.download-option-btn');
-            if (btn) {
-                const format = btn.dataset.format; 
-                const fileFormat = format === 'excel' ? 'xlsx' : format;
-                executeDownload(fileFormat);
-            }
-        });
-    }
-
-    // --- 각 탭별 통합 다운로드 버튼 연결 ---
-    const historyDownloadBtn = document.getElementById('history-download-btn');
-    if (historyDownloadBtn) {
-        historyDownloadBtn.addEventListener('click', () => {
-             const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
-             if (!selectedListBtn) return showToast('목록에서 날짜를 선택해주세요.', true);
-             openDownloadFormatModal('work');
-        });
-    }
-
-    const attendanceDownloadBtn = document.getElementById('attendance-download-btn');
-    if (attendanceDownloadBtn) {
-        attendanceDownloadBtn.addEventListener('click', () => {
-             const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
-             if (!selectedListBtn) return showToast('목록에서 날짜를 선택해주세요.', true);
-             openDownloadFormatModal('attendance');
-        });
-    }
-
-    if (DOM.reportViewContainer) {
-        DOM.reportViewContainer.addEventListener('click', (e) => {
-            if (e.target.closest('#report-download-btn')) {
-                if (State.context.lastReportData && State.context.lastReportData.type !== 'personal') {
-                    openDownloadFormatModal('report');
-                } else {
-                    showToast('다운로드할 리포트 데이터가 없습니다.', true);
-                }
-            }
-        });
-    }
-
-    if (DOM.personalReportViewContainer) {
-        DOM.personalReportViewContainer.addEventListener('click', (e) => {
-             if (e.target.closest('#personal-download-btn')) {
-                if (State.context.lastReportData && State.context.lastReportData.type === 'personal') {
-                    openDownloadFormatModal('personal');
-                } else {
-                    showToast('다운로드할 개인 리포트 데이터가 없습니다.', true);
-                }
-            }
-        });
-    }
-    
+    // --- 모달 열기/닫기 ---
     const openHistoryModalLogic = async () => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
-            if (DOM.historyModal && !DOM.historyModal.classList.contains('hidden')) {
-                DOM.historyModal.classList.add('hidden');
-            }
+            if (DOM.historyModal) DOM.historyModal.classList.add('hidden');
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
             return;
         }
-
         if (DOM.historyModal) {
             DOM.historyModal.classList.remove('hidden');
             setHistoryMaximized(false);
-
             if (DOM.historyStartDateInput) DOM.historyStartDateInput.value = '';
             if (DOM.historyEndDateInput) DOM.historyEndDateInput.value = '';
             State.context.historyStartDate = null;
             State.context.historyEndDate = null;
-
             try {
                 await loadAndRenderHistoryList();
             } catch (loadError) {
@@ -454,27 +242,19 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    if (DOM.openHistoryBtn) {
-        DOM.openHistoryBtn.addEventListener('click', openHistoryModalLogic);
-    }
-    
-    if (DOM.openHistoryBtnMobile) {
-        DOM.openHistoryBtnMobile.addEventListener('click', () => {
-            openHistoryModalLogic();
-            if (DOM.navContent) DOM.navContent.classList.add('hidden');
-        });
-    }
+    if (DOM.openHistoryBtn) DOM.openHistoryBtn.addEventListener('click', openHistoryModalLogic);
+    if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.addEventListener('click', () => {
+        openHistoryModalLogic();
+        if (DOM.navContent) DOM.navContent.classList.add('hidden');
+    });
+    if (DOM.closeHistoryBtn) DOM.closeHistoryBtn.addEventListener('click', () => {
+        if (DOM.historyModal) {
+            DOM.historyModal.classList.add('hidden');
+            setHistoryMaximized(false);
+        }
+    });
 
-    if (DOM.closeHistoryBtn) {
-        DOM.closeHistoryBtn.addEventListener('click', () => {
-            if (DOM.historyModal) {
-                DOM.historyModal.classList.add('hidden');
-                setHistoryMaximized(false);
-            }
-        });
-    }
-
-    // --- 날짜 리스트 클릭 리스너 ---
+    // --- 날짜 리스트 클릭 ---
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
@@ -486,13 +266,8 @@ export function setupHistoryModalListeners() {
                 let activeMainTab = State.context.activeMainHistoryTab || 'work';
                 State.context.activeFilterDropdown = null; 
 
-                if (activeMainTab === 'attendance') {
-                    refreshAttendanceView(); 
-                    return; 
-                } else if (activeMainTab === 'management') {
-                    refreshManagementView();
-                    return;
-                }
+                if (activeMainTab === 'attendance') { refreshAttendanceView(); return; }
+                else if (activeMainTab === 'management') { refreshManagementView(); return; }
 
                 const filteredData = getFilteredHistoryData();
                 State.context.reportSortState = {};
@@ -500,84 +275,59 @@ export function setupHistoryModalListeners() {
                 if (activeMainTab === 'work') {
                     const activeSubTabBtn = DOM.historyTabs?.querySelector('button.font-semibold');
                     const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-
                     if (activeView === 'daily') {
                         const currentIndex = filteredData.findIndex(d => d.id === dateKey);
-                        const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length)
-                            ? filteredData[currentIndex + 1]
-                            : null;
+                        const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length) ? filteredData[currentIndex + 1] : null;
                         renderHistoryDetail(dateKey, previousDayData);
                     } else if (activeView === 'weekly') {
                         renderWeeklyHistory(dateKey, filteredData, State.appConfig);
                     } else if (activeView === 'monthly') {
                         renderMonthlyHistory(dateKey, filteredData, State.appConfig);
                     }
-
-                } 
-                else if (activeMainTab === 'report') {
+                } else if (activeMainTab === 'report') {
                     refreshReportView();
-                } 
-                else if (activeMainTab === 'personal') {
+                } else if (activeMainTab === 'personal') {
                     refreshPersonalView();
                 }
             }
         });
     }
 
-    if (DOM.historyTabs) {
-        DOM.historyTabs.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-view]');
-            if (btn) switchHistoryView(btn.dataset.view);
-        });
-    }
-
-    if (DOM.attendanceHistoryTabs) {
-        DOM.attendanceHistoryTabs.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-view]');
-            if (btn) {
-                State.context.activeFilterDropdown = null; 
-                switchHistoryView(btn.dataset.view);
-            }
-        });
-    }
-
-    if (DOM.reportTabs) {
-        DOM.reportTabs.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-view]');
-            if (btn) {
-                State.context.reportSortState = {};
-                State.context.currentReportParams = null;
-                State.context.activeFilterDropdown = null;
-                switchHistoryView(btn.dataset.view);
-            }
-        });
-    }
-
-    // 개인 리포트 탭 전환
-    if (DOM.personalReportTabs) {
-        DOM.personalReportTabs.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-view]');
-            if (btn) {
-                State.context.activeFilterDropdown = null;
-                DOM.personalReportTabs.querySelectorAll('button').forEach(b => {
-                     b.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-                     b.classList.add('text-gray-500', 'hover:text-gray-700');
+    // --- 탭 전환 이벤트 ---
+    const handleTabSwitch = (e, tabsContainer) => {
+        const btn = e.target.closest('button[data-view]');
+        if (btn) {
+            State.context.activeFilterDropdown = null;
+            // 탭 UI 갱신
+            if (tabsContainer) {
+                tabsContainer.querySelectorAll('button').forEach(b => {
+                    b.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+                    b.classList.add('text-gray-500', 'hover:text-gray-700');
                 });
                 btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
                 btn.classList.remove('text-gray-500', 'hover:text-gray-700');
-
+            }
+            // 뷰 전환 및 리스트 모드 변경
+            if (tabsContainer === DOM.personalReportTabs || tabsContainer === managementTabs) {
                 const viewMode = btn.dataset.view;
                 let listMode = 'day';
                 if(viewMode.includes('weekly')) listMode = 'week';
                 if(viewMode.includes('monthly')) listMode = 'month';
                 if(viewMode.includes('yearly')) listMode = 'year';
-                
                 renderHistoryDateListByMode(listMode);
+            } else {
+                switchHistoryView(btn.dataset.view);
             }
-        });
-    }
+        }
+    };
 
-    // 개인 리포트 직원 선택
+    if (DOM.historyTabs) DOM.historyTabs.addEventListener('click', (e) => switchHistoryView(e.target.closest('button[data-view]')?.dataset.view));
+    if (DOM.attendanceHistoryTabs) DOM.attendanceHistoryTabs.addEventListener('click', (e) => { State.context.activeFilterDropdown = null; switchHistoryView(e.target.closest('button[data-view]')?.dataset.view); });
+    if (DOM.reportTabs) DOM.reportTabs.addEventListener('click', (e) => { State.context.reportSortState = {}; State.context.activeFilterDropdown = null; switchHistoryView(e.target.closest('button[data-view]')?.dataset.view); });
+    if (DOM.personalReportTabs) DOM.personalReportTabs.addEventListener('click', (e) => handleTabSwitch(e, DOM.personalReportTabs));
+    if (managementTabs) managementTabs.addEventListener('click', (e) => handleTabSwitch(e, managementTabs));
+
+    // 개인 리포트 멤버 선택
     if (DOM.personalReportMemberSelect) {
         DOM.personalReportMemberSelect.addEventListener('change', (e) => {
             State.context.personalReportMember = e.target.value;
@@ -585,51 +335,23 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 경영 지표 탭 전환
-    if (managementTabs) {
-        managementTabs.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-view]');
-            if (btn) {
-                managementTabs.querySelectorAll('button').forEach(b => {
-                     b.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-                     b.classList.add('text-gray-500', 'hover:text-gray-700');
-                });
-                btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-                btn.classList.remove('text-gray-500', 'hover:text-gray-700');
-
-                const viewMode = btn.dataset.view;
-                let listMode = 'day';
-                if(viewMode === 'management-weekly') listMode = 'week';
-                if(viewMode === 'management-monthly') listMode = 'month';
-                if(viewMode === 'management-yearly') listMode = 'year';
-                
-                renderHistoryDateListByMode(listMode);
-            }
-        });
-    }
-
-    // ✅ [수정] 경영 지표 저장 버튼 리스너 (콤마 제거 추가)
+    // --- 경영 지표 저장 ---
     if (managementSaveBtn) {
         managementSaveBtn.addEventListener('click', async () => {
             const dateKey = managementSaveBtn.dataset.dateKey;
             if (!dateKey) return;
-
             const revenue = document.getElementById('mgmt-input-revenue')?.value.replace(/,/g, '') || 0;
             const orderCount = document.getElementById('mgmt-input-orderCount')?.value.replace(/,/g, '') || 0;
             const inventoryQty = document.getElementById('mgmt-input-inventoryQty')?.value.replace(/,/g, '') || 0;
             const inventoryAmt = document.getElementById('mgmt-input-inventoryAmt')?.value.replace(/,/g, '') || 0;
 
-            const managementData = {
-                revenue: Number(revenue),
-                orderCount: Number(orderCount),
-                inventoryQty: Number(inventoryQty),
-                inventoryAmt: Number(inventoryAmt)
-            };
-
             try {
                 managementSaveBtn.disabled = true;
                 managementSaveBtn.textContent = '저장 중...';
-                await saveManagementData(dateKey, managementData);
+                await saveManagementData(dateKey, {
+                    revenue: Number(revenue), orderCount: Number(orderCount),
+                    inventoryQty: Number(inventoryQty), inventoryAmt: Number(inventoryAmt)
+                });
                 showToast('경영 지표가 저장되었습니다.');
                 refreshManagementView();
             } catch (e) {
@@ -641,75 +363,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [신규] 검수 이력 패널 내 이벤트 리스너
-    if (DOM.inspectionHistorySearchInput) {
-        DOM.inspectionHistorySearchInput.addEventListener('input', () => {
-            // 캐시된 데이터로 즉시 렌더링 (필터는 렌더링 함수 내부에서 수행)
-            renderInspectionHistoryTable(cachedInspectionData);
-        });
-    }
-
-    if (DOM.inspectionHistoryRefreshBtn) {
-        DOM.inspectionHistoryRefreshBtn.addEventListener('click', () => {
-            fetchAndRenderInspectionHistory();
-        });
-    }
-
-    // 테이블 정렬/상세보기 클릭 (이벤트 위임)
-    if (DOM.inspectionHistoryViewContainer) {
-        DOM.inspectionHistoryViewContainer.addEventListener('click', (e) => {
-            // 정렬
-            const th = e.target.closest('th[data-sort-key]');
-            if (th) {
-                const key = th.dataset.sortKey;
-                setSortState(key); // 정렬 상태 업데이트
-                renderInspectionHistoryTable(cachedInspectionData); // 재렌더링
-                return;
-            }
-
-            // 상세보기 (로그 관리 모달 열기)
-            const detailBtn = e.target.closest('.btn-view-detail');
-            if (detailBtn) {
-                const productName = detailBtn.dataset.productName;
-                loadInspectionLogs(productName);
-            }
-        });
-    }
-
-    // ✅ [신규] 상세 로그 관리 모달 내부 이벤트
-    // 1. 로그 수정 버튼 (테이블 내)
-    const inspLogTableBody = document.getElementById('inspection-log-table-body');
-    if (inspLogTableBody) {
-        inspLogTableBody.addEventListener('click', (e) => {
-            const editBtn = e.target.closest('.btn-edit-insp-log');
-            if (editBtn) {
-                const index = parseInt(editBtn.dataset.index, 10);
-                const productName = DOM.inspectionLogProductName.textContent;
-                prepareEditInspectionLog(productName, index);
-            }
-        });
-    }
-
-    // 2. 수정 모달 저장/삭제 버튼 (메인 리스트 갱신 포함)
-    if (DOM.saveInspLogBtn) {
-        DOM.saveInspLogBtn.addEventListener('click', async () => {
-            await updateInspectionLog();
-            // ✅ 수정 후 메인 이력 리스트도 갱신
-            if (State.context.activeMainHistoryTab === 'inspection') {
-                fetchAndRenderInspectionHistory();
-            }
-        });
-    }
-    if (DOM.deleteInspLogBtn) {
-        DOM.deleteInspLogBtn.addEventListener('click', async () => {
-            await deleteInspectionLog();
-            // ✅ 삭제 후 메인 이력 리스트도 갱신
-            if (State.context.activeMainHistoryTab === 'inspection') {
-                fetchAndRenderInspectionHistory();
-            }
-        });
-    }
-
+    // --- 메인 탭 전환 (상단 탭) ---
     if (DOM.historyMainTabs) {
         DOM.historyMainTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-main-tab]');
@@ -727,19 +381,17 @@ export function setupHistoryModalListeners() {
 
                 const dateListContainer = document.getElementById('history-date-list-container');
                 
+                // 패널 토글
                 DOM.workHistoryPanel.classList.toggle('hidden', tabName !== 'work');
                 DOM.attendanceHistoryPanel.classList.toggle('hidden', tabName !== 'attendance');
                 DOM.trendAnalysisPanel.classList.toggle('hidden', tabName !== 'trends');
                 DOM.reportPanel.classList.toggle('hidden', tabName !== 'report');
                 if (DOM.personalReportPanel) DOM.personalReportPanel.classList.toggle('hidden', tabName !== 'personal');
                 if (managementPanel) managementPanel.classList.toggle('hidden', tabName !== 'management');
-                // ✅ 검수 이력 패널 토글
                 if (inspectionPanel) inspectionPanel.classList.toggle('hidden', tabName !== 'inspection');
                 
-                // 검수 이력은 날짜 리스트 필요 없음
-                if (dateListContainer) {
-                    dateListContainer.style.display = (tabName === 'trends' || tabName === 'inspection') ? 'none' : 'block';
-                }
+                // 날짜 리스트 표시 여부
+                if (dateListContainer) dateListContainer.style.display = (tabName === 'trends' || tabName === 'inspection') ? 'none' : 'block';
 
                 if (tabName === 'work') {
                      const view = DOM.historyTabs?.querySelector('button.font-semibold')?.dataset.view || 'daily';
@@ -754,59 +406,49 @@ export function setupHistoryModalListeners() {
                      renderTrendAnalysisCharts(State.allHistoryData, State.appConfig, trendCharts);
                 } else if (tabName === 'personal') {
                      if (DOM.personalReportMemberSelect && DOM.personalReportMemberSelect.options.length <= 1) {
+                         // 멤버 셀렉트 초기화 로직...
                          const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
                          const partTimers = (State.appState.partTimers || []).map(p => p.name);
                          const allMembers = [...new Set([...staff, ...partTimers])].sort();
-                         
                          DOM.personalReportMemberSelect.innerHTML = '<option value="">직원 선택...</option>';
                          allMembers.forEach(m => {
                              const op = document.createElement('option');
-                             op.value = m;
-                             op.textContent = m;
+                             op.value = m; op.textContent = m;
                              DOM.personalReportMemberSelect.appendChild(op);
                          });
-                         
                          if (State.appState.currentUser && allMembers.includes(State.appState.currentUser)) {
                              DOM.personalReportMemberSelect.value = State.appState.currentUser;
                              State.context.personalReportMember = State.appState.currentUser;
                          }
                      }
-
-                     const activeSubTabBtn = DOM.personalReportTabs?.querySelector('button.font-semibold');
-                     const viewMode = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'personal-daily';
-                     
+                     const viewMode = DOM.personalReportTabs?.querySelector('button.font-semibold')?.dataset.view || 'personal-daily';
                      let listMode = 'day';
                      if(viewMode.includes('weekly')) listMode = 'week';
                      if(viewMode.includes('monthly')) listMode = 'month';
                      if(viewMode.includes('yearly')) listMode = 'year';
-                     
                      renderHistoryDateListByMode(listMode);
                 } else if (tabName === 'management') {
-                     const activeSubTabBtn = managementTabs?.querySelector('button.font-semibold');
-                     const viewMode = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'management-daily';
+                     const viewMode = managementTabs?.querySelector('button.font-semibold')?.dataset.view || 'management-daily';
                      let listMode = 'day';
-                     if(viewMode === 'management-weekly') listMode = 'week';
-                     if(viewMode === 'management-monthly') listMode = 'month';
-                     if(viewMode === 'management-yearly') listMode = 'year';
-                     
+                     if(viewMode.includes('weekly')) listMode = 'week';
+                     if(viewMode.includes('monthly')) listMode = 'month';
+                     if(viewMode.includes('yearly')) listMode = 'year';
                      renderHistoryDateListByMode(listMode);
                 } else if (tabName === 'inspection') {
-                    // ✅ 검수 이력 탭 진입 시 데이터 로드
                     fetchAndRenderInspectionHistory();
                 }
             }
         });
     }
 
+    // --- 메인 뷰 컨테이너 액션 (수량수정/삭제요청) ---
     if (DOM.historyViewContainer) {
         DOM.historyViewContainer.addEventListener('click', (e) => {
             const button = e.target.closest('button[data-action]');
             if (!button) return;
-
             const action = button.dataset.action;
             const dateKey = button.dataset.dateKey;
-
-            if (!dateKey) { return; }
+            if (!dateKey) return;
 
             if (action === 'open-history-quantity-modal') {
                 setHistoryMaximized(false); 
@@ -814,190 +456,12 @@ export function setupHistoryModalListeners() {
             } else if (action === 'request-history-deletion') {
                 setHistoryMaximized(false); 
                 requestHistoryDeletion(dateKey);
-            } 
-            else if (action === 'open-record-manager') {
-                setHistoryMaximized(false);
-                openHistoryRecordManager(dateKey);
             }
+            // 'open-record-manager'는 listeners-history-records.js에서 처리됨
         });
     }
 
-    // 필터 UI (하단 기록 관리 모달용)
-    const memberFilterEl = document.getElementById('history-record-filter-member');
-    const taskFilterEl = document.getElementById('history-record-filter-task');
-
-    if (memberFilterEl) {
-        memberFilterEl.addEventListener('change', () => {
-            const dateKey = document.getElementById('history-records-date').textContent;
-            renderHistoryRecordsTable(dateKey);
-        });
-    }
-    if (taskFilterEl) {
-        taskFilterEl.addEventListener('change', () => {
-            const dateKey = document.getElementById('history-records-date').textContent;
-            renderHistoryRecordsTable(dateKey);
-        });
-    }
-
-    // 일괄 적용 버튼
-    const batchApplyBtn = document.getElementById('history-batch-apply-btn');
-    if (batchApplyBtn) {
-        batchApplyBtn.addEventListener('click', async () => {
-            const dateKey = document.getElementById('history-records-date').textContent;
-            const taskFilterVal = taskFilterEl ? taskFilterEl.value : '';
-            const newStart = document.getElementById('history-batch-start-time').value;
-            const newEnd = document.getElementById('history-batch-end-time').value;
-
-            if (!taskFilterVal) { showToast('업무를 선택한 상태에서만 일괄 수정이 가능합니다.', true); return; }
-            if (!newStart && !newEnd) { showToast('수정할 시작 또는 종료 시간을 입력해주세요.', true); return; }
-            if (newStart && newEnd && newStart >= newEnd) { showToast('시작 시간이 종료 시간보다 빨라야 합니다.', true); return; }
-
-            if (!confirm(`선택된 업무(${taskFilterVal})의 모든 기록을 일괄 수정하시겠습니까?`)) return;
-
-            try {
-                let records = [];
-                const data = State.allHistoryData.find(d => d.id === dateKey);
-                records = data ? data.workRecords : [];
-                
-                const targets = records.filter(r => r.task === taskFilterVal);
-                if (targets.length === 0) { showToast('수정할 대상이 없습니다.', true); return; }
-
-                const updatePromises = targets.map(r => {
-                    const updateData = {};
-                    if (newStart) updateData.startTime = newStart;
-                    if (newEnd) updateData.endTime = newEnd;
-                    return updateHistoryWorkRecord(dateKey, r.id, updateData);
-                });
-
-                await Promise.all(updatePromises);
-                showToast(`${targets.length}건의 기록이 일괄 수정되었습니다.`);
-                renderHistoryRecordsTable(dateKey);
-                renderHistoryDetail(dateKey); 
-            } catch (e) {
-                console.error(e);
-                showToast('일괄 수정 중 오류가 발생했습니다.', true);
-            }
-        });
-    }
-
-    if (DOM.historyRecordAddBtn) {
-        DOM.historyRecordAddBtn.addEventListener('click', () => {
-            const dateKey = document.getElementById('history-records-date').textContent;
-            if (!dateKey) { showToast('날짜 정보를 찾을 수 없습니다.', true); return; }
-            
-            if (DOM.historyAddDateDisplay) DOM.historyAddDateDisplay.textContent = dateKey;
-            if (DOM.historyAddRecordForm) DOM.historyAddRecordForm.reset();
-            
-            if (DOM.historyAddMemberDatalist) {
-                DOM.historyAddMemberDatalist.innerHTML = '';
-                const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
-                const partTimers = (State.appState.partTimers || []).map(p => p.name);
-                const allMembers = [...new Set([...staff, ...partTimers])].sort();
-                allMembers.forEach(m => {
-                    const op = document.createElement('option');
-                    op.value = m;
-                    DOM.historyAddMemberDatalist.appendChild(op);
-                });
-            }
-            
-            if (DOM.historyAddTaskDatalist) {
-                DOM.historyAddTaskDatalist.innerHTML = '';
-                const allTasks = (State.appConfig.taskGroups || []).flatMap(g => g.tasks).sort();
-                const uniqueTasks = [...new Set(allTasks)];
-                uniqueTasks.forEach(t => {
-                    const op = document.createElement('option');
-                    op.value = t;
-                    DOM.historyAddTaskDatalist.appendChild(op);
-                });
-            }
-
-            if (DOM.historyAddRecordModal) DOM.historyAddRecordModal.classList.remove('hidden');
-        });
-    }
-
-    if (DOM.confirmHistoryAddBtn) {
-        DOM.confirmHistoryAddBtn.addEventListener('click', async () => {
-             const dateKey = document.getElementById('history-records-date').textContent;
-             const member = DOM.historyAddMemberInput.value.trim();
-             const task = DOM.historyAddTaskInput.value.trim();
-             const startTime = DOM.historyAddStartTimeInput.value;
-             const endTime = DOM.historyAddEndTimeInput.value;
-
-             if (!member || !task || !startTime || !endTime) { showToast('모든 필드를 입력해주세요.', true); return; }
-             if (startTime >= endTime) { showToast('종료 시간은 시작 시간보다 늦어야 합니다.', true); return; }
-
-             try {
-                 const newRecord = {
-                     id: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                     member, task, startTime, endTime, status: 'completed', pauses: []
-                 };
-                 await addHistoryWorkRecord(dateKey, newRecord);
-                 showToast('기록이 추가되었습니다.');
-                 if (DOM.historyAddRecordModal) DOM.historyAddRecordModal.classList.add('hidden');
-                 const data = State.allHistoryData.find(d => d.id === dateKey);
-                 renderHistoryRecordsTable(dateKey, data ? data.workRecords : []);
-                 if (dateKey === document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key) {
-                     renderHistoryDetail(dateKey);
-                 }
-             } catch (e) {
-                 console.error(e);
-                 showToast('기록 추가 중 오류가 발생했습니다.', true);
-             }
-        });
-    }
-
-    if (DOM.historyRecordsTableBody) {
-        DOM.historyRecordsTableBody.addEventListener('click', async (e) => {
-            const target = e.target;
-            const deleteBtn = target.closest('button[data-action="delete-history-record"]');
-            if (deleteBtn) {
-                const dateKey = deleteBtn.dataset.dateKey;
-                const recordId = deleteBtn.dataset.recordId;
-                if (confirm('정말로 이 기록을 삭제하시겠습니까?')) {
-                    try {
-                        await deleteHistoryWorkRecord(dateKey, recordId);
-                        showToast('기록이 삭제되었습니다.');
-                        const data = State.allHistoryData.find(d => d.id === dateKey);
-                        renderHistoryRecordsTable(dateKey, data ? data.workRecords : []);
-                        if (dateKey === document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key) {
-                             renderHistoryDetail(dateKey);
-                        }
-                    } catch (err) {
-                        console.error(err);
-                        showToast('삭제 중 오류가 발생했습니다.', true);
-                    }
-                }
-                return;
-            }
-            const saveBtn = target.closest('button[data-action="save-history-record"]');
-            if (saveBtn) {
-                const row = saveBtn.closest('tr');
-                const dateKey = saveBtn.dataset.dateKey;
-                const recordId = saveBtn.dataset.recordId;
-
-                const newTask = row.querySelector('.history-record-task').value;
-                const newStart = row.querySelector('.history-record-start').value;
-                const newEnd = row.querySelector('.history-record-end').value;
-
-                if (!newTask || !newStart || !newEnd) { showToast('모든 필드를 입력해주세요.', true); return; }
-                if (newStart >= newEnd) { showToast('시작 시간이 종료 시간보다 빨라야 합니다.', true); return; }
-
-                try {
-                    await updateHistoryWorkRecord(dateKey, recordId, { task: newTask, startTime: newStart, endTime: newEnd });
-                    showToast('기록이 수정되었습니다.');
-                    const data = State.allHistoryData.find(d => d.id === dateKey);
-                    renderHistoryRecordsTable(dateKey, data ? data.workRecords : []);
-                     if (dateKey === document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key) {
-                         renderHistoryDetail(dateKey);
-                    }
-                } catch (err) {
-                    console.error(err);
-                    showToast('수정 중 오류가 발생했습니다.', true);
-                }
-            }
-        });
-    }
-
+    // --- 전체 삭제 확인 ---
     if (DOM.confirmHistoryDeleteBtn) {
         DOM.confirmHistoryDeleteBtn.addEventListener('click', async () => {
             if (State.context.historyKeyToDelete) {
@@ -1016,13 +480,11 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // --- 정렬 및 필터 UI (드롭다운 등) 공통 제어 ---
     const setupFilterListeners = (container, stateKeySort, stateKeyFilter, refreshFunc) => {
         if (!container) return;
-
         container.addEventListener('click', (e) => {
-            if (e.target.closest('.filter-dropdown')) {
-                e.stopPropagation(); return;
-            }
+            if (e.target.closest('.filter-dropdown')) { e.stopPropagation(); return; }
             const filterIconBtn = e.target.closest('.filter-icon-btn');
             if (filterIconBtn) {
                 e.stopPropagation();
@@ -1036,41 +498,29 @@ export function setupHistoryModalListeners() {
                 const mode = sortTh.dataset.sortTarget;
                 const key = sortTh.dataset.sortKey;
                 if (!mode || !key) return;
-
                 const sortStateObj = State.context[stateKeySort]; 
                 if (!sortStateObj[mode]) sortStateObj[mode] = { key: '', dir: 'asc' };
-                
                 const currentSort = sortStateObj[mode];
-                if (currentSort.key === key) {
-                    currentSort.dir = (currentSort.dir === 'asc' ? 'desc' : 'asc');
-                } else {
-                    currentSort.key = key; currentSort.dir = 'asc';
-                }
+                if (currentSort.key === key) currentSort.dir = (currentSort.dir === 'asc' ? 'desc' : 'asc');
+                else { currentSort.key = key; currentSort.dir = 'asc'; }
                 refreshFunc();
                 return;
             }
-            handleExistingAttendanceButtons(e);
         });
-
         container.addEventListener('input', (e) => {
             const filterInput = e.target.closest('[data-filter-key]');
             if (filterInput) {
                 const mode = filterInput.dataset.filterTarget;
                 const key = filterInput.dataset.filterKey;
-                
                 const filterStateObj = State.context[stateKeyFilter];
                 if (!filterStateObj[mode]) filterStateObj[mode] = {};
-                
                 filterStateObj[mode][key] = filterInput.value;
                 refreshFunc();
-
                 setTimeout(() => {
                     const newInput = container.querySelector(`[data-filter-target="${mode}"][data-filter-key="${key}"]`);
                     if (newInput) {
                         newInput.focus();
-                        if (newInput.tagName === 'INPUT') {
-                            const val = newInput.value; newInput.value = ''; newInput.value = val;
-                        }
+                        if (newInput.tagName === 'INPUT') { const val = newInput.value; newInput.value = ''; newInput.value = val; }
                     }
                 }, 0);
             }
@@ -1081,6 +531,7 @@ export function setupHistoryModalListeners() {
     setupFilterListeners(DOM.reportViewContainer, 'reportSortState', 'reportFilterState', refreshReportView);
     setupFilterListeners(DOM.personalReportViewContainer, 'personalReportSortState', 'personalReportFilterState', refreshPersonalView);
 
+    // 필터 드롭다운 외부 클릭 닫기
     document.addEventListener('click', (e) => {
         if (State.context.activeFilterDropdown) {
             if (!e.target.closest('.filter-dropdown') && !e.target.closest('.filter-icon-btn')) {
@@ -1092,407 +543,33 @@ export function setupHistoryModalListeners() {
         }
     });
 
-
+    // --- 드래그 & 전체화면 ---
     const historyHeader = document.getElementById('history-modal-header');
     if (DOM.historyModal && historyHeader && DOM.historyModalContentBox) {
-        makeDraggable(DOM.historyModal, historyHeader, DOM.historyModalContentBox);
+        let isDragging = false; let offsetX, offsetY;
+        historyHeader.addEventListener('mousedown', e => {
+            if(isHistoryMaximized || e.target.closest('button')) return;
+            isDragging=true; 
+            if(DOM.historyModalContentBox.dataset.hasBeenUncentered!=='true') {
+                const r=DOM.historyModalContentBox.getBoundingClientRect();
+                DOM.historyModal.classList.remove('flex','items-center','justify-center');
+                DOM.historyModalContentBox.style.position='absolute'; 
+                DOM.historyModalContentBox.style.top=`${r.top}px`; DOM.historyModalContentBox.style.left=`${r.left}px`;
+                DOM.historyModalContentBox.style.width=`${r.width}px`; DOM.historyModalContentBox.style.height=`${r.height}px`;
+                DOM.historyModalContentBox.style.transform='none'; DOM.historyModalContentBox.dataset.hasBeenUncentered='true';
+            }
+            const r=DOM.historyModalContentBox.getBoundingClientRect(); offsetX=e.clientX-r.left; offsetY=e.clientY-r.top;
+            document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+        });
+        function onMove(e) { if(!isDragging)return; DOM.historyModalContentBox.style.left=`${e.clientX-offsetX}px`; DOM.historyModalContentBox.style.top=`${e.clientY-offsetY}px`; }
+        function onUp() { isDragging=false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
     }
+
     const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
-    if (toggleFullscreenBtn && DOM.historyModal && DOM.historyModalContentBox) {
-        const icon = toggleFullscreenBtn.querySelector('svg');
-        if (icon) icon.innerHTML = iconMaximize;
+    if (toggleFullscreenBtn) {
         toggleFullscreenBtn.addEventListener('click', (e) => {
             e.stopImmediatePropagation();
             setHistoryMaximized(!isHistoryMaximized);
         });
     }
-
-    setupRecordManagerListeners();
-    setupAttendanceModalButtons();
 }
-
-function handleExistingAttendanceButtons(e) {
-    const editBtn = e.target.closest('button[data-action="edit-attendance"]');
-    if (editBtn) {
-        const dateKey = editBtn.dataset.dateKey;
-        const index = parseInt(editBtn.dataset.index, 10);
-        if (!dateKey || isNaN(index)) return;
-        
-        const dayData = State.allHistoryData.find(d => d.id === dateKey);
-        if (!dayData || !dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
-            showToast('데이터를 찾을 수 없습니다.', true); return;
-        }
-        const record = dayData.onLeaveMembers[index];
-
-        if (DOM.editAttendanceMemberName) DOM.editAttendanceMemberName.value = record.member;
-        if (DOM.editAttendanceTypeSelect) {
-            DOM.editAttendanceTypeSelect.innerHTML = '';
-            State.LEAVE_TYPES.forEach(type => {
-                const option = document.createElement('option');
-                option.value = type;
-                option.textContent = type;
-                if (type === record.type) option.selected = true;
-                DOM.editAttendanceTypeSelect.appendChild(option);
-            });
-        }
-        const isTimeBased = ['외출', '조퇴', '지각'].includes(record.type);
-        const isDateBased = ['연차', '출장', '결근'].includes(record.type);
-        const isOuting = (record.type === '외출');
-        
-        if (DOM.editAttendanceTimeFields) {
-             DOM.editAttendanceTimeFields.classList.toggle('hidden', !isTimeBased);
-             const endTimeWrapper = document.getElementById('edit-attendance-end-time-wrapper');
-             if(endTimeWrapper) endTimeWrapper.classList.toggle('hidden', !isOuting);
-             if(DOM.editAttendanceStartTimeInput) DOM.editAttendanceStartTimeInput.value = record.startTime || '';
-             if(DOM.editAttendanceEndTimeInput) DOM.editAttendanceEndTimeInput.value = record.endTime || '';
-        }
-        if (DOM.editAttendanceDateFields) {
-            DOM.editAttendanceDateFields.classList.toggle('hidden', !isDateBased);
-            if(DOM.editAttendanceStartDateInput) DOM.editAttendanceStartDateInput.value = record.startDate || '';
-            if(DOM.editAttendanceEndDateInput) DOM.editAttendanceEndDateInput.value = record.endDate || '';
-        }
-        if (DOM.editAttendanceDateKeyInput) DOM.editAttendanceDateKeyInput.value = dateKey;
-        if (DOM.editAttendanceRecordIndexInput) DOM.editAttendanceRecordIndexInput.value = index;
-        if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.remove('hidden');
-        return;
-    }
-    const deleteBtn = e.target.closest('button[data-action="delete-attendance"]');
-    if (deleteBtn) {
-        const dateKey = deleteBtn.dataset.dateKey;
-        const index = parseInt(deleteBtn.dataset.index, 10);
-        State.context.deleteMode = 'attendance';
-        State.context.attendanceRecordToDelete = { dateKey, index };
-        if (DOM.deleteConfirmModal) DOM.deleteConfirmModal.classList.remove('hidden');
-        return;
-    }
-    const addBtn = e.target.closest('button[data-action="open-add-attendance-modal"]');
-    if (addBtn) {
-        const dateKey = addBtn.dataset.dateKey;
-        if (DOM.addAttendanceForm) DOM.addAttendanceForm.reset();
-        if (DOM.addAttendanceDateKeyInput) DOM.addAttendanceDateKeyInput.value = dateKey;
-        if (DOM.addAttendanceStartDateInput) DOM.addAttendanceStartDateInput.value = dateKey;
-        
-        if (DOM.addAttendanceMemberDatalist) {
-            DOM.addAttendanceMemberDatalist.innerHTML = '';
-            const all = [...new Set([...(State.appConfig.teamGroups||[]).flatMap(g=>g.members), ...(State.appState.partTimers||[]).map(p=>p.name)])].sort();
-            all.forEach(m=>{const o=document.createElement('option');o.value=m;DOM.addAttendanceMemberDatalist.appendChild(o);});
-        }
-        if (DOM.addAttendanceTypeSelect) {
-            DOM.addAttendanceTypeSelect.innerHTML = '';
-            State.LEAVE_TYPES.forEach((t,i)=>{const o=document.createElement('option');o.value=t;o.textContent=t;if(i===0)o.selected=true;DOM.addAttendanceTypeSelect.appendChild(o);});
-        }
-        const first = State.LEAVE_TYPES[0];
-        const isTime = ['외출','조퇴','지각'].includes(first);
-        const isDate = !isTime;
-        if(DOM.addAttendanceTimeFields) DOM.addAttendanceTimeFields.classList.toggle('hidden', !isTime);
-        if(DOM.addAttendanceDateFields) DOM.addAttendanceDateFields.classList.toggle('hidden', !isDate);
-        const endWrap = document.getElementById('add-attendance-end-time-wrapper');
-        if(endWrap) endWrap.classList.toggle('hidden', first!=='외출');
-
-        if (DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.remove('hidden');
-    }
-}
-
-function setupRecordManagerListeners() {
-    if(DOM.historyViewContainer) {
-        DOM.historyViewContainer.addEventListener('click', e => {
-            const btn = e.target.closest('button[data-action="open-record-manager"]');
-            if(btn) openHistoryRecordManager(btn.dataset.dateKey);
-        });
-    }
-}
-
-function setupAttendanceModalButtons() {
-    if (DOM.confirmEditAttendanceBtn) {
-        DOM.confirmEditAttendanceBtn.addEventListener('click', async () => {
-            const dateKey = DOM.editAttendanceDateKeyInput.value;
-            const index = parseInt(DOM.editAttendanceRecordIndexInput.value, 10);
-            const member = DOM.editAttendanceMemberName.value;
-            const type = DOM.editAttendanceTypeSelect.value;
-
-            if (!dateKey || isNaN(index) || !member || !type) {
-                showToast('필수 정보가 누락되었습니다.', true); return;
-            }
-
-            const isTimeBased = ['외출', '조퇴', '지각'].includes(type);
-            const newEntry = { member, type };
-
-            if (isTimeBased) {
-                newEntry.startTime = DOM.editAttendanceStartTimeInput.value;
-                newEntry.endTime = DOM.editAttendanceEndTimeInput.value;
-                if (!newEntry.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
-            } else {
-                newEntry.startDate = DOM.editAttendanceStartDateInput.value;
-                newEntry.endDate = DOM.editAttendanceEndDateInput.value || newEntry.startDate;
-                if (!newEntry.startDate) { showToast('시작일을 입력해주세요.', true); return; }
-            }
-
-            try {
-                const todayKey = getTodayDateString();
-                
-                const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-                if (dayDataIndex > -1) {
-                     State.allHistoryData[dayDataIndex].onLeaveMembers[index] = newEntry;
-                }
-
-                if (dateKey === todayKey) {
-                     const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
-                     await updateDoc(dailyDocRef, { [`onLeaveMembers.${index}`]: newEntry }).catch(async () => {
-                         const docSnap = await getDoc(dailyDocRef).catch(() => null);
-                         if (docSnap && docSnap.exists()) {
-                             const currentLeaves = docSnap.data().onLeaveMembers || [];
-                             if(currentLeaves.length > index) {
-                                 currentLeaves[index] = newEntry;
-                                 await updateDoc(dailyDocRef, { onLeaveMembers: currentLeaves });
-                             }
-                         }
-                     });
-                } else {
-                     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                     await updateDoc(historyDocRef, { [`onLeaveMembers.${index}`]: newEntry }).catch(async () => {
-                         const docSnap = await getDoc(historyDocRef).catch(() => null);
-                         if (docSnap && docSnap.exists()) {
-                             const currentLeaves = docSnap.data().onLeaveMembers || [];
-                             if(currentLeaves.length > index) {
-                                 currentLeaves[index] = newEntry;
-                                 await updateDoc(historyDocRef, { onLeaveMembers: currentLeaves });
-                             }
-                         }
-                     });
-                }
-
-                showToast('근태 기록이 수정되었습니다.');
-                DOM.editAttendanceRecordModal.classList.add('hidden');
-                
-                const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
-                    ? State.allHistoryData.filter(d => {
-                        const date = d.id;
-                        const start = State.context.historyStartDate;
-                        const end = State.context.historyEndDate;
-                        if (start && end) return date >= start && date <= end;
-                        if (start) return date >= start;
-                        if (end) return date <= end;
-                        return true;
-                    })
-                    : State.allHistoryData;
-                renderAttendanceDailyHistory(dateKey, filteredData);
-
-            } catch (e) {
-                console.error("Error updating attendance:", e);
-                showToast('수정 중 오류가 발생했습니다.', true);
-            }
-        });
-    }
-
-    if (DOM.cancelEditAttendanceBtn) DOM.cancelEditAttendanceBtn.addEventListener('click', ()=>{ if(DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.add('hidden'); });
-    
-    if (DOM.confirmAddAttendanceBtn) {
-        DOM.confirmAddAttendanceBtn.addEventListener('click', async () => {
-            const dateKey = DOM.addAttendanceDateKeyInput.value;
-            const member = DOM.addAttendanceMemberNameInput.value.trim();
-            const type = DOM.addAttendanceTypeSelect.value;
-
-            if (!member || !type) { showToast('이름과 유형을 입력해주세요.', true); return; }
-
-            const isTimeBased = ['외출', '조퇴', '지각'].includes(type);
-            const newEntry = {
-                member,
-                type,
-                id: `manual-leave-${Date.now()}` 
-            };
-
-            if (isTimeBased) {
-                newEntry.startTime = DOM.addAttendanceStartTimeInput.value;
-                newEntry.endTime = DOM.addAttendanceEndTimeInput.value;
-                if (!newEntry.startTime) { showToast('시작 시간을 입력해주세요.', true); return; }
-            } else {
-                newEntry.startDate = DOM.addAttendanceStartDateInput.value;
-                newEntry.endDate = DOM.addAttendanceEndDateInput.value || newEntry.startDate;
-                if (!newEntry.startDate) { showToast('시작일을 입력해주세요.', true); return; }
-            }
-
-            try {
-                const todayKey = getTodayDateString();
-                
-                const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-                if (dayDataIndex > -1) {
-                    if (!State.allHistoryData[dayDataIndex].onLeaveMembers) {
-                        State.allHistoryData[dayDataIndex].onLeaveMembers = [];
-                    }
-                    State.allHistoryData[dayDataIndex].onLeaveMembers.push(newEntry);
-                } else if (dateKey !== todayKey) {
-                    State.allHistoryData.push({
-                        id: dateKey,
-                        onLeaveMembers: [newEntry],
-                        workRecords: [],
-                        taskQuantities: {},
-                        management: {}
-                    });
-                    State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
-                }
-
-                if (dateKey === todayKey) {
-                    const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
-                    const docSnap = await getDoc(dailyDocRef).catch(() => null);
-                    if (docSnap && docSnap.exists()) {
-                        const currentLeaves = docSnap.data().onLeaveMembers || [];
-                        currentLeaves.push(newEntry);
-                        await updateDoc(dailyDocRef, { onLeaveMembers: currentLeaves });
-                    } else {
-                        await setDoc(dailyDocRef, { onLeaveMembers: [newEntry] }, { merge: true });
-                    }
-                } else {
-                    const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                    const docSnap = await getDoc(historyDocRef).catch(() => null);
-                     if (docSnap && docSnap.exists()) {
-                        const currentLeaves = docSnap.data().onLeaveMembers || [];
-                        currentLeaves.push(newEntry);
-                        await updateDoc(historyDocRef, { onLeaveMembers: currentLeaves });
-                    } else {
-                        await setDoc(historyDocRef, { id: dateKey, onLeaveMembers: [newEntry] });
-                    }
-                }
-
-                showToast('근태 기록이 추가되었습니다.');
-                DOM.addAttendanceRecordModal.classList.add('hidden');
-
-                 const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
-                    ? State.allHistoryData.filter(d => {
-                        const date = d.id;
-                        const start = State.context.historyStartDate;
-                        const end = State.context.historyEndDate;
-                        if (start && end) return date >= start && date <= end;
-                        if (start) return date >= start;
-                        if (end) return date <= end;
-                        return true;
-                    })
-                    : State.allHistoryData;
-                renderAttendanceDailyHistory(dateKey, filteredData);
-
-            } catch (e) {
-                console.error("Error adding attendance:", e);
-                showToast('추가 중 오류가 발생했습니다.', true);
-            }
-        });
-    }
-
-    if (DOM.cancelAddAttendanceBtn) DOM.cancelAddAttendanceBtn.addEventListener('click', ()=>{ if(DOM.addAttendanceRecordModal) DOM.addAttendanceRecordModal.classList.add('hidden'); });
-    
-    const toggleUI = (select, timeFields, dateFields, endWrapperId) => {
-        select.addEventListener('change', e => {
-            const t = e.target.value;
-            const isTime = ['외출','조퇴','지각'].includes(t);
-            timeFields.classList.toggle('hidden', !isTime);
-            dateFields.classList.toggle('hidden', isTime);
-            const w = document.getElementById(endWrapperId);
-            if(w) w.classList.toggle('hidden', t!=='외출');
-        });
-    };
-    if(DOM.addAttendanceTypeSelect) toggleUI(DOM.addAttendanceTypeSelect, DOM.addAttendanceTimeFields, DOM.addAttendanceDateFields, 'add-attendance-end-time-wrapper');
-    if(DOM.editAttendanceTypeSelect) toggleUI(DOM.editAttendanceTypeSelect, DOM.editAttendanceTimeFields, DOM.editAttendanceDateFields, 'edit-attendance-end-time-wrapper');
-}
-
-function makeDraggable(modalOverlay, header, contentBox) {
-    let isDragging = false; let offsetX, offsetY;
-    header.addEventListener('mousedown', e => {
-        if(isHistoryMaximized || e.target.closest('button')) return;
-        isDragging=true; 
-        if(contentBox.dataset.hasBeenUncentered!=='true') {
-            const r=contentBox.getBoundingClientRect();
-            modalOverlay.classList.remove('flex','items-center','justify-center');
-            contentBox.style.position='absolute'; contentBox.style.top=`${r.top}px`; contentBox.style.left=`${r.left}px`;
-            contentBox.style.width=`${r.width}px`; contentBox.style.height=`${r.height}px`;
-            contentBox.style.transform='none'; contentBox.dataset.hasBeenUncentered='true';
-        }
-        const r=contentBox.getBoundingClientRect(); offsetX=e.clientX-r.left; offsetY=e.clientY-r.top;
-        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
-    });
-    function onMove(e) { if(!isDragging)return; contentBox.style.left=`${e.clientX-offsetX}px`; contentBox.style.top=`${e.clientY-offsetY}px`; }
-    function onUp() { isDragging=false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
-}
-
-// ✅ [신규] 기록 관리 테이블 렌더링 (필터링 및 일괄수정 포함)
-export const renderHistoryRecordsTable = (dateKey) => {
-    if (!DOM.historyRecordsTableBody) return;
-    
-    const data = State.allHistoryData.find(d => d.id === dateKey);
-    const records = data ? (data.workRecords || []) : [];
-
-    // ✅ [수정] 변수명 변경: memberFilter -> memberFilterVal
-    const memberFilterVal = document.getElementById('history-record-filter-member')?.value;
-    const taskFilterVal = document.getElementById('history-record-filter-task')?.value;
-
-    // 일괄 수정 패널 표시 여부 제어
-    const batchArea = document.getElementById('history-record-batch-edit-area');
-    if (batchArea) {
-        if (taskFilterVal) {
-            batchArea.classList.remove('hidden');
-            batchArea.classList.add('flex');
-        } else {
-            batchArea.classList.add('hidden');
-            batchArea.classList.remove('flex');
-        }
-    }
-    
-    DOM.historyRecordsTableBody.innerHTML = '';
-    
-    // 필터링
-    const filtered = records.filter(r => {
-        if (memberFilterVal && r.member !== memberFilterVal) return false;
-        if (taskFilterVal && r.task !== taskFilterVal) return false;
-        return true;
-    });
-
-    // 정렬: 시작 시간 순
-    const sorted = filtered.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
-
-    const allTasks = (State.appConfig.taskGroups || []).flatMap(g => g.tasks).sort();
-    
-    sorted.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.className = 'bg-white border-b hover:bg-gray-50 transition';
-        
-        let taskOptions = '';
-        const uniqueTasks = new Set([...allTasks, r.task]); 
-        Array.from(uniqueTasks).sort().forEach(t => {
-            taskOptions += `<option value="${t}" ${t === r.task ? 'selected' : ''}>${t}</option>`;
-        });
-
-        // ✅ [수정] 휴식 시간 계산
-        const pauseMinutes = calcTotalPauseMinutes(r.pauses);
-        const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴: ${formatDuration(pauseMinutes)})</span>` : '';
-
-        tr.innerHTML = `
-            <td class="px-6 py-4 font-medium text-gray-900 w-[15%]">${r.member}</td>
-            <td class="px-6 py-4 w-[20%]">
-                <select class="history-record-task w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500">
-                    ${taskOptions}
-                </select>
-            </td>
-            <td class="px-6 py-4 w-[15%]">
-                <input type="time" class="history-record-start w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.startTime || ''}">
-            </td>
-            <td class="px-6 py-4 w-[15%]">
-                <input type="time" class="history-record-end w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.endTime || ''}">
-            </td>
-            <td class="px-6 py-4 text-gray-500 text-xs w-[15%]">
-                ${formatDuration(r.duration)}${pauseText}
-            </td>
-            <td class="px-6 py-4 text-right space-x-2 w-[20%]">
-                <button class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 
-                    data-action="save-history-record" 
-                    data-date-key="${dateKey}" 
-                    data-record-id="${r.id}">저장</button>
-                <button class="text-white bg-red-500 hover:bg-red-600 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 
-                    data-action="delete-history-record" 
-                    data-date-key="${dateKey}" 
-                    data-record-id="${r.id}">삭제</button>
-            </td>
-        `;
-        DOM.historyRecordsTableBody.appendChild(tr);
-    });
-    
-    if (sorted.length === 0) {
-        DOM.historyRecordsTableBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">조건에 맞는 기록이 없습니다.</td></tr>';
-    }
-};
