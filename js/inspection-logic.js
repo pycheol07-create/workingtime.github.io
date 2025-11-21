@@ -187,17 +187,10 @@ const onScanSuccess = (decodedText, decodedResult) => {
     stopScanner(); 
     DOM.inspScannerContainer.classList.add('hidden');
 
-    const list = State.appState.inspectionList || [];
-    // 코드 매칭
-    const foundIdx = list.findIndex(item => item.code === decodedText || decodedText.includes(item.code));
-    
-    if (foundIdx > -1) {
-        selectTodoItem(foundIdx);
-    } else {
-        DOM.inspProductNameInput.value = decodedText;
-        searchProductHistory();
-        DOM.inspNotesInput.value = `[스캔됨: ${decodedText}]`;
-    }
+    // 스캔된 값을 입력창에 넣고 바로 검색 실행
+    // (검색 함수 내부에서 코드 매칭 로직이 수행됨)
+    DOM.inspProductNameInput.value = decodedText;
+    searchProductHistory();
 };
 
 // ======================================================
@@ -243,23 +236,54 @@ export const clearImageState = () => {
 // ======================================================
 
 export const searchProductHistory = async () => {
-    const productNameInput = DOM.inspProductNameInput.value.trim();
-    if (!productNameInput) {
-        showToast('상품명을 입력해주세요.', true);
+    let searchTerm = DOM.inspProductNameInput.value.trim();
+    if (!searchTerm) {
+        showToast('상품명 또는 상품코드를 입력해주세요.', true);
         return;
     }
 
+    // ✅ [수정] 1. 로컬 리스트(엑셀)에서 코드 또는 이름 매칭 시도
+    const list = State.appState.inspectionList || [];
+    const matchedIndex = list.findIndex(item => 
+        (item.code && item.code.trim() === searchTerm) || 
+        (item.name && item.name.trim() === searchTerm)
+    );
+
+    let targetProductName = searchTerm; // 기본값은 입력한 그대로
+
+    if (matchedIndex > -1) {
+        const matchedItem = list[matchedIndex];
+        // 코드로 검색된 경우 상품명으로 교체
+        targetProductName = matchedItem.name;
+        currentTodoIndex = matchedIndex; // 다음 상품 이동을 위해 인덱스 동기화
+
+        // 입력창에도 상품명으로 표시 (사용자 인지용)
+        DOM.inspProductNameInput.value = targetProductName;
+        
+        // 부가 정보 자동 세팅
+        if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${matchedItem.option || '-'}`;
+        if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${matchedItem.code || '-'}`;
+        if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${matchedItem.thickness || '-'}`;
+        if (DOM.inspInboundDateInput) DOM.inspInboundDateInput.value = matchedItem.inboundDate || getTodayDateString();
+        if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = matchedItem.qty > 0 ? matchedItem.qty : '';
+
+        // 스캔/검색됨 메모 추가 (자동 입력이므로 굳이 메모 안 남김, 필요시 주석 해제)
+        // DOM.inspNotesInput.value = ''; 
+    }
+
+    // UI 영역 활성화
     DOM.inspHistoryReport.classList.remove('hidden');
     DOM.inspCurrentInputArea.classList.remove('hidden');
     DOM.inspAlertBox.classList.add('hidden');
-    DOM.inspReportTitle.textContent = productNameInput;
+    DOM.inspReportTitle.textContent = targetProductName;
     
-    // 조회 시에는 이미지를 초기화하지 않음
+    // 조회 시에는 이미지를 초기화하지 않음 (입력 중일 수 있으므로)
     const selects = document.querySelectorAll('#insp-current-input-area select');
     selects.forEach(sel => sel.value = ""); 
 
     try {
-        const docRef = doc(State.db, 'product_history', productNameInput);
+        // ✅ [수정] 변환된 targetProductName(상품명)으로 DB 조회
+        const docRef = doc(State.db, 'product_history', targetProductName);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
@@ -267,16 +291,13 @@ export const searchProductHistory = async () => {
             DOM.inspReportCount.textContent = data.totalInbound || 0;
             DOM.inspReportDate.textContent = data.lastInspectionDate || '-';
 
-            // ✅ [수정] 특이사항(불량 이력 + 메모) 추출 로직 강화
-            // defectSummary에만 의존하지 않고 logs 전체를 검사합니다.
+            // 특이사항(불량 이력 + 메모) 추출
             let specialIssues = [];
             
             if (data.logs && data.logs.length > 0) {
                 specialIssues = data.logs
                     .filter(log => {
-                        // 1. 불량 상태이거나 defects가 있는 경우
                         const hasDefects = log.status === '불량' || (log.defects && log.defects.length > 0);
-                        // 2. 메모(note)가 있는 경우 (중요)
                         const hasNote = log.note && log.note.trim() !== '';
                         return hasDefects || hasNote;
                     })
@@ -284,25 +305,19 @@ export const searchProductHistory = async () => {
                         const date = log.date || log.inboundDate || '날짜미상';
                         const defectStr = (log.defects && log.defects.length > 0) ? log.defects.join(', ') : '';
                         const noteStr = log.note ? `[메모: ${log.note}]` : '';
-                        
-                        // 불량내역과 메모를 합쳐서 표시
                         const content = [defectStr, noteStr].filter(Boolean).join(' ');
                         return `${date}: ${content}`;
                     });
             } 
-            // logs가 없지만 defectSummary가 있는 경우 (구 데이터 호환)
             else if (data.defectSummary && data.defectSummary.length > 0) {
                 specialIssues = data.defectSummary;
             }
 
             if (specialIssues.length > 0) {
                 DOM.inspAlertBox.classList.remove('hidden');
-                
-                // 최신 5건 추출 (최신순)
                 const recentIssues = specialIssues.slice(-5).reverse();
                 DOM.inspAlertMsg.textContent = `최근 특이사항: ${recentIssues[0]}`;
                 
-                // 브라우저 팝업 띄우기
                 setTimeout(() => {
                     alert(`🚨 [특이사항 알림] 🚨\n\n이 상품은 ${specialIssues.length}건의 특이사항(불량/메모) 기록이 있습니다.\n검수 시 아래 내용을 확인해주세요.\n\n[최근 기록]\n- ${recentIssues.join('\n- ')}`);
                 }, 200);
@@ -404,6 +419,12 @@ export const saveInspectionAndNext = async () => {
             updatedAt: serverTimestamp()
         };
 
+        // ✅ [신규] 나중 검색을 위해 최신 코드/옵션도 문서 루트에 저장
+        if (currentItem) {
+            updates.lastCode = currentItem.code;
+            updates.lastOption = currentItem.option;
+        }
+
         if (defectsFound.length > 0) {
             const defectSummaryStr = `${today}: ${defectsFound.join(', ')}`;
             updates.defectSummary = arrayUnion(defectSummaryStr);
@@ -456,6 +477,10 @@ const resetInspectionForm = (clearProductName = false) => {
     DOM.inspInboundQtyInput.value = '';
     DOM.inspNotesInput.value = '';
     DOM.inspCheckThickness.value = ''; 
+    if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
+    if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
+    if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
+    
     const selects = document.querySelectorAll('#insp-current-input-area select');
     selects.forEach(sel => sel.value = ""); 
 };
