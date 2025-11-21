@@ -4,6 +4,8 @@
 import * as DOM from './dom-elements.js';
 import * as InspectionLogic from './inspection-logic.js';
 
+let isInspectionMaximized = false; // 전체화면 상태 추적 변수
+
 export function setupFormInspectionListeners() {
 
     // 1. 상품명 검색 (클릭)
@@ -38,7 +40,7 @@ export function setupFormInspectionListeners() {
         });
     }
 
-    // [신규] 5. 엑셀 업로드 리스너
+    // 5. 엑셀 업로드 리스너
     if (DOM.inspExcelUploadInput) {
         DOM.inspExcelUploadInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
@@ -48,7 +50,7 @@ export function setupFormInspectionListeners() {
         });
     }
 
-    // [신규] 6. 바코드 스캔 토글 리스너
+    // 6. 바코드 스캔 토글 리스너
     if (DOM.inspScanBtn) {
         DOM.inspScanBtn.addEventListener('click', () => {
             InspectionLogic.toggleScanner();
@@ -60,7 +62,7 @@ export function setupFormInspectionListeners() {
         });
     }
 
-    // [신규] 7. 이미지 업로드 및 삭제 리스너
+    // 7. 이미지 업로드 및 삭제 리스너
     if (DOM.inspImageInput) {
         DOM.inspImageInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
@@ -72,6 +74,30 @@ export function setupFormInspectionListeners() {
         DOM.inspRemoveImageBtn.addEventListener('click', () => {
             // UI 초기화뿐만 아니라 로직 내부의 이미지 상태도 초기화
             InspectionLogic.clearImageState();
+        });
+    }
+
+    // 8. [신규] 전체화면 토글 리스너
+    if (DOM.inspFullscreenBtn && DOM.inspModalContent) {
+        DOM.inspFullscreenBtn.addEventListener('click', () => {
+            isInspectionMaximized = !isInspectionMaximized;
+            const btnIcon = DOM.inspFullscreenBtn.querySelector('svg');
+
+            if (isInspectionMaximized) {
+                // 전체화면 적용
+                DOM.inspModalContent.classList.remove('rounded-2xl', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'relative');
+                DOM.inspModalContent.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
+                // 아이콘 변경 (축소)
+                if (btnIcon) btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
+                DOM.inspFullscreenBtn.title = "기본 크기로";
+            } else {
+                // 기본 크기로 복귀
+                DOM.inspModalContent.classList.add('relative', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'rounded-2xl');
+                DOM.inspModalContent.classList.remove('fixed', 'inset-0', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
+                // 아이콘 변경 (확대)
+                if (btnIcon) btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
+                DOM.inspFullscreenBtn.title = "전체화면";
+            }
         });
     }
 }

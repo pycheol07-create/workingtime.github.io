@@ -460,16 +460,21 @@
 </div>
 
 <div id="inspection-manager-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative flex flex-col max-h-[95vh]">
+    <div id="insp-modal-content" class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative flex flex-col max-h-[95vh] transition-all duration-300">
         
-        <div class="p-5 border-b border-gray-200 bg-indigo-50 flex justify-between items-center flex-shrink-0 rounded-t-2xl">
+        <div class="p-5 border-b border-gray-200 bg-indigo-50 flex justify-between items-center flex-shrink-0 rounded-t-2xl" id="insp-modal-header">
             <div>
                 <h2 class="text-xl font-bold text-indigo-900 flex items-center gap-2">
                     📋 정밀 검수 매니저
                 </h2>
                 <p class="text-xs text-indigo-600 mt-1">입고 상품의 스펙과 품질을 상세하게 기록합니다.</p>
             </div>
-            <button class="modal-close-btn text-indigo-400 hover:text-indigo-700" onclick="document.getElementById('inspection-manager-modal').classList.add('hidden')">&times;</button>
+            <div class="flex items-center gap-3">
+                <button id="insp-fullscreen-btn" class="text-indigo-400 hover:text-indigo-700 transition p-1" title="전체화면">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" /></svg>
+                </button>
+                <button class="modal-close-btn text-indigo-400 hover:text-indigo-700 static" onclick="document.getElementById('inspection-manager-modal').classList.add('hidden')">&times;</button>
+            </div>
         </div>
 
         <div class="p-6 space-y-6 overflow-y-auto flex-grow">
