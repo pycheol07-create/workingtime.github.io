@@ -3,7 +3,6 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 
-// ✅ [수정] formatDuration, calcTotalPauseMinutes 추가 임포트
 import { showToast, getTodayDateString, formatDuration, calcTotalPauseMinutes } from './utils.js';
 
 import {
@@ -45,10 +44,14 @@ import {
     renderReportYearly,
     renderPersonalReport,
     renderManagementDaily,
-    renderManagementSummary
+    renderManagementSummary,
+    renderInspectionHistoryTable // ✅ [신규] 검수 이력 렌더링 함수
 } from './ui-history.js';
 
-import { doc, deleteDoc, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ✅ [신규] 정렬 상태 설정을 위해 직접 임포트
+import { setSortState } from './ui-history-inspection.js';
+
+import { doc, deleteDoc, updateDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import {
     updateHistoryWorkRecord,
@@ -60,12 +63,18 @@ import {
 
 let isHistoryMaximized = false;
 
+// ✅ [신규] 검수 이력 데이터 캐싱용 변수
+let cachedInspectionData = [];
+
 export function setupHistoryModalListeners() {
 
-    // --- [신규] DOM 요소 참조 (management 패널용) ---
+    // DOM 요소 참조 (management 패널용)
     const managementPanel = document.getElementById('management-panel');
     const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
+    
+    // DOM 요소 참조 (검수 이력 패널용)
+    const inspectionPanel = document.getElementById('inspection-history-panel');
 
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9M20.25 20.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
@@ -196,6 +205,34 @@ export function setupHistoryModalListeners() {
         }
     };
 
+    // ✅ [신규] 검수 이력 데이터 로드 및 렌더링
+    const fetchAndRenderInspectionHistory = async () => {
+        const container = DOM.inspectionHistoryViewContainer;
+        if (!container) return;
+        
+        container.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>검수 이력을 불러오는 중입니다...</div>';
+
+        try {
+            const colRef = collection(State.db, 'product_history');
+            const snapshot = await getDocs(colRef);
+            
+            cachedInspectionData = []; // 초기화
+            snapshot.forEach(doc => {
+                cachedInspectionData.push({
+                    id: doc.id, 
+                    ...doc.data()
+                });
+            });
+
+            renderInspectionHistoryTable(cachedInspectionData);
+
+        } catch (e) {
+            console.error("Error loading inspection history:", e);
+            container.innerHTML = '<div class="text-center text-red-500 py-10">데이터를 불러오는 중 오류가 발생했습니다.</div>';
+            showToast("검수 이력 로딩 실패", true);
+        }
+    };
+
     // --- 이벤트 리스너 등록 ---
 
     if (DOM.historyFilterBtn) {
@@ -244,7 +281,7 @@ export function setupHistoryModalListeners() {
     }
     
     // ====================================================================================
-    // ✅ 통합 다운로드 로직
+    // 통합 다운로드 로직
     // ====================================================================================
 
     const openDownloadFormatModal = (targetType, contextData = {}) => {
@@ -507,7 +544,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 개인 리포트 탭 전환
     if (DOM.personalReportTabs) {
         DOM.personalReportTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-view]');
@@ -531,7 +567,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 개인 리포트 직원 선택
     if (DOM.personalReportMemberSelect) {
         DOM.personalReportMemberSelect.addEventListener('change', (e) => {
             State.context.personalReportMember = e.target.value;
@@ -539,7 +574,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 경영 지표 탭 전환
     if (managementTabs) {
         managementTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-view]');
@@ -562,7 +596,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] 경영 지표 저장 버튼 리스너 (콤마 제거 추가)
     if (managementSaveBtn) {
         managementSaveBtn.addEventListener('click', async () => {
             const dateKey = managementSaveBtn.dataset.dateKey;
@@ -595,6 +628,32 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // ✅ [신규] 검수 이력 패널 내 이벤트 리스너
+    if (DOM.inspectionHistorySearchInput) {
+        DOM.inspectionHistorySearchInput.addEventListener('input', () => {
+            // 캐시된 데이터로 즉시 렌더링 (필터는 렌더링 함수 내부에서 수행)
+            renderInspectionHistoryTable(cachedInspectionData);
+        });
+    }
+
+    if (DOM.inspectionHistoryRefreshBtn) {
+        DOM.inspectionHistoryRefreshBtn.addEventListener('click', () => {
+            fetchAndRenderInspectionHistory();
+        });
+    }
+
+    // 테이블 정렬 헤더 클릭 (이벤트 위임)
+    if (DOM.inspectionHistoryViewContainer) {
+        DOM.inspectionHistoryViewContainer.addEventListener('click', (e) => {
+            const th = e.target.closest('th[data-sort-key]');
+            if (th) {
+                const key = th.dataset.sortKey;
+                setSortState(key); // 정렬 상태 업데이트
+                renderInspectionHistoryTable(cachedInspectionData); // 재렌더링
+            }
+        });
+    }
+
     if (DOM.historyMainTabs) {
         DOM.historyMainTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-main-tab]');
@@ -618,9 +677,12 @@ export function setupHistoryModalListeners() {
                 DOM.reportPanel.classList.toggle('hidden', tabName !== 'report');
                 if (DOM.personalReportPanel) DOM.personalReportPanel.classList.toggle('hidden', tabName !== 'personal');
                 if (managementPanel) managementPanel.classList.toggle('hidden', tabName !== 'management');
+                // ✅ 검수 이력 패널 토글
+                if (inspectionPanel) inspectionPanel.classList.toggle('hidden', tabName !== 'inspection');
                 
+                // 검수 이력은 날짜 리스트 필요 없음
                 if (dateListContainer) {
-                    dateListContainer.style.display = (tabName === 'trends') ? 'none' : 'block';
+                    dateListContainer.style.display = (tabName === 'trends' || tabName === 'inspection') ? 'none' : 'block';
                 }
 
                 if (tabName === 'work') {
@@ -672,6 +734,9 @@ export function setupHistoryModalListeners() {
                      if(viewMode === 'management-yearly') listMode = 'year';
                      
                      renderHistoryDateListByMode(listMode);
+                } else if (tabName === 'inspection') {
+                    // ✅ 검수 이력 탭 진입 시 데이터 로드
+                    fetchAndRenderInspectionHistory();
                 }
             }
         });
@@ -1297,7 +1362,6 @@ export const renderHistoryRecordsTable = (dateKey) => {
     const data = State.allHistoryData.find(d => d.id === dateKey);
     const records = data ? (data.workRecords || []) : [];
 
-    // ✅ [수정] 변수명 변경: memberFilter -> memberFilterVal
     const memberFilterVal = document.getElementById('history-record-filter-member')?.value;
     const taskFilterVal = document.getElementById('history-record-filter-task')?.value;
 
@@ -1337,7 +1401,7 @@ export const renderHistoryRecordsTable = (dateKey) => {
             taskOptions += `<option value="${t}" ${t === r.task ? 'selected' : ''}>${t}</option>`;
         });
 
-        // ✅ [수정] 휴식 시간 계산
+        // 휴식 시간 계산
         const pauseMinutes = calcTotalPauseMinutes(r.pauses);
         const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴: ${formatDuration(pauseMinutes)})</span>` : '';
 

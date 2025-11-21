@@ -32,11 +32,16 @@ import {
     renderPersonalReport
 } from './ui-history-personal.js';
 
-// ✅ [신규] 6. 경영 지표 관련 함수
+// 6. 경영 지표 관련 함수
 import {
     renderManagementDaily,
     renderManagementSummary
 } from './ui-history-management.js';
+
+// ✅ [신규] 7. 검수 이력 관련 함수
+import {
+    renderInspectionHistoryTable
+} from './ui-history-inspection.js';
 
 
 // --- 모든 함수를 ui.js가 사용할 수 있도록 다시 내보내기 ---
@@ -63,7 +68,10 @@ export {
     // 개인 리포트
     renderPersonalReport,
 
-    // ✅ [신규] 경영 지표
+    // 경영 지표
     renderManagementDaily,
-    renderManagementSummary
+    renderManagementSummary,
+
+    // ✅ [신규] 검수 이력
+    renderInspectionHistoryTable
 };

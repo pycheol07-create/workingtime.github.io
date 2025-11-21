@@ -6,14 +6,17 @@ import * as State from './state.js';
 import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
 
 import { 
-    doc, getDoc, setDoc, updateDoc, arrayUnion, increment, serverTimestamp 
+    doc, getDoc, setDoc, updateDoc, arrayUnion, increment, serverTimestamp, collection, getDocs 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ✅ [신규] 검수 이력 테이블 렌더링 함수 임포트
+import { renderInspectionHistoryTable } from './ui-history-inspection.js';
 
 // 금일 검수 세션 동안의 로컬 기록 저장소 (모달 닫기 전까지 유지)
 let todayInspectionList = [];
 
 /**
- * 1. 상품명으로 과거 검수 이력 조회
+ * 1. 상품명으로 과거 검수 이력 조회 (단건 - 입력 모달용)
  */
 export const searchProductHistory = async () => {
     const productNameInput = DOM.inspProductNameInput.value.trim();
@@ -254,4 +257,37 @@ const resetInspectionForm = (clearProductName = false) => {
 export const clearTodayList = () => {
     todayInspectionList = [];
     renderTodayInspectionList();
+};
+
+/**
+ * ✅ [신규] 전체 검수 이력 불러오기 (데이터 관리 탭용)
+ */
+export const loadAllInspectionHistory = async () => {
+    const container = DOM.inspectionHistoryViewContainer;
+    if (!container) return;
+    
+    // 로딩 UI
+    container.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>검수 이력을 불러오는 중입니다...</div>';
+
+    try {
+        const colRef = collection(State.db, 'product_history');
+        const snapshot = await getDocs(colRef);
+        
+        const historyData = [];
+        snapshot.forEach(doc => {
+            // 문서 ID가 곧 상품명
+            historyData.push({
+                id: doc.id, 
+                ...doc.data()
+            });
+        });
+
+        // 데이터 렌더링 (ui-history-inspection.js 함수 호출)
+        renderInspectionHistoryTable(historyData);
+
+    } catch (e) {
+        console.error("Error loading all inspection history:", e);
+        container.innerHTML = '<div class="text-center text-red-500 py-10">데이터를 불러오는 중 오류가 발생했습니다.</div>';
+        showToast("검수 이력 로딩 실패", true);
+    }
 };
