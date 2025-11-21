@@ -70,15 +70,8 @@ export function setupFormInspectionListeners() {
     }
     if (DOM.inspRemoveImageBtn) {
         DOM.inspRemoveImageBtn.addEventListener('click', () => {
-            const previewDiv = document.getElementById('insp-image-preview-box');
-            const fileInput = document.getElementById('insp-image-upload');
-            if(previewDiv) previewDiv.classList.add('hidden');
-            if(fileInput) fileInput.value = '';
-            
-            // 로직 내 이미지 데이터도 초기화하기 위해 로직 함수 호출을 고려할 수 있으나,
-            // 현재 구조상 UI만 초기화하고 저장 시 null 처리되도록 하거나,
-            // 필요하다면 InspectionLogic에 clearImage() 함수를 추가하여 호출할 수 있습니다.
-            // 여기서는 간단히 UI 초기화만 수행합니다. (저장 시 이미지가 없으면 null로 저장됨)
+            // UI 초기화뿐만 아니라 로직 내부의 이미지 상태도 초기화
+            InspectionLogic.clearImageState();
         });
     }
 }

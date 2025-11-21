@@ -194,6 +194,13 @@ export const handleImageSelect = (file) => {
     reader.readAsDataURL(file);
 };
 
+// ✅ [신규] 이미지 상태 초기화 함수 (외부 호출용)
+export const clearImageState = () => {
+    currentImageBase64 = null;
+    if (DOM.inspImagePreviewBox) DOM.inspImagePreviewBox.classList.add('hidden');
+    if (DOM.inspImageInput) DOM.inspImageInput.value = '';
+};
+
 // ======================================================
 // 4. 메인 검수 로직 (조회, 저장, 초기화)
 // ======================================================
@@ -211,10 +218,8 @@ export const searchProductHistory = async () => {
     DOM.inspAlertBox.classList.add('hidden');
     DOM.inspReportTitle.textContent = productNameInput;
     
-    // 이미지 및 폼 초기화
-    currentImageBase64 = null;
-    if (DOM.inspImagePreviewBox) DOM.inspImagePreviewBox.classList.add('hidden');
-    if (DOM.inspImageInput) DOM.inspImageInput.value = '';
+    // 조회 시 이미지 초기화
+    clearImageState();
     
     resetInspectionForm(false); // 상품명은 유지
 
@@ -338,11 +343,9 @@ export const saveInspectionAndNext = async () => {
         renderTodayInspectionList();
         showToast(`'${productName}' 검수 기록 저장 완료!`);
         
-        // 폼 초기화
+        // 폼 및 이미지 초기화
         resetInspectionForm(true);
-        currentImageBase64 = null;
-        if(DOM.inspImagePreviewBox) DOM.inspImagePreviewBox.classList.add('hidden');
-        if(DOM.inspImageInput) DOM.inspImageInput.value = '';
+        clearImageState();
         
         DOM.inspHistoryReport.classList.add('hidden');
         DOM.inspCurrentInputArea.classList.add('hidden');
