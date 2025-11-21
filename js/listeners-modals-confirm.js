@@ -4,6 +4,7 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getTodayDateString, getCurrentTime, calculateDateDifference } from './utils.js'; 
+// ✅ [수정] stopWorkByTask 함수가 반드시 포함되어야 합니다.
 import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
 import { switchHistoryView } from './app-history-logic.js';
@@ -80,17 +81,14 @@ export function setupConfirmationModalListeners() {
                 const { dateKey, index } = State.context.attendanceRecordToDelete;
                 const todayKey = getTodayDateString();
                 
-                // 1. 로컬 데이터에서 삭제 대상 확인
                 const dayData = State.allHistoryData.find(d => d.id === dateKey);
                 if (dayData && dayData.onLeaveMembers && dayData.onLeaveMembers[index]) {
                     const recordToDelete = dayData.onLeaveMembers[index];
                     const isPersistentType = ['연차', '출장', '결근'].includes(recordToDelete.type);
                     
-                    // 2. 영구 저장소(leaveSchedule) 삭제 시도 (연차 등인 경우)
                     let deletedFromPersistent = false;
                     if (isPersistentType) {
                         const pIndex = State.persistentLeaveSchedule.onLeaveMembers.findIndex(p => {
-                            // ID가 있으면 ID로 비교, 없으면 필드값으로 비교
                             if (recordToDelete.id && p.id) return p.id === recordToDelete.id;
                             return p.member === recordToDelete.member && 
                                    p.startDate === recordToDelete.startDate && 
@@ -108,8 +106,7 @@ export function setupConfirmationModalListeners() {
                         }
                     }
 
-                    // 3. 로컬 데이터 및 DB 문서(daily_data/history) 업데이트
-                    dayData.onLeaveMembers.splice(index, 1); // 로컬 즉시 반영
+                    dayData.onLeaveMembers.splice(index, 1);
 
                     try {
                         let docRef;
@@ -149,7 +146,7 @@ export function setupConfirmationModalListeners() {
                         State.appState.dailyOnLeaveMembers.splice(index, 1);
                         dailyChanged = true;
                     }
-                } else { // 'persistent'
+                } else {
                     const index = State.persistentLeaveSchedule.onLeaveMembers.findIndex(
                         r => r.member === memberName && (r.startDate || '') === startIdentifier
                     );
@@ -181,6 +178,7 @@ export function setupConfirmationModalListeners() {
         });
     }
 
+    // 수량 입력 모달의 '확인' 버튼
     if (DOM.confirmQuantityOnStopBtn) {
         DOM.confirmQuantityOnStopBtn.addEventListener('click', async () => {
             const quantity = document.getElementById('quantity-on-stop-input').value;
@@ -197,6 +195,7 @@ export function setupConfirmationModalListeners() {
         });
     }
     
+    // 수량 입력 모달의 '취소' 버튼
     if (DOM.cancelQuantityOnStopBtn) {
         DOM.cancelQuantityOnStopBtn.addEventListener('click', async () => {
             // ✅ [수정] 취소 시에도 종료는 진행 (수량 없이)
@@ -265,7 +264,6 @@ export function setupConfirmationModalListeners() {
             const now = getCurrentTime();
             let actionMessage = '취소';
 
-            // 1. 일일 근태 ('외출', '조퇴', '지각' 등)
             const dailyEntry = State.appState.dailyOnLeaveMembers.find(entry => 
                 entry.member === memberName && 
                 (entry.type === '외출' || entry.type === '조퇴' || entry.type === '지각') && 
@@ -282,14 +280,12 @@ export function setupConfirmationModalListeners() {
                     dailyChanged = true;
                 }
             } else {
-                // 2. 영구 근태 ('연차', '결근' 등) 취소
                 const today = getTodayDateString();
                 const originalLength = State.persistentLeaveSchedule.onLeaveMembers.length;
                 
                 State.persistentLeaveSchedule.onLeaveMembers = (State.persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
                     if (entry.member === memberName) {
                         const endDate = entry.endDate || entry.startDate;
-                        // 오늘 날짜에 걸치는 연차 삭제
                         if (today >= entry.startDate && today <= (endDate || entry.startDate)) {
                             return false;
                         }
@@ -366,7 +362,6 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // 업무 종료 알림 - "네, 마감합니다"
     if (DOM.confirmShiftEndAlertBtn) {
         DOM.confirmShiftEndAlertBtn.addEventListener('click', async () => {
             window.onbeforeunload = null;
@@ -375,7 +370,6 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // 업무 종료 알림 - "아니요, 계속 근무"
     if (DOM.cancelShiftEndAlertBtn) {
         DOM.cancelShiftEndAlertBtn.addEventListener('click', () => {
             window.onbeforeunload = null;
