@@ -269,17 +269,32 @@ export const searchProductHistory = async () => {
             DOM.inspReportCount.textContent = data.totalInbound || 0;
             DOM.inspReportDate.textContent = data.lastInspectionDate || '-';
 
-            // ✅ [수정] 특이사항(불량 이력)이 있을 경우 팝업 알림
-            if (data.defectSummary && data.defectSummary.length > 0) {
-                DOM.inspAlertBox.classList.remove('hidden');
-                const recentDefects = data.defectSummary.slice(-5);
-                const recentDefectsStr = recentDefects.join(', ');
-                DOM.inspAlertMsg.textContent = `과거 불량: ${recentDefectsStr}`;
+            // ✅ [수정] 특이사항(불량 이력) 추출 로직 강화 (구버전 데이터 호환)
+            let defects = data.defectSummary || [];
+            
+            // defectSummary가 없으면 logs를 뒤져서 생성
+            if (defects.length === 0 && data.logs && data.logs.length > 0) {
+                defects = data.logs
+                    .filter(log => log.status === '불량' || (log.defects && log.defects.length > 0))
+                    .map(log => {
+                        const date = log.date || log.inboundDate || '날짜미상';
+                        const issues = log.defects ? log.defects.join(', ') : '불량';
+                        return `${date}: ${issues}`;
+                    });
+            }
+
+            if (defects.length > 0) {
+                if (DOM.inspAlertBox) DOM.inspAlertBox.classList.remove('hidden');
                 
-                // 브라우저 팝업 띄우기
+                // 최신 5건 추출 및 역순 정렬 (최신순 보기 위해)
+                const recentDefects = defects.slice(-5).reverse(); 
+                
+                if (DOM.inspAlertMsg) DOM.inspAlertMsg.textContent = `최근 불량: ${recentDefects[0]}`;
+                
+                // 브라우저 팝업 띄우기 (화면 렌더링 후 살짝 지연)
                 setTimeout(() => {
-                    alert(`🚨 [특이사항 알림] 🚨\n\n이 상품은 과거 ${data.defectSummary.length}회의 특이사항(불량) 기록이 있습니다.\n검수 시 아래 내역을 놓치지 않도록 주의해주세요.\n\n[최근 5건]\n- ${recentDefects.join('\n- ')}`);
-                }, 100); // UI 렌더링 후 살짝 지연 실행
+                    alert(`🚨 [특이사항 알림] 🚨\n\n이 상품은 과거 총 ${defects.length}회의 특이사항(불량) 기록이 있습니다.\n검수 시 아래 내역을 놓치지 않도록 주의해주세요.\n\n[최근 불량 내역]\n- ${recentDefects.join('\n- ')}`);
+                }, 200);
             }
         } else {
             DOM.inspReportCount.textContent = '0 (신규)';
