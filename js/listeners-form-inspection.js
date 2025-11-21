@@ -1,5 +1,5 @@
 // === js/listeners-form-inspection.js ===
-// 설명: 검수 매니저 모달(입력/검색/리스트/스캔/이미지) 관련 리스너를 담당합니다.
+// 설명: 검수 매니저 모달(입력/검색/리스트/스캔/이미지/전체화면) 관련 리스너를 담당합니다.
 
 import * as DOM from './dom-elements.js';
 import * as InspectionLogic from './inspection-logic.js';
@@ -77,27 +77,33 @@ export function setupFormInspectionListeners() {
         });
     }
 
-    // 8. [신규] 전체화면 토글 리스너
-    if (DOM.inspFullscreenBtn && DOM.inspModalContent) {
-        DOM.inspFullscreenBtn.addEventListener('click', () => {
+    // 8. [신규] 전체화면 토글 리스너 (안전 장치 포함)
+    // DOM.inspFullscreenBtn이 import 시점에 null일 경우를 대비해 직접 조회 시도
+    const fullscreenBtn = DOM.inspFullscreenBtn || document.getElementById('insp-fullscreen-btn');
+    const modalContent = DOM.inspModalContent || document.getElementById('insp-modal-content');
+
+    if (fullscreenBtn && modalContent) {
+        fullscreenBtn.addEventListener('click', () => {
             isInspectionMaximized = !isInspectionMaximized;
-            const btnIcon = DOM.inspFullscreenBtn.querySelector('svg');
+            const btnIcon = fullscreenBtn.querySelector('svg');
 
             if (isInspectionMaximized) {
                 // 전체화면 적용
-                DOM.inspModalContent.classList.remove('rounded-2xl', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'relative');
-                DOM.inspModalContent.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
+                modalContent.classList.remove('rounded-2xl', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'relative');
+                modalContent.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
                 // 아이콘 변경 (축소)
                 if (btnIcon) btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
-                DOM.inspFullscreenBtn.title = "기본 크기로";
+                fullscreenBtn.title = "기본 크기로";
             } else {
                 // 기본 크기로 복귀
-                DOM.inspModalContent.classList.add('relative', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'rounded-2xl');
-                DOM.inspModalContent.classList.remove('fixed', 'inset-0', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
+                modalContent.classList.add('relative', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'rounded-2xl');
+                modalContent.classList.remove('fixed', 'inset-0', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
                 // 아이콘 변경 (확대)
                 if (btnIcon) btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
-                DOM.inspFullscreenBtn.title = "전체화면";
+                fullscreenBtn.title = "전체화면";
             }
         });
+    } else {
+        console.warn("검수창 전체화면 버튼 또는 컨텐츠 영역을 찾을 수 없습니다.");
     }
 }

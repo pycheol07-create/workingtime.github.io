@@ -21,7 +21,7 @@ export const inspImagePreviewBox = document.getElementById('insp-image-preview-b
 export const inspImagePreviewImg = document.getElementById('insp-image-preview-img');
 export const inspRemoveImageBtn = document.getElementById('insp-remove-image-btn');
 
-// [신규] 정밀 검수 매니저 전체화면 관련
+// ✅ [신규] 정밀 검수 매니저 전체화면 관련 (여기가 중요합니다!)
 export const inspFullscreenBtn = document.getElementById('insp-fullscreen-btn');
 export const inspModalContent = document.getElementById('insp-modal-content');
 
