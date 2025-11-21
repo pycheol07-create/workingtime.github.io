@@ -4,7 +4,7 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getTodayDateString, getCurrentTime, calculateDateDifference } from './utils.js'; 
-import { finalizeStopGroup, stopWorkIndividual } from './app-logic.js';
+import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
 import { switchHistoryView } from './app-history-logic.js';
 import { render } from './app.js'; 
@@ -77,7 +77,6 @@ export function setupConfirmationModalListeners() {
                 }
             }
             else if (State.context.deleteMode === 'attendance') {
-                // ✅ [수정] 이력 탭에서의 근태 삭제 로직 강화
                 const { dateKey, index } = State.context.attendanceRecordToDelete;
                 const todayKey = getTodayDateString();
                 
@@ -110,7 +109,6 @@ export function setupConfirmationModalListeners() {
                     }
 
                     // 3. 로컬 데이터 및 DB 문서(daily_data/history) 업데이트
-                    // (영구 일정에서 삭제했더라도, 이미 날짜별 문서에 복사된 데이터는 별도로 지워야 함)
                     dayData.onLeaveMembers.splice(index, 1); // 로컬 즉시 반영
 
                     try {
@@ -121,12 +119,9 @@ export function setupConfirmationModalListeners() {
                             docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                         }
 
-                        // 배열 전체를 덮어쓰는 방식으로 업데이트 (확실한 동기화)
                         await updateDoc(docRef, { onLeaveMembers: dayData.onLeaveMembers });
-                        
                         showToast(`${recordToDelete.member}님의 '${recordToDelete.type}' 기록이 삭제되었습니다.`);
                         
-                        // 4. 화면 갱신
                         const activeAttendanceTab = document.querySelector('#attendance-history-tabs button.font-semibold');
                         const view = activeAttendanceTab ? activeAttendanceTab.dataset.view : 'attendance-daily';
                         await switchHistoryView(view);
@@ -141,7 +136,6 @@ export function setupConfirmationModalListeners() {
                 
                 State.context.attendanceRecordToDelete = null;
             }
-            // 메인 화면에서의 근태 삭제 (아이콘 클릭 등)
             else if (State.context.deleteMode === 'leave-record') {
                 const { memberName, startIdentifier, type, displayType } = State.context.attendanceRecordToDelete;
                 let dailyChanged = false;
@@ -190,17 +184,30 @@ export function setupConfirmationModalListeners() {
     if (DOM.confirmQuantityOnStopBtn) {
         DOM.confirmQuantityOnStopBtn.addEventListener('click', async () => {
             const quantity = document.getElementById('quantity-on-stop-input').value;
-            await finalizeStopGroup(State.context.groupToStopId, quantity);
+            
+            // ✅ [수정] Task 기준 종료 우선 처리
+            if (State.context.taskToStop) {
+                await stopWorkByTask(State.context.taskToStop, quantity);
+                State.context.taskToStop = null;
+            } else if (State.context.groupToStopId) {
+                await finalizeStopGroup(State.context.groupToStopId, quantity);
+                State.context.groupToStopId = null;
+            }
             DOM.quantityOnStopModal.classList.add('hidden');
-            State.context.groupToStopId = null;
         });
     }
     
     if (DOM.cancelQuantityOnStopBtn) {
         DOM.cancelQuantityOnStopBtn.addEventListener('click', async () => {
-            await finalizeStopGroup(State.context.groupToStopId, null);
+            // ✅ [수정] 취소 시에도 종료는 진행 (수량 없이)
+            if (State.context.taskToStop) {
+                await stopWorkByTask(State.context.taskToStop, null);
+                State.context.taskToStop = null;
+            } else if (State.context.groupToStopId) {
+                await finalizeStopGroup(State.context.groupToStopId, null);
+                State.context.groupToStopId = null;
+            }
             DOM.quantityOnStopModal.classList.add('hidden');
-            State.context.groupToStopId = null;
         });
     }
 
@@ -212,11 +219,29 @@ export function setupConfirmationModalListeners() {
         });
     }
 
+    // ✅ [수정] 그룹(업무) 종료 확인 버튼 리스너
     if (DOM.confirmStopGroupBtn) {
         DOM.confirmStopGroupBtn.addEventListener('click', async () => {
-            if (State.context.groupToStopId) {
+            if (DOM.stopGroupConfirmModal) DOM.stopGroupConfirmModal.classList.add('hidden');
+
+            // 1. Task 기준 일괄 종료 (우선순위)
+            if (State.context.taskToStop) {
+                const quantityTasks = State.appConfig.quantityTaskTypes || [];
+                // 처리량 입력 대상 업무인지 확인
+                if (quantityTasks.includes(State.context.taskToStop)) {
+                    const qTaskNameSpan = document.getElementById('quantity-on-stop-task-name');
+                    if(qTaskNameSpan) qTaskNameSpan.textContent = State.context.taskToStop;
+                    document.getElementById('quantity-on-stop-input').value = '';
+                    if (DOM.quantityOnStopModal) DOM.quantityOnStopModal.classList.remove('hidden');
+                } else {
+                    // 처리량 대상 아니면 바로 종료
+                    await stopWorkByTask(State.context.taskToStop, null);
+                    State.context.taskToStop = null;
+                }
+            }
+            // 2. 기존 Group ID 기준 (호환성 유지)
+            else if (State.context.groupToStopId) {
                 await finalizeStopGroup(State.context.groupToStopId, null);
-                if (DOM.stopGroupConfirmModal) DOM.stopGroupConfirmModal.classList.add('hidden');
                 State.context.groupToStopId = null;
             }
         });
@@ -226,6 +251,7 @@ export function setupConfirmationModalListeners() {
         DOM.cancelStopGroupBtn.addEventListener('click', () => {
             if (DOM.stopGroupConfirmModal) DOM.stopGroupConfirmModal.classList.add('hidden');
             State.context.groupToStopId = null;
+            State.context.taskToStop = null; // 초기화
         });
     }
     
@@ -248,7 +274,6 @@ export function setupConfirmationModalListeners() {
 
             if (dailyEntry) {
                 if (dailyEntry.type === '외출') {
-                    // 외출은 종료 시간 기록 (이력 유지)
                     dailyEntry.endTime = now;
                     dailyChanged = true;
                     actionMessage = '복귀 완료';
@@ -278,12 +303,8 @@ export function setupConfirmationModalListeners() {
             }
 
             try {
-                if (dailyChanged) {
-                    await saveStateToFirestore();
-                }
-                if (persistentChanged) {
-                    await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
-                }
+                if (dailyChanged) await saveStateToFirestore();
+                if (persistentChanged) await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
 
                 if (dailyChanged || persistentChanged) {
                     showToast(`${memberName}님 ${actionMessage} 처리되었습니다.`);
@@ -345,27 +366,19 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // ✅ [신규] 업무 종료 알림 - "네, 마감합니다" 버튼
+    // 업무 종료 알림 - "네, 마감합니다"
     if (DOM.confirmShiftEndAlertBtn) {
         DOM.confirmShiftEndAlertBtn.addEventListener('click', async () => {
-            // 1. 브라우저 종료 방지 해제
             window.onbeforeunload = null;
-            
-            // 2. 모달 닫기
             if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden');
-
-            // 3. 마감 처리 (Reset: true)
             await saveDayDataToHistory(true);
         });
     }
 
-    // ✅ [신규] 업무 종료 알림 - "아니요, 계속 근무" 버튼
+    // 업무 종료 알림 - "아니요, 계속 근무"
     if (DOM.cancelShiftEndAlertBtn) {
         DOM.cancelShiftEndAlertBtn.addEventListener('click', () => {
-            // 1. 브라우저 종료 방지 해제 (사용자가 의도적으로 남음)
             window.onbeforeunload = null;
-
-            // 2. 모달 닫기
             if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden');
         });
     }
