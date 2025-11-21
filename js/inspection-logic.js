@@ -3,6 +3,8 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
+// ✅ updateDailyData 임포트 추가
+import { updateDailyData } from './app-data.js'; 
 import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
 import { 
     doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, increment, serverTimestamp, collection, getDocs 
@@ -11,7 +13,7 @@ import { renderInspectionHistoryTable, renderInspectionLogTable } from './ui-his
 
 // 로컬 상태 변수
 let todayInspectionList = [];
-let inspectionTodoList = []; // 엑셀 업로드된 리스트
+// let inspectionTodoList = []; // ⛔️ 삭제 (appState.inspectionList 사용)
 let html5QrCode = null; // 스캐너 인스턴스
 let currentImageBase64 = null; // 업로드된 이미지 데이터
 let currentProductLogs = []; // 상세보기를 위한 임시 저장소
@@ -21,7 +23,7 @@ let currentProductLogs = []; // 상세보기를 위한 임시 저장소
 // ======================================================
 export const handleExcelUpload = (file) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => { // async 추가
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
@@ -30,7 +32,7 @@ export const handleExcelUpload = (file) => {
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
             // 엑셀 파싱: 1열(A)=코드, 2열(B)=이름, 3열(C)=옵션
-            inspectionTodoList = [];
+            const newList = []; // ✅ 임시 배열
             if (jsonData.length > 1) {
                 for (let i = 1; i < jsonData.length; i++) {
                     const row = jsonData[i];
@@ -39,13 +41,19 @@ export const handleExcelUpload = (file) => {
                         const name = String(row[1] || '').trim();
                         const option = String(row[2] || '').trim();
                         if (code) {
-                            inspectionTodoList.push({ code, name, option, status: '대기' });
+                            newList.push({ code, name, option, status: '대기' });
                         }
                     }
                 }
             }
-            renderTodoList();
-            showToast(`${inspectionTodoList.length}개의 검수 대기 목록을 불러왔습니다.`);
+
+            // ✅ [수정] 로컬 변수가 아니라 DB(Firestore)에 저장하여 동기화
+            if (newList.length > 0) {
+                await updateDailyData({ inspectionList: newList });
+                showToast(`${newList.length}개의 검수 리스트가 서버에 저장되었습니다.`);
+                // renderTodoList는 app.js의 실시간 리스너에서 호출됨
+            }
+
         } catch (err) {
             console.error("Excel parse error:", err);
             showToast("엑셀 파일 처리 중 오류가 발생했습니다.", true);
@@ -54,10 +62,14 @@ export const handleExcelUpload = (file) => {
     reader.readAsArrayBuffer(file);
 };
 
-const renderTodoList = () => {
+// ✅ [수정] export 추가 및 데이터 소스 변경
+export const renderTodoList = () => {
+    // ✅ 데이터 소스를 appState로 변경
+    const list = State.appState.inspectionList || [];
+
     if (!DOM.inspTodoListArea || !DOM.inspTodoListBody) return;
     
-    if (inspectionTodoList.length > 0) {
+    if (list.length > 0) {
         DOM.inspTodoListArea.classList.remove('hidden');
     } else {
         DOM.inspTodoListArea.classList.add('hidden');
@@ -65,7 +77,7 @@ const renderTodoList = () => {
     }
 
     DOM.inspTodoListBody.innerHTML = '';
-    inspectionTodoList.forEach((item, idx) => {
+    list.forEach((item, idx) => {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-blue-50 transition border-b last:border-0 cursor-pointer';
         const statusColor = item.status === '완료' ? 'text-green-600 font-bold' : 'text-gray-400';
@@ -87,7 +99,10 @@ const renderTodoList = () => {
 };
 
 const selectTodoItem = (index) => {
-    const item = inspectionTodoList[index];
+    // ✅ appState 참조
+    const item = State.appState.inspectionList[index];
+    if (!item) return;
+
     // 폼에 자동 입력
     DOM.inspProductNameInput.value = item.name; 
     
@@ -142,8 +157,9 @@ const onScanSuccess = (decodedText, decodedResult) => {
     stopScanner(); 
     DOM.inspScannerContainer.classList.add('hidden');
 
-    // 1. 업로드된 리스트에서 코드 매칭 시도
-    const foundIdx = inspectionTodoList.findIndex(item => item.code === decodedText || decodedText.includes(item.code));
+    // 1. 업로드된 리스트에서 코드 매칭 시도 (appState 참조)
+    const list = State.appState.inspectionList || [];
+    const foundIdx = list.findIndex(item => item.code === decodedText || decodedText.includes(item.code));
     
     if (foundIdx > -1) {
         selectTodoItem(foundIdx);
@@ -324,11 +340,15 @@ export const saveInspectionAndNext = async () => {
 
         await setDoc(docRef, updates, { merge: true });
 
-        // 할 일 목록 상태 업데이트 (완료 처리)
-        const todoItem = inspectionTodoList.find(item => item.name === productName || productName.includes(item.code));
-        if(todoItem) {
-            todoItem.status = '완료';
-            renderTodoList();
+        // ✅ [수정] 리스트 상태 업데이트 및 DB 동기화
+        const list = State.appState.inspectionList || [];
+        const todoIndex = list.findIndex(item => item.name === productName || productName.includes(item.code));
+        
+        if(todoIndex > -1) {
+            // 로컬 상태 변경
+            list[todoIndex].status = '완료';
+            // 변경된 리스트 전체를 DB에 다시 저장 (동기화)
+            await updateDailyData({ inspectionList: list });
         }
 
         todayInspectionList.unshift({

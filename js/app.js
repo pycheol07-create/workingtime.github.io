@@ -39,6 +39,9 @@ import {
     debouncedSaveState
 } from './app-data.js';
 
+// ✅ [신규] 검수 리스트 렌더링 함수 임포트
+import { renderTodoList } from './inspection-logic.js';
+
 
 // --- 3. 헬퍼 함수 ---
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
@@ -467,9 +470,15 @@ async function startAppAfterLogin(user) {
             State.appState.confirmedZeroTasks = data.confirmedZeroTasks || legacyState.confirmedZeroTasks || [];
             State.appState.dailyAttendance = data.dailyAttendance || legacyState.dailyAttendance || {};
 
+            // ✅ [신규] 검수 리스트 동기화
+            State.appState.inspectionList = data.inspectionList || [];
+
             State.setIsDataDirty(false); 
 
             render();
+            
+            // ✅ [신규] 검수 리스트 UI 갱신 (실시간 반영)
+            renderTodoList();
             
             if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (메타)';
             if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';

@@ -133,7 +133,10 @@ export const appState = {
     simulationResults: null,
     lunchPauseExecuted: false,
     lunchResumeExecuted: false,
-    shiftEndAlertExecuted: false // 업무 종료 알림 실행 여부
+    shiftEndAlertExecuted: false, // 업무 종료 알림 실행 여부
+    
+    // ✅ [신규] 검수 대기 리스트 (서버 동기화용)
+    inspectionList: [] 
 };
 
 export const allHistoryData = [];
