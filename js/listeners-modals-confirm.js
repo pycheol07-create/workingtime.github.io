@@ -3,16 +3,16 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast, getTodayDateString } from './utils.js'; 
+import { showToast, getTodayDateString, getCurrentTime, calculateDateDifference } from './utils.js'; 
 import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
 import { switchHistoryView } from './app-history-logic.js';
 import { render } from './app.js'; 
-import { saveStateToFirestore } from './app-data.js'; 
+import { debouncedSaveState, saveStateToFirestore } from './app-data.js'; 
 import { saveLeaveSchedule } from './config.js'; 
 
 import { 
-    doc, deleteDoc, writeBatch, collection 
+    doc, deleteDoc, writeBatch, collection, query, where, getDocs, setDoc, getDoc, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const deleteWorkRecordDocument = async (recordId) => {
@@ -115,11 +115,7 @@ export function setupConfirmationModalListeners() {
                             docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                         }
 
-                        // updateDoc 임포트 필요하지만, 위에서 이미 임포트 되어 있음
-                        // (하지만 원본 코드에서 updateDoc 누락 가능성 있어 확인 필요. 
-                        //  여기서는 위쪽 import 구문에 updateDoc이 없으므로 추가하거나 setDoc merge 사용)
-                        //  -> 편의상 setDoc merge 사용
-                        await setDoc(docRef, { onLeaveMembers: dayData.onLeaveMembers }, { merge: true });
+                        await updateDoc(docRef, { onLeaveMembers: dayData.onLeaveMembers });
                         
                         showToast(`${recordToDelete.member}님의 '${recordToDelete.type}' 기록이 삭제되었습니다.`);
                         
@@ -182,7 +178,6 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // 수량 입력 모달은 이제 사용되지 않을 수 있지만, 코드 안전성을 위해 유지 (호출되지 않음)
     if (DOM.confirmQuantityOnStopBtn) {
         DOM.confirmQuantityOnStopBtn.addEventListener('click', async () => {
             const quantity = document.getElementById('quantity-on-stop-input').value;
@@ -226,7 +221,7 @@ export function setupConfirmationModalListeners() {
 
             // 1. Task 기준 일괄 종료 (우선순위)
             if (State.context.taskToStop) {
-                // 처리량 입력 로직 삭제됨 -> 바로 종료 호출 (quantity: null)
+                // ✅ [수정] 처리량 입력 로직 제거 -> 바로 종료 호출 (quantity: null)
                 await stopWorkByTask(State.context.taskToStop, null);
                 State.context.taskToStop = null;
             }
@@ -246,7 +241,6 @@ export function setupConfirmationModalListeners() {
         });
     }
     
-    // (나머지 리스너들은 변경 없음)
     if (DOM.confirmCancelLeaveBtn) {
         DOM.confirmCancelLeaveBtn.addEventListener('click', async () => {
             const memberName = State.context.memberToCancelLeave;
@@ -254,7 +248,7 @@ export function setupConfirmationModalListeners() {
 
             let dailyChanged = false;
             let persistentChanged = false;
-            // const now = getCurrentTime(); // 사용되지 않으므로 주석 처리
+            const now = getCurrentTime();
             let actionMessage = '취소';
 
             const dailyEntry = State.appState.dailyOnLeaveMembers.find(entry => 
@@ -335,7 +329,7 @@ export function setupConfirmationModalListeners() {
                 }
 
                 const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
-                await setDoc(docRef, {}, { merge: true }); // 기존 merge: false 였을 수 있으나, 안전하게
+                await setDoc(docRef, {});
 
                 State.appState.workRecords = [];
                 State.appState.taskQuantities = {};
