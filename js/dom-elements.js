@@ -21,7 +21,7 @@ export const inspImagePreviewBox = document.getElementById('insp-image-preview-b
 export const inspImagePreviewImg = document.getElementById('insp-image-preview-img');
 export const inspRemoveImageBtn = document.getElementById('insp-remove-image-btn');
 
-// ✅ [신규] 정밀 검수 매니저 전체화면 관련 (여기가 중요합니다!)
+// [신규] 정밀 검수 매니저 전체화면 관련
 export const inspFullscreenBtn = document.getElementById('insp-fullscreen-btn');
 export const inspModalContent = document.getElementById('insp-modal-content');
 
@@ -276,13 +276,16 @@ export const inspAlertMsg = document.getElementById('insp-alert-msg');
 
 // 금일 입력 영역 (입력 모달 내)
 export const inspCurrentInputArea = document.getElementById('insp-current-input-area');
-export const inspPackingNoInput = document.getElementById('insp-packing-no');
+export const inspInboundDateInput = document.getElementById('insp-inbound-date');
 export const inspInboundQtyInput = document.getElementById('insp-inbound-qty');
 export const inspNotesInput = document.getElementById('insp-notes');
 export const inspSaveNextBtn = document.getElementById('insp-save-next-btn');
+export const inspOptionDisplay = document.getElementById('insp-option-display');
+export const inspCodeDisplay = document.getElementById('insp-code-display');
 
 // 13가지 체크리스트 항목 (입력 모달 내)
 export const inspCheckThickness = document.getElementById('insp-check-thickness');
+export const inspThicknessRef = document.getElementById('insp-thickness-ref');
 export const inspCheckFabric = document.getElementById('insp-check-fabric');
 export const inspCheckColor = document.getElementById('insp-check-color');
 export const inspCheckDistortion = document.getElementById('insp-check-distortion');

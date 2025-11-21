@@ -518,6 +518,10 @@
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
                         </button>
                     </div>
+                    <div class="mt-1 flex gap-2 text-xs text-gray-500">
+                        <span id="insp-option-display" class="bg-gray-100 px-2 py-0.5 rounded">옵션: -</span>
+                        <span id="insp-code-display" class="bg-gray-100 px-2 py-0.5 rounded">코드: -</span>
+                    </div>
                 </div>
                 <button id="insp-search-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-sm transition h-[46px]">
                     조회
@@ -560,8 +564,8 @@
                 
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                        <label for="insp-packing-no" class="block text-xs font-bold text-gray-500 mb-1">패킹 번호</label>
-                        <input type="text" id="insp-packing-no" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="예: PK-241120">
+                        <label for="insp-inbound-date" class="block text-xs font-bold text-gray-500 mb-1">입고 일자</label>
+                        <input type="text" id="insp-inbound-date" class="w-full p-2 border border-gray-300 rounded-md text-sm bg-gray-100" readonly placeholder="자동 입력됨">
                     </div>
                     <div>
                         <label for="insp-inbound-qty" class="block text-xs font-bold text-gray-500 mb-1">입고 수량</label>
@@ -571,18 +575,20 @@
 
                 <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2">🔍 품질 체크리스트</h4>
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    
                     <div>
-                        <label class="block text-xs font-bold text-gray-600 mb-1">두께감</label>
-                        <select id="insp-check-thickness" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="정상" selected>정상 (기존동일)</option>
-                            <option value="얇음">얇아짐</option>
-                            <option value="두꺼움">두꺼워짐</option>
-                        </select>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">두께 (실측)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="insp-check-thickness" class="w-full p-2 border border-gray-300 rounded text-sm focus:border-indigo-500" placeholder="0.0" step="0.1">
+                            <span id="insp-thickness-ref" class="text-xs text-gray-500 whitespace-nowrap">기준: -</span>
+                        </div>
                     </div>
+
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">원단 상태</label>
                         <select id="insp-check-fabric" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="정상" selected>정상</option>
+                            <option value="" selected disabled>선택...</option>
+                            <option value="정상">정상</option>
                             <option value="변경됨">재질 변경됨</option>
                             <option value="불량">불량 (오염/손상)</option>
                         </select>
@@ -590,7 +596,8 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">컬러 (기존대비)</label>
                         <select id="insp-check-color" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="동일" selected>동일</option>
+                            <option value="" selected disabled>선택...</option>
+                            <option value="동일">동일</option>
                             <option value="미세차이">미세 차이</option>
                             <option value="상이함">확연히 다름</option>
                         </select>
@@ -598,21 +605,24 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">뒤틀림</label>
                         <select id="insp-check-distortion" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="없음" selected>없음 (양호)</option>
+                            <option value="" selected disabled>선택...</option>
+                            <option value="없음">없음 (양호)</option>
                             <option value="있음">있음 (불량)</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">올 풀림</label>
                         <select id="insp-check-unraveling" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="없음" selected>없음 (양호)</option>
+                            <option value="" selected disabled>선택...</option>
+                            <option value="없음">없음 (양호)</option>
                             <option value="있음">있음 (불량)</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">실밥 마감</label>
                         <select id="insp-check-finishing" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="양호" selected>양호</option>
+                            <option value="" selected disabled>선택...</option>
+                            <option value="양호">양호</option>
                             <option value="미흡">미흡 (정리필요)</option>
                             <option value="불량">불량 (심각)</option>
                         </select>
@@ -620,7 +630,8 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">부자재 (지퍼)</label>
                         <select id="insp-check-zipper" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="양호" selected>양호</option>
+                            <option value="" selected disabled>선택...</option>
+                            <option value="양호">양호</option>
                             <option value="불량">불량 (작동불가/파손)</option>
                             <option value="해당없음">해당 없음</option>
                         </select>
@@ -628,7 +639,8 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">부자재 (단추)</label>
                         <select id="insp-check-button" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="양호" selected>양호</option>
+                            <option value="" selected disabled>선택...</option>
+                            <option value="양호">양호</option>
                             <option value="불량">불량 (깨짐/떨어짐)</option>
                             <option value="해당없음">해당 없음</option>
                         </select>
@@ -636,7 +648,8 @@
                      <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">안감 촉감</label>
                         <select id="insp-check-lining" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="양호" selected>양호 (부드러움)</option>
+                            <option value="" selected disabled>선택...</option>
+                            <option value="양호">양호 (부드러움)</option>
                             <option value="거침">거침 (불량의심)</option>
                             <option value="해당없음">해당 없음</option>
                         </select>
@@ -644,14 +657,16 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">겉면 보풀</label>
                         <select id="insp-check-pilling" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="없음" selected>없음</option>
+                            <option value="" selected disabled>선택...</option>
+                            <option value="없음">없음</option>
                             <option value="있음">있음 (불량)</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">이염 여부</label>
                         <select id="insp-check-dye" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                            <option value="없음" selected>없음</option>
+                            <option value="" selected disabled>선택...</option>
+                            <option value="없음">없음</option>
                             <option value="있음">있음 (심각)</option>
                         </select>
                     </div>
@@ -683,7 +698,7 @@
                 
                 <button id="insp-save-next-btn" class="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-lg">
                     <span>검수 완료 및 저장</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0 1 18 0Z" /></svg>
                 </button>
             </div>
 
