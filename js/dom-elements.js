@@ -276,9 +276,40 @@ export const inspTodayCount = document.getElementById('insp-today-count');
 export const inspClearListBtn = document.getElementById('insp-clear-list-btn');
 export const inspTodayListBody = document.getElementById('insp-today-list-body');
 
-// ✅ [신규] 검수 이력 패널 관련 요소 (데이터 관리 팝업 내)
+// 검수 이력 패널 관련 요소 (데이터 관리 팝업 내)
 export const inspectionHistoryPanel = document.getElementById('inspection-history-panel');
 export const inspectionHistorySearchInput = document.getElementById('inspection-history-search');
 export const inspectionHistoryRefreshBtn = document.getElementById('inspection-history-refresh-btn');
 export const inspectionTotalProductCount = document.getElementById('inspection-total-product-count');
 export const inspectionHistoryViewContainer = document.getElementById('inspection-history-view-container');
+
+// ✅ [신규] 검수 이력 관리 모달 (상세보기)
+export const inspectionLogManagerModal = document.getElementById('inspection-log-manager-modal');
+export const inspectionLogProductName = document.getElementById('inspection-log-product-name');
+export const inspectionLogTableBody = document.getElementById('inspection-log-table-body');
+
+// ✅ [신규] 검수 기록 수정 모달 (편집)
+export const inspectionLogEditorModal = document.getElementById('inspection-log-editor-modal');
+export const editInspProductName = document.getElementById('edit-insp-product-name');
+export const editInspDateTime = document.getElementById('edit-insp-date-time');
+export const editInspPackingNo = document.getElementById('edit-insp-packing-no');
+export const editInspInboundQty = document.getElementById('edit-insp-inbound-qty');
+export const editInspNotes = document.getElementById('edit-insp-notes');
+export const editInspLogIndex = document.getElementById('edit-insp-log-index');
+export const editInspOriginalDefects = document.getElementById('edit-insp-original-defects'); // 원래 불량 상태 보관용
+
+// 13가지 체크리스트 항목 (수정 모달용)
+export const editInspCheckThickness = document.getElementById('edit-insp-check-thickness');
+export const editInspCheckFabric = document.getElementById('edit-insp-check-fabric');
+export const editInspCheckColor = document.getElementById('edit-insp-check-color');
+export const editInspCheckDistortion = document.getElementById('edit-insp-check-distortion');
+export const editInspCheckUnraveling = document.getElementById('edit-insp-check-unraveling');
+export const editInspCheckFinishing = document.getElementById('edit-insp-check-finishing');
+export const editInspCheckZipper = document.getElementById('edit-insp-check-zipper');
+export const editInspCheckButton = document.getElementById('edit-insp-check-button');
+export const editInspCheckLining = document.getElementById('edit-insp-check-lining');
+export const editInspCheckPilling = document.getElementById('edit-insp-check-pilling');
+export const editInspCheckDye = document.getElementById('edit-insp-check-dye');
+
+export const deleteInspLogBtn = document.getElementById('delete-insp-log-btn');
+export const saveInspLogBtn = document.getElementById('save-insp-log-btn');

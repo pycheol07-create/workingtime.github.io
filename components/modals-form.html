@@ -657,3 +657,146 @@
         </div>
     </div>
 </div>
+
+<div id="inspection-log-editor-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[80] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl relative flex flex-col max-h-[95vh]">
+        
+        <div class="p-5 border-b border-gray-200 bg-white flex justify-between items-center flex-shrink-0 rounded-t-2xl">
+            <h2 class="text-xl font-bold text-gray-900">검수 기록 수정</h2>
+            <button class="modal-close-btn text-gray-400 hover:text-gray-700" onclick="document.getElementById('inspection-log-editor-modal').classList.add('hidden')">&times;</button>
+        </div>
+
+        <div class="p-6 space-y-6 overflow-y-auto flex-grow">
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">상품명</label>
+                    <input type="text" id="edit-insp-product-name" class="w-full p-2 border border-gray-300 rounded-md text-sm bg-gray-100" readonly>
+                </div>
+                 <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">검수 일시</label>
+                    <input type="text" id="edit-insp-date-time" class="w-full p-2 border border-gray-300 rounded-md text-sm bg-gray-100" readonly>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="edit-insp-packing-no" class="block text-xs font-bold text-gray-500 mb-1">패킹 번호</label>
+                    <input type="text" id="edit-insp-packing-no" class="w-full p-2 border border-gray-300 rounded-md text-sm">
+                </div>
+                <div>
+                    <label for="edit-insp-inbound-qty" class="block text-xs font-bold text-gray-500 mb-1">입고 수량</label>
+                    <input type="number" id="edit-insp-inbound-qty" class="w-full p-2 border border-gray-300 rounded-md text-sm">
+                </div>
+            </div>
+
+            <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2">품질 체크리스트 수정</h4>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                 <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">두께감</label>
+                    <select id="edit-insp-check-thickness" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="정상">정상 (기존동일)</option>
+                        <option value="얇음">얇아짐</option>
+                        <option value="두꺼움">두꺼워짐</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">원단 상태</label>
+                    <select id="edit-insp-check-fabric" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="정상">정상</option>
+                        <option value="변경됨">재질 변경됨</option>
+                        <option value="불량">불량 (오염/손상)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">컬러 (기존대비)</label>
+                    <select id="edit-insp-check-color" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="동일">동일</option>
+                        <option value="미세차이">미세 차이</option>
+                        <option value="상이함">확연히 다름</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">뒤틀림</label>
+                    <select id="edit-insp-check-distortion" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="없음">없음 (양호)</option>
+                        <option value="있음">있음 (불량)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">올 풀림</label>
+                    <select id="edit-insp-check-unraveling" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="없음">없음 (양호)</option>
+                        <option value="있음">있음 (불량)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">실밥 마감</label>
+                    <select id="edit-insp-check-finishing" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="양호">양호</option>
+                        <option value="미흡">미흡 (정리필요)</option>
+                        <option value="불량">불량 (심각)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">부자재 (지퍼)</label>
+                    <select id="edit-insp-check-zipper" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="양호">양호</option>
+                        <option value="불량">불량 (작동불가/파손)</option>
+                        <option value="해당없음">해당 없음</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">부자재 (단추)</label>
+                    <select id="edit-insp-check-button" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="양호">양호</option>
+                        <option value="불량">불량 (깨짐/떨어짐)</option>
+                        <option value="해당없음">해당 없음</option>
+                    </select>
+                </div>
+                 <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">안감 촉감</label>
+                    <select id="edit-insp-check-lining" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="양호">양호 (부드러움)</option>
+                        <option value="거침">거침 (불량의심)</option>
+                        <option value="해당없음">해당 없음</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">겉면 보풀</label>
+                    <select id="edit-insp-check-pilling" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="없음">없음</option>
+                        <option value="있음">있음 (불량)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">이염 여부</label>
+                    <select id="edit-insp-check-dye" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="없음">없음</option>
+                        <option value="있음">있음 (심각)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <label for="edit-insp-notes" class="block text-xs font-bold text-gray-600 mb-1">종합 특이사항 메모</label>
+                <input type="text" id="edit-insp-notes" class="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 outline-none">
+            </div>
+            
+            <input type="hidden" id="edit-insp-log-index">
+            <input type="hidden" id="edit-insp-original-defects">
+
+        </div>
+
+        <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-between rounded-b-2xl">
+            <button type="button" id="delete-insp-log-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition">기록 삭제</button>
+            <div>
+                <button type="button" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition mr-2" onclick="document.getElementById('inspection-log-editor-modal').classList.add('hidden')">취소</button>
+                <button type="button" id="save-insp-log-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition">수정 저장</button>
+            </div>
+        </div>
+    </div>
+</div>

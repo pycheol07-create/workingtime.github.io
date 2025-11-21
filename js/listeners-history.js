@@ -45,11 +45,16 @@ import {
     renderPersonalReport,
     renderManagementDaily,
     renderManagementSummary,
-    renderInspectionHistoryTable // ✅ [신규] 검수 이력 렌더링 함수
 } from './ui-history.js';
 
-// ✅ [신규] 정렬 상태 설정을 위해 직접 임포트
-import { setSortState } from './ui-history-inspection.js';
+// ✅ [신규] 검수 이력 관련 렌더링 및 로직 임포트
+import { renderInspectionHistoryTable, setSortState } from './ui-history-inspection.js';
+import { 
+    loadInspectionLogs, 
+    prepareEditInspectionLog, 
+    updateInspectionLog, 
+    deleteInspectionLog 
+} from './inspection-logic.js';
 
 import { doc, deleteDoc, updateDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -63,7 +68,7 @@ import {
 
 let isHistoryMaximized = false;
 
-// ✅ [신규] 검수 이력 데이터 캐싱용 변수
+// ✅ [신규] 검수 이력 데이터 캐싱용 변수 (검색/정렬 시 재사용)
 let cachedInspectionData = [];
 
 export function setupHistoryModalListeners() {
@@ -224,6 +229,7 @@ export function setupHistoryModalListeners() {
                 });
             });
 
+            // 초기 렌더링
             renderInspectionHistoryTable(cachedInspectionData);
 
         } catch (e) {
@@ -631,7 +637,6 @@ export function setupHistoryModalListeners() {
     // ✅ [신규] 검수 이력 패널 내 이벤트 리스너
     if (DOM.inspectionHistorySearchInput) {
         DOM.inspectionHistorySearchInput.addEventListener('input', () => {
-            // 캐시된 데이터로 즉시 렌더링 (필터는 렌더링 함수 내부에서 수행)
             renderInspectionHistoryTable(cachedInspectionData);
         });
     }
@@ -642,15 +647,50 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 테이블 정렬 헤더 클릭 (이벤트 위임)
+    // 테이블 정렬/상세보기 클릭 (이벤트 위임)
     if (DOM.inspectionHistoryViewContainer) {
         DOM.inspectionHistoryViewContainer.addEventListener('click', (e) => {
+            // 정렬
             const th = e.target.closest('th[data-sort-key]');
             if (th) {
                 const key = th.dataset.sortKey;
-                setSortState(key); // 정렬 상태 업데이트
-                renderInspectionHistoryTable(cachedInspectionData); // 재렌더링
+                setSortState(key);
+                renderInspectionHistoryTable(cachedInspectionData);
+                return;
             }
+
+            // 상세보기 (로그 관리 모달 열기)
+            const detailBtn = e.target.closest('.btn-view-detail');
+            if (detailBtn) {
+                const productName = detailBtn.dataset.productName;
+                loadInspectionLogs(productName);
+            }
+        });
+    }
+
+    // ✅ [신규] 상세 로그 관리 모달 내부 이벤트
+    // 1. 로그 수정 버튼 (테이블 내)
+    const inspLogTableBody = document.getElementById('inspection-log-table-body');
+    if (inspLogTableBody) {
+        inspLogTableBody.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.btn-edit-insp-log');
+            if (editBtn) {
+                const index = parseInt(editBtn.dataset.index, 10);
+                const productName = DOM.inspectionLogProductName.textContent;
+                prepareEditInspectionLog(productName, index);
+            }
+        });
+    }
+
+    // 2. 수정 모달 저장/삭제 버튼
+    if (DOM.saveInspLogBtn) {
+        DOM.saveInspLogBtn.addEventListener('click', () => {
+            updateInspectionLog();
+        });
+    }
+    if (DOM.deleteInspLogBtn) {
+        DOM.deleteInspLogBtn.addEventListener('click', () => {
+            deleteInspectionLog();
         });
     }
 
@@ -677,7 +717,7 @@ export function setupHistoryModalListeners() {
                 DOM.reportPanel.classList.toggle('hidden', tabName !== 'report');
                 if (DOM.personalReportPanel) DOM.personalReportPanel.classList.toggle('hidden', tabName !== 'personal');
                 if (managementPanel) managementPanel.classList.toggle('hidden', tabName !== 'management');
-                // ✅ 검수 이력 패널 토글
+                // 검수 이력 패널 토글
                 if (inspectionPanel) inspectionPanel.classList.toggle('hidden', tabName !== 'inspection');
                 
                 // 검수 이력은 날짜 리스트 필요 없음
@@ -735,7 +775,7 @@ export function setupHistoryModalListeners() {
                      
                      renderHistoryDateListByMode(listMode);
                 } else if (tabName === 'inspection') {
-                    // ✅ 검수 이력 탭 진입 시 데이터 로드
+                    // 탭 진입 시 데이터 로드
                     fetchAndRenderInspectionHistory();
                 }
             }
@@ -1354,88 +1394,3 @@ function makeDraggable(modalOverlay, header, contentBox) {
     function onMove(e) { if(!isDragging)return; contentBox.style.left=`${e.clientX-offsetX}px`; contentBox.style.top=`${e.clientY-offsetY}px`; }
     function onUp() { isDragging=false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
 }
-
-// ✅ [신규] 기록 관리 테이블 렌더링 (필터링 및 일괄수정 포함)
-export const renderHistoryRecordsTable = (dateKey) => {
-    if (!DOM.historyRecordsTableBody) return;
-    
-    const data = State.allHistoryData.find(d => d.id === dateKey);
-    const records = data ? (data.workRecords || []) : [];
-
-    const memberFilterVal = document.getElementById('history-record-filter-member')?.value;
-    const taskFilterVal = document.getElementById('history-record-filter-task')?.value;
-
-    // 일괄 수정 패널 표시 여부 제어
-    const batchArea = document.getElementById('history-record-batch-edit-area');
-    if (batchArea) {
-        if (taskFilterVal) {
-            batchArea.classList.remove('hidden');
-            batchArea.classList.add('flex');
-        } else {
-            batchArea.classList.add('hidden');
-            batchArea.classList.remove('flex');
-        }
-    }
-    
-    DOM.historyRecordsTableBody.innerHTML = '';
-    
-    // 필터링
-    const filtered = records.filter(r => {
-        if (memberFilterVal && r.member !== memberFilterVal) return false;
-        if (taskFilterVal && r.task !== taskFilterVal) return false;
-        return true;
-    });
-
-    // 정렬: 시작 시간 순
-    const sorted = filtered.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
-
-    const allTasks = (State.appConfig.taskGroups || []).flatMap(g => g.tasks).sort();
-    
-    sorted.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.className = 'bg-white border-b hover:bg-gray-50 transition';
-        
-        let taskOptions = '';
-        const uniqueTasks = new Set([...allTasks, r.task]); 
-        Array.from(uniqueTasks).sort().forEach(t => {
-            taskOptions += `<option value="${t}" ${t === r.task ? 'selected' : ''}>${t}</option>`;
-        });
-
-        // 휴식 시간 계산
-        const pauseMinutes = calcTotalPauseMinutes(r.pauses);
-        const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴: ${formatDuration(pauseMinutes)})</span>` : '';
-
-        tr.innerHTML = `
-            <td class="px-6 py-4 font-medium text-gray-900 w-[15%]">${r.member}</td>
-            <td class="px-6 py-4 w-[20%]">
-                <select class="history-record-task w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500">
-                    ${taskOptions}
-                </select>
-            </td>
-            <td class="px-6 py-4 w-[15%]">
-                <input type="time" class="history-record-start w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.startTime || ''}">
-            </td>
-            <td class="px-6 py-4 w-[15%]">
-                <input type="time" class="history-record-end w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.endTime || ''}">
-            </td>
-            <td class="px-6 py-4 text-gray-500 text-xs w-[15%]">
-                ${formatDuration(r.duration)}${pauseText}
-            </td>
-            <td class="px-6 py-4 text-right space-x-2 w-[20%]">
-                <button class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 
-                    data-action="save-history-record" 
-                    data-date-key="${dateKey}" 
-                    data-record-id="${r.id}">저장</button>
-                <button class="text-white bg-red-500 hover:bg-red-600 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 
-                    data-action="delete-history-record" 
-                    data-date-key="${dateKey}" 
-                    data-record-id="${r.id}">삭제</button>
-            </td>
-        `;
-        DOM.historyRecordsTableBody.appendChild(tr);
-    });
-    
-    if (sorted.length === 0) {
-        DOM.historyRecordsTableBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">조건에 맞는 기록이 없습니다.</td></tr>';
-    }
-};
