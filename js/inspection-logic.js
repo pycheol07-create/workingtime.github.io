@@ -15,7 +15,6 @@ let todayInspectionList = [];
 let html5QrCode = null;
 let currentImageBase64 = null;
 let currentProductLogs = []; 
-// [신규] 현재 작업 중인 리스트 인덱스 (다음 상품 자동 선택용)
 let currentTodoIndex = -1;
 
 // ======================================================
@@ -102,7 +101,6 @@ export const renderTodoList = () => {
     DOM.inspTodoListBody.innerHTML = '';
     list.forEach((item, idx) => {
         const tr = document.createElement('tr');
-        // [수정] 완료된 항목도 클릭 가능하도록 조건 제거, 스타일만 변경
         const isCompleted = item.status === '완료';
         tr.className = `transition border-b last:border-0 cursor-pointer ${isCompleted ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-blue-50'}`;
         
@@ -126,7 +124,7 @@ const selectTodoItem = (index) => {
     const item = State.appState.inspectionList[index];
     if (!item) return;
 
-    currentTodoIndex = index; // 현재 인덱스 저장 (다음 이동용)
+    currentTodoIndex = index; 
 
     // 1. 기본 정보 자동 입력
     DOM.inspProductNameInput.value = item.name; 
@@ -141,7 +139,7 @@ const selectTodoItem = (index) => {
     // 3. 이력 조회 실행
     searchProductHistory(); 
     
-    // 4. 비고란 초기화 (옵션/코드는 이제 별도 표시되므로 비고에 안 넣음)
+    // 4. 비고란 초기화
     DOM.inspNotesInput.value = '';
     
     showToast(`'${item.name}' 선택됨`);
@@ -269,31 +267,44 @@ export const searchProductHistory = async () => {
             DOM.inspReportCount.textContent = data.totalInbound || 0;
             DOM.inspReportDate.textContent = data.lastInspectionDate || '-';
 
-            // ✅ [수정] 특이사항(불량 이력) 추출 로직 강화 (구버전 데이터 호환)
-            let defects = data.defectSummary || [];
+            // ✅ [수정] 특이사항(불량 이력 + 메모) 추출 로직 강화
+            // defectSummary에만 의존하지 않고 logs 전체를 검사합니다.
+            let specialIssues = [];
             
-            // defectSummary가 없으면 logs를 뒤져서 생성
-            if (defects.length === 0 && data.logs && data.logs.length > 0) {
-                defects = data.logs
-                    .filter(log => log.status === '불량' || (log.defects && log.defects.length > 0))
+            if (data.logs && data.logs.length > 0) {
+                specialIssues = data.logs
+                    .filter(log => {
+                        // 1. 불량 상태이거나 defects가 있는 경우
+                        const hasDefects = log.status === '불량' || (log.defects && log.defects.length > 0);
+                        // 2. 메모(note)가 있는 경우 (중요)
+                        const hasNote = log.note && log.note.trim() !== '';
+                        return hasDefects || hasNote;
+                    })
                     .map(log => {
                         const date = log.date || log.inboundDate || '날짜미상';
-                        const issues = log.defects ? log.defects.join(', ') : '불량';
-                        return `${date}: ${issues}`;
+                        const defectStr = (log.defects && log.defects.length > 0) ? log.defects.join(', ') : '';
+                        const noteStr = log.note ? `[메모: ${log.note}]` : '';
+                        
+                        // 불량내역과 메모를 합쳐서 표시
+                        const content = [defectStr, noteStr].filter(Boolean).join(' ');
+                        return `${date}: ${content}`;
                     });
+            } 
+            // logs가 없지만 defectSummary가 있는 경우 (구 데이터 호환)
+            else if (data.defectSummary && data.defectSummary.length > 0) {
+                specialIssues = data.defectSummary;
             }
 
-            if (defects.length > 0) {
-                if (DOM.inspAlertBox) DOM.inspAlertBox.classList.remove('hidden');
+            if (specialIssues.length > 0) {
+                DOM.inspAlertBox.classList.remove('hidden');
                 
-                // 최신 5건 추출 및 역순 정렬 (최신순 보기 위해)
-                const recentDefects = defects.slice(-5).reverse(); 
+                // 최신 5건 추출 (최신순)
+                const recentIssues = specialIssues.slice(-5).reverse();
+                DOM.inspAlertMsg.textContent = `최근 특이사항: ${recentIssues[0]}`;
                 
-                if (DOM.inspAlertMsg) DOM.inspAlertMsg.textContent = `최근 불량: ${recentDefects[0]}`;
-                
-                // 브라우저 팝업 띄우기 (화면 렌더링 후 살짝 지연)
+                // 브라우저 팝업 띄우기
                 setTimeout(() => {
-                    alert(`🚨 [특이사항 알림] 🚨\n\n이 상품은 과거 총 ${defects.length}회의 특이사항(불량) 기록이 있습니다.\n검수 시 아래 내역을 놓치지 않도록 주의해주세요.\n\n[최근 불량 내역]\n- ${recentDefects.join('\n- ')}`);
+                    alert(`🚨 [특이사항 알림] 🚨\n\n이 상품은 ${specialIssues.length}건의 특이사항(불량/메모) 기록이 있습니다.\n검수 시 아래 내용을 확인해주세요.\n\n[최근 기록]\n- ${recentIssues.join('\n- ')}`);
                 }, 200);
             }
         } else {
