@@ -3,12 +3,14 @@
 
         <div id="history-modal-header" class="p-6 border-b border-gray-200 flex justify-between items-center cursor-move bg-white rounded-t-2xl">
             <h2 class="text-xl font-bold text-gray-900">데이터 관리</h2>
-            <button id="toggle-history-fullscreen-btn" class="modal-close-btn mr-10" title="전체화면">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />
-                </svg>
-            </button>
-            <button id="close-history-btn" class="modal-close-btn">&times;</button>
+            <div class="flex items-center gap-4">
+                <button id="toggle-history-fullscreen-btn" class="text-gray-500 hover:text-gray-700 transition" title="전체화면">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />
+                    </svg>
+                </button>
+                <button id="close-history-btn" class="modal-close-btn relative top-0 right-0 text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
         </div>
 
         <div class="px-6 border-b border-gray-200 bg-gray-50 flex flex-wrap justify-between items-end gap-4 pt-2">
@@ -192,19 +194,18 @@
 
             </div>
         </div>
+    </div>
+</div>
 
-        <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn">&times;</button>
-                <div class="p-6 text-center">
-                    <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                    <h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 날짜의 모든 기록을 삭제하시겠습니까?</h3>
-                    <p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p>
-                    <button type="button" id="confirm-history-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button>
-                    <button type="button" id="cancel-history-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
-                </div>
-            </div>
+<div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative"><button class="modal-close-btn relative top-2 right-2" onclick="document.getElementById('delete-history-modal').classList.add('hidden')">&times;</button>
+        <div class="p-6 text-center">
+            <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            <h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 날짜의 모든 기록을 삭제하시겠습니까?</h3>
+            <p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p>
+            <button type="button" id="confirm-history-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button>
+            <button type="button" id="cancel-history-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
         </div>
-
     </div>
 </div>
 
@@ -239,6 +240,113 @@
         </div>
         <div class="p-4 border-t border-gray-200 bg-white rounded-b-2xl flex justify-end">
             <button class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold py-2 px-6 rounded-lg transition" onclick="document.getElementById('inspection-log-manager-modal').classList.add('hidden')">닫기</button>
+        </div>
+    </div>
+</div>
+
+<div id="history-records-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[70] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[800px] flex flex-col relative animate-fade-in">
+        <div class="p-5 border-b border-gray-200 flex justify-between items-center bg-indigo-50 rounded-t-2xl">
+            <div>
+                <h2 class="text-xl font-bold text-indigo-900 flex items-center gap-2">
+                    📋 업무 기록 관리
+                </h2>
+                <p class="text-sm text-indigo-600 mt-1 font-bold">📅 <span id="history-records-date"></span></p>
+            </div>
+            <button class="modal-close-btn text-indigo-400 hover:text-indigo-700" onclick="document.getElementById('history-records-modal').classList.add('hidden')">&times;</button>
+        </div>
+
+        <div class="p-4 border-b border-gray-200 bg-white flex flex-wrap gap-4 items-end">
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">이름 필터</label>
+                <select id="history-record-filter-member" class="p-2 border border-gray-300 rounded-md text-sm w-32">
+                    <option value="">전체</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">업무 필터</label>
+                <select id="history-record-filter-task" class="p-2 border border-gray-300 rounded-md text-sm w-40">
+                    <option value="">전체</option>
+                </select>
+            </div>
+            
+            <div id="history-record-batch-edit-area" class="hidden flex items-end gap-2 ml-auto bg-yellow-50 p-2 rounded-lg border border-yellow-200">
+                <div class="text-xs font-bold text-yellow-800 mb-1 mr-1">⚡ 일괄 수정</div>
+                <div>
+                    <input type="time" id="history-batch-start-time" class="p-1.5 border border-yellow-300 rounded text-xs" title="시작 시간 일괄 변경">
+                </div>
+                <span class="text-gray-400">~</span>
+                <div>
+                    <input type="time" id="history-batch-end-time" class="p-1.5 border border-yellow-300 rounded text-xs" title="종료 시간 일괄 변경">
+                </div>
+                <button id="history-batch-apply-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1.5 px-3 rounded text-xs shadow-sm transition">
+                    적용
+                </button>
+            </div>
+
+            <button id="history-record-add-btn" class="ml-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md text-sm shadow-sm transition flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                기록 추가
+            </button>
+        </div>
+        
+        <div class="p-0 overflow-y-auto flex-grow bg-gray-50">
+            <table class="w-full text-sm text-left text-gray-600">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10 shadow-sm">
+                    <tr>
+                        <th class="px-6 py-3 w-[15%]">이름</th>
+                        <th class="px-6 py-3 w-[20%]">업무</th>
+                        <th class="px-6 py-3 w-[15%]">시작 시간</th>
+                        <th class="px-6 py-3 w-[15%]">종료 시간</th>
+                        <th class="px-6 py-3 w-[15%]">소요 시간</th>
+                        <th class="px-6 py-3 w-[20%] text-right">관리</th>
+                    </tr>
+                </thead>
+                <tbody id="history-records-table-body" class="divide-y divide-gray-200 bg-white">
+                    </tbody>
+            </table>
+        </div>
+        <div class="p-4 border-t border-gray-200 bg-white rounded-b-2xl flex justify-end">
+            <button class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold py-2 px-6 rounded-lg transition" onclick="document.getElementById('history-records-modal').classList.add('hidden')">닫기</button>
+        </div>
+    </div>
+</div>
+
+<div id="history-add-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center hidden z-[80] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md relative">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-gray-900">기록 수동 추가</h2>
+            <button class="modal-close-btn" onclick="document.getElementById('history-add-record-modal').classList.add('hidden')">&times;</button>
+        </div>
+        <form id="history-add-record-form">
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-gray-500 font-bold mb-2">날짜: <span id="history-add-date-display" class="text-blue-600"></span></p>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">이름</label>
+                    <input type="text" id="history-add-member" list="history-add-member-list" class="mt-1 w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="이름 입력 또는 선택">
+                    <datalist id="history-add-member-list"></datalist>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">업무</label>
+                    <input type="text" id="history-add-task" list="history-add-task-list" class="mt-1 w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="업무 입력 또는 선택">
+                    <datalist id="history-add-task-list"></datalist>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">시작 시간</label>
+                        <input type="time" id="history-add-start-time" class="mt-1 w-full border border-gray-300 rounded-lg p-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">종료 시간</label>
+                        <input type="time" id="history-add-end-time" class="mt-1 w-full border border-gray-300 rounded-lg p-2 text-sm">
+                    </div>
+                </div>
+            </div>
+        </form>
+        <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+            <button type="button" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition text-sm" onclick="document.getElementById('history-add-record-modal').classList.add('hidden')">취소</button>
+            <button type="button" id="confirm-history-add-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition text-sm shadow-sm">추가</button>
         </div>
     </div>
 </div>
