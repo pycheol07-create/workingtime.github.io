@@ -1,14 +1,13 @@
 // === js/ui-history-inspection.js ===
-// 설명: 검수 이력 데이터를 테이블 형태로 렌더링합니다. (입고일자, 코드, 옵션, 이미지 추가)
+// 설명: 검수 이력 UI 렌더링 (상품별 보기 & 입고 리스트별 보기 탭 지원)
 
 import * as DOM from './dom-elements.js';
+import { context } from './state.js';
 
 // 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
 
-/**
- * 헬퍼: 정렬 아이콘 HTML 생성
- */
+// 헬퍼: 정렬 아이콘 HTML 생성
 const getSortIcon = (key) => {
     if (sortState.key !== key) return '<span class="text-gray-300 text-[10px] ml-1 opacity-50">↕</span>';
     return sortState.dir === 'asc' 
@@ -16,9 +15,7 @@ const getSortIcon = (key) => {
         : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
 };
 
-/**
- * 헬퍼: 불량 이력 요약 (최신 1건 표시)
- */
+// 헬퍼: 불량 이력 요약 (최신 1건 표시)
 const formatDefectSummary = (defectSummary) => {
     if (!defectSummary || defectSummary.length === 0) {
         return '<span class="text-gray-400">-</span>';
@@ -28,11 +25,129 @@ const formatDefectSummary = (defectSummary) => {
 };
 
 /**
- * 메인 렌더링 함수 (전체 상품 목록)
- * @param {Array} historyData - product_history 컬렉션의 모든 문서 배열
+ * 메인 프레임 렌더링 (탭 버튼 포함)
+ */
+export const renderInspectionLayout = (container) => {
+    if (!container) return;
+    const activeTab = context.inspectionViewMode || 'product';
+
+    container.innerHTML = `
+        <div class="flex flex-col h-full">
+            <div class="flex border-b border-gray-200 mb-4">
+                <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'product' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
+                        data-insp-tab="product">
+                    📦 상품별 보기
+                </button>
+                <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
+                        data-insp-tab="list">
+                    📅 입고 리스트별 보기
+                </button>
+            </div>
+
+            <div id="inspection-content-area" class="flex-grow overflow-hidden relative">
+                </div>
+        </div>
+    `;
+};
+
+/**
+ * 입고 리스트별 보기 렌더링 (좌: 날짜목록, 우: 상세테이블)
+ */
+export const renderInspectionListMode = (dateList, selectedDateData) => {
+    const container = document.getElementById('inspection-content-area');
+    if (!container) return;
+
+    const selectedDate = context.selectedInspectionDate;
+
+    // 1. 날짜 목록 HTML 생성
+    let dateListHtml = '';
+    if (!dateList || dateList.length === 0) {
+        dateListHtml = `<div class="p-4 text-center text-sm text-gray-400">업로드된 리스트가 없습니다.</div>`;
+    } else {
+        dateList.forEach(d => {
+            const isSelected = d.date === selectedDate;
+            const activeClass = isSelected ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-transparent hover:bg-gray-50 text-gray-600';
+            
+            dateListHtml += `
+                <button class="w-full text-left px-4 py-3 border-l-4 transition-all ${activeClass} group btn-select-insp-date" data-date="${d.date}">
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold text-sm">${d.date}</span>
+                        <span class="text-xs bg-white border border-gray-200 px-2 py-0.5 rounded-full text-gray-500 group-hover:border-gray-300">${d.count}건</span>
+                    </div>
+                </button>
+            `;
+        });
+    }
+
+    // 2. 상세 리스트 HTML 생성
+    let detailHtml = '';
+    if (!selectedDate) {
+        detailHtml = `<div class="flex h-full items-center justify-center text-gray-400 text-sm">좌측에서 날짜를 선택해주세요.</div>`;
+    } else if (!selectedDateData || selectedDateData.length === 0) {
+        detailHtml = `<div class="flex h-full items-center justify-center text-gray-400 text-sm">해당 날짜의 리스트 데이터가 없습니다.</div>`;
+    } else {
+        const rows = selectedDateData.map((item, idx) => {
+            const isCompleted = item.status === '완료';
+            const statusBadge = isCompleted 
+                ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">완료</span>`
+                : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
+            
+            return `
+                <tr class="hover:bg-gray-50 transition border-b last:border-0">
+                    <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.code || '-'}</td>
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.name}</td>
+                    <td class="px-4 py-3 text-xs text-gray-600">${item.option || '-'}</td>
+                    <td class="px-4 py-3 text-xs text-center">${item.qty || 0}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500">${item.thickness || '-'}</td>
+                    <td class="px-4 py-3 text-center">${statusBadge}</td>
+                </tr>
+            `;
+        }).join('');
+
+        detailHtml = `
+            <div class="flex flex-col h-full">
+                <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                    <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 입고 리스트 상세</h4>
+                    <span class="text-xs text-gray-500">총 ${selectedDateData.length}개 상품</span>
+                </div>
+                <div class="flex-grow overflow-y-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-white text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th class="px-4 py-2 font-semibold bg-gray-50">코드</th>
+                                <th class="px-4 py-2 font-semibold bg-gray-50">상품명</th>
+                                <th class="px-4 py-2 font-semibold bg-gray-50">옵션</th>
+                                <th class="px-4 py-2 font-semibold bg-gray-50 text-center">수량</th>
+                                <th class="px-4 py-2 font-semibold bg-gray-50">기준</th>
+                                <th class="px-4 py-2 font-semibold bg-gray-50 text-center">상태</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-100">
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = `
+        <div class="flex h-full border border-gray-200 rounded-lg overflow-hidden bg-white">
+            <div class="w-1/4 min-w-[180px] border-r border-gray-200 bg-gray-50 overflow-y-auto custom-scrollbar">
+                ${dateListHtml}
+            </div>
+            <div class="flex-1 overflow-hidden bg-white relative">
+                ${detailHtml}
+            </div>
+        </div>
+    `;
+};
+
+/**
+ * 상품별 보기 렌더링 함수 (기존 테이블)
  */
 export const renderInspectionHistoryTable = (historyData) => {
-    const container = DOM.inspectionHistoryViewContainer;
+    const container = document.getElementById('inspection-content-area');
     if (!container) return;
 
     const searchInput = DOM.inspectionHistorySearchInput;
@@ -40,11 +155,8 @@ export const renderInspectionHistoryTable = (historyData) => {
 
     // 1. 필터링
     let filteredData = historyData.filter(item => {
-        // 상품명, 또는 내부 로그의 코드/옵션 검색 지원
         const matchId = item.id.toLowerCase().includes(searchTerm);
         if (matchId) return true;
-        
-        // 최신 로그 기준 검색
         if (item.logs && item.logs.length > 0) {
             const lastLog = item.logs[item.logs.length - 1];
             if (lastLog.code && lastLog.code.toLowerCase().includes(searchTerm)) return true;
@@ -53,7 +165,6 @@ export const renderInspectionHistoryTable = (historyData) => {
         return false;
     });
 
-    // 총 개수 업데이트
     if (DOM.inspectionTotalProductCount) {
         DOM.inspectionTotalProductCount.textContent = filteredData.length;
     }
@@ -62,15 +173,9 @@ export const renderInspectionHistoryTable = (historyData) => {
     filteredData.sort((a, b) => {
         let valA = a[sortState.key];
         let valB = b[sortState.key];
-
-        if (sortState.key === 'productName') {
-            valA = a.id;
-            valB = b.id;
-        }
-
+        if (sortState.key === 'productName') { valA = a.id; valB = b.id; }
         if (valA === undefined || valA === null) valA = '';
         if (valB === undefined || valB === null) valB = '';
-
         if (valA < valB) return sortState.dir === 'asc' ? -1 : 1;
         if (valA > valB) return sortState.dir === 'asc' ? 1 : -1;
         return 0;
@@ -78,30 +183,25 @@ export const renderInspectionHistoryTable = (historyData) => {
 
     // 3. HTML 생성
     let html = `
-        <table class="w-full text-sm text-left text-gray-600 border border-gray-200">
-            <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10">
-                <tr>
-                    <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="productName">
-                        <div class="flex items-center">상품명 ${getSortIcon('productName')}</div>
-                    </th>
-                    <th scope="col" class="px-6 py-3">
-                        코드 / 옵션
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="totalInbound">
-                        <div class="flex items-center justify-center">총 입고 ${getSortIcon('totalInbound')}</div>
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="lastInspectionDate">
-                        <div class="flex items-center justify-center">최근 검수일 ${getSortIcon('lastInspectionDate')}</div>
-                    </th>
-                    <th scope="col" class="px-6 py-3">
-                        최근 불량 내역
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-right">
-                        관리
-                    </th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 bg-white">
+        <div class="h-full overflow-y-auto border border-gray-200 rounded-lg">
+            <table class="w-full text-sm text-left text-gray-600">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10 shadow-sm">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="productName">
+                            <div class="flex items-center">상품명 ${getSortIcon('productName')}</div>
+                        </th>
+                        <th scope="col" class="px-6 py-3">코드 / 옵션</th>
+                        <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="totalInbound">
+                            <div class="flex items-center justify-center">총 입고 ${getSortIcon('totalInbound')}</div>
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="lastInspectionDate">
+                            <div class="flex items-center justify-center">최근 검수일 ${getSortIcon('lastInspectionDate')}</div>
+                        </th>
+                        <th scope="col" class="px-6 py-3">최근 불량 내역</th>
+                        <th scope="col" class="px-6 py-3 text-right">관리</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 bg-white">
     `;
 
     if (filteredData.length === 0) {
@@ -110,10 +210,13 @@ export const renderInspectionHistoryTable = (historyData) => {
         </td></tr>`;
     } else {
         filteredData.forEach(item => {
-            // 최신 로그에서 코드/옵션 정보 추출
             let code = '-';
             let option = '-';
-            if (item.logs && item.logs.length > 0) {
+            // 최신 로그 또는 문서 루트 필드 확인
+            if (item.lastCode) code = item.lastCode;
+            if (item.lastOption) option = item.lastOption;
+            
+            if (code === '-' && item.logs && item.logs.length > 0) {
                 const lastLog = item.logs[item.logs.length - 1];
                 code = lastLog.code || '-';
                 option = lastLog.option || '-';
@@ -121,9 +224,7 @@ export const renderInspectionHistoryTable = (historyData) => {
 
             html += `
                 <tr class="hover:bg-gray-50 transition group">
-                    <td class="px-6 py-4 font-medium text-gray-900">
-                        ${item.id}
-                    </td>
+                    <td class="px-6 py-4 font-medium text-gray-900">${item.id}</td>
                     <td class="px-6 py-4 text-xs text-gray-500">
                         <div class="font-mono text-gray-700">${code}</div>
                         <div class="text-gray-400">${option}</div>
@@ -154,13 +255,12 @@ export const renderInspectionHistoryTable = (historyData) => {
         });
     }
 
-    html += `</tbody></table>`;
+    html += `</tbody></table></div>`;
     container.innerHTML = html;
 };
 
 /**
- * ✅ [수정] 상품별 상세 검수 로그(logs) 테이블 렌더링
- * - 입고일자, 코드, 옵션, 이미지 컬럼 추가
+ * 상세 검수 로그 테이블 렌더링 (모달 내부)
  */
 export const renderInspectionLogTable = (logs, productName) => {
     const tbody = DOM.inspectionLogTableBody;
@@ -171,30 +271,24 @@ export const renderInspectionLogTable = (logs, productName) => {
 
     tbody.innerHTML = '';
 
-    // 테이블 헤더 업데이트 (JS에서 동적으로 헤더를 바꾸진 않으므로 HTML 구조와 맞아야 함. 
-    // 하지만 현재 HTML은 JS에서 tr/td만 주입하므로, 헤더는 modal html 파일에서 수정했거나 여기서 전체 테이블을 다시 그리는게 안전함.
-    // 여기서는 tbody만 갱신하므로 HTML 파일의 thead도 맞춰야 함. -> 사용자가 HTML을 수정하지 않았을 수 있으니, 안전하게 헤더도 JS로 주입하는 방식을 고려하거나
-    // 일단 HTML 구조가 tbody 주입 방식이므로, HTML 파일의 thead가 수정되어야 함. 
-    // (이전 단계에서 modals-form.html은 수정하지 않았으므로, 상세 로그 모달의 헤더는 components/modals-form.html의 table 구조에 의존함.)
-    // **중요**: `inspection-log-manager-modal`의 테이블 구조는 `modals-form.html`에 정의되어 있음. 
-    // 이번 요청에서는 JS만 수정하므로, 동적으로 헤더를 변경하는 코드를 추가합니다.
-
+    // 헤더 동적 생성
     const table = tbody.closest('table');
     if (table) {
-        const thead = table.querySelector('thead tr');
+        const thead = table.querySelector('thead');
         if (thead) {
             thead.innerHTML = `
-                <th class="px-4 py-3 w-[12%]">일시</th>
-                <th class="px-4 py-3 w-[8%]">담당</th>
-                <th class="px-4 py-3 w-[10%]">입고일자</th>
-                <th class="px-4 py-3 w-[10%]">코드</th>
-                <th class="px-4 py-3 w-[10%]">옵션</th>
-                <th class="px-4 py-3 w-[5%] text-center">수량</th>
-                <th class="px-4 py-3 w-[8%] text-center">상태</th>
-                <th class="px-4 py-3 w-[8%] text-center">사진</th>
-                <th class="px-4 py-3">특이사항</th>
-                <th class="px-4 py-3 w-[10%] text-right">관리</th>
-            `;
+                <tr>
+                    <th class="px-4 py-3 w-[12%]">일시</th>
+                    <th class="px-4 py-3 w-[8%]">담당</th>
+                    <th class="px-4 py-3 w-[10%]">입고일자</th>
+                    <th class="px-4 py-3 w-[10%]">코드</th>
+                    <th class="px-4 py-3 w-[10%]">옵션</th>
+                    <th class="px-4 py-3 w-[5%] text-center">수량</th>
+                    <th class="px-4 py-3 w-[8%] text-center">상태</th>
+                    <th class="px-4 py-3 w-[8%] text-center">사진</th>
+                    <th class="px-4 py-3">특이사항</th>
+                    <th class="px-4 py-3 w-[10%] text-right">관리</th>
+                </tr>`;
         }
     }
 
@@ -203,10 +297,7 @@ export const renderInspectionLogTable = (logs, productName) => {
         return;
     }
 
-    // 1. 원본 인덱스 매핑
     const logsWithIndex = logs.map((log, idx) => ({ ...log, originalIndex: idx }));
-    
-    // 2. 최신순 정렬
     logsWithIndex.sort((a, b) => {
         const tA = (a.date || '') + (a.time || '');
         const tB = (b.date || '') + (b.time || '');
@@ -228,7 +319,6 @@ export const renderInspectionLogTable = (logs, productName) => {
         const noteText = item.note || '';
         const fullText = (defectText + noteText) || '<span class="text-gray-300">-</span>';
 
-        // 이미지 처리
         let imageHtml = '<span class="text-gray-300 text-xs">-</span>';
         if (item.image) {
             imageHtml = `
@@ -240,47 +330,23 @@ export const renderInspectionLogTable = (logs, productName) => {
         }
 
         tr.innerHTML = `
-            <td class="px-4 py-3 whitespace-nowrap text-gray-600 font-mono text-xs">
-                ${item.date}<br>${item.time}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900 text-xs">
-                ${item.inspector || '-'}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-600 text-xs">
-                ${item.inboundDate || item.packingNo || '-'}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">
-                ${item.code || '-'}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500 text-xs truncate max-w-[100px]" title="${item.option}">
-                ${item.option || '-'}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap text-center font-bold text-gray-700 text-xs">
-                ${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap text-center">
-                ${statusBadge}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap text-center">
-                ${imageHtml}
-            </td>
-            <td class="px-4 py-3 text-xs text-gray-600 max-w-xs break-words">
-                ${fullText}
-            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-gray-600 font-mono text-xs">${item.date}<br>${item.time}</td>
+            <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900 text-xs">${item.inspector || '-'}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-gray-600 text-xs">${item.inboundDate || item.packingNo || '-'}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">${item.code || '-'}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-gray-500 text-xs truncate max-w-[100px]" title="${item.option}">${item.option || '-'}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-center font-bold text-gray-700 text-xs">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-center">${statusBadge}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-center">${imageHtml}</td>
+            <td class="px-4 py-3 text-xs text-gray-600 max-w-xs break-words">${fullText}</td>
             <td class="px-4 py-3 whitespace-nowrap text-right">
-                <button class="text-blue-600 hover:text-blue-900 font-medium text-xs border border-blue-200 rounded px-2 py-1 hover:bg-blue-50 transition btn-edit-insp-log" 
-                        data-index="${item.originalIndex}">
-                    수정
-                </button>
+                <button class="text-blue-600 hover:text-blue-900 font-medium text-xs border border-blue-200 rounded px-2 py-1 hover:bg-blue-50 transition btn-edit-insp-log" data-index="${item.originalIndex}">수정</button>
             </td>
         `;
         tbody.appendChild(tr);
     });
 };
 
-/**
- * 외부에서 정렬 상태를 변경할 때 사용하는 함수
- */
 export const setSortState = (key) => {
     if (sortState.key === key) {
         sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';

@@ -1,16 +1,21 @@
 // === js/listeners-history-inspection.js ===
-// 설명: 이력 보기의 '검수 이력' 탭 관련 리스너(조회, 정렬, 상세, 수정, 삭제)를 담당합니다.
+// 설명: 이력 보기의 '검수 이력' 탭 관련 리스너 및 데이터 로직을 담당합니다.
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast } from './utils.js';
+import { showToast, getTodayDateString } from './utils.js';
 
 // UI 렌더링 함수 임포트
-import { renderInspectionHistoryTable } from './ui-history.js';
+import { 
+    renderInspectionHistoryTable, 
+    renderInspectionLogTable,
+    renderInspectionLayout,
+    renderInspectionListMode
+} from './ui-history.js'; // ui-history.js를 통해 ui-history-inspection.js 함수들을 가져옴
+
 import { setSortState } from './ui-history-inspection.js';
 
 // 비즈니스 로직 임포트
-// ✅ [수정] deleteProductHistory 추가 임포트
 import {
     loadInspectionLogs,
     prepareEditInspectionLog,
@@ -21,68 +26,122 @@ import {
 
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 검수 이력 데이터 캐싱용 변수 (모듈 레벨)
+// 검수 이력 데이터 캐싱용 변수
 let cachedInspectionData = [];
 
-// 검수 이력 데이터 로드 및 렌더링 (외부 export: 탭 전환 시 호출용)
+/**
+ * 검수 이력 메인 로드 함수
+ * - 상품별 모드: product_history 컬렉션 조회
+ * - 리스트별 모드: allHistoryData에서 inspectionList 추출
+ */
 export const fetchAndRenderInspectionHistory = async () => {
     const container = DOM.inspectionHistoryViewContainer;
     if (!container) return;
 
-    container.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>검수 이력을 불러오는 중입니다...</div>';
+    // 기본 레이아웃 렌더링 (탭 버튼 등)
+    renderInspectionLayout(container);
 
-    try {
-        const colRef = collection(State.db, 'product_history');
-        const snapshot = await getDocs(colRef);
+    const contentArea = document.getElementById('inspection-content-area');
+    contentArea.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>데이터를 불러오는 중입니다...</div>';
 
-        cachedInspectionData = []; // 초기화
-        snapshot.forEach(doc => {
-            cachedInspectionData.push({
-                id: doc.id,
-                ...doc.data()
+    const viewMode = State.context.inspectionViewMode || 'product';
+
+    if (viewMode === 'product') {
+        // 1. 상품별 보기 모드
+        try {
+            const colRef = collection(State.db, 'product_history');
+            const snapshot = await getDocs(colRef);
+
+            cachedInspectionData = []; 
+            snapshot.forEach(doc => {
+                cachedInspectionData.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
             });
+            renderInspectionHistoryTable(cachedInspectionData);
+        } catch (e) {
+            console.error("Error loading inspection history:", e);
+            contentArea.innerHTML = '<div class="text-center text-red-500 py-10">데이터 로딩 실패</div>';
+        }
+    } else {
+        // 2. 입고 리스트별 보기 모드
+        // allHistoryData (과거+오늘)에서 inspectionList가 있는 날짜 추출
+        const dateList = [];
+        
+        // (1) 과거 데이터 순회
+        State.allHistoryData.forEach(day => {
+            if (day.inspectionList && day.inspectionList.length > 0) {
+                dateList.push({
+                    date: day.id,
+                    count: day.inspectionList.length,
+                    data: day.inspectionList
+                });
+            }
         });
 
-        // 초기 렌더링
-        renderInspectionHistoryTable(cachedInspectionData);
+        // (2) 오늘 데이터 확인 (allHistoryData에 동기화되어 있지만 확실히 하기 위해)
+        // syncTodayToHistory()가 이미 실행되었다고 가정 (탭 진입 시 loadAndRenderHistoryList 호출됨)
+        
+        // 날짜 내림차순 정렬
+        dateList.sort((a, b) => b.date.localeCompare(a.date));
 
-    } catch (e) {
-        console.error("Error loading inspection history:", e);
-        container.innerHTML = '<div class="text-center text-red-500 py-10">데이터를 불러오는 중 오류가 발생했습니다.</div>';
-        showToast("검수 이력 로딩 실패", true);
+        if (dateList.length > 0) {
+            // 선택된 날짜가 없으면 가장 최신 날짜 선택
+            if (!State.context.selectedInspectionDate) {
+                State.context.selectedInspectionDate = dateList[0].date;
+            }
+            
+            // 선택된 날짜의 데이터 찾기
+            const selectedData = dateList.find(d => d.date === State.context.selectedInspectionDate);
+            
+            renderInspectionListMode(dateList, selectedData ? selectedData.data : []);
+        } else {
+            renderInspectionListMode([], []);
+        }
     }
 };
 
 export function setupHistoryInspectionListeners() {
 
-    // 1. 검색 입력 리스너 (Input 이벤트로 실시간 필터링)
-    if (DOM.inspectionHistorySearchInput) {
-        DOM.inspectionHistorySearchInput.addEventListener('input', () => {
-            // 캐시된 데이터로 즉시 렌더링 (필터링 로직은 render 함수 내부에 있음)
-            renderInspectionHistoryTable(cachedInspectionData);
-        });
-    }
-
-    // 2. 새로고침 버튼 리스너
-    if (DOM.inspectionHistoryRefreshBtn) {
-        DOM.inspectionHistoryRefreshBtn.addEventListener('click', () => {
-            fetchAndRenderInspectionHistory();
-        });
-    }
-
-    // 3. 테이블 헤더 정렬, 상세보기, 삭제 버튼 (이벤트 위임)
+    // 1. 탭 전환 및 리스트 선택 리스너 (이벤트 위임)
     if (DOM.inspectionHistoryViewContainer) {
         DOM.inspectionHistoryViewContainer.addEventListener('click', async (e) => {
-            // A. 정렬 클릭
-            const th = e.target.closest('th[data-sort-key]');
-            if (th) {
-                const key = th.dataset.sortKey;
-                setSortState(key); // 정렬 상태 업데이트 (ui-history-inspection.js)
-                renderInspectionHistoryTable(cachedInspectionData); // 재렌더링
+            // A. 상단 탭 버튼 (상품별 / 리스트별)
+            const tabBtn = e.target.closest('button[data-insp-tab]');
+            if (tabBtn) {
+                const mode = tabBtn.dataset.inspTab;
+                if (State.context.inspectionViewMode !== mode) {
+                    State.context.inspectionViewMode = mode;
+                    State.context.selectedInspectionDate = null; // 모드 변경 시 선택 날짜 초기화
+                    fetchAndRenderInspectionHistory(); // 재렌더링
+                }
                 return;
             }
 
-            // B. 상세보기 (로그 관리 모달 열기)
+            // B. 날짜 선택 버튼 (리스트별 보기 모드에서)
+            const dateBtn = e.target.closest('.btn-select-insp-date');
+            if (dateBtn) {
+                const date = dateBtn.dataset.date;
+                if (State.context.selectedInspectionDate !== date) {
+                    State.context.selectedInspectionDate = date;
+                    // 전체 리로드 대신 뷰만 갱신하면 좋겠지만, 구조상 간단히 fetchAndRender 호출
+                    // (메모리상의 allHistoryData를 쓰므로 빠름)
+                    fetchAndRenderInspectionHistory(); 
+                }
+                return;
+            }
+
+            // C. 테이블 헤더 정렬 (상품별 보기 모드에서)
+            const th = e.target.closest('th[data-sort-key]');
+            if (th) {
+                const key = th.dataset.sortKey;
+                setSortState(key); 
+                renderInspectionHistoryTable(cachedInspectionData);
+                return;
+            }
+
+            // D. 상세보기 (로그 관리 모달)
             const detailBtn = e.target.closest('.btn-view-detail');
             if (detailBtn) {
                 const productName = detailBtn.dataset.productName;
@@ -90,14 +149,12 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // ✅ [신규] C. 상품 전체 삭제 버튼
+            // E. 상품 전체 삭제
             const deleteProductBtn = e.target.closest('.btn-delete-product');
             if (deleteProductBtn) {
                 const productName = deleteProductBtn.dataset.productName;
-                // 삭제 로직 호출
                 const success = await deleteProductHistory(productName);
                 if (success) {
-                    // 성공 시 목록 새로고침
                     fetchAndRenderInspectionHistory();
                 }
                 return;
@@ -105,8 +162,23 @@ export function setupHistoryInspectionListeners() {
         });
     }
 
-    // 4. 상세 로그 관리 모달 내부 이벤트
-    // (1) 로그 수정 버튼 (테이블 내 위임)
+    // 2. 검색 입력 리스너 (상품별 보기 모드 전용)
+    if (DOM.inspectionHistorySearchInput) {
+        DOM.inspectionHistorySearchInput.addEventListener('input', () => {
+            if (State.context.inspectionViewMode === 'product') {
+                renderInspectionHistoryTable(cachedInspectionData);
+            }
+        });
+    }
+
+    // 3. 새로고침 버튼 리스너
+    if (DOM.inspectionHistoryRefreshBtn) {
+        DOM.inspectionHistoryRefreshBtn.addEventListener('click', () => {
+            fetchAndRenderInspectionHistory();
+        });
+    }
+
+    // 4. 상세 로그 관리 모달 내부 이벤트 (수정/삭제)
     const inspLogTableBody = document.getElementById('inspection-log-table-body');
     if (inspLogTableBody) {
         inspLogTableBody.addEventListener('click', (e) => {
@@ -119,23 +191,19 @@ export function setupHistoryInspectionListeners() {
         });
     }
 
-    // (2) 수정 모달 저장 버튼 (메인 리스트 갱신 포함)
     if (DOM.saveInspLogBtn) {
         DOM.saveInspLogBtn.addEventListener('click', async () => {
             await updateInspectionLog();
-            // 수정 사항(최근 불량 내역 등)이 있을 수 있으므로 메인 리스트도 갱신
-            if (State.context.activeMainHistoryTab === 'inspection') {
+            if (State.context.activeMainHistoryTab === 'inspection' && State.context.inspectionViewMode === 'product') {
                 fetchAndRenderInspectionHistory();
             }
         });
     }
 
-    // (3) 수정 모달 삭제 버튼
     if (DOM.deleteInspLogBtn) {
         DOM.deleteInspLogBtn.addEventListener('click', async () => {
             await deleteInspectionLog();
-            // 삭제 후 메인 리스트 갱신 (입고 횟수 등 변경 반영)
-            if (State.context.activeMainHistoryTab === 'inspection') {
+            if (State.context.activeMainHistoryTab === 'inspection' && State.context.inspectionViewMode === 'product') {
                 fetchAndRenderInspectionHistory();
             }
         });
