@@ -41,8 +41,9 @@ import {
 // ✅ [수정] 7. 검수 이력 관련 함수 (새로 추가된 함수들도 포함)
 import {
     renderInspectionHistoryTable,
-    renderInspectionLayout,
-    renderInspectionListMode
+    renderInspectionLogTable,   // [New] 상세 로그 테이블
+    renderInspectionLayout,     // [New] 레이아웃(탭)
+    renderInspectionListMode    // [New] 리스트별 보기
 } from './ui-history-inspection.js';
 
 
@@ -76,6 +77,7 @@ export {
 
     // ✅ [수정] 검수 이력 (내보내기 목록 업데이트)
     renderInspectionHistoryTable,
-    renderInspectionLayout,
-    renderInspectionListMode
+    renderInspectionLogTable,   // [New]
+    renderInspectionLayout,     // [New]
+    renderInspectionListMode    // [New]
 };
