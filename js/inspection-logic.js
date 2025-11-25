@@ -17,6 +17,60 @@ let currentImageBase64 = null;
 let currentProductLogs = []; 
 let currentTodoIndex = -1;
 
+// ✅ [신규] 검수 세션 초기화 함수 (업무 시작 시 호출)
+export const initializeInspectionSession = async () => {
+    // 1. 내부 상태 초기화
+    todayInspectionList = [];
+    currentTodoIndex = -1;
+    currentImageBase64 = null;
+    
+    // 2. 입력 폼 UI 초기화
+    if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
+    if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
+    if (DOM.inspNotesInput) DOM.inspNotesInput.value = '';
+    if (DOM.inspCheckThickness) DOM.inspCheckThickness.value = '';
+    
+    if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
+    if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
+    if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
+    
+    const selects = document.querySelectorAll('#insp-current-input-area select');
+    selects.forEach(sel => sel.value = ""); 
+    
+    if (DOM.inspImagePreviewBox) DOM.inspImagePreviewBox.classList.add('hidden');
+    if (DOM.inspImageInput) DOM.inspImageInput.value = '';
+
+    // 3. 섹션 숨김
+    if (DOM.inspHistoryReport) DOM.inspHistoryReport.classList.add('hidden');
+    if (DOM.inspCurrentInputArea) DOM.inspCurrentInputArea.classList.add('hidden');
+    if (DOM.inspAlertBox) DOM.inspAlertBox.classList.add('hidden');
+    
+    // 4. "오늘 검수 완료 목록" UI 초기화
+    renderTodayInspectionList();
+
+    // 5. [핵심] 완료된 엑셀 리스트 자동 삭제 확인
+    const list = State.appState.inspectionList || [];
+    if (list.length > 0) {
+        // 모든 항목이 '완료' 상태인지 확인
+        const isAllCompleted = list.every(item => item.status === '완료');
+        
+        if (isAllCompleted) {
+            // 로컬 및 DB 초기화
+            State.appState.inspectionList = [];
+            await updateDailyData({ inspectionList: [] });
+            
+            // 투두 리스트 UI 갱신 (빈 상태로)
+            renderTodoList();
+            showToast("이전 검수 리스트가 모두 완료되어 초기화되었습니다.");
+        } else {
+            // 완료되지 않았으면 리스트 유지 (UI만 갱신)
+            renderTodoList();
+        }
+    } else {
+        renderTodoList();
+    }
+};
+
 // ======================================================
 // 1. 엑셀 리스트 업로드 및 처리
 // ======================================================
@@ -42,12 +96,6 @@ export const handleExcelUpload = (file) => {
             const sheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-            // 엑셀 파싱 규칙:
-            // A열(0): 상품코드
-            // B열(1): 상품명
-            // C열(2): 옵션
-            // D열(3): 입고수량 (숫자)
-            // E열(4): 기준 두께 (숫자/텍스트)
             const newList = [];
             if (jsonData.length > 1) {
                 for (let i = 1; i < jsonData.length; i++) {
@@ -56,15 +104,15 @@ export const handleExcelUpload = (file) => {
                         const code = String(row[0] || '').trim();
                         const name = String(row[1] || '').trim();
                         
-                        if (code || name) { // 코드나 이름이 있으면 유효한 행으로 간주
+                        if (code || name) {
                             newList.push({
                                 code: code,
                                 name: name,
                                 option: String(row[2] || '').trim(),
-                                qty: Number(row[3]) || 0,        // 입고수량
-                                thickness: String(row[4] || ''), // 기준 두께
+                                qty: Number(row[3]) || 0,
+                                thickness: String(row[4] || ''),
                                 status: '대기',
-                                inboundDate: inboundDate         // 파일명에서 추출한 날짜
+                                inboundDate: inboundDate
                             });
                         }
                     }
@@ -74,6 +122,7 @@ export const handleExcelUpload = (file) => {
             if (newList.length > 0) {
                 await updateDailyData({ inspectionList: newList });
                 showToast(`${newList.length}개의 리스트가 업로드되었습니다. (입고일: ${inboundDate})`);
+                renderTodoList(); // 업로드 후 즉시 렌더링
             } else {
                 showToast("유효한 데이터가 엑셀에 없습니다.", true);
             }
@@ -187,8 +236,6 @@ const onScanSuccess = (decodedText, decodedResult) => {
     stopScanner(); 
     DOM.inspScannerContainer.classList.add('hidden');
 
-    // 스캔된 값을 입력창에 넣고 바로 검색 실행
-    // (검색 함수 내부에서 코드 매칭 로직이 수행됨)
     DOM.inspProductNameInput.value = decodedText;
     searchProductHistory();
 };
@@ -242,47 +289,37 @@ export const searchProductHistory = async () => {
         return;
     }
 
-    // ✅ [수정] 1. 로컬 리스트(엑셀)에서 코드 또는 이름 매칭 시도
     const list = State.appState.inspectionList || [];
     const matchedIndex = list.findIndex(item => 
         (item.code && item.code.trim() === searchTerm) || 
         (item.name && item.name.trim() === searchTerm)
     );
 
-    let targetProductName = searchTerm; // 기본값은 입력한 그대로
+    let targetProductName = searchTerm;
 
     if (matchedIndex > -1) {
         const matchedItem = list[matchedIndex];
-        // 코드로 검색된 경우 상품명으로 교체
         targetProductName = matchedItem.name;
-        currentTodoIndex = matchedIndex; // 다음 상품 이동을 위해 인덱스 동기화
+        currentTodoIndex = matchedIndex; 
 
-        // 입력창에도 상품명으로 표시 (사용자 인지용)
         DOM.inspProductNameInput.value = targetProductName;
         
-        // 부가 정보 자동 세팅
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${matchedItem.option || '-'}`;
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${matchedItem.code || '-'}`;
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${matchedItem.thickness || '-'}`;
         if (DOM.inspInboundDateInput) DOM.inspInboundDateInput.value = matchedItem.inboundDate || getTodayDateString();
         if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = matchedItem.qty > 0 ? matchedItem.qty : '';
-
-        // 스캔/검색됨 메모 추가 (자동 입력이므로 굳이 메모 안 남김, 필요시 주석 해제)
-        // DOM.inspNotesInput.value = ''; 
     }
 
-    // UI 영역 활성화
     DOM.inspHistoryReport.classList.remove('hidden');
     DOM.inspCurrentInputArea.classList.remove('hidden');
     DOM.inspAlertBox.classList.add('hidden');
     DOM.inspReportTitle.textContent = targetProductName;
     
-    // 조회 시에는 이미지를 초기화하지 않음 (입력 중일 수 있으므로)
     const selects = document.querySelectorAll('#insp-current-input-area select');
     selects.forEach(sel => sel.value = ""); 
 
     try {
-        // ✅ [수정] 변환된 targetProductName(상품명)으로 DB 조회
         const docRef = doc(State.db, 'product_history', targetProductName);
         const docSnap = await getDoc(docRef);
 
@@ -291,7 +328,6 @@ export const searchProductHistory = async () => {
             DOM.inspReportCount.textContent = data.totalInbound || 0;
             DOM.inspReportDate.textContent = data.lastInspectionDate || '-';
 
-            // 특이사항(불량 이력 + 메모) 추출
             let specialIssues = [];
             
             if (data.logs && data.logs.length > 0) {
@@ -339,9 +375,8 @@ export const saveInspectionAndNext = async () => {
         return;
     }
 
-    // 1. 체크리스트 유효성 검사 (필수 선택)
     const checklist = {
-        thickness: DOM.inspCheckThickness.value, // 숫자 입력
+        thickness: DOM.inspCheckThickness.value,
         fabric: DOM.inspCheckFabric.value,
         color: DOM.inspCheckColor.value,
         distortion: DOM.inspCheckDistortion.value,
@@ -363,7 +398,6 @@ export const saveInspectionAndNext = async () => {
     const inboundQty = DOM.inspInboundQtyInput.value.trim();
     const note = DOM.inspNotesInput.value.trim();
 
-    // 리스트에 있는 정보 가져오기
     let currentItem = null;
     if (currentTodoIndex >= 0 && State.appState.inspectionList[currentTodoIndex]) {
         currentItem = State.appState.inspectionList[currentTodoIndex];
@@ -419,7 +453,6 @@ export const saveInspectionAndNext = async () => {
             updatedAt: serverTimestamp()
         };
 
-        // ✅ [신규] 나중 검색을 위해 최신 코드/옵션도 문서 루트에 저장
         if (currentItem) {
             updates.lastCode = currentItem.code;
             updates.lastOption = currentItem.option;
@@ -432,7 +465,6 @@ export const saveInspectionAndNext = async () => {
 
         await setDoc(docRef, updates, { merge: true });
 
-        // 리스트 상태 업데이트
         const list = [...State.appState.inspectionList];
         if (currentTodoIndex >= 0 && list[currentTodoIndex]) {
             list[currentTodoIndex].status = '완료';
@@ -454,7 +486,6 @@ export const saveInspectionAndNext = async () => {
         resetInspectionForm(true);
         clearImageState();
         
-        // 다음 상품 자동 선택
         if (currentTodoIndex >= 0 && currentTodoIndex < list.length - 1) {
             selectTodoItem(currentTodoIndex + 1);
         } else {
@@ -621,7 +652,7 @@ export const updateInspectionLog = async () => {
     if (!productName || isNaN(index) || !currentProductLogs[index]) return;
 
     const checklist = {
-        thickness: DOM.editInspCheckThickness.value, // 숫자
+        thickness: DOM.editInspCheckThickness.value, 
         fabric: DOM.editInspCheckFabric.value,
         color: DOM.editInspCheckColor.value,
         distortion: DOM.editInspCheckDistortion.value,
