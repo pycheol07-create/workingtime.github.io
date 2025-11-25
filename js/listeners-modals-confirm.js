@@ -1,15 +1,13 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
-// 수정사항: saveDayDataToHistory 및 getCurrentTime 임포트 추가
+// 수정사항: 업무 마감 취소 버튼 리스너 추가, 필수 임포트 확인
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-// ✅ [수정] getCurrentTime 추가
 import { showToast, getTodayDateString, getCurrentTime } from './utils.js'; 
 import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js';
 import { saveLeaveSchedule } from './config.js'; 
 import { switchHistoryView } from './app-history-logic.js';
-// ✅ [수정] saveDayDataToHistory 임포트 추가
 import { saveDayDataToHistory } from './history-data-manager.js';
 
 import { 
@@ -266,7 +264,7 @@ export function setupConfirmationModalListeners() {
 
             if (dailyEntry) {
                 if (dailyEntry.type === '외출') {
-                    dailyEntry.endTime = getCurrentTime(); // ✅ 이제 정상 작동
+                    dailyEntry.endTime = getCurrentTime();
                     dailyChanged = true;
                     actionMessage = '복귀 완료';
                 } else {
@@ -314,8 +312,15 @@ export function setupConfirmationModalListeners() {
     // 6. 업무 마감 확인
     if (DOM.confirmEndShiftBtn) {
         DOM.confirmEndShiftBtn.addEventListener('click', async () => {
-            await saveDayDataToHistory(false); // ✅ 이제 정상 작동
+            await saveDayDataToHistory(false);
             DOM.endShiftConfirmModal.classList.add('hidden');
+        });
+    }
+
+    // ✅ [추가] 업무 마감 취소 버튼
+    if (DOM.cancelEndShiftBtn) {
+        DOM.cancelEndShiftBtn.addEventListener('click', () => {
+            if (DOM.endShiftConfirmModal) DOM.endShiftConfirmModal.classList.add('hidden');
         });
     }
 
@@ -361,7 +366,7 @@ export function setupConfirmationModalListeners() {
         DOM.confirmShiftEndAlertBtn.addEventListener('click', async () => {
             window.onbeforeunload = null;
             if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden');
-            await saveDayDataToHistory(true); // ✅ 이제 정상 작동
+            await saveDayDataToHistory(true);
         });
     }
 
