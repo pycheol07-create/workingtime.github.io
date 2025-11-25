@@ -1,16 +1,19 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
-// 수정사항: 그룹(전체) 업무 종료 시 처리량 입력 단계를 생략하고 즉시 종료하도록 변경
+// 수정사항: saveDayDataToHistory 및 getCurrentTime 임포트 추가
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast, getTodayDateString } from './utils.js'; 
+// ✅ [수정] getCurrentTime 추가
+import { showToast, getTodayDateString, getCurrentTime } from './utils.js'; 
 import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js';
 import { saveLeaveSchedule } from './config.js'; 
 import { switchHistoryView } from './app-history-logic.js';
+// ✅ [수정] saveDayDataToHistory 임포트 추가
+import { saveDayDataToHistory } from './history-data-manager.js';
 
 import { 
-    doc, deleteDoc, writeBatch, collection, updateDoc
+    doc, deleteDoc, writeBatch, collection, updateDoc, getDocs, setDoc, query 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 헬퍼: 단일 업무 기록 문서 삭제
@@ -182,7 +185,6 @@ export function setupConfirmationModalListeners() {
     }
 
     // 2. 처리량 입력 모달 확인 (Quantity On Stop)
-    // 참고: 그룹 종료 시에는 이제 이 모달을 띄우지 않으므로, 이 리스너는 개별 종료 등 다른 로직에서 호출될 때만 사용됩니다.
     if (DOM.confirmQuantityOnStopBtn) {
         DOM.confirmQuantityOnStopBtn.addEventListener('click', async () => {
             const quantity = document.getElementById('quantity-on-stop-input').value;
@@ -219,8 +221,7 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // 4. 그룹(전체) 업무 종료 확인 (수정된 부분)
-    // ✅ 처리량 입력 모달을 띄우지 않고 즉시 종료
+    // 4. 그룹(전체) 업무 종료 확인
     if (DOM.confirmStopGroupBtn) {
         DOM.confirmStopGroupBtn.addEventListener('click', async () => {
             if (DOM.stopGroupConfirmModal) DOM.stopGroupConfirmModal.classList.add('hidden');
@@ -265,7 +266,7 @@ export function setupConfirmationModalListeners() {
 
             if (dailyEntry) {
                 if (dailyEntry.type === '외출') {
-                    dailyEntry.endTime = getCurrentTime();
+                    dailyEntry.endTime = getCurrentTime(); // ✅ 이제 정상 작동
                     dailyChanged = true;
                     actionMessage = '복귀 완료';
                 } else {
@@ -313,7 +314,7 @@ export function setupConfirmationModalListeners() {
     // 6. 업무 마감 확인
     if (DOM.confirmEndShiftBtn) {
         DOM.confirmEndShiftBtn.addEventListener('click', async () => {
-            await saveDayDataToHistory(false);
+            await saveDayDataToHistory(false); // ✅ 이제 정상 작동
             DOM.endShiftConfirmModal.classList.add('hidden');
         });
     }
@@ -360,7 +361,7 @@ export function setupConfirmationModalListeners() {
         DOM.confirmShiftEndAlertBtn.addEventListener('click', async () => {
             window.onbeforeunload = null;
             if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden');
-            await saveDayDataToHistory(true);
+            await saveDayDataToHistory(true); // ✅ 이제 정상 작동
         });
     }
 
