@@ -38,13 +38,15 @@ import {
     renderManagementSummary
 } from './ui-history-management.js';
 
-// ✅ [신규] 7. 검수 이력 관련 함수
+// ✅ [수정] 7. 검수 이력 관련 함수 (새로 추가된 함수들도 포함)
 import {
-    renderInspectionHistoryTable
+    renderInspectionHistoryTable,
+    renderInspectionLayout,
+    renderInspectionListMode
 } from './ui-history-inspection.js';
 
 
-// --- 모든 함수를 ui.js가 사용할 수 있도록 다시 내보내기 ---
+// --- 모든 함수를 ui.js 및 리스너가 사용할 수 있도록 다시 내보내기 ---
 
 export {
     // 리포트
@@ -72,6 +74,8 @@ export {
     renderManagementDaily,
     renderManagementSummary,
 
-    // ✅ [신규] 검수 이력
-    renderInspectionHistoryTable
+    // ✅ [수정] 검수 이력 (내보내기 목록 업데이트)
+    renderInspectionHistoryTable,
+    renderInspectionLayout,
+    renderInspectionListMode
 };
