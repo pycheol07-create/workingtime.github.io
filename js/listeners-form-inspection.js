@@ -106,4 +106,11 @@ export function setupFormInspectionListeners() {
     } else {
         console.warn("검수창 전체화면 버튼 또는 컨텐츠 영역을 찾을 수 없습니다.");
     }
+
+    // ✅ [추가] 검수 리스트 새창 열기 리스너
+    if (DOM.inspOpenListWindowBtn) {
+        DOM.inspOpenListWindowBtn.addEventListener('click', () => {
+            InspectionLogic.openInspectionListWindow();
+        });
+    }
 }

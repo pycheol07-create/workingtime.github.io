@@ -45,6 +45,16 @@ export const syncTodayToHistory = async () => {
         const dailyDocSnap = await getDoc(getDailyDocRef());
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
 
+        // ✅ [수정] History 문서도 확인하여 inspectionList 보존 (완료되어 Daily에서 삭제된 경우 대비)
+        const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', todayKey);
+        const historyDocSnap = await getDoc(historyDocRef);
+        const historyData = historyDocSnap.exists() ? historyDocSnap.data() : {};
+
+        // Daily에 리스트가 있으면 Daily(최신) 우선, 없으면 History(보관됨) 사용
+        const mergedInspectionList = (dailyData.inspectionList && dailyData.inspectionList.length > 0) 
+                                     ? dailyData.inspectionList 
+                                     : (historyData.inspectionList || []);
+
         const liveTodayData = {
             id: todayKey,
             workRecords: liveWorkRecords,
@@ -53,7 +63,9 @@ export const syncTodayToHistory = async () => {
             onLeaveMembers: dailyData.onLeaveMembers || [],
             partTimers: dailyData.partTimers || [],
             dailyAttendance: dailyData.dailyAttendance || {},
-            management: dailyData.management || {}
+            management: dailyData.management || {},
+            // ✅ [신규] 검수 리스트 추가
+            inspectionList: mergedInspectionList 
         };
 
         const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
@@ -103,7 +115,10 @@ export async function saveProgress(isAutoSave = false) {
             return Math.round(record.duration || 0) > 0;
         });
 
-        if (liveWorkRecords.length === 0 && Object.keys(dailyData.taskQuantities || {}).length === 0) {
+        // 데이터가 아예 없으면 저장 건너뛰기 (단, 검수리스트가 있으면 저장해야 함)
+        if (liveWorkRecords.length === 0 && 
+            Object.keys(dailyData.taskQuantities || {}).length === 0 && 
+            (!dailyData.inspectionList || dailyData.inspectionList.length === 0)) {
              return;
         }
 
@@ -116,10 +131,13 @@ export async function saveProgress(isAutoSave = false) {
             partTimers: dailyData.partTimers || [],
             dailyAttendance: dailyData.dailyAttendance || {},
             management: dailyData.management || {},
+            // ✅ [신규] 검수 리스트도 이력에 저장
+            inspectionList: dailyData.inspectionList || [], 
             savedAt: now
         };
 
-        await setDoc(historyDocRef, historyData);
+        // merge: true로 저장하여 기존 데이터(예: 완료되어 daily에선 삭제됐지만 history엔 있는 리스트) 보호
+        await setDoc(historyDocRef, historyData, { merge: true });
         await syncTodayToHistory(); 
 
         if (isAutoSave) {
@@ -175,8 +193,6 @@ export async function saveDayDataToHistory(shouldReset) {
                 }
 
                 // 2. (완료된 것도 포함하여) 소요 시간이 0분 이하라면 삭제
-                // ⚠️ 주의: 여기서 완료된 상태(completed)가 된 것들만 삭제 대상입니다.
-                // 'End Shift'는 모든 업무를 종료하는 것이므로, 여기서 삭제되는 것은 맞습니다.
                 if (Math.round(duration) <= 0) {
                     batch.delete(docSnap.ref);
                     removedCount++;

@@ -169,7 +169,8 @@ export const renderTodoList = () => {
     });
 };
 
-const selectTodoItem = (index) => {
+// ✅ [수정] selectTodoItem 함수를 외부(팝업창)에서 호출할 수 있도록 export로 변경
+export const selectTodoItem = (index) => {
     const item = State.appState.inspectionList[index];
     if (!item) return;
 
@@ -192,6 +193,104 @@ const selectTodoItem = (index) => {
     DOM.inspNotesInput.value = '';
     
     showToast(`'${item.name}' 선택됨`);
+};
+
+// ✅ [추가] 팝업창에서 호출하기 위해 window 객체에 함수 바인딩
+window.selectInspectionTodoItem = selectTodoItem;
+
+// ✅ [추가] 별도 창으로 리스트 열기 함수
+export const openInspectionListWindow = () => {
+    const list = State.appState.inspectionList || [];
+    if (list.length === 0) {
+        showToast("리스트 데이터가 없습니다.", true);
+        return;
+    }
+
+    // 새 창 열기 (너비 600, 높이 800)
+    const popup = window.open('', 'InspectionListWindow', 'width=600,height=800,scrollbars=yes,resizable=yes');
+    if (!popup) {
+        showToast("팝업 차단을 해제해주세요.", true);
+        return;
+    }
+
+    // HTML 문서 작성
+    const rowsHtml = list.map((item, idx) => {
+        const isCompleted = item.status === '완료';
+        const trClass = isCompleted ? 'bg-gray-100 text-gray-500' : 'hover:bg-blue-50 cursor-pointer';
+        const statusBadge = isCompleted 
+            ? '<span class="text-green-600 font-bold text-xs">완료</span>' 
+            : '<span class="text-gray-400 text-xs">대기</span>';
+        
+        // 클릭 시 부모 창의 함수 호출 (window.opener)
+        const onClickScript = isCompleted ? '' : `onclick="selectItemInParent(${idx})"`;
+
+        return `
+            <tr class="border-b last:border-0 transition ${trClass}" ${onClickScript}>
+                <td class="px-3 py-2 font-mono text-xs">${item.code || '-'}</td>
+                <td class="px-3 py-2 font-medium text-sm">${item.name}</td>
+                <td class="px-3 py-2 text-xs">${item.option || '-'}</td>
+                <td class="px-3 py-2 text-center">${statusBadge}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <title>검수 대기 리스트</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <style>
+                body { font-family: 'Noto Sans KR', sans-serif; }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
+            </style>
+            <script>
+                function selectItemInParent(index) {
+                    if (window.opener && !window.opener.closed) {
+                        // 부모 창의 함수 호출
+                        window.opener.selectInspectionTodoItem(index);
+                        // 선택 효과 (배경 깜빡임)
+                        document.querySelectorAll('tr').forEach(tr => tr.classList.remove('bg-blue-100'));
+                        const rows = document.querySelectorAll('tbody tr');
+                        if(rows[index]) rows[index].classList.add('bg-blue-100');
+                    } else {
+                        alert('메인 프로그램 창이 닫혀있어 연동할 수 없습니다.');
+                    }
+                }
+            </script>
+        </head>
+        <body class="bg-white">
+            <div class="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center shadow-sm z-10">
+                <h2 class="text-lg font-bold text-gray-800">📋 검수 대기 리스트</h2>
+                <span class="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600">총 ${list.length}건</span>
+            </div>
+            <div class="overflow-y-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0">
+                        <tr>
+                            <th class="px-3 py-2 font-semibold border-b">코드</th>
+                            <th class="px-3 py-2 font-semibold border-b">상품명</th>
+                            <th class="px-3 py-2 font-semibold border-b">옵션</th>
+                            <th class="px-3 py-2 font-semibold border-b text-center">상태</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-4 text-center text-xs text-gray-400 bg-gray-50 border-t border-gray-200 fixed bottom-0 w-full">
+                항목을 클릭하면 메인 창에 자동 입력됩니다.
+            </div>
+        </body>
+        </html>
+    `;
+
+    popup.document.open();
+    popup.document.write(htmlContent);
+    popup.document.close();
 };
 
 // ======================================================
@@ -652,7 +751,7 @@ export const updateInspectionLog = async () => {
     if (!productName || isNaN(index) || !currentProductLogs[index]) return;
 
     const checklist = {
-        thickness: DOM.editInspCheckThickness.value, 
+        thickness: DOM.editInspCheckThickness.value,
         fabric: DOM.editInspCheckFabric.value,
         color: DOM.editInspCheckColor.value,
         distortion: DOM.editInspCheckDistortion.value,
