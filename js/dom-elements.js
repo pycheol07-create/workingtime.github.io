@@ -6,7 +6,8 @@ export const loadingSpinner = document.getElementById('loading-spinner');
 // [신규] 검수 리스트(엑셀) 업로드 관련
 export const inspExcelUploadInput = document.getElementById('insp-excel-upload');
 export const inspExcelUploadBtn = document.getElementById('insp-excel-upload-btn');
-export const inspOpenListWindowBtn = document.getElementById('insp-open-list-window-btn'); // ✅ [추가] 새창 열기 버튼
+export const inspOpenListWindowBtn = document.getElementById('insp-open-list-window-btn'); // 새창 열기 버튼
+export const inspDeleteListBtn = document.getElementById('insp-delete-list-btn'); // ✅ [추가] 리스트 삭제 버튼
 export const inspTodoListArea = document.getElementById('insp-todo-list-area');
 export const inspTodoListBody = document.getElementById('insp-todo-list-body');
 

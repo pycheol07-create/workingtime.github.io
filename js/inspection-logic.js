@@ -71,6 +71,42 @@ export const initializeInspectionSession = async () => {
     }
 };
 
+// ✅ [신규] 엑셀 리스트 전체 삭제 (초기화)
+export const deleteInspectionList = async () => {
+    const list = State.appState.inspectionList || [];
+    if (list.length === 0) {
+        showToast("삭제할 리스트가 없습니다.", true);
+        return;
+    }
+
+    if (!confirm("현재 검수 대기 리스트를 모두 삭제하시겠습니까?\n(검수 완료된 이력 데이터는 유지됩니다)")) {
+        return;
+    }
+
+    try {
+        // DB에서 리스트 비우기
+        await updateDailyData({ inspectionList: [] });
+        State.appState.inspectionList = [];
+        
+        // UI 갱신
+        renderTodoList();
+        
+        // 입력 폼 초기화
+        DOM.inspProductNameInput.value = '';
+        if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
+        if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
+        if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
+        if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
+        
+        currentTodoIndex = -1;
+
+        showToast("검수 리스트가 초기화되었습니다.");
+    } catch (e) {
+        console.error("Error deleting list:", e);
+        showToast("리스트 삭제 중 오류가 발생했습니다.", true);
+    }
+};
+
 // ======================================================
 // 1. 엑셀 리스트 업로드 및 처리
 // ======================================================

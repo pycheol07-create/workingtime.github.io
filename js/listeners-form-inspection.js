@@ -151,4 +151,11 @@ export function setupFormInspectionListeners() {
             InspectionLogic.openInspectionListWindow();
         });
     }
+
+    // ✅ [추가] 검수 리스트 삭제 리스너
+    if (DOM.inspDeleteListBtn) {
+        DOM.inspDeleteListBtn.addEventListener('click', () => {
+            InspectionLogic.deleteInspectionList();
+        });
+    }
 }
