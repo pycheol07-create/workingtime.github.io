@@ -113,14 +113,16 @@ export function setupFormInspectionListeners() {
                 // 전체화면 적용
                 modalContent.classList.remove('rounded-2xl', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'relative');
                 modalContent.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
-                // 아이콘 변경 (축소)
-                if (btnIcon) btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9L3.75 3.75M9 9h4.5M9 9V4.5m9 9l5.25 5.25M15 15h-4.5m4.5 0v4.5m-9 0l-5.25 5.25M9 21v-4.5M9 21H4.5m9-9l5.25-5.25M15 9V4.5M15 9h4.5" />`;
+                
+                // ✅ [수정] 아이콘 변경 (축소 아이콘)
+                if (btnIcon) btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
                 fullscreenBtn.title = "기본 크기로";
             } else {
                 // 기본 크기로 복귀
                 modalContent.classList.add('relative', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'rounded-2xl');
                 modalContent.classList.remove('fixed', 'inset-0', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
-                // 아이콘 변경 (확대)
+                
+                // ✅ [수정] 아이콘 변경 (확대 아이콘)
                 if (btnIcon) btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
                 fullscreenBtn.title = "전체화면";
             }
