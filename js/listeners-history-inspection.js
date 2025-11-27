@@ -21,7 +21,8 @@ import {
     prepareEditInspectionLog,
     updateInspectionLog,
     deleteInspectionLog,
-    deleteProductHistory
+    deleteProductHistory,
+    deleteHistoryInspectionList // ✅ 추가
 } from './inspection-logic.js';
 
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -128,6 +129,19 @@ export function setupHistoryInspectionListeners() {
                     // 전체 리로드 대신 뷰만 갱신하면 좋겠지만, 구조상 간단히 fetchAndRender 호출
                     // (메모리상의 allHistoryData를 쓰므로 빠름)
                     fetchAndRenderInspectionHistory(); 
+                }
+                return;
+            }
+
+            // [신규] F. 과거 리스트 삭제 버튼
+            const deleteListBtn = e.target.closest('.btn-delete-history-list');
+            if (deleteListBtn) {
+                const dateKey = deleteListBtn.dataset.date;
+                const success = await deleteHistoryInspectionList(dateKey);
+                if (success) {
+                    // 삭제 성공 시 선택된 날짜 초기화 후 재렌더링
+                    State.context.selectedInspectionDate = null;
+                    fetchAndRenderInspectionHistory();
                 }
                 return;
             }

@@ -52,6 +52,7 @@ export const renderInspectionLayout = (container) => {
 
 /**
  * 입고 리스트별 보기 렌더링 (좌: 날짜목록, 우: 상세테이블)
+ * [수정] 상세 내역 헤더에 '리스트 삭제' 버튼 추가
  */
 export const renderInspectionListMode = (dateList, selectedDateData) => {
     const container = document.getElementById('inspection-content-area');
@@ -83,8 +84,24 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
     let detailHtml = '';
     if (!selectedDate) {
         detailHtml = `<div class="flex h-full items-center justify-center text-gray-400 text-sm">좌측에서 날짜를 선택해주세요.</div>`;
-    } else if (!selectedDateData || selectedDateData.length === 0) {
-        detailHtml = `<div class="flex h-full items-center justify-center text-gray-400 text-sm">해당 날짜의 리스트 데이터가 없습니다.</div>`;
+    } else if (!selectedDateData) {
+        detailHtml = `<div class="flex h-full items-center justify-center text-gray-400 text-sm">데이터를 불러올 수 없습니다.</div>`;
+    } else if (selectedDateData.length === 0) {
+        // 리스트는 존재하지만 내용이 비어있는 경우 (찌꺼기 데이터 삭제용 버튼 표시)
+        detailHtml = `
+            <div class="flex flex-col h-full">
+                <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 입고 리스트 상세</h4>
+                        <span class="text-xs text-gray-500">0건</span>
+                    </div>
+                    <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list" data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
+                        🗑️ 리스트 삭제
+                    </button>
+                </div>
+                <div class="flex h-full items-center justify-center text-gray-400 text-sm">해당 날짜의 리스트 데이터가 없습니다.</div>
+            </div>
+        `;
     } else {
         const rows = selectedDateData.map((item, idx) => {
             const isCompleted = item.status === '완료';
@@ -107,8 +124,13 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
         detailHtml = `
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                    <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 입고 리스트 상세</h4>
-                    <span class="text-xs text-gray-500">총 ${selectedDateData.length}개 상품</span>
+                    <div class="flex items-center gap-2">
+                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 입고 리스트 상세</h4>
+                        <span class="text-xs text-gray-500">총 ${selectedDateData.length}개 상품</span>
+                    </div>
+                    <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list" data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
+                        🗑️ 리스트 삭제
+                    </button>
                 </div>
                 <div class="flex-grow overflow-y-auto">
                     <table class="w-full text-left border-collapse">

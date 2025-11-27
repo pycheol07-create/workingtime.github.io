@@ -107,6 +107,45 @@ export const deleteInspectionList = async () => {
     }
 };
 
+// ✅ [신규] 이력(History)에서 특정 날짜의 검수 리스트 삭제
+export const deleteHistoryInspectionList = async (dateKey) => {
+    if (!dateKey) return false;
+
+    if (!confirm(`${dateKey}일자의 입고 리스트를 삭제하시겠습니까?\n(이미 완료된 검수 이력 데이터는 삭제되지 않습니다)`)) {
+        return false;
+    }
+
+    const todayKey = getTodayDateString();
+    
+    try {
+        // 1. 로컬 상태(allHistoryData) 업데이트
+        const dayData = State.allHistoryData.find(d => d.id === dateKey);
+        if (dayData) {
+            dayData.inspectionList = []; // 빈 배열로 초기화
+        }
+
+        // 2. Firestore 업데이트
+        if (dateKey === todayKey) {
+            // 오늘 날짜라면 daily_data 업데이트 (실시간성)
+            // 또한 메인 앱 상태(appState)도 업데이트 필요
+            State.appState.inspectionList = [];
+            await updateDailyData({ inspectionList: [] });
+        } else {
+            // 과거 날짜라면 history 컬렉션 업데이트
+            const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+            await updateDoc(docRef, { inspectionList: [] });
+        }
+
+        showToast(`${dateKey} 리스트가 삭제되었습니다.`);
+        return true;
+
+    } catch (e) {
+        console.error("Error deleting history list:", e);
+        showToast("리스트 삭제 중 오류가 발생했습니다.", true);
+        return false;
+    }
+};
+
 // ======================================================
 // 1. 엑셀 리스트 업로드 및 처리
 // ======================================================

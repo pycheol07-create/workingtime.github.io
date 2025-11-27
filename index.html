@@ -245,6 +245,7 @@
     <div id="modals-container-history"></div>
     <div id="modals-container-form"></div>
     <div id="modals-container-admin-todo"></div>
+    <div id="modals-container-admin-todo-alert"></div>
 
     <script>
         // 1. 외부 HTML 컴포넌트 로더
@@ -273,8 +274,9 @@
                 loadComponent('components/modals-confirm.html', 'modals-container-confirm'),
                 loadComponent('components/modals-history.html', 'modals-container-history'),
                 loadComponent('components/modals-form.html', 'modals-container-form'),
-                // ✅ [신규] To-Do 모달 로드
-                loadComponent('components/modals-admin-todo.html', 'modals-container-admin-todo')
+                loadComponent('components/modals-admin-todo.html', 'modals-container-admin-todo'),
+                // ✅ [신규] 알림 모달 로드
+                loadComponent('components/modals-admin-todo-alert.html', 'modals-container-admin-todo-alert')
             ]);
 
             // (2) 모달이 준비된 후 메인 앱 로직(app.js)을 실행합니다.

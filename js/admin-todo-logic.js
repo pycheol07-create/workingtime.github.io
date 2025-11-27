@@ -1,5 +1,6 @@
 // === js/admin-todo-logic.js ===
 import * as State from './state.js';
+import * as DOM from './dom-elements.js'; // ✅ DOM 요소 임포트 추가
 import { showToast } from './utils.js';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -42,7 +43,6 @@ const saveAdminTodos = async () => {
         await setDoc(getTodoDocRef(), { tasks: State.appState.adminTodos }, { merge: true });
     } catch (e) {
         console.error("Error saving admin todos:", e);
-        // showToast("저장 중 오류가 발생했습니다.", true); // 잦은 저장 알림 방지
     }
 };
 
@@ -62,11 +62,10 @@ export const renderAdminTodoList = () => {
     // 정렬: 미완료 상단 > 날짜 임박순 > 최신순
     const sortedTodos = [...todos].sort((a, b) => {
         if (a.completed !== b.completed) return a.completed ? 1 : -1;
-        // 둘 다 미완료이거나 둘 다 완료인 경우
         const dateA = a.dueDateTime ? new Date(a.dueDateTime).getTime() : Infinity;
         const dateB = b.dueDateTime ? new Date(b.dueDateTime).getTime() : Infinity;
-        if (dateA !== dateB) return dateA - dateB; // 날짜 빠른 순
-        return b.createdAt - a.createdAt; // 생성 최신 순
+        if (dateA !== dateB) return dateA - dateB;
+        return b.createdAt - a.createdAt;
     });
 
     const now = new Date();
@@ -79,7 +78,13 @@ export const renderAdminTodoList = () => {
         if (todo.dueDateTime) {
             const dueDate = new Date(todo.dueDateTime);
             const isOverdue = !todo.completed && dueDate < now;
-            const dateClass = isOverdue ? 'text-red-600 bg-red-50 border-red-200' : (todo.completed ? 'text-gray-400 bg-gray-50 border-gray-200' : 'text-blue-600 bg-blue-50 border-blue-200');
+            // alertConfirmed 여부에 따라 스타일 다르게 (미확인이면 빨간색 강조)
+            const isUnconfirmed = isOverdue && !todo.alertConfirmed;
+            
+            const dateClass = isUnconfirmed ? 'text-red-600 bg-red-50 border-red-200 font-bold animate-pulse' : 
+                              (isOverdue ? 'text-red-500 bg-red-50 border-red-100' : 
+                              (todo.completed ? 'text-gray-400 bg-gray-50 border-gray-200' : 'text-blue-600 bg-blue-50 border-blue-200'));
+            
             const icon = isOverdue ? '🚨' : '⏰';
             dateBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded border ml-2 whitespace-nowrap ${dateClass}">${icon} ${formatDateTimeShort(todo.dueDateTime)}</span>`;
         }
@@ -106,7 +111,7 @@ export const renderAdminTodoList = () => {
     });
 };
 
-// 4. 액션: 추가 (일정 포함)
+// 4. 액션: 추가
 export const addTodo = async (text, dateStr) => {
     if (!text.trim()) {
         showToast("내용을 입력해주세요.", true);
@@ -116,8 +121,8 @@ export const addTodo = async (text, dateStr) => {
         id: createId(),
         text: text.trim(),
         completed: false,
-        dueDateTime: dateStr || null, // 'YYYY-MM-DDTHH:mm'
-        alertSent: false, // 알림 발송 여부 초기화
+        dueDateTime: dateStr || null, 
+        alertConfirmed: false, // ✅ 수정: alertSent -> alertConfirmed
         createdAt: Date.now()
     };
     State.appState.adminTodos.push(newTodo);
@@ -143,32 +148,70 @@ export const deleteTodo = async (id) => {
     await saveAdminTodos();
 };
 
-// ✅ [신규] 7. 알림 체크 로직 (app.js에서 주기적으로 호출)
+// ✅ [수정] 7. 알림 체크 (사라지지 않는 팝업 로직)
 export const checkAdminTodoNotifications = async () => {
     const todos = State.appState.adminTodos || [];
     const now = new Date();
-    let hasUpdates = false;
+    
+    // 조건: 미완료 + 마감시간 지남 + 아직 확인 안 함(alertConfirmed == false)
+    const pendingTasks = todos.filter(t => 
+        !t.completed && 
+        t.dueDateTime && 
+        new Date(t.dueDateTime) <= now && 
+        !t.alertConfirmed
+    );
 
-    todos.forEach(todo => {
-        // 미완료, 일정 있음, 아직 알림 안 보냄, 현재 시간이 마감 시간 지남
-        if (!todo.completed && todo.dueDateTime && !todo.alertSent) {
-            const dueDate = new Date(todo.dueDateTime);
-            if (dueDate <= now) {
-                // 알림 발송
-                showToast(`🔔 [알림] 할 일 마감: "${todo.text}"`, false); // false = green toast, true = red
-                // 브라우저 알림 (옵션)
-                if (Notification.permission === "granted") {
-                    new Notification("업무 마감 알림", { body: todo.text });
-                }
+    if (pendingTasks.length > 0) {
+        // 모달 내용 업데이트
+        if (DOM.adminTodoAlertModal && DOM.adminTodoAlertList) {
+            DOM.adminTodoAlertList.innerHTML = pendingTasks.map(t => `
+                <div class="flex items-start gap-3 bg-white p-3 rounded border border-indigo-100 shadow-sm">
+                    <span class="text-indigo-500 mt-1 text-xs">●</span>
+                    <div class="flex-grow">
+                        <div class="font-bold text-indigo-900 text-sm">${t.text}</div>
+                        <div class="text-xs text-indigo-500 mt-1 flex items-center gap-1">
+                            ⏰ 마감: ${t.dueDateTime.replace('T', ' ')}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            // 🚨 여기서 바로 저장하지 않습니다! (버튼 누를 때 저장)
+            // 모달이 꺼져있다면 켬 (이미 켜져있으면 내용만 갱신됨)
+            if (DOM.adminTodoAlertModal.classList.contains('hidden')) {
+                DOM.adminTodoAlertModal.classList.remove('hidden');
                 
-                todo.alertSent = true; // 알림 보냄 처리
-                hasUpdates = true;
+                // 브라우저 알림은 최초 팝업 시 1회만 (선택 사항)
+                if (Notification.permission === "granted") {
+                    new Notification("할 일 마감 알림", { body: `${pendingTasks.length}건의 마감된 할 일이 있습니다.` });
+                }
             }
+        }
+    }
+};
+
+// ✅ [신규] 8. 알림 확인 처리 (버튼 클릭 시 호출)
+export const confirmPendingAlerts = async () => {
+    const todos = State.appState.adminTodos || [];
+    const now = new Date();
+    let hasChanges = false;
+
+    // 현재 시점 기준으로 마감된 모든 미확인 항목을 '확인됨'으로 변경
+    todos.forEach(t => {
+        if (!t.completed && t.dueDateTime && new Date(t.dueDateTime) <= now && !t.alertConfirmed) {
+            t.alertConfirmed = true; 
+            hasChanges = true;
         }
     });
 
-    if (hasUpdates) {
-        renderAdminTodoList(); // 🚨 아이콘 업데이트 등을 위해 렌더링
-        await saveAdminTodos(); // 알림 상태 저장
+    // 변경사항이 있으면 DB 저장 및 UI 갱신
+    if (hasChanges) {
+        await saveAdminTodos();
+        renderAdminTodoList(); // To-Do 리스트의 빨간 배지 제거 등 업데이트
+    }
+    
+    // 모달 닫기
+    if (DOM.adminTodoAlertModal) {
+        DOM.adminTodoAlertModal.classList.add('hidden');
     }
 };

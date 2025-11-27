@@ -443,4 +443,13 @@ export function setupMainScreenListeners() {
             }
         });
     }
+
+    // ✅ [신규] 알림 모달 '확인했습니다' 버튼 리스너
+    if (DOM.adminTodoAlertConfirmBtn) {
+        DOM.adminTodoAlertConfirmBtn.addEventListener('click', () => {
+            if (DOM.adminTodoAlertModal) {
+                DOM.adminTodoAlertModal.classList.add('hidden');
+            }
+        });
+    }
 }
