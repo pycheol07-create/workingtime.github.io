@@ -4,7 +4,7 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 
-// ✅ [수정] app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
+// app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
 import { render } from './app.js';
 import { updateDailyData } from './app-data.js';
 
@@ -25,7 +25,7 @@ import {
     doc, updateDoc, collection, query, where, getDocs, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ [신규] Admin Todo 로직 임포트
+// Admin Todo 로직 임포트
 import * as AdminTodoLogic from './admin-todo-logic.js';
 
 export function setupMainScreenListeners() {
@@ -73,7 +73,7 @@ export function setupMainScreenListeners() {
         });
     }
     
-    // ✅ [신규] 내 연차관리 버튼 리스너 (PC)
+    // 내 연차관리 버튼 리스너 (PC)
     if (DOM.openMyLeaveBtn) {
         DOM.openMyLeaveBtn.addEventListener('click', () => {
             const currentUser = State.appState.currentUser;
@@ -95,7 +95,7 @@ export function setupMainScreenListeners() {
         });
     }
 
-    // ✅ [신규] 내 연차관리 버튼 리스너 (Mobile)
+    // 내 연차관리 버튼 리스너 (Mobile)
     if (DOM.openMyLeaveBtnMobile) {
         DOM.openMyLeaveBtnMobile.addEventListener('click', () => {
             const currentUser = State.appState.currentUser;
@@ -380,7 +380,7 @@ export function setupMainScreenListeners() {
     }
 
     // ======================================================
-    // ✅ [신규] 관리자 To-Do 리스트 관련 리스너 추가
+    // 관리자 To-Do 리스트 관련 리스너
     // ======================================================
     
     // 1. 버튼 클릭 시 모달 열기
@@ -405,21 +405,25 @@ export function setupMainScreenListeners() {
 
     // 2. 모달 내부 동작 (추가, 삭제, 토글)
     const todoInput = document.getElementById('admin-todo-input');
+    const todoDateInput = document.getElementById('admin-todo-datetime'); // ✅ [신규]
     const todoAddBtn = document.getElementById('admin-todo-add-btn');
     const todoList = document.getElementById('admin-todo-list');
 
     if (todoAddBtn && todoInput) {
         // 추가 버튼 클릭
         todoAddBtn.addEventListener('click', () => {
-            AdminTodoLogic.addTodo(todoInput.value);
+            // ✅ [수정] 날짜 값 함께 전달
+            AdminTodoLogic.addTodo(todoInput.value, todoDateInput ? todoDateInput.value : null);
             todoInput.value = '';
+            if (todoDateInput) todoDateInput.value = ''; // 날짜 초기화
             todoInput.focus();
         });
         // 엔터키 입력
         todoInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                AdminTodoLogic.addTodo(todoInput.value);
+                AdminTodoLogic.addTodo(todoInput.value, todoDateInput ? todoDateInput.value : null);
                 todoInput.value = '';
+                if (todoDateInput) todoDateInput.value = '';
             }
         });
     }

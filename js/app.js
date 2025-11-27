@@ -39,15 +39,18 @@ import {
     debouncedSaveState
 } from './app-data.js';
 
-// ✅ [신규] 검수 리스트 렌더링 함수 임포트
+// 검수 리스트 렌더링 함수 임포트
 import { renderTodoList } from './inspection-logic.js';
+
+// ✅ [신규] Admin Todo 로직 임포트 (알림 체크용)
+import { checkAdminTodoNotifications } from './admin-todo-logic.js';
 
 
 // --- 3. 헬퍼 함수 ---
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
 
-// ✅ [신규] 과거 연차 데이터 (이미지 기반)
+// 과거 연차 데이터 (이미지 기반)
 const historicalLeaveData = [
     { member: "박영철", dates: ["2025-01-22", "2025-02-10", "2025-02-17", "2025-02-19", "2025-02-20", "2025-02-21", "2025-03-21", "2025-05-02", "2025-05-07", "2025-05-08", "2025-05-09", "2025-05-12", "2025-05-13", "2025-06-17", "2025-09-01", "2025-09-30", "2025-11-24"] },
     { member: "유아라", dates: ["2025-01-14", "2025-03-20", "2025-03-21", "2025-04-21", "2025-06-23", "2025-07-14", "2025-08-04", "2025-08-22", "2025-08-25", "2025-09-24", "2025-09-25", "2025-09-26", "2025-09-29", "2025-09-30", "2025-10-01", "2025-10-02", "2025-10-29", "2025-11-11", "2025-11-17"] },
@@ -66,7 +69,7 @@ const historicalLeaveData = [
     { member: "황호석", dates: ["2025-03-17", "2025-04-02", "2025-04-23", "2025-05-16", "2025-06-13", "2025-07-11", "2025-07-21", "2025-08-25", "2025-09-15", "2025-10-17", "2025-11-10"] }
 ];
 
-// ✅ [신규] 데이터 일괄 적용 함수
+// 데이터 일괄 적용 함수
 async function applyHistoricalLeaveData() {
     if (!State.persistentLeaveSchedule || !State.persistentLeaveSchedule.onLeaveMembers) {
         State.persistentLeaveSchedule = { onLeaveMembers: [] };
@@ -140,7 +143,7 @@ export const updateElapsedTimes = async () => {
         saveStateToFirestore(); 
     }
 
-    // ✅ [신규] 업무 종료 시간 알림 (평일 17:30, 주말 15:45)
+    // 업무 종료 시간 알림 (평일 17:30, 주말 15:45)
     if (!State.appState.shiftEndAlertExecuted) {
         const todayDate = getTodayDateString();
         const isWeekend = !isWeekday(todayDate);
@@ -238,7 +241,6 @@ async function startAppAfterLogin(user) {
         State.setAppConfig(await loadAppConfig(State.db));
         State.setPersistentLeaveSchedule(await loadLeaveSchedule(State.db));
 
-        // ✅ [신규] 연차 데이터 일괄 적용 (초기화 후 지연 실행)
         setTimeout(() => {
             applyHistoricalLeaveData();
         }, 2000);
@@ -303,7 +305,7 @@ async function startAppAfterLogin(user) {
 
         const adminLinkBtn = document.getElementById('admin-link-btn');
         
-        // ✅ [신규] To-Do 버튼 요소 가져오기
+        // To-Do 버튼 요소 가져오기
         const adminTodoBtn = document.getElementById('open-admin-todo-btn');
         const adminTodoBtnMobile = document.getElementById('open-admin-todo-btn-mobile');
 
@@ -316,9 +318,14 @@ async function startAppAfterLogin(user) {
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'flex';
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'flex';
 
-            // ✅ [신규] 관리자일 때만 To-Do 버튼 표시
+            // 관리자일 때만 To-Do 버튼 표시
             if (adminTodoBtn) adminTodoBtn.style.display = 'flex';
             if (adminTodoBtnMobile) adminTodoBtnMobile.style.display = 'flex';
+
+            // ✅ [신규] To-Do 알림 체크 타이머 시작 (30초마다)
+            setInterval(() => {
+                checkAdminTodoNotifications();
+            }, 30000);
 
         } else {
             if (adminLinkBtn) adminLinkBtn.style.display = 'none';
@@ -328,7 +335,7 @@ async function startAppAfterLogin(user) {
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'none';
 
-            // ✅ [신규] 일반 사용자 숨김
+            // 일반 사용자 숨김
             if (adminTodoBtn) adminTodoBtn.style.display = 'none';
             if (adminTodoBtnMobile) adminTodoBtnMobile.style.display = 'none';
         }
@@ -478,19 +485,16 @@ async function startAppAfterLogin(user) {
             State.appState.dailyOnLeaveMembers = data.onLeaveMembers || legacyState.onLeaveMembers || [];
             State.appState.lunchPauseExecuted = data.lunchPauseExecuted ?? legacyState.lunchPauseExecuted ?? false;
             State.appState.lunchResumeExecuted = data.lunchResumeExecuted ?? legacyState.lunchResumeExecuted ?? false;
-            // ✅ [신규] 종료 알림 플래그 동기화
             State.appState.shiftEndAlertExecuted = data.shiftEndAlertExecuted ?? legacyState.shiftEndAlertExecuted ?? false;
             State.appState.confirmedZeroTasks = data.confirmedZeroTasks || legacyState.confirmedZeroTasks || [];
             State.appState.dailyAttendance = data.dailyAttendance || legacyState.dailyAttendance || {};
 
-            // ✅ [신규] 검수 리스트 동기화
             State.appState.inspectionList = data.inspectionList || [];
 
             State.setIsDataDirty(false); 
 
             render();
             
-            // ✅ [신규] 검수 리스트 UI 갱신 (실시간 반영)
             renderTodoList();
             
             if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (메타)';
@@ -604,7 +608,6 @@ async function main() {
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'none';
 
-            // ✅ [신규] 로그아웃 시 To-Do 버튼 숨김
             const adminTodoBtn = document.getElementById('open-admin-todo-btn');
             const adminTodoBtnMobile = document.getElementById('open-admin-todo-btn-mobile');
             if (adminTodoBtn) adminTodoBtn.style.display = 'none';

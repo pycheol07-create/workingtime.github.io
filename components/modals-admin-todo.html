@@ -2,17 +2,21 @@
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md relative flex flex-col max-h-[85vh]">
         <div class="p-5 border-b border-gray-200 bg-indigo-50 rounded-t-2xl flex justify-between items-center flex-shrink-0">
             <h2 class="text-xl font-bold text-indigo-900 flex items-center gap-2">
-                📝 관리자 To-Do
+                📝 관리자 To-Do (알림)
             </h2>
             <button class="modal-close-btn text-indigo-400 hover:text-indigo-700 static" onclick="document.getElementById('admin-todo-modal').classList.add('hidden')">&times;</button>
         </div>
 
-        <div class="p-4 border-b border-gray-100 bg-white">
+        <div class="p-4 border-b border-gray-100 bg-white space-y-2">
+            <input type="text" id="admin-todo-input" 
+                   class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm" 
+                   placeholder="할 일을 입력하세요..." autocomplete="off">
+            
             <div class="flex gap-2">
-                <input type="text" id="admin-todo-input" 
-                       class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm" 
-                       placeholder="할 일을 입력하세요..." autocomplete="off">
-                <button id="admin-todo-add-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 rounded-lg transition text-sm shadow-sm">
+                <input type="datetime-local" id="admin-todo-datetime" 
+                       class="flex-grow p-2 border border-gray-300 rounded-lg text-xs text-gray-600 focus:ring-2 focus:ring-indigo-500 outline-none">
+                
+                <button id="admin-todo-add-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 rounded-lg transition text-sm shadow-sm whitespace-nowrap">
                     추가
                 </button>
             </div>
