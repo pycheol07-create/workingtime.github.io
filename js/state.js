@@ -81,7 +81,7 @@ export const context = {
     autoPauseForLunch: null,
     autoResumeFromLunch: null,
     
-    // ✅ [신규] 검수 이력 뷰 상태 추가
+    // 검수 이력 뷰 상태
     inspectionViewMode: 'product', // 'product' | 'list'
     selectedInspectionDate: null,  // 입고 리스트별 보기에서 선택된 날짜
 
@@ -140,7 +140,10 @@ export const appState = {
     shiftEndAlertExecuted: false, // 업무 종료 알림 실행 여부
     
     // 검수 대기 리스트 (서버 동기화용)
-    inspectionList: [] 
+    inspectionList: [],
+
+    // ✅ [신규] 관리자 To-Do 리스트 상태 추가
+    adminTodos: [] 
 };
 
 export const allHistoryData = [];

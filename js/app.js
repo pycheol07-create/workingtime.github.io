@@ -302,6 +302,11 @@ async function startAppAfterLogin(user) {
         }
 
         const adminLinkBtn = document.getElementById('admin-link-btn');
+        
+        // ✅ [신규] To-Do 버튼 요소 가져오기
+        const adminTodoBtn = document.getElementById('open-admin-todo-btn');
+        const adminTodoBtnMobile = document.getElementById('open-admin-todo-btn-mobile');
+
         if (currentUserRole === 'admin') {
             if (adminLinkBtn) adminLinkBtn.style.display = 'flex';
             if (DOM.adminLinkBtnMobile) DOM.adminLinkBtnMobile.style.display = 'flex';
@@ -311,6 +316,10 @@ async function startAppAfterLogin(user) {
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'flex';
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'flex';
 
+            // ✅ [신규] 관리자일 때만 To-Do 버튼 표시
+            if (adminTodoBtn) adminTodoBtn.style.display = 'flex';
+            if (adminTodoBtnMobile) adminTodoBtnMobile.style.display = 'flex';
+
         } else {
             if (adminLinkBtn) adminLinkBtn.style.display = 'none';
             if (DOM.adminLinkBtnMobile) DOM.adminLinkBtnMobile.style.display = 'none';
@@ -318,6 +327,10 @@ async function startAppAfterLogin(user) {
             if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'none';
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'none';
+
+            // ✅ [신규] 일반 사용자 숨김
+            if (adminTodoBtn) adminTodoBtn.style.display = 'none';
+            if (adminTodoBtnMobile) adminTodoBtnMobile.style.display = 'none';
         }
 
         document.getElementById('current-date-display')?.classList.remove('hidden');
@@ -590,6 +603,12 @@ async function main() {
             if (DOM.resetAppBtnMobile) DOM.resetAppBtnMobile.style.display = 'none';
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'none';
+
+            // ✅ [신규] 로그아웃 시 To-Do 버튼 숨김
+            const adminTodoBtn = document.getElementById('open-admin-todo-btn');
+            const adminTodoBtnMobile = document.getElementById('open-admin-todo-btn-mobile');
+            if (adminTodoBtn) adminTodoBtn.style.display = 'none';
+            if (adminTodoBtnMobile) adminTodoBtnMobile.style.display = 'none';
 
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
             if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 

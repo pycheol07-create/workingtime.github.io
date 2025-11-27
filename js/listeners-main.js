@@ -13,7 +13,7 @@ import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     renderManualAddModalDatalists,
-    renderLeaveTypeModalOptions // ✅ [신규] 추가
+    renderLeaveTypeModalOptions 
 } from './ui.js';
 import {
     processClockIn, processClockOut, cancelClockOut
@@ -24,6 +24,9 @@ import { checkMissingQuantities } from './analysis-logic.js';
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ✅ [신규] Admin Todo 로직 임포트
+import * as AdminTodoLogic from './admin-todo-logic.js';
 
 export function setupMainScreenListeners() {
 
@@ -373,6 +376,67 @@ export function setupMainScreenListeners() {
         DOM.analysisMemberSelect.addEventListener('change', (e) => {
             const selectedMember = e.target.value;
             renderPersonalAnalysis(selectedMember, State.appState);
+        });
+    }
+
+    // ======================================================
+    // ✅ [신규] 관리자 To-Do 리스트 관련 리스너 추가
+    // ======================================================
+    
+    // 1. 버튼 클릭 시 모달 열기
+    const openButtons = ['open-admin-todo-btn', 'open-admin-todo-btn-mobile'];
+    openButtons.forEach(btnId => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.addEventListener('click', () => {
+                const modal = document.getElementById('admin-todo-modal');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    AdminTodoLogic.loadAdminTodos(); // 열 때마다 최신 데이터 로드
+                    // 입력창 포커스
+                    setTimeout(() => document.getElementById('admin-todo-input')?.focus(), 50);
+                }
+                // 메뉴 닫기
+                if (DOM.menuDropdown) DOM.menuDropdown.classList.add('hidden');
+                if (DOM.navContent) DOM.navContent.classList.add('hidden');
+            });
+        }
+    });
+
+    // 2. 모달 내부 동작 (추가, 삭제, 토글)
+    const todoInput = document.getElementById('admin-todo-input');
+    const todoAddBtn = document.getElementById('admin-todo-add-btn');
+    const todoList = document.getElementById('admin-todo-list');
+
+    if (todoAddBtn && todoInput) {
+        // 추가 버튼 클릭
+        todoAddBtn.addEventListener('click', () => {
+            AdminTodoLogic.addTodo(todoInput.value);
+            todoInput.value = '';
+            todoInput.focus();
+        });
+        // 엔터키 입력
+        todoInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                AdminTodoLogic.addTodo(todoInput.value);
+                todoInput.value = '';
+            }
+        });
+    }
+
+    if (todoList) {
+        todoList.addEventListener('click', (e) => {
+            // 삭제 버튼
+            const deleteBtn = e.target.closest('.delete-todo-btn');
+            if (deleteBtn) {
+                AdminTodoLogic.deleteTodo(deleteBtn.dataset.id);
+                return;
+            }
+            // 완료 토글 (아이템 클릭)
+            const itemClick = e.target.closest('.todo-item-click');
+            if (itemClick) {
+                AdminTodoLogic.toggleTodo(itemClick.dataset.id);
+            }
         });
     }
 }
