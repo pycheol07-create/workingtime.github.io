@@ -2,10 +2,10 @@
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
 import { formatDuration, getWeekOfYear, isWeekday } from './utils.js';
-// ✅ [수정] analyzeUnitCost 추가 임포트
 import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js';
-// ✅ [신규] appConfig 임포트 (원가 설정 및 시급 정보 접근용)
 import { appConfig } from './state.js';
+// ✅ [신규] 예측 로직 임포트
+import { predictFutureTrends } from './analysis-logic.js';
 
 // 헬퍼: 숫자를 통화 형식(콤마)으로 변환
 const formatCurrency = (num) => {
@@ -60,7 +60,7 @@ const aggregateManagementData = (dataList) => {
 };
 
 /**
- * ✅ [신규] 원가 분석 HTML 생성 헬퍼 (일별/기간별 공통 사용)
+ * 원가 분석 HTML 생성 헬퍼
  */
 const generateCostAnalysisHTML = (analysis) => {
     if (!analysis.isValid) {
@@ -141,6 +141,140 @@ const generateCostAnalysisHTML = (analysis) => {
     `;
 };
 
+/**
+ * ✅ [신규] 예측 차트 렌더링 함수
+ */
+const renderPredictionChart = (containerId, historyData) => {
+    const ctx = document.getElementById(containerId);
+    if (!ctx) return;
+
+    const result = predictFutureTrends(historyData, 14); // 향후 2주 예측
+    if (!result) {
+        ctx.parentNode.innerHTML = '<div class="text-center text-gray-400 py-10">예측을 위한 데이터가 충분하지 않습니다 (최소 5일 이상).</div>';
+        return;
+    }
+
+    // 데이터 결합
+    const labels = [...result.historical.labels, ...result.prediction.labels];
+    
+    // 과거 데이터 패딩
+    const histRevenue = [...result.historical.revenue, ...new Array(result.prediction.labels.length).fill(null)];
+    const histDelivery = [...result.historical.delivery, ...new Array(result.prediction.labels.length).fill(null)];
+
+    // 미래 데이터 패딩 (연결점 포함)
+    const lastRev = result.historical.revenue[result.historical.revenue.length - 1];
+    const lastDel = result.historical.delivery[result.historical.delivery.length - 1];
+    
+    const predRevenue = new Array(result.historical.labels.length - 1).fill(null);
+    predRevenue.push(lastRev);
+    predRevenue.push(...result.prediction.revenue);
+
+    const predDelivery = new Array(result.historical.labels.length - 1).fill(null);
+    predDelivery.push(lastDel);
+    predDelivery.push(...result.prediction.delivery);
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '실제 매출',
+                    data: histRevenue,
+                    borderColor: 'rgb(59, 130, 246)', 
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    yAxisID: 'y'
+                },
+                {
+                    label: '예측 매출 (점선)',
+                    data: predRevenue,
+                    borderColor: 'rgb(59, 130, 246)',
+                    borderDash: [5, 5],
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    tension: 0.1,
+                    yAxisID: 'y'
+                },
+                {
+                    label: '실제 국내배송',
+                    data: histDelivery,
+                    borderColor: 'rgb(16, 185, 129)', 
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    yAxisID: 'y1'
+                },
+                {
+                    label: '예측 국내배송 (점선)',
+                    data: predDelivery,
+                    borderColor: 'rgb(16, 185, 129)',
+                    borderDash: [5, 5],
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    tension: 0.1,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                title: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) label += ': ';
+                            if (context.parsed.y !== null) {
+                                if(label.includes('매출')) return label + context.parsed.y.toLocaleString() + '원';
+                                return label + context.parsed.y.toLocaleString() + '건';
+                            }
+                            return null;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: true, text: '매출액 (원)' },
+                    grid: { color: '#f3f4f6' }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: { display: true, text: '배송량 (건)' },
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+
+    // 분석 코멘트
+    const trendRev = result.trend.revenueSlope;
+    const trendDel = result.trend.deliverySlope;
+    
+    let comment = `<ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">`;
+    
+    if (trendRev > 1000) comment += `<li>매출은 일 평균 약 <strong>${Math.round(trendRev).toLocaleString()}원씩 증가</strong>하는 추세입니다. 📈</li>`;
+    else if (trendRev < -1000) comment += `<li>매출은 일 평균 약 <strong>${Math.round(Math.abs(trendRev)).toLocaleString()}원씩 감소</strong>하는 추세입니다. 📉</li>`;
+    else comment += `<li>매출은 큰 변동 없이 <strong>보합세</strong>를 유지하고 있습니다. ➡️</li>`;
+
+    if (trendDel > 1) comment += `<li>국내배송량은 일 평균 약 <strong>${trendDel.toFixed(1)}건씩 증가</strong>하고 있습니다. 물량 증가에 대비하세요. 📦</li>`;
+    else if (trendDel < -1) comment += `<li>국내배송량은 일 평균 약 <strong>${Math.abs(trendDel).toFixed(1)}건씩 감소</strong>하고 있습니다.</li>`;
+    
+    comment += `</ul>`;
+    
+    document.getElementById('prediction-analysis-comment').innerHTML = comment;
+};
 
 /**
  * 1. 일별 입력 및 조회 화면 렌더링
@@ -150,7 +284,6 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
     const saveBtn = document.getElementById('management-save-btn');
     if (!container) return;
 
-    // 저장 버튼 활성화 및 날짜 데이터 바인딩
     if (saveBtn) {
         saveBtn.classList.remove('hidden');
         saveBtn.dataset.dateKey = dateKey;
@@ -159,31 +292,23 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
     const dayData = allHistoryData.find(d => d.id === dateKey);
     const mgmt = (dayData && dayData.management) ? dayData.management : {};
 
-    // 이전 데이터 찾기
     const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
     const prevDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length) 
                         ? allHistoryData[currentIndex + 1] : null;
     const prevMgmt = (prevDayData && prevDayData.management) ? prevDayData.management : {};
 
     const getValue = (val) => (val !== undefined && val !== null) ? val : '';
-
-    // 콤마 포맷팅 헬퍼
     const formatVal = (val) => {
         const v = getValue(val);
         return v === '' ? '' : Number(v).toLocaleString();
     };
-    
     const onInputHandler = "this.value = this.value.replace(/[^0-9]/g, '').replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');";
 
-    // --- 원가 및 마진 분석 로직 실행 ---
-    
-    // 시급 정보 준비 (설정값 + 당일 알바 정보 병합)
     const wageMap = { ...appConfig.memberWages };
     (dayData?.partTimers || []).forEach(pt => {
         if (pt.name) wageMap[pt.name] = pt.wage || 0;
     });
 
-    // 분석 실행
     const analysis = analyzeUnitCost(
         dayData || { workRecords: [], taskQuantities: {} }, 
         appConfig, 
@@ -287,27 +412,21 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
     `;
 };
 
-
 /**
- * 2. 기간별(주/월/년) 요약 및 분석 화면 렌더링
+ * 2. 기간별(주/월/년) 요약 및 분석 화면 렌더링 (예측 포함)
  */
 export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     const container = document.getElementById('management-view-container');
     const saveBtn = document.getElementById('management-save-btn');
     if (!container) return;
-
-    // 요약 모드에서는 저장 버튼 숨김
     if (saveBtn) saveBtn.classList.add('hidden');
 
-    // 1. 데이터 필터링
     const filteredData = allHistoryData.filter(d => {
         if (viewMode === 'management-weekly') return getWeekOfYear(new Date(d.id)) === key;
         if (viewMode === 'management-monthly') return d.id.startsWith(key);
         if (viewMode === 'management-yearly') return d.id.startsWith(key);
         return false;
     });
-    
-    // 날짜순 정렬 (과거 -> 최신)
     filteredData.sort((a, b) => a.id.localeCompare(b.id));
 
     if (filteredData.length === 0) {
@@ -315,14 +434,12 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
         return;
     }
 
-    // 2. 현재 기간 집계 (경영 지표)
     const currentStats = aggregateManagementData(filteredData);
 
-    // 3. 이전 기간 데이터 찾기 및 집계 (비교용)
     let prevKey = null;
     if (viewMode === 'management-monthly') {
         const [y, m] = key.split('-').map(Number);
-        const prevDate = new Date(y, m - 2, 1); // 한 달 전
+        const prevDate = new Date(y, m - 2, 1);
         prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
     } else if (viewMode === 'management-yearly') {
         prevKey = String(Number(key) - 1);
@@ -340,11 +457,10 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
         }
     }
 
-    // 4. 주요 지표 계산
     const turnoverRatio = calculateTurnoverRatio(currentStats.revenue, currentStats.avgInventoryAmt);
     const prevTurnoverRatio = prevStats ? calculateTurnoverRatio(prevStats.revenue, prevStats.avgInventoryAmt) : 0;
     
-    // 5. 일자별 테이블 생성 (월간/주간 뷰일 때 유용)
+    // 일자별 테이블 생성
     let dailyTableHtml = '';
     if (viewMode === 'management-monthly' || viewMode === 'management-weekly') {
         const tableRows = filteredData.map(day => {
@@ -353,11 +469,8 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
             const orders = Number(m.orderCount) || 0;
             const invAmt = Number(m.inventoryAmt) || 0;
             const invQty = Number(m.inventoryQty) || 0;
-            
             const avgOrderPrice = orders > 0 ? rev / orders : 0;
             const dailyTurnover = invAmt > 0 ? (rev / invAmt) * 100 : 0;
-            
-            // 주말 색상 처리
             const dateColor = isWeekday(day.id) ? 'text-gray-900' : 'text-red-500 font-medium';
 
             return `
@@ -412,55 +525,64 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
         `;
     }
 
-    // ✅ [신규] 기간별(주/월/연) 원가 분석 로직 추가
-    // 1. 기간 내 모든 데이터를 집계 (인건비, 처리량 등)
+    // 기간별 원가 분석
     const aggregatedWorkRecords = [];
     const aggregatedQuantities = {};
     const aggregatedWageMap = { ...appConfig.memberWages };
 
     filteredData.forEach(day => {
-        // 업무 기록 병합 (날짜 정보 포함)
         (day.workRecords || []).forEach(r => {
             aggregatedWorkRecords.push({ ...r, date: day.id });
         });
-        
-        // 처리량 병합
         if(day.taskQuantities) {
             Object.entries(day.taskQuantities).forEach(([k, v]) => {
                 aggregatedQuantities[k] = (aggregatedQuantities[k] || 0) + (Number(v) || 0);
             });
         }
-
-        // 시급 정보 수집 (기간 내 알바 이력)
         (day.partTimers || []).forEach(pt => {
             if(pt.name) aggregatedWageMap[pt.name] = pt.wage || 0;
         });
     });
 
-    // 2. 분석용 가상 데이터 객체 생성
-    const aggregatedDataForAnalysis = {
-        id: key, 
-        workRecords: aggregatedWorkRecords,
-        taskQuantities: aggregatedQuantities,
-        management: { orderCount: currentStats.orderCount }
-    };
-
-    // 3. 원가 분석 실행
     const analysis = analyzeUnitCost(
-        aggregatedDataForAnalysis,
+        { 
+            id: key, 
+            workRecords: aggregatedWorkRecords, 
+            taskQuantities: aggregatedQuantities, 
+            management: { orderCount: currentStats.orderCount } 
+        },
         appConfig,
         aggregatedWageMap,
         currentStats.revenue
     );
 
-    // 4. 분석 결과 HTML 생성
-    const analysisHtml = generateCostAnalysisHTML(analysis);
+    // ✅ [신규] 예측 섹션 HTML 생성
+    const predictionHtml = `
+        <div class="mt-8 bg-white p-6 rounded-xl border border-indigo-100 shadow-sm relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -mr-16 -mt-16 z-0"></div>
+            
+            <div class="relative z-10">
+                <h4 class="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2">
+                    🔮 향후 2주 실적 예측 (Beta)
+                </h4>
+                <p class="text-sm text-gray-500 mb-6">과거 90일간의 데이터를 기반으로 향후 14일간의 매출과 배송량을 예측합니다. (점선: 예측치)</p>
+                
+                <div class="h-80 w-full">
+                    <canvas id="management-prediction-chart"></canvas>
+                </div>
 
-    // 6. 최종 렌더링
+                <div class="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                    <h5 class="text-sm font-bold text-indigo-800 mb-2">📊 트렌드 분석 요약</h5>
+                    <div id="prediction-analysis-comment"></div>
+                </div>
+            </div>
+        </div>
+    `;
+
     let comparisonTitle = prevKey ? `(vs ${prevKey})` : '(이전 데이터 없음)';
 
     container.innerHTML = `
-        <div class="max-w-6xl mx-auto">
+        <div class="max-w-6xl mx-auto pb-10">
             <h3 class="text-xl font-bold text-gray-800 mb-6 text-center">
                 📊 ${key} 경영 성과 요약 <span class="text-sm font-normal text-gray-500 ml-2">${comparisonTitle}</span>
             </h3>
@@ -507,9 +629,15 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                 </div>
             </div>
 
-            ${analysisHtml}
+            ${generateCostAnalysisHTML(analysis)}
+            
+            ${predictionHtml}
 
             ${dailyTableHtml}
         </div>
     `;
+
+    setTimeout(() => {
+        renderPredictionChart('management-prediction-chart', allHistoryData);
+    }, 100);
 };
