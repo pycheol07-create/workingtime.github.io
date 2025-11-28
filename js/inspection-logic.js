@@ -30,6 +30,14 @@ export const initializeInspectionSession = async () => {
     if (DOM.inspNotesInput) DOM.inspNotesInput.value = '';
     if (DOM.inspCheckThickness) DOM.inspCheckThickness.value = '';
     
+    // [추가] 입고 일자 필드 초기화 (잠금 상태로 복구)
+    if (DOM.inspInboundDateInput) {
+        DOM.inspInboundDateInput.value = '';
+        DOM.inspInboundDateInput.readOnly = true;
+        DOM.inspInboundDateInput.classList.add('bg-gray-100');
+        DOM.inspInboundDateInput.classList.remove('bg-white');
+    }
+
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
@@ -472,6 +480,7 @@ export const searchProductHistory = async () => {
     let targetProductName = searchTerm;
 
     if (matchedIndex > -1) {
+        // [케이스 1] 리스트에 있는 상품 -> 자동 입력 & 수정 불가(ReadOnly)
         const matchedItem = list[matchedIndex];
         targetProductName = matchedItem.name;
         currentTodoIndex = matchedIndex; 
@@ -481,8 +490,37 @@ export const searchProductHistory = async () => {
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${matchedItem.option || '-'}`;
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${matchedItem.code || '-'}`;
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${matchedItem.thickness || '-'}`;
-        if (DOM.inspInboundDateInput) DOM.inspInboundDateInput.value = matchedItem.inboundDate || getTodayDateString();
+        
+        // 날짜 자동 입력 및 잠금
+        if (DOM.inspInboundDateInput) {
+            DOM.inspInboundDateInput.value = matchedItem.inboundDate || getTodayDateString();
+            DOM.inspInboundDateInput.readOnly = true;
+            DOM.inspInboundDateInput.classList.add('bg-gray-100');
+            DOM.inspInboundDateInput.classList.remove('bg-white');
+        }
         if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = matchedItem.qty > 0 ? matchedItem.qty : '';
+
+    } else {
+        // [케이스 2] 리스트에 없는 상품 (개별 검색) -> 수동 입력 허용
+        currentTodoIndex = -1; // 리스트 매칭 없음
+        
+        if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
+        if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
+        if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
+
+        // 날짜 수동 입력 허용 (잠금 해제)
+        if (DOM.inspInboundDateInput) {
+            DOM.inspInboundDateInput.readOnly = false;
+            DOM.inspInboundDateInput.classList.remove('bg-gray-100');
+            DOM.inspInboundDateInput.classList.add('bg-white');
+            
+            // 값이 비어있으면 오늘 날짜 기본 세팅
+            if (!DOM.inspInboundDateInput.value) {
+                DOM.inspInboundDateInput.value = getTodayDateString();
+            }
+        }
+        // 수량 초기화 (이전 값 남아있을 수 있으므로)
+        if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
     }
 
     DOM.inspHistoryReport.classList.remove('hidden');
