@@ -31,7 +31,7 @@ const calculateTenure = (joinDateStr) => {
     return `${years}년 ${months}개월 ${days + 1}일째`;
 };
 
-// ✅ [수정] 연차 사용 내역 계산 & 자동 병합 로직 (초기화 기준일 적용)
+// 연차 사용 내역 계산 & 자동 병합 로직 (초기화 기준일 적용)
 const calculateLeaveUsage = (memberName) => {
     const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-', leaveResetDate: '', expirationDate: '' };
     const totalLeave = leaveSettings.totalLeave;
@@ -40,7 +40,7 @@ const calculateLeaveUsage = (memberName) => {
     const expirationDate = leaveSettings.expirationDate; // 만료일
 
     // 1. 해당 멤버의 '연차' 기록 필터링 & 날짜순 정렬
-    // ✅ [신규] leaveResetDate(초기화 기준일)가 설정되어 있으면 그 이후의 기록만 가져옴
+    // leaveResetDate(초기화 기준일)가 설정되어 있으면 그 이후의 기록만 가져옴
     const rawHistory = (persistentLeaveSchedule.onLeaveMembers || [])
         .filter(item => {
             if (item.member !== memberName || item.type !== '연차') return false;
@@ -125,8 +125,8 @@ const calculateLeaveUsage = (memberName) => {
         used: realUsedCount,
         remaining: totalLeave - realUsedCount,
         joinDate: joinDate,
-        leaveResetDate: leaveResetDate, // ✅ 반환
-        expirationDate: expirationDate, // ✅ 반환
+        leaveResetDate: leaveResetDate, // 반환
+        expirationDate: expirationDate, // 반환
         history: finalHistory.reverse() // 최신순 정렬
     };
 };
@@ -386,26 +386,30 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         if (usedEl) usedEl.textContent = `${stats.used}일`;
         
         if (remainEl) {
-            remainEl.textContent = `${stats.remaining}일`;
             remainEl.className = stats.remaining < 0 ? "text-3xl font-bold text-red-600" : "text-3xl font-bold text-blue-600";
+            
+            // ✅ [수정] 사용 가능 기한 표시 (잔여 연차 하단에 작게)
+            let periodHtml = '';
+            if (stats.leaveResetDate || stats.expirationDate) {
+                const start = stats.leaveResetDate || '';
+                const end = stats.expirationDate || '';
+                const rangeStr = (start && end) ? `${start} ~ ${end}` : (start ? `${start} ~` : `~ ${end}`);
+                
+                const isExpired = stats.expirationDate && today > stats.expirationDate;
+                const expiredBadge = isExpired ? '<span class="text-red-500 font-bold ml-1">(만료됨)</span>' : '';
+                
+                periodHtml = `<div class="text-xs text-gray-500 font-normal mt-1">사용 가능 기한: ${rangeStr}${expiredBadge}</div>`;
+            }
+            
+            remainEl.innerHTML = `<div>${stats.remaining}일</div>${periodHtml}`;
         }
         
         if (joinDateEl) {
             const tenureText = calculateTenure(stats.joinDate);
             let dateText = stats.joinDate && stats.joinDate !== '-' ? stats.joinDate : '-';
             
-            // ✅ [신규] 적용 기간 및 만료일 표시
-            let periodText = '';
-            if (stats.leaveResetDate) {
-                periodText += `<div class="mt-1 text-gray-500 font-normal text-xs">적용 시작일: ${stats.leaveResetDate}</div>`;
-            }
-            if (stats.expirationDate) {
-                const isExpired = today > stats.expirationDate;
-                const expClass = isExpired ? 'text-red-600 font-bold' : 'text-gray-500';
-                periodText += `<div class="mt-1 ${expClass} text-xs">사용 만료일: ${stats.expirationDate} ${isExpired ? '(만료됨)' : ''}</div>`;
-            }
-
-            joinDateEl.innerHTML = `${dateText} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>${periodText}`;
+            // ✅ [수정] 하단에 표시되던 시작일/만료일 제거
+            joinDateEl.innerHTML = `${dateText} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>`;
         }
 
         if (historyListEl) {
