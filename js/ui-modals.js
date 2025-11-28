@@ -31,13 +31,40 @@ const calculateTenure = (joinDateStr) => {
     return `${years}년 ${months}개월 ${days + 1}일째`;
 };
 
-// 연차 사용 내역 계산 & 자동 병합 로직 (초기화 기준일 적용)
+// [신규] 근무 개월 수 계산 헬퍼
+const calculateMonthsWorked = (joinDateStr) => {
+    if (!joinDateStr || joinDateStr === '-') return 0;
+    const start = new Date(joinDateStr);
+    const now = new Date();
+    
+    let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+    // 입사일(일자)이 지나지 않았으면 1개월 차감 (만근 기준)
+    if (now.getDate() < start.getDate()) {
+        months--;
+    }
+    return Math.max(0, months);
+};
+
+// 연차 사용 내역 계산 & 자동 병합 로직 (초기화 기준일 적용 + 자동 발생 로직)
 const calculateLeaveUsage = (memberName) => {
     const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-', leaveResetDate: '', expirationDate: '' };
-    const totalLeave = leaveSettings.totalLeave;
+    let totalLeave = leaveSettings.totalLeave;
     const joinDate = leaveSettings.joinDate;
     const leaveResetDate = leaveSettings.leaveResetDate; // 적용 시작일
     const expirationDate = leaveSettings.expirationDate; // 만료일
+
+    // ✅ [신규] 13개월 미만 근속자 자동 연차 계산 로직
+    // 입사일이 있고, 근무 개월 수가 13개월 미만인 경우: 근무 개월 수만큼 연차 자동 부여
+    let isAutoCalculated = false;
+    if (joinDate && joinDate !== '-') {
+        const monthsWorked = calculateMonthsWorked(joinDate);
+        if (monthsWorked < 13) {
+            totalLeave = monthsWorked; // 1개월 만근 시 1개, 2개월 시 2개...
+            isAutoCalculated = true;
+        }
+        // 13개월 이상인 경우: 관리자가 설정한 totalLeave(예: 17) 유지
+        // (필요 시 이곳에 2년마다 +1 추가하는 로직도 자동화 가능)
+    }
 
     // 1. 해당 멤버의 '연차' 기록 필터링 & 날짜순 정렬
     // leaveResetDate(초기화 기준일)가 설정되어 있으면 그 이후의 기록만 가져옴
@@ -127,6 +154,7 @@ const calculateLeaveUsage = (memberName) => {
         joinDate: joinDate,
         leaveResetDate: leaveResetDate, // 반환
         expirationDate: expirationDate, // 반환
+        isAutoCalculated: isAutoCalculated, // ✅ 자동 계산 여부 반환
         history: finalHistory.reverse() // 최신순 정렬
     };
 };
@@ -382,13 +410,17 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         const joinDateEl = document.getElementById('status-join-date');
         const historyListEl = document.getElementById('status-history-list');
 
-        if (totalEl) totalEl.textContent = `${stats.total}일`;
+        if (totalEl) {
+            // ✅ [신규] 자동 계산 여부 표시
+            const autoCalcBadge = stats.isAutoCalculated ? '<span class="text-xs text-blue-500 block font-normal">(13개월 미만 자동 계산)</span>' : '';
+            totalEl.innerHTML = `${stats.total}일 ${autoCalcBadge}`;
+        }
         if (usedEl) usedEl.textContent = `${stats.used}일`;
         
         if (remainEl) {
             remainEl.className = stats.remaining < 0 ? "text-3xl font-bold text-red-600" : "text-3xl font-bold text-blue-600";
             
-            // ✅ [수정] 사용 가능 기한 표시 (잔여 연차 하단에 작게)
+            // 사용 가능 기한 표시 (잔여 연차 하단에 작게)
             let periodHtml = '';
             if (stats.leaveResetDate || stats.expirationDate) {
                 const start = stats.leaveResetDate || '';
@@ -408,7 +440,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             const tenureText = calculateTenure(stats.joinDate);
             let dateText = stats.joinDate && stats.joinDate !== '-' ? stats.joinDate : '-';
             
-            // ✅ [수정] 하단에 표시되던 시작일/만료일 제거
+            // 하단에 표시되던 시작일/만료일 제거됨
             joinDateEl.innerHTML = `${dateText} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>`;
         }
 
