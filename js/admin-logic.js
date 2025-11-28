@@ -16,7 +16,7 @@ export function collectConfigFromDOM(currentConfig) {
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
-        memberLeaveSettings: {},
+        memberLeaveSettings: {}, // 연차 설정
         dashboardItems: [],
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
@@ -29,7 +29,7 @@ export function collectConfigFromDOM(currentConfig) {
         revenueIncrementUnit: 10000000,
         standardMonthlyWorkHours: 209,
 
-        // ✅ [수정] 상품 원가 및 손익 분석 설정 초기화 (화물비 추가)
+        // 상품 원가 및 손익 분석 설정
         fixedMaterialCost: 0,
         fixedShippingCost: 0,
         fixedDirectDeliveryCost: 0,
@@ -61,15 +61,22 @@ export function collectConfigFromDOM(currentConfig) {
 
             const joinDate = memberItem.querySelector('.member-join-date').value;
             const totalLeave = Number(memberItem.querySelector('.member-total-leave').value) || 0;
+            
+            // ✅ [신규] 연차 적용 시작일 및 만료일 수집
+            const leaveResetDate = memberItem.querySelector('.member-leave-reset-date').value;
+            const expirationDate = memberItem.querySelector('.member-leave-expiration-date').value;
 
             if (!memberName) return;
 
             newGroup.members.push(memberName);
             newConfig.memberWages[memberName] = memberWage;
 
+            // 연차 설정 저장
             newConfig.memberLeaveSettings[memberName] = {
                 joinDate: joinDate,
-                totalLeave: totalLeave
+                totalLeave: totalLeave,
+                leaveResetDate: leaveResetDate, // ✅ 추가
+                expirationDate: expirationDate  // ✅ 추가
             };
 
             if (memberEmail) {
@@ -142,14 +149,13 @@ export function collectConfigFromDOM(currentConfig) {
     const workHoursInput = document.getElementById('standard-monthly-work-hours');
     if (workHoursInput) newConfig.standardMonthlyWorkHours = Number(workHoursInput.value) || 209;
 
-    // ✅ [수정] 상품 원가 및 손익 분석 설정 수집 (화물비 추가)
+    // 상품 원가 및 손익 분석 설정 수집
     const materialCostInput = document.getElementById('fixed-material-cost');
     if (materialCostInput) newConfig.fixedMaterialCost = Number(materialCostInput.value) || 0;
 
     const shippingCostInput = document.getElementById('fixed-shipping-cost');
     if (shippingCostInput) newConfig.fixedShippingCost = Number(shippingCostInput.value) || 0;
     
-    // [신규]
     const directDeliveryCostInput = document.getElementById('fixed-direct-delivery-cost');
     if (directDeliveryCostInput) newConfig.fixedDirectDeliveryCost = Number(directDeliveryCostInput.value) || 0;
 

@@ -61,11 +61,11 @@ export function renderAdminUI(config) {
     renderQuantityTasks(config.quantityTaskTypes || []);
     renderQuantityToDashboardMapping(config);
     
-    // ✅ [신규] 원가 분석 설정 렌더링
+    // 원가 분석 설정 렌더링
     renderCostAnalysisConfig(config);
 }
 
-// ✅ [수정] 상품 원가 및 손익 분석 설정 UI 렌더링 (화물비 추가)
+// 상품 원가 및 손익 분석 설정 UI 렌더링
 export function renderCostAnalysisConfig(config) {
     // 1. 고정비 설정
     const materialInput = document.getElementById('fixed-material-cost');
@@ -76,7 +76,6 @@ export function renderCostAnalysisConfig(config) {
     if (shippingInput) {
         shippingInput.value = config.fixedShippingCost || 0;
     }
-    // [신규] 직진배송 화물비
     const directDeliveryInput = document.getElementById('fixed-direct-delivery-cost');
     if (directDeliveryInput) {
         directDeliveryInput.value = config.fixedDirectDeliveryCost || 0;
@@ -126,47 +125,70 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
         const membersHtml = group.members.map((member, mIndex) => {
             const memberEmail = memberEmails[member] || '';
             const currentRole = (memberEmail && memberRoles[memberEmail.toLowerCase()]) ? memberRoles[memberEmail.toLowerCase()] : 'user';
+            
             const settings = memberLeaveSettings[member] || {};
             const joinDate = settings.joinDate || '';
             const totalLeave = settings.totalLeave !== undefined ? settings.totalLeave : 15;
+            
+            // ✅ [신규] 연차 초기화 기준일 (적용 시작일) 및 만료일
+            const leaveResetDate = settings.leaveResetDate || ''; 
+            const expirationDate = settings.expirationDate || '';
 
             return `
-            <div class="flex flex-wrap items-center gap-2 mb-2 p-2 rounded hover:bg-gray-100 member-item border-b border-gray-200 pb-2">
-                <span class="drag-handle text-gray-400 mr-2 cursor-move" draggable="true">☰</span>
-                
-                <div class="flex flex-col">
-                    <label class="text-[10px] text-gray-500">이름</label>
-                    <input type="text" value="${member}" class="member-name w-24 p-1 border border-gray-300 rounded text-sm" placeholder="이름">
-                </div>
-                
-                <div class="flex flex-col">
-                    <label class="text-[10px] text-gray-500">이메일</label>
-                    <input type="email" value="${memberEmail}" class="member-email w-40 p-1 border border-gray-300 rounded text-sm" placeholder="email">
+            <div class="flex flex-col gap-2 mb-4 p-3 rounded hover:bg-gray-100 member-item border border-gray-200 bg-white">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-2">
+                        <span class="drag-handle text-gray-400 mr-2 cursor-move text-lg" draggable="true">☰</span>
+                        
+                        <div class="flex flex-col">
+                            <label class="text-[10px] text-gray-500 font-bold">이름</label>
+                            <input type="text" value="${member}" class="member-name w-24 p-1 border border-gray-300 rounded text-sm font-bold" placeholder="이름">
+                        </div>
+                        
+                        <div class="flex flex-col">
+                            <label class="text-[10px] text-gray-500">이메일</label>
+                            <input type="email" value="${memberEmail}" class="member-email w-40 p-1 border border-gray-300 rounded text-sm" placeholder="email">
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label class="text-[10px] text-gray-500">시급</label>
+                            <input type="number" value="${memberWages[member] || 0}" class="member-wage w-20 p-1 border border-gray-300 rounded text-sm" placeholder="시급">
+                        </div>
+                        
+                        <div class="flex flex-col">
+                             <label class="text-[10px] text-gray-500">권한</label>
+                            <select class="member-role w-20 p-1 border border-gray-300 rounded text-sm">
+                                <option value="user" ${currentRole === 'user' ? 'selected' : ''}>일반</option>
+                                <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>관리자</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-danger btn-small delete-member-btn h-8" data-m-index="${mIndex}">삭제</button>
                 </div>
 
-                <div class="flex flex-col">
-                    <label class="text-[10px] text-blue-600 font-bold">입사일자</label>
-                    <input type="date" value="${joinDate}" class="member-join-date w-32 p-1 border border-blue-300 rounded text-sm bg-blue-50">
+                <div class="flex items-center gap-3 pt-2 border-t border-gray-100 bg-blue-50/50 p-2 rounded">
+                    <span class="text-xs font-bold text-blue-800">🏖️ 연차 설정</span>
+                    
+                    <div class="flex flex-col">
+                        <label class="text-[9px] text-blue-600">입사일자</label>
+                        <input type="date" value="${joinDate}" class="member-join-date w-28 p-1 border border-blue-200 rounded text-xs">
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="text-[9px] text-blue-600">총연차(일)</label>
+                        <input type="number" value="${totalLeave}" class="member-total-leave w-14 p-1 border border-blue-200 rounded text-center text-xs" min="0">
+                    </div>
+                    
+                    <div class="w-px h-8 bg-blue-200 mx-1"></div>
+
+                    <div class="flex flex-col">
+                        <label class="text-[9px] text-blue-600 font-bold" title="이 날짜 이후의 연차만 차감 계산됩니다. (초기화 시 사용)">적용 시작일 (초기화)</label>
+                        <input type="date" value="${leaveResetDate}" class="member-leave-reset-date w-28 p-1 border border-blue-300 rounded text-xs bg-white font-bold text-blue-900">
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="text-[9px] text-red-600 font-bold">사용 만료일</label>
+                        <input type="date" value="${expirationDate}" class="member-leave-expiration-date w-28 p-1 border border-red-200 rounded text-xs bg-white text-red-900">
+                    </div>
                 </div>
-                <div class="flex flex-col">
-                    <label class="text-[10px] text-blue-600 font-bold">총연차</label>
-                    <input type="number" value="${totalLeave}" class="member-total-leave w-16 p-1 border border-blue-300 rounded text-center text-sm bg-blue-50" min="0">
-                </div>
-                
-                <div class="flex flex-col">
-                    <label class="text-[10px] text-gray-500">시급</label>
-                    <input type="number" value="${memberWages[member] || 0}" class="member-wage w-20 p-1 border border-gray-300 rounded text-sm" placeholder="시급">
-                </div>
-                
-                <div class="flex flex-col">
-                     <label class="text-[10px] text-gray-500">권한</label>
-                    <select class="member-role w-20 p-1 border border-gray-300 rounded text-sm">
-                        <option value="user" ${currentRole === 'user' ? 'selected' : ''}>일반</option>
-                        <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>관리자</option>
-                    </select>
-                </div>
-                
-                <button class="btn btn-danger btn-small delete-member-btn ml-auto h-8 mt-4" data-m-index="${mIndex}">삭제</button>
             </div>
             `;
         }).join('');

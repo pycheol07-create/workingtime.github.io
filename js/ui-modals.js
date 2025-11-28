@@ -1,7 +1,7 @@
 // === js/ui-modals.js ===
 
 import { appState, appConfig, persistentLeaveSchedule } from './state.js';
-import { calculateDateDifference } from './utils.js';
+import { calculateDateDifference, getTodayDateString } from './utils.js';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -31,15 +31,23 @@ const calculateTenure = (joinDateStr) => {
     return `${years}년 ${months}개월 ${days + 1}일째`;
 };
 
-// ✅ [수정] 연차 사용 내역 계산 & 자동 병합 로직
+// ✅ [수정] 연차 사용 내역 계산 & 자동 병합 로직 (초기화 기준일 적용)
 const calculateLeaveUsage = (memberName) => {
-    const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-' };
+    const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-', leaveResetDate: '', expirationDate: '' };
     const totalLeave = leaveSettings.totalLeave;
     const joinDate = leaveSettings.joinDate;
+    const leaveResetDate = leaveSettings.leaveResetDate; // 적용 시작일
+    const expirationDate = leaveSettings.expirationDate; // 만료일
 
     // 1. 해당 멤버의 '연차' 기록 필터링 & 날짜순 정렬
+    // ✅ [신규] leaveResetDate(초기화 기준일)가 설정되어 있으면 그 이후의 기록만 가져옴
     const rawHistory = (persistentLeaveSchedule.onLeaveMembers || [])
-        .filter(item => item.member === memberName && item.type === '연차')
+        .filter(item => {
+            if (item.member !== memberName || item.type !== '연차') return false;
+            // 초기화 기준일 적용
+            if (leaveResetDate && item.startDate < leaveResetDate) return false;
+            return true;
+        })
         .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
 
     // 2. 중복/연속된 날짜 병합 (Merge Intervals)
@@ -117,6 +125,8 @@ const calculateLeaveUsage = (memberName) => {
         used: realUsedCount,
         remaining: totalLeave - realUsedCount,
         joinDate: joinDate,
+        leaveResetDate: leaveResetDate, // ✅ 반환
+        expirationDate: expirationDate, // ✅ 반환
         history: finalHistory.reverse() // 최신순 정렬
     };
 };
@@ -283,7 +293,6 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         container.appendChild(groupContainer);
     });
 
-    // 알바 그룹
     const albaGroupContainer = document.createElement('div');
     albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
     albaGroupContainer.innerHTML = `<div class="flex justify-between items-center p-2 border-b border-gray-200">
@@ -352,7 +361,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
     const dateInputsDiv = document.getElementById('leave-date-inputs');
     const confirmBtn = document.getElementById('confirm-leave-btn');
     
-    // 탭 요소들
     const tabSetting = document.getElementById('tab-leave-setting');
     const tabStatus = document.getElementById('tab-leave-status');
     const panelSetting = document.getElementById('panel-leave-setting');
@@ -366,6 +374,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
     // --- 현황판 데이터 업데이트 함수 ---
     const updateStatusView = () => {
         const stats = calculateLeaveUsage(memberName);
+        const today = getTodayDateString();
         
         const totalEl = document.getElementById('status-total-days');
         const usedEl = document.getElementById('status-used-days');
@@ -383,11 +392,20 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         
         if (joinDateEl) {
             const tenureText = calculateTenure(stats.joinDate);
-            if (stats.joinDate && stats.joinDate !== '-') {
-                joinDateEl.innerHTML = `${stats.joinDate} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>`;
-            } else {
-                joinDateEl.textContent = '-';
+            let dateText = stats.joinDate && stats.joinDate !== '-' ? stats.joinDate : '-';
+            
+            // ✅ [신규] 적용 기간 및 만료일 표시
+            let periodText = '';
+            if (stats.leaveResetDate) {
+                periodText += `<div class="mt-1 text-gray-500 font-normal text-xs">적용 시작일: ${stats.leaveResetDate}</div>`;
             }
+            if (stats.expirationDate) {
+                const isExpired = today > stats.expirationDate;
+                const expClass = isExpired ? 'text-red-600 font-bold' : 'text-gray-500';
+                periodText += `<div class="mt-1 ${expClass} text-xs">사용 만료일: ${stats.expirationDate} ${isExpired ? '(만료됨)' : ''}</div>`;
+            }
+
+            joinDateEl.innerHTML = `${dateText} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>${periodText}`;
         }
 
         if (historyListEl) {
@@ -396,14 +414,8 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
                 historyListEl.innerHTML = '<li class="text-center text-gray-400 py-4">사용 내역이 없습니다.</li>';
             } else {
                 stats.history.forEach(h => {
-                    // ✅ [수정] 병합된 기록은 수정 버튼을 비활성화하거나 숨길 수도 있지만, 
-                    // 우선 '삭제'는 여러 ID를 처리하도록, '수정'은 막거나 첫번째 ID만 처리하도록 해야함.
-                    // 여기서는 "삭제"는 data-ids로 처리, "수정"은 병합된 건인 경우 숨김 처리
-                    
                     const idsString = h.ids.join(',');
                     const mergedBadge = h.isMerged ? '<span class="text-[9px] text-purple-600 bg-purple-50 border border-purple-200 px-1 rounded ml-1">병합됨</span>' : '';
-
-                    // 병합된 건은 개별 수정이 복잡하므로 삭제 후 재등록 유도 (수정 버튼 숨김)
                     const editBtnHtml = h.isMerged ? '' : `<button type="button" class="text-xs text-gray-400 hover:text-blue-600 underline transition btn-edit-leave-history" data-id="${h.ids[0]}" data-member="${h.member}">수정</button>`;
 
                     historyListEl.innerHTML += `
@@ -425,7 +437,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         }
     };
 
-    // --- 탭 UI 활성화 헬퍼 ---
     const activateTab = (tab) => {
         if (tab === 'status') {
             tabStatus.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
@@ -441,7 +452,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             panelStatus.classList.add('hidden');
             if(confirmBtn) {
                 confirmBtn.classList.remove('hidden');
-                // 탭 전환 시 수정 모드 해제 (기본 생성 모드로 리셋)
                 confirmBtn.textContent = '설정 저장';
                 delete confirmBtn.dataset.editingId;
                 const sInput = document.getElementById('leave-start-date-input');
@@ -453,14 +463,11 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         }
     };
 
-    // --- 탭 클릭 리스너 ---
     if (tabSetting) tabSetting.onclick = () => activateTab('setting');
     if (tabStatus) tabStatus.onclick = () => activateTab('status');
 
-    // --- 초기 탭 설정 ---
     activateTab(initialTab);
 
-    // --- 라디오 버튼 렌더링 ---
     container.innerHTML = '';
     leaveTypes.forEach((type, index) => {
         const div = document.createElement('div');
@@ -493,7 +500,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         }
     }
 
-    // 날짜 선택 시 차감 일수 미리보기
     const sInput = document.getElementById('leave-start-date-input');
     const eInput = document.getElementById('leave-end-date-input');
     const preview = document.getElementById('leave-count-preview');
