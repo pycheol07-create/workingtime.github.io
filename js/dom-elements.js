@@ -272,10 +272,7 @@ export const confirmHistoryAddBtn = document.getElementById('confirm-history-add
 export const historyDownloadExcelBtn = document.getElementById('history-download-excel-btn');
 export const attendanceDownloadExcelBtn = document.getElementById('attendance-download-excel-btn');
 
-// 업무 종료 알림 모달
-export const shiftEndAlertModal = document.getElementById('shift-end-alert-modal');
-export const confirmShiftEndAlertBtn = document.getElementById('confirm-shift-end-alert-btn');
-export const cancelShiftEndAlertBtn = document.getElementById('cancel-shift-end-alert-btn');
+// 업무 종료 알림 모달 (제거됨)
 
 // 검수 매니저 모달 관련 요소 (입력용)
 export const inspectionManagerModal = document.getElementById('inspection-manager-modal');

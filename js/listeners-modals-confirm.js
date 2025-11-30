@@ -361,19 +361,20 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // 8. 업무 종료 알림 확인
-    if (DOM.confirmShiftEndAlertBtn) {
-        DOM.confirmShiftEndAlertBtn.addEventListener('click', async () => {
-            window.onbeforeunload = null;
-            if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden');
-            await saveDayDataToHistory(true);
-        });
-    }
+    // 8. 업무 종료 알림 확인 (제거됨)
 
-    if (DOM.cancelShiftEndAlertBtn) {
-        DOM.cancelShiftEndAlertBtn.addEventListener('click', () => {
-            window.onbeforeunload = null;
-            if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden');
-        });
-    }
+    // if (DOM.confirmShiftEndAlertBtn) { // <-- 제거
+    //     DOM.confirmShiftEndAlertBtn.addEventListener('click', async () => { // <-- 제거
+    //         window.onbeforeunload = null; // <-- 제거
+    //         if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden'); // <-- 제거
+    //         await saveDayDataToHistory(true); // <-- 제거
+    //     }); // <-- 제거
+    // } // <-- 제거
+
+    // if (DOM.cancelShiftEndAlertBtn) { // <-- 제거
+    //     DOM.cancelShiftEndAlertBtn.addEventListener('click', () => { // <-- 제거
+    //         window.onbeforeunload = null; // <-- 제거
+    //         if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden'); // <-- 제거
+    //     }); // <-- 제거
+    // } // <-- 제거
 }

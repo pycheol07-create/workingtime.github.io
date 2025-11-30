@@ -143,31 +143,7 @@ export const updateElapsedTimes = async () => {
         saveStateToFirestore(); 
     }
 
-    // 업무 종료 시간 알림 (평일 17:30, 주말 15:45)
-    if (!State.appState.shiftEndAlertExecuted) {
-        const todayDate = getTodayDateString();
-        const isWeekend = !isWeekday(todayDate);
-        const targetTime = isWeekend ? '15:45' : '17:30';
-        
-        if (now === targetTime) {
-            State.appState.shiftEndAlertExecuted = true;
-
-            // 1) 브라우저 닫기 방지 활성화
-            window.onbeforeunload = (e) => {
-                e.preventDefault();
-                e.returnValue = ''; // Chrome requires returnValue to be set
-                return ''; 
-            };
-
-            // 2) 알림 모달 표시
-            if (DOM.shiftEndAlertModal) {
-                DOM.shiftEndAlertModal.classList.remove('hidden');
-            }
-
-            // 3) 상태 저장 (재실행 방지)
-            saveStateToFirestore();
-        }
-    }
+    // 업무 종료 시간 알림 (제거됨)
 
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
@@ -485,7 +461,7 @@ async function startAppAfterLogin(user) {
             State.appState.dailyOnLeaveMembers = data.onLeaveMembers || legacyState.onLeaveMembers || [];
             State.appState.lunchPauseExecuted = data.lunchPauseExecuted ?? legacyState.lunchPauseExecuted ?? false;
             State.appState.lunchResumeExecuted = data.lunchResumeExecuted ?? legacyState.lunchResumeExecuted ?? false;
-            State.appState.shiftEndAlertExecuted = data.shiftEndAlertExecuted ?? legacyState.shiftEndAlertExecuted ?? false;
+            // State.appState.shiftEndAlertExecuted = data.shiftEndAlertExecuted ?? legacyState.shiftEndAlertExecuted ?? false; // <-- 제거
             State.appState.confirmedZeroTasks = data.confirmedZeroTasks || legacyState.confirmedZeroTasks || [];
             State.appState.dailyAttendance = data.dailyAttendance || legacyState.dailyAttendance || {};
 
