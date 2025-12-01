@@ -198,8 +198,11 @@ export const handleExcelUpload = (file) => {
                         const supplierName = String(row[5] || '').trim(); // F열
                         
                         if (code || name) {
-                            // 대소문자 무시를 위해 소문자로 변환하여 키 생성
-                            const uniqueKey = `${supplierName.toLowerCase()}::${option.toLowerCase()}`; // <-- 수정된 부분
+                            // 대소문자 및 모든 공백을 제거하여 강력한 중복 체크 키 생성
+                            const keyOption = option.replace(/\s/g, '').toLowerCase(); // <-- 수정된 부분
+                            const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase(); // <-- 수정된 부분
+                            
+                            const uniqueKey = `${keySupplierName}::${keyOption}`; // <-- 중복 제거 기준
 
                             if (!uniqueKeyMap.has(uniqueKey)) {
                                 uniqueKeyMap.set(uniqueKey, true); 
