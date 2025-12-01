@@ -13,7 +13,8 @@ import {
     downloadAttendanceExcel,
     downloadReportExcel,
     downloadPersonalReportExcel,
-    downloadContentAsPdf
+    downloadContentAsPdf,
+    downloadInspectionHistory // ✅ [수정] 검수 이력 다운로드 함수 임포트
 } from './history-excel.js';
 
 // 날짜 선택 헬퍼 (listeners-history.js의 getSelectedDateKey와 동일 로직이 필요하므로 DOM에서 직접 조회)
@@ -99,6 +100,18 @@ export function setupHistoryDownloadListeners() {
                 downloadPersonalReportExcel(reportData, format);
             }
         }
+        else if (targetType === 'inspection') { // ✅ [신규] 검수 이력 다운로드 로직
+             const inspectionData = (State.allHistoryData.find(d => d.id === getTodayDateString())?.inspectionHistory || State.allHistoryData.flatMap(d => d.inspectionHistory).filter(Boolean)) || State.allHistoryData.flatMap(d => d.inspectionList).filter(Boolean);
+             
+             if (format === 'pdf') {
+                 downloadContentAsPdf('inspection-history-panel', '검수_이력_리포트');
+             } else {
+                 // InspectionLogic에서 캐시된 데이터 (cachedInspectionData)를 참조할 수 없으므로,
+                 // history-excel.js에서 직접 product_history 컬렉션을 조회하여 다운로드
+                 await downloadInspectionHistory(format);
+             }
+        }
+
 
         const modal = document.getElementById('download-format-modal');
         if (modal) modal.classList.add('hidden');
@@ -176,6 +189,14 @@ export function setupHistoryDownloadListeners() {
                     showToast('다운로드할 개인 리포트 데이터가 없습니다.', true);
                 }
             }
+        });
+    }
+    
+    // 6. ✅ [신규] 검수 이력 탭 다운로드
+    const inspectionDownloadBtn = document.getElementById('inspection-download-btn');
+    if (inspectionDownloadBtn) {
+        inspectionDownloadBtn.addEventListener('click', () => {
+             openDownloadFormatModal('inspection');
         });
     }
 }

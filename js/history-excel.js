@@ -11,6 +11,9 @@ import {
     formatTimeTo24H, formatDuration, getWeekOfYear, showToast, calculateDateDifference
 } from './utils.js';
 
+// Firestore 함수 임포트
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // ✅ [수정] collection, getDocs 추가
+
 // (XLSX와 html2pdf는 index.html에서 전역 로드됨)
 
 // =================================================================
@@ -65,10 +68,29 @@ const appendTotalRow = (ws, data, headers) => {
 };
 
 // =================================================================
-// [신규] 검수 이력 엑셀 다운로드
+// ✅ [신규] 검수 이력 엑셀 다운로드 (downloadInspectionHistoryExcel -> downloadInspectionHistory로 이름 변경)
 // =================================================================
 
-export const downloadInspectionHistoryExcel = (inspectionData, format = 'xlsx') => {
+export const downloadInspectionHistory = async (format = 'xlsx') => { // ✅ 함수 이름 수정
+    showToast('검수 이력 데이터를 불러오는 중...');
+    
+    let inspectionData = [];
+    try {
+        // Firestore에서 product_history 컬렉션 전체 조회
+        const colRef = collection(db, 'product_history');
+        const snapshot = await getDocs(colRef);
+
+        snapshot.forEach(doc => {
+            inspectionData.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+    } catch (e) {
+        console.error("Error fetching inspection history:", e);
+        return showToast('검수 이력 데이터를 불러오는 데 실패했습니다.', true);
+    }
+    
     if (!inspectionData || inspectionData.length === 0) {
         return showToast('다운로드할 검수 이력 데이터가 없습니다.', true);
     }
@@ -93,6 +115,12 @@ export const downloadInspectionHistoryExcel = (inspectionData, format = 'xlsx') 
         fitToColumn(worksheet1);
         XLSX.utils.book_append_sheet(workbook, worksheet1, `상품별_요약`);
 
+        // CSV인 경우 요약 시트만 저장하고 종료
+        if (format === 'csv') {
+             XLSX.writeFile(workbook, `검수이력_${getTodayDateString()}.csv`);
+             return;
+        }
+
         // --- Sheet 2: 상세 로그 (모든 상품 통합) ---
         const sheet2Headers = [
             '상품명', '공급처 상품명', '일시(날짜)', '일시(시간)', '담당', '입고일자/패킹No', '코드', '옵션', '수량', '상태', '특이사항',
@@ -112,7 +140,7 @@ export const downloadInspectionHistoryExcel = (inspectionData, format = 'xlsx') 
                 '옵션': log.option || '-',
                 '수량': log.inboundQty || 0,
                 '상태': log.status || '-',
-                '특이사항': (log.defects.length > 0 ? `[${log.defects.join(', ')}] ` : '') + (log.note || ''),
+                '특이사항': (log.defects?.length > 0 ? `[${log.defects.join(', ')}] ` : '') + (log.note || ''),
                 '두께(실측)': log.checklist?.thickness || '-',
                 '원단 상태': log.checklist?.fabric || '-',
                 '컬러': log.checklist?.color || '-',
@@ -133,6 +161,7 @@ export const downloadInspectionHistoryExcel = (inspectionData, format = 'xlsx') 
 
 
         XLSX.writeFile(workbook, `검수이력_${getTodayDateString()}.${format}`);
+        showToast('검수 이력 다운로드가 완료되었습니다.'); // ✅ 성공 토스트
 
     } catch (error) {
         console.error('Export inspection history failed:', error);
