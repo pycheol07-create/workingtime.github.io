@@ -13,8 +13,7 @@ import {
     downloadAttendanceExcel,
     downloadReportExcel,
     downloadPersonalReportExcel,
-    downloadContentAsPdf,
-    downloadInspectionHistory
+    downloadContentAsPdf
 } from './history-excel.js';
 
 // 날짜 선택 헬퍼 (listeners-history.js의 getSelectedDateKey와 동일 로직이 필요하므로 DOM에서 직접 조회)
@@ -23,98 +22,89 @@ const getSelectedDateKey = () => {
     return btn ? btn.dataset.key : null;
 };
 
-// ✅ [수정] openDownloadFormatModal 함수를 export하여 위임 로직에서 사용할 수 있도록 합니다.
-export const openDownloadFormatModal = (targetType, contextData = {}) => {
-    State.context.downloadContext = { targetType, ...contextData };
-    const modal = document.getElementById('download-format-modal');
-    if (modal) modal.classList.remove('hidden');
-};
-
-const executeDownload = async (format) => {
-    const ctx = State.context.downloadContext;
-    if (!ctx) return;
-    
-    const { targetType } = ctx;
-
-    if (targetType === 'work') {
-        const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
-        const view = activeTabBtn ? activeTabBtn.dataset.view : 'daily';
-        const key = getSelectedDateKey();
-
-        if (!key) return showToast('날짜를 선택해주세요.', true);
-
-        if (format === 'pdf') {
-            let targetId = 'history-daily-view';
-            let title = `업무이력_일별_${key}`;
-            if (view === 'weekly') { targetId = 'history-weekly-view'; title = `업무이력_주별_${key}`; }
-            else if (view === 'monthly') { targetId = 'history-monthly-view'; title = `업무이력_월별_${key}`; }
-            downloadContentAsPdf(targetId, title);
-        } else {
-            if (view === 'daily') await downloadHistoryAsExcel(key, format);
-            else if (view === 'weekly') await downloadWeeklyHistoryAsExcel(key, format);
-            else if (view === 'monthly') await downloadMonthlyHistoryAsExcel(key, format);
-        }
-    }
-    else if (targetType === 'attendance') {
-        const activeTabBtn = DOM.attendanceHistoryTabs.querySelector('button.font-semibold');
-        const viewFull = activeTabBtn ? activeTabBtn.dataset.view : 'attendance-daily';
-        const viewMode = viewFull.replace('attendance-', ''); 
-        const key = getSelectedDateKey();
-
-        if (!key) return showToast('날짜를 선택해주세요.', true);
-
-        if (format === 'pdf') {
-            let targetId = 'history-attendance-daily-view';
-            let title = `근태이력_일별_${key}`;
-            if (viewMode === 'weekly') { targetId = 'history-attendance-weekly-view'; title = `근태이력_주별_${key}`; }
-            else if (viewMode === 'monthly') { targetId = 'history-attendance-monthly-view'; title = `근태이력_월별_${key}`; }
-            downloadContentAsPdf(targetId, title);
-        } else {
-            downloadAttendanceExcel(viewMode, key, format);
-        }
-    }
-    else if (targetType === 'report') {
-        const reportData = State.context.lastReportData;
-        if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
-
-        if (format === 'pdf') {
-            let targetId = '';
-            const tabs = document.querySelectorAll('#report-view-container > div');
-            tabs.forEach(div => { if (!div.classList.contains('hidden')) targetId = div.id; });
-            if (targetId) downloadContentAsPdf(targetId, reportData.title || '업무_리포트');
-            else showToast('출력할 리포트 화면을 찾을 수 없습니다.', true);
-        } else {
-            downloadReportExcel(reportData, format);
-        }
-    }
-    else if (targetType === 'personal') {
-        const reportData = State.context.lastReportData;
-        if (!reportData || reportData.type !== 'personal') return showToast('개인 리포트 데이터가 없습니다.', true);
-
-        if (format === 'pdf') {
-            downloadContentAsPdf('personal-report-content', reportData.title || '개인_리포트');
-        } else {
-            downloadPersonalReportExcel(reportData, format);
-        }
-    }
-    else if (targetType === 'inspection') {
-         const inspectionData = (State.allHistoryData.find(d => d.id === getTodayDateString())?.inspectionHistory || State.allHistoryData.flatMap(d => d.inspectionHistory).filter(Boolean)) || State.allHistoryData.flatMap(d => d.inspectionList).filter(Boolean);
-         
-         if (format === 'pdf') {
-             downloadContentAsPdf('inspection-history-panel', '검수_이력_리포트');
-         } else {
-             await downloadInspectionHistory(format);
-         }
-    }
-
-    const modal = document.getElementById('download-format-modal');
-    if (modal) modal.classList.add('hidden');
-};
-
 export function setupHistoryDownloadListeners() {
 
     // --- 다운로드 모달 및 실행 로직 ---
 
+    const openDownloadFormatModal = (targetType, contextData = {}) => {
+        State.context.downloadContext = { targetType, ...contextData };
+        const modal = document.getElementById('download-format-modal');
+        if (modal) modal.classList.remove('hidden');
+    };
+
+    const executeDownload = async (format) => {
+        const ctx = State.context.downloadContext;
+        if (!ctx) return;
+        
+        const { targetType } = ctx;
+
+        if (targetType === 'work') {
+            const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
+            const view = activeTabBtn ? activeTabBtn.dataset.view : 'daily';
+            const key = getSelectedDateKey();
+
+            if (!key) return showToast('날짜를 선택해주세요.', true);
+
+            if (format === 'pdf') {
+                let targetId = 'history-daily-view';
+                let title = `업무이력_일별_${key}`;
+                if (view === 'weekly') { targetId = 'history-weekly-view'; title = `업무이력_주별_${key}`; }
+                else if (view === 'monthly') { targetId = 'history-monthly-view'; title = `업무이력_월별_${key}`; }
+                downloadContentAsPdf(targetId, title);
+            } else {
+                if (view === 'daily') await downloadHistoryAsExcel(key, format);
+                else if (view === 'weekly') await downloadWeeklyHistoryAsExcel(key, format);
+                else if (view === 'monthly') await downloadMonthlyHistoryAsExcel(key, format);
+            }
+        }
+        else if (targetType === 'attendance') {
+            const activeTabBtn = DOM.attendanceHistoryTabs.querySelector('button.font-semibold');
+            const viewFull = activeTabBtn ? activeTabBtn.dataset.view : 'attendance-daily';
+            const viewMode = viewFull.replace('attendance-', ''); 
+            const key = getSelectedDateKey();
+
+            if (!key) return showToast('날짜를 선택해주세요.', true);
+
+            if (format === 'pdf') {
+                let targetId = 'history-attendance-daily-view';
+                let title = `근태이력_일별_${key}`;
+                if (viewMode === 'weekly') { targetId = 'history-attendance-weekly-view'; title = `근태이력_주별_${key}`; }
+                else if (viewMode === 'monthly') { targetId = 'history-attendance-monthly-view'; title = `근태이력_월별_${key}`; }
+                downloadContentAsPdf(targetId, title);
+            } else {
+                downloadAttendanceExcel(viewMode, key, format);
+            }
+        }
+        else if (targetType === 'report') {
+            const reportData = State.context.lastReportData;
+            if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
+
+            if (format === 'pdf') {
+                let targetId = '';
+                const tabs = document.querySelectorAll('#report-view-container > div');
+                tabs.forEach(div => { if (!div.classList.contains('hidden')) targetId = div.id; });
+                if (targetId) downloadContentAsPdf(targetId, reportData.title || '업무_리포트');
+                else showToast('출력할 리포트 화면을 찾을 수 없습니다.', true);
+            } else {
+                downloadReportExcel(reportData, format);
+            }
+        }
+        else if (targetType === 'personal') {
+            const reportData = State.context.lastReportData;
+            if (!reportData || reportData.type !== 'personal') return showToast('개인 리포트 데이터가 없습니다.', true);
+
+            if (format === 'pdf') {
+                downloadContentAsPdf('personal-report-content', reportData.title || '개인_리포트');
+            } else {
+                downloadPersonalReportExcel(reportData, format);
+            }
+        }
+
+        const modal = document.getElementById('download-format-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+
+    // 다운로드 모달 내 버튼 (Excel/PDF/CSV 선택)
     const formatModal = document.getElementById('download-format-modal');
     if (formatModal) {
         formatModal.addEventListener('click', (e) => {
@@ -188,6 +178,4 @@ export function setupHistoryDownloadListeners() {
             }
         });
     }
-    
-    // ✅ [제거] inspectionDownloadBtn에 대한 직접 리스너는 listeners-history.js로 위임됩니다.
 }
