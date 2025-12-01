@@ -36,6 +36,9 @@ const executeDownload = async (format) => {
     
     const { targetType } = ctx;
 
+    // ✅ 기존 코드에서 문제가 되었던 변수 재정의 부분을 삭제하고
+    // 인자로 전달받은 'format'을 직접 사용합니다.
+
     if (targetType === 'work') {
         const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
         const view = activeTabBtn ? activeTabBtn.dataset.view : 'daily';
@@ -43,16 +46,16 @@ const executeDownload = async (format) => {
 
         if (!key) return showToast('날짜를 선택해주세요.', true);
 
-        if (format === 'pdf') {
+        if (format === 'pdf') { // ✅ format 변수 사용
             let targetId = 'history-daily-view';
             let title = `업무이력_일별_${key}`;
             if (view === 'weekly') { targetId = 'history-weekly-view'; title = `업무이력_주별_${key}`; }
             else if (view === 'monthly') { targetId = 'history-monthly-view'; title = `업무이력_월별_${key}`; }
             downloadContentAsPdf(targetId, title);
         } else {
-            if (view === 'daily') await downloadHistoryAsExcel(key, format);
-            else if (view === 'weekly') await downloadWeeklyHistoryAsExcel(key, format);
-            else if (view === 'monthly') await downloadMonthlyHistoryAsExcel(key, format);
+            if (view === 'daily') await downloadHistoryAsExcel(key, format); // ✅ format 변수 사용
+            else if (view === 'weekly') await downloadWeeklyHistoryAsExcel(key, format); // ✅ format 변수 사용
+            else if (view === 'monthly') await downloadMonthlyHistoryAsExcel(key, format); // ✅ format 변수 사용
         }
     }
     else if (targetType === 'attendance') {
@@ -63,47 +66,49 @@ const executeDownload = async (format) => {
 
         if (!key) return showToast('날짜를 선택해주세요.', true);
 
-        if (format === 'pdf') {
+        if (format === 'pdf') { // ✅ format 변수 사용
             let targetId = 'history-attendance-daily-view';
             let title = `근태이력_일별_${key}`;
             if (viewMode === 'weekly') { targetId = 'history-attendance-weekly-view'; title = `근태이력_주별_${key}`; }
             else if (viewMode === 'monthly') { targetId = 'history-attendance-monthly-view'; title = `근태이력_월별_${key}`; }
             downloadContentAsPdf(targetId, title);
         } else {
-            downloadAttendanceExcel(viewMode, key, format);
+            downloadAttendanceExcel(viewMode, key, format); // ✅ format 변수 사용
         }
     }
     else if (targetType === 'report') {
         const reportData = State.context.lastReportData;
         if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
 
-        if (format === 'pdf') {
+        if (format === 'pdf') { // ✅ format 변수 사용
             let targetId = '';
             const tabs = document.querySelectorAll('#report-view-container > div');
             tabs.forEach(div => { if (!div.classList.contains('hidden')) targetId = div.id; });
             if (targetId) downloadContentAsPdf(targetId, reportData.title || '업무_리포트');
             else showToast('출력할 리포트 화면을 찾을 수 없습니다.', true);
         } else {
-            downloadReportExcel(reportData, format);
+            downloadReportExcel(reportData, format); // ✅ format 변수 사용
         }
     }
     else if (targetType === 'personal') {
         const reportData = State.context.lastReportData;
         if (!reportData || reportData.type !== 'personal') return showToast('개인 리포트 데이터가 없습니다.', true);
 
-        if (format === 'pdf') {
+        if (format === 'pdf') { // ✅ format 변수 사용
             downloadContentAsPdf('personal-report-content', reportData.title || '개인_리포트');
         } else {
-            downloadPersonalReportExcel(reportData, format);
+            downloadPersonalReportExcel(reportData, format); // ✅ format 변수 사용
         }
     }
     else if (targetType === 'inspection') {
-         const inspectionData = (State.allHistoryData.find(d => d.id === getTodayDateString())?.inspectionHistory || State.allHistoryData.flatMap(d => d.inspectionHistory).filter(Boolean)) || State.allHistoryData.flatMap(d => d.inspectionList).filter(Boolean);
+         const targetInspectionId = State.context.downloadContext.targetInspectionId;
+         // 리스트별 보기 모드가 아니라면 id 체크 스킵 (전체 다운로드 등)
+         // 여기서는 간단히 pdf/excel 분기만 처리
          
-         if (format === 'pdf') {
+         if (format === 'pdf') { // ✅ format 변수 사용
              downloadContentAsPdf('inspection-history-panel', '검수_이력_리포트');
          } else {
-             await downloadInspectionHistory(format);
+             await downloadInspectionHistory(format); // ✅ format 변수 사용
          }
     }
 
@@ -121,8 +126,8 @@ export function setupHistoryDownloadListeners() {
             const btn = e.target.closest('.download-option-btn');
             if (btn) {
                 const format = btn.dataset.format; 
-                const fileFormat = format === 'excel' ? 'xlsx' : format;
-                executeDownload(fileFormat);
+                // 여기서 format은 'xlsx', 'csv', 'pdf' 중 하나입니다.
+                executeDownload(format);
             }
         });
     }
