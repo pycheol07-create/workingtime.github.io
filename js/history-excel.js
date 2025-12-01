@@ -65,6 +65,83 @@ const appendTotalRow = (ws, data, headers) => {
 };
 
 // =================================================================
+// [신규] 검수 이력 엑셀 다운로드
+// =================================================================
+
+export const downloadInspectionHistoryExcel = (inspectionData, format = 'xlsx') => {
+    if (!inspectionData || inspectionData.length === 0) {
+        return showToast('다운로드할 검수 이력 데이터가 없습니다.', true);
+    }
+    
+    try {
+        const workbook = XLSX.utils.book_new();
+
+        // --- Sheet 1: 상품별 요약 ---
+        const sheet1Headers = [
+            '상품명', '코드', '옵션', '공급처 상품명', '총 입고 횟수', '최근 검수일', '최근 불량 요약'
+        ];
+        const sheet1Data = inspectionData.map(item => ({
+            '상품명': item.id,
+            '코드': item.lastCode || '-',
+            '옵션': item.lastOption || '-',
+            '공급처 상품명': item.lastSupplierName || '-',
+            '총 입고 횟수': item.totalInbound || 0,
+            '최근 검수일': item.lastInspectionDate || '-',
+            '최근 불량 요약': (item.defectSummary && item.defectSummary.length > 0) ? item.defectSummary[item.defectSummary.length - 1] : '-'
+        }));
+        const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
+        fitToColumn(worksheet1);
+        XLSX.utils.book_append_sheet(workbook, worksheet1, `상품별_요약`);
+
+        // --- Sheet 2: 상세 로그 (모든 상품 통합) ---
+        const sheet2Headers = [
+            '상품명', '공급처 상품명', '일시(날짜)', '일시(시간)', '담당', '입고일자/패킹No', '코드', '옵션', '수량', '상태', '특이사항',
+            '두께(실측)', '원단 상태', '컬러', '뒤틀림', '올 풀림', '실밥 마감', '지퍼', '단추', '안감', '보풀', '이염'
+        ];
+        
+        const allLogs = inspectionData.flatMap(item => {
+            const logs = item.logs || [];
+            return logs.map(log => ({
+                '상품명': item.id,
+                '공급처 상품명': log.supplierName || item.lastSupplierName || '-',
+                '일시(날짜)': log.date || '-',
+                '일시(시간)': log.time || '-',
+                '담당': log.inspector || '-',
+                '입고일자/패킹No': log.inboundDate || log.packingNo || '-',
+                '코드': log.code || '-',
+                '옵션': log.option || '-',
+                '수량': log.inboundQty || 0,
+                '상태': log.status || '-',
+                '특이사항': (log.defects.length > 0 ? `[${log.defects.join(', ')}] ` : '') + (log.note || ''),
+                '두께(실측)': log.checklist?.thickness || '-',
+                '원단 상태': log.checklist?.fabric || '-',
+                '컬러': log.checklist?.color || '-',
+                '뒤틀림': log.checklist?.distortion || '-',
+                '올 풀림': log.checklist?.unraveling || '-',
+                '실밥 마감': log.checklist?.finishing || '-',
+                '지퍼': log.checklist?.zipper || '-',
+                '단추': log.checklist?.button || '-',
+                '안감': log.checklist?.lining || '-',
+                '보풀': log.checklist?.pilling || '-',
+                '이염': log.checklist?.dye || '-'
+            }));
+        }).sort((a, b) => b['일시(날짜)'].localeCompare(a['일시(날짜)'])); // 최신순 정렬
+
+        const worksheet2 = XLSX.utils.json_to_sheet(allLogs, { header: sheet2Headers });
+        fitToColumn(worksheet2);
+        XLSX.utils.book_append_sheet(workbook, worksheet2, `상세_로그`);
+
+
+        XLSX.writeFile(workbook, `검수이력_${getTodayDateString()}.${format}`);
+
+    } catch (error) {
+        console.error('Export inspection history failed:', error);
+        showToast('파일 생성에 실패했습니다.', true);
+    }
+};
+
+
+// =================================================================
 // [기존] 업무 이력 엑셀/CSV 다운로드
 // =================================================================
 
