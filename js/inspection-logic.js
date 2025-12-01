@@ -183,7 +183,7 @@ export const handleExcelUpload = (file) => {
 
             // --- Deduplication Logic Start ---
             const processedList = [];
-            // Key: supplierName (F열) :: option (C열)
+            // Key: supplierName (F열) :: color (C열에서 추출)
             const uniqueKeyMap = new Map(); 
 
             if (jsonData.length > 1) {
@@ -198,11 +198,15 @@ export const handleExcelUpload = (file) => {
                         const supplierName = String(row[5] || '').trim(); // F열
                         
                         if (code || name) {
-                            // 대소문자 및 모든 공백을 제거하여 강력한 중복 체크 키 생성
-                            const keyOption = option.replace(/\s/g, '').toLowerCase(); // <-- 수정된 부분
-                            const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase(); // <-- 수정된 부분
+                            // 1. 옵션에서 색상만 추출 (예: [블랙-160-L] -> 블랙)
+                            let color = option.replace(/\[|\]/g, '').split('-')[0].trim();
+                            if (!color) color = 'N/A';
                             
-                            const uniqueKey = `${keySupplierName}::${keyOption}`; // <-- 중복 제거 기준
+                            // 2. 대소문자 및 모든 공백을 제거하여 강력한 중복 체크 키 생성
+                            const keyColor = color.replace(/\s/g, '').toLowerCase();
+                            const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase();
+                            
+                            const uniqueKey = `${keySupplierName}::${keyColor}`; // <-- 중복 제거 기준
 
                             if (!uniqueKeyMap.has(uniqueKey)) {
                                 uniqueKeyMap.set(uniqueKey, true); 
@@ -751,7 +755,6 @@ const resetInspectionForm = (clearProductName = false) => {
     if (clearProductName) DOM.inspProductNameInput.value = '';
     DOM.inspInboundQtyInput.value = '';
     DOM.inspNotesInput.value = '';
-    DOM.inspCheckThickness.value = ''; 
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
     if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; // [수정]
@@ -921,7 +924,7 @@ export const updateInspectionLog = async () => {
     };
     Object.entries(checklist).forEach(([key, value]) => {
         if (key === 'thickness') return;
-        if (!NORMAL_VALUES.includes(value) && value !== '') {
+        if (!NORMAL_VALUES.includes(value)) {
             defectsFound.push(`${labelMap[key] || key}(${value})`);
         }
     });
