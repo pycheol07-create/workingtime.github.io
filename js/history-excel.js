@@ -6,13 +6,13 @@ import {
     allHistoryData
 } from './state.js'; 
 
-// utils.js에서 헬퍼 함수들을 가져옵니다.
+// ✅ [수정] getTodayDateString 추가
 import { 
-    formatTimeTo24H, formatDuration, getWeekOfYear, showToast, calculateDateDifference
+    formatTimeTo24H, formatDuration, getWeekOfYear, showToast, calculateDateDifference, getTodayDateString
 } from './utils.js';
 
 // Firestore 함수 임포트
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; // ✅ [수정] collection, getDocs 추가
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; 
 
 // (XLSX와 html2pdf는 index.html에서 전역 로드됨)
 
@@ -71,7 +71,7 @@ const appendTotalRow = (ws, data, headers) => {
 // ✅ [신규] 검수 이력 엑셀 다운로드 함수
 // =================================================================
 
-export const downloadInspectionHistory = async (format = 'xlsx') => { // ✅ 함수 이름 수정
+export const downloadInspectionHistory = async (format = 'xlsx') => { 
     showToast('검수 이력 데이터를 불러오는 중...');
     
     let inspectionData = [];
