@@ -68,7 +68,7 @@ const appendTotalRow = (ws, data, headers) => {
 };
 
 // =================================================================
-// ✅ [신규] 검수 이력 엑셀 다운로드 (downloadInspectionHistoryExcel -> downloadInspectionHistory로 이름 변경)
+// ✅ [신규] 검수 이력 엑셀 다운로드 함수
 // =================================================================
 
 export const downloadInspectionHistory = async (format = 'xlsx') => { // ✅ 함수 이름 수정
