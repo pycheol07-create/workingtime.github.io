@@ -317,10 +317,10 @@ export const renderInspectionLogTable = (logs, productName) => {
             thead.innerHTML = `
                 <tr>
                     <th class="px-4 py-3 w-[12%]">일시</th>
-                    <th class="px-4 py-3 w-[8%]">담당</th>
+                    <th class="px-4 py-3 w-[7%]">담당</th>
                     <th class="px-4 py-3 w-[10%]">입고일자</th>
-                    <th class="px-4 py-3 w-[10%]">코드</th>
-                    <th class="px-4 py-3 w-[10%]">옵션</th>
+                    <th class="px-4 py-3 w-[8%]">코드</th>
+                    <th class="px-4 py-3 w-[8%]">옵션</th>
                     <th class="px-4 py-3 w-[10%]">공급처 상품명</th>
                     <th class="px-4 py-3 w-[5%] text-center">수량</th>
                     <th class="px-4 py-3 w-[8%] text-center">상태</th>

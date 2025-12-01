@@ -356,7 +356,12 @@ export const openInspectionListWindow = () => {
         <body class="bg-white">
             <div class="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center shadow-sm z-10">
                 <h2 class="text-lg font-bold text-gray-800">📋 검수 대기 리스트</h2>
-                <span class="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600">총 ${list.length}건</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600">총 ${list.length}건</span>
+                    <button onclick="window.close()" class="text-gray-400 hover:text-gray-700 text-lg font-bold px-2 rounded-full leading-none">
+                        &times;
+                    </button>
+                </div>
             </div>
             <div class="overflow-y-auto">
                 <table class="w-full text-left border-collapse">
