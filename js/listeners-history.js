@@ -6,7 +6,7 @@ import * as State from './state.js';
 import { showToast, getTodayDateString } from './utils.js';
 
 // 분리된 하위 리스너 모듈 임포트
-import { setupHistoryDownloadListeners } from './listeners-history-download.js';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js'; // ✅ [수정] openDownloadFormatModal 임포트 추가
 import { setupHistoryRecordListeners } from './listeners-history-records.js';
 import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js';
 import { setupHistoryInspectionListeners, fetchAndRenderInspectionHistory } from './listeners-history-inspection.js';
@@ -460,6 +460,18 @@ export function setupHistoryModalListeners() {
                 requestHistoryDeletion(dateKey);
             }
             // 'open-record-manager'는 listeners-history-records.js에서 처리됨
+        });
+    }
+
+    // ✅ [신규] 검수 이력 다운로드 버튼 클릭 리스너 (위임)
+    if (DOM.historyModalContentBox) {
+        DOM.historyModalContentBox.addEventListener('click', (e) => {
+            const downloadBtn = e.target.closest('#inspection-download-btn');
+            if (downloadBtn) {
+                e.stopPropagation();
+                openDownloadFormatModal('inspection'); // openDownloadFormatModal은 listeners-history-download.js에서 export됨
+                return;
+            }
         });
     }
 
