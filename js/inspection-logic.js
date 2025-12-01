@@ -198,9 +198,9 @@ export const handleExcelUpload = (file) => {
                         const supplierName = String(row[5] || '').trim(); // F열
                         
                         if (code || name) {
-                            const uniqueKey = `${supplierName}::${option}`;
+                            // 대소문자 무시를 위해 소문자로 변환하여 키 생성
+                            const uniqueKey = `${supplierName.toLowerCase()}::${option.toLowerCase()}`; // <-- 수정된 부분
 
-                            // 이 조합이 이전에 처리되지 않았을 경우에만 추가
                             if (!uniqueKeyMap.has(uniqueKey)) {
                                 uniqueKeyMap.set(uniqueKey, true); 
                                 
@@ -210,7 +210,7 @@ export const handleExcelUpload = (file) => {
                                     option: option,
                                     qty: qty,
                                     thickness: thickness,
-                                    supplierName: supplierName,
+                                    supplierName: supplierName, // [추가]
                                     status: '대기',
                                     inboundDate: inboundDate
                                 });
