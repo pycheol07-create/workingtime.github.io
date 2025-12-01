@@ -493,7 +493,7 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <label for="insp-excel-upload" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                         엑셀 업로드
                     </label>
                     <input type="file" id="insp-excel-upload" accept=".xlsx, .xls" class="hidden">
@@ -587,14 +587,13 @@
                 <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2">🔍 품질 체크리스트</h4>
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
                     
-                    <div>
+                    <div class="col-span-full border-b border-gray-200 -mx-4 px-4 pt-0 pb-3 mb-2">
                         <label class="block text-xs font-bold text-gray-600 mb-1">두께 (실측)</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" id="insp-check-thickness" class="w-full p-2 border border-gray-300 rounded text-sm focus:border-indigo-500" placeholder="0.0" step="0.1">
-                            <span id="insp-thickness-ref" class="text-xs text-gray-500 whitespace-nowrap">기준: -</span>
+                        <input type="number" id="insp-check-thickness" class="w-1/2 md:w-1/3 p-2 border border-gray-300 rounded text-sm focus:border-indigo-500" placeholder="0.0" step="0.1">
+                        <div class="text-xs text-gray-500 mt-1">
+                            기준: <span id="insp-thickness-ref" class="font-bold text-gray-700">-</span>
                         </div>
                     </div>
-
                     <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">원단 상태</label>
                         <select id="insp-check-fabric" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
@@ -781,11 +780,12 @@
 
             <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2">품질 체크리스트 수정</h4>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                 
+                 <div class="col-span-full border-b border-gray-200 -mx-4 px-4 pt-0 pb-3 mb-2">
+                     <label class="block text-xs font-bold text-gray-600 mb-1">두께 (실측)</label>
+                     <input type="number" id="edit-insp-check-thickness" class="w-1/2 md:w-1/3 p-2 border border-gray-300 rounded-md text-sm" placeholder="0.0" step="0.1">
+                 </div>
                  <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">두께 (실측)</label>
-                    <input type="number" id="edit-insp-check-thickness" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="0.0" step="0.1">
-                </div>
-                <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">원단 상태</label>
                     <select id="edit-insp-check-fabric" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
                         <option value="정상">정상</option>

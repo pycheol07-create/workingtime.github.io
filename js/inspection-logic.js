@@ -40,8 +40,7 @@ export const initializeInspectionSession = async () => {
 
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
-    // [추가] 공급처 상품명 초기화
-    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
+    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; // [수정]
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
     
     const selects = document.querySelectorAll('#insp-current-input-area select');
@@ -106,7 +105,7 @@ export const deleteInspectionList = async () => {
         if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
-        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -';
+        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; // [수정]
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
         
         currentTodoIndex = -1;
@@ -276,7 +275,7 @@ export const selectTodoItem = (index) => {
     // 2. 옵션/코드/기준두께 표시
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${item.option || '-'}`;
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${item.code || '-'}`;
-    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = `공급처: ${item.supplierName || '-'}`; // [추가]
+    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = `공급처: ${item.supplierName || '-'}`; // [수정]
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${item.thickness || '-'}`;
 
     // 3. 이력 조회 실행
