@@ -181,38 +181,49 @@ export const handleExcelUpload = (file) => {
             const sheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-            const newList = [];
+            // --- Deduplication Logic Start ---
+            const processedList = [];
+            // Key: supplierName (F열) :: option (C열)
+            const uniqueKeyMap = new Map(); 
+
             if (jsonData.length > 1) {
                 for (let i = 1; i < jsonData.length; i++) {
                     const row = jsonData[i];
-                    if (row && row.length > 0) {
+                    if (row && row.length > 1) { 
                         const code = String(row[0] || '').trim();
                         const name = String(row[1] || '').trim();
-                        const option = String(row[2] || '').trim();
+                        const option = String(row[2] || '').trim(); // C열
                         const qty = Number(row[3]) || 0;
                         const thickness = String(row[4] || '');
-                        // [수정] 엑셀에서 5번째 컬럼(인덱스 4)을 공급처 상품명으로 읽음
-                        const supplierName = String(row[5] || '').trim(); 
+                        const supplierName = String(row[5] || '').trim(); // F열
                         
                         if (code || name) {
-                            newList.push({
-                                code: code,
-                                name: name,
-                                option: option,
-                                qty: qty,
-                                thickness: thickness,
-                                supplierName: supplierName, // [추가]
-                                status: '대기',
-                                inboundDate: inboundDate
-                            });
+                            const uniqueKey = `${supplierName}::${option}`;
+
+                            // 이 조합이 이전에 처리되지 않았을 경우에만 추가
+                            if (!uniqueKeyMap.has(uniqueKey)) {
+                                uniqueKeyMap.set(uniqueKey, true); 
+                                
+                                processedList.push({
+                                    code: code,
+                                    name: name,
+                                    option: option,
+                                    qty: qty,
+                                    thickness: thickness,
+                                    supplierName: supplierName,
+                                    status: '대기',
+                                    inboundDate: inboundDate
+                                });
+                            }
                         }
                     }
                 }
             }
+            // --- Deduplication Logic End ---
 
-            if (newList.length > 0) {
-                await updateDailyData({ inspectionList: newList });
-                showToast(`${newList.length}개의 리스트가 업로드되었습니다. (입고일: ${inboundDate})`);
+            if (processedList.length > 0) {
+                await updateDailyData({ inspectionList: processedList });
+                showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (입고일: ${inboundDate})`);
                 renderTodoList(); // 업로드 후 즉시 렌더링
             } else {
                 showToast("유효한 데이터가 엑셀에 없습니다.", true);
