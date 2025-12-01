@@ -120,7 +120,7 @@ const generateCostAnalysisHTML = (analysis) => {
                             <span class="font-semibold">${costs.shipping.toLocaleString()}원</span>
                         </div>
                         
-                        <div class="flex justify-between items-center text-sm text-purple-700">
+                        <div class="flex justify-between items-center text-purple-700">
                             <span>직진배송 화물비 <span class="text-xs">(${costs.directDeliveryCount}회)</span></span>
                             <span class="font-semibold">+ ${Math.round(costs.directDelivery).toLocaleString()}원</span>
                         </div>
@@ -631,9 +631,9 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
 
             ${generateCostAnalysisHTML(analysis)}
             
-            ${predictionHtml}
-
             ${dailyTableHtml}
+
+            ${predictionHtml}
         </div>
     `;
 

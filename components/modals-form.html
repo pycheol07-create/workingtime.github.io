@@ -531,6 +531,7 @@
                     <div class="mt-1 flex gap-2 text-xs text-gray-500">
                         <span id="insp-option-display" class="bg-gray-100 px-2 py-0.5 rounded">옵션: -</span>
                         <span id="insp-code-display" class="bg-gray-100 px-2 py-0.5 rounded">코드: -</span>
+                        <span id="insp-supplier-display" class="bg-gray-100 px-2 py-0.5 rounded">공급처: -</span>
                     </div>
                 </div>
                 <button id="insp-search-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-sm transition h-[46px]">
@@ -763,7 +764,7 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-3 gap-4 mb-4">
                 <div>
                     <label for="edit-insp-packing-no" class="block text-xs font-bold text-gray-500 mb-1">패킹 번호</label>
                     <input type="text" id="edit-insp-packing-no" class="w-full p-2 border border-gray-300 rounded-md text-sm">
@@ -771,6 +772,10 @@
                 <div>
                     <label for="edit-insp-inbound-qty" class="block text-xs font-bold text-gray-500 mb-1">입고 수량</label>
                     <input type="number" id="edit-insp-inbound-qty" class="w-full p-2 border border-gray-300 rounded-md text-sm">
+                </div>
+                <div>
+                    <label for="edit-insp-supplier-name" class="block text-xs font-bold text-gray-500 mb-1">공급처 상품명</label>
+                    <input type="text" id="edit-insp-supplier-name" class="w-full p-2 border border-gray-300 rounded-md text-sm">
                 </div>
             </div>
 

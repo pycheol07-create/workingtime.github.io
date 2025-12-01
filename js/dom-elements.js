@@ -272,12 +272,17 @@ export const confirmHistoryAddBtn = document.getElementById('confirm-history-add
 export const historyDownloadExcelBtn = document.getElementById('history-download-excel-btn');
 export const attendanceDownloadExcelBtn = document.getElementById('attendance-download-excel-btn');
 
-// 업무 종료 알림 모달 (제거됨)
+// 업무 종료 알림 모달
+export const shiftEndAlertModal = document.getElementById('shift-end-alert-modal');
+export const confirmShiftEndAlertBtn = document.getElementById('confirm-shift-end-alert-btn');
+export const cancelShiftEndAlertBtn = document.getElementById('cancel-shift-end-alert-btn');
 
 // 검수 매니저 모달 관련 요소 (입력용)
 export const inspectionManagerModal = document.getElementById('inspection-manager-modal');
 export const inspProductNameInput = document.getElementById('insp-product-name');
 export const inspSearchBtn = document.getElementById('insp-search-btn');
+// [추가] 공급처 상품명 (라이브 표시)
+export const inspSupplierDisplay = document.getElementById('insp-supplier-display');
 
 // 과거 이력 리포트 영역 (입력 모달 내)
 export const inspHistoryReport = document.getElementById('insp-history-report');
@@ -336,6 +341,8 @@ export const editInspInboundQty = document.getElementById('edit-insp-inbound-qty
 export const editInspNotes = document.getElementById('edit-insp-notes');
 export const editInspLogIndex = document.getElementById('edit-insp-log-index');
 export const editInspOriginalDefects = document.getElementById('edit-insp-original-defects'); // 원래 불량 상태 보관용
+// [추가] 공급처 상품명 (수정 필드)
+export const editInspSupplierName = document.getElementById('edit-insp-supplier-name');
 
 // 13가지 체크리스트 항목 (수정 모달용)
 export const editInspCheckThickness = document.getElementById('edit-insp-check-thickness');

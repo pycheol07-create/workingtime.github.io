@@ -114,6 +114,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                     <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.code || '-'}</td>
                     <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.name}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${item.option || '-'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-600">${item.supplierName || '-'}</td>
                     <td class="px-4 py-3 text-xs text-center">${item.qty || 0}</td>
                     <td class="px-4 py-3 text-xs text-gray-500">${item.thickness || '-'}</td>
                     <td class="px-4 py-3 text-center">${statusBadge}</td>
@@ -139,6 +140,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                                 <th class="px-4 py-2 font-semibold bg-gray-50">코드</th>
                                 <th class="px-4 py-2 font-semibold bg-gray-50">상품명</th>
                                 <th class="px-4 py-2 font-semibold bg-gray-50">옵션</th>
+                                <th class="px-4 py-2 font-semibold bg-gray-50">공급처</th>
                                 <th class="px-4 py-2 font-semibold bg-gray-50 text-center">수량</th>
                                 <th class="px-4 py-2 font-semibold bg-gray-50">기준</th>
                                 <th class="px-4 py-2 font-semibold bg-gray-50 text-center">상태</th>
@@ -179,10 +181,16 @@ export const renderInspectionHistoryTable = (historyData) => {
     let filteredData = historyData.filter(item => {
         const matchId = item.id.toLowerCase().includes(searchTerm);
         if (matchId) return true;
+        
+        // [수정] 공급처 상품명 검색 추가
+        const matchSupplierName = item.lastSupplierName && item.lastSupplierName.toLowerCase().includes(searchTerm);
+        if (matchSupplierName) return true;
+
         if (item.logs && item.logs.length > 0) {
             const lastLog = item.logs[item.logs.length - 1];
             if (lastLog.code && lastLog.code.toLowerCase().includes(searchTerm)) return true;
             if (lastLog.option && lastLog.option.toLowerCase().includes(searchTerm)) return true;
+            if (lastLog.supplierName && lastLog.supplierName.toLowerCase().includes(searchTerm)) return true;
         }
         return false;
     });
@@ -213,6 +221,7 @@ export const renderInspectionHistoryTable = (historyData) => {
                             <div class="flex items-center">상품명 ${getSortIcon('productName')}</div>
                         </th>
                         <th scope="col" class="px-6 py-3">코드 / 옵션</th>
+                        <th scope="col" class="px-6 py-3">공급처 상품명</th>
                         <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="totalInbound">
                             <div class="flex items-center justify-center">총 입고 ${getSortIcon('totalInbound')}</div>
                         </th>
@@ -227,21 +236,25 @@ export const renderInspectionHistoryTable = (historyData) => {
     `;
 
     if (filteredData.length === 0) {
-        html += `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400">
+        html += `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400">
             ${searchTerm ? `'${searchTerm}'에 대한 검색 결과가 없습니다.` : '저장된 검수 이력이 없습니다.'}
         </td></tr>`;
     } else {
         filteredData.forEach(item => {
             let code = '-';
             let option = '-';
+            let supplierName = '-';
+            
             // 최신 로그 또는 문서 루트 필드 확인
             if (item.lastCode) code = item.lastCode;
             if (item.lastOption) option = item.lastOption;
-            
+            if (item.lastSupplierName) supplierName = item.lastSupplierName; // [추가]
+
             if (code === '-' && item.logs && item.logs.length > 0) {
                 const lastLog = item.logs[item.logs.length - 1];
                 code = lastLog.code || '-';
                 option = lastLog.option || '-';
+                supplierName = lastLog.supplierName || '-'; // [추가]
             }
 
             html += `
@@ -250,6 +263,9 @@ export const renderInspectionHistoryTable = (historyData) => {
                     <td class="px-6 py-4 text-xs text-gray-500">
                         <div class="font-mono text-gray-700">${code}</div>
                         <div class="text-gray-400">${option}</div>
+                    </td>
+                    <td class="px-6 py-4 text-xs text-gray-500 truncate max-w-[150px]" title="${supplierName}">
+                        ${supplierName}
                     </td>
                     <td class="px-6 py-4 text-center">
                         <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -305,6 +321,7 @@ export const renderInspectionLogTable = (logs, productName) => {
                     <th class="px-4 py-3 w-[10%]">입고일자</th>
                     <th class="px-4 py-3 w-[10%]">코드</th>
                     <th class="px-4 py-3 w-[10%]">옵션</th>
+                    <th class="px-4 py-3 w-[10%]">공급처 상품명</th>
                     <th class="px-4 py-3 w-[5%] text-center">수량</th>
                     <th class="px-4 py-3 w-[8%] text-center">상태</th>
                     <th class="px-4 py-3 w-[8%] text-center">사진</th>
@@ -315,7 +332,7 @@ export const renderInspectionLogTable = (logs, productName) => {
     }
 
     if (!logs || logs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="p-6 text-center text-gray-400">검수 기록이 없습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="p-6 text-center text-gray-400">검수 기록이 없습니다.</td></tr>';
         return;
     }
 
@@ -357,6 +374,9 @@ export const renderInspectionLogTable = (logs, productName) => {
             <td class="px-4 py-3 whitespace-nowrap text-gray-600 text-xs">${item.inboundDate || item.packingNo || '-'}</td>
             <td class="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">${item.code || '-'}</td>
             <td class="px-4 py-3 whitespace-nowrap text-gray-500 text-xs truncate max-w-[100px]" title="${item.option}">${item.option || '-'}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-gray-500 text-xs truncate max-w-[150px]" title="${item.supplierName}">
+                ${item.supplierName || '-'}
+            </td>
             <td class="px-4 py-3 whitespace-nowrap text-center font-bold text-gray-700 text-xs">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
             <td class="px-4 py-3 whitespace-nowrap text-center">${statusBadge}</td>
             <td class="px-4 py-3 whitespace-nowrap text-center">${imageHtml}</td>

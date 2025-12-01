@@ -40,6 +40,8 @@ export const initializeInspectionSession = async () => {
 
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
+    // [추가] 공급처 상품명 초기화
+    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
     
     const selects = document.querySelectorAll('#insp-current-input-area select');
@@ -104,6 +106,7 @@ export const deleteInspectionList = async () => {
         if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
+        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -';
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
         
         currentTodoIndex = -1;
@@ -186,14 +189,20 @@ export const handleExcelUpload = (file) => {
                     if (row && row.length > 0) {
                         const code = String(row[0] || '').trim();
                         const name = String(row[1] || '').trim();
+                        const option = String(row[2] || '').trim();
+                        const qty = Number(row[3]) || 0;
+                        const thickness = String(row[4] || '');
+                        // [수정] 엑셀에서 5번째 컬럼(인덱스 4)을 공급처 상품명으로 읽음
+                        const supplierName = String(row[5] || '').trim(); 
                         
                         if (code || name) {
                             newList.push({
                                 code: code,
                                 name: name,
-                                option: String(row[2] || '').trim(),
-                                qty: Number(row[3]) || 0,
-                                thickness: String(row[4] || ''),
+                                option: option,
+                                qty: qty,
+                                thickness: thickness,
+                                supplierName: supplierName, // [추가]
                                 status: '대기',
                                 inboundDate: inboundDate
                             });
@@ -267,6 +276,7 @@ export const selectTodoItem = (index) => {
     // 2. 옵션/코드/기준두께 표시
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${item.option || '-'}`;
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${item.code || '-'}`;
+    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = `공급처: ${item.supplierName || '-'}`; // [추가]
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${item.thickness || '-'}`;
 
     // 3. 이력 조회 실행
@@ -489,6 +499,7 @@ export const searchProductHistory = async () => {
         
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${matchedItem.option || '-'}`;
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${matchedItem.code || '-'}`;
+        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = `공급처: ${matchedItem.supplierName || '-'}`; // [수정]
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${matchedItem.thickness || '-'}`;
         
         // 날짜 자동 입력 및 잠금
@@ -506,6 +517,7 @@ export const searchProductHistory = async () => {
         
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
+        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; // [수정]
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
 
         // 날짜 수동 입력 허용 (잠금 해제)
@@ -644,6 +656,7 @@ export const saveInspectionAndNext = async () => {
         
         option: currentItem ? currentItem.option : '-',
         code: currentItem ? currentItem.code : '-',
+        supplierName: currentItem ? currentItem.supplierName : '-', // [추가]
         
         checklist,
         defects: defectsFound,
@@ -668,6 +681,7 @@ export const saveInspectionAndNext = async () => {
         if (currentItem) {
             updates.lastCode = currentItem.code;
             updates.lastOption = currentItem.option;
+            updates.lastSupplierName = currentItem.supplierName; // [추가]
         }
 
         if (defectsFound.length > 0) {
@@ -722,6 +736,7 @@ const resetInspectionForm = (clearProductName = false) => {
     DOM.inspCheckThickness.value = ''; 
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
+    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; // [수정]
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
     
     const selects = document.querySelectorAll('#insp-current-input-area select');
@@ -838,6 +853,8 @@ export const prepareEditInspectionLog = (productName, index) => {
     if (DOM.editInspNotes) DOM.editInspNotes.value = log.note || '';
     if (DOM.editInspLogIndex) DOM.editInspLogIndex.value = index;
     
+    if (DOM.editInspSupplierName) DOM.editInspSupplierName.value = log.supplierName || ''; // [추가]
+
     const checklist = log.checklist || {};
     const setSelect = (dom, val) => { if (dom) dom.value = val || (dom.options[0]?.value || ''); };
     
@@ -895,6 +912,7 @@ export const updateInspectionLog = async () => {
         ...currentProductLogs[index], 
         inboundDate: DOM.editInspPackingNo.value, 
         inboundQty: Number(DOM.editInspInboundQty.value) || 0,
+        supplierName: DOM.editInspSupplierName.value, // [추가]
         checklist: checklist,
         defects: defectsFound,
         note: DOM.editInspNotes.value,
@@ -909,10 +927,19 @@ export const updateInspectionLog = async () => {
             .filter(l => l.defects && l.defects.length > 0)
             .map(l => `${l.date}: ${l.defects.join(', ')}`);
 
-        await updateDoc(docRef, {
+        // 최종 로그와 최근 공급처 상품명을 문서 루트에 업데이트
+        const updates = {
             logs: currentProductLogs,
-            defectSummary: newDefectSummary
-        });
+            defectSummary: newDefectSummary,
+        };
+        // 현재 수정된 로그가 가장 최신 로그라면 문서 루트 필드도 업데이트
+        if (index === currentProductLogs.length - 1) {
+            updates.lastSupplierName = updatedLog.supplierName; // [추가]
+            updates.lastCode = updatedLog.code;
+            updates.lastOption = updatedLog.option;
+        }
+        
+        await updateDoc(docRef, updates);
 
         showToast("기록이 수정되었습니다.");
         DOM.inspectionLogEditorModal.classList.add('hidden');
@@ -938,12 +965,26 @@ export const deleteInspectionLog = async () => {
         const newDefectSummary = currentProductLogs
             .filter(l => l.defects && l.defects.length > 0)
             .map(l => `${l.date}: ${l.defects.join(', ')}`);
-
-        await updateDoc(docRef, {
+        
+        const updates = {
             logs: currentProductLogs,
             defectSummary: newDefectSummary,
             totalInbound: increment(-1) 
-        });
+        };
+        // 삭제 후 마지막 로그의 정보로 문서 루트 필드 업데이트
+        if (currentProductLogs.length > 0) {
+            const lastLog = currentProductLogs[currentProductLogs.length - 1];
+            updates.lastSupplierName = lastLog.supplierName || '-'; // [추가]
+            updates.lastCode = lastLog.code || '-';
+            updates.lastOption = lastLog.option || '-';
+        } else {
+             // 모든 로그가 삭제되면 관련 필드도 초기화
+            updates.lastSupplierName = '-';
+            updates.lastCode = '-';
+            updates.lastOption = '-';
+        }
+
+        await updateDoc(docRef, updates);
 
         showToast("기록이 삭제되었습니다.");
         DOM.inspectionLogEditorModal.classList.add('hidden');
