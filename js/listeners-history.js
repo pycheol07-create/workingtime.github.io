@@ -1,11 +1,8 @@
 // === js/listeners-history.js ===
-// 설명: 이력 보기 모달의 메인 진입점으로, 하위 리스너 모듈을 통합하고 탭/필터/윈도우 제어를 담당합니다.
-
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getTodayDateString } from './utils.js';
 
-// 분리된 하위 리스너 모듈 임포트
 import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js';
 import { setupHistoryRecordListeners } from './listeners-history-records.js';
 import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js';
@@ -44,20 +41,17 @@ import {
     saveManagementData 
 } from './history-data-manager.js';
 
-// ✅ [수정] deleteField, updateDoc 임포트 추가
 import { doc, deleteDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isHistoryMaximized = false;
 
 export function setupHistoryModalListeners() {
     
-    // 1. 하위 모듈 리스너 초기화
     setupHistoryDownloadListeners();
     setupHistoryRecordListeners();
     setupHistoryAttendanceListeners();
     setupHistoryInspectionListeners();
 
-    // --- DOM 요소 참조 ---
     const managementPanel = document.getElementById('management-panel');
     const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
@@ -66,7 +60,6 @@ export function setupHistoryModalListeners() {
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
 
-    // --- 전체화면 제어 ---
     const setHistoryMaximized = (maximized) => {
         isHistoryMaximized = maximized;
         const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
@@ -112,7 +105,6 @@ export function setupHistoryModalListeners() {
         return 'day';
     };
 
-    // --- 헬퍼 함수들 ---
     const getFilteredHistoryData = () => {
         return (State.context.historyStartDate || State.context.historyEndDate)
             ? State.allHistoryData.filter(d => {
@@ -132,7 +124,6 @@ export function setupHistoryModalListeners() {
         return btn ? btn.dataset.key : null;
     };
 
-    // 뷰 갱신 함수들
     const refreshAttendanceView = async () => {
         const dateKey = getSelectedDateKey();
         if (dateKey === getTodayDateString()) {
@@ -188,7 +179,6 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    // --- 이벤트 리스너 ---
     if (DOM.historyFilterBtn) {
         DOM.historyFilterBtn.addEventListener('click', () => {
             const startDate = DOM.historyStartDateInput.value;
@@ -455,7 +445,6 @@ export function setupHistoryModalListeners() {
                 return;
             }
 
-            // ✅ [수정] 삭제 버튼 위임 처리 (전체 탭 대상)
             const deleteBtn = e.target.closest('button[data-action="request-history-deletion"]');
             if (deleteBtn) {
                 e.stopPropagation();
@@ -469,7 +458,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ✅ [수정] 탭별 부분 삭제 로직 적용
     if (DOM.confirmHistoryDeleteBtn) {
         DOM.confirmHistoryDeleteBtn.addEventListener('click', async () => {
             const dateKey = State.context.historyKeyToDelete;
@@ -477,8 +465,7 @@ export function setupHistoryModalListeners() {
                 const activeTab = State.context.activeMainHistoryTab || 'work';
                 const updates = {};
                 
-                // 탭별 삭제할 필드 지정
-                if (activeTab === 'work') {
+                if (activeTab === 'work' || activeTab === 'report') {
                     updates.workRecords = deleteField();
                     updates.taskQuantities = deleteField();
                     updates.partTimers = deleteField();
@@ -490,23 +477,19 @@ export function setupHistoryModalListeners() {
                 } else if (activeTab === 'inspection') {
                     updates.inspectionList = deleteField();
                 } else {
-                    // 기본값 또는 기타 탭: 안전을 위해 아무것도 안함
                     showToast('삭제할 대상 탭이 명확하지 않습니다.', true);
                     return;
                 }
 
                 try {
-                    // 1. History 컬렉션 업데이트 (해당 필드만 삭제)
                     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                     await updateDoc(historyDocRef, updates);
 
-                    // 2. 만약 오늘 날짜라면 Daily Data 컬렉션도 업데이트
                     if (dateKey === getTodayDateString()) {
                         const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey);
                         await updateDoc(dailyDocRef, updates);
                         
-                        // 로컬 상태 초기화 (즉각 반영을 위해)
-                        if (activeTab === 'work') {
+                        if (activeTab === 'work' || activeTab === 'report') {
                             State.appState.workRecords = [];
                             State.appState.taskQuantities = {};
                             State.appState.partTimers = [];
@@ -518,7 +501,7 @@ export function setupHistoryModalListeners() {
                         }
                     }
 
-                    showToast(`${dateKey}의 ${activeTab === 'work' ? '업무' : activeTab} 데이터가 삭제되었습니다.`);
+                    showToast(`${dateKey}의 데이터가 삭제되었습니다.`);
                     await loadAndRenderHistoryList();
 
                 } catch (e) {
@@ -621,3 +604,21 @@ export function setupHistoryModalListeners() {
         });
     }
 }
+
+export const requestHistoryDeletion = (dateKey) => {
+    State.context.historyKeyToDelete = dateKey;
+    const activeTab = State.context.activeMainHistoryTab || 'work';
+    let targetName = '모든';
+    
+    if (activeTab === 'work' || activeTab === 'report') targetName = '업무 이력(처리량 포함)';
+    else if (activeTab === 'attendance') targetName = '근태 이력';
+    else if (activeTab === 'management') targetName = '경영 지표';
+    else if (activeTab === 'inspection') targetName = '검수 이력';
+
+    const msgEl = document.querySelector('#delete-history-modal h3');
+    if (msgEl) {
+        msgEl.innerHTML = `정말로 이 날짜의 <span class="text-red-600 font-bold">${targetName}</span> 데이터를 삭제하시겠습니까?`;
+    }
+
+    if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.remove('hidden');
+};

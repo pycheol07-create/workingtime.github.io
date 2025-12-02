@@ -35,7 +35,7 @@ const openAdminMemberActionModal = (memberName) => {
     const attendance = State.appState.dailyAttendance?.[memberName];
     const status = attendance?.status || 'none';
 
-    // ✅ [신규] 근태 상태 확인 (일일 근태 + 기간 근태 병합 확인)
+    // 근태 상태 확인 (일일 근태 + 기간 근태 병합 확인)
     const combinedOnLeaveMembers = [...(State.appState.dailyOnLeaveMembers || []), ...(State.appState.dateBasedOnLeaveMembers || [])];
     const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime));
 
@@ -50,7 +50,7 @@ const openAdminMemberActionModal = (memberName) => {
             DOM.actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-800';
             DOM.actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance?.inTime)}`;
         } else if (leaveInfo) {
-            // ✅ [신규] 근태 중일 때의 배지 표시
+            // 근태 중일 때의 배지 표시
             DOM.actionMemberStatusBadge.textContent = `${leaveInfo.type} 중`;
             DOM.actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-200 text-gray-700';
             
@@ -78,10 +78,20 @@ const openAdminMemberActionModal = (memberName) => {
     }
 
     // 버튼 표시 여부 제어
-    // 근태 중이어도 '근태 설정' 버튼 등은 보여야 하므로 기존 로직 유지
-    if (DOM.adminClockInBtn) DOM.adminClockInBtn.classList.toggle('hidden', status === 'active' || status === 'returned');
-    if (DOM.adminClockOutBtn) DOM.adminClockOutBtn.classList.toggle('hidden', status !== 'active');
-    if (DOM.adminCancelClockOutBtn) DOM.adminCancelClockOutBtn.classList.toggle('hidden', status !== 'returned');
+    // ✅ [수정] 근태 중일 때 취소 버튼 표시
+    const isOnLeave = !!leaveInfo;
+    
+    if (DOM.adminClockInBtn) DOM.adminClockInBtn.classList.toggle('hidden', isOnLeave || status === 'active' || status === 'returned');
+    if (DOM.adminClockOutBtn) DOM.adminClockOutBtn.classList.toggle('hidden', isOnLeave || status !== 'active');
+    if (DOM.adminCancelClockOutBtn) DOM.adminCancelClockOutBtn.classList.toggle('hidden', isOnLeave || status !== 'returned');
+    
+    // ✅ [추가] 근태 취소 버튼 토글
+    if (DOM.adminCancelLeaveBtn) {
+        DOM.adminCancelLeaveBtn.classList.toggle('hidden', !isOnLeave);
+        if (isOnLeave && DOM.adminCancelLeaveText) {
+            DOM.adminCancelLeaveText.textContent = `${leaveInfo.type} 취소 (복귀)`;
+        }
+    }
 
     if (DOM.memberActionModal) DOM.memberActionModal.classList.remove('hidden');
 };
@@ -403,6 +413,29 @@ export function setupMainBoardListeners() {
             if (State.context.memberToAction) {
                 if (DOM.memberActionModal) DOM.memberActionModal.classList.add('hidden');
                 setTimeout(() => openLeaveModal(State.context.memberToAction), 100);
+            }
+        });
+    }
+
+    // ✅ [추가] 관리자 근태 취소 버튼 리스너
+    if (DOM.adminCancelLeaveBtn) {
+        DOM.adminCancelLeaveBtn.addEventListener('click', () => {
+            const memberName = State.context.memberToAction;
+            if (memberName) {
+                // 근태 취소 확인 모달 띄우기
+                State.context.memberToCancelLeave = memberName;
+                
+                // 해당 멤버의 현재 근태 타입 찾기
+                const combinedOnLeaveMembers = [...(State.appState.dailyOnLeaveMembers || []), ...(State.appState.dateBasedOnLeaveMembers || [])];
+                const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime));
+                const leaveType = leaveInfo ? leaveInfo.type : '근태';
+
+                if (DOM.cancelLeaveConfirmMessage) {
+                    DOM.cancelLeaveConfirmMessage.textContent = `${memberName}님의 '${leaveType}' 상태를 취소(복귀) 하시겠습니까?`;
+                }
+                
+                if (DOM.memberActionModal) DOM.memberActionModal.classList.add('hidden');
+                if (DOM.cancelLeaveConfirmModal) DOM.cancelLeaveConfirmModal.classList.remove('hidden');
             }
         });
     }

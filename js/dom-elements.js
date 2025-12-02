@@ -220,6 +220,10 @@ export const adminClockOutBtn = document.getElementById('admin-clock-out-btn');
 export const adminCancelClockOutBtn = document.getElementById('admin-cancel-clock-out-btn');
 export const openLeaveModalBtn = document.getElementById('open-leave-modal-btn');
 
+// ✅ [추가] 근태 취소 버튼 요소
+export const adminCancelLeaveBtn = document.getElementById('admin-cancel-leave-btn');
+export const adminCancelLeaveText = document.getElementById('admin-cancel-leave-text');
+
 export const costSimulationModal = document.getElementById('cost-simulation-modal');
 export const openCostSimulationBtn = document.getElementById('open-cost-simulation-btn');
 export const simTaskSelect = document.getElementById('sim-task-select');
@@ -281,7 +285,6 @@ export const cancelShiftEndAlertBtn = document.getElementById('cancel-shift-end-
 export const inspectionManagerModal = document.getElementById('inspection-manager-modal');
 export const inspProductNameInput = document.getElementById('insp-product-name');
 export const inspSearchBtn = document.getElementById('insp-search-btn');
-// [추가] 공급처 상품명 (라이브 표시)
 export const inspSupplierDisplay = document.getElementById('insp-supplier-display');
 
 // 과거 이력 리포트 영역 (입력 모달 내)
@@ -341,7 +344,6 @@ export const editInspInboundQty = document.getElementById('edit-insp-inbound-qty
 export const editInspNotes = document.getElementById('edit-insp-notes');
 export const editInspLogIndex = document.getElementById('edit-insp-log-index');
 export const editInspOriginalDefects = document.getElementById('edit-insp-original-defects'); // 원래 불량 상태 보관용
-// [추가] 공급처 상품명 (수정 필드)
 export const editInspSupplierName = document.getElementById('edit-insp-supplier-name');
 
 // 13가지 체크리스트 항목 (수정 모달용)

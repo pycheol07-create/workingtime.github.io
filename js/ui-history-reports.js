@@ -10,7 +10,7 @@ import {
     analyzeRevenueWorkloadTrend,
     calculateAdvancedProductivity,
     calculateBenchmarkOEE,
-    calculateAverageStaffing // ✅ [추가] 평균 인원 계산 함수 임포트
+    calculateAverageStaffing
 } from './ui-history-reports-logic.js';
 
 import {
@@ -76,7 +76,6 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     const prevKPIs = calculateReportKPIs(previousDayData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(previousDayData, appConfig, wageMap, memberToPartMap);
 
-    // ✅ [신규] 업무별 평균 투입인원 계산 및 병합
     const todayAvgStaff = calculateAverageStaffing([data]);
     const prevAvgStaff = previousDayData ? calculateAverageStaffing([previousDayData]) : {};
 
@@ -147,7 +146,6 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentWeekDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevWeekDays, appConfig, wageMap);
 
-    // ✅ [신규] 업무별 평균 투입인원 계산 및 병합
     const todayAvgStaff = calculateAverageStaffing(currentWeekDays);
     const prevAvgStaff = calculateAverageStaffing(prevWeekDays);
 
@@ -218,7 +216,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentMonthDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevMonthDays, appConfig, wageMap);
 
-    // ✅ [신규] 업무별 평균 투입인원 계산 및 병합
     const todayAvgStaff = calculateAverageStaffing(currentMonthDays);
     const prevAvgStaff = calculateAverageStaffing(prevMonthDays);
 
@@ -308,7 +305,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentYearDays, appConfig, wageMap);
     prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevYearDays, appConfig, wageMap);
 
-    // ✅ [신규] 업무별 평균 투입인원 계산 및 병합
     const todayAvgStaff = calculateAverageStaffing(currentYearDays);
     const prevAvgStaff = calculateAverageStaffing(prevYearDays);
 
