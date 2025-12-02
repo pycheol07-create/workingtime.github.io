@@ -1,24 +1,16 @@
 // === js/history-excel.js ===
 
-// DOM 요소와 상태 변수를 분리된 파일에서 가져옵니다.
 import { 
     appState, appConfig, db, auth, 
-    allHistoryData
+    allHistoryData // ✅ 로컬 이력 데이터 (입고 리스트별 다운로드 시 필요)
 } from './state.js'; 
 
-// ✅ [수정] getTodayDateString 추가
 import { 
     formatTimeTo24H, formatDuration, getWeekOfYear, showToast, calculateDateDifference, getTodayDateString
 } from './utils.js';
 
-// Firestore 함수 임포트
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; 
 
-// (XLSX와 html2pdf는 index.html에서 전역 로드됨)
-
-// =================================================================
-// 엑셀 다운로드 헬퍼 함수
-// =================================================================
 const fitToColumn = (ws) => {
     const objectMaxLength = [];
     const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
@@ -34,7 +26,7 @@ const fitToColumn = (ws) => {
             objectMaxLength[index] = Math.max(objectMaxLength[index] || 10, cellLength);
         });
     });
-    ws['!cols'] = objectMaxLength.map(w => ({ width: w + 5 })); // 여유 공간 추가
+    ws['!cols'] = objectMaxLength.map(w => ({ width: w + 5 }));
 };
 
 const appendTotalRow = (ws, data, headers) => {
@@ -68,15 +60,70 @@ const appendTotalRow = (ws, data, headers) => {
 };
 
 // =================================================================
-// ✅ [신규] 검수 이력 엑셀 다운로드 함수
+// ✅ [신규] 입고 리스트별 검수 이력 다운로드 (로컬 데이터 기반)
 // =================================================================
+const downloadListInspectionHistory = (format = 'xlsx') => {
+    showToast('입고 리스트 데이터를 준비 중입니다...');
 
-export const downloadInspectionHistory = async (format = 'xlsx') => { 
-    showToast('검수 이력 데이터를 불러오는 중...');
+    const allLists = [];
+    
+    // allHistoryData에서 inspectionList 추출
+    allHistoryData.forEach(day => {
+        if (day.inspectionList && day.inspectionList.length > 0) {
+            day.inspectionList.forEach(item => {
+                allLists.push({
+                    date: day.id, // 날짜 정보 추가
+                    ...item
+                });
+            });
+        }
+    });
+
+    if (allLists.length === 0) {
+        return showToast('다운로드할 입고 리스트 데이터가 없습니다.', true);
+    }
+
+    try {
+        const workbook = XLSX.utils.book_new();
+        const headers = [
+            '날짜', '코드', '상품명', '옵션', '공급처', '수량', '기준 두께', '상태'
+        ];
+
+        // 날짜 내림차순 정렬
+        allLists.sort((a, b) => b.date.localeCompare(a.date));
+
+        const sheetData = allLists.map(item => ({
+            '날짜': item.date,
+            '코드': item.code || '-',
+            '상품명': item.name,
+            '옵션': item.option || '-',
+            '공급처': item.supplierName || '-',
+            '수량': item.qty || 0,
+            '기준 두께': item.thickness || '-',
+            '상태': item.status || '대기'
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: headers });
+        fitToColumn(worksheet);
+        XLSX.utils.book_append_sheet(workbook, worksheet, '입고_리스트_내역');
+
+        XLSX.writeFile(workbook, `입고리스트_이력_${getTodayDateString()}.${format}`);
+        showToast('입고 리스트 다운로드 완료');
+
+    } catch (e) {
+        console.error("Export list inspection history failed:", e);
+        showToast('파일 생성 실패', true);
+    }
+};
+
+// =================================================================
+// ✅ [수정] 상품별 검수 이력 엑셀 다운로드 함수 (Firestore 기반)
+// =================================================================
+const downloadProductInspectionHistory = async (format = 'xlsx') => {
+    showToast('검수 이력(상품별) 데이터를 불러오는 중...');
     
     let inspectionData = [];
     try {
-        // Firestore에서 product_history 컬렉션 전체 조회
         const colRef = collection(db, 'product_history');
         const snapshot = await getDocs(colRef);
 
@@ -88,11 +135,11 @@ export const downloadInspectionHistory = async (format = 'xlsx') => {
         });
     } catch (e) {
         console.error("Error fetching inspection history:", e);
-        return showToast('검수 이력 데이터를 불러오는 데 실패했습니다.', true);
+        return showToast('데이터 불러오기 실패', true);
     }
     
     if (!inspectionData || inspectionData.length === 0) {
-        return showToast('다운로드할 검수 이력 데이터가 없습니다.', true);
+        return showToast('다운로드할 데이터가 없습니다.', true);
     }
     
     try {
@@ -115,13 +162,12 @@ export const downloadInspectionHistory = async (format = 'xlsx') => {
         fitToColumn(worksheet1);
         XLSX.utils.book_append_sheet(workbook, worksheet1, `상품별_요약`);
 
-        // CSV인 경우 요약 시트만 저장하고 종료
         if (format === 'csv') {
-             XLSX.writeFile(workbook, `검수이력_${getTodayDateString()}.csv`);
+             XLSX.writeFile(workbook, `검수이력_상품별_${getTodayDateString()}.csv`);
              return;
         }
 
-        // --- Sheet 2: 상세 로그 (모든 상품 통합) ---
+        // --- Sheet 2: 상세 로그 ---
         const sheet2Headers = [
             '상품명', '공급처 상품명', '일시(날짜)', '일시(시간)', '담당', '입고일자/패킹No', '코드', '옵션', '수량', '상태', '특이사항',
             '두께(실측)', '원단 상태', '컬러', '뒤틀림', '올 풀림', '실밥 마감', '지퍼', '단추', '안감', '보풀', '이염'
@@ -153,26 +199,32 @@ export const downloadInspectionHistory = async (format = 'xlsx') => {
                 '보풀': log.checklist?.pilling || '-',
                 '이염': log.checklist?.dye || '-'
             }));
-        }).sort((a, b) => b['일시(날짜)'].localeCompare(a['일시(날짜)'])); // 최신순 정렬
+        }).sort((a, b) => b['일시(날짜)'].localeCompare(a['일시(날짜)']));
 
         const worksheet2 = XLSX.utils.json_to_sheet(allLogs, { header: sheet2Headers });
         fitToColumn(worksheet2);
         XLSX.utils.book_append_sheet(workbook, worksheet2, `상세_로그`);
 
-
-        XLSX.writeFile(workbook, `검수이력_${getTodayDateString()}.${format}`);
-        showToast('검수 이력 다운로드가 완료되었습니다.'); // ✅ 성공 토스트
+        XLSX.writeFile(workbook, `검수이력_상품별_${getTodayDateString()}.${format}`);
+        showToast('검수 이력(상품별) 다운로드 완료');
 
     } catch (error) {
         console.error('Export inspection history failed:', error);
-        showToast('파일 생성에 실패했습니다.', true);
+        showToast('파일 생성 실패', true);
     }
 };
 
+// 메인 함수: viewMode에 따라 분기
+export const downloadInspectionHistory = async (format = 'xlsx', viewMode = 'product') => {
+    if (viewMode === 'list') {
+        downloadListInspectionHistory(format);
+    } else {
+        await downloadProductInspectionHistory(format);
+    }
+};
 
-// =================================================================
-// [기존] 업무 이력 엑셀/CSV 다운로드
-// =================================================================
+// ... (기존 업무 이력 다운로드 함수들: downloadHistoryAsExcel 등 그대로 유지)
+// 아래 내용은 파일의 나머지 부분을 그대로 유지하기 위해 생략하지 않고 제공합니다.
 
 export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
     try {
@@ -198,7 +250,6 @@ export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
         });
         const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
 
-        // Sheet 1: 상세 기록 (CSV일 경우 이것만 저장됨)
         const dailyRecords = data.workRecords || [];
         const dailyQuantities = data.taskQuantities || {};
         
@@ -222,9 +273,7 @@ export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
         fitToColumn(worksheet1);
         XLSX.utils.book_append_sheet(workbook, worksheet1, `상세 기록 (${dateKey})`);
 
-        // Excel인 경우에만 추가 시트 생성
         if (format === 'xlsx') {
-            // Sheet 2: 업무 요약
             let prevTaskSummary = {};
             if (previousDayData) {
                 const prevRecords = previousDayData.workRecords || [];
@@ -291,7 +340,6 @@ export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
             fitToColumn(worksheet2);
             XLSX.utils.book_append_sheet(workbook, worksheet2, `업무 요약 (${dateKey})`);
 
-            // Sheet 3: 파트별 인건비
             const sheet3Headers = ['파트', '총 인건비(원)'];
             const memberToPartMap = new Map();
             (appConfig.teamGroups || []).forEach(group => group.members.forEach(member => memberToPartMap.set(member, group.name)));
@@ -331,7 +379,6 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFil
         const workbook = XLSX.utils.book_new();
         const historyWageMap = { ...(appConfig.memberWages || {}) };
 
-        // Sheet 1: 상세 기록 (기간) - CSV 시 이것만 저장
         const sheet1Headers = ['날짜', '팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)', '인건비(원)'];
         const sheet1Data = filteredData.flatMap(day => 
             (day.workRecords || []).map(r => {
@@ -420,10 +467,6 @@ export const downloadAttendanceExcel = (viewMode, key, format = 'xlsx') => {
     XLSX.writeFile(workbook, fileName);
 };
 
-
-// =================================================================
-// ✅ 업무 리포트(Report) 엑셀/CSV 다운로드
-// =================================================================
 export const downloadReportExcel = (reportData, format = 'xlsx') => {
     if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
 
@@ -431,9 +474,6 @@ export const downloadReportExcel = (reportData, format = 'xlsx') => {
         const workbook = XLSX.utils.book_new();
         const { type, title, tMetrics, tData } = reportData;
 
-        // --- 각 시트 데이터 준비 ---
-        
-        // 4. 업무별 상세 (CSV일 경우 이것을 메인으로 사용)
         const taskSummary = tMetrics.aggr.taskSummary;
         const taskData = Object.keys(taskSummary).map(t => ({
             '업무': t,
@@ -449,16 +489,12 @@ export const downloadReportExcel = (reportData, format = 'xlsx') => {
         const wsTask = XLSX.utils.json_to_sheet(taskData);
         fitToColumn(wsTask);
 
-        // CSV인 경우 업무별 상세만 저장
         if (format === 'csv') {
             XLSX.utils.book_append_sheet(workbook, wsTask, '업무별 상세');
             XLSX.writeFile(workbook, `${title.replace(/ /g, '_')}.csv`);
             return;
         }
 
-        // Excel인 경우 모든 시트 추가
-        
-        // 1. KPI 요약
         const kpis = tMetrics.kpis;
         const kpiData = [
             { '항목': '총 업무 시간', '값': formatDuration(kpis.totalDuration) },
@@ -474,7 +510,6 @@ export const downloadReportExcel = (reportData, format = 'xlsx') => {
         fitToColumn(wsKPI);
         XLSX.utils.book_append_sheet(workbook, wsKPI, '주요 지표(KPI)');
 
-        // 2. 파트별 요약
         const partSummary = tMetrics.aggr.partSummary;
         const partData = Object.keys(partSummary).map(part => ({
             '파트': part,
@@ -486,7 +521,6 @@ export const downloadReportExcel = (reportData, format = 'xlsx') => {
         fitToColumn(wsPart);
         XLSX.utils.book_append_sheet(workbook, wsPart, '파트별 요약');
 
-        // 3. 인원별 상세
         const memberSummary = tMetrics.aggr.memberSummary;
         const memberData = Object.keys(memberSummary).map(m => ({
             '이름': m,
@@ -499,7 +533,6 @@ export const downloadReportExcel = (reportData, format = 'xlsx') => {
         fitToColumn(wsMember);
         XLSX.utils.book_append_sheet(workbook, wsMember, '인원별 상세');
 
-        // 4. 업무별 상세 (위에서 생성함)
         XLSX.utils.book_append_sheet(workbook, wsTask, '업무별 상세');
 
         XLSX.writeFile(workbook, `${title.replace(/ /g, '_')}.xlsx`);
@@ -509,10 +542,6 @@ export const downloadReportExcel = (reportData, format = 'xlsx') => {
     }
 };
 
-
-// =================================================================
-// ✅ 개인 리포트 엑셀/CSV 다운로드
-// =================================================================
 export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
     if (!reportData) return showToast('개인 리포트 데이터가 없습니다.', true);
 
@@ -520,7 +549,6 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
         const workbook = XLSX.utils.book_new();
         const { title, stats, memberName, dateKey } = reportData;
 
-        // 3. 일자별 활동 로그 (CSV일 경우 이것을 메인으로)
         let logData = [];
         if (stats.dailyLogs.length > 0) {
             logData = stats.dailyLogs.map(log => ({
@@ -537,16 +565,12 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
         const wsLog = XLSX.utils.json_to_sheet(logData);
         fitToColumn(wsLog);
 
-        // CSV인 경우 일자별 활동만 저장
         if (format === 'csv') {
             XLSX.utils.book_append_sheet(workbook, wsLog, '일자별 활동');
             XLSX.writeFile(workbook, `${title.replace(/ /g, '_')}.csv`);
             return;
         }
 
-        // Excel인 경우 모든 시트 추가
-        
-        // 1. 요약
         const summaryData = [
             { '항목': '이름', '값': memberName },
             { '항목': '기간/날짜', '값': dateKey },
@@ -559,7 +583,6 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
         fitToColumn(wsSummary);
         XLSX.utils.book_append_sheet(workbook, wsSummary, '개인 요약');
 
-        // 2. 업무별 통계
         const taskData = Object.entries(stats.taskStats).map(([task, data]) => ({
             '업무명': task,
             '수행 횟수': data.count,
@@ -571,10 +594,8 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
         fitToColumn(wsTask);
         XLSX.utils.book_append_sheet(workbook, wsTask, '업무별 통계');
 
-        // 3. 일자별 활동 (위에서 생성)
         XLSX.utils.book_append_sheet(workbook, wsLog, '일자별 활동');
 
-        // 4. 근태 상세 기록
         if (stats.attendanceLogs.length > 0) {
             const attData = stats.attendanceLogs.map(log => ({
                 '날짜': log.date,
@@ -593,31 +614,23 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
     }
 };
 
-
-// =================================================================
-// ✅ [수정] PDF 다운로드 (레이아웃 최적화 및 잘림 방지)
-// =================================================================
 export const downloadContentAsPdf = (elementId, title) => {
     const originalElement = document.getElementById(elementId);
     if (!originalElement) return showToast('출력할 내용을 찾을 수 없습니다.', true);
 
     showToast('PDF 변환을 시작합니다. (잠시만 기다려주세요)');
 
-    // 1. 임시 컨테이너 생성 (화면 밖으로 숨김)
-    // A4 가로 너비(297mm)에 근접한 픽셀 값(1120px)을 강제로 설정하여
-    // 렌더링 시 우측이 잘리지 않도록 함.
     const tempContainer = document.createElement('div');
     tempContainer.id = 'pdf-temp-container';
-    tempContainer.style.position = 'fixed'; // Use fixed to take it out of flow completely
+    tempContainer.style.position = 'fixed';
     tempContainer.style.top = '0';
     tempContainer.style.left = '0';
-    tempContainer.style.width = '1120px'; // ✅ 중요: A4 가로 너비(약 1123px)에 맞춤
+    tempContainer.style.width = '1120px';
     tempContainer.style.height = 'auto';
     tempContainer.style.background = 'white';
     tempContainer.style.zIndex = '-9999';
-    tempContainer.style.overflow = 'visible'; // Allow content to expand
+    tempContainer.style.overflow = 'visible';
     
-    // 2. 인쇄용 CSS 주입 (줄바꿈 방지, 배경색, 폰트 크기 조정)
     tempContainer.innerHTML = `<style>
         #pdf-temp-container * {
             overflow: visible !important;
@@ -625,7 +638,6 @@ export const downloadContentAsPdf = (elementId, title) => {
             height: auto !important;
             scrollbar-width: none !important;
         }
-        /* 페이지 넘김 시 테이블/행 잘림 방지 */
         #pdf-temp-container table { 
             page-break-inside: auto; 
             width: 100% !important; 
@@ -638,53 +650,43 @@ export const downloadContentAsPdf = (elementId, title) => {
         #pdf-temp-container thead { display: table-header-group; }
         #pdf-temp-container tfoot { display: table-footer-group; }
         
-        /* 카드나 주요 구획도 잘리지 않게 */
         .break-inside-avoid, .p-4, .p-5, .p-6 { page-break-inside: avoid !important; }
 
-        /* 배경색 및 텍스트 강제 설정 (가독성) */
         body, .bg-gray-50 { background: white !important; }
         .bg-white { background: white !important; box-shadow: none !important; border: 1px solid #e5e7eb !important; }
         
-        /* 텍스트 줄바꿈 강제 (잘림 방지) */
         th, td, p, div { 
             word-wrap: break-word; 
             white-space: normal !important; 
         }
     </style>`;
     
-    // 3. 콘텐츠 복제
     const clonedElement = originalElement.cloneNode(true);
     
-    // Remove interactive elements that look bad in PDF
     clonedElement.querySelectorAll('button, input, select, .no-print').forEach(el => el.remove());
 
-    // 4. 복제된 콘텐츠 정리 (DOM 조작)
-    // 스크롤을 유발하거나 높이를 제한하는 클래스를 모두 제거합니다.
     const allElements = clonedElement.querySelectorAll('*');
     allElements.forEach(el => {
-        // Tailwind 클래스 제거
         el.classList.remove(
             'overflow-y-auto', 'overflow-x-auto', 'overflow-hidden', 'overflow-auto',
             'max-h-40', 'max-h-48', 'max-h-60', 'max-h-96', 
             'max-h-screen', 
             'max-h-[60vh]', 'max-h-[70vh]', 'max-h-[85vh]', 'max-h-[90vh]',
             'h-full', 'h-screen',
-            'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-2xl', // 그림자 제거
-            'fixed', 'absolute', 'sticky' // Positioning can mess up flow
+            'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-2xl',
+            'fixed', 'absolute', 'sticky'
         );
         
-        // 인라인 스타일 초기화
         el.style.maxHeight = 'none';
         el.style.height = 'auto';
         el.style.overflow = 'visible';
-        el.style.position = 'static'; // Force static flow
-        el.style.width = ''; // 너비 제한 해제 (상위 컨테이너 1120px 따름)
+        el.style.position = 'static';
+        el.style.width = '';
     });
 
     tempContainer.appendChild(clonedElement);
     document.body.appendChild(tempContainer);
 
-    // 5. Canvas(차트) 복구 (CloneNode는 캔버스 내용을 복사하지 않음)
     const originalCanvases = originalElement.querySelectorAll('canvas');
     const clonedCanvases = clonedElement.querySelectorAll('canvas');
     originalCanvases.forEach((origCanvas, index) => {
@@ -693,29 +695,26 @@ export const downloadContentAsPdf = (elementId, title) => {
             clonedCanvases[index].width = origCanvas.width;
             clonedCanvases[index].height = origCanvas.height;
             ctx.drawImage(origCanvas, 0, 0);
-            // 차트 크기 스타일 강제 조정
             clonedCanvases[index].style.width = '100%';
             clonedCanvases[index].style.height = 'auto';
         }
     });
 
-    // 6. html2pdf 설정 (A4 가로)
     const opt = {
-        margin:       [10, 10, 10, 10], // 여백 (mm)
+        margin:       [10, 10, 10, 10],
         filename:     `${title}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { 
-            scale: 2, // 해상도 2배 (선명하게)
+            scale: 2,
             useCORS: true,
             scrollY: 0,
-            windowWidth: 1120, // ✅ 렌더링할 가상 창 너비 (A4 가로 픽셀 근사치)
-            height: tempContainer.scrollHeight // Capture full height
+            windowWidth: 1120,
+            height: tempContainer.scrollHeight
         },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }, // 가로 모드
-        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // 페이지 넘김 최적화
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
-    // 7. 변환 실행
     html2pdf().from(tempContainer).set(opt).save()
         .then(() => {
             showToast('PDF 저장이 완료되었습니다.');
@@ -725,7 +724,6 @@ export const downloadContentAsPdf = (elementId, title) => {
             showToast('PDF 생성 중 오류가 발생했습니다.', true);
         })
         .finally(() => {
-            // 8. 임시 컨테이너 정리
             document.body.removeChild(tempContainer);
         });
 };

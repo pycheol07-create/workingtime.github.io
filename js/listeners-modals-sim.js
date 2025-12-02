@@ -5,17 +5,17 @@ import * as DOM from './dom-elements.js';
 import { appState, appConfig, allHistoryData } from './state.js';
 import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js';
 import { analyzeBottlenecks, calculateSimulation } from './analysis-logic.js';
-import { calculateAverageStaffing } from './ui-history-reports-logic.js';
+import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js'; // ✅ 추가 임포트
 
 // 차트 인스턴스 보관용 변수
 let simChartInstance = null;
 
-// ✅ [신규] 사용자 지정 업무 정렬 순서 정의
+// 사용자 지정 업무 정렬 순서 정의
 const CUSTOM_TASK_ORDER = ['채우기', '국내배송', '해외배송', '상.하차', '중국제작', '직진배송', '티니'];
-// ✅ [신규] 기본적으로 '동시 진행' 체크할 업무 목록
+// 기본적으로 '동시 진행' 체크할 업무 목록
 const DEFAULT_CONCURRENT_TASKS = ['해외배송', '상.하차'];
 
-// ✅ [신규] 정렬 헬퍼 함수
+// 정렬 헬퍼 함수
 const sortTasksCustom = (a, b) => {
     const idxA = CUSTOM_TASK_ORDER.indexOf(a);
     const idxB = CUSTOM_TASK_ORDER.indexOf(b);
@@ -25,12 +25,12 @@ const sortTasksCustom = (a, b) => {
     return a.localeCompare(b);
 };
 
-// ✅ [수정] 렌더링 함수 (동시 진행 체크박스 추가)
-const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false) => {
+// ✅ [수정] 렌더링 함수 (속도 입력칸 추가)
+// 파라미터 `standardSpeed` 추가 (기본값 제공용)
+const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false, standardSpeed = 0) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
     
-    // 첫 번째 행인지 확인 (첫 행은 동시 진행 불가)
     const isFirstRow = tbody.children.length === 0;
     const disableCheckbox = isFirstRow ? 'disabled' : '';
     const checkedAttr = (!isFirstRow && isConcurrent) ? 'checked' : '';
@@ -39,13 +39,14 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
     let taskOptions = '<option value="">업무 선택</option>';
     const quantityTaskTypes = (appConfig && appConfig.quantityTaskTypes) ? appConfig.quantityTaskTypes : [];
     
-    // 드롭다운 옵션 정렬
     quantityTaskTypes.sort(sortTasksCustom).forEach(taskName => {
         const selected = (taskName === task) ? 'selected' : '';
         taskOptions += `<option value="${taskName}" ${selected}>${taskName}</option>`;
     });
 
     const workerVal = workers > 0 ? Math.round(workers) : '';
+    // 속도값이 있으면 소수점 2자리로, 없으면 빈값
+    const speedVal = standardSpeed > 0 ? standardSpeed.toFixed(2) : '';
 
     row.innerHTML = `
         <td class="px-2 py-2 text-center border-r border-gray-100">
@@ -58,6 +59,9 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
             <select class="sim-row-task w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm">
                 ${taskOptions}
             </select>
+        </td>
+        <td class="px-4 py-2">
+            <input type="number" class="sim-row-speed w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right bg-blue-50/30" placeholder="자동" step="0.01" value="${speedVal}">
         </td>
         <td class="px-4 py-2">
             <input type="number" class="sim-row-qty w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="1000" min="1" value="${qty > 0 ? qty : ''}">
@@ -161,7 +165,7 @@ const renderSimulationResults = (data) => {
         const { results, totalDuration, finalEndTimeStr, totalCost } = data;
         
         if (simSummaryLabel1) simSummaryLabel1.textContent = '총 예상 소요 시간';
-        if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration); // ✅ [수정] 전체 기간(시작~끝)으로 변경됨
+        if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration); 
         if (simSummaryLabel2) simSummaryLabel2.textContent = '예상 종료 시각';
         if (simSummaryValue2) simSummaryValue2.textContent = finalEndTimeStr;
         if (simSummaryLabel3) simSummaryLabel3.textContent = '예상 총 인건비';
@@ -187,7 +191,6 @@ const renderSimulationResults = (data) => {
                     const timeClass = fixedTime > 0 ? "text-gray-400" : "text-gray-300";
                     relatedTaskHtml = `<div class="text-xs ${timeClass} font-normal">+ ${res.relatedTaskInfo.name} (${formatDuration(fixedTime)})</div>`;
                 }
-                // 동시 진행 표시 아이콘
                 const concurrentIcon = res.isConcurrent ? `<span class="text-indigo-500 ml-1" title="동시 진행">🔗</span>` : '';
 
                 return `
@@ -282,7 +285,7 @@ export function setupSimulationModalListeners() {
     const simEndTimeInput = document.getElementById('sim-end-time-input');
     const simEndTimeWrapper = document.getElementById('sim-end-time-wrapper');
     
-    // ✅ [신규] 테이블 헤더에 '동시' 컬럼 주입 (HTML 수정 없이 동작하도록)
+    // 테이블 헤더에 '동시' 컬럼 주입
     const headerRow = document.querySelector('#sim-input-area thead tr');
     if (headerRow && !headerRow.querySelector('.sim-header-concurrent')) {
         const th = document.createElement('th');
@@ -297,6 +300,9 @@ export function setupSimulationModalListeners() {
             simTaskTableBody.innerHTML = '';
 
             const avgStaffMap = calculateAverageStaffing(allHistoryData);
+            // ✅ [추가] 표준 속도 맵 가져오기
+            const standards = calculateStandardThroughputs(allHistoryData);
+            
             const quantityTaskSet = new Set(appConfig.quantityTaskTypes || []);
             const quantities = appState.taskQuantities || {};
             const tasksToShow = new Set(appConfig.keyTasks || []); 
@@ -307,13 +313,14 @@ export function setupSimulationModalListeners() {
             let tasksWereAdded = false;
 
             Array.from(tasksToShow).sort(sortTasksCustom).forEach(taskName => {
-                if (quantityTaskSet.has(taskName)) {
+                if (quantityTaskTypes.has(taskName)) {
                     const qty = Number(quantities[taskName]) || 0;
                     const avgStaff = avgStaffMap[taskName] || 0;
-                    // ✅ [신규] 특정 업무는 기본적으로 '동시 진행' 체크
                     const isConcurrent = DEFAULT_CONCURRENT_TASKS.includes(taskName);
+                    // ✅ [수정] 표준 속도 전달
+                    const speed = standards[taskName] || 0;
                     
-                    renderSimulationTaskRow(simTaskTableBody, taskName, qty, avgStaff, isConcurrent);
+                    renderSimulationTaskRow(simTaskTableBody, taskName, qty, avgStaff, isConcurrent, speed);
                     tasksWereAdded = true;
                 }
             });
@@ -415,15 +422,30 @@ export function setupSimulationModalListeners() {
     }
 
     if (simTaskTableBody) {
+        // 행 삭제 리스너
         simTaskTableBody.addEventListener('click', (e) => {
             const deleteBtn = e.target.closest('.sim-row-delete-btn');
             if (deleteBtn) {
                 deleteBtn.closest('tr').remove();
             }
         });
+
+        // ✅ [추가] 업무 선택 시 표준 속도 자동 채우기 리스너 (Delegation)
+        simTaskTableBody.addEventListener('change', (e) => {
+            if (e.target.classList.contains('sim-row-task')) {
+                const taskName = e.target.value;
+                const row = e.target.closest('tr');
+                const speedInput = row.querySelector('.sim-row-speed');
+                if (taskName && speedInput) {
+                     const standards = calculateStandardThroughputs(allHistoryData);
+                     const speed = standards[taskName] || 0;
+                     speedInput.value = speed > 0 ? speed.toFixed(2) : '';
+                }
+            }
+        });
     }
 
-    // ✅ [수정] 계산 버튼 리스너 (동시 진행 로직 포함)
+    // 계산 버튼 리스너
     if (DOM.simCalculateBtn) {
         DOM.simCalculateBtn.addEventListener('click', () => {
             const mode = document.querySelector('input[name="sim-mode"]:checked').value;
@@ -444,7 +466,7 @@ export function setupSimulationModalListeners() {
             let totalWorkers = 0;
             let totalCost = 0;
 
-            // ✅ [핵심] 동시 진행(타임라인) 계산 로직
+            // 동시 진행(타임라인) 계산 로직
             const now = new Date();
             const [startH, startM] = currentStartTimeStr.split(':').map(Number);
             let globalStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
@@ -476,6 +498,8 @@ export function setupSimulationModalListeners() {
                 const qty = Number(row.querySelector('.sim-row-qty').value);
                 const inputVal = (mode === 'fixed-workers') ? Number(row.querySelector('.sim-row-worker-or-time').value) : durationMinutesForTarget;
                 const isConcurrent = row.querySelector('.sim-row-concurrent').checked;
+                // ✅ [수정] 입력된 속도값 가져오기
+                const manualSpeed = Number(row.querySelector('.sim-row-speed').value);
 
                 if (task && qty > 0 && inputVal > 0) {
                     
@@ -492,8 +516,8 @@ export function setupSimulationModalListeners() {
                     
                     const startTimeStr = formatTimeStr(thisTaskStart);
 
-                    // 2. 계산 실행
-                    const res = calculateSimulation(mode, task, qty, inputVal, startTimeStr, includeLinkedTasks);
+                    // 2. 계산 실행 (manualSpeed 전달)
+                    const res = calculateSimulation(mode, task, qty, inputVal, startTimeStr, includeLinkedTasks, manualSpeed);
                     
                     if (!res.error) {
                         res.startTime = startTimeStr;
@@ -531,15 +555,7 @@ export function setupSimulationModalListeners() {
 
             // 최종 종료 시간 및 총 소요 시간
             const finalEndTimeStr = formatTimeStr(currentBatchMaxEndTime);
-            
-            // 총 소요 시간은 (최종 종료 - 최초 시작) - 점심시간 고려?
-            // calculateSimulation이 이미 점심시간을 고려해서 expectedEndTime을 냈으므로, 
-            // 단순 차이로 계산하되 점심시간 중복 제거는 복잡할 수 있음.
-            // 여기서는 단순하게 (마지막 끝 - 처음 시작)을 총 소요 시간으로 표시.
             let totalDurationMs = currentBatchMaxEndTime - globalStart;
-            // 점심시간이 포함된 경우 (12:30~13:30) 실제 작업 시간은 60분 적음.
-            // 하지만 사용자는 '얼마나 걸리나(경과시간)'를 궁금해하므로 물리적 시간 차이를 보여주는게 맞음.
-            // 다만 '작업 공수' 관점이 아니라 '퇴근 시간' 관점이므로 그대로 둠.
             let totalDuration = Math.floor(totalDurationMs / 60000);
 
             // Target mode일 경우 totalDuration은 '가용 시간'을 의미하므로 입력값 사용

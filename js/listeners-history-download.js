@@ -3,7 +3,7 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast } from './utils.js';
+import { showToast, getTodayDateString } from './utils.js';
 
 import {
     downloadHistoryAsExcel,
@@ -17,13 +17,13 @@ import {
     downloadInspectionHistory
 } from './history-excel.js';
 
-// 날짜 선택 헬퍼 (listeners-history.js의 getSelectedDateKey와 동일 로직이 필요하므로 DOM에서 직접 조회)
+// 날짜 선택 헬퍼
 const getSelectedDateKey = () => {
     const btn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
     return btn ? btn.dataset.key : null;
 };
 
-// ✅ [수정] openDownloadFormatModal 함수를 export하여 위임 로직에서 사용할 수 있도록 합니다.
+// openDownloadFormatModal 함수를 export하여 위임 로직에서 사용할 수 있도록 합니다.
 export const openDownloadFormatModal = (targetType, contextData = {}) => {
     State.context.downloadContext = { targetType, ...contextData };
     const modal = document.getElementById('download-format-modal');
@@ -36,9 +36,6 @@ const executeDownload = async (format) => {
     
     const { targetType } = ctx;
 
-    // ✅ 기존 코드에서 문제가 되었던 변수 재정의 부분을 삭제하고
-    // 인자로 전달받은 'format'을 직접 사용합니다.
-
     if (targetType === 'work') {
         const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
         const view = activeTabBtn ? activeTabBtn.dataset.view : 'daily';
@@ -46,16 +43,16 @@ const executeDownload = async (format) => {
 
         if (!key) return showToast('날짜를 선택해주세요.', true);
 
-        if (format === 'pdf') { // ✅ format 변수 사용
+        if (format === 'pdf') {
             let targetId = 'history-daily-view';
             let title = `업무이력_일별_${key}`;
             if (view === 'weekly') { targetId = 'history-weekly-view'; title = `업무이력_주별_${key}`; }
             else if (view === 'monthly') { targetId = 'history-monthly-view'; title = `업무이력_월별_${key}`; }
             downloadContentAsPdf(targetId, title);
         } else {
-            if (view === 'daily') await downloadHistoryAsExcel(key, format); // ✅ format 변수 사용
-            else if (view === 'weekly') await downloadWeeklyHistoryAsExcel(key, format); // ✅ format 변수 사용
-            else if (view === 'monthly') await downloadMonthlyHistoryAsExcel(key, format); // ✅ format 변수 사용
+            if (view === 'daily') await downloadHistoryAsExcel(key, format);
+            else if (view === 'weekly') await downloadWeeklyHistoryAsExcel(key, format);
+            else if (view === 'monthly') await downloadMonthlyHistoryAsExcel(key, format);
         }
     }
     else if (targetType === 'attendance') {
@@ -66,49 +63,50 @@ const executeDownload = async (format) => {
 
         if (!key) return showToast('날짜를 선택해주세요.', true);
 
-        if (format === 'pdf') { // ✅ format 변수 사용
+        if (format === 'pdf') {
             let targetId = 'history-attendance-daily-view';
             let title = `근태이력_일별_${key}`;
             if (viewMode === 'weekly') { targetId = 'history-attendance-weekly-view'; title = `근태이력_주별_${key}`; }
             else if (viewMode === 'monthly') { targetId = 'history-attendance-monthly-view'; title = `근태이력_월별_${key}`; }
             downloadContentAsPdf(targetId, title);
         } else {
-            downloadAttendanceExcel(viewMode, key, format); // ✅ format 변수 사용
+            downloadAttendanceExcel(viewMode, key, format);
         }
     }
     else if (targetType === 'report') {
         const reportData = State.context.lastReportData;
         if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
 
-        if (format === 'pdf') { // ✅ format 변수 사용
+        if (format === 'pdf') {
             let targetId = '';
             const tabs = document.querySelectorAll('#report-view-container > div');
             tabs.forEach(div => { if (!div.classList.contains('hidden')) targetId = div.id; });
             if (targetId) downloadContentAsPdf(targetId, reportData.title || '업무_리포트');
             else showToast('출력할 리포트 화면을 찾을 수 없습니다.', true);
         } else {
-            downloadReportExcel(reportData, format); // ✅ format 변수 사용
+            downloadReportExcel(reportData, format);
         }
     }
     else if (targetType === 'personal') {
         const reportData = State.context.lastReportData;
         if (!reportData || reportData.type !== 'personal') return showToast('개인 리포트 데이터가 없습니다.', true);
 
-        if (format === 'pdf') { // ✅ format 변수 사용
+        if (format === 'pdf') {
             downloadContentAsPdf('personal-report-content', reportData.title || '개인_리포트');
         } else {
-            downloadPersonalReportExcel(reportData, format); // ✅ format 변수 사용
+            downloadPersonalReportExcel(reportData, format);
         }
     }
     else if (targetType === 'inspection') {
-         const targetInspectionId = State.context.downloadContext.targetInspectionId;
-         // 리스트별 보기 모드가 아니라면 id 체크 스킵 (전체 다운로드 등)
-         // 여기서는 간단히 pdf/excel 분기만 처리
+         // ✅ [수정] 뷰 모드에 따라 다운로드 방식 분기 (상품별 vs 리스트별)
+         const viewMode = State.context.inspectionViewMode || 'product';
          
-         if (format === 'pdf') { // ✅ format 변수 사용
-             downloadContentAsPdf('inspection-history-panel', '검수_이력_리포트');
+         if (format === 'pdf') {
+             // PDF는 현재 화면 캡처
+             downloadContentAsPdf('inspection-content-area', `검수이력_${viewMode}_${getTodayDateString()}`);
          } else {
-             await downloadInspectionHistory(format); // ✅ format 변수 사용
+             // 엑셀/CSV는 모드에 따라 데이터 구조가 다름
+             await downloadInspectionHistory(format, viewMode);
          }
     }
 
@@ -126,7 +124,6 @@ export function setupHistoryDownloadListeners() {
             const btn = e.target.closest('.download-option-btn');
             if (btn) {
                 const format = btn.dataset.format; 
-                // 여기서 format은 'xlsx', 'csv', 'pdf' 중 하나입니다.
                 executeDownload(format);
             }
         });
@@ -194,5 +191,18 @@ export function setupHistoryDownloadListeners() {
         });
     }
     
-    // ✅ [제거] inspectionDownloadBtn에 대한 직접 리스너는 listeners-history.js로 위임됩니다.
+    // ✅ [신규] 검수 이력 다운로드 버튼 클릭 리스너 (동적 생성 요소 위임)
+    // 원래 inspection-download-btn ID를 가진 버튼이 정적 HTML에 있었으나,
+    // ui-history-inspection.js에서 동적으로 생성된 HTML로 위치가 변경됨에 따라 위임 처리가 필요함.
+    const historyModalContentBox = document.getElementById('history-modal-content-box');
+    if (historyModalContentBox) {
+        historyModalContentBox.addEventListener('click', (e) => {
+            // 변경된 ID: inspection-tab-download-btn
+            const downloadBtn = e.target.closest('#inspection-tab-download-btn');
+            if (downloadBtn) {
+                e.stopPropagation();
+                openDownloadFormatModal('inspection');
+            }
+        });
+    }
 }

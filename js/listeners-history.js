@@ -6,7 +6,7 @@ import * as State from './state.js';
 import { showToast, getTodayDateString } from './utils.js';
 
 // 분리된 하위 리스너 모듈 임포트
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js'; // ✅ [수정] openDownloadFormatModal 임포트 추가
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js';
 import { setupHistoryRecordListeners } from './listeners-history-records.js';
 import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js';
 import { setupHistoryInspectionListeners, fetchAndRenderInspectionHistory } from './listeners-history-inspection.js';
@@ -30,8 +30,6 @@ import {
     renderAttendanceDailyHistory,
     renderAttendanceWeeklyHistory,
     renderAttendanceMonthlyHistory,
-    renderWeeklyHistory,
-    renderMonthlyHistory,
     renderReportDaily,
     renderReportWeekly,
     renderReportMonthly,
@@ -46,7 +44,8 @@ import {
     saveManagementData 
 } from './history-data-manager.js';
 
-import { doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ✅ [수정] deleteField, updateDoc 임포트 추가
+import { doc, deleteDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isHistoryMaximized = false;
 
@@ -64,10 +63,7 @@ export function setupHistoryModalListeners() {
     const managementSaveBtn = document.getElementById('management-save-btn');
     const inspectionPanel = document.getElementById('inspection-history-panel');
 
-    // --- ✅ [수정] 아이콘 SVG (깔끔한 경로로 변경) ---
-    // 확장(Maximize) 아이콘
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
-    // 축소(Minimize) 아이콘
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
 
     // --- 전체화면 제어 ---
@@ -192,7 +188,7 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    // --- 이벤트 리스너: 필터 & 조회 ---
+    // --- 이벤트 리스너 ---
     if (DOM.historyFilterBtn) {
         DOM.historyFilterBtn.addEventListener('click', () => {
             const startDate = DOM.historyStartDateInput.value;
@@ -220,7 +216,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // --- 모달 열기/닫기 ---
     const openHistoryModalLogic = async () => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
@@ -256,7 +251,6 @@ export function setupHistoryModalListeners() {
         }
     });
 
-    // --- 날짜 리스트 클릭 ---
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
@@ -295,12 +289,10 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // --- 탭 전환 이벤트 ---
     const handleTabSwitch = (e, tabsContainer) => {
         const btn = e.target.closest('button[data-view]');
         if (btn) {
             State.context.activeFilterDropdown = null;
-            // 탭 UI 갱신
             if (tabsContainer) {
                 tabsContainer.querySelectorAll('button').forEach(b => {
                     b.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
@@ -309,7 +301,6 @@ export function setupHistoryModalListeners() {
                 btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
                 btn.classList.remove('text-gray-500', 'hover:text-gray-700');
             }
-            // 뷰 전환 및 리스트 모드 변경
             if (tabsContainer === DOM.personalReportTabs || tabsContainer === managementTabs) {
                 const viewMode = btn.dataset.view;
                 let listMode = 'day';
@@ -329,7 +320,6 @@ export function setupHistoryModalListeners() {
     if (DOM.personalReportTabs) DOM.personalReportTabs.addEventListener('click', (e) => handleTabSwitch(e, DOM.personalReportTabs));
     if (managementTabs) managementTabs.addEventListener('click', (e) => handleTabSwitch(e, managementTabs));
 
-    // 개인 리포트 멤버 선택
     if (DOM.personalReportMemberSelect) {
         DOM.personalReportMemberSelect.addEventListener('change', (e) => {
             State.context.personalReportMember = e.target.value;
@@ -337,7 +327,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // --- 경영 지표 저장 ---
     if (managementSaveBtn) {
         managementSaveBtn.addEventListener('click', async () => {
             const dateKey = managementSaveBtn.dataset.dateKey;
@@ -365,7 +354,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // --- 메인 탭 전환 (상단 탭) ---
     if (DOM.historyMainTabs) {
         DOM.historyMainTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-main-tab]');
@@ -383,7 +371,6 @@ export function setupHistoryModalListeners() {
 
                 const dateListContainer = document.getElementById('history-date-list-container');
                 
-                // 패널 토글
                 DOM.workHistoryPanel.classList.toggle('hidden', tabName !== 'work');
                 DOM.attendanceHistoryPanel.classList.toggle('hidden', tabName !== 'attendance');
                 DOM.trendAnalysisPanel.classList.toggle('hidden', tabName !== 'trends');
@@ -392,7 +379,6 @@ export function setupHistoryModalListeners() {
                 if (managementPanel) managementPanel.classList.toggle('hidden', tabName !== 'management');
                 if (inspectionPanel) inspectionPanel.classList.toggle('hidden', tabName !== 'inspection');
                 
-                // 날짜 리스트 표시 여부
                 if (dateListContainer) dateListContainer.style.display = (tabName === 'trends' || tabName === 'inspection') ? 'none' : 'block';
 
                 if (tabName === 'work') {
@@ -408,7 +394,6 @@ export function setupHistoryModalListeners() {
                      renderTrendAnalysisCharts(State.allHistoryData, State.appConfig, trendCharts);
                 } else if (tabName === 'personal') {
                      if (DOM.personalReportMemberSelect && DOM.personalReportMemberSelect.options.length <= 1) {
-                         // 멤버 셀렉트 초기화 로직...
                          const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
                          const partTimers = (State.appState.partTimers || []).map(p => p.name);
                          const allMembers = [...new Set([...staff, ...partTimers])].sort();
@@ -443,7 +428,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // --- 메인 뷰 컨테이너 액션 (수량수정/삭제요청) ---
     if (DOM.historyViewContainer) {
         DOM.historyViewContainer.addEventListener('click', (e) => {
             const button = e.target.closest('button[data-action]');
@@ -459,34 +443,75 @@ export function setupHistoryModalListeners() {
                 setHistoryMaximized(false); 
                 requestHistoryDeletion(dateKey);
             }
-            // 'open-record-manager'는 listeners-history-records.js에서 처리됨
         });
     }
 
-    // ✅ [신규] 검수 이력 다운로드 버튼 클릭 리스너 (위임)
     if (DOM.historyModalContentBox) {
         DOM.historyModalContentBox.addEventListener('click', (e) => {
             const downloadBtn = e.target.closest('#inspection-download-btn');
             if (downloadBtn) {
                 e.stopPropagation();
-                openDownloadFormatModal('inspection'); // openDownloadFormatModal은 listeners-history-download.js에서 export됨
+                openDownloadFormatModal('inspection');
                 return;
             }
         });
     }
 
-    // --- 전체 삭제 확인 ---
+    // ✅ [수정] 탭별 부분 삭제 로직 적용
     if (DOM.confirmHistoryDeleteBtn) {
         DOM.confirmHistoryDeleteBtn.addEventListener('click', async () => {
-            if (State.context.historyKeyToDelete) {
-                const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', State.context.historyKeyToDelete);
+            const dateKey = State.context.historyKeyToDelete;
+            if (dateKey) {
+                const activeTab = State.context.activeMainHistoryTab || 'work';
+                const updates = {};
+                
+                // 탭별 삭제할 필드 지정
+                if (activeTab === 'work') {
+                    updates.workRecords = deleteField();
+                    updates.taskQuantities = deleteField();
+                    updates.partTimers = deleteField();
+                    updates.confirmedZeroTasks = deleteField();
+                } else if (activeTab === 'attendance') {
+                    updates.onLeaveMembers = deleteField();
+                } else if (activeTab === 'management') {
+                    updates.management = deleteField();
+                } else if (activeTab === 'inspection') {
+                    updates.inspectionList = deleteField();
+                } else {
+                    // 기본값 또는 기타 탭: 안전을 위해 아무것도 안함 (필요 시 전체 삭제 로직 추가)
+                    showToast('삭제할 대상 탭이 명확하지 않습니다.', true);
+                    return;
+                }
+
                 try {
-                    await deleteDoc(historyDocRef);
-                    showToast(`${State.context.historyKeyToDelete} 이력이 삭제되었습니다.`);
+                    // 1. History 컬렉션 업데이트 (해당 필드만 삭제)
+                    const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+                    await updateDoc(historyDocRef, updates);
+
+                    // 2. 만약 오늘 날짜라면 Daily Data 컬렉션도 업데이트
+                    if (dateKey === getTodayDateString()) {
+                        const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey);
+                        await updateDoc(dailyDocRef, updates);
+                        
+                        // 로컬 상태 초기화 (즉각 반영을 위해)
+                        if (activeTab === 'work') {
+                            State.appState.workRecords = [];
+                            State.appState.taskQuantities = {};
+                            State.appState.partTimers = [];
+                            State.appState.confirmedZeroTasks = [];
+                        } else if (activeTab === 'attendance') {
+                            State.appState.dailyOnLeaveMembers = [];
+                        } else if (activeTab === 'inspection') {
+                            State.appState.inspectionList = [];
+                        }
+                    }
+
+                    showToast(`${dateKey}의 ${activeTab === 'work' ? '업무' : activeTab} 데이터가 삭제되었습니다.`);
                     await loadAndRenderHistoryList();
+
                 } catch (e) {
-                    console.error(e);
-                    showToast('이력 삭제 중 오류 발생.', true);
+                    console.error("Partial deletion error:", e);
+                    showToast('삭제 중 오류가 발생했습니다.', true);
                 }
             }
             if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.add('hidden');
@@ -494,7 +519,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // --- 정렬 및 필터 UI (드롭다운 등) 공통 제어 ---
     const setupFilterListeners = (container, stateKeySort, stateKeyFilter, refreshFunc) => {
         if (!container) return;
         container.addEventListener('click', (e) => {
@@ -545,7 +569,6 @@ export function setupHistoryModalListeners() {
     setupFilterListeners(DOM.reportViewContainer, 'reportSortState', 'reportFilterState', refreshReportView);
     setupFilterListeners(DOM.personalReportViewContainer, 'personalReportSortState', 'personalReportFilterState', refreshPersonalView);
 
-    // 필터 드롭다운 외부 클릭 닫기
     document.addEventListener('click', (e) => {
         if (State.context.activeFilterDropdown) {
             if (!e.target.closest('.filter-dropdown') && !e.target.closest('.filter-icon-btn')) {
@@ -557,7 +580,6 @@ export function setupHistoryModalListeners() {
         }
     });
 
-    // --- 드래그 & 전체화면 ---
     const historyHeader = document.getElementById('history-modal-header');
     if (DOM.historyModal && historyHeader && DOM.historyModalContentBox) {
         let isDragging = false; let offsetX, offsetY;

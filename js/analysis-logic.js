@@ -42,8 +42,9 @@ export const checkMissingQuantities = (dayData) => {
 
 /**
  * 인건비 시뮬레이션 계산 로직
+ * ✅ [수정] manualSpeed 파라미터 추가
  */
-export const calculateSimulation = (mode, task, targetQty, inputValue, startTimeStr = "09:00", includeLinkedTasks = true) => {
+export const calculateSimulation = (mode, task, targetQty, inputValue, startTimeStr = "09:00", includeLinkedTasks = true, manualSpeed = null) => {
     // mode: 'fixed-workers' | 'target-time'
     if (!task || targetQty <= 0 || inputValue <= 0) {
         return { error: "모든 값을 올바르게 입력해주세요." };
@@ -51,14 +52,18 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
 
     const currentAppConfig = State.appConfig || {};
     const standards = calculateStandardThroughputs(State.allHistoryData);
-    const speedPerPerson = standards[task] || 0; // (개/분/인)
+    
+    // ✅ [수정] 수동 입력된 속도가 있으면 우선 사용, 없으면 이력 기반 평균 속도 사용
+    const speedPerPerson = (manualSpeed !== null && manualSpeed > 0) 
+        ? Number(manualSpeed) 
+        : (standards[task] || 0); // (개/분/인)
 
     const linkedAvgDurations = calculateLinkedTaskAverageDuration(State.allHistoryData, currentAppConfig);
     const linkedTaskAvgDuration = includeLinkedTasks ? (linkedAvgDurations[task] || 0) : 0; // (분/건)
     const linkedTaskName = currentAppConfig.simulationTaskLinks ? currentAppConfig.simulationTaskLinks[task] : null;
 
     if (speedPerPerson <= 0) {
-        return { error: "해당 업무의 과거 이력 데이터가 부족하여 예측할 수 없습니다." };
+        return { error: "해당 업무의 과거 이력 데이터가 부족하여 예측할 수 없습니다. (속도를 직접 입력해보세요)" };
     }
 
     const avgWagePerMinute = (currentAppConfig.defaultPartTimerWage || 10000) / 60;
@@ -234,7 +239,7 @@ const calculateLinkedTaskAverageDuration = (allHistoryData, appConfig) => {
 };
 
 /**
- * ✅ [신규] 선형 회귀 분석을 통한 미래 데이터 예측 함수
+ * 선형 회귀 분석을 통한 미래 데이터 예측 함수
  * @param {Array} historyData - 전체 이력 데이터
  * @param {number} daysToPredict - 예측할 미래 일수 (기본 14일)
  */

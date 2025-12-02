@@ -1,6 +1,5 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
-// (기존 app-history-logic.js에서 분리됨)
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
@@ -331,8 +330,24 @@ export const openHistoryQuantityModal = (dateKey) => {
 
 /**
  * 이력 삭제 요청을 처리합니다. (실제 삭제는 Confirmation 모달에서 수행)
+ * ✅ [수정] 탭별 삭제 안내 메시지 업데이트 로직 추가
  */
 export const requestHistoryDeletion = (dateKey) => {
     State.context.historyKeyToDelete = dateKey;
+    const activeTab = State.context.activeMainHistoryTab || 'work';
+    let targetName = '모든';
+    
+    // 현재 탭에 따라 삭제 대상 명칭 변경
+    if (activeTab === 'work') targetName = '업무 이력(처리량 포함)';
+    else if (activeTab === 'attendance') targetName = '근태 이력';
+    else if (activeTab === 'management') targetName = '경영 지표';
+    else if (activeTab === 'inspection') targetName = '검수 이력';
+
+    // 모달 메시지 업데이트
+    const msgEl = document.querySelector('#delete-history-modal h3');
+    if (msgEl) {
+        msgEl.innerHTML = `정말로 이 날짜의 <span class="text-red-600 font-bold">${targetName}</span> 데이터를 삭제하시겠습니까?`;
+    }
+
     if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.remove('hidden');
 };

@@ -163,7 +163,12 @@
                 </div>
 
                 <div class="mt-4">
-                    <h4 class="text-sm font-bold text-gray-700 mb-2 border-b pb-1">📅 사용 내역 (최근순)</h4>
+                    <div class="flex justify-between items-center mb-2 border-b border-gray-200 pb-1">
+                        <h4 class="text-sm font-bold text-gray-700">📅 사용 내역 (최근순)</h4>
+                        <button type="button" id="btn-manual-add-leave-history" class="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold px-2 py-1 rounded shadow-sm transition flex items-center gap-1">
+                            <span class="text-blue-500 font-bold text-sm">+</span> 수동 추가
+                        </button>
+                    </div>
                     <ul id="status-history-list" class="text-sm space-y-2 max-h-40 overflow-y-auto pr-1">
                         </ul>
                 </div>

@@ -369,4 +369,32 @@ export function setupFormAttendanceListeners() {
             });
         }
     }
+
+    // 4. 연차 현황 탭 내 '수동 추가' 버튼 리스너 (추가됨)
+    const manualAddHistoryBtn = document.getElementById('btn-manual-add-leave-history');
+    if (manualAddHistoryBtn) {
+        manualAddHistoryBtn.addEventListener('click', () => {
+            // 1. 설정 탭으로 전환
+            const tabSetting = document.getElementById('tab-leave-setting');
+            if (tabSetting) tabSetting.click();
+
+            // 2. 폼 초기화 (수정 모드 해제 및 값 비우기)
+            if (DOM.confirmLeaveBtn) {
+                delete DOM.confirmLeaveBtn.dataset.editingId;
+                DOM.confirmLeaveBtn.textContent = '설정 저장';
+            }
+            
+            const sInput = document.getElementById('leave-start-date-input');
+            const eInput = document.getElementById('leave-end-date-input');
+            if (sInput) sInput.value = '';
+            if (eInput) eInput.value = '';
+            
+            // 기본값(연차) 선택 및 UI 갱신 (날짜 입력창 표시 등)
+            const radio = document.querySelector('input[name="leave-type"][value="연차"]');
+            if (radio) radio.checked = true;
+            
+            const optionsContainer = document.getElementById('leave-type-options');
+            if (optionsContainer) optionsContainer.dispatchEvent(new Event('change'));
+        });
+    }
 }

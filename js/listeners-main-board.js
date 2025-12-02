@@ -15,7 +15,6 @@ import {
     pauseWorkByTask, resumeWorkByTask
 } from './app-logic.js';
 
-// ✅ [수정] initializeInspectionSession 추가 임포트
 import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js';
 
 // 근태 설정 모달 열기 헬퍼 함수
@@ -36,6 +35,10 @@ const openAdminMemberActionModal = (memberName) => {
     const attendance = State.appState.dailyAttendance?.[memberName];
     const status = attendance?.status || 'none';
 
+    // ✅ [신규] 근태 상태 확인 (일일 근태 + 기간 근태 병합 확인)
+    const combinedOnLeaveMembers = [...(State.appState.dailyOnLeaveMembers || []), ...(State.appState.dateBasedOnLeaveMembers || [])];
+    const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime));
+
     // 상태 배지 & 시간 정보 업데이트
     if (DOM.actionMemberStatusBadge && DOM.actionMemberTimeInfo) {
          if (ongoingRecord) {
@@ -46,6 +49,19 @@ const openAdminMemberActionModal = (memberName) => {
             DOM.actionMemberStatusBadge.textContent = '휴식 중';
             DOM.actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-800';
             DOM.actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance?.inTime)}`;
+        } else if (leaveInfo) {
+            // ✅ [신규] 근태 중일 때의 배지 표시
+            DOM.actionMemberStatusBadge.textContent = `${leaveInfo.type} 중`;
+            DOM.actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-200 text-gray-700';
+            
+            let timeInfo = '';
+            if (leaveInfo.startTime) {
+                timeInfo = `${formatTimeTo24H(leaveInfo.startTime)} ~ ${leaveInfo.endTime ? formatTimeTo24H(leaveInfo.endTime) : ''}`;
+            } else if (leaveInfo.startDate) {
+                timeInfo = `${leaveInfo.startDate} ~ ${leaveInfo.endDate || ''}`;
+            }
+            DOM.actionMemberTimeInfo.textContent = timeInfo;
+
         } else if (status === 'active') {
             DOM.actionMemberStatusBadge.textContent = '대기 중';
             DOM.actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800';
@@ -62,6 +78,7 @@ const openAdminMemberActionModal = (memberName) => {
     }
 
     // 버튼 표시 여부 제어
+    // 근태 중이어도 '근태 설정' 버튼 등은 보여야 하므로 기존 로직 유지
     if (DOM.adminClockInBtn) DOM.adminClockInBtn.classList.toggle('hidden', status === 'active' || status === 'returned');
     if (DOM.adminClockOutBtn) DOM.adminClockOutBtn.classList.toggle('hidden', status !== 'active');
     if (DOM.adminCancelClockOutBtn) DOM.adminCancelClockOutBtn.classList.toggle('hidden', status !== 'returned');
@@ -77,7 +94,7 @@ export function setupMainBoardListeners() {
         DOM.confirmTeamSelectBtn.addEventListener('click', () => {
             if (State.context.selectedTaskForStart === '검수') {
                 setTimeout(() => {
-                    // ✅ [수정] 업무 시작 시 세션 초기화 및 완료 리스트 정리 실행
+                    // 업무 시작 시 세션 초기화 및 완료 리스트 정리 실행
                     initializeInspectionSession();
 
                     // 모달 열기

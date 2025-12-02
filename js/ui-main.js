@@ -439,7 +439,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const firstRecord = groupRecords[0];
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover} cursor-pointer`;
             
-            // ✅ [수정] 그룹 ID 대신 업무명(Task)을 데이터 속성으로 설정 (중요)
             card.dataset.task = task; 
             card.dataset.groupId = firstRecord.groupId; // 호환성 유지용
 
@@ -471,7 +470,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const totalPauseMinutes = calcTotalPauseMinutes(representativeRecord.pauses);
             const pauseDisplay = totalPauseMinutes > 0 ? ` <span class="text-xs text-gray-400">(휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
 
-            // ✅ [수정] 버튼에 data-task 속성 추가
             card.innerHTML = `<div class="flex flex-col h-full"><div class="font-bold text-lg ${titleClass} break-keep">${firstRecord.task} ${isPaused ? ' (일시정지)' : ''}</div><div class="text-xs ${currentStyle.subtitle} my-2 cursor-pointer group-time-display" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}">시작: ${formatTimeTo24H(earliestStartTime)} <span class="ongoing-duration" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>${pauseDisplay}</div><div class="font-semibold ${currentStyle.subtitle} text-sm mb-1">${groupRecords.length}명 참여중:</div><div class="flex-grow">${membersHtml}</div><div class="mt-3 border-t border-gray-300/60 pt-3 flex gap-2 card-actions"><button data-task="${task}" class="${isPaused ? 'resume-work-group-btn bg-green-500 hover:bg-green-600' : 'pause-work-group-btn bg-yellow-500 hover:bg-yellow-600'} flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">${isPaused ? '전체 재개' : '전체 정지'}</button><button data-task="${task}" class="stop-work-group-btn bg-red-600 hover:bg-red-700 flex-1 text-white rounded-md transition text-xs font-semibold py-1.5 px-1 shadow-sm text-center">전체 종료</button></div></div>`;
         } else {
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 cursor-pointer ${currentStyle.card.join(' ')} ${currentStyle.hover}`;
@@ -530,8 +528,23 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             card.dataset.memberName = member;
 
             if (isOnLeave) {
-                card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = leaveInfo.type; card.dataset.startTime = leaveInfo.startTime || ''; card.dataset.startDate = leaveInfo.startDate || ''; card.dataset.endTime = leaveInfo.endTime || ''; card.dataset.endDate = leaveInfo.endDate || '';
+                // ✅ [수정] 근태 상태여도 클릭 시 '관리자 액션 팝업'이 열리도록 액션명 변경
+                card.dataset.action = 'member-toggle-leave'; 
+                
+                card.dataset.leaveType = leaveInfo.type; 
+                card.dataset.startTime = leaveInfo.startTime || ''; 
+                card.dataset.startDate = leaveInfo.startDate || ''; 
+                card.dataset.endTime = leaveInfo.endTime || ''; 
+                card.dataset.endDate = leaveInfo.endDate || '';
+                
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
+                
+                // 관리자나 본인인 경우 커서 포인터 추가
+                if (currentUserRole === 'admin' || isSelf) {
+                    card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
+                } else {
+                    card.classList.add('cursor-not-allowed');
+                }
                 
                 const displayLabel = getLeaveDisplayLabel(member, leaveInfo);
                 const labelHtml = `<div class="text-xs font-bold text-gray-600">${displayLabel}</div>`;
@@ -584,8 +597,23 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
             card.dataset.memberName = pt.name;
             if (isAlbaOnLeave) {
-                card.dataset.action = 'edit-leave-record'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
+                // ✅ [수정] 알바도 동일하게 적용
+                card.dataset.action = 'member-toggle-leave'; 
+                
+                card.dataset.leaveType = albaLeaveInfo.type; 
+                card.dataset.startTime = albaLeaveInfo.startTime || ''; 
+                card.dataset.startDate = albaLeaveInfo.startDate || ''; 
+                card.dataset.endTime = albaLeaveInfo.endTime || ''; 
+                card.dataset.endDate = albaLeaveInfo.endDate || '';
+                
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
+                
+                // 관리자나 본인인 경우 커서 포인터 추가
+                if (currentUserRole === 'admin' || isSelfAlba) {
+                    card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
+                } else {
+                    card.classList.add('cursor-not-allowed');
+                }
                 
                 const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
                 const labelHtml = `<div class="text-xs font-bold text-gray-600">${displayLabel}</div>`;
