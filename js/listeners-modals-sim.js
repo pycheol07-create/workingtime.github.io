@@ -5,7 +5,7 @@ import * as DOM from './dom-elements.js';
 import { appState, appConfig, allHistoryData } from './state.js';
 import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js';
 import { analyzeBottlenecks, calculateSimulation } from './analysis-logic.js';
-import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js'; // ✅ 추가 임포트
+import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js';
 
 // 차트 인스턴스 보관용 변수
 let simChartInstance = null;
@@ -25,8 +25,7 @@ const sortTasksCustom = (a, b) => {
     return a.localeCompare(b);
 };
 
-// ✅ [수정] 렌더링 함수 (속도 입력칸 추가)
-// 파라미터 `standardSpeed` 추가 (기본값 제공용)
+// 렌더링 함수 (속도 입력칸 추가됨)
 const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false, standardSpeed = 0) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
@@ -300,7 +299,6 @@ export function setupSimulationModalListeners() {
             simTaskTableBody.innerHTML = '';
 
             const avgStaffMap = calculateAverageStaffing(allHistoryData);
-            // ✅ [추가] 표준 속도 맵 가져오기
             const standards = calculateStandardThroughputs(allHistoryData);
             
             const quantityTaskSet = new Set(appConfig.quantityTaskTypes || []);
@@ -313,11 +311,11 @@ export function setupSimulationModalListeners() {
             let tasksWereAdded = false;
 
             Array.from(tasksToShow).sort(sortTasksCustom).forEach(taskName => {
-                if (quantityTaskTypes.has(taskName)) {
+                // ✅ [수정] quantityTaskSet 사용
+                if (quantityTaskSet.has(taskName)) { 
                     const qty = Number(quantities[taskName]) || 0;
                     const avgStaff = avgStaffMap[taskName] || 0;
                     const isConcurrent = DEFAULT_CONCURRENT_TASKS.includes(taskName);
-                    // ✅ [수정] 표준 속도 전달
                     const speed = standards[taskName] || 0;
                     
                     renderSimulationTaskRow(simTaskTableBody, taskName, qty, avgStaff, isConcurrent, speed);
@@ -430,7 +428,7 @@ export function setupSimulationModalListeners() {
             }
         });
 
-        // ✅ [추가] 업무 선택 시 표준 속도 자동 채우기 리스너 (Delegation)
+        // 업무 선택 시 표준 속도 자동 채우기 리스너 (Delegation)
         simTaskTableBody.addEventListener('change', (e) => {
             if (e.target.classList.contains('sim-row-task')) {
                 const taskName = e.target.value;
@@ -498,7 +496,7 @@ export function setupSimulationModalListeners() {
                 const qty = Number(row.querySelector('.sim-row-qty').value);
                 const inputVal = (mode === 'fixed-workers') ? Number(row.querySelector('.sim-row-worker-or-time').value) : durationMinutesForTarget;
                 const isConcurrent = row.querySelector('.sim-row-concurrent').checked;
-                // ✅ [수정] 입력된 속도값 가져오기
+                // 입력된 속도값 가져오기
                 const manualSpeed = Number(row.querySelector('.sim-row-speed').value);
 
                 if (task && qty > 0 && inputVal > 0) {
