@@ -1,202 +1,106 @@
-// === js/listeners-history-inspection.js ===
-// 설명: 이력 보기의 '검수 이력' 탭 관련 리스너 및 데이터 로직을 담당합니다.
+// === js/listeners-form-inspection.js ===
+// 설명: '검수 매니저(입력)' 모달 내부의 리스너를 담당합니다.
 
 import * as DOM from './dom-elements.js';
-import * as State from './state.js';
-import { showToast, getTodayDateString } from './utils.js';
-
-// UI 렌더링 함수 임포트
 import { 
-    renderInspectionHistoryTable, 
-    renderInspectionLogTable,
-    renderInspectionLayout,
-    renderInspectionListMode
-} from './ui-history.js';
-
-import { setSortState } from './ui-history-inspection.js';
-
-// 비즈니스 로직 임포트
-import {
-    loadInspectionLogs,
-    prepareEditInspectionLog,
-    updateInspectionLog,
-    deleteInspectionLog,
-    deleteProductHistory
+    searchProductHistory, 
+    saveInspectionAndNext, 
+    toggleScanner, 
+    handleExcelUpload, 
+    handleImageSelect, 
+    clearImageState, 
+    clearTodayList,
+    deleteInspectionList,
+    openInspectionListWindow
 } from './inspection-logic.js';
 
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+export function setupFormInspectionListeners() {
 
-// 검수 이력 데이터 캐싱용 변수
-let cachedInspectionData = [];
+    // 1. 상품명 검색 (버튼 & 엔터키)
+    if (DOM.inspSearchBtn) {
+        DOM.inspSearchBtn.addEventListener('click', searchProductHistory);
+    }
+    if (DOM.inspProductNameInput) {
+        DOM.inspProductNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') searchProductHistory();
+        });
+    }
 
-/**
- * 검수 이력 메인 로드 함수
- * - 상품별 모드: product_history 컬렉션 조회
- * - 리스트별 모드: allHistoryData에서 inspectionList 추출
- */
-export const fetchAndRenderInspectionHistory = async () => {
-    const container = DOM.inspectionHistoryViewContainer;
-    if (!container) return;
+    // 2. 바코드 스캐너 토글
+    if (DOM.inspScanBtn) {
+        DOM.inspScanBtn.addEventListener('click', toggleScanner);
+    }
+    if (DOM.inspCloseScannerBtn) {
+        DOM.inspCloseScannerBtn.addEventListener('click', toggleScanner);
+    }
 
-    // 기본 레이아웃 렌더링 (탭 버튼 등)
-    renderInspectionLayout(container);
+    // 3. 저장 및 다음
+    if (DOM.inspSaveNextBtn) {
+        DOM.inspSaveNextBtn.addEventListener('click', saveInspectionAndNext);
+    }
 
-    const contentArea = document.getElementById('inspection-content-area');
-    contentArea.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>데이터를 불러오는 중입니다...</div>';
-
-    const viewMode = State.context.inspectionViewMode || 'product';
-
-    if (viewMode === 'product') {
-        // 1. 상품별 보기 모드
-        try {
-            const colRef = collection(State.db, 'product_history');
-            const snapshot = await getDocs(colRef);
-
-            cachedInspectionData = []; 
-            snapshot.forEach(doc => {
-                cachedInspectionData.push({
-                    id: doc.id,
-                    ...doc.data()
-                });
-            });
-            renderInspectionHistoryTable(cachedInspectionData);
-        } catch (e) {
-            console.error("Error loading inspection history:", e);
-            contentArea.innerHTML = '<div class="text-center text-red-500 py-10">데이터 로딩 실패</div>';
-        }
-    } else {
-        // 2. 입고 리스트별 보기 모드
-        // allHistoryData (과거+오늘)에서 inspectionList가 있는 날짜 추출
-        const dateList = [];
-        
-        State.allHistoryData.forEach(day => {
-            if (day.inspectionList && day.inspectionList.length > 0) {
-                dateList.push({
-                    date: day.id,
-                    count: day.inspectionList.length,
-                    data: day.inspectionList
-                });
+    // 4. 리스트 관리 (엑셀 업로드, 새창 열기, 삭제)
+    if (DOM.inspExcelUploadInput) {
+        DOM.inspExcelUploadInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleExcelUpload(e.target.files[0]);
+                e.target.value = ''; // 초기화
             }
         });
+    }
+    if (DOM.inspOpenListWindowBtn) {
+        DOM.inspOpenListWindowBtn.addEventListener('click', openInspectionListWindow);
+    }
+    if (DOM.inspDeleteListBtn) {
+        DOM.inspDeleteListBtn.addEventListener('click', deleteInspectionList);
+    }
 
-        // 날짜 내림차순 정렬
-        dateList.sort((a, b) => b.date.localeCompare(a.date));
-
-        if (dateList.length > 0) {
-            if (!State.context.selectedInspectionDate) {
-                State.context.selectedInspectionDate = dateList[0].date;
+    // 5. 이미지 업로드 및 삭제
+    if (DOM.inspImageInput) {
+        DOM.inspImageInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleImageSelect(e.target.files[0]);
             }
+        });
+    }
+    if (DOM.inspRemoveImageBtn) {
+        DOM.inspRemoveImageBtn.addEventListener('click', clearImageState);
+    }
+
+    // 6. 금일 목록 초기화
+    if (DOM.inspClearListBtn) {
+        DOM.inspClearListBtn.addEventListener('click', clearTodayList);
+    }
+
+    // 7. 전체화면 토글
+    if (DOM.inspFullscreenBtn) {
+        DOM.inspFullscreenBtn.addEventListener('click', () => {
+            const modalContent = document.getElementById('insp-modal-content');
+            const modal = document.getElementById('inspection-manager-modal');
+            const header = document.getElementById('insp-modal-header');
             
-            const selectedData = dateList.find(d => d.date === State.context.selectedInspectionDate);
-            
-            renderInspectionListMode(dateList, selectedData ? selectedData.data : []);
-        } else {
-            renderInspectionListMode([], []);
-        }
-    }
-};
+            if (!modalContent || !modal) return;
 
-export function setupHistoryInspectionListeners() {
+            if (modalContent.classList.contains('fixed')) {
+                // 복구 (기본 모달 스타일)
+                modalContent.classList.remove('fixed', 'inset-0', 'h-full', 'w-full', 'rounded-none');
+                modalContent.classList.add('rounded-2xl', 'max-w-4xl', 'max-h-[95vh]');
+                
+                // 부모 오버레이 복구
+                modal.classList.add('p-4', 'flex', 'items-center', 'justify-center');
+                
+                // 헤더 모서리 복구
+                if(header) header.classList.add('rounded-t-2xl');
+            } else {
+                // 전체화면
+                modalContent.classList.add('fixed', 'inset-0', 'h-full', 'w-full', 'rounded-none');
+                modalContent.classList.remove('rounded-2xl', 'max-w-4xl', 'max-h-[95vh]');
+                
+                // 부모 오버레이 스타일 제거 (꽉 채우기 위해)
+                modal.classList.remove('p-4', 'flex', 'items-center', 'justify-center');
 
-    // 1. 탭 전환 및 리스트 선택 리스너 (이벤트 위임)
-    if (DOM.inspectionHistoryViewContainer) {
-        DOM.inspectionHistoryViewContainer.addEventListener('click', async (e) => {
-            // A. 상단 탭 버튼 (상품별 / 리스트별)
-            const tabBtn = e.target.closest('button[data-insp-tab]');
-            if (tabBtn) {
-                const mode = tabBtn.dataset.inspTab;
-                if (State.context.inspectionViewMode !== mode) {
-                    State.context.inspectionViewMode = mode;
-                    State.context.selectedInspectionDate = null; 
-                    fetchAndRenderInspectionHistory(); 
-                }
-                return;
-            }
-
-            // B. 날짜 선택 버튼 (리스트별 보기 모드에서)
-            const dateBtn = e.target.closest('.btn-select-insp-date');
-            if (dateBtn) {
-                const date = dateBtn.dataset.date;
-                if (State.context.selectedInspectionDate !== date) {
-                    State.context.selectedInspectionDate = date;
-                    fetchAndRenderInspectionHistory(); 
-                }
-                return;
-            }
-
-            // C. 테이블 헤더 정렬 (상품별 보기 모드에서)
-            const th = e.target.closest('th[data-sort-key]');
-            if (th) {
-                const key = th.dataset.sortKey;
-                setSortState(key); 
-                renderInspectionHistoryTable(cachedInspectionData);
-                return;
-            }
-
-            // D. 상세보기 (로그 관리 모달)
-            const detailBtn = e.target.closest('.btn-view-detail');
-            if (detailBtn) {
-                const productName = detailBtn.dataset.productName;
-                loadInspectionLogs(productName);
-                return;
-            }
-
-            // E. 상품 전체 삭제
-            const deleteProductBtn = e.target.closest('.btn-delete-product');
-            if (deleteProductBtn) {
-                const productName = deleteProductBtn.dataset.productName;
-                const success = await deleteProductHistory(productName);
-                if (success) {
-                    fetchAndRenderInspectionHistory();
-                }
-                return;
-            }
-        });
-    }
-
-    // 2. 검색 입력 리스너 (상품별 보기 모드 전용)
-    if (DOM.inspectionHistorySearchInput) {
-        DOM.inspectionHistorySearchInput.addEventListener('input', () => {
-            if (State.context.inspectionViewMode === 'product') {
-                renderInspectionHistoryTable(cachedInspectionData);
-            }
-        });
-    }
-
-    // 3. 새로고침 버튼 리스너
-    if (DOM.inspectionHistoryRefreshBtn) {
-        DOM.inspectionHistoryRefreshBtn.addEventListener('click', () => {
-            fetchAndRenderInspectionHistory();
-        });
-    }
-
-    // 4. 상세 로그 관리 모달 내부 이벤트 (수정/삭제)
-    const inspLogTableBody = document.getElementById('inspection-log-table-body');
-    if (inspLogTableBody) {
-        inspLogTableBody.addEventListener('click', (e) => {
-            const editBtn = e.target.closest('.btn-edit-insp-log');
-            if (editBtn) {
-                const index = parseInt(editBtn.dataset.index, 10);
-                const productName = DOM.inspectionLogProductName.textContent;
-                prepareEditInspectionLog(productName, index);
-            }
-        });
-    }
-
-    if (DOM.saveInspLogBtn) {
-        DOM.saveInspLogBtn.addEventListener('click', async () => {
-            await updateInspectionLog();
-            if (State.context.activeMainHistoryTab === 'inspection' && State.context.inspectionViewMode === 'product') {
-                fetchAndRenderInspectionHistory();
-            }
-        });
-    }
-
-    if (DOM.deleteInspLogBtn) {
-        DOM.deleteInspLogBtn.addEventListener('click', async () => {
-            await deleteInspectionLog();
-            if (State.context.activeMainHistoryTab === 'inspection' && State.context.inspectionViewMode === 'product') {
-                fetchAndRenderInspectionHistory();
+                // 헤더 모서리 제거 (꽉 찬 느낌 위해)
+                if(header) header.classList.remove('rounded-t-2xl');
             }
         });
     }
