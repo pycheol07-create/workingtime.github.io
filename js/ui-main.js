@@ -10,11 +10,8 @@ import * as State from './state.js';
  * 연차 표시 라벨 생성 헬퍼 (예: "연차16" or "연차16-18")
  */
 const getLeaveDisplayLabel = (member, leaveEntry) => {
-    // 연차가 아니면 원래 타입 그대로 표시 (예: '출장', '결근', '외출')
     if (leaveEntry.type !== '연차') return leaveEntry.type;
 
-    // 1. 해당 멤버의 모든 연차 기록을 가져와 날짜순 정렬
-    // persistentLeaveSchedule 데이터를 직접 참조하여 최신 상태 보장
     const allLeaves = (State.persistentLeaveSchedule.onLeaveMembers || [])
         .filter(l => l.member === member && l.type === '연차')
         .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
@@ -22,14 +19,10 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     let cumulativeDays = 0;
     
     for (const entry of allLeaves) {
-        // 이 기록의 일수 계산
         const days = calculateDateDifference(entry.startDate, entry.endDate);
-        
         const startNth = cumulativeDays + 1;
         const endNth = cumulativeDays + days;
 
-        // 2. 현재 카드에 표시하려는 기록(leaveEntry)과 일치하는지 확인
-        // ID가 있으면 ID로, 없으면 시작 날짜로 비교 (가장 확실한 키)
         const isMatch = (leaveEntry.id && entry.id === leaveEntry.id) ||
                         (entry.startDate === leaveEntry.startDate);
 
@@ -40,18 +33,11 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
                 return `연차${startNth}-${endNth}`;
             }
         }
-        
-        // 3. 누적 일수 업데이트 (매칭되지 않은 과거 기록들의 일수 누적)
         cumulativeDays += days;
     }
-    
-    // 매칭되는 기록을 못 찾은 경우 기본값
     return '연차';
 };
 
-/**
- * 1. 메인 화면 - 상단 현황판 레이아웃 렌더링
- */
 export const renderDashboardLayout = (appConfig) => {
     const container = document.getElementById('summary-content');
     if (!container) return;
@@ -80,9 +66,6 @@ export const renderDashboardLayout = (appConfig) => {
     container.innerHTML = html;
 };
 
-/**
- * 2. 메인 화면 - 상단 현황판 수치 업데이트
- */
 export const updateSummary = (appState, appConfig) => {
     const allDefinitions = getAllDashboardDefinitions(appConfig);
     const elements = {};
@@ -99,10 +82,11 @@ export const updateSummary = (appState, appConfig) => {
     const totalStaffCount = allStaffMembers.size;
     const totalPartTimerCount = allPartTimers.size;
 
-    const combinedOnLeaveMembers = [
-        ...(appState.dailyOnLeaveMembers || []),
-        ...(appState.dateBasedOnLeaveMembers || [])
-    ];
+    // ✅ 안전한 배열 접근
+    const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
+    const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
+
+    const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
 
     const onLeaveMemberNames = new Set(
         combinedOnLeaveMembers
@@ -111,7 +95,6 @@ export const updateSummary = (appState, appConfig) => {
     );
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
-    // '근무(Active)' 인원은 실제 '출근(active)' 상태인 사람만 집계
     const attendanceMap = appState.dailyAttendance || {};
     const currentlyClockedIn = new Set(
         Object.keys(attendanceMap).filter(member => attendanceMap[member].status === 'active')
@@ -162,9 +145,6 @@ export const updateSummary = (appState, appConfig) => {
     }
 };
 
-/**
- * 3. 메인 화면 - 업무 분석 렌더링 (실시간 반영)
- */
 export const renderTaskAnalysis = (appState, appConfig) => {
     const analysisContainer = document.getElementById('analysis-task-summary-panel'); 
     if (!analysisContainer) return;
@@ -256,9 +236,6 @@ export const renderTaskAnalysis = (appState, appConfig) => {
     }
 };
 
-/**
- * 4. 메인 화면 - 개인별 분석 렌더링 (실시간 반영)
- */
 export const renderPersonalAnalysis = (selectedMember, appState) => {
     const container = document.getElementById('analysis-personal-stats-container');
     if (!container) return;
@@ -281,7 +258,11 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     } else if (pausedRecord) {
         currentStatusHtml = `<span class="text-sm font-semibold text-yellow-600">휴식 중</span>`;
     } else {
-        const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
+        // ✅ 안전한 배열 접근
+        const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
+        const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
+        const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
+
         const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember && !(m.type === '외출' && m.endTime));
         if (leaveInfo) {
              const label = getLeaveDisplayLabel(selectedMember, leaveInfo);
@@ -380,9 +361,6 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     container.innerHTML = html;
 };
 
-/**
- * 개인 출퇴근 토글 스위치 상태 렌더링 함수
- */
 export const renderAttendanceToggle = (appState) => {
     const currentUser = appState.currentUser;
     if (!currentUser) return;
@@ -404,9 +382,6 @@ export const renderAttendanceToggle = (appState) => {
     if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
-/**
- * 5. 메인 화면 - 실시간 현황판 렌더링
- */
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
@@ -440,7 +415,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             card.className = `p-3 rounded-lg border ${mobileVisibilityClass} flex-col justify-between min-h-[300px] transition-all duration-200 ${currentStyle.card.join(' ')} ${currentStyle.hover} cursor-pointer`;
             
             card.dataset.task = task; 
-            card.dataset.groupId = firstRecord.groupId; // 호환성 유지용
+            card.dataset.groupId = firstRecord.groupId; 
 
             let membersHtml = '<div class="space-y-1 overflow-y-auto max-h-64 members-list">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
@@ -499,7 +474,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const pausedMembers = new Set(ongoingRecords.filter(r => r.status === 'paused').map(r => r.member));
     const workingMembersMap = new Map(ongoingRecords.map(r => [r.member, r.task]));
     
-    const combinedOnLeaveMembers = [...(appState.dailyOnLeaveMembers || []), ...(appState.dateBasedOnLeaveMembers || [])];
+    // ✅ 안전한 배열 접근 및 병합
+    const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
+    const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
+    const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
+
     const onLeaveStatusMap = new Map(combinedOnLeaveMembers.filter(item => !(item.type === '외출' && item.endTime)).map(item => [item.member, item]));
 
     const orderedTeamGroups = [
@@ -528,7 +507,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             card.dataset.memberName = member;
 
             if (isOnLeave) {
-                // ✅ [수정] 근태 상태여도 클릭 시 '관리자 액션 팝업'이 열리도록 액션명 변경
                 card.dataset.action = 'member-toggle-leave'; 
                 
                 card.dataset.leaveType = leaveInfo.type; 
@@ -539,7 +517,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 
-                // 관리자나 본인인 경우 커서 포인터 추가
                 if (currentUserRole === 'admin' || isSelf) {
                     card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
                 } else {
@@ -597,7 +574,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
             card.dataset.memberName = pt.name;
             if (isAlbaOnLeave) {
-                // ✅ [수정] 알바도 동일하게 적용
                 card.dataset.action = 'member-toggle-leave'; 
                 
                 card.dataset.leaveType = albaLeaveInfo.type; 
@@ -608,7 +584,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 
                 card.classList.add('bg-gray-200', 'border-gray-300', 'text-gray-500');
                 
-                // 관리자나 본인인 경우 커서 포인터 추가
                 if (currentUserRole === 'admin' || isSelfAlba) {
                     card.classList.add('cursor-pointer', 'hover:shadow-md', 'hover:ring-2', 'hover:ring-blue-400');
                 } else {

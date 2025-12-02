@@ -27,10 +27,13 @@ function handleAttendanceListClicks(e) {
         if (!dateKey || isNaN(index)) return;
         
         const dayData = State.allHistoryData.find(d => d.id === dateKey);
-        if (!dayData || !dayData.onLeaveMembers || !dayData.onLeaveMembers[index]) {
+        // onLeaveMembers가 배열인지 확인
+        const leaves = Array.isArray(dayData?.onLeaveMembers) ? dayData.onLeaveMembers : [];
+        
+        if (!dayData || !leaves[index]) {
             showToast('데이터를 찾을 수 없습니다.', true); return;
         }
-        const record = dayData.onLeaveMembers[index];
+        const record = leaves[index];
 
         // 모달 폼 채우기
         if (DOM.editAttendanceMemberName) DOM.editAttendanceMemberName.value = record.member;
@@ -150,39 +153,44 @@ function setupAttendanceModalButtons() {
 
             try {
                 const todayKey = getTodayDateString();
-                
-                // 1. 로컬 데이터 업데이트
-                const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-                if (dayDataIndex > -1) {
-                     State.allHistoryData[dayDataIndex].onLeaveMembers[index] = newEntry;
+                let docRef;
+                let isToday = (dateKey === todayKey);
+
+                if (isToday) {
+                    docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
+                } else {
+                    docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                 }
 
-                // 2. Firestore 업데이트 (오늘 or 과거 이력)
-                if (dateKey === todayKey) {
-                     const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
-                     // 배열의 특정 인덱스 업데이트 시도 (실패 시 전체 배열 갱신)
-                     await updateDoc(dailyDocRef, { [`onLeaveMembers.${index}`]: newEntry }).catch(async () => {
-                         const docSnap = await getDoc(dailyDocRef).catch(() => null);
-                         if (docSnap && docSnap.exists()) {
-                             const currentLeaves = docSnap.data().onLeaveMembers || [];
-                             if(currentLeaves.length > index) {
-                                 currentLeaves[index] = newEntry;
-                                 await updateDoc(dailyDocRef, { onLeaveMembers: currentLeaves });
-                             }
-                         }
-                     });
+                // ✅ [수정] 안전한 업데이트 로직: 문서 전체 읽기 -> 배열 수정 -> 전체 덮어쓰기
+                // 기존의 array index update 방식은 Map 변환 버그를 유발하므로 제거함.
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    // 오염된 데이터(Map)일 경우 배열로 변환, 아니면 배열 그대로 사용
+                    let currentLeaves = [];
+                    if (data.onLeaveMembers) {
+                        currentLeaves = Array.isArray(data.onLeaveMembers) 
+                            ? data.onLeaveMembers 
+                            : Object.values(data.onLeaveMembers);
+                    }
+
+                    if (index >= 0 && index < currentLeaves.length) {
+                        currentLeaves[index] = newEntry; // 수정
+                        await updateDoc(docRef, { onLeaveMembers: currentLeaves });
+                        
+                        // 1. 로컬 데이터 업데이트
+                        const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
+                        if (dayDataIndex > -1) {
+                            State.allHistoryData[dayDataIndex].onLeaveMembers = currentLeaves;
+                        }
+                    } else {
+                        showToast('수정할 항목을 찾을 수 없습니다.', true);
+                        return;
+                    }
                 } else {
-                     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                     await updateDoc(historyDocRef, { [`onLeaveMembers.${index}`]: newEntry }).catch(async () => {
-                         const docSnap = await getDoc(historyDocRef).catch(() => null);
-                         if (docSnap && docSnap.exists()) {
-                             const currentLeaves = docSnap.data().onLeaveMembers || [];
-                             if(currentLeaves.length > index) {
-                                 currentLeaves[index] = newEntry;
-                                 await updateDoc(historyDocRef, { onLeaveMembers: currentLeaves });
-                             }
-                         }
-                     });
+                    showToast('문서를 찾을 수 없습니다.', true);
+                    return;
                 }
 
                 showToast('근태 기록이 수정되었습니다.');
@@ -243,47 +251,51 @@ function setupAttendanceModalButtons() {
 
             try {
                 const todayKey = getTodayDateString();
+                let docRef;
+                let isToday = (dateKey === todayKey);
+
+                if (isToday) {
+                    docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
+                } else {
+                    docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+                }
+
+                // ✅ [수정] 추가 로직도 안전하게 변경 (읽고 -> 배열에 push -> 저장)
+                const docSnap = await getDoc(docRef).catch(() => null);
+                let currentLeaves = [];
                 
+                if (docSnap && docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.onLeaveMembers) {
+                        currentLeaves = Array.isArray(data.onLeaveMembers) 
+                            ? data.onLeaveMembers 
+                            : Object.values(data.onLeaveMembers);
+                    }
+                    currentLeaves.push(newEntry);
+                    await updateDoc(docRef, { onLeaveMembers: currentLeaves });
+                } else {
+                    // 문서가 없으면 생성
+                    currentLeaves = [newEntry];
+                    if (isToday) {
+                        await setDoc(docRef, { onLeaveMembers: currentLeaves }, { merge: true });
+                    } else {
+                        await setDoc(docRef, { id: dateKey, onLeaveMembers: currentLeaves });
+                    }
+                }
+
                 // 1. 로컬 데이터 업데이트
                 const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
                 if (dayDataIndex > -1) {
-                    if (!State.allHistoryData[dayDataIndex].onLeaveMembers) {
-                        State.allHistoryData[dayDataIndex].onLeaveMembers = [];
-                    }
-                    State.allHistoryData[dayDataIndex].onLeaveMembers.push(newEntry);
-                } else if (dateKey !== todayKey) {
-                    // 데이터가 아예 없는 날짜에 추가하는 경우 생성
+                    State.allHistoryData[dayDataIndex].onLeaveMembers = currentLeaves;
+                } else if (!isToday) {
                     State.allHistoryData.push({
                         id: dateKey,
-                        onLeaveMembers: [newEntry],
+                        onLeaveMembers: currentLeaves,
                         workRecords: [],
                         taskQuantities: {},
                         management: {}
                     });
                     State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
-                }
-
-                // 2. Firestore 업데이트
-                if (dateKey === todayKey) {
-                    const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
-                    const docSnap = await getDoc(dailyDocRef).catch(() => null);
-                    if (docSnap && docSnap.exists()) {
-                        const currentLeaves = docSnap.data().onLeaveMembers || [];
-                        currentLeaves.push(newEntry);
-                        await updateDoc(dailyDocRef, { onLeaveMembers: currentLeaves });
-                    } else {
-                        await setDoc(dailyDocRef, { onLeaveMembers: [newEntry] }, { merge: true });
-                    }
-                } else {
-                    const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                    const docSnap = await getDoc(historyDocRef).catch(() => null);
-                     if (docSnap && docSnap.exists()) {
-                        const currentLeaves = docSnap.data().onLeaveMembers || [];
-                        currentLeaves.push(newEntry);
-                        await updateDoc(historyDocRef, { onLeaveMembers: currentLeaves });
-                    } else {
-                        await setDoc(historyDocRef, { id: dateKey, onLeaveMembers: [newEntry] });
-                    }
                 }
 
                 showToast('근태 기록이 추가되었습니다.');

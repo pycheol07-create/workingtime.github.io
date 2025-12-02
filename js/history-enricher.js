@@ -10,7 +10,10 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
         return historyData;
     }
 
-    const persistentLeaves = leaveSchedule.onLeaveMembers.filter(
+    // ✅ leaveSchedule.onLeaveMembers도 안전하게 확인
+    const leaves = Array.isArray(leaveSchedule.onLeaveMembers) ? leaveSchedule.onLeaveMembers : [];
+
+    const persistentLeaves = leaves.filter(
         entry => entry.type === '연차' || entry.type === '출장' || entry.type === '결근'
     );
 
@@ -19,7 +22,12 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     const existingEntriesMap = new Map();
     historyData.forEach(day => {
         const entries = new Set();
-        (day.onLeaveMembers || []).forEach(entry => {
+        // ✅ [수정] 오염된 데이터(Map)가 있을 경우 안전하게 배열로 변환하여 처리
+        const dayLeaves = Array.isArray(day.onLeaveMembers) 
+            ? day.onLeaveMembers 
+            : (day.onLeaveMembers ? Object.values(day.onLeaveMembers) : []);
+
+        dayLeaves.forEach(entry => {
             if (entry.startDate || entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
                 entries.add(`${entry.member}::${entry.type}`);
             }
@@ -48,6 +56,11 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
                     if (!dayData.onLeaveMembers) {
                         dayData.onLeaveMembers = [];
                     }
+                    // 만약 dayData.onLeaveMembers가 객체라면 배열로 초기화하고 기존 데이터 보존
+                    if (!Array.isArray(dayData.onLeaveMembers)) {
+                        dayData.onLeaveMembers = Object.values(dayData.onLeaveMembers);
+                    }
+                    
                     dayData.onLeaveMembers.push({ ...pLeave });
                     existingEntries.add(entryKey);
                 }

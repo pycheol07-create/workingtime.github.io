@@ -42,7 +42,7 @@ import {
 // 검수 리스트 렌더링 함수 임포트
 import { renderTodoList } from './inspection-logic.js';
 
-// ✅ [신규] Admin Todo 로직 임포트 (알림 체크용)
+// Admin Todo 로직 임포트 (알림 체크용)
 import { checkAdminTodoNotifications } from './admin-todo-logic.js';
 
 
@@ -142,8 +142,6 @@ export const updateElapsedTimes = async () => {
         }
         saveStateToFirestore(); 
     }
-
-    // 업무 종료 시간 알림 (제거됨)
 
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
@@ -281,7 +279,6 @@ async function startAppAfterLogin(user) {
 
         const adminLinkBtn = document.getElementById('admin-link-btn');
         
-        // To-Do 버튼 요소 가져오기
         const adminTodoBtn = document.getElementById('open-admin-todo-btn');
         const adminTodoBtnMobile = document.getElementById('open-admin-todo-btn-mobile');
 
@@ -294,11 +291,9 @@ async function startAppAfterLogin(user) {
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'flex';
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'flex';
 
-            // 관리자일 때만 To-Do 버튼 표시
             if (adminTodoBtn) adminTodoBtn.style.display = 'flex';
             if (adminTodoBtnMobile) adminTodoBtnMobile.style.display = 'flex';
 
-            // ✅ [신규] To-Do 알림 체크 타이머 시작 (30초마다)
             setInterval(() => {
                 checkAdminTodoNotifications();
             }, 30000);
@@ -311,7 +306,6 @@ async function startAppAfterLogin(user) {
             if (DOM.openHistoryBtn) DOM.openHistoryBtn.style.display = 'none';
             if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.style.display = 'none';
 
-            // 일반 사용자 숨김
             if (adminTodoBtn) adminTodoBtn.style.display = 'none';
             if (adminTodoBtnMobile) adminTodoBtnMobile.style.display = 'none';
         }
@@ -359,7 +353,11 @@ async function startAppAfterLogin(user) {
     State.setUnsubscribeLeaveSchedule(onSnapshot(leaveScheduleDocRef, (docSnap) => {
         State.setPersistentLeaveSchedule(docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] });
         const today = getTodayDateString();
-        State.appState.dateBasedOnLeaveMembers = (State.persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
+        
+        // ✅ 안전한 배열 접근
+        const leaves = State.persistentLeaveSchedule.onLeaveMembers || [];
+        
+        State.appState.dateBasedOnLeaveMembers = leaves.filter(entry => {
             if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
                 const endDate = entry.endDate || entry.startDate;
                 return entry.startDate && typeof entry.startDate === 'string' &&
@@ -458,10 +456,13 @@ async function startAppAfterLogin(user) {
             State.appState.taskQuantities = { ...defaultQuantities, ...(data.taskQuantities || legacyState.taskQuantities || {}) };
             State.appState.partTimers = data.partTimers || legacyState.partTimers || [];
             State.appState.hiddenGroupIds = data.hiddenGroupIds || legacyState.hiddenGroupIds || [];
-            State.appState.dailyOnLeaveMembers = data.onLeaveMembers || legacyState.onLeaveMembers || [];
+            
+            // ✅ [수정] 오염된 onLeaveMembers가 있을 경우 배열로 변환하여 로드
+            const rawLeaves = data.onLeaveMembers || legacyState.onLeaveMembers || [];
+            State.appState.dailyOnLeaveMembers = Array.isArray(rawLeaves) ? rawLeaves : Object.values(rawLeaves);
+
             State.appState.lunchPauseExecuted = data.lunchPauseExecuted ?? legacyState.lunchPauseExecuted ?? false;
             State.appState.lunchResumeExecuted = data.lunchResumeExecuted ?? legacyState.lunchResumeExecuted ?? false;
-            // State.appState.shiftEndAlertExecuted = data.shiftEndAlertExecuted ?? legacyState.shiftEndAlertExecuted ?? false; // <-- 제거
             State.appState.confirmedZeroTasks = data.confirmedZeroTasks || legacyState.confirmedZeroTasks || [];
             State.appState.dailyAttendance = data.dailyAttendance || legacyState.dailyAttendance || {};
 
