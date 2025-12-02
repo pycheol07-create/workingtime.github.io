@@ -6,12 +6,19 @@
  * 로컬 이력 데이터(historyData)에 영구 보관된 연차 일정(leaveSchedule)을 병합합니다.
  */
 export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
-    if (!leaveSchedule || !leaveSchedule.onLeaveMembers || leaveSchedule.onLeaveMembers.length === 0) {
+    // leaveSchedule 자체가 없거나 onLeaveMembers가 없을 경우 대비
+    if (!leaveSchedule || !leaveSchedule.onLeaveMembers) {
         return historyData;
     }
 
-    // ✅ leaveSchedule.onLeaveMembers도 안전하게 확인
-    const leaves = Array.isArray(leaveSchedule.onLeaveMembers) ? leaveSchedule.onLeaveMembers : [];
+    // ✅ [수정] leaveSchedule.onLeaveMembers가 배열인지 확인하고 변환
+    const leaves = Array.isArray(leaveSchedule.onLeaveMembers) 
+        ? leaveSchedule.onLeaveMembers 
+        : (leaveSchedule.onLeaveMembers ? Object.values(leaveSchedule.onLeaveMembers) : []);
+
+    if (leaves.length === 0) {
+        return historyData;
+    }
 
     const persistentLeaves = leaves.filter(
         entry => entry.type === '연차' || entry.type === '출장' || entry.type === '결근'
@@ -20,9 +27,10 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     if (persistentLeaves.length === 0) return historyData;
 
     const existingEntriesMap = new Map();
+    
     historyData.forEach(day => {
         const entries = new Set();
-        // ✅ [수정] 오염된 데이터(Map)가 있을 경우 안전하게 배열로 변환하여 처리
+        // ✅ [수정] day.onLeaveMembers가 배열인지 확인하고 안전하게 변환 (핵심 수정 부분)
         const dayLeaves = Array.isArray(day.onLeaveMembers) 
             ? day.onLeaveMembers 
             : (day.onLeaveMembers ? Object.values(day.onLeaveMembers) : []);
@@ -58,7 +66,7 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
                     }
                     // 만약 dayData.onLeaveMembers가 객체라면 배열로 초기화하고 기존 데이터 보존
                     if (!Array.isArray(dayData.onLeaveMembers)) {
-                        dayData.onLeaveMembers = Object.values(dayData.onLeaveMembers);
+                        dayData.onLeaveMembers = dayData.onLeaveMembers ? Object.values(dayData.onLeaveMembers) : [];
                     }
                     
                     dayData.onLeaveMembers.push({ ...pLeave });
