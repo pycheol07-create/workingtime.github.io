@@ -454,6 +454,18 @@ export function setupHistoryModalListeners() {
                 openDownloadFormatModal('inspection');
                 return;
             }
+
+            // ✅ [수정] 삭제 버튼 위임 처리 (전체 탭 대상)
+            const deleteBtn = e.target.closest('button[data-action="request-history-deletion"]');
+            if (deleteBtn) {
+                e.stopPropagation();
+                const dateKey = deleteBtn.dataset.dateKey;
+                if(dateKey) {
+                    setHistoryMaximized(false); 
+                    requestHistoryDeletion(dateKey);
+                }
+                return;
+            }
         });
     }
 
@@ -478,7 +490,7 @@ export function setupHistoryModalListeners() {
                 } else if (activeTab === 'inspection') {
                     updates.inspectionList = deleteField();
                 } else {
-                    // 기본값 또는 기타 탭: 안전을 위해 아무것도 안함 (필요 시 전체 삭제 로직 추가)
+                    // 기본값 또는 기타 탭: 안전을 위해 아무것도 안함
                     showToast('삭제할 대상 탭이 명확하지 않습니다.', true);
                     return;
                 }

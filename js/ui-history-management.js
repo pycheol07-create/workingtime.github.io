@@ -4,7 +4,6 @@
 import { formatDuration, getWeekOfYear, isWeekday } from './utils.js';
 import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js';
 import { appConfig } from './state.js';
-// ✅ [신규] 예측 로직 임포트
 import { predictFutureTrends } from './analysis-logic.js';
 
 // 헬퍼: 숫자를 통화 형식(콤마)으로 변환
@@ -142,7 +141,7 @@ const generateCostAnalysisHTML = (analysis) => {
 };
 
 /**
- * ✅ [신규] 예측 차트 렌더링 함수
+ * 예측 차트 렌더링 함수
  */
 const renderPredictionChart = (containerId, historyData) => {
     const ctx = document.getElementById(containerId);
@@ -324,9 +323,15 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                 <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
                     📅 ${dateKey} 경영 지표 입력
                 </h3>
-                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                    * 숫자를 입력하면 전일 대비 증감이 자동 계산됩니다.
-                </span>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mr-2">
+                        * 숫자를 입력하면 전일 대비 증감이 자동 계산됩니다.
+                    </span>
+                    <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm"
+                            data-action="request-history-deletion" data-date-key="${dateKey}">
+                        삭제
+                    </button>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -556,7 +561,6 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
         currentStats.revenue
     );
 
-    // ✅ [신규] 예측 섹션 HTML 생성
     const predictionHtml = `
         <div class="mt-8 bg-white p-6 rounded-xl border border-indigo-100 shadow-sm relative overflow-hidden">
             <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -mr-16 -mt-16 z-0"></div>

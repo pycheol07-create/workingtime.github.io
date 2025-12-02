@@ -58,9 +58,6 @@ export const renderInspectionLayout = (container) => {
     `;
 };
 
-// ... (renderInspectionListMode, renderInspectionHistoryTable 등 나머지 함수들은 기존 코드 유지)
-// 아래 내용은 파일의 나머지 부분을 그대로 유지하기 위해 생략하지 않고 제공합니다.
-
 export const renderInspectionListMode = (dateList, selectedDateData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -101,7 +98,8 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                         <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 입고 리스트 상세</h4>
                         <span class="text-xs text-gray-500">0건</span>
                     </div>
-                    <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list" data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
+                    <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition" 
+                            data-action="request-history-deletion" data-date-key="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
                         🗑️ 리스트 삭제
                     </button>
                 </div>
@@ -135,7 +133,8 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                         <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 입고 리스트 상세</h4>
                         <span class="text-xs text-gray-500">총 ${selectedDateData.length}개 상품</span>
                     </div>
-                    <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list" data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
+                    <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition" 
+                            data-action="request-history-deletion" data-date-key="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
                         🗑️ 리스트 삭제
                     </button>
                 </div>

@@ -1,163 +1,203 @@
-// === js/listeners-form-inspection.js ===
-// 설명: 검수 매니저 모달(입력/검색/리스트/스캔/이미지/전체화면) 관련 리스너를 담당합니다.
+// === js/listeners-history-inspection.js ===
+// 설명: 이력 보기의 '검수 이력' 탭 관련 리스너 및 데이터 로직을 담당합니다.
 
 import * as DOM from './dom-elements.js';
-import * as InspectionLogic from './inspection-logic.js';
+import * as State from './state.js';
+import { showToast, getTodayDateString } from './utils.js';
 
-let isInspectionMaximized = false; // 전체화면 상태 추적 변수
+// UI 렌더링 함수 임포트
+import { 
+    renderInspectionHistoryTable, 
+    renderInspectionLogTable,
+    renderInspectionLayout,
+    renderInspectionListMode
+} from './ui-history.js';
 
-// ✅ [신규] 레이아웃 리셋 헬퍼 (닫힐 때 초기화용)
-const resetInspectionLayout = () => {
-    const fullscreenBtn = DOM.inspFullscreenBtn || document.getElementById('insp-fullscreen-btn');
-    const modalContent = DOM.inspModalContent || document.getElementById('insp-modal-content');
+import { setSortState } from './ui-history-inspection.js';
 
-    if (!modalContent || !isInspectionMaximized) return;
+// 비즈니스 로직 임포트
+import {
+    loadInspectionLogs,
+    prepareEditInspectionLog,
+    updateInspectionLog,
+    deleteInspectionLog,
+    deleteProductHistory
+} from './inspection-logic.js';
 
-    // 상태 변수 초기화
-    isInspectionMaximized = false;
-    const btnIcon = fullscreenBtn ? fullscreenBtn.querySelector('svg') : null;
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // 1. 스타일 초기화 (기본 크기로 복귀)
-    modalContent.classList.add('relative', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'rounded-2xl');
-    modalContent.classList.remove('fixed', 'inset-0', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
+// 검수 이력 데이터 캐싱용 변수
+let cachedInspectionData = [];
 
-    // 2. 아이콘 초기화 (확대 아이콘으로 복구)
-    if (btnIcon) {
-        btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
+/**
+ * 검수 이력 메인 로드 함수
+ * - 상품별 모드: product_history 컬렉션 조회
+ * - 리스트별 모드: allHistoryData에서 inspectionList 추출
+ */
+export const fetchAndRenderInspectionHistory = async () => {
+    const container = DOM.inspectionHistoryViewContainer;
+    if (!container) return;
+
+    // 기본 레이아웃 렌더링 (탭 버튼 등)
+    renderInspectionLayout(container);
+
+    const contentArea = document.getElementById('inspection-content-area');
+    contentArea.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>데이터를 불러오는 중입니다...</div>';
+
+    const viewMode = State.context.inspectionViewMode || 'product';
+
+    if (viewMode === 'product') {
+        // 1. 상품별 보기 모드
+        try {
+            const colRef = collection(State.db, 'product_history');
+            const snapshot = await getDocs(colRef);
+
+            cachedInspectionData = []; 
+            snapshot.forEach(doc => {
+                cachedInspectionData.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+            renderInspectionHistoryTable(cachedInspectionData);
+        } catch (e) {
+            console.error("Error loading inspection history:", e);
+            contentArea.innerHTML = '<div class="text-center text-red-500 py-10">데이터 로딩 실패</div>';
+        }
+    } else {
+        // 2. 입고 리스트별 보기 모드
+        // allHistoryData (과거+오늘)에서 inspectionList가 있는 날짜 추출
+        const dateList = [];
+        
+        State.allHistoryData.forEach(day => {
+            if (day.inspectionList && day.inspectionList.length > 0) {
+                dateList.push({
+                    date: day.id,
+                    count: day.inspectionList.length,
+                    data: day.inspectionList
+                });
+            }
+        });
+
+        // 날짜 내림차순 정렬
+        dateList.sort((a, b) => b.date.localeCompare(a.date));
+
+        if (dateList.length > 0) {
+            if (!State.context.selectedInspectionDate) {
+                State.context.selectedInspectionDate = dateList[0].date;
+            }
+            
+            const selectedData = dateList.find(d => d.date === State.context.selectedInspectionDate);
+            
+            renderInspectionListMode(dateList, selectedData ? selectedData.data : []);
+        } else {
+            renderInspectionListMode([], []);
+        }
     }
-    if (fullscreenBtn) fullscreenBtn.title = "전체화면";
 };
 
-export function setupFormInspectionListeners() {
+export function setupHistoryInspectionListeners() {
 
-    // 1. 상품명 검색 (클릭)
-    if (DOM.inspSearchBtn) {
-        DOM.inspSearchBtn.addEventListener('click', () => {
-            InspectionLogic.searchProductHistory();
-        });
-    }
-
-    // 2. 상품명 검색 (엔터키)
-    if (DOM.inspProductNameInput) {
-        DOM.inspProductNameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                InspectionLogic.searchProductHistory();
-            }
-        });
-    }
-
-    // 3. 검수 완료 및 저장 (다음 상품으로)
-    if (DOM.inspSaveNextBtn) {
-        DOM.inspSaveNextBtn.addEventListener('click', () => {
-            InspectionLogic.saveInspectionAndNext();
-        });
-    }
-
-    // 4. 금일 검수 목록 초기화 (화면에서만)
-    if (DOM.inspClearListBtn) {
-        DOM.inspClearListBtn.addEventListener('click', () => {
-            if(confirm('오늘의 검수 목록(화면 표시)을 초기화하시겠습니까? (데이터는 삭제되지 않음)')) {
-                InspectionLogic.clearTodayList();
-            }
-        });
-    }
-
-    // 5. 엑셀 업로드 리스너
-    if (DOM.inspExcelUploadInput) {
-        DOM.inspExcelUploadInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                InspectionLogic.handleExcelUpload(e.target.files[0]);
-                e.target.value = ''; // 재사용을 위해 초기화
-            }
-        });
-    }
-
-    // 6. 바코드 스캔 토글 리스너
-    if (DOM.inspScanBtn) {
-        DOM.inspScanBtn.addEventListener('click', () => {
-            InspectionLogic.toggleScanner();
-        });
-    }
-    if (DOM.inspCloseScannerBtn) {
-        DOM.inspCloseScannerBtn.addEventListener('click', () => {
-            InspectionLogic.toggleScanner();
-        });
-    }
-
-    // 7. 이미지 업로드 및 삭제 리스너
-    if (DOM.inspImageInput) {
-        DOM.inspImageInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                InspectionLogic.handleImageSelect(e.target.files[0]);
-            }
-        });
-    }
-    if (DOM.inspRemoveImageBtn) {
-        DOM.inspRemoveImageBtn.addEventListener('click', () => {
-            // UI 초기화뿐만 아니라 로직 내부의 이미지 상태도 초기화
-            InspectionLogic.clearImageState();
-        });
-    }
-
-    // 8. 전체화면 토글 리스너
-    // DOM.inspFullscreenBtn이 import 시점에 null일 경우를 대비해 직접 조회 시도
-    const fullscreenBtn = DOM.inspFullscreenBtn || document.getElementById('insp-fullscreen-btn');
-    const modalContent = DOM.inspModalContent || document.getElementById('insp-modal-content');
-
-    if (fullscreenBtn && modalContent) {
-        fullscreenBtn.addEventListener('click', () => {
-            isInspectionMaximized = !isInspectionMaximized;
-            const btnIcon = fullscreenBtn.querySelector('svg');
-
-            if (isInspectionMaximized) {
-                // 전체화면 적용
-                modalContent.classList.remove('rounded-2xl', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'relative');
-                modalContent.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
-                
-                // ✅ [수정] 아이콘 변경 (축소 아이콘)
-                if (btnIcon) btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
-                fullscreenBtn.title = "기본 크기로";
-            } else {
-                // 기본 크기로 복귀
-                modalContent.classList.add('relative', 'w-full', 'max-w-4xl', 'max-h-[95vh]', 'rounded-2xl');
-                modalContent.classList.remove('fixed', 'inset-0', 'h-full', 'rounded-none', 'max-h-none', 'z-[200]');
-                
-                // ✅ [수정] 아이콘 변경 (확대 아이콘)
-                if (btnIcon) btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
-                fullscreenBtn.title = "전체화면";
-            }
-        });
-    } else {
-        console.warn("검수창 전체화면 버튼 또는 컨텐츠 영역을 찾을 수 없습니다.");
-    }
-
-    // ✅ [추가] 모달 닫힘 감지 및 레이아웃 초기화 (Observer)
-    const modal = DOM.inspectionManagerModal || document.getElementById('inspection-manager-modal');
-    if (modal) {
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                    // 모달이 숨겨질 때(hidden 클래스 추가됨)
-                    if (modal.classList.contains('hidden')) {
-                        resetInspectionLayout();
-                    }
+    // 1. 탭 전환 및 리스트 선택 리스너 (이벤트 위임)
+    if (DOM.inspectionHistoryViewContainer) {
+        DOM.inspectionHistoryViewContainer.addEventListener('click', async (e) => {
+            // A. 상단 탭 버튼 (상품별 / 리스트별)
+            const tabBtn = e.target.closest('button[data-insp-tab]');
+            if (tabBtn) {
+                const mode = tabBtn.dataset.inspTab;
+                if (State.context.inspectionViewMode !== mode) {
+                    State.context.inspectionViewMode = mode;
+                    State.context.selectedInspectionDate = null; 
+                    fetchAndRenderInspectionHistory(); 
                 }
-            });
+                return;
+            }
+
+            // B. 날짜 선택 버튼 (리스트별 보기 모드에서)
+            const dateBtn = e.target.closest('.btn-select-insp-date');
+            if (dateBtn) {
+                const date = dateBtn.dataset.date;
+                if (State.context.selectedInspectionDate !== date) {
+                    State.context.selectedInspectionDate = date;
+                    fetchAndRenderInspectionHistory(); 
+                }
+                return;
+            }
+
+            // C. 테이블 헤더 정렬 (상품별 보기 모드에서)
+            const th = e.target.closest('th[data-sort-key]');
+            if (th) {
+                const key = th.dataset.sortKey;
+                setSortState(key); 
+                renderInspectionHistoryTable(cachedInspectionData);
+                return;
+            }
+
+            // D. 상세보기 (로그 관리 모달)
+            const detailBtn = e.target.closest('.btn-view-detail');
+            if (detailBtn) {
+                const productName = detailBtn.dataset.productName;
+                loadInspectionLogs(productName);
+                return;
+            }
+
+            // E. 상품 전체 삭제
+            const deleteProductBtn = e.target.closest('.btn-delete-product');
+            if (deleteProductBtn) {
+                const productName = deleteProductBtn.dataset.productName;
+                const success = await deleteProductHistory(productName);
+                if (success) {
+                    fetchAndRenderInspectionHistory();
+                }
+                return;
+            }
         });
-        observer.observe(modal, { attributes: true });
     }
 
-    // 9. 검수 리스트 새창 열기 리스너
-    if (DOM.inspOpenListWindowBtn) {
-        DOM.inspOpenListWindowBtn.addEventListener('click', () => {
-            InspectionLogic.openInspectionListWindow();
+    // 2. 검색 입력 리스너 (상품별 보기 모드 전용)
+    if (DOM.inspectionHistorySearchInput) {
+        DOM.inspectionHistorySearchInput.addEventListener('input', () => {
+            if (State.context.inspectionViewMode === 'product') {
+                renderInspectionHistoryTable(cachedInspectionData);
+            }
         });
     }
 
-    // ✅ [추가] 검수 리스트 삭제 리스너
-    if (DOM.inspDeleteListBtn) {
-        DOM.inspDeleteListBtn.addEventListener('click', () => {
-            InspectionLogic.deleteInspectionList();
+    // 3. 새로고침 버튼 리스너
+    if (DOM.inspectionHistoryRefreshBtn) {
+        DOM.inspectionHistoryRefreshBtn.addEventListener('click', () => {
+            fetchAndRenderInspectionHistory();
+        });
+    }
+
+    // 4. 상세 로그 관리 모달 내부 이벤트 (수정/삭제)
+    const inspLogTableBody = document.getElementById('inspection-log-table-body');
+    if (inspLogTableBody) {
+        inspLogTableBody.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.btn-edit-insp-log');
+            if (editBtn) {
+                const index = parseInt(editBtn.dataset.index, 10);
+                const productName = DOM.inspectionLogProductName.textContent;
+                prepareEditInspectionLog(productName, index);
+            }
+        });
+    }
+
+    if (DOM.saveInspLogBtn) {
+        DOM.saveInspLogBtn.addEventListener('click', async () => {
+            await updateInspectionLog();
+            if (State.context.activeMainHistoryTab === 'inspection' && State.context.inspectionViewMode === 'product') {
+                fetchAndRenderInspectionHistory();
+            }
+        });
+    }
+
+    if (DOM.deleteInspLogBtn) {
+        DOM.deleteInspLogBtn.addEventListener('click', async () => {
+            await deleteInspectionLog();
+            if (State.context.activeMainHistoryTab === 'inspection' && State.context.inspectionViewMode === 'product') {
+                fetchAndRenderInspectionHistory();
+            }
         });
     }
 }
