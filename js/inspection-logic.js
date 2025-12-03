@@ -30,7 +30,7 @@ export const initializeInspectionSession = async () => {
     if (DOM.inspNotesInput) DOM.inspNotesInput.value = '';
     if (DOM.inspCheckThickness) DOM.inspCheckThickness.value = '';
     
-    // [추가] 입고 일자 필드 초기화 (잠금 상태로 복구)
+    // 입고 일자 필드 초기화 (잠금 상태로 복구)
     if (DOM.inspInboundDateInput) {
         DOM.inspInboundDateInput.value = '';
         DOM.inspInboundDateInput.readOnly = true;
@@ -57,22 +57,17 @@ export const initializeInspectionSession = async () => {
     // 4. "오늘 검수 완료 목록" UI 초기화
     renderTodayInspectionList();
 
-    // 5. [핵심] 완료된 엑셀 리스트 자동 삭제 확인
+    // 5. 완료된 엑셀 리스트 자동 삭제 확인
     const list = State.appState.inspectionList || [];
     if (list.length > 0) {
-        // 모든 항목이 '완료' 상태인지 확인
         const isAllCompleted = list.every(item => item.status === '완료');
         
         if (isAllCompleted) {
-            // 로컬 및 DB 초기화
             State.appState.inspectionList = [];
             await updateDailyData({ inspectionList: [] });
-            
-            // 투두 리스트 UI 갱신 (빈 상태로)
             renderTodoList();
             showToast("이전 검수 리스트가 모두 완료되어 초기화되었습니다.");
         } else {
-            // 완료되지 않았으면 리스트 유지 (UI만 갱신)
             renderTodoList();
         }
     } else {
@@ -80,7 +75,7 @@ export const initializeInspectionSession = async () => {
     }
 };
 
-// ✅ [신규] 엑셀 리스트 전체 삭제 (초기화)
+// 엑셀 리스트 전체 삭제 (초기화)
 export const deleteInspectionList = async () => {
     const list = State.appState.inspectionList || [];
     if (list.length === 0) {
@@ -93,14 +88,10 @@ export const deleteInspectionList = async () => {
     }
 
     try {
-        // DB에서 리스트 비우기
         await updateDailyData({ inspectionList: [] });
         State.appState.inspectionList = [];
-        
-        // UI 갱신
         renderTodoList();
         
-        // 입력 폼 초기화
         DOM.inspProductNameInput.value = '';
         if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
@@ -117,7 +108,7 @@ export const deleteInspectionList = async () => {
     }
 };
 
-// ✅ [신규] 이력(History)에서 특정 날짜의 검수 리스트 삭제
+// 이력(History)에서 특정 날짜의 검수 리스트 삭제
 export const deleteHistoryInspectionList = async (dateKey) => {
     if (!dateKey) return false;
 
@@ -128,20 +119,15 @@ export const deleteHistoryInspectionList = async (dateKey) => {
     const todayKey = getTodayDateString();
     
     try {
-        // 1. 로컬 상태(allHistoryData) 업데이트
         const dayData = State.allHistoryData.find(d => d.id === dateKey);
         if (dayData) {
-            dayData.inspectionList = []; // 빈 배열로 초기화
+            dayData.inspectionList = []; 
         }
 
-        // 2. Firestore 업데이트
         if (dateKey === todayKey) {
-            // 오늘 날짜라면 daily_data 업데이트 (실시간성)
-            // 또한 메인 앱 상태(appState)도 업데이트 필요
             State.appState.inspectionList = [];
             await updateDailyData({ inspectionList: [] });
         } else {
-            // 과거 날짜라면 history 컬렉션 업데이트
             const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
             await updateDoc(docRef, { inspectionList: [] });
         }
@@ -157,11 +143,10 @@ export const deleteHistoryInspectionList = async (dateKey) => {
 };
 
 // ======================================================
-// 1. 엑셀 리스트 업로드 및 처리 (수정됨: 괄호 날짜, G열 로케이션)
+// 1. 엑셀 리스트 업로드 및 처리 (수정됨: 시트2 샘플위치 확인 로직 추가)
 // ======================================================
 export const handleExcelUpload = (file) => {
     // 1. 패킹출고일(입고일) 추출
-    // 우선순위: 1. (251203) 형태, 2. 20251203 형태, 3. 251203 형태
     let packingDate = getTodayDateString(); // 기본값: 오늘
     
     // (YYMMDD) 형태 찾기
@@ -187,14 +172,42 @@ export const handleExcelUpload = (file) => {
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
+            
+            // --- [수정] 시트 2 읽기 (샘플 로케이션 매핑용) ---
+            const sampleMap = new Map(); // Key: 공급처상품명, Value: 로케이션(G열)
+            if (workbook.SheetNames.length > 1) {
+                const sheet2Name = workbook.SheetNames[1];
+                const sheet2 = workbook.Sheets[sheet2Name];
+                const json2 = XLSX.utils.sheet_to_json(sheet2, { header: 1 });
+                
+                // 시트2 데이터 파싱
+                for (let i = 1; i < json2.length; i++) {
+                    const row = json2[i];
+                    if (row) {
+                        const supplierName = String(row[5] || '').trim(); // F열 (공급처 상품명)
+                        const location = String(row[6] || '').trim();     // G열 (샘플 위치)
+                        
+                        // 공급처 상품명이 있고, 로케이션 정보가 있는 경우만 맵에 저장
+                        if (supplierName && location) {
+                            // 대소문자/공백 제거하여 키 생성 (매칭률 높이기 위해)
+                            const key = supplierName.replace(/\s/g, '').toLowerCase();
+                            sampleMap.set(key, location);
+                        }
+                    }
+                }
+            }
+            // ----------------------------------------------------
+
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
             // --- Deduplication Logic Start ---
             const processedList = [];
-            // Key: supplierName (F열) :: color (C열에서 추출)
             const uniqueKeyMap = new Map(); 
+            
+            // [신규] 팝업에 띄울 매칭된 리스트
+            const sampleMatches = [];
 
             if (jsonData.length > 1) {
                 for (let i = 1; i < jsonData.length; i++) {
@@ -206,34 +219,43 @@ export const handleExcelUpload = (file) => {
                         const qty = Number(row[3]) || 0;
                         const thickness = String(row[4] || '');
                         const supplierName = String(row[5] || '').trim(); // F열
-                        // ✅ [수정] G열 로케이션 추가
-                        const location = String(row[6] || '').trim(); // G열
+                        const location = String(row[6] || '').trim(); // G열 (검수 로케이션)
                         
                         if (code || name) {
-                            // 1. 옵션에서 색상만 추출 (예: [블랙-160-L] -> 블랙)
+                            // 1. 중복 제거 로직
                             let color = option.replace(/\[|\]/g, '').split('-')[0].trim();
                             if (!color) color = 'N/A';
                             
-                            // 2. 대소문자 및 모든 공백을 제거하여 강력한 중복 체크 키 생성
                             const keyColor = color.replace(/\s/g, '').toLowerCase();
                             const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase();
-                            
-                            const uniqueKey = `${keySupplierName}::${keyColor}`; // <-- 중복 제거 기준
+                            const uniqueKey = `${keySupplierName}::${keyColor}`; 
+
+                            // 2. [신규] 시트2와 매칭 확인 (샘플 위치 확인)
+                            let sampleLocation = null;
+                            if (keySupplierName && sampleMap.has(keySupplierName)) {
+                                sampleLocation = sampleMap.get(keySupplierName);
+                                
+                                // 중복 상품이더라도 샘플 매칭 리스트에는 추가 (알림용)
+                                // 단, 리스트 내에서 완전히 동일한 상품(옵션까지 같은)이 여러 번 나오면 한 번만 추가할 수도 있음.
+                                // 여기서는 행 단위로 추가합니다.
+                                sampleMatches.push({
+                                    name: name,
+                                    option: option, // 옵션 정보도 표시하면 좋음
+                                    location: location,       // 검수 상품 위치 (시트1 G열)
+                                    sampleLocation: sampleLocation, // 샘플 위치 (시트2 G열)
+                                    qty: qty
+                                });
+                            }
 
                             if (!uniqueKeyMap.has(uniqueKey)) {
                                 uniqueKeyMap.set(uniqueKey, true); 
                                 
                                 processedList.push({
-                                    code: code,
-                                    name: name,
-                                    option: option,
-                                    qty: qty,
-                                    thickness: thickness,
-                                    supplierName: supplierName,
-                                    location: location, // ✅ 로케이션 저장
+                                    code, name, option, qty, thickness, supplierName, location,
+                                    sampleLocation: sampleLocation, // 리스트에도 샘플 위치 정보 저장
                                     status: '대기',
-                                    inboundDate: packingDate, // 기존 입고일 필드 유지
-                                    packingDate: packingDate  // ✅ 명시적 패킹출고일 필드 추가
+                                    inboundDate: packingDate,
+                                    packingDate: packingDate
                                 });
                             }
                         }
@@ -245,7 +267,13 @@ export const handleExcelUpload = (file) => {
             if (processedList.length > 0) {
                 await updateDailyData({ inspectionList: processedList });
                 showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (패킹일: ${packingDate})`);
-                renderTodoList(); // 업로드 후 즉시 렌더링
+                renderTodoList(); 
+
+                // [신규] 매칭된 샘플 위치 정보가 있으면 팝업 열기
+                if (sampleMatches.length > 0) {
+                    openSampleCheckWindow(sampleMatches, packingDate);
+                }
+
             } else {
                 showToast("유효한 데이터가 엑셀에 없습니다.", true);
             }
@@ -278,8 +306,10 @@ export const renderTodoList = () => {
         
         const statusColor = isCompleted ? 'text-green-600 font-bold' : 'text-gray-400';
         
-        // ✅ [수정] 상품명 아래에 로케이션과 패킹일 정보 표시
         const locationInfo = item.location ? `<span class="text-indigo-600 font-bold bg-indigo-50 px-1 rounded">📦 ${item.location}</span>` : '';
+        // 샘플 위치가 있으면 추가 표시
+        const sampleInfo = item.sampleLocation ? `<span class="text-red-600 font-bold bg-red-50 px-1 rounded ml-1">📌 샘플: ${item.sampleLocation}</span>` : '';
+        
         const dateInfo = item.packingDate ? `<span class="text-gray-500 ml-1">📅 ${item.packingDate.slice(2)}</span>` : '';
         
         tr.innerHTML = `
@@ -288,6 +318,7 @@ export const renderTodoList = () => {
                 <div class="truncate max-w-[150px]" title="${item.name}">${item.name}</div>
                 <div class="text-[10px] mt-0.5 flex flex-wrap gap-1">
                     ${locationInfo}
+                    ${sampleInfo}
                     ${dateInfo}
                 </div>
             </td>
@@ -302,43 +333,117 @@ export const renderTodoList = () => {
     });
 };
 
-// ✅ [수정] selectTodoItem 함수를 외부(팝업창)에서 호출할 수 있도록 export로 변경
 export const selectTodoItem = (index) => {
     const item = State.appState.inspectionList[index];
     if (!item) return;
 
     currentTodoIndex = index; 
 
-    // 1. 기본 정보 자동 입력
     DOM.inspProductNameInput.value = item.name; 
     if (DOM.inspInboundDateInput) DOM.inspInboundDateInput.value = item.inboundDate || getTodayDateString();
     if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = item.qty > 0 ? item.qty : '';
     
-    // 2. 옵션/코드/기준두께 표시 (✅ 공급처 옆에 로케이션 및 패킹일 추가 표시)
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${item.option || '-'}`;
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${item.code || '-'}`;
     
     let supplierText = `공급처: ${item.supplierName || '-'}`;
     if (item.location) supplierText += ` / 📦 Loc: ${item.location}`;
+    if (item.sampleLocation) supplierText += ` / 📌 샘플: ${item.sampleLocation}`; // 샘플 위치도 표시
     if (item.packingDate) supplierText += ` / 📅 패킹: ${item.packingDate}`;
     
     if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = supplierText; 
     
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${item.thickness || '-'}`;
 
-    // 3. 이력 조회 실행
     searchProductHistory(); 
     
-    // 4. 비고란 초기화
     DOM.inspNotesInput.value = '';
     
     showToast(`'${item.name}' 선택됨`);
 };
 
-// ✅ [추가] 팝업창에서 호출하기 위해 window 객체에 함수 바인딩
 window.selectInspectionTodoItem = selectTodoItem;
 
-// ✅ [추가] 별도 창으로 리스트 열기 함수 (로케이션 정보 추가)
+// ✅ [신규] 샘플 위치 확인 팝업창 열기 함수
+export const openSampleCheckWindow = (matchList, packingDate) => {
+    if (!matchList || matchList.length === 0) return;
+
+    // 새 창 열기
+    const popup = window.open('', 'SampleCheckWindow', 'width=800,height=600,scrollbars=yes,resizable=yes');
+    if (!popup) {
+        showToast("샘플 위치 확인 팝업이 차단되었습니다.", true);
+        return;
+    }
+
+    const rowsHtml = matchList.map((item, idx) => `
+        <tr class="border-b hover:bg-gray-50 transition">
+            <td class="px-4 py-3 text-sm text-gray-800 font-medium">${item.name} <span class="text-xs text-gray-500">(${item.option})</span></td>
+            <td class="px-4 py-3 text-center text-sm font-bold text-blue-600 bg-blue-50">${item.location || '-'}</td>
+            <td class="px-4 py-3 text-center text-sm font-bold text-red-600 bg-red-50 border-l border-r border-red-100">${item.sampleLocation}</td>
+            <td class="px-4 py-3 text-center text-sm text-gray-700">${item.qty}</td>
+        </tr>
+    `).join('');
+
+    const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <title>샘플 위치 확인 (${packingDate})</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <style>
+                body { font-family: 'Noto Sans KR', sans-serif; }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
+            </style>
+        </head>
+        <body class="bg-gray-100 p-6 min-h-screen">
+            <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="bg-indigo-600 p-5 flex justify-between items-center text-white">
+                    <div>
+                        <h2 class="text-xl font-bold flex items-center gap-2">
+                            <span>📢</span> 샘플 위치 확인 알림
+                        </h2>
+                        <p class="text-indigo-200 text-sm mt-1 opacity-90">패킹출고일: <span class="font-bold text-white">${packingDate}</span></p>
+                    </div>
+                    <div class="bg-indigo-700 bg-opacity-50 px-3 py-1.5 rounded-lg text-sm font-medium border border-indigo-500">
+                        중복 상품 ${matchList.length}건
+                    </div>
+                </div>
+                
+                <div class="p-0 overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-100 text-xs uppercase text-gray-500 border-b border-gray-200">
+                            <tr>
+                                <th class="px-4 py-3 font-semibold w-1/3">상품명 (옵션)</th>
+                                <th class="px-4 py-3 font-semibold text-center w-1/5">검수 로케이션</th>
+                                <th class="px-4 py-3 font-semibold text-center w-1/5 text-red-600 bg-red-50">샘플 위치 (기존)</th>
+                                <th class="px-4 py-3 font-semibold text-center w-1/6">입고 수량</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="p-6 bg-gray-50 border-t border-gray-200 text-center">
+                    <p class="text-sm text-gray-500 mb-4">위 상품들은 기존 샘플 위치와 검수 로케이션을 확인하여 정리해주세요.</p>
+                    <button onclick="window.close()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-lg shadow-md transition transform active:scale-95">
+                        확인했습니다
+                    </button>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    popup.document.open();
+    popup.document.write(htmlContent);
+    popup.document.close();
+};
+
+// 별도 창으로 리스트 열기 함수 (로케이션 정보 추가)
 export const openInspectionListWindow = () => {
     const list = State.appState.inspectionList || [];
     if (list.length === 0) {
@@ -346,14 +451,12 @@ export const openInspectionListWindow = () => {
         return;
     }
 
-    // 새 창 열기 (너비 600, 높이 800)
     const popup = window.open('', 'InspectionListWindow', 'width=650,height=800,scrollbars=yes,resizable=yes');
     if (!popup) {
         showToast("팝업 차단을 해제해주세요.", true);
         return;
     }
 
-    // HTML 문서 작성
     const rowsHtml = list.map((item, idx) => {
         const isCompleted = item.status === '완료';
         const trClass = isCompleted ? 'bg-gray-100 text-gray-500' : 'hover:bg-blue-50 cursor-pointer';
@@ -361,11 +464,9 @@ export const openInspectionListWindow = () => {
             ? '<span class="text-green-600 font-bold text-xs">완료</span>' 
             : '<span class="text-gray-400 text-xs">대기</span>';
         
-        // 클릭 시 부모 창의 함수 호출 (window.opener)
         const onClickScript = isCompleted ? '' : `onclick="selectItemInParent(${idx})"`;
-        
-        // ✅ 팝업창에도 로케이션 정보 추가
         const locInfo = item.location ? `<div class="text-[10px] text-indigo-600">📦 ${item.location}</div>` : '';
+        const sampleInfo = item.sampleLocation ? `<div class="text-[10px] text-red-600 font-bold">📌 샘플: ${item.sampleLocation}</div>` : '';
 
         return `
             <tr class="border-b last:border-0 transition ${trClass}" ${onClickScript}>
@@ -373,6 +474,7 @@ export const openInspectionListWindow = () => {
                 <td class="px-3 py-2 font-medium text-sm">
                     ${item.name}
                     ${locInfo}
+                    ${sampleInfo}
                 </td>
                 <td class="px-3 py-2 text-xs">${item.option || '-'}</td>
                 <td class="px-3 py-2 text-center">${statusBadge}</td>
@@ -395,9 +497,7 @@ export const openInspectionListWindow = () => {
             <script>
                 function selectItemInParent(index) {
                     if (window.opener && !window.opener.closed) {
-                        // 부모 창의 함수 호출
                         window.opener.selectInspectionTodoItem(index);
-                        // 선택 효과 (배경 깜빡임)
                         document.querySelectorAll('tr').forEach(tr => tr.classList.remove('bg-blue-100'));
                         const rows = document.querySelectorAll('tbody tr');
                         if(rows[index]) rows[index].classList.add('bg-blue-100');
@@ -412,9 +512,7 @@ export const openInspectionListWindow = () => {
                 <h2 class="text-lg font-bold text-gray-800">📋 검수 대기 리스트</h2>
                 <div class="flex items-center gap-2">
                     <span class="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600">총 ${list.length}건</span>
-                    <button onclick="window.close()" class="text-gray-400 hover:text-gray-700 text-lg font-bold px-2 rounded-full leading-none">
-                        &times;
-                    </button>
+                    <button onclick="window.close()" class="text-gray-400 hover:text-gray-700 text-lg font-bold px-2 rounded-full leading-none">&times;</button>
                 </div>
             </div>
             <div class="overflow-y-auto">
@@ -427,9 +525,7 @@ export const openInspectionListWindow = () => {
                             <th class="px-3 py-2 font-semibold border-b text-center">상태</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        ${rowsHtml}
-                    </tbody>
+                    <tbody class="divide-y divide-gray-100">${rowsHtml}</tbody>
                 </table>
             </div>
             <div class="p-4 text-center text-xs text-gray-400 bg-gray-50 border-t border-gray-200 fixed bottom-0 w-full">
@@ -444,9 +540,7 @@ export const openInspectionListWindow = () => {
     popup.document.close();
 };
 
-// ======================================================
-// 2. 바코드 스캐너 로직
-// ======================================================
+// ... (이후 toggleScanner 등 나머지 기존 함수들 유지)
 export const toggleScanner = () => {
     if (DOM.inspScannerContainer.classList.contains('hidden')) {
         DOM.inspScannerContainer.classList.remove('hidden');
@@ -540,16 +634,11 @@ export const searchProductHistory = async () => {
     }
 
     const list = State.appState.inspectionList || [];
-    
-    // ✅ [수정] 같은 상품명이라도 현재 선택된 항목(옵션 다름)을 유지하기 위한 로직
     let matchedIndex = -1;
 
-    // 1. 현재 선택된 항목이 있고, 이름이 검색어와 같다면 그 항목을 유지 (예: 블랙M 완료 -> 블루S 선택됨)
-    //    -> 이렇게 해야 옵션/코드가 '블루S' 것으로 표시됨
     if (currentTodoIndex >= 0 && list[currentTodoIndex] && list[currentTodoIndex].name === searchTerm) {
         matchedIndex = currentTodoIndex;
     } else {
-        // 2. 그 외의 경우(직접 검색 등) 전체 리스트에서 찾기
         matchedIndex = list.findIndex(item => 
             (item.code && item.code.trim() === searchTerm) || 
             (item.name && item.name.trim() === searchTerm)
@@ -559,26 +648,24 @@ export const searchProductHistory = async () => {
     let targetProductName = searchTerm;
 
     if (matchedIndex > -1) {
-        // [케이스 1] 리스트 매칭됨 -> 해당 항목 정보로 UI 갱신
         const matchedItem = list[matchedIndex];
         targetProductName = matchedItem.name;
         currentTodoIndex = matchedIndex; 
 
         DOM.inspProductNameInput.value = targetProductName;
         
-        // ✅ [수정] 리스트 매칭 시 상세 정보(로케이션 등) 업데이트
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${matchedItem.option || '-'}`;
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${matchedItem.code || '-'}`;
         
         let supplierText = `공급처: ${matchedItem.supplierName || '-'}`;
         if (matchedItem.location) supplierText += ` / 📦 Loc: ${matchedItem.location}`;
+        if (matchedItem.sampleLocation) supplierText += ` / 📌 샘플: ${matchedItem.sampleLocation}`;
         if (matchedItem.packingDate) supplierText += ` / 📅 패킹: ${matchedItem.packingDate}`;
         
         if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = supplierText; 
         
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${matchedItem.thickness || '-'}`;
         
-        // 날짜 자동 입력 및 잠금
         if (DOM.inspInboundDateInput) {
             DOM.inspInboundDateInput.value = matchedItem.inboundDate || getTodayDateString();
             DOM.inspInboundDateInput.readOnly = true;
@@ -588,7 +675,6 @@ export const searchProductHistory = async () => {
         if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = matchedItem.qty > 0 ? matchedItem.qty : '';
 
     } else {
-        // [케이스 2] 리스트에 없는 상품 (개별 검색) -> 수동 입력 허용
         currentTodoIndex = -1; 
         
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
@@ -596,18 +682,14 @@ export const searchProductHistory = async () => {
         if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
 
-        // 날짜 수동 입력 허용 (잠금 해제)
         if (DOM.inspInboundDateInput) {
             DOM.inspInboundDateInput.readOnly = false;
             DOM.inspInboundDateInput.classList.remove('bg-gray-100');
             DOM.inspInboundDateInput.classList.add('bg-white');
-            
-            // 값이 비어있으면 오늘 날짜 기본 세팅
             if (!DOM.inspInboundDateInput.value) {
                 DOM.inspInboundDateInput.value = getTodayDateString();
             }
         }
-        // 수량 초기화
         if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
     }
 
@@ -723,7 +805,6 @@ export const saveInspectionAndNext = async () => {
     const today = getTodayDateString();
     const nowTime = getCurrentTime();
 
-    // ✅ [수정] 검수 기록에 location과 packingDate 포함
     const inspectionRecord = {
         date: today,
         time: nowTime,
@@ -735,7 +816,6 @@ export const saveInspectionAndNext = async () => {
         code: currentItem ? currentItem.code : '-',
         supplierName: currentItem ? currentItem.supplierName : '-', 
         
-        // 추가 정보
         location: currentItem ? currentItem.location : '-',
         packingDate: currentItem ? currentItem.packingDate : '-',
 
@@ -815,7 +895,6 @@ const resetInspectionForm = (clearProductName = false) => {
     DOM.inspInboundQtyInput.value = '';
     DOM.inspNotesInput.value = '';
     
-    // ✅ 두께 필드 초기화 (기존 누락 수정)
     if (DOM.inspCheckThickness) DOM.inspCheckThickness.value = '';
 
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
@@ -937,7 +1016,7 @@ export const prepareEditInspectionLog = (productName, index) => {
     if (DOM.editInspNotes) DOM.editInspNotes.value = log.note || '';
     if (DOM.editInspLogIndex) DOM.editInspLogIndex.value = index;
     
-    if (DOM.editInspSupplierName) DOM.editInspSupplierName.value = log.supplierName || ''; // [추가]
+    if (DOM.editInspSupplierName) DOM.editInspSupplierName.value = log.supplierName || '';
 
     const checklist = log.checklist || {};
     const setSelect = (dom, val) => { if (dom) dom.value = val || (dom.options[0]?.value || ''); };
@@ -980,14 +1059,15 @@ export const updateInspectionLog = async () => {
 
     const defectsFound = [];
     const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
-    const labelMap = {
-        fabric: '원단', color: '컬러', distortion: '뒤틀림',
-        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-        lining: '안감', pilling: '보풀', dye: '이염'
-    };
+    
     Object.entries(checklist).forEach(([key, value]) => {
         if (key === 'thickness') return;
         if (!NORMAL_VALUES.includes(value)) {
+            const labelMap = {
+                fabric: '원단', color: '컬러', distortion: '뒤틀림',
+                unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
+                lining: '안감', pilling: '보풀', dye: '이염'
+            };
             defectsFound.push(`${labelMap[key] || key}(${value})`);
         }
     });
@@ -996,7 +1076,7 @@ export const updateInspectionLog = async () => {
         ...currentProductLogs[index], 
         inboundDate: DOM.editInspPackingNo.value, 
         inboundQty: Number(DOM.editInspInboundQty.value) || 0,
-        supplierName: DOM.editInspSupplierName.value, // [추가]
+        supplierName: DOM.editInspSupplierName.value, 
         checklist: checklist,
         defects: defectsFound,
         note: DOM.editInspNotes.value,
@@ -1011,14 +1091,13 @@ export const updateInspectionLog = async () => {
             .filter(l => l.defects && l.defects.length > 0)
             .map(l => `${l.date}: ${l.defects.join(', ')}`);
 
-        // 최종 로그와 최근 공급처 상품명을 문서 루트에 업데이트
         const updates = {
             logs: currentProductLogs,
             defectSummary: newDefectSummary,
         };
-        // 현재 수정된 로그가 가장 최신 로그라면 문서 루트 필드도 업데이트
+        
         if (index === currentProductLogs.length - 1) {
-            updates.lastSupplierName = updatedLog.supplierName; // [추가]
+            updates.lastSupplierName = updatedLog.supplierName;
             updates.lastCode = updatedLog.code;
             updates.lastOption = updatedLog.option;
         }
@@ -1055,14 +1134,13 @@ export const deleteInspectionLog = async () => {
             defectSummary: newDefectSummary,
             totalInbound: increment(-1) 
         };
-        // 삭제 후 마지막 로그의 정보로 문서 루트 필드 업데이트
+        
         if (currentProductLogs.length > 0) {
             const lastLog = currentProductLogs[currentProductLogs.length - 1];
-            updates.lastSupplierName = lastLog.supplierName || '-'; // [추가]
+            updates.lastSupplierName = lastLog.supplierName || '-'; 
             updates.lastCode = lastLog.code || '-';
             updates.lastOption = lastLog.option || '-';
         } else {
-             // 모든 로그가 삭제되면 관련 필드도 초기화
             updates.lastSupplierName = '-';
             updates.lastCode = '-';
             updates.lastOption = '-';
