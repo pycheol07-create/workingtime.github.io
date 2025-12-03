@@ -157,19 +157,29 @@ export const deleteHistoryInspectionList = async (dateKey) => {
 };
 
 // ======================================================
-// 1. 엑셀 리스트 업로드 및 처리
+// 1. 엑셀 리스트 업로드 및 처리 (수정됨: 괄호 날짜, G열 로케이션)
 // ======================================================
 export const handleExcelUpload = (file) => {
-    // 1. 파일명에서 입고일자 추출 (예: "입고리스트_241121.xlsx" -> "2024-11-21")
-    let inboundDate = getTodayDateString(); // 기본값: 오늘
-    const dateMatch = file.name.match(/20(\d{2})(\d{2})(\d{2})/) || file.name.match(/(\d{2})(\d{2})(\d{2})/);
+    // 1. 패킹출고일(입고일) 추출
+    // 우선순위: 1. (251203) 형태, 2. 20251203 형태, 3. 251203 형태
+    let packingDate = getTodayDateString(); // 기본값: 오늘
     
-    if (dateMatch) {
-        // YYMMDD 형식 매칭
-        const year = '20' + dateMatch[1];
-        const month = dateMatch[2];
-        const day = dateMatch[3];
-        inboundDate = `${year}-${month}-${day}`;
+    // (YYMMDD) 형태 찾기
+    const parentMatch = file.name.match(/\((\d{6})\)/);
+    // 20YYMMDD 형태 찾기
+    const fullDateMatch = file.name.match(/20(\d{2})(\d{2})(\d{2})/);
+    // YYMMDD 형태 찾기 (괄호 없이)
+    const shortDateMatch = file.name.match(/(\d{2})(\d{2})(\d{2})/);
+
+    if (parentMatch) {
+        const y = parentMatch[1].substring(0, 2);
+        const m = parentMatch[1].substring(2, 4);
+        const d = parentMatch[1].substring(4, 6);
+        packingDate = `20${y}-${m}-${d}`;
+    } else if (fullDateMatch) {
+        packingDate = `20${fullDateMatch[1]}-${fullDateMatch[2]}-${fullDateMatch[3]}`;
+    } else if (shortDateMatch) {
+        packingDate = `20${shortDateMatch[1]}-${shortDateMatch[2]}-${shortDateMatch[3]}`;
     }
 
     const reader = new FileReader();
@@ -196,6 +206,8 @@ export const handleExcelUpload = (file) => {
                         const qty = Number(row[3]) || 0;
                         const thickness = String(row[4] || '');
                         const supplierName = String(row[5] || '').trim(); // F열
+                        // ✅ [수정] G열 로케이션 추가
+                        const location = String(row[6] || '').trim(); // G열
                         
                         if (code || name) {
                             // 1. 옵션에서 색상만 추출 (예: [블랙-160-L] -> 블랙)
@@ -217,9 +229,11 @@ export const handleExcelUpload = (file) => {
                                     option: option,
                                     qty: qty,
                                     thickness: thickness,
-                                    supplierName: supplierName, 
+                                    supplierName: supplierName,
+                                    location: location, // ✅ 로케이션 저장
                                     status: '대기',
-                                    inboundDate: inboundDate
+                                    inboundDate: packingDate, // 기존 입고일 필드 유지
+                                    packingDate: packingDate  // ✅ 명시적 패킹출고일 필드 추가
                                 });
                             }
                         }
@@ -230,7 +244,7 @@ export const handleExcelUpload = (file) => {
 
             if (processedList.length > 0) {
                 await updateDailyData({ inspectionList: processedList });
-                showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (입고일: ${inboundDate})`);
+                showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (패킹일: ${packingDate})`);
                 renderTodoList(); // 업로드 후 즉시 렌더링
             } else {
                 showToast("유효한 데이터가 엑셀에 없습니다.", true);
@@ -264,11 +278,21 @@ export const renderTodoList = () => {
         
         const statusColor = isCompleted ? 'text-green-600 font-bold' : 'text-gray-400';
         
+        // ✅ [수정] 상품명 아래에 로케이션과 패킹일 정보 표시
+        const locationInfo = item.location ? `<span class="text-indigo-600 font-bold bg-indigo-50 px-1 rounded">📦 ${item.location}</span>` : '';
+        const dateInfo = item.packingDate ? `<span class="text-gray-500 ml-1">📅 ${item.packingDate.slice(2)}</span>` : '';
+        
         tr.innerHTML = `
-            <td class="px-3 py-2 font-mono text-gray-600 text-xs">${item.code}</td>
-            <td class="px-3 py-2 font-medium text-gray-800 truncate max-w-[150px]" title="${item.name}">${item.name}</td>
-            <td class="px-3 py-2 text-gray-500 text-xs">${item.option}</td>
-            <td class="px-3 py-2 text-right text-xs ${statusColor}">${item.status}</td>
+            <td class="px-3 py-2 font-mono text-gray-600 text-xs align-top">${item.code}</td>
+            <td class="px-3 py-2 font-medium text-gray-800 align-top">
+                <div class="truncate max-w-[150px]" title="${item.name}">${item.name}</div>
+                <div class="text-[10px] mt-0.5 flex flex-wrap gap-1">
+                    ${locationInfo}
+                    ${dateInfo}
+                </div>
+            </td>
+            <td class="px-3 py-2 text-gray-500 text-xs align-top">${item.option}</td>
+            <td class="px-3 py-2 text-right text-xs ${statusColor} align-top">${item.status}</td>
         `;
         
         tr.addEventListener('click', () => {
@@ -290,10 +314,16 @@ export const selectTodoItem = (index) => {
     if (DOM.inspInboundDateInput) DOM.inspInboundDateInput.value = item.inboundDate || getTodayDateString();
     if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = item.qty > 0 ? item.qty : '';
     
-    // 2. 옵션/코드/기준두께 표시
+    // 2. 옵션/코드/기준두께 표시 (✅ 공급처 옆에 로케이션 및 패킹일 추가 표시)
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${item.option || '-'}`;
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${item.code || '-'}`;
-    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = `공급처: ${item.supplierName || '-'}`; 
+    
+    let supplierText = `공급처: ${item.supplierName || '-'}`;
+    if (item.location) supplierText += ` / 📦 Loc: ${item.location}`;
+    if (item.packingDate) supplierText += ` / 📅 패킹: ${item.packingDate}`;
+    
+    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = supplierText; 
+    
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${item.thickness || '-'}`;
 
     // 3. 이력 조회 실행
@@ -308,7 +338,7 @@ export const selectTodoItem = (index) => {
 // ✅ [추가] 팝업창에서 호출하기 위해 window 객체에 함수 바인딩
 window.selectInspectionTodoItem = selectTodoItem;
 
-// ✅ [추가] 별도 창으로 리스트 열기 함수
+// ✅ [추가] 별도 창으로 리스트 열기 함수 (로케이션 정보 추가)
 export const openInspectionListWindow = () => {
     const list = State.appState.inspectionList || [];
     if (list.length === 0) {
@@ -317,7 +347,7 @@ export const openInspectionListWindow = () => {
     }
 
     // 새 창 열기 (너비 600, 높이 800)
-    const popup = window.open('', 'InspectionListWindow', 'width=600,height=800,scrollbars=yes,resizable=yes');
+    const popup = window.open('', 'InspectionListWindow', 'width=650,height=800,scrollbars=yes,resizable=yes');
     if (!popup) {
         showToast("팝업 차단을 해제해주세요.", true);
         return;
@@ -333,11 +363,17 @@ export const openInspectionListWindow = () => {
         
         // 클릭 시 부모 창의 함수 호출 (window.opener)
         const onClickScript = isCompleted ? '' : `onclick="selectItemInParent(${idx})"`;
+        
+        // ✅ 팝업창에도 로케이션 정보 추가
+        const locInfo = item.location ? `<div class="text-[10px] text-indigo-600">📦 ${item.location}</div>` : '';
 
         return `
             <tr class="border-b last:border-0 transition ${trClass}" ${onClickScript}>
                 <td class="px-3 py-2 font-mono text-xs">${item.code || '-'}</td>
-                <td class="px-3 py-2 font-medium text-sm">${item.name}</td>
+                <td class="px-3 py-2 font-medium text-sm">
+                    ${item.name}
+                    ${locInfo}
+                </td>
                 <td class="px-3 py-2 text-xs">${item.option || '-'}</td>
                 <td class="px-3 py-2 text-center">${statusBadge}</td>
             </tr>
@@ -530,9 +566,16 @@ export const searchProductHistory = async () => {
 
         DOM.inspProductNameInput.value = targetProductName;
         
+        // ✅ [수정] 리스트 매칭 시 상세 정보(로케이션 등) 업데이트
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${matchedItem.option || '-'}`;
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${matchedItem.code || '-'}`;
-        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = `공급처: ${matchedItem.supplierName || '-'}`; 
+        
+        let supplierText = `공급처: ${matchedItem.supplierName || '-'}`;
+        if (matchedItem.location) supplierText += ` / 📦 Loc: ${matchedItem.location}`;
+        if (matchedItem.packingDate) supplierText += ` / 📅 패킹: ${matchedItem.packingDate}`;
+        
+        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = supplierText; 
+        
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${matchedItem.thickness || '-'}`;
         
         // 날짜 자동 입력 및 잠금
@@ -680,6 +723,7 @@ export const saveInspectionAndNext = async () => {
     const today = getTodayDateString();
     const nowTime = getCurrentTime();
 
+    // ✅ [수정] 검수 기록에 location과 packingDate 포함
     const inspectionRecord = {
         date: today,
         time: nowTime,
@@ -691,6 +735,10 @@ export const saveInspectionAndNext = async () => {
         code: currentItem ? currentItem.code : '-',
         supplierName: currentItem ? currentItem.supplierName : '-', 
         
+        // 추가 정보
+        location: currentItem ? currentItem.location : '-',
+        packingDate: currentItem ? currentItem.packingDate : '-',
+
         checklist,
         defects: defectsFound,
         note,
