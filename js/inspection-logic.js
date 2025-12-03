@@ -143,8 +143,36 @@ export const deleteHistoryInspectionList = async (dateKey) => {
 };
 
 // ======================================================
-// 1. 엑셀 리스트 업로드 및 처리 (수정됨: 시트2 E열 기준 매칭)
+// 1. 엑셀 리스트 업로드 및 처리 (수정됨: 시트2 E열 기준 매칭 -> B+C열 기준 매칭)
 // ======================================================
+
+// ✅ [신규] 매칭 키 생성 헬퍼 함수
+const generateMatchingKey = (rawName, rawOption) => {
+    // 1. 상품명: () 안의 내용 제거 및 공백 제거
+    // 예: "상품명(상세)" -> "상품명"
+    let name = String(rawName || '').replace(/\([^)]*\)/g, '').trim();
+    name = name.replace(/\s/g, '').toLowerCase();
+
+    // 2. 옵션: [텍스트-텍스트-...] 형식에서 첫 번째 텍스트와 하이픈 제거
+    // 예: "[공급처-컬러-사이즈]" -> "컬러-사이즈"
+    let option = String(rawOption || '').trim();
+    
+    // 대괄호 제거
+    option = option.replace(/[\[\]]/g, '');
+    
+    // 첫 번째 하이픈 찾기
+    const firstHyphenIdx = option.indexOf('-');
+    if (firstHyphenIdx !== -1) {
+        // 첫 번째 하이픈 다음부터 끝까지 자름
+        option = option.substring(firstHyphenIdx + 1);
+    }
+    
+    option = option.replace(/\s/g, '').toLowerCase();
+
+    // 고유 키 조합
+    return `${name}|${option}`;
+};
+
 export const handleExcelUpload = (file) => {
     // 1. 패킹출고일(입고일) 추출
     let packingDate = getTodayDateString(); // 기본값: 오늘
@@ -171,7 +199,7 @@ export const handleExcelUpload = (file) => {
             const workbook = XLSX.read(data, { type: 'array' });
             
             // --- [Step 1] 시트 2 읽기 (샘플 위치 정보) ---
-            const sampleMap = new Map(); // Key: 공급처상품명(E열), Value: 로케이션(G열)
+            const sampleMap = new Map(); // Key: 생성된 매칭키, Value: 로케이션(G열)
             
             if (workbook.SheetNames.length > 1) {
                 const sheet2Name = workbook.SheetNames[1];
@@ -182,12 +210,18 @@ export const handleExcelUpload = (file) => {
                 for (let i = 1; i < json2.length; i++) {
                     const row = json2[i];
                     if (row) {
-                        // 두 번째 시트: E열(Index 4) 공급처상품명, G열(Index 6) 샘플위치
-                        const supplierName = String(row[4] || '').trim(); // E열
-                        const location = String(row[6] || '').trim();     // G열
+                        // ✅ [수정] 두 번째 시트 읽기 기준 변경
+                        // B열(Index 1): 상품명
+                        // C열(Index 2): 옵션
+                        // G열(Index 6): 샘플위치
                         
-                        if (supplierName && location) {
-                            const key = supplierName.replace(/\s/g, '').toLowerCase();
+                        const sheet2Name = String(row[1] || '').trim(); 
+                        const sheet2Option = String(row[2] || '').trim();
+                        const location = String(row[6] || '').trim();
+                        
+                        if (sheet2Name && location) {
+                            // ✅ 헬퍼 함수로 키 생성
+                            const key = generateMatchingKey(sheet2Name, sheet2Option);
                             sampleMap.set(key, location);
                         }
                     }
@@ -216,7 +250,7 @@ export const handleExcelUpload = (file) => {
                         const location = String(row[6] || '').trim(); // G열 (검수 로케이션)
                         
                         if (code || name) {
-                            // 1. 중복 제거 로직
+                            // 1. 중복 제거 로직 (기존 유지)
                             let color = option.replace(/\[|\]/g, '').split('-')[0].trim();
                             if (!color) color = 'N/A';
                             
@@ -226,8 +260,12 @@ export const handleExcelUpload = (file) => {
 
                             // 2. 시트2와 매칭 확인 (샘플 위치 확인)
                             let sampleLocation = null;
-                            if (keySupplierName && sampleMap.has(keySupplierName)) {
-                                sampleLocation = sampleMap.get(keySupplierName);
+                            
+                            // ✅ [수정] 시트1 상품명(B)+옵션(C) 기준으로 키 생성 후 매칭
+                            const matchKey = generateMatchingKey(name, option);
+                            
+                            if (sampleMap.has(matchKey)) {
+                                sampleLocation = sampleMap.get(matchKey);
                             }
 
                             if (!uniqueKeyMap.has(uniqueKey)) {
