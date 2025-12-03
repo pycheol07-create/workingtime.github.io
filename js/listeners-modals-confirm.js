@@ -8,7 +8,8 @@ import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-log
 import { saveLeaveSchedule } from './config.js';
 import { switchHistoryView } from './app-history-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
-// ✅ [수정] 누락된 saveStateToFirestore 추가
+
+// ✅ [수정] saveStateToFirestore 함수를 app-data.js에서 가져오도록 추가
 import { saveStateToFirestore } from './app-data.js';
 
 import {
@@ -292,6 +293,7 @@ export function setupConfirmationModalListeners() {
             }
 
             try {
+                // ✅ [수정] 이제 함수가 정상적으로 import되어 실행됩니다.
                 if (dailyChanged) await saveStateToFirestore();
                 if (persistentChanged) await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
 
