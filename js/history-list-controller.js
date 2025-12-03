@@ -82,8 +82,9 @@ export const loadAndRenderHistoryList = async () => {
 
 /**
  * 모드(일/주/월/년)에 따라 좌측 리스트를 렌더링합니다.
+ * ✅ [수정] selectedKey 파라미터 추가 (특정 날짜 선택 유지 기능)
  */
-export const renderHistoryDateListByMode = async (mode = 'day') => {
+export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = null) => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '';
 
@@ -142,17 +143,30 @@ export const renderHistoryDateListByMode = async (mode = 'day') => {
         DOM.historyDateList.appendChild(li);
     });
 
-    // 첫 번째 항목 자동 선택
-    const firstButton = DOM.historyDateList.firstChild?.querySelector('button');
-    if (firstButton) {
-        firstButton.click();
+    // ✅ [수정] 지정된 키가 있으면 해당 버튼 클릭, 없으면 첫 번째 버튼 클릭
+    let targetBtn = null;
+    if (selectedKey) {
+        targetBtn = DOM.historyDateList.querySelector(`button[data-key="${selectedKey}"]`);
+    }
+    
+    if (!targetBtn) {
+        targetBtn = DOM.historyDateList.firstChild?.querySelector('button');
+    }
+
+    if (targetBtn) {
+        targetBtn.click();
+        // 선택된 항목으로 스크롤 이동 (사용자 편의)
+        if (selectedKey) {
+            targetBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
     }
 };
 
 /**
  * 이력 보기 내의 뷰(일/주/월 리포트 등) 전환을 처리합니다.
+ * ✅ [수정] preserveKey 파라미터 추가
  */
-export const switchHistoryView = async (view) => {
+export const switchHistoryView = async (view, preserveKey = null) => {
     const allViews = [
         document.getElementById('history-daily-view'),
         document.getElementById('history-weekly-view'),
@@ -242,7 +256,8 @@ export const switchHistoryView = async (view) => {
             break;
     }
 
-    await renderHistoryDateListByMode(listMode);
+    // ✅ [수정] 리스트 렌더링 시 보존할 키 전달
+    await renderHistoryDateListByMode(listMode, preserveKey);
 
     if (viewToShow) viewToShow.classList.remove('hidden');
     if (tabToActivate) {
@@ -312,7 +327,9 @@ export const openHistoryQuantityModal = (dateKey) => {
                 const activeSubTabBtn = document.querySelector('#history-tabs button.font-semibold')
                                      || document.querySelector('#report-tabs button.font-semibold');
                 const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-                await switchHistoryView(currentView);
+                
+                // ✅ [수정] 수정 후에도 현재 날짜 선택 유지
+                await switchHistoryView(currentView, dateKey);
             }
 
         } catch (e) {
@@ -330,20 +347,23 @@ export const openHistoryQuantityModal = (dateKey) => {
 
 /**
  * 이력 삭제 요청을 처리합니다. (실제 삭제는 Confirmation 모달에서 수행)
- * ✅ [수정] 탭별 삭제 안내 메시지 업데이트 로직 추가
  */
 export const requestHistoryDeletion = (dateKey) => {
+    // ... (이전과 동일, 삭제 대상 안내 메시지 로직) ...
+    // (listeners-history.js 파일 내부에 로직이 있으므로 여기서는 모달 호출만 담당)
+    // 하지만 실제 로직은 listeners-history.js에서 처리하고, 여기 있는 함수는 
+    // 다른 곳에서 호출하기 위한 껍데기 역할을 하거나, 중복될 수 있음.
+    // 현재 listeners-history.js가 메인이므로 여기서는 DOM 제어만 수행.
+    
     State.context.historyKeyToDelete = dateKey;
     const activeTab = State.context.activeMainHistoryTab || 'work';
     let targetName = '모든';
     
-    // 현재 탭에 따라 삭제 대상 명칭 변경
-    if (activeTab === 'work') targetName = '업무 이력(처리량 포함)';
+    if (activeTab === 'work' || activeTab === 'report') targetName = '업무 이력(처리량 포함)';
     else if (activeTab === 'attendance') targetName = '근태 이력';
     else if (activeTab === 'management') targetName = '경영 지표';
     else if (activeTab === 'inspection') targetName = '검수 이력';
 
-    // 모달 메시지 업데이트
     const msgEl = document.querySelector('#delete-history-modal h3');
     if (msgEl) {
         msgEl.innerHTML = `정말로 이 날짜의 <span class="text-red-600 font-bold">${targetName}</span> 데이터를 삭제하시겠습니까?`;
