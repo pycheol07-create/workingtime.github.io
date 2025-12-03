@@ -143,7 +143,7 @@ export const deleteHistoryInspectionList = async (dateKey) => {
 };
 
 // ======================================================
-// 1. 엑셀 리스트 업로드 및 처리 (수정됨: 시트2 상품명+옵션 기준 매칭)
+// 1. 엑셀 리스트 업로드 및 처리
 // ======================================================
 export const handleExcelUpload = (file) => {
     // 1. 패킹출고일(입고일) 추출
@@ -464,7 +464,6 @@ export const selectTodoItem = (index) => {
 
 window.selectInspectionTodoItem = selectTodoItem;
 
-// ... (이후 toggleScanner 등 나머지 기존 함수들 유지)
 export const toggleScanner = () => {
     if (DOM.inspScannerContainer.classList.contains('hidden')) {
         DOM.inspScannerContainer.classList.remove('hidden');
