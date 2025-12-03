@@ -19,15 +19,18 @@ let currentTodoIndex = -1;
 
 // 검수 세션 초기화 함수 (업무 시작 시 호출)
 export const initializeInspectionSession = async () => {
+    // 1. 내부 상태 초기화
     todayInspectionList = [];
     currentTodoIndex = -1;
     currentImageBase64 = null;
     
+    // 2. 입력 폼 UI 초기화
     if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
     if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
     if (DOM.inspNotesInput) DOM.inspNotesInput.value = '';
     if (DOM.inspCheckThickness) DOM.inspCheckThickness.value = '';
     
+    // 입고 일자 필드 초기화 (잠금 상태로 복구)
     if (DOM.inspInboundDateInput) {
         DOM.inspInboundDateInput.value = '';
         DOM.inspInboundDateInput.readOnly = true;
@@ -46,21 +49,29 @@ export const initializeInspectionSession = async () => {
     if (DOM.inspImagePreviewBox) DOM.inspImagePreviewBox.classList.add('hidden');
     if (DOM.inspImageInput) DOM.inspImageInput.value = '';
 
+    // 3. 섹션 숨김
     if (DOM.inspHistoryReport) DOM.inspHistoryReport.classList.add('hidden');
     if (DOM.inspCurrentInputArea) DOM.inspCurrentInputArea.classList.add('hidden');
     if (DOM.inspAlertBox) DOM.inspAlertBox.classList.add('hidden');
     
+    // 4. "오늘 검수 완료 목록" UI 초기화
     renderTodayInspectionList();
 
+    // 5. 완료된 엑셀 리스트 자동 삭제 확인
     const list = State.appState.inspectionList || [];
     if (list.length > 0) {
         const isAllCompleted = list.every(item => item.status === '완료');
+        
         if (isAllCompleted) {
+            // 로컬 및 DB 초기화
             State.appState.inspectionList = [];
             await updateDailyData({ inspectionList: [] });
+            
+            // 투두 리스트 UI 갱신 (빈 상태로)
             renderTodoList();
             showToast("이전 검수 리스트가 모두 완료되어 초기화되었습니다.");
         } else {
+            // 완료되지 않았으면 리스트 유지 (UI만 갱신)
             renderTodoList();
         }
     } else {
@@ -81,10 +92,14 @@ export const deleteInspectionList = async () => {
     }
 
     try {
+        // DB에서 리스트 비우기
         await updateDailyData({ inspectionList: [] });
         State.appState.inspectionList = [];
+        
+        // UI 갱신
         renderTodoList();
         
+        // 입력 폼 초기화
         DOM.inspProductNameInput.value = '';
         if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
@@ -112,15 +127,19 @@ export const deleteHistoryInspectionList = async (dateKey) => {
     const todayKey = getTodayDateString();
     
     try {
+        // 1. 로컬 상태(allHistoryData) 업데이트
         const dayData = State.allHistoryData.find(d => d.id === dateKey);
         if (dayData) {
-            dayData.inspectionList = []; 
+            dayData.inspectionList = []; // 빈 배열로 초기화
         }
 
+        // 2. Firestore 업데이트
         if (dateKey === todayKey) {
+            // 오늘 날짜라면 daily_data 업데이트 (실시간성)
             State.appState.inspectionList = [];
             await updateDailyData({ inspectionList: [] });
         } else {
+            // 과거 날짜라면 history 컬렉션 업데이트
             const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
             await updateDoc(docRef, { inspectionList: [] });
         }
@@ -136,14 +155,17 @@ export const deleteHistoryInspectionList = async (dateKey) => {
 };
 
 // ======================================================
-// 1. 엑셀 리스트 업로드 및 처리
+// 1. 엑셀 리스트 업로드 및 처리 (수정됨: 시트2 E열 기준 매칭)
 // ======================================================
 export const handleExcelUpload = (file) => {
     // 1. 패킹출고일(입고일) 추출
-    let packingDate = getTodayDateString(); 
+    let packingDate = getTodayDateString(); // 기본값: 오늘
     
+    // (YYMMDD) 형태 찾기
     const parentMatch = file.name.match(/\((\d{6})\)/);
+    // 20YYMMDD 형태 찾기
     const fullDateMatch = file.name.match(/20(\d{2})(\d{2})(\d{2})/);
+    // YYMMDD 형태 찾기 (괄호 없이)
     const shortDateMatch = file.name.match(/(\d{2})(\d{2})(\d{2})/);
 
     if (parentMatch) {
@@ -164,7 +186,8 @@ export const handleExcelUpload = (file) => {
             const workbook = XLSX.read(data, { type: 'array' });
             
             // --- [Step 1] 시트 2 읽기 (샘플 위치 정보) ---
-            const sampleMap = new Map(); // Key: 공급처상품명, Value: 로케이션(G열)
+            const sampleMap = new Map(); // Key: 공급처상품명(E열), Value: 로케이션(G열)
+            
             if (workbook.SheetNames.length > 1) {
                 const sheet2Name = workbook.SheetNames[1];
                 const sheet2 = workbook.Sheets[sheet2Name];
@@ -174,8 +197,9 @@ export const handleExcelUpload = (file) => {
                 for (let i = 1; i < json2.length; i++) {
                     const row = json2[i];
                     if (row) {
-                        const supplierName = String(row[5] || '').trim(); // F열 (공급처 상품명)
-                        const location = String(row[6] || '').trim();     // G열 (샘플 위치)
+                        // ✅ [수정] 두 번째 시트: E열(Index 4) 공급처상품명, G열(Index 6) 샘플위치
+                        const supplierName = String(row[4] || '').trim(); // E열
+                        const location = String(row[6] || '').trim();     // G열
                         
                         if (supplierName && location) {
                             // 공백/대소문자 제거하여 키 생성
@@ -191,7 +215,9 @@ export const handleExcelUpload = (file) => {
             const sheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
+            // --- Deduplication Logic Start ---
             const processedList = [];
+            // Key: supplierName (F열) :: color (C열에서 추출)
             const uniqueKeyMap = new Map(); 
 
             if (jsonData.length > 1) {
@@ -200,21 +226,22 @@ export const handleExcelUpload = (file) => {
                     if (row && row.length > 1) { 
                         const code = String(row[0] || '').trim();
                         const name = String(row[1] || '').trim();
-                        const option = String(row[2] || '').trim();
+                        const option = String(row[2] || '').trim(); // C열
                         const qty = Number(row[3]) || 0;
                         const thickness = String(row[4] || '');
                         const supplierName = String(row[5] || '').trim(); // F열
                         const location = String(row[6] || '').trim(); // G열 (검수 로케이션)
                         
                         if (code || name) {
-                            // 중복 제거 키
+                            // 1. 중복 제거 로직
                             let color = option.replace(/\[|\]/g, '').split('-')[0].trim();
                             if (!color) color = 'N/A';
+                            
                             const keyColor = color.replace(/\s/g, '').toLowerCase();
                             const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase();
                             const uniqueKey = `${keySupplierName}::${keyColor}`; 
 
-                            // 샘플 위치 매칭
+                            // 2. 시트2와 매칭 확인 (샘플 위치 확인)
                             let sampleLocation = null;
                             if (keySupplierName && sampleMap.has(keySupplierName)) {
                                 sampleLocation = sampleMap.get(keySupplierName);
@@ -224,8 +251,14 @@ export const handleExcelUpload = (file) => {
                                 uniqueKeyMap.set(uniqueKey, true); 
                                 
                                 processedList.push({
-                                    code, name, option, qty, thickness, supplierName, location,
-                                    sampleLocation: sampleLocation, // 시트2에서 가져온 샘플 위치
+                                    code: code,
+                                    name: name,
+                                    option: option,
+                                    qty: qty,
+                                    thickness: thickness,
+                                    supplierName: supplierName,
+                                    location: location, 
+                                    sampleLocation: sampleLocation, // 시트2에서 매칭된 위치
                                     status: '대기',
                                     inboundDate: packingDate,
                                     packingDate: packingDate
@@ -235,6 +268,7 @@ export const handleExcelUpload = (file) => {
                     }
                 }
             }
+            // --- Deduplication Logic End ---
 
             if (processedList.length > 0) {
                 await updateDailyData({ inspectionList: processedList });
@@ -244,7 +278,7 @@ export const handleExcelUpload = (file) => {
                 showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (패킹일: ${packingDate})`);
                 renderTodoList(); 
                 
-                // ✅ [수정] 업로드 후 자동으로 리스트 팝업창 열기
+                // 업로드 후 자동으로 리스트 팝업창 열기
                 openInspectionListWindow();
 
             } else {
@@ -263,7 +297,7 @@ export const handleExcelUpload = (file) => {
 // 2. 리스트 팝업창 로직 (수정됨)
 // ======================================================
 
-// ✅ [수정] 별도 창으로 리스트 열기 함수 (로케이션, 상품명, 수량, 샘플위치 포함)
+// 별도 창으로 리스트 열기 함수 (로케이션, 상품명, 수량, 샘플위치 포함)
 export const openInspectionListWindow = () => {
     const list = State.appState.inspectionList || [];
     if (list.length === 0) {
@@ -274,7 +308,7 @@ export const openInspectionListWindow = () => {
     // 패킹출고일 가져오기
     const packingDate = list[0].packingDate || getTodayDateString();
     
-    // 창 열기
+    // 새 창 열기
     const popup = window.open('', 'InspectionListWindow', 'width=800,height=900,scrollbars=yes,resizable=yes');
     if (!popup) {
         showToast("팝업 차단을 해제해주세요.", true);
@@ -288,6 +322,7 @@ export const openInspectionListWindow = () => {
             ? '<span class="text-green-600 font-bold text-xs">완료</span>' 
             : '<span class="text-gray-400 text-xs">대기</span>';
         
+        // 클릭 시 부모 창의 함수 호출 (window.opener)
         const onClickScript = isCompleted ? '' : `onclick="selectItemInParent(${idx})"`;
         
         // 샘플 위치 강조 표시
@@ -324,7 +359,9 @@ export const openInspectionListWindow = () => {
             <script>
                 function selectItemInParent(index) {
                     if (window.opener && !window.opener.closed) {
+                        // 부모 창의 함수 호출
                         window.opener.selectInspectionTodoItem(index);
+                        // 선택 효과 (배경 깜빡임)
                         document.querySelectorAll('tr').forEach(tr => tr.classList.remove('bg-blue-100'));
                         const rows = document.querySelectorAll('tbody tr');
                         if(rows[index]) rows[index].classList.add('bg-blue-100');
@@ -342,12 +379,14 @@ export const openInspectionListWindow = () => {
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="text-xs font-medium bg-gray-100 px-3 py-1 rounded-full text-gray-600">총 ${list.length}건</span>
-                    <button onclick="window.close()" class="text-gray-400 hover:text-gray-700 text-2xl font-bold px-2 leading-none">&times;</button>
+                    <button onclick="window.close()" class="text-gray-400 hover:text-gray-700 text-2xl font-bold px-2 leading-none">
+                        &times;
+                    </button>
                 </div>
             </div>
             <div class="overflow-y-auto">
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-100 text-xs uppercase text-gray-600 sticky top-0">
+                    <thead class="bg-gray-100 text-xs uppercase text-gray-500 sticky top-0">
                         <tr>
                             <th class="px-3 py-2 font-semibold border-b text-center w-1/6">로케이션</th>
                             <th class="px-3 py-2 font-semibold border-b w-1/3">상품명 (옵션)</th>
@@ -356,7 +395,9 @@ export const openInspectionListWindow = () => {
                             <th class="px-3 py-2 font-semibold border-b text-center w-1/6">상태</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100">${rowsHtml}</tbody>
+                    <tbody class="divide-y divide-gray-100">
+                        ${rowsHtml}
+                    </tbody>
                 </table>
             </div>
             <div class="p-4 text-center text-xs text-gray-400 bg-gray-50 border-t border-gray-200 fixed bottom-0 w-full">
@@ -491,6 +532,9 @@ const onScanSuccess = (decodedText, decodedResult) => {
     searchProductHistory();
 };
 
+// ======================================================
+// 3. 이미지 처리
+// ======================================================
 export const handleImageSelect = (file) => {
     if (!file) return;
     const reader = new FileReader();
@@ -525,6 +569,10 @@ export const clearImageState = () => {
     if (DOM.inspImagePreviewBox) DOM.inspImagePreviewBox.classList.add('hidden');
     if (DOM.inspImageInput) DOM.inspImageInput.value = '';
 };
+
+// ======================================================
+// 4. 메인 검수 로직
+// ======================================================
 
 export const searchProductHistory = async () => {
     let searchTerm = DOM.inspProductNameInput.value.trim();
@@ -688,14 +736,15 @@ export const saveInspectionAndNext = async () => {
     const defectsFound = [];
     const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
     
+    const labelMap = {
+        fabric: '원단', color: '컬러', distortion: '뒤틀림',
+        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
+        lining: '안감', pilling: '보풀', dye: '이염'
+    };
+
     Object.entries(checklist).forEach(([key, value]) => {
         if (key === 'thickness') return;
         if (!NORMAL_VALUES.includes(value)) {
-            const labelMap = {
-                fabric: '원단', color: '컬러', distortion: '뒤틀림',
-                unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-                lining: '안감', pilling: '보풀', dye: '이염'
-            };
             defectsFound.push(`${labelMap[key] || key}(${value})`);
         }
     });
@@ -954,15 +1003,14 @@ export const updateInspectionLog = async () => {
 
     const defectsFound = [];
     const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
-    
+    const labelMap = {
+        fabric: '원단', color: '컬러', distortion: '뒤틀림',
+        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
+        lining: '안감', pilling: '보풀', dye: '이염'
+    };
     Object.entries(checklist).forEach(([key, value]) => {
         if (key === 'thickness') return;
         if (!NORMAL_VALUES.includes(value)) {
-            const labelMap = {
-                fabric: '원단', color: '컬러', distortion: '뒤틀림',
-                unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-                lining: '안감', pilling: '보풀', dye: '이염'
-            };
             defectsFound.push(`${labelMap[key] || key}(${value})`);
         }
     });
