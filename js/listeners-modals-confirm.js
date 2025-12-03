@@ -1,17 +1,18 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
-// 수정사항: 업무 마감 취소 버튼 리스너 추가, 필수 임포트 확인
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast, getTodayDateString, getCurrentTime } from './utils.js'; 
+import { showToast, getTodayDateString, getCurrentTime } from './utils.js';
 import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js';
-import { saveLeaveSchedule } from './config.js'; 
+import { saveLeaveSchedule } from './config.js';
 import { switchHistoryView } from './app-history-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
+// ✅ [수정] 누락된 saveStateToFirestore 추가
+import { saveStateToFirestore } from './app-data.js';
 
-import { 
-    doc, deleteDoc, writeBatch, collection, updateDoc, getDocs, setDoc, query 
+import {
+    doc, deleteDoc, writeBatch, collection, updateDoc, getDocs, setDoc, query
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 헬퍼: 단일 업무 기록 문서 삭제
@@ -317,7 +318,7 @@ export function setupConfirmationModalListeners() {
         });
     }
 
-    // ✅ [추가] 업무 마감 취소 버튼
+    // 업무 마감 취소 버튼
     if (DOM.cancelEndShiftBtn) {
         DOM.cancelEndShiftBtn.addEventListener('click', () => {
             if (DOM.endShiftConfirmModal) DOM.endShiftConfirmModal.classList.add('hidden');
@@ -360,21 +361,4 @@ export function setupConfirmationModalListeners() {
             }
         });
     }
-
-    // 8. 업무 종료 알림 확인 (제거됨)
-
-    // if (DOM.confirmShiftEndAlertBtn) { // <-- 제거
-    //     DOM.confirmShiftEndAlertBtn.addEventListener('click', async () => { // <-- 제거
-    //         window.onbeforeunload = null; // <-- 제거
-    //         if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden'); // <-- 제거
-    //         await saveDayDataToHistory(true); // <-- 제거
-    //     }); // <-- 제거
-    // } // <-- 제거
-
-    // if (DOM.cancelShiftEndAlertBtn) { // <-- 제거
-    //     DOM.cancelShiftEndAlertBtn.addEventListener('click', () => { // <-- 제거
-    //         window.onbeforeunload = null; // <-- 제거
-    //         if (DOM.shiftEndAlertModal) DOM.shiftEndAlertModal.classList.add('hidden'); // <-- 제거
-    //     }); // <-- 제거
-    // } // <-- 제거
 }
