@@ -173,7 +173,7 @@ export const handleExcelUpload = (file) => {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             
-            // --- [수정] 시트 2 읽기 (샘플 로케이션 매핑용) ---
+            // --- 시트 2 읽기 (샘플 로케이션 매핑용) ---
             const sampleMap = new Map(); // Key: 공급처상품명, Value: 로케이션(G열)
             if (workbook.SheetNames.length > 1) {
                 const sheet2Name = workbook.SheetNames[1];
@@ -187,9 +187,7 @@ export const handleExcelUpload = (file) => {
                         const supplierName = String(row[5] || '').trim(); // F열 (공급처 상품명)
                         const location = String(row[6] || '').trim();     // G열 (샘플 위치)
                         
-                        // 공급처 상품명이 있고, 로케이션 정보가 있는 경우만 맵에 저장
                         if (supplierName && location) {
-                            // 대소문자/공백 제거하여 키 생성 (매칭률 높이기 위해)
                             const key = supplierName.replace(/\s/g, '').toLowerCase();
                             sampleMap.set(key, location);
                         }
@@ -205,9 +203,6 @@ export const handleExcelUpload = (file) => {
             // --- Deduplication Logic Start ---
             const processedList = [];
             const uniqueKeyMap = new Map(); 
-            
-            // [신규] 팝업에 띄울 매칭된 리스트
-            const sampleMatches = [];
 
             if (jsonData.length > 1) {
                 for (let i = 1; i < jsonData.length; i++) {
@@ -230,21 +225,10 @@ export const handleExcelUpload = (file) => {
                             const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase();
                             const uniqueKey = `${keySupplierName}::${keyColor}`; 
 
-                            // 2. [신규] 시트2와 매칭 확인 (샘플 위치 확인)
+                            // 2. 시트2와 매칭 확인 (샘플 위치 확인)
                             let sampleLocation = null;
                             if (keySupplierName && sampleMap.has(keySupplierName)) {
                                 sampleLocation = sampleMap.get(keySupplierName);
-                                
-                                // 중복 상품이더라도 샘플 매칭 리스트에는 추가 (알림용)
-                                // 단, 리스트 내에서 완전히 동일한 상품(옵션까지 같은)이 여러 번 나오면 한 번만 추가할 수도 있음.
-                                // 여기서는 행 단위로 추가합니다.
-                                sampleMatches.push({
-                                    name: name,
-                                    option: option, // 옵션 정보도 표시하면 좋음
-                                    location: location,       // 검수 상품 위치 (시트1 G열)
-                                    sampleLocation: sampleLocation, // 샘플 위치 (시트2 G열)
-                                    qty: qty
-                                });
                             }
 
                             if (!uniqueKeyMap.has(uniqueKey)) {
@@ -268,12 +252,6 @@ export const handleExcelUpload = (file) => {
                 await updateDailyData({ inspectionList: processedList });
                 showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (패킹일: ${packingDate})`);
                 renderTodoList(); 
-
-                // [신규] 매칭된 샘플 위치 정보가 있으면 팝업 열기
-                if (sampleMatches.length > 0) {
-                    openSampleCheckWindow(sampleMatches, packingDate);
-                }
-
             } else {
                 showToast("유효한 데이터가 엑셀에 없습니다.", true);
             }
@@ -364,86 +342,7 @@ export const selectTodoItem = (index) => {
 
 window.selectInspectionTodoItem = selectTodoItem;
 
-// ✅ [신규] 샘플 위치 확인 팝업창 열기 함수
-export const openSampleCheckWindow = (matchList, packingDate) => {
-    if (!matchList || matchList.length === 0) return;
-
-    // 새 창 열기
-    const popup = window.open('', 'SampleCheckWindow', 'width=800,height=600,scrollbars=yes,resizable=yes');
-    if (!popup) {
-        showToast("샘플 위치 확인 팝업이 차단되었습니다.", true);
-        return;
-    }
-
-    const rowsHtml = matchList.map((item, idx) => `
-        <tr class="border-b hover:bg-gray-50 transition">
-            <td class="px-4 py-3 text-sm text-gray-800 font-medium">${item.name} <span class="text-xs text-gray-500">(${item.option})</span></td>
-            <td class="px-4 py-3 text-center text-sm font-bold text-blue-600 bg-blue-50">${item.location || '-'}</td>
-            <td class="px-4 py-3 text-center text-sm font-bold text-red-600 bg-red-50 border-l border-r border-red-100">${item.sampleLocation}</td>
-            <td class="px-4 py-3 text-center text-sm text-gray-700">${item.qty}</td>
-        </tr>
-    `).join('');
-
-    const htmlContent = `
-        <!DOCTYPE html>
-        <html lang="ko">
-        <head>
-            <meta charset="UTF-8">
-            <title>샘플 위치 확인 (${packingDate})</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-            <style>
-                body { font-family: 'Noto Sans KR', sans-serif; }
-                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
-            </style>
-        </head>
-        <body class="bg-gray-100 p-6 min-h-screen">
-            <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
-                <div class="bg-indigo-600 p-5 flex justify-between items-center text-white">
-                    <div>
-                        <h2 class="text-xl font-bold flex items-center gap-2">
-                            <span>📢</span> 샘플 위치 확인 알림
-                        </h2>
-                        <p class="text-indigo-200 text-sm mt-1 opacity-90">패킹출고일: <span class="font-bold text-white">${packingDate}</span></p>
-                    </div>
-                    <div class="bg-indigo-700 bg-opacity-50 px-3 py-1.5 rounded-lg text-sm font-medium border border-indigo-500">
-                        중복 상품 ${matchList.length}건
-                    </div>
-                </div>
-                
-                <div class="p-0 overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-gray-100 text-xs uppercase text-gray-500 border-b border-gray-200">
-                            <tr>
-                                <th class="px-4 py-3 font-semibold w-1/3">상품명 (옵션)</th>
-                                <th class="px-4 py-3 font-semibold text-center w-1/5">검수 로케이션</th>
-                                <th class="px-4 py-3 font-semibold text-center w-1/5 text-red-600 bg-red-50">샘플 위치 (기존)</th>
-                                <th class="px-4 py-3 font-semibold text-center w-1/6">입고 수량</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            ${rowsHtml}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="p-6 bg-gray-50 border-t border-gray-200 text-center">
-                    <p class="text-sm text-gray-500 mb-4">위 상품들은 기존 샘플 위치와 검수 로케이션을 확인하여 정리해주세요.</p>
-                    <button onclick="window.close()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-lg shadow-md transition transform active:scale-95">
-                        확인했습니다
-                    </button>
-                </div>
-            </div>
-        </body>
-        </html>
-    `;
-
-    popup.document.open();
-    popup.document.write(htmlContent);
-    popup.document.close();
-};
-
-// 별도 창으로 리스트 열기 함수 (로케이션 정보 추가)
+// ✅ [수정] 별도 창으로 리스트 열기 함수 (패킹출고일 제목 추가 및 샘플위치 표시)
 export const openInspectionListWindow = () => {
     const list = State.appState.inspectionList || [];
     if (list.length === 0) {
@@ -456,6 +355,10 @@ export const openInspectionListWindow = () => {
         showToast("팝업 차단을 해제해주세요.", true);
         return;
     }
+
+    // 패킹출고일 가져오기 (첫 번째 아이템 기준)
+    const packingDate = list[0].packingDate || '';
+    const titleText = packingDate ? `📋 검수 대기 리스트 (패킹: ${packingDate})` : `📋 검수 대기 리스트`;
 
     const rowsHtml = list.map((item, idx) => {
         const isCompleted = item.status === '완료';
@@ -487,7 +390,7 @@ export const openInspectionListWindow = () => {
         <html lang="ko">
         <head>
             <meta charset="UTF-8">
-            <title>검수 대기 리스트</title>
+            <title>${titleText}</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <style>
                 body { font-family: 'Noto Sans KR', sans-serif; }
@@ -509,7 +412,7 @@ export const openInspectionListWindow = () => {
         </head>
         <body class="bg-white">
             <div class="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center shadow-sm z-10">
-                <h2 class="text-lg font-bold text-gray-800">📋 검수 대기 리스트</h2>
+                <h2 class="text-lg font-bold text-gray-800">${titleText}</h2>
                 <div class="flex items-center gap-2">
                     <span class="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600">총 ${list.length}건</span>
                     <button onclick="window.close()" class="text-gray-400 hover:text-gray-700 text-lg font-bold px-2 rounded-full leading-none">&times;</button>
@@ -1059,15 +962,14 @@ export const updateInspectionLog = async () => {
 
     const defectsFound = [];
     const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
-    
+    const labelMap = {
+        fabric: '원단', color: '컬러', distortion: '뒤틀림',
+        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
+        lining: '안감', pilling: '보풀', dye: '이염'
+    };
     Object.entries(checklist).forEach(([key, value]) => {
         if (key === 'thickness') return;
         if (!NORMAL_VALUES.includes(value)) {
-            const labelMap = {
-                fabric: '원단', color: '컬러', distortion: '뒤틀림',
-                unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-                lining: '안감', pilling: '보풀', dye: '이염'
-            };
             defectsFound.push(`${labelMap[key] || key}(${value})`);
         }
     });
