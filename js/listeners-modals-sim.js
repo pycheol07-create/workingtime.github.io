@@ -1,5 +1,5 @@
 // === js/listeners-modals-sim.js ===
-// 설명: '운영 시뮬레이션' 모달 전용 리스너입니다. (동시 진행 기능 추가)
+// 설명: '운영 시뮬레이션' 모달 전용 리스너입니다. (동시 진행 기능 및 실시간 출근 인원 반영 추가)
 
 import * as DOM from './dom-elements.js';
 import { appState, appConfig, allHistoryData } from './state.js';
@@ -25,7 +25,7 @@ const sortTasksCustom = (a, b) => {
     return a.localeCompare(b);
 };
 
-// 렌더링 함수 (속도 입력칸 추가됨)
+// 렌더링 함수 (속도 입력칸 추가됨, 인원수 소수점 처리 개선)
 const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false, standardSpeed = 0) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
@@ -43,8 +43,10 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
         taskOptions += `<option value="${taskName}" ${selected}>${taskName}</option>`;
     });
 
-    const workerVal = workers > 0 ? Math.round(workers) : '';
-    // 속도값이 있으면 소수점 2자리로, 없으면 빈값
+    // 인원수: 소수점 1자리까지 표시 (평균값 반영 시 정수가 아닐 수 있음)
+    const workerVal = workers > 0 ? Math.round(workers * 10) / 10 : '';
+    
+    // 속도: 값이 있으면 소수점 2자리로, 없으면 빈값
     const speedVal = standardSpeed > 0 ? standardSpeed.toFixed(2) : '';
 
     row.innerHTML = `
@@ -66,7 +68,7 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
             <input type="number" class="sim-row-qty w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="1000" min="1" value="${qty > 0 ? qty : ''}">
         </td>
         <td class="px-4 py-2 sim-row-worker-or-time-cell">
-            <input type="number" class="sim-row-worker-or-time w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="5" min="1" value="${workerVal}">
+            <input type="number" class="sim-row-worker-or-time w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="5" min="0.1" step="0.1" value="${workerVal}">
         </td>
         <td class="px-4 py-2 text-center">
             <button class="sim-row-delete-btn text-gray-400 hover:text-red-500 transition">
@@ -295,6 +297,15 @@ export function setupSimulationModalListeners() {
 
     const openSimulationModalLogic = () => {
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
+        
+        // 1. 현재 출근(Active) 인원 계산
+        const attendanceMap = appState.dailyAttendance || {};
+        const currentActiveCount = Object.values(attendanceMap).filter(a => a.status === 'active').length;
+        
+        // (선택사항) 현재 출근 인원 표시 UI 업데이트
+        const activeDisplay = document.getElementById('sim-active-count-display');
+        if (activeDisplay) activeDisplay.textContent = currentActiveCount;
+
         if (simTaskTableBody) {
             simTaskTableBody.innerHTML = '';
 
@@ -311,10 +322,18 @@ export function setupSimulationModalListeners() {
             let tasksWereAdded = false;
 
             Array.from(tasksToShow).sort(sortTasksCustom).forEach(taskName => {
-                // ✅ [수정] quantityTaskSet 사용
                 if (quantityTaskSet.has(taskName)) { 
                     const qty = Number(quantities[taskName]) || 0;
-                    const avgStaff = avgStaffMap[taskName] || 0;
+                    
+                    // 2. 인원수 자동 결정 로직 개선
+                    let avgStaff = avgStaffMap[taskName] || 0;
+                    
+                    // 오늘 출근자가 1명이라도 있다면, 
+                    // [과거 해당 업무 평균 인원]과 [현재 총 출근 인원] 중 작은 값을 사용
+                    if (currentActiveCount > 0 && avgStaff > 0) {
+                        avgStaff = Math.min(avgStaff, currentActiveCount);
+                    }
+
                     const isConcurrent = DEFAULT_CONCURRENT_TASKS.includes(taskName);
                     const speed = standards[taskName] || 0;
                     
