@@ -143,7 +143,7 @@ export const deleteHistoryInspectionList = async (dateKey) => {
 };
 
 // ======================================================
-// 1. 엑셀 리스트 업로드 및 처리 (수정됨: 시트2 E열 기준 매칭)
+// 1. 엑셀 리스트 업로드 및 처리 (수정됨: 시트2 상품명+옵션 기준 매칭)
 // ======================================================
 export const handleExcelUpload = (file) => {
     // 1. 패킹출고일(입고일) 추출
@@ -171,7 +171,8 @@ export const handleExcelUpload = (file) => {
             const workbook = XLSX.read(data, { type: 'array' });
             
             // --- [Step 1] 시트 2 읽기 (샘플 위치 정보) ---
-            const sampleMap = new Map(); // Key: 공급처상품명(E열), Value: 로케이션(G열)
+            // Key: "상품명::옵션", Value: "로케이션(G열)"
+            const sampleMap = new Map(); 
             
             if (workbook.SheetNames.length > 1) {
                 const sheet2Name = workbook.SheetNames[1];
@@ -182,13 +183,18 @@ export const handleExcelUpload = (file) => {
                 for (let i = 1; i < json2.length; i++) {
                     const row = json2[i];
                     if (row) {
-                        // 두 번째 시트: E열(Index 4) 공급처상품명, G열(Index 6) 샘플위치
-                        const supplierName = String(row[4] || '').trim(); // E열
-                        const location = String(row[6] || '').trim();     // G열
+                        // ✅ [수정] 두 번째 시트: B열(Index 1) 상품명, C열(Index 2) 옵션, G열(Index 6) 샘플위치
+                        const name = String(row[1] || '').trim(); // B열: 상품명
+                        const option = String(row[2] || '').trim(); // C열: 옵션
+                        const location = String(row[6] || '').trim(); // G열: 샘플위치
                         
-                        if (supplierName && location) {
-                            const key = supplierName.replace(/\s/g, '').toLowerCase();
-                            sampleMap.set(key, location);
+                        if (name && option && location) {
+                            // 공백/대소문자 제거하여 복합 키 생성
+                            const keyName = name.replace(/\s/g, '').toLowerCase();
+                            const keyOption = option.replace(/\s/g, '').toLowerCase();
+                            const uniqueKey = `${keyName}::${keyOption}`;
+                            
+                            sampleMap.set(uniqueKey, location);
                         }
                     }
                 }
@@ -199,7 +205,6 @@ export const handleExcelUpload = (file) => {
             const sheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-            // --- Deduplication Logic Start ---
             const processedList = [];
             const uniqueKeyMap = new Map(); 
 
@@ -216,22 +221,26 @@ export const handleExcelUpload = (file) => {
                         const location = String(row[6] || '').trim(); // G열 (검수 로케이션)
                         
                         if (code || name) {
-                            // 1. 중복 제거 로직
+                            // 1. 중복 제거를 위한 키 (기존 로직: 공급처명 + 색상)
+                            // (여기서는 리스트의 중복을 제거하는 용도)
                             let color = option.replace(/\[|\]/g, '').split('-')[0].trim();
                             if (!color) color = 'N/A';
-                            
                             const keyColor = color.replace(/\s/g, '').toLowerCase();
                             const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase();
-                            const uniqueKey = `${keySupplierName}::${keyColor}`; 
+                            const duplicationKey = `${keySupplierName}::${keyColor}`; 
 
-                            // 2. 시트2와 매칭 확인 (샘플 위치 확인)
+                            // 2. ✅ 샘플 위치 매칭 키 (상품명 + 옵션)
+                            const matchName = name.replace(/\s/g, '').toLowerCase();
+                            const matchOption = option.replace(/\s/g, '').toLowerCase();
+                            const matchKey = `${matchName}::${matchOption}`;
+
                             let sampleLocation = null;
-                            if (keySupplierName && sampleMap.has(keySupplierName)) {
-                                sampleLocation = sampleMap.get(keySupplierName);
+                            if (sampleMap.has(matchKey)) {
+                                sampleLocation = sampleMap.get(matchKey);
                             }
 
-                            if (!uniqueKeyMap.has(uniqueKey)) {
-                                uniqueKeyMap.set(uniqueKey, true); 
+                            if (!uniqueKeyMap.has(duplicationKey)) {
+                                uniqueKeyMap.set(duplicationKey, true); 
                                 
                                 processedList.push({
                                     code, name, option, qty, thickness, supplierName, location,
@@ -245,7 +254,6 @@ export const handleExcelUpload = (file) => {
                     }
                 }
             }
-            // --- Deduplication Logic End ---
 
             if (processedList.length > 0) {
                 await updateDailyData({ inspectionList: processedList });
@@ -254,7 +262,6 @@ export const handleExcelUpload = (file) => {
                 showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (패킹일: ${packingDate})`);
                 renderTodoList(); 
                 
-                // ✅ 업로드 후 자동으로 리스트 팝업창 열기
                 openInspectionListWindow();
 
             } else {
@@ -270,10 +277,9 @@ export const handleExcelUpload = (file) => {
 };
 
 // ======================================================
-// 2. 리스트 팝업창 로직 (수정됨: 인앱 모달 방식)
+// 2. 리스트 팝업창 로직
 // ======================================================
 
-// ✅ [신규] 리스트 팝업창을 인앱 모달(동적 HTML 생성)로 띄우는 함수
 export const openInspectionListWindow = () => {
     const list = State.appState.inspectionList || [];
     if (list.length === 0) {
@@ -281,22 +287,18 @@ export const openInspectionListWindow = () => {
         return;
     }
 
-    // 패킹출고일 가져오기
     const packingDate = list[0].packingDate || getTodayDateString();
     
-    // 기존 모달이 있다면 제거 (중복 방지)
+    // 기존 모달 제거
     const existingModal = document.getElementById('dynamic-inspection-list-modal');
     if (existingModal) existingModal.remove();
 
-    // 모달 컨테이너 생성
     const modal = document.createElement('div');
     modal.id = 'dynamic-inspection-list-modal';
     modal.className = 'fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-[200] p-2';
 
-    // 테이블 행 생성
     const rowsHtml = list.map((item, idx) => {
         const isCompleted = item.status === '완료';
-        // 완료된 항목은 배경색과 텍스트 색상을 흐리게
         const trClass = isCompleted 
             ? 'bg-gray-100 text-gray-400' 
             : 'bg-white hover:bg-blue-50 cursor-pointer border-b border-gray-100';
@@ -305,10 +307,8 @@ export const openInspectionListWindow = () => {
             ? '<span class="text-green-600 font-bold text-xs">완료</span>' 
             : '<span class="text-gray-500 text-xs">대기</span>';
         
-        // 클릭 시 해당 아이템 선택 기능 연결
         const onClickAttr = isCompleted ? '' : `data-index="${idx}"`;
 
-        // 정보 표시 (로케이션, 샘플위치)
         const locInfo = item.location ? `<div class="text-xs font-bold text-indigo-600">📦 ${item.location}</div>` : '';
         const sampleInfo = item.sampleLocation ? `<div class="text-xs font-bold text-red-600 mt-0.5">📌 샘플: ${item.sampleLocation}</div>` : '';
 
@@ -333,7 +333,6 @@ export const openInspectionListWindow = () => {
         `;
     }).join('');
 
-    // 모달 내부 HTML 구성 (모바일 친화적 폰트 크기 및 스크롤)
     modal.innerHTML = `
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden animate-fade-in-up">
             <div class="p-4 bg-indigo-600 text-white flex justify-between items-center shadow-md shrink-0">
@@ -368,26 +367,23 @@ export const openInspectionListWindow = () => {
             </div>
 
             <div class="p-3 bg-gray-100 text-center border-t border-gray-200 text-xs text-gray-500 shrink-0">
-                항목을 클릭하면 입력창에 자동 선택됩니다. (좌우로 스크롤하여 전체 내용 확인 가능)
+                항목을 클릭하면 입력창에 자동 선택됩니다.
             </div>
         </div>
     `;
 
     document.body.appendChild(modal);
 
-    // 이벤트 리스너 연결
-    // 1. 닫기 버튼
     document.getElementById('close-dynamic-modal-btn').addEventListener('click', () => {
         modal.remove();
     });
 
-    // 2. 테이블 행 클릭 위임
     modal.querySelector('tbody').addEventListener('click', (e) => {
         const tr = e.target.closest('tr[data-index]');
         if (tr) {
             const index = parseInt(tr.dataset.index, 10);
             selectTodoItem(index);
-            modal.remove(); // 선택 후 모달 닫기 (사용자 경험상 닫는게 깔끔함, 필요시 유지 가능)
+            modal.remove();
         }
     });
 };
@@ -466,7 +462,6 @@ export const selectTodoItem = (index) => {
     showToast(`'${item.name}' 선택됨`);
 };
 
-// 윈도우 객체에 바인딩 (필요 시 외부 호출용, 모달 방식에선 직접 호출로 대체됨)
 window.selectInspectionTodoItem = selectTodoItem;
 
 // ... (이후 toggleScanner 등 나머지 기존 함수들 유지)
@@ -710,15 +705,14 @@ export const saveInspectionAndNext = async () => {
     const defectsFound = [];
     const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
     
-    const labelMap = {
-        fabric: '원단', color: '컬러', distortion: '뒤틀림',
-        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-        lining: '안감', pilling: '보풀', dye: '이염'
-    };
-
     Object.entries(checklist).forEach(([key, value]) => {
         if (key === 'thickness') return;
         if (!NORMAL_VALUES.includes(value)) {
+            const labelMap = {
+                fabric: '원단', color: '컬러', distortion: '뒤틀림',
+                unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
+                lining: '안감', pilling: '보풀', dye: '이염'
+            };
             defectsFound.push(`${labelMap[key] || key}(${value})`);
         }
     });
