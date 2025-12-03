@@ -19,18 +19,15 @@ let currentTodoIndex = -1;
 
 // 검수 세션 초기화 함수 (업무 시작 시 호출)
 export const initializeInspectionSession = async () => {
-    // 1. 내부 상태 초기화
     todayInspectionList = [];
     currentTodoIndex = -1;
     currentImageBase64 = null;
     
-    // 2. 입력 폼 UI 초기화
     if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
     if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
     if (DOM.inspNotesInput) DOM.inspNotesInput.value = '';
     if (DOM.inspCheckThickness) DOM.inspCheckThickness.value = '';
     
-    // 입고 일자 필드 초기화 (잠금 상태로 복구)
     if (DOM.inspInboundDateInput) {
         DOM.inspInboundDateInput.value = '';
         DOM.inspInboundDateInput.readOnly = true;
@@ -49,19 +46,15 @@ export const initializeInspectionSession = async () => {
     if (DOM.inspImagePreviewBox) DOM.inspImagePreviewBox.classList.add('hidden');
     if (DOM.inspImageInput) DOM.inspImageInput.value = '';
 
-    // 3. 섹션 숨김
     if (DOM.inspHistoryReport) DOM.inspHistoryReport.classList.add('hidden');
     if (DOM.inspCurrentInputArea) DOM.inspCurrentInputArea.classList.add('hidden');
     if (DOM.inspAlertBox) DOM.inspAlertBox.classList.add('hidden');
     
-    // 4. "오늘 검수 완료 목록" UI 초기화
     renderTodayInspectionList();
 
-    // 5. 완료된 엑셀 리스트 자동 삭제 확인
     const list = State.appState.inspectionList || [];
     if (list.length > 0) {
         const isAllCompleted = list.every(item => item.status === '완료');
-        
         if (isAllCompleted) {
             State.appState.inspectionList = [];
             await updateDailyData({ inspectionList: [] });
@@ -183,10 +176,10 @@ export const handleExcelUpload = (file) => {
                 for (let i = 1; i < json2.length; i++) {
                     const row = json2[i];
                     if (row) {
-                        // ✅ [수정] 두 번째 시트: B열(Index 1) 상품명, C열(Index 2) 옵션, G열(Index 6) 샘플위치
-                        const name = String(row[1] || '').trim(); // B열: 상품명
-                        const option = String(row[2] || '').trim(); // C열: 옵션
-                        const location = String(row[6] || '').trim(); // G열: 샘플위치
+                        // 두 번째 시트: B열(Index 1) 상품명, C열(Index 2) 옵션, G열(Index 6) 샘플위치
+                        const name = String(row[1] || '').trim(); // B열
+                        const option = String(row[2] || '').trim(); // C열
+                        const location = String(row[6] || '').trim(); // G열
                         
                         if (name && option && location) {
                             // 공백/대소문자 제거하여 복합 키 생성
@@ -205,6 +198,7 @@ export const handleExcelUpload = (file) => {
             const sheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
+            // --- Deduplication Logic Start ---
             const processedList = [];
             const uniqueKeyMap = new Map(); 
 
@@ -221,15 +215,15 @@ export const handleExcelUpload = (file) => {
                         const location = String(row[6] || '').trim(); // G열 (검수 로케이션)
                         
                         if (code || name) {
-                            // 1. 중복 제거를 위한 키 (기존 로직: 공급처명 + 색상)
-                            // (여기서는 리스트의 중복을 제거하는 용도)
+                            // 1. 중복 제거용 키
                             let color = option.replace(/\[|\]/g, '').split('-')[0].trim();
                             if (!color) color = 'N/A';
+                            
                             const keyColor = color.replace(/\s/g, '').toLowerCase();
                             const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase();
                             const duplicationKey = `${keySupplierName}::${keyColor}`; 
 
-                            // 2. ✅ 샘플 위치 매칭 키 (상품명 + 옵션)
+                            // 2. 샘플 위치 매칭 키 (상품명 + 옵션)
                             const matchName = name.replace(/\s/g, '').toLowerCase();
                             const matchOption = option.replace(/\s/g, '').toLowerCase();
                             const matchKey = `${matchName}::${matchOption}`;
@@ -244,7 +238,7 @@ export const handleExcelUpload = (file) => {
                                 
                                 processedList.push({
                                     code, name, option, qty, thickness, supplierName, location,
-                                    sampleLocation: sampleLocation, // 시트2에서 매칭된 위치
+                                    sampleLocation: sampleLocation, // 매칭된 샘플 위치
                                     status: '대기',
                                     inboundDate: packingDate,
                                     packingDate: packingDate
@@ -254,6 +248,7 @@ export const handleExcelUpload = (file) => {
                     }
                 }
             }
+            // --- Deduplication Logic End ---
 
             if (processedList.length > 0) {
                 await updateDailyData({ inspectionList: processedList });
@@ -262,6 +257,7 @@ export const handleExcelUpload = (file) => {
                 showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (패킹일: ${packingDate})`);
                 renderTodoList(); 
                 
+                // 업로드 후 자동으로 리스트 팝업창 열기
                 openInspectionListWindow();
 
             } else {
@@ -277,7 +273,7 @@ export const handleExcelUpload = (file) => {
 };
 
 // ======================================================
-// 2. 리스트 팝업창 로직
+// 2. 리스트 팝업창 로직 (수정됨: 컬럼 분리 및 가독성 향상)
 // ======================================================
 
 export const openInspectionListWindow = () => {
@@ -295,7 +291,7 @@ export const openInspectionListWindow = () => {
 
     const modal = document.createElement('div');
     modal.id = 'dynamic-inspection-list-modal';
-    modal.className = 'fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-[200] p-2';
+    modal.className = 'fixed inset-0 bg-gray-900 bg-opacity-95 flex items-center justify-center z-[200] p-0 md:p-4';
 
     const rowsHtml = list.map((item, idx) => {
         const isCompleted = item.status === '완료';
@@ -304,60 +300,69 @@ export const openInspectionListWindow = () => {
             : 'bg-white hover:bg-blue-50 cursor-pointer border-b border-gray-100';
         
         const statusBadge = isCompleted 
-            ? '<span class="text-green-600 font-bold text-xs">완료</span>' 
-            : '<span class="text-gray-500 text-xs">대기</span>';
+            ? '<span class="text-green-600 font-bold text-sm">완료</span>' 
+            : '<span class="text-gray-500 text-sm">대기</span>';
         
         const onClickAttr = isCompleted ? '' : `data-index="${idx}"`;
 
-        const locInfo = item.location ? `<div class="text-xs font-bold text-indigo-600">📦 ${item.location}</div>` : '';
-        const sampleInfo = item.sampleLocation ? `<div class="text-xs font-bold text-red-600 mt-0.5">📌 샘플: ${item.sampleLocation}</div>` : '';
+        // 샘플 위치 (있으면 빨간색 강조)
+        const sampleCell = item.sampleLocation 
+            ? `<div class="font-bold text-red-600 bg-red-50 rounded px-1 py-0.5 border border-red-100 inline-block">${item.sampleLocation}</div>` 
+            : '<span class="text-gray-300">-</span>';
+
+        // 검수 로케이션
+        const locationCell = item.location 
+            ? `<div class="font-bold text-indigo-700 bg-indigo-50 rounded px-1 py-0.5 border border-indigo-100 inline-block">${item.location}</div>`
+            : '<span class="text-gray-300">-</span>';
 
         return `
-            <tr class="${trClass} transition" ${onClickAttr}>
-                <td class="px-2 py-3 align-top w-16 text-center">
-                    ${locInfo}
-                    ${sampleInfo}
+            <tr class="${trClass} transition h-12" ${onClickAttr}>
+                <td class="px-2 py-3 text-center align-middle border-r border-gray-100">
+                    ${locationCell}
                 </td>
-                <td class="px-2 py-3 align-top">
-                    <div class="text-base font-medium text-gray-800 leading-tight">${item.name}</div>
-                    <div class="text-sm text-gray-500 mt-1">${item.option || '-'}</div>
-                    <div class="text-xs text-gray-400 mt-0.5 font-mono">${item.code || ''}</div>
+                <td class="px-3 py-3 align-middle border-r border-gray-100 min-w-[180px]">
+                    <div class="text-base font-bold text-gray-800 leading-snug break-keep">${item.name}</div>
+                    <div class="text-sm text-gray-600 mt-1">${item.option || '-'}</div>
                 </td>
-                <td class="px-2 py-3 align-top text-center w-12">
-                    <div class="text-base font-bold text-gray-700">${item.qty}</div>
+                <td class="px-2 py-3 text-center align-middle border-r border-gray-100">
+                    <div class="text-base font-bold text-gray-900">${item.qty}</div>
                 </td>
-                <td class="px-2 py-3 align-top text-center w-12">
+                <td class="px-2 py-3 text-center align-middle border-r border-gray-100">
+                    ${sampleCell}
+                </td>
+                <td class="px-2 py-3 text-center align-middle">
                     ${statusBadge}
                 </td>
             </tr>
         `;
     }).join('');
 
+    // 모바일 가독성을 위해 폰트 사이즈 조정 및 가로 스크롤 허용
     modal.innerHTML = `
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden animate-fade-in-up">
+        <div class="bg-white rounded-none md:rounded-xl shadow-2xl w-full h-full md:h-[90vh] md:max-w-6xl flex flex-col overflow-hidden">
             <div class="p-4 bg-indigo-600 text-white flex justify-between items-center shadow-md shrink-0">
                 <div>
-                    <h2 class="text-lg font-bold flex items-center gap-2">
+                    <h2 class="text-lg md:text-xl font-bold flex items-center gap-2">
                         📋 검수 대기 리스트
                         <span class="bg-white text-indigo-600 text-xs px-2 py-0.5 rounded-full font-extrabold">${list.length}</span>
                     </h2>
-                    <p class="text-xs text-indigo-200 mt-1">📅 패킹출고일: <span class="font-bold text-white">${packingDate}</span></p>
+                    <p class="text-sm text-indigo-200 mt-1">📅 패킹출고일: <span class="font-bold text-white">${packingDate}</span></p>
                 </div>
                 <button id="close-dynamic-modal-btn" class="text-white hover:text-gray-200 bg-white/20 hover:bg-white/30 rounded-full p-2 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
 
-            <div class="flex-grow overflow-y-auto overflow-x-auto bg-gray-50 p-2">
-                <table class="w-full text-left border-collapse min-w-[350px]">
-                    <thead class="bg-gray-200 text-gray-600 text-xs uppercase sticky top-0 z-10 shadow-sm">
+            <div class="flex-grow overflow-auto bg-gray-50">
+                <table class="w-full text-left border-collapse min-w-[700px]"> <thead class="bg-gray-200 text-gray-700 text-sm font-bold uppercase sticky top-0 z-10 shadow-sm h-10">
                         <tr>
-                            <th class="px-2 py-2 text-center w-16">위치</th>
-                            <th class="px-2 py-2">상품 정보</th>
-                            <th class="px-2 py-2 text-center w-12">수량</th>
-                            <th class="px-2 py-2 text-center w-12">상태</th>
+                            <th class="px-2 py-2 text-center w-[12%] border-r border-gray-300">검수위치</th>
+                            <th class="px-3 py-2 text-left w-[40%] border-r border-gray-300">상품명 (옵션)</th>
+                            <th class="px-2 py-2 text-center w-[10%] border-r border-gray-300">수량</th>
+                            <th class="px-2 py-2 text-center w-[20%] border-r border-gray-300 text-red-700">샘플위치</th>
+                            <th class="px-2 py-2 text-center w-[10%]">상태</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white">
@@ -366,8 +371,8 @@ export const openInspectionListWindow = () => {
                 </table>
             </div>
 
-            <div class="p-3 bg-gray-100 text-center border-t border-gray-200 text-xs text-gray-500 shrink-0">
-                항목을 클릭하면 입력창에 자동 선택됩니다.
+            <div class="p-4 bg-gray-100 text-center border-t border-gray-200 text-sm text-gray-600 font-medium shrink-0">
+                👆 항목을 터치하면 입력창에 자동 선택됩니다. (좌우로 스크롤하여 전체 내용 확인)
             </div>
         </div>
     `;
@@ -464,6 +469,7 @@ export const selectTodoItem = (index) => {
 
 window.selectInspectionTodoItem = selectTodoItem;
 
+// ... (이후 toggleScanner 등 나머지 기존 함수들 유지)
 export const toggleScanner = () => {
     if (DOM.inspScannerContainer.classList.contains('hidden')) {
         DOM.inspScannerContainer.classList.remove('hidden');
