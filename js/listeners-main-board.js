@@ -25,8 +25,8 @@ const openLeaveModal = (memberName) => {
     if (DOM.leaveTypeModal) DOM.leaveTypeModal.classList.remove('hidden');
 };
 
-// 관리자 액션 모달 열기 헬퍼 함수
-const openAdminMemberActionModal = (memberName) => {
+// [수정] 통합 액션 모달 열기 (관리자/본인 공용)
+const openMemberActionModal = (memberName) => {
     State.context.memberToAction = memberName;
     if (DOM.actionMemberName) DOM.actionMemberName.textContent = memberName;
 
@@ -37,6 +37,7 @@ const openAdminMemberActionModal = (memberName) => {
 
     // 근태 상태 확인 (일일 근태 + 기간 근태 병합 확인)
     const combinedOnLeaveMembers = [...(State.appState.dailyOnLeaveMembers || []), ...(State.appState.dateBasedOnLeaveMembers || [])];
+    // 외출 중이더라도 종료(복귀) 시간이 있으면 근태 중이 아님
     const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime));
 
     // 상태 배지 & 시간 정보 업데이트
@@ -77,20 +78,27 @@ const openAdminMemberActionModal = (memberName) => {
         }
     }
 
-    // 버튼 표시 여부 제어
-    // ✅ [수정] 근태 중일 때 취소 버튼 표시
+    // [버튼 표시 로직]
     const isOnLeave = !!leaveInfo;
     
+    // 1. 출근/퇴근/복귀(퇴근취소) 버튼: 근태 중이 아닐 때만 상황에 맞춰 표시
     if (DOM.adminClockInBtn) DOM.adminClockInBtn.classList.toggle('hidden', isOnLeave || status === 'active' || status === 'returned');
     if (DOM.adminClockOutBtn) DOM.adminClockOutBtn.classList.toggle('hidden', isOnLeave || status !== 'active');
     if (DOM.adminCancelClockOutBtn) DOM.adminCancelClockOutBtn.classList.toggle('hidden', isOnLeave || status !== 'returned');
     
-    // ✅ [추가] 근태 취소 버튼 토글
+    // 2. 근태 취소(복귀) 버튼: 근태 중일 때만 표시 (빨간 버튼)
     if (DOM.adminCancelLeaveBtn) {
         DOM.adminCancelLeaveBtn.classList.toggle('hidden', !isOnLeave);
         if (isOnLeave && DOM.adminCancelLeaveText) {
-            DOM.adminCancelLeaveText.textContent = `${leaveInfo.type} 취소 (복귀)`;
+            // "외출", "조퇴" 이면 "복귀", 그 외(연차, 결근 등)면 "취소"
+            const actionText = (leaveInfo.type === '외출' || leaveInfo.type === '조퇴') ? '복귀' : '취소';
+            DOM.adminCancelLeaveText.textContent = `${leaveInfo.type} ${actionText}`;
         }
+    }
+
+    // 3. 근태 설정 버튼: 항상 표시 (파란 버튼) - 근무 중이어도 조퇴/외출 설정 가능
+    if (DOM.openLeaveModalBtn) {
+        DOM.openLeaveModalBtn.classList.remove('hidden');
     }
 
     if (DOM.memberActionModal) DOM.memberActionModal.classList.remove('hidden');
@@ -104,13 +112,10 @@ export function setupMainBoardListeners() {
         DOM.confirmTeamSelectBtn.addEventListener('click', () => {
             if (State.context.selectedTaskForStart === '검수') {
                 setTimeout(() => {
-                    // 업무 시작 시 세션 초기화 및 완료 리스트 정리 실행
                     initializeInspectionSession();
-
-                    // 모달 열기
                     if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
                     if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
-                }, 300); // 업무 시작 처리 시간 고려하여 약간 지연
+                }, 300);
             }
         });
     }
@@ -151,32 +156,21 @@ export function setupMainBoardListeners() {
                 return;
             }
 
-            // 그룹 일시정지 버튼 (Task 기준)
             const pauseGroupButton = e.target.closest('.pause-work-group-btn');
             if (pauseGroupButton) {
-                const taskName = pauseGroupButton.dataset.task;
-                pauseWorkByTask(taskName);
-                return;
+                pauseWorkByTask(pauseGroupButton.dataset.task); return;
             }
-
-            // 그룹 재개 버튼 (Task 기준)
             const resumeGroupButton = e.target.closest('.resume-work-group-btn');
             if (resumeGroupButton) {
-                const taskName = resumeGroupButton.dataset.task;
-                resumeWorkByTask(taskName);
-                return;
+                resumeWorkByTask(resumeGroupButton.dataset.task); return;
             }
-
-            // --- 개별 버튼 액션 ---
             const individualPauseBtn = e.target.closest('[data-action="pause-individual"]');
             if (individualPauseBtn) {
-                pauseWorkIndividual(individualPauseBtn.dataset.recordId);
-                return;
+                pauseWorkIndividual(individualPauseBtn.dataset.recordId); return;
             }
             const individualResumeBtn = e.target.closest('[data-action="resume-individual"]');
             if (individualResumeBtn) {
-                resumeWorkIndividual(individualResumeBtn.dataset.recordId);
-                return;
+                resumeWorkIndividual(individualResumeBtn.dataset.recordId); return;
             }
             const individualStopBtn = e.target.closest('button[data-action="stop-individual"]');
             if (individualStopBtn) {
@@ -188,51 +182,43 @@ export function setupMainBoardListeners() {
                 if (DOM.stopIndividualConfirmModal) DOM.stopIndividualConfirmModal.classList.remove('hidden');
                 return;
             }
-
             const individualEditTimeBtn = e.target.closest('button[data-action="edit-individual-start-time"]');
             if (individualEditTimeBtn) {
                 const recordId = individualEditTimeBtn.dataset.recordId;
                 const currentStartTime = individualEditTimeBtn.dataset.currentStartTime;
                 const record = (State.appState.workRecords || []).find(r => String(r.id) === String(recordId));
                 if (!record) return;
-
                 State.context.recordIdOrGroupIdToEdit = recordId;
                 State.context.editType = 'individual';
-
                 if (DOM.editStartTimeModalTitle) DOM.editStartTimeModalTitle.textContent = '개별 시작 시간 변경';
                 if (DOM.editStartTimeModalMessage) DOM.editStartTimeModalMessage.textContent = `${record.member}님의 시작 시간을 변경합니다.`;
                 if (DOM.editStartTimeInput) DOM.editStartTimeInput.value = currentStartTime;
                 if (DOM.editStartTimeContextIdInput) DOM.editStartTimeContextIdInput.value = recordId;
                 if (DOM.editStartTimeContextTypeInput) DOM.editStartTimeContextTypeInput.value = 'individual';
-
                 if (DOM.editStartTimeModal) DOM.editStartTimeModal.classList.remove('hidden');
                 return;
             }
-
-            // --- 그룹 시간 일괄 변경 ---
             const groupTimeDisplay = e.target.closest('.group-time-display[data-action="edit-group-start-time"]');
             if (groupTimeDisplay) {
                 const groupId = groupTimeDisplay.dataset.groupId;
                 const currentStartTime = groupTimeDisplay.dataset.currentStartTime;
                 if (!groupId || !currentStartTime) return;
-
                 State.context.recordIdOrGroupIdToEdit = groupId;
                 State.context.editType = 'group';
-
                 if (DOM.editStartTimeModalTitle) DOM.editStartTimeModalTitle.textContent = '그룹 시작 시간 변경';
                 if (DOM.editStartTimeModalMessage) DOM.editStartTimeModalMessage.textContent = '이 그룹의 모든 팀원의 시작 시간이 변경됩니다.';
                 if (DOM.editStartTimeInput) DOM.editStartTimeInput.value = currentStartTime;
                 if (DOM.editStartTimeContextIdInput) DOM.editStartTimeContextIdInput.value = groupId;
                 if (DOM.editStartTimeContextTypeInput) DOM.editStartTimeContextTypeInput.value = 'group';
-
                 if (DOM.editStartTimeModal) DOM.editStartTimeModal.classList.remove('hidden');
                 return;
             }
-
-            // --- 근태 관련 버튼 ---
+            
+            // --- 근태 기록 수정 (리스트 카드 내 수정) ---
             const editLeaveCard = e.target.closest('[data-action="edit-leave-record"]');
             if (editLeaveCard) {
                 const memberName = editLeaveCard.dataset.memberName;
+                // ... (생략 없이 유지)
                 const currentType = editLeaveCard.dataset.leaveType;
                 const currentStartTime = editLeaveCard.dataset.startTime;
                 const currentStartDate = editLeaveCard.dataset.startDate;
@@ -242,18 +228,13 @@ export function setupMainBoardListeners() {
                 const role = State.appState.currentUserRole || 'user';
                 const selfName = State.appState.currentUser || null;
                 if (role !== 'admin' && memberName !== selfName) {
-                    showToast('본인의 근태 기록만 수정할 수 있습니다.', true);
-                    return;
+                    showToast('본인의 근태 기록만 수정할 수 있습니다.', true); return;
                 }
 
                 if (currentType === '외출') {
                     State.context.memberToCancelLeave = memberName;
-                    if (DOM.cancelLeaveConfirmMessage) {
-                        DOM.cancelLeaveConfirmMessage.textContent = `${memberName}님을 '${currentType}' 상태에서 복귀(취소) 처리하시겠습니까?`;
-                    }
-                    if (DOM.cancelLeaveConfirmModal) {
-                        DOM.cancelLeaveConfirmModal.classList.remove('hidden');
-                    }
+                    if (DOM.cancelLeaveConfirmMessage) DOM.cancelLeaveConfirmMessage.textContent = `${memberName}님을 '${currentType}' 상태에서 복귀(취소) 처리하시겠습니까?`;
+                    if (DOM.cancelLeaveConfirmModal) DOM.cancelLeaveConfirmModal.classList.remove('hidden');
                     return;
                 }
 
@@ -275,76 +256,51 @@ export function setupMainBoardListeners() {
 
                 titleEl.textContent = `${memberName}님 근태 수정`;
                 nameEl.textContent = memberName;
-
                 typeSelect.innerHTML = '';
                 State.LEAVE_TYPES.forEach(type => {
                     const option = document.createElement('option');
-                    option.value = type;
-                    option.textContent = type;
-                    if (type === currentType) {
-                        option.selected = true;
-                    }
+                    option.value = type; option.textContent = type;
+                    if (type === currentType) option.selected = true;
                     typeSelect.appendChild(option);
                 });
-
                 const isTimeBased = (currentType === '외출' || currentType === '조퇴');
-
                 timeFields.classList.toggle('hidden', !isTimeBased);
                 dateFields.classList.toggle('hidden', isTimeBased);
-
-                if (isTimeBased) {
-                    startTimeInput.value = currentStartTime || '';
-                    endTimeInput.value = currentEndTime || '';
-                } else {
-                    startDateInput.value = currentStartDate || '';
-                    endDateInput.value = currentEndDate || '';
-                }
-
+                if (isTimeBased) { startTimeInput.value = currentStartTime || ''; endTimeInput.value = currentEndTime || ''; }
+                else { startDateInput.value = currentStartDate || ''; endDateInput.value = currentEndDate || ''; }
                 originalNameInput.value = memberName;
                 originalStartInput.value = isTimeBased ? currentStartTime : currentStartDate;
                 originalTypeInput.value = isTimeBased ? 'daily' : 'persistent';
-
                 modal.classList.remove('hidden');
                 return;
             }
 
+            // --- [핵심 수정] 팀원 카드 클릭 (근태 토글 및 관리) ---
             const memberCard = e.target.closest('[data-action="member-toggle-leave"]');
             if (memberCard) {
                 const memberName = memberCard.dataset.memberName;
                 const role = State.appState.currentUserRole || 'user';
                 const selfName = State.appState.currentUser || null;
 
+                // 1. 권한 체크 (타인 수정 불가, 관리자 제외)
                 if (role !== 'admin' && memberName !== selfName) {
                     showToast('본인의 근태 현황만 설정할 수 있습니다.', true); return;
                 }
 
-                // 관리자일 경우 관리자 전용 모달 열기
-                if (role === 'admin' && memberName !== selfName) {
-                     openAdminMemberActionModal(memberName);
-                     return;
-                }
-
-                const isWorking = (State.appState.workRecords || []).some(r => r.member === memberName && (r.status === 'ongoing' || r.status === 'paused'));
-                if (isWorking) {
-                    return showToast(`${memberName}님은 현재 업무 중이므로 근태 상태를 변경할 수 없습니다.`, true);
-                }
-
-                openLeaveModal(memberName);
+                // 2. 통합 관리 모달 열기 (관리자/본인 모두)
+                // 기존에는 본인일 경우 상태에 따라 분기했지만, 이제는 모달로 통합하여
+                // 모달 내부에서 복귀/취소/설정 버튼을 선택하도록 함.
+                openMemberActionModal(memberName);
                 return;
             }
 
-            if (e.target.closest('.members-list, .card-actions, .group-time-display')) {
-                e.stopPropagation();
-                return;
-            }
-
+            if (e.target.closest('.members-list, .card-actions, .group-time-display')) { e.stopPropagation(); return; }
+            
             const card = e.target.closest('div[data-group-id], div[data-action]');
-
             if (card) {
                 const action = card.dataset.action;
                 const groupId = card.dataset.groupId;
                 const task = card.dataset.task;
-
                 if (action === 'start-task') {
                     State.context.selectedTaskForStart = task;
                     State.context.selectedGroupForAdd = null;
@@ -354,21 +310,16 @@ export function setupMainBoardListeners() {
                     if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
                     if (DOM.teamSelectModal) DOM.teamSelectModal.classList.remove('hidden');
                     return;
-
                 } else if (action === 'other') {
                     if (DOM.taskSelectModal) DOM.taskSelectModal.classList.remove('hidden');
                     return;
-
                 } else if (groupId && task) {
-                    // '검수' 업무 클릭 시 재진입 -> 여기서는 초기화하지 않음 (기존 작업 유지)
                     if (task === '검수') {
                         renderTodayInspectionList();
                         if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
                         if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
                         return;
                     }
-
-                    // 그 외 업무는 인원 추가 모달
                     State.context.selectedTaskForStart = task;
                     State.context.selectedGroupForAdd = groupId;
                     State.context.tempSelectedMembers = [];
@@ -379,11 +330,10 @@ export function setupMainBoardListeners() {
                     return;
                 }
             }
-
         });
     }
     
-    // 관리자 액션 모달 내부 버튼 리스너
+    // 모달 내부 버튼 리스너 (DOM ID는 admin- prefix를 쓰지만 공용으로 사용)
     if (DOM.adminClockInBtn) {
         DOM.adminClockInBtn.addEventListener('click', () => {
             if (State.context.memberToAction) {
@@ -408,30 +358,32 @@ export function setupMainBoardListeners() {
             }
         });
     }
+    
+    // [설정] 버튼 클릭 시 -> 근태 설정(입력) 모달로 이동
     if (DOM.openLeaveModalBtn) {
         DOM.openLeaveModalBtn.addEventListener('click', () => {
             if (State.context.memberToAction) {
+                // 근무 중이어도 '조퇴', '외출' 등의 설정이 가능해야 하므로 차단 로직 제거
                 if (DOM.memberActionModal) DOM.memberActionModal.classList.add('hidden');
                 setTimeout(() => openLeaveModal(State.context.memberToAction), 100);
             }
         });
     }
 
-    // ✅ [추가] 관리자 근태 취소 버튼 리스너
+    // [복귀/취소] 버튼 클릭 시 -> 확인 모달 띄우기
     if (DOM.adminCancelLeaveBtn) {
         DOM.adminCancelLeaveBtn.addEventListener('click', () => {
             const memberName = State.context.memberToAction;
             if (memberName) {
-                // 근태 취소 확인 모달 띄우기
                 State.context.memberToCancelLeave = memberName;
                 
-                // 해당 멤버의 현재 근태 타입 찾기
                 const combinedOnLeaveMembers = [...(State.appState.dailyOnLeaveMembers || []), ...(State.appState.dateBasedOnLeaveMembers || [])];
                 const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime));
                 const leaveType = leaveInfo ? leaveInfo.type : '근태';
+                const actionText = (leaveType === '외출' || leaveType === '조퇴') ? '복귀' : '취소';
 
                 if (DOM.cancelLeaveConfirmMessage) {
-                    DOM.cancelLeaveConfirmMessage.textContent = `${memberName}님의 '${leaveType}' 상태를 취소(복귀) 하시겠습니까?`;
+                    DOM.cancelLeaveConfirmMessage.textContent = `${memberName}님의 '${leaveType}' 상태를 ${actionText} 하시겠습니까?`;
                 }
                 
                 if (DOM.memberActionModal) DOM.memberActionModal.classList.add('hidden');

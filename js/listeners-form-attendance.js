@@ -212,7 +212,12 @@ export function setupFormAttendanceListeners() {
                     } else {
                          showToast(`${memberName}님 ${type} 처리 완료.`);
                     }
-                    DOM.leaveTypeModal.classList.add('hidden');
+                    
+                    // ✅ [수정] 창을 닫지 않고(주석처리), 입력 필드만 초기화하여 연속 입력 지원
+                    // DOM.leaveTypeModal.classList.add('hidden'); 
+                    
+                    document.getElementById('leave-start-date-input').value = '';
+                    document.getElementById('leave-end-date-input').value = '';
                 }
 
             } else {
@@ -226,7 +231,9 @@ export function setupFormAttendanceListeners() {
                 State.appState.dailyOnLeaveMembers.push(newDailyEntry);
                 debouncedSaveState();
                 showToast(`${memberName}님 ${type} 처리 완료.`);
-                DOM.leaveTypeModal.classList.add('hidden');
+                
+                // ✅ [수정] 창을 닫지 않고 유지 (연속 입력 지원)
+                // DOM.leaveTypeModal.classList.add('hidden');
             }
         });
     }
@@ -370,7 +377,7 @@ export function setupFormAttendanceListeners() {
         }
     }
 
-    // 4. 연차 현황 탭 내 '수동 추가' 버튼 리스너 (추가됨)
+    // 4. 연차 현황 탭 내 '수동 추가' 버튼 리스너
     const manualAddHistoryBtn = document.getElementById('btn-manual-add-leave-history');
     if (manualAddHistoryBtn) {
         manualAddHistoryBtn.addEventListener('click', () => {
