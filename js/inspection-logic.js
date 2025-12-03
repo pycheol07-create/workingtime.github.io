@@ -40,7 +40,7 @@ export const initializeInspectionSession = async () => {
 
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
-    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; // [수정]
+    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
     
     const selects = document.querySelectorAll('#insp-current-input-area select');
@@ -105,7 +105,7 @@ export const deleteInspectionList = async () => {
         if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
-        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; // [수정]
+        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
         
         currentTodoIndex = -1;
@@ -217,7 +217,7 @@ export const handleExcelUpload = (file) => {
                                     option: option,
                                     qty: qty,
                                     thickness: thickness,
-                                    supplierName: supplierName, // [추가]
+                                    supplierName: supplierName, 
                                     status: '대기',
                                     inboundDate: inboundDate
                                 });
@@ -293,7 +293,7 @@ export const selectTodoItem = (index) => {
     // 2. 옵션/코드/기준두께 표시
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${item.option || '-'}`;
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${item.code || '-'}`;
-    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = `공급처: ${item.supplierName || '-'}`; // [수정]
+    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = `공급처: ${item.supplierName || '-'}`; 
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${item.thickness || '-'}`;
 
     // 3. 이력 조회 실행
@@ -504,15 +504,26 @@ export const searchProductHistory = async () => {
     }
 
     const list = State.appState.inspectionList || [];
-    const matchedIndex = list.findIndex(item => 
-        (item.code && item.code.trim() === searchTerm) || 
-        (item.name && item.name.trim() === searchTerm)
-    );
+    
+    // ✅ [수정] 같은 상품명이라도 현재 선택된 항목(옵션 다름)을 유지하기 위한 로직
+    let matchedIndex = -1;
+
+    // 1. 현재 선택된 항목이 있고, 이름이 검색어와 같다면 그 항목을 유지 (예: 블랙M 완료 -> 블루S 선택됨)
+    //    -> 이렇게 해야 옵션/코드가 '블루S' 것으로 표시됨
+    if (currentTodoIndex >= 0 && list[currentTodoIndex] && list[currentTodoIndex].name === searchTerm) {
+        matchedIndex = currentTodoIndex;
+    } else {
+        // 2. 그 외의 경우(직접 검색 등) 전체 리스트에서 찾기
+        matchedIndex = list.findIndex(item => 
+            (item.code && item.code.trim() === searchTerm) || 
+            (item.name && item.name.trim() === searchTerm)
+        );
+    }
 
     let targetProductName = searchTerm;
 
     if (matchedIndex > -1) {
-        // [케이스 1] 리스트에 있는 상품 -> 자동 입력 & 수정 불가(ReadOnly)
+        // [케이스 1] 리스트 매칭됨 -> 해당 항목 정보로 UI 갱신
         const matchedItem = list[matchedIndex];
         targetProductName = matchedItem.name;
         currentTodoIndex = matchedIndex; 
@@ -521,7 +532,7 @@ export const searchProductHistory = async () => {
         
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${matchedItem.option || '-'}`;
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${matchedItem.code || '-'}`;
-        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = `공급처: ${matchedItem.supplierName || '-'}`; // [수정]
+        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = `공급처: ${matchedItem.supplierName || '-'}`; 
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${matchedItem.thickness || '-'}`;
         
         // 날짜 자동 입력 및 잠금
@@ -535,11 +546,11 @@ export const searchProductHistory = async () => {
 
     } else {
         // [케이스 2] 리스트에 없는 상품 (개별 검색) -> 수동 입력 허용
-        currentTodoIndex = -1; // 리스트 매칭 없음
+        currentTodoIndex = -1; 
         
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
-        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; // [수정]
+        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
 
         // 날짜 수동 입력 허용 (잠금 해제)
@@ -553,7 +564,7 @@ export const searchProductHistory = async () => {
                 DOM.inspInboundDateInput.value = getTodayDateString();
             }
         }
-        // 수량 초기화 (이전 값 남아있을 수 있으므로)
+        // 수량 초기화
         if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = '';
     }
 
@@ -678,7 +689,7 @@ export const saveInspectionAndNext = async () => {
         
         option: currentItem ? currentItem.option : '-',
         code: currentItem ? currentItem.code : '-',
-        supplierName: currentItem ? currentItem.supplierName : '-', // [추가]
+        supplierName: currentItem ? currentItem.supplierName : '-', 
         
         checklist,
         defects: defectsFound,
@@ -703,7 +714,7 @@ export const saveInspectionAndNext = async () => {
         if (currentItem) {
             updates.lastCode = currentItem.code;
             updates.lastOption = currentItem.option;
-            updates.lastSupplierName = currentItem.supplierName; // [추가]
+            updates.lastSupplierName = currentItem.supplierName; 
         }
 
         if (defectsFound.length > 0) {
@@ -755,9 +766,13 @@ const resetInspectionForm = (clearProductName = false) => {
     if (clearProductName) DOM.inspProductNameInput.value = '';
     DOM.inspInboundQtyInput.value = '';
     DOM.inspNotesInput.value = '';
+    
+    // ✅ 두께 필드 초기화 (기존 누락 수정)
+    if (DOM.inspCheckThickness) DOM.inspCheckThickness.value = '';
+
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
-    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; // [수정]
+    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
     
     const selects = document.querySelectorAll('#insp-current-input-area select');
