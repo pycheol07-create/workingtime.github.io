@@ -146,33 +146,45 @@ export const deleteHistoryInspectionList = async (dateKey) => {
 // 1. 엑셀 리스트 업로드 및 처리
 // ======================================================
 
-// ✅ [신규] 시트1용 매칭 키 생성 (상품명+옵션 그대로 사용)
+// ✅ [신규] 모든 종류의 하이픈/대시 문자를 표준 하이픈(-)으로 통일하는 헬퍼
+const normalizeHyphens = (str) => {
+    return str.replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-');
+};
+
+// ✅ [신규] 시트1용 매칭 키 생성 (B:상품명 + C:옵션)
 const generateSheet1Key = (rawName, rawOption) => {
-    // 공백 제거 및 소문자 변환만 수행
-    let name = String(rawName || '').trim().replace(/\s/g, '').toLowerCase();
-    let option = String(rawOption || '').trim().replace(/\s/g, '').toLowerCase();
+    let name = String(rawName || '').trim();
+    // 특수 공백 제거 및 소문자화
+    name = name.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s/g, '').toLowerCase();
+
+    let option = String(rawOption || '').trim();
+    option = normalizeHyphens(option); // 하이픈 정규화
+    option = option.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s/g, '').toLowerCase();
+    
     return `${name}|${option}`;
 };
 
-// ✅ [신규] 시트2용 매칭 키 생성 (특정 규칙 적용)
-// 상품명: () 제거
-// 옵션: [ ] 제거 및 첫 번째 '-' 앞부분 제거
+// ✅ [신규] 시트2용 매칭 키 생성 (B:상품명 + C:옵션, 가공 포함)
 const generateSheet2Key = (rawName, rawOption) => {
-    // 1. 상품명: () 안의 내용 제거
+    // 1. 상품명: () 및 그 안의 내용 제거
     let name = String(rawName || '').replace(/\([^)]*\)/g, '').trim();
-    name = name.replace(/\s/g, '').toLowerCase();
+    name = name.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s/g, '').toLowerCase();
 
-    // 2. 옵션: 대괄호 제거 후, 첫 번째 하이픈 이후부터 사용
-    // 예: "[공급처-컬러-사이즈]" -> "컬러-사이즈"
+    // 2. 옵션: 대괄호 제거 및 첫 번째 '-' 앞부분 제거
     let option = String(rawOption || '').trim();
+    option = normalizeHyphens(option); // 하이픈 정규화
+    
+    // 대괄호 제거
     option = option.replace(/[\[\]]/g, '');
     
+    // 첫 번째 하이픈 찾기
     const firstHyphenIdx = option.indexOf('-');
     if (firstHyphenIdx !== -1) {
+        // 첫 번째 하이픈 이후부터 사용 (예: 공급처-컬러-사이즈 -> 컬러-사이즈)
         option = option.substring(firstHyphenIdx + 1);
     }
     
-    option = option.replace(/\s/g, '').toLowerCase();
+    option = option.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s/g, '').toLowerCase();
 
     return `${name}|${option}`;
 };
@@ -203,8 +215,9 @@ export const handleExcelUpload = (file) => {
             const workbook = XLSX.read(data, { type: 'array' });
             
             // --- [Step 1] 시트 2 읽기 (샘플 위치 정보) ---
-            const sampleMap = new Map(); // Key: 시트2용 생성키, Value: 로케이션(G열)
-            
+            const sampleMap = new Map(); // Key: 생성된 매칭키, Value: 로케이션(G열)
+            let sheet2LogCount = 0;
+
             if (workbook.SheetNames.length > 1) {
                 const sheet2Name = workbook.SheetNames[1];
                 const sheet2 = workbook.Sheets[sheet2Name];
@@ -220,9 +233,14 @@ export const handleExcelUpload = (file) => {
                         const location = String(row[6] || '').trim();
                         
                         if ((sheet2Name || sheet2Option) && location) {
-                            // ✅ 시트2용 키 생성 규칙 적용
                             const key = generateSheet2Key(sheet2Name, sheet2Option);
                             sampleMap.set(key, location);
+                            
+                            // 디버깅용 로그 (첫 3개만)
+                            if (sheet2LogCount < 3) {
+                                console.log(`Sheet2 Key Sample: [${key}] -> ${location}`);
+                                sheet2LogCount++;
+                            }
                         }
                     }
                 }
@@ -236,13 +254,14 @@ export const handleExcelUpload = (file) => {
             // --- Deduplication Logic Start ---
             const processedList = [];
             const uniqueKeyMap = new Map(); 
+            let matchedCount = 0;
 
             if (jsonData.length > 1) {
                 for (let i = 1; i < jsonData.length; i++) {
                     const row = jsonData[i];
                     if (row && row.length > 1) { 
                         const code = String(row[0] || '').trim();
-                        const name = String(row[1] || '').trim();
+                        const name = String(row[1] || '').trim(); // B열
                         const option = String(row[2] || '').trim(); // C열
                         const qty = Number(row[3]) || 0;
                         const thickness = String(row[4] || '');
@@ -250,7 +269,7 @@ export const handleExcelUpload = (file) => {
                         const location = String(row[6] || '').trim(); // G열 (검수 로케이션)
                         
                         if (code || name) {
-                            // 1. 중복 제거용 키 (공급처+옵션컬러) - 기존 로직 유지
+                            // 1. 중복 제거용 키 (공급처+옵션컬러)
                             let color = option.replace(/\[|\]/g, '').split('-')[0].trim();
                             if (!color) color = 'N/A';
                             const keyColor = color.replace(/\s/g, '').toLowerCase();
@@ -263,6 +282,7 @@ export const handleExcelUpload = (file) => {
                             
                             if (sampleMap.has(matchKey)) {
                                 sampleLocation = sampleMap.get(matchKey);
+                                matchedCount++;
                             }
 
                             if (!uniqueKeyMap.has(uniqueKey)) {
@@ -282,11 +302,13 @@ export const handleExcelUpload = (file) => {
             }
             // --- Deduplication Logic End ---
 
+            console.log(`Excel Upload: Total ${processedList.length} items, Matched Samples: ${matchedCount}`);
+
             if (processedList.length > 0) {
                 await updateDailyData({ inspectionList: processedList });
                 State.appState.inspectionList = processedList;
                 
-                showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (패킹일: ${packingDate})`);
+                showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (샘플위치 ${matchedCount}건 매칭)`);
                 renderTodoList(); 
                 
                 // ✅ 업로드 후 자동으로 리스트 팝업창 열기
