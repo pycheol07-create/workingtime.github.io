@@ -151,20 +151,8 @@ const normalizeHyphens = (str) => {
     return str.replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-');
 };
 
-// ✅ [신규] 시트1용 매칭 키 생성 (B:상품명 + C:옵션)
-const generateSheet1Key = (rawName, rawOption) => {
-    let name = String(rawName || '').trim();
-    // 특수 공백 제거 및 소문자화
-    name = name.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s/g, '').toLowerCase();
-
-    let option = String(rawOption || '').trim();
-    option = normalizeHyphens(option); // 하이픈 정규화
-    option = option.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s/g, '').toLowerCase();
-    
-    return `${name}|${option}`;
-};
-
-// ✅ [신규] 시트2용 매칭 키 생성 (B:상품명 + C:옵션, 가공 포함)
+// ✅ [신규] 시트2용 매칭 키 생성 (기준)
+// 규칙: 상품명(()제외) + 옵션([]제외, 첫번째 - 앞부분 제외)
 const generateSheet2Key = (rawName, rawOption) => {
     // 1. 상품명: () 및 그 안의 내용 제거
     let name = String(rawName || '').replace(/\([^)]*\)/g, '').trim();
@@ -177,15 +165,43 @@ const generateSheet2Key = (rawName, rawOption) => {
     // 대괄호 제거
     option = option.replace(/[\[\]]/g, '');
     
-    // 첫 번째 하이픈 찾기
+    // 첫 번째 하이픈 찾기 (예: 공급처-컬러-사이즈 -> 컬러-사이즈)
     const firstHyphenIdx = option.indexOf('-');
     if (firstHyphenIdx !== -1) {
-        // 첫 번째 하이픈 이후부터 사용 (예: 공급처-컬러-사이즈 -> 컬러-사이즈)
         option = option.substring(firstHyphenIdx + 1);
     }
     
     option = option.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s/g, '').toLowerCase();
 
+    return `${name}|${option}`;
+};
+
+// ✅ [신규] 시트1용 매칭 키 생성
+// 규칙:
+// - 옵션이 `[`로 시작하면 시트2와 동일한 규칙 적용 (접두사 제거)
+// - 그렇지 않으면 단순 정규화만 적용 (이미 정리된 데이터로 간주)
+const generateSheet1Key = (rawName, rawOption) => {
+    let name = String(rawName || '').trim();
+    name = name.replace(/\([^)]*\)/g, '').trim(); // 시트1도 괄호가 있다면 제거 (안전장치)
+    name = name.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s/g, '').toLowerCase();
+
+    let option = String(rawOption || '').trim();
+    option = normalizeHyphens(option);
+    
+    // 대괄호로 시작하는 경우 -> 시트2와 동일하게 접두사 제거 로직 적용
+    if (option.startsWith('[')) {
+        option = option.replace(/[\[\]]/g, '');
+        const firstHyphenIdx = option.indexOf('-');
+        if (firstHyphenIdx !== -1) {
+            option = option.substring(firstHyphenIdx + 1);
+        }
+    } else {
+        // 대괄호가 없는 경우 -> 대괄호만 제거하고 그대로 사용
+        option = option.replace(/[\[\]]/g, '');
+    }
+    
+    option = option.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s/g, '').toLowerCase();
+    
     return `${name}|${option}`;
 };
 
@@ -216,14 +232,13 @@ export const handleExcelUpload = (file) => {
             
             // --- [Step 1] 시트 2 읽기 (샘플 위치 정보) ---
             const sampleMap = new Map(); // Key: 생성된 매칭키, Value: 로케이션(G열)
-            let sheet2LogCount = 0;
-
+            
             if (workbook.SheetNames.length > 1) {
                 const sheet2Name = workbook.SheetNames[1];
                 const sheet2 = workbook.Sheets[sheet2Name];
                 const json2 = XLSX.utils.sheet_to_json(sheet2, { header: 1 });
                 
-                // 시트2 데이터 파싱 (1행부터 데이터 시작 가정)
+                // 시트2 데이터 파싱
                 for (let i = 1; i < json2.length; i++) {
                     const row = json2[i];
                     if (row) {
@@ -235,12 +250,6 @@ export const handleExcelUpload = (file) => {
                         if ((sheet2Name || sheet2Option) && location) {
                             const key = generateSheet2Key(sheet2Name, sheet2Option);
                             sampleMap.set(key, location);
-                            
-                            // 디버깅용 로그 (첫 3개만)
-                            if (sheet2LogCount < 3) {
-                                console.log(`Sheet2 Key Sample: [${key}] -> ${location}`);
-                                sheet2LogCount++;
-                            }
                         }
                     }
                 }
@@ -283,6 +292,9 @@ export const handleExcelUpload = (file) => {
                             if (sampleMap.has(matchKey)) {
                                 sampleLocation = sampleMap.get(matchKey);
                                 matchedCount++;
+                            } else {
+                                // 디버깅: 매칭 실패 시 로그
+                                if (matchedCount < 5) console.log(`Sample Match Fail: [${matchKey}]`);
                             }
 
                             if (!uniqueKeyMap.has(uniqueKey)) {
