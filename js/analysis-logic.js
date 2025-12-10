@@ -42,7 +42,6 @@ export const checkMissingQuantities = (dayData) => {
 
 /**
  * 인건비 시뮬레이션 계산 로직
- * ✅ [수정] manualSpeed 파라미터 추가 및 인원수 정수 반환 처리
  */
 export const calculateSimulation = (mode, task, targetQty, inputValue, startTimeStr = "09:00", includeLinkedTasks = true, manualSpeed = null) => {
     // mode: 'fixed-workers' | 'target-time'
@@ -130,11 +129,11 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
             return { error: "목표 시간이 사전 작업 시간보다 짧아 계산할 수 없습니다." };
         }
         
-        // ✅ [수정] 필요 인원을 정수로 올림 처리 (사람은 쪼갤 수 없으므로)
+        // 필요 인원을 정수로 올림 처리
         result.workerCount = Math.ceil(totalManMinutesForMainTask / effectiveDuration);
         
         result.label1 = '필요 인원';
-        result.value1 = `${result.workerCount} 명`; // 정수로 표시
+        result.value1 = `${result.workerCount} 명`;
         
         const totalManMinutesNeeded = result.durationMinutes * result.workerCount;
         result.totalCost = totalManMinutesNeeded * avgWagePerMinute;
@@ -307,7 +306,8 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
     
     const lastRealX = (new Date(sortedData[sortedData.length - 1].id).getTime() - firstDate) / oneDay;
 
-    for (let i = 1; i <= daysToPredict; i++) {
+    // ✅ [수정] i = 0 (오늘)부터 시작하도록 변경하여 오늘 예측값 포함
+    for (let i = 0; i <= daysToPredict; i++) {
         const futureX = lastRealX + i;
         const futureDate = new Date(firstDate + (futureX * oneDay));
         const dateStr = futureDate.toISOString().slice(5, 10);

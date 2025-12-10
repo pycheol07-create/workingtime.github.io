@@ -153,24 +153,23 @@ const renderPredictionChart = (containerId, historyData) => {
         return;
     }
 
-    // 데이터 결합
-    const labels = [...result.historical.labels, ...result.prediction.labels];
+    // 1. 라벨 결합: 과거 데이터 전체 + 미래 데이터(오늘 제외, 내일부터)
+    // (result.prediction.labels[0]은 오늘이므로 중복 방지를 위해 slice(1))
+    const labels = [...result.historical.labels, ...result.prediction.labels.slice(1)];
     
-    // 과거 데이터 패딩
-    const histRevenue = [...result.historical.revenue, ...new Array(result.prediction.labels.length).fill(null)];
-    const histDelivery = [...result.historical.delivery, ...new Array(result.prediction.labels.length).fill(null)];
+    // 2. 과거 데이터 패딩 (미래 구간만큼 null 채움)
+    const futureLength = result.prediction.labels.length - 1; // 오늘 제외한 미래 길이
+    const histRevenue = [...result.historical.revenue, ...new Array(futureLength).fill(null)];
+    const histDelivery = [...result.historical.delivery, ...new Array(futureLength).fill(null)];
 
-    // 미래 데이터 패딩 (연결점 포함)
-    const lastRev = result.historical.revenue[result.historical.revenue.length - 1];
-    const lastDel = result.historical.delivery[result.historical.delivery.length - 1];
-    
-    const predRevenue = new Array(result.historical.labels.length - 1).fill(null);
-    predRevenue.push(lastRev);
-    predRevenue.push(...result.prediction.revenue);
+    // 3. 미래 데이터 패딩 (과거 구간만큼 null 채움)
+    // 과거 데이터의 마지막 인덱스(오늘)부터 예측값이 들어가야 함
+    const pastLength = result.historical.labels.length - 1; // 오늘 제외한 과거 길이
+    const padding = new Array(pastLength).fill(null);
 
-    const predDelivery = new Array(result.historical.labels.length - 1).fill(null);
-    predDelivery.push(lastDel);
-    predDelivery.push(...result.prediction.delivery);
+    // 예측 데이터 전체(오늘 포함)를 붙임 -> 오늘 위치에 예측값이 들어감
+    const predRevenue = [...padding, ...result.prediction.revenue];
+    const predDelivery = [...padding, ...result.prediction.delivery];
 
     new Chart(ctx, {
         type: 'line',
