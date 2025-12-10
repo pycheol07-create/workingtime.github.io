@@ -1,6 +1,5 @@
 // === js/history-daily-renderer.js ===
 // 설명: 이력 보기의 '일별 상세' 탭 화면을 렌더링하는 모듈입니다.
-// (수정됨: 현황판과 동일한 기준으로 유효 멤버 필터링 강화, 시스템 계정 제외)
 
 import * as State from './state.js';
 import { 
@@ -27,7 +26,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     const quantities = data.taskQuantities || {};
     const partTimersFromHistory = data.partTimers || [];
 
-    // 1. 시급 정보 매핑
     const wageMap = { ...State.appConfig.memberWages };
     partTimersFromHistory.forEach(pt => {
         if (pt && pt.name && !wageMap[pt.name]) {
@@ -35,20 +33,14 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         }
     });
     
-    // ✅ [수정] 2. 근무 인원 계산 (엄격한 필터링 적용)
     const attendanceMap = data.dailyAttendance || {};
     const isToday = (dateKey === getTodayDateString());
     
-    // 시스템 계정 (관리자 등) 목록 가져오기
     const systemAccounts = new Set((State.appConfig.systemAccounts || []).map(s => s.trim()));
 
-    // 유효한 멤버 목록 생성 (현황판과 동일한 기준)
-    // - 오늘: 현재 앱 상태(State.appConfig)의 실시간 목록 사용
-    // - 과거: 당시 저장된 이력 데이터(data) 사용
     let validMemberNames = new Set();
 
     if (isToday) {
-        // 오늘: 설정에 있는 정직원 + 현재 등록된 알바
         (State.appConfig.teamGroups || []).forEach(g => {
             g.members.forEach(m => validMemberNames.add(m.trim()));
         });
@@ -56,8 +48,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
             if (p.name) validMemberNames.add(p.name.trim());
         });
     } else {
-        // 과거: 설정에 있는 정직원(과거라 변경됐을 수 있으니 이력 우선이 맞으나 팀원은 보통 설정 기준) + 이력에 저장된 알바
-        // (과거 이력의 경우, 퇴사자도 기록엔 남아있어야 하므로 이력 데이터의 partTimers를 신뢰)
         (State.appConfig.teamGroups || []).forEach(g => {
             g.members.forEach(m => validMemberNames.add(m.trim()));
         });
@@ -70,21 +60,13 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         Object.keys(attendanceMap).filter(rawName => {
             const member = rawName.trim();
             if (!member) return false;
-
-            // 1) 시스템 계정 제외
             if (systemAccounts.has(member)) return false;
-
-            // 2) 유효한 멤버 목록(팀원/알바)에 있는지 확인
             if (!validMemberNames.has(member)) return false;
-
-            // 3) 출근(active) 또는 퇴근(returned) 상태인지 확인
-            // (주의: 현황판은 active만 세지만, 이력은 '다녀간 사람'을 세야 하므로 returned도 포함)
             const status = attendanceMap[rawName].status;
             return status === 'active' || status === 'returned';
         })
     );
     
-    // 출퇴근 기록이 없는 과거 데이터 호환성 (유효 멤버만 카운트)
     if (Object.keys(attendanceMap).length === 0 && records.length > 0) {
          records.forEach(r => {
              const mName = r.member ? r.member.trim() : '';
@@ -96,13 +78,11 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 
     const activeMembersCount = clockedInMembers.size;
 
-    // 3. 데이터 집계 (총 시간, 비용, 수량)
     const totalSumDuration = records.reduce((sum, r) => sum + (Number(r.duration) || 0), 0);
     const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + (Number(q) || 0), 0);
 
     const taskDurations = records.reduce((acc, rec) => { acc[rec.task] = (acc[rec.task] || 0) + (Number(rec.duration) || 0); return acc; }, {});
 
-    // 각 업무별 총 휴식 시간 집계
     const taskPauses = records.reduce((acc, rec) => {
         acc[rec.task] = (acc[rec.task] || 0) + calcTotalPauseMinutes(rec.pauses);
         return acc;
@@ -115,7 +95,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         return acc;
     }, {});
 
-    // 4. 업무별 메트릭 생성
     const taskMetrics = {};
     const allTaskKeys = new Set([...Object.keys(taskDurations), ...Object.keys(quantities)]);
     
@@ -135,7 +114,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         };
     });
 
-    // 5. 이전 데이터와 비교를 위한 메트릭 준비
     let prevTaskMetrics = {};
     const currentIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
 
@@ -172,7 +150,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
 
     const avgThroughput = totalSumDuration > 0 ? (totalQuantity / totalSumDuration).toFixed(2) : '0.00';
 
-    // 6. 비업무 시간(Non-Work Time) 계산
     let nonWorkHtml = '';
     const standardHoursSettings = State.appConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 };
     const standardHours = isWeekday(dateKey) ? (standardHoursSettings.weekday || 8) : (standardHoursSettings.weekend || 4);
@@ -198,7 +175,6 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
                         </div>`;
     }
 
-    // 7. HTML 조립
     let html = `
     <div class="mb-6 pb-4 border-b flex justify-between items-center">
       <h3 class="text-2xl font-bold text-gray-800">${dateKey}</h3>
@@ -284,7 +260,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     html += `</div></div>`;
     html += `</div>`;
 
-    // 하단 업무별 시간 비중 (프로그레스 바)
+    // 하단 업무별 시간 비중
     html += `<div class="bg-white p-4 rounded-lg shadow-sm">
                 <div class="flex justify-between items-center mb-3">
                     <h4 class="text-lg font-bold text-gray-700">업무별 시간 비중</h4>
@@ -323,6 +299,20 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         html += `<p class="text-gray-500 text-sm">기록된 업무 시간이 없습니다.</p>`;
     }
     html += `</div></div>`;
+
+    // ✅ [신규] 특이사항(메모) 섹션 추가
+    const note = data.dailyNote || '';
+    html += `
+        <div class="mt-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <h4 class="text-lg font-bold text-gray-700 mb-2">📝 당일 특이사항</h4>
+            <textarea id="history-daily-note-input" class="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none" rows="3" placeholder="특이사항을 입력하세요...">${note}</textarea>
+            <div class="flex justify-end mt-2">
+                <button id="history-daily-note-save-btn" data-date-key="${dateKey}" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition shadow-md">
+                    저장
+                </button>
+            </div>
+        </div>
+    `;
 
     view.innerHTML = html;
 };
