@@ -1,5 +1,5 @@
 // === js/listeners-modals-sim.js ===
-// 설명: '운영 시뮬레이션' 모달 전용 리스너입니다. (동시 진행 기능 및 실시간 출근 인원 반영 추가)
+// 설명: '운영 시뮬레이션' 모달 전용 리스너입니다. (동시 진행 기능 및 실시간 출근 인원 반영)
 
 import * as DOM from './dom-elements.js';
 import { appState, appConfig, allHistoryData } from './state.js';
@@ -25,7 +25,7 @@ const sortTasksCustom = (a, b) => {
     return a.localeCompare(b);
 };
 
-// 렌더링 함수 (속도 입력칸 추가됨, 인원수 정수 처리)
+// 렌더링 함수 (속도 입력칸 유지, 시작 시간 입력칸 제거)
 const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false, standardSpeed = 0) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
@@ -43,7 +43,7 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
         taskOptions += `<option value="${taskName}" ${selected}>${taskName}</option>`;
     });
 
-    // ✅ [수정] 인원수: 소수점 제거 및 정수 반올림
+    // 인원수: 소수점 제거 및 정수 반올림
     const workerVal = workers > 0 ? Math.round(workers) : '';
     
     // 속도: 값이 있으면 소수점 2자리로, 없으면 빈값
@@ -224,7 +224,7 @@ const renderSimulationResults = (data) => {
         if (simSummaryLabel1) simSummaryLabel1.textContent = '총 가용 시간';
         if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration);
         if (simSummaryLabel2) simSummaryLabel2.textContent = '총 필요 인원 (연인원)';
-        // ✅ [수정] 필요 인원을 정수로 표시
+        // 인원 정수 표시
         if (simSummaryValue2) simSummaryValue2.textContent = `${Math.ceil(totalWorkers)} 명`;
         if (simSummaryLabel3) simSummaryLabel3.textContent = '예상 총 인건비';
         if (simSummaryValue3) simSummaryValue3.textContent = `${Math.round(totalCost).toLocaleString()}원`;
@@ -287,7 +287,7 @@ export function setupSimulationModalListeners() {
     const simEndTimeInput = document.getElementById('sim-end-time-input');
     const simEndTimeWrapper = document.getElementById('sim-end-time-wrapper');
     
-    // 테이블 헤더에 '동시' 컬럼 주입
+    // 테이블 헤더에 '동시' 컬럼 주입 (이전 버전 복구)
     const headerRow = document.querySelector('#sim-input-area thead tr');
     if (headerRow && !headerRow.querySelector('.sim-header-concurrent')) {
         const th = document.createElement('th');
@@ -329,13 +329,11 @@ export function setupSimulationModalListeners() {
                     // 2. 인원수 자동 결정 로직 개선 (정수 처리 포함)
                     let avgStaff = avgStaffMap[taskName] || 0;
                     
-                    // 오늘 출근자가 1명이라도 있다면, 
-                    // [과거 해당 업무 평균 인원]과 [현재 총 출근 인원] 중 작은 값을 사용
                     if (currentActiveCount > 0 && avgStaff > 0) {
                         avgStaff = Math.min(avgStaff, currentActiveCount);
                     }
                     
-                    // ✅ [수정] 정수로 반올림하여 기본값 설정
+                    // 정수로 반올림하여 기본값 설정
                     avgStaff = Math.round(avgStaff);
 
                     const isConcurrent = DEFAULT_CONCURRENT_TASKS.includes(taskName);
