@@ -42,7 +42,7 @@ export const checkMissingQuantities = (dayData) => {
 
 /**
  * 인건비 시뮬레이션 계산 로직
- * ✅ [수정] manualSpeed 파라미터 추가
+ * ✅ [수정] manualSpeed 파라미터 추가 및 인원수 정수 반환 처리
  */
 export const calculateSimulation = (mode, task, targetQty, inputValue, startTimeStr = "09:00", includeLinkedTasks = true, manualSpeed = null) => {
     // mode: 'fixed-workers' | 'target-time'
@@ -53,7 +53,7 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
     const currentAppConfig = State.appConfig || {};
     const standards = calculateStandardThroughputs(State.allHistoryData);
     
-    // ✅ [수정] 수동 입력된 속도가 있으면 우선 사용, 없으면 이력 기반 평균 속도 사용
+    // 수동 입력된 속도가 있으면 우선 사용, 없으면 이력 기반 평균 속도 사용
     const speedPerPerson = (manualSpeed !== null && manualSpeed > 0) 
         ? Number(manualSpeed) 
         : (standards[task] || 0); // (개/분/인)
@@ -130,9 +130,11 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
             return { error: "목표 시간이 사전 작업 시간보다 짧아 계산할 수 없습니다." };
         }
         
-        result.workerCount = totalManMinutesForMainTask / effectiveDuration;
+        // ✅ [수정] 필요 인원을 정수로 올림 처리 (사람은 쪼갤 수 없으므로)
+        result.workerCount = Math.ceil(totalManMinutesForMainTask / effectiveDuration);
+        
         result.label1 = '필요 인원';
-        result.value1 = `${Math.ceil(result.workerCount * 10) / 10} 명`;
+        result.value1 = `${result.workerCount} 명`; // 정수로 표시
         
         const totalManMinutesNeeded = result.durationMinutes * result.workerCount;
         result.totalCost = totalManMinutesNeeded * avgWagePerMinute;

@@ -25,7 +25,7 @@ const sortTasksCustom = (a, b) => {
     return a.localeCompare(b);
 };
 
-// 렌더링 함수 (속도 입력칸 추가됨, 인원수 소수점 처리 개선)
+// 렌더링 함수 (속도 입력칸 추가됨, 인원수 정수 처리)
 const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false, standardSpeed = 0) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
@@ -43,8 +43,8 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
         taskOptions += `<option value="${taskName}" ${selected}>${taskName}</option>`;
     });
 
-    // 인원수: 소수점 1자리까지 표시 (평균값 반영 시 정수가 아닐 수 있음)
-    const workerVal = workers > 0 ? Math.round(workers * 10) / 10 : '';
+    // ✅ [수정] 인원수: 소수점 제거 및 정수 반올림
+    const workerVal = workers > 0 ? Math.round(workers) : '';
     
     // 속도: 값이 있으면 소수점 2자리로, 없으면 빈값
     const speedVal = standardSpeed > 0 ? standardSpeed.toFixed(2) : '';
@@ -68,7 +68,7 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
             <input type="number" class="sim-row-qty w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="1000" min="1" value="${qty > 0 ? qty : ''}">
         </td>
         <td class="px-4 py-2 sim-row-worker-or-time-cell">
-            <input type="number" class="sim-row-worker-or-time w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="5" min="0.1" step="0.1" value="${workerVal}">
+            <input type="number" class="sim-row-worker-or-time w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="5" min="1" step="1" value="${workerVal}">
         </td>
         <td class="px-4 py-2 text-center">
             <button class="sim-row-delete-btn text-gray-400 hover:text-red-500 transition">
@@ -224,7 +224,8 @@ const renderSimulationResults = (data) => {
         if (simSummaryLabel1) simSummaryLabel1.textContent = '총 가용 시간';
         if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration);
         if (simSummaryLabel2) simSummaryLabel2.textContent = '총 필요 인원 (연인원)';
-        if (simSummaryValue2) simSummaryValue2.textContent = `${totalWorkers.toFixed(1)} 명`;
+        // ✅ [수정] 필요 인원을 정수로 표시
+        if (simSummaryValue2) simSummaryValue2.textContent = `${Math.ceil(totalWorkers)} 명`;
         if (simSummaryLabel3) simSummaryLabel3.textContent = '예상 총 인건비';
         if (simSummaryValue3) simSummaryValue3.textContent = `${Math.round(totalCost).toLocaleString()}원`;
 
@@ -260,7 +261,7 @@ const renderSimulationResults = (data) => {
                         ${res.speed.toFixed(2)} 
                     </td>
                     <td class="px-4 py-3 text-right font-bold text-indigo-600">
-                        ${res.workerCount.toFixed(1)} 명
+                        ${res.workerCount} 명
                     </td>
                     <td class="px-4 py-3 text-right">${Math.round(res.totalCost).toLocaleString()}원</td>
                     <td class="px-4 py-3 text-right">
@@ -298,11 +299,11 @@ export function setupSimulationModalListeners() {
     const openSimulationModalLogic = () => {
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
         
-        // 1. 현재 출근(Active) 인원 계산
+        // 1. 현재 출근(Active) 인원 계산 (알바 포함)
         const attendanceMap = appState.dailyAttendance || {};
         const currentActiveCount = Object.values(attendanceMap).filter(a => a.status === 'active').length;
         
-        // (선택사항) 현재 출근 인원 표시 UI 업데이트
+        // 현재 출근 인원 표시 UI 업데이트
         const activeDisplay = document.getElementById('sim-active-count-display');
         if (activeDisplay) activeDisplay.textContent = currentActiveCount;
 
@@ -325,7 +326,7 @@ export function setupSimulationModalListeners() {
                 if (quantityTaskSet.has(taskName)) { 
                     const qty = Number(quantities[taskName]) || 0;
                     
-                    // 2. 인원수 자동 결정 로직 개선
+                    // 2. 인원수 자동 결정 로직 개선 (정수 처리 포함)
                     let avgStaff = avgStaffMap[taskName] || 0;
                     
                     // 오늘 출근자가 1명이라도 있다면, 
@@ -333,6 +334,9 @@ export function setupSimulationModalListeners() {
                     if (currentActiveCount > 0 && avgStaff > 0) {
                         avgStaff = Math.min(avgStaff, currentActiveCount);
                     }
+                    
+                    // ✅ [수정] 정수로 반올림하여 기본값 설정
+                    avgStaff = Math.round(avgStaff);
 
                     const isConcurrent = DEFAULT_CONCURRENT_TASKS.includes(taskName);
                     const speed = standards[taskName] || 0;
