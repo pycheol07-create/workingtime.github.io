@@ -1,6 +1,6 @@
 // === js/history-daily-renderer.js ===
 // 설명: 이력 보기의 '일별 상세' 탭 화면을 렌더링하는 모듈입니다.
-// (기존 app-history-logic.js에서 분리됨)
+// (수정됨: 근무 인원 집계 시 유효한 멤버인지 필터링하는 로직 추가)
 
 import * as State from './state.js';
 import { 
@@ -35,17 +35,34 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         }
     });
     
-    // 2. 근무 인원 계산 (출근 기록 기준)
+    // ✅ [수정] 2. 근무 인원 계산 (유효 멤버 필터링 적용)
+    // 현황판과 동일하게 '현재 설정된 팀원' + '해당 날짜의 알바' 목록에 있는 사람만 카운트합니다.
     const attendanceMap = data.dailyAttendance || {};
+    
+    // 유효한 멤버 목록 생성 (정직원 + 그날의 알바)
+    const validMembers = new Set([
+        ...(State.appConfig.teamGroups || []).flatMap(g => g.members),
+        ...partTimersFromHistory.map(p => p.name)
+    ]);
+
     const clockedInMembers = new Set(
-        Object.keys(attendanceMap).filter(member => 
-            attendanceMap[member] && (attendanceMap[member].status === 'active' || attendanceMap[member].status === 'returned')
-        )
+        Object.keys(attendanceMap).filter(member => {
+            // 1) 유효한 멤버인지 확인
+            const isValid = validMembers.has(member);
+            // 2) 출근(active) 또는 퇴근(returned) 상태인지 확인
+            const isPresent = attendanceMap[member] && (attendanceMap[member].status === 'active' || attendanceMap[member].status === 'returned');
+            
+            return isValid && isPresent;
+        })
     );
     
-    // 출퇴근 기록이 없는 과거 데이터 호환성 (업무 기록이 있는 멤버를 근무자로 간주)
+    // 출퇴근 기록이 없는 과거 데이터 호환성 (업무 기록이 있는 멤버를 근무자로 간주하되, 유효 멤버만)
     if (Object.keys(attendanceMap).length === 0 && records.length > 0) {
-         records.forEach(r => r.member && clockedInMembers.add(r.member));
+         records.forEach(r => {
+             if (r.member && validMembers.has(r.member)) {
+                 clockedInMembers.add(r.member);
+             }
+         });
     }
 
     const activeMembersCount = clockedInMembers.size;
