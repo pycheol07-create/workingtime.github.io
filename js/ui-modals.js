@@ -53,17 +53,22 @@ const calculateLeaveUsage = (memberName) => {
     const leaveResetDate = leaveSettings.leaveResetDate; // 적용 시작일
     const expirationDate = leaveSettings.expirationDate; // 만료일
 
-    // ✅ [신규] 13개월 미만 근속자 자동 연차 계산 로직
-    // 입사일이 있고, 근무 개월 수가 13개월 미만인 경우: 근무 개월 수만큼 연차 자동 부여
     let isAutoCalculated = false;
-    if (joinDate && joinDate !== '-') {
+
+    // ✅ [수정] 우선순위 로직 적용
+    // 1순위: 관리자가 '적용 시작일(leaveResetDate)'을 직접 설정한 경우 -> 자동 계산 무시하고 설정값(totalLeave) 우선 사용
+    if (leaveResetDate && leaveResetDate !== '') {
+        isAutoCalculated = false;
+        // totalLeave는 leaveSettings.totalLeave 그대로 유지
+    } 
+    // 2순위: 입사일이 있고, 12개월 미만 근속자인 경우 -> 근무 개월 수만큼 연차 자동 부여
+    else if (joinDate && joinDate !== '-') {
         const monthsWorked = calculateMonthsWorked(joinDate);
-        if (monthsWorked < 13) {
+        if (monthsWorked < 12) { // 13개월 -> 12개월로 변경됨
             totalLeave = monthsWorked; // 1개월 만근 시 1개, 2개월 시 2개...
             isAutoCalculated = true;
         }
-        // 13개월 이상인 경우: 관리자가 설정한 totalLeave(예: 17) 유지
-        // (필요 시 이곳에 2년마다 +1 추가하는 로직도 자동화 가능)
+        // 12개월 이상인 경우: 관리자가 설정한 totalLeave(기본값 등) 유지
     }
 
     // 1. 해당 멤버의 '연차' 기록 필터링 & 날짜순 정렬
@@ -412,7 +417,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
 
         if (totalEl) {
             // ✅ [신규] 자동 계산 여부 표시
-            const autoCalcBadge = stats.isAutoCalculated ? '<span class="text-xs text-blue-500 block font-normal">(13개월 미만 자동 계산)</span>' : '';
+            const autoCalcBadge = stats.isAutoCalculated ? '<span class="text-xs text-blue-500 block font-normal">(12개월 미만 자동 계산)</span>' : '';
             totalEl.innerHTML = `${stats.total}일 ${autoCalcBadge}`;
         }
         if (usedEl) usedEl.textContent = `${stats.used}일`;
