@@ -1,6 +1,6 @@
 // === js/history-daily-renderer.js ===
 // 설명: 이력 보기의 '일별 상세' 탭 화면을 렌더링하는 모듈입니다.
-// (수정됨: 오늘 날짜인 경우 실시간 멤버 설정을 기준으로 유효 인원 필터링)
+// (수정됨: 현황판과 동일한 기준으로 유효 멤버 필터링 강화, 시스템 계정 제외)
 
 import * as State from './state.js';
 import { 
@@ -35,42 +35,61 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         }
     });
     
-    // ✅ [수정] 2. 근무 인원 계산 (유효 멤버 필터링 강화)
+    // ✅ [수정] 2. 근무 인원 계산 (엄격한 필터링 적용)
     const attendanceMap = data.dailyAttendance || {};
     const isToday = (dateKey === getTodayDateString());
+    
+    // 시스템 계정 (관리자 등) 목록 가져오기
+    const systemAccounts = new Set((State.appConfig.systemAccounts || []).map(s => s.trim()));
 
-    // 유효한 멤버 목록 생성
-    // - 오늘: 현재 앱 상태(appState)의 실시간 목록 사용 (삭제된 멤버 즉시 제외)
+    // 유효한 멤버 목록 생성 (현황판과 동일한 기준)
+    // - 오늘: 현재 앱 상태(State.appConfig)의 실시간 목록 사용
     // - 과거: 당시 저장된 이력 데이터(data) 사용
-    let validMembers;
+    let validMemberNames = new Set();
+
     if (isToday) {
-        validMembers = new Set([
-            ...(State.appConfig.teamGroups || []).flatMap(g => g.members),
-            ...(State.appState.partTimers || []).map(p => p.name)
-        ]);
+        // 오늘: 설정에 있는 정직원 + 현재 등록된 알바
+        (State.appConfig.teamGroups || []).forEach(g => {
+            g.members.forEach(m => validMemberNames.add(m.trim()));
+        });
+        (State.appState.partTimers || []).forEach(p => {
+            if (p.name) validMemberNames.add(p.name.trim());
+        });
     } else {
-        validMembers = new Set([
-            ...(State.appConfig.teamGroups || []).flatMap(g => g.members),
-            ...partTimersFromHistory.map(p => p.name)
-        ]);
+        // 과거: 설정에 있는 정직원(과거라 변경됐을 수 있으니 이력 우선이 맞으나 팀원은 보통 설정 기준) + 이력에 저장된 알바
+        // (과거 이력의 경우, 퇴사자도 기록엔 남아있어야 하므로 이력 데이터의 partTimers를 신뢰)
+        (State.appConfig.teamGroups || []).forEach(g => {
+            g.members.forEach(m => validMemberNames.add(m.trim()));
+        });
+        partTimersFromHistory.forEach(p => {
+            if (p.name) validMemberNames.add(p.name.trim());
+        });
     }
 
     const clockedInMembers = new Set(
-        Object.keys(attendanceMap).filter(member => {
-            // 1) 유효한 멤버인지 확인 (삭제된 멤버 제외)
-            const isValid = validMembers.has(member);
-            // 2) 출근(active) 또는 퇴근(returned) 상태인지 확인
-            const isPresent = attendanceMap[member] && (attendanceMap[member].status === 'active' || attendanceMap[member].status === 'returned');
-            
-            return isValid && isPresent;
+        Object.keys(attendanceMap).filter(rawName => {
+            const member = rawName.trim();
+            if (!member) return false;
+
+            // 1) 시스템 계정 제외
+            if (systemAccounts.has(member)) return false;
+
+            // 2) 유효한 멤버 목록(팀원/알바)에 있는지 확인
+            if (!validMemberNames.has(member)) return false;
+
+            // 3) 출근(active) 또는 퇴근(returned) 상태인지 확인
+            // (주의: 현황판은 active만 세지만, 이력은 '다녀간 사람'을 세야 하므로 returned도 포함)
+            const status = attendanceMap[rawName].status;
+            return status === 'active' || status === 'returned';
         })
     );
     
-    // 출퇴근 기록이 없는 과거 데이터 호환성 (유효 멤버만)
+    // 출퇴근 기록이 없는 과거 데이터 호환성 (유효 멤버만 카운트)
     if (Object.keys(attendanceMap).length === 0 && records.length > 0) {
          records.forEach(r => {
-             if (r.member && validMembers.has(r.member)) {
-                 clockedInMembers.add(r.member);
+             const mName = r.member ? r.member.trim() : '';
+             if (mName && validMemberNames.has(mName) && !systemAccounts.has(mName)) {
+                 clockedInMembers.add(mName);
              }
          });
     }
