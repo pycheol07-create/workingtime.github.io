@@ -8,12 +8,23 @@ import * as State from './state.js';
 
 /**
  * 연차 표시 라벨 생성 헬퍼 (예: "연차16" or "연차16-18")
+ * ✅ [수정] 초기화 기준일(leaveResetDate) 반영하여 카운트 리셋
  */
 const getLeaveDisplayLabel = (member, leaveEntry) => {
     if (leaveEntry.type !== '연차') return leaveEntry.type;
 
+    // 1. 해당 멤버의 연차 설정 가져오기 (초기화 기준일 확인)
+    const settings = State.appConfig.memberLeaveSettings?.[member] || {};
+    const resetDate = settings.leaveResetDate;
+
+    // 2. 초기화 기준일 이후의 연차만 필터링하여 가져오기
     const allLeaves = (State.persistentLeaveSchedule.onLeaveMembers || [])
-        .filter(l => l.member === member && l.type === '연차')
+        .filter(l => {
+            if (l.member !== member || l.type !== '연차') return false;
+            // 기준일이 있고, 기준일보다 이전 날짜인 연차는 제외 (카운트에서 뺌)
+            if (resetDate && l.startDate < resetDate) return false;
+            return true;
+        })
         .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
 
     let cumulativeDays = 0;
@@ -35,6 +46,9 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
         }
         cumulativeDays += days;
     }
+    
+    // 만약 초기화 기준일 이전의 연차라면 그냥 '연차'로만 표시하거나,
+    // 필요하다면 별도 로직을 탈 수 있음. 현재는 기본값 반환.
     return '연차';
 };
 
@@ -667,7 +681,7 @@ export const renderCompletedWorkLog = (appState) => {
 
             // 휴식 시간 계산 및 표시
             const pauseMinutes = calcTotalPauseMinutes(record.pauses);
-            const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴식: ${formatDuration(pauseMinutes)})</span>` : '';
+            const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴: ${formatDuration(pauseMinutes)})</span>` : '';
 
             if (!isCompleted) {
                 statusClass = record.status === 'ongoing' ? 'bg-red-50 hover:bg-red-100' : 'bg-yellow-50 hover:bg-yellow-100';
