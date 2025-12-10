@@ -36,7 +36,10 @@ import {
     renderReportYearly,
     renderPersonalReport,
     renderManagementDaily,
-    renderManagementSummary
+    renderManagementSummary,
+    // ✅ [수정] 누락된 함수 추가 (주별/월별 업무 이력 렌더링)
+    renderWeeklyHistory,
+    renderMonthlyHistory
 } from './ui-history.js';
 
 import {
