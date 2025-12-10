@@ -5,6 +5,7 @@ import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getTodayDateString } from './utils.js';
 
+// 분리된 하위 리스너 모듈 임포트
 import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js';
 import { setupHistoryRecordListeners } from './listeners-history-records.js';
 import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js';
@@ -21,6 +22,7 @@ import {
     switchHistoryView,
     renderHistoryDateListByMode,
     openHistoryQuantityModal,
+    // requestHistoryDeletion, // <--- 제거됨 (이 파일 내에서 재정의)
     augmentHistoryWithPersistentLeave 
 } from './app-history-logic.js';
 
@@ -35,14 +37,14 @@ import {
     renderPersonalReport,
     renderManagementDaily,
     renderManagementSummary,
+    // ✅ [수정] 누락된 함수 추가 (주별/월별 업무 이력 렌더링)
     renderWeeklyHistory,
     renderMonthlyHistory
 } from './ui-history.js';
 
 import {
     syncTodayToHistory,
-    saveManagementData,
-    saveDailyNote // ✅ 임포트 추가
+    saveManagementData 
 } from './history-data-manager.js';
 
 import { doc, deleteDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -90,7 +92,6 @@ export function setupHistoryModalListeners() {
         }
     };
     
-    // ... (기존 코드 getCurrentHistoryListMode, getFilteredHistoryData 등 생략 없이 유지) ...
     const getCurrentHistoryListMode = () => {
         let activeSubTabBtn;
         if (State.context.activeMainHistoryTab === 'work') {
@@ -113,6 +114,7 @@ export function setupHistoryModalListeners() {
         return 'day';
     };
 
+    // --- 헬퍼 함수들 ---
     const getFilteredHistoryData = () => {
         return (State.context.historyStartDate || State.context.historyEndDate)
             ? State.allHistoryData.filter(d => {
@@ -132,7 +134,7 @@ export function setupHistoryModalListeners() {
         return btn ? btn.dataset.key : null;
     };
 
-    // ... (refresh 함수들 유지) ...
+    // 뷰 갱신 함수들
     const refreshAttendanceView = async () => {
         const dateKey = getSelectedDateKey();
         if (dateKey === getTodayDateString()) {
@@ -188,7 +190,7 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    // ... (이벤트 리스너 등록 코드 유지) ...
+    // --- 이벤트 리스너 ---
     if (DOM.historyFilterBtn) {
         DOM.historyFilterBtn.addEventListener('click', () => {
             const startDate = DOM.historyStartDateInput.value;
@@ -429,31 +431,11 @@ export function setupHistoryModalListeners() {
     }
 
     if (DOM.historyViewContainer) {
-        DOM.historyViewContainer.addEventListener('click', async (e) => {
+        DOM.historyViewContainer.addEventListener('click', (e) => {
             const button = e.target.closest('button[data-action]');
             if (!button) return;
             const action = button.dataset.action;
             const dateKey = button.dataset.dateKey;
-            
-            // ✅ [신규] 특이사항 저장 로직 추가
-            if (button.id === 'history-daily-note-save-btn') {
-                const input = document.getElementById('history-daily-note-input');
-                const note = input ? input.value : '';
-                try {
-                    button.textContent = '저장 중...';
-                    button.disabled = true;
-                    await saveDailyNote(dateKey, note);
-                    showToast('특이사항이 저장되었습니다.');
-                } catch (err) {
-                    console.error(err);
-                    showToast('저장 중 오류가 발생했습니다.', true);
-                } finally {
-                    button.textContent = '저장';
-                    button.disabled = false;
-                }
-                return;
-            }
-
             if (!dateKey) return;
 
             if (action === 'open-history-quantity-modal') {
@@ -466,7 +448,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // ... (나머지 로직들은 이전과 동일하게 유지) ...
     if (DOM.historyModalContentBox) {
         DOM.historyModalContentBox.addEventListener('click', (e) => {
             const downloadBtn = e.target.closest('#inspection-download-btn');
@@ -502,8 +483,6 @@ export function setupHistoryModalListeners() {
                     updates.taskQuantities = deleteField();
                     updates.partTimers = deleteField();
                     updates.confirmedZeroTasks = deleteField();
-                    // ✅ 특이사항도 함께 삭제 원할 시 주석 해제 (지금은 보존)
-                    // updates.dailyNote = deleteField();
                 } else if (activeTab === 'attendance') {
                     updates.onLeaveMembers = deleteField();
                 } else if (activeTab === 'management') {
@@ -511,18 +490,22 @@ export function setupHistoryModalListeners() {
                 } else if (activeTab === 'inspection') {
                     updates.inspectionList = deleteField();
                 } else {
+                    // 기본값 또는 기타 탭: 안전을 위해 아무것도 안함
                     showToast('삭제할 대상 탭이 명확하지 않습니다.', true);
                     return;
                 }
 
                 try {
+                    // 1. History 컬렉션 업데이트 (해당 필드만 삭제)
                     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                     await updateDoc(historyDocRef, updates);
 
+                    // 2. 만약 오늘 날짜라면 Daily Data 컬렉션도 업데이트
                     if (dateKey === getTodayDateString()) {
                         const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey);
                         await updateDoc(dailyDocRef, updates);
                         
+                        // 로컬 상태 초기화 (즉각 반영을 위해)
                         if (activeTab === 'work' || activeTab === 'report') {
                             State.appState.workRecords = [];
                             State.appState.taskQuantities = {};
