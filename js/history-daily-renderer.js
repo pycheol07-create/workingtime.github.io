@@ -1,10 +1,10 @@
 // === js/history-daily-renderer.js ===
 // 설명: 이력 보기의 '일별 상세' 탭 화면을 렌더링하는 모듈입니다.
-// (수정됨: 근무 인원 집계 시 유효한 멤버인지 필터링하는 로직 추가)
+// (수정됨: 오늘 날짜인 경우 실시간 멤버 설정을 기준으로 유효 인원 필터링)
 
 import * as State from './state.js';
 import { 
-    formatDuration, isWeekday, calcTotalPauseMinutes, formatTimeTo24H 
+    formatDuration, isWeekday, calcTotalPauseMinutes, formatTimeTo24H, getTodayDateString
 } from './utils.js';
 import { getDiffHtmlForMetric } from './ui-history-reports-logic.js';
 
@@ -27,7 +27,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     const quantities = data.taskQuantities || {};
     const partTimersFromHistory = data.partTimers || [];
 
-    // 1. 시급 정보 매핑 (설정값 + 당일 알바 정보)
+    // 1. 시급 정보 매핑
     const wageMap = { ...State.appConfig.memberWages };
     partTimersFromHistory.forEach(pt => {
         if (pt && pt.name && !wageMap[pt.name]) {
@@ -35,19 +35,29 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         }
     });
     
-    // ✅ [수정] 2. 근무 인원 계산 (유효 멤버 필터링 적용)
-    // 현황판과 동일하게 '현재 설정된 팀원' + '해당 날짜의 알바' 목록에 있는 사람만 카운트합니다.
+    // ✅ [수정] 2. 근무 인원 계산 (유효 멤버 필터링 강화)
     const attendanceMap = data.dailyAttendance || {};
-    
-    // 유효한 멤버 목록 생성 (정직원 + 그날의 알바)
-    const validMembers = new Set([
-        ...(State.appConfig.teamGroups || []).flatMap(g => g.members),
-        ...partTimersFromHistory.map(p => p.name)
-    ]);
+    const isToday = (dateKey === getTodayDateString());
+
+    // 유효한 멤버 목록 생성
+    // - 오늘: 현재 앱 상태(appState)의 실시간 목록 사용 (삭제된 멤버 즉시 제외)
+    // - 과거: 당시 저장된 이력 데이터(data) 사용
+    let validMembers;
+    if (isToday) {
+        validMembers = new Set([
+            ...(State.appConfig.teamGroups || []).flatMap(g => g.members),
+            ...(State.appState.partTimers || []).map(p => p.name)
+        ]);
+    } else {
+        validMembers = new Set([
+            ...(State.appConfig.teamGroups || []).flatMap(g => g.members),
+            ...partTimersFromHistory.map(p => p.name)
+        ]);
+    }
 
     const clockedInMembers = new Set(
         Object.keys(attendanceMap).filter(member => {
-            // 1) 유효한 멤버인지 확인
+            // 1) 유효한 멤버인지 확인 (삭제된 멤버 제외)
             const isValid = validMembers.has(member);
             // 2) 출근(active) 또는 퇴근(returned) 상태인지 확인
             const isPresent = attendanceMap[member] && (attendanceMap[member].status === 'active' || attendanceMap[member].status === 'returned');
@@ -56,7 +66,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         })
     );
     
-    // 출퇴근 기록이 없는 과거 데이터 호환성 (업무 기록이 있는 멤버를 근무자로 간주하되, 유효 멤버만)
+    // 출퇴근 기록이 없는 과거 데이터 호환성 (유효 멤버만)
     if (Object.keys(attendanceMap).length === 0 && records.length > 0) {
          records.forEach(r => {
              if (r.member && validMembers.has(r.member)) {
@@ -106,7 +116,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         };
     });
 
-    // 5. 이전 데이터와 비교를 위한 메트릭 준비 (가장 최근 과거 데이터 탐색)
+    // 5. 이전 데이터와 비교를 위한 메트릭 준비
     let prevTaskMetrics = {};
     const currentIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
 
