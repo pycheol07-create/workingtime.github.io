@@ -1,6 +1,5 @@
 // === js/history-record-table.js ===
 // 설명: '기록 관리' 모달 내의 테이블 렌더링 및 필터링 로직을 담당합니다.
-// (기존 app-history-logic.js에서 분리됨)
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
@@ -41,9 +40,40 @@ export const openHistoryRecordManager = (dateKey) => {
         taskSelect.value = ''; // Reset
     }
 
-    // 일괄 수정 패널 숨김 (초기 상태)
+    // 일괄 수정 패널 숨김 (기존 로직 유지)
     const batchArea = document.getElementById('history-record-batch-edit-area');
     if (batchArea) batchArea.classList.add('hidden');
+
+    // ✅ [신규] 하단 버튼 영역에 '일괄 저장' 버튼 주입
+    // 기존의 '닫기' 버튼이 있는 영역을 찾습니다.
+    const modalFooter = DOM.historyRecordsModal.querySelector('.border-t.flex.justify-end');
+    if (modalFooter) {
+        // 기존에 주입된 버튼이 있다면 제거 (중복 방지)
+        const oldSaveBtn = modalFooter.querySelector('#history-record-save-all-btn');
+        if (oldSaveBtn) oldSaveBtn.remove();
+
+        // 닫기 버튼(기존) 찾기 및 스타일 변경
+        const closeBtn = modalFooter.querySelector('button');
+        if (closeBtn) {
+            closeBtn.textContent = '취소 / 닫기'; 
+            closeBtn.classList.remove('bg-white', 'hover:bg-gray-50', 'text-gray-700');
+            closeBtn.classList.add('bg-gray-100', 'hover:bg-gray-200', 'text-gray-600', 'mr-2');
+        }
+
+        // '일괄 저장' 버튼 생성
+        const saveAllBtn = document.createElement('button');
+        saveAllBtn.id = 'history-record-save-all-btn';
+        saveAllBtn.className = 'bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition shadow-md flex items-center gap-2';
+        saveAllBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+            </svg>
+            변경사항 일괄 저장
+        `;
+        
+        // footer에 추가
+        modalFooter.appendChild(saveAllBtn);
+    }
 
     renderHistoryRecordsTable(dateKey); // 초기 렌더링 (전체)
 
@@ -63,7 +93,7 @@ export const renderHistoryRecordsTable = (dateKey) => {
     const memberFilter = document.getElementById('history-record-filter-member')?.value;
     const taskFilter = document.getElementById('history-record-filter-task')?.value;
 
-    // 일괄 수정 패널 표시 여부 제어 (특정 업무가 선택되었을 때만 노출)
+    // 일괄 수정 패널 표시 여부 제어
     const batchArea = document.getElementById('history-record-batch-edit-area');
     if (batchArea) {
         if (taskFilter) {
@@ -91,7 +121,8 @@ export const renderHistoryRecordsTable = (dateKey) => {
     
     sorted.forEach(r => {
         const tr = document.createElement('tr');
-        tr.className = 'bg-white border-b hover:bg-gray-50 transition';
+        tr.className = 'bg-white border-b hover:bg-gray-50 transition history-record-row';
+        tr.dataset.recordId = r.id; // 행에 ID 저장 (일괄 저장 시 식별용)
         
         // 업무 선택 옵션 생성
         let taskOptions = '';
@@ -104,6 +135,7 @@ export const renderHistoryRecordsTable = (dateKey) => {
         const pauseMinutes = calcTotalPauseMinutes(r.pauses);
         const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴: ${formatDuration(pauseMinutes)})</span>` : '';
 
+        // ✅ [수정] 개별 '저장' 버튼 제거하고 '복제' 버튼 추가
         tr.innerHTML = `
             <td class="px-6 py-4 font-medium text-gray-900 w-[15%]">${r.member}</td>
             <td class="px-6 py-4 w-[20%]">
@@ -120,15 +152,20 @@ export const renderHistoryRecordsTable = (dateKey) => {
             <td class="px-6 py-4 text-gray-500 text-xs w-[15%]">
                 ${formatDuration(r.duration)}${pauseText}
             </td>
-            <td class="px-6 py-4 text-right space-x-2 w-[20%]">
-                <button class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 
-                    data-action="save-history-record" 
+            <td class="px-6 py-4 text-right space-x-1 w-[20%]">
+                <button class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs border border-indigo-200 rounded px-2 py-1.5 hover:bg-indigo-50 transition" 
+                    data-action="duplicate-history-record" 
                     data-date-key="${dateKey}" 
-                    data-record-id="${r.id}">저장</button>
-                <button class="text-white bg-red-500 hover:bg-red-600 font-medium rounded-lg text-xs px-3 py-1.5 focus:outline-none transition shadow-sm" 
+                    data-record-id="${r.id}"
+                    title="이 기록 복제하여 추가">
+                    복제
+                </button>
+                <button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-2 py-1.5 hover:bg-red-50 transition" 
                     data-action="delete-history-record" 
                     data-date-key="${dateKey}" 
-                    data-record-id="${r.id}">삭제</button>
+                    data-record-id="${r.id}">
+                    삭제
+                </button>
             </td>
         `;
         DOM.historyRecordsTableBody.appendChild(tr);
