@@ -263,8 +263,8 @@ export function setupHistoryRecordListeners() {
                     const selectedDateKey = document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key;
                     if (dateKey === selectedDateKey) renderHistoryDetail(dateKey);
 
-                    // 저장 후 모달 닫기 (원하면 유지 가능)
-                    DOM.historyRecordsModal.classList.add('hidden');
+                    // ✅ [수정] 저장 후 팝업 닫지 않음 (주석 처리됨)
+                    // DOM.historyRecordsModal.classList.add('hidden');
 
                 } catch (err) {
                     console.error("일괄 저장 오류:", err);
