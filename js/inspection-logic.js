@@ -17,7 +17,21 @@ let currentImageBase64 = null;
 let currentProductLogs = []; 
 let currentTodoIndex = -1;
 
-// ... (기존 initializeInspectionSession, deleteInspectionList, deleteHistoryInspectionList 함수 유지) ...
+// ✅ [신규] 수정 모드 추적용 변수 ( -1이면 신규, 0 이상이면 수정 )
+let editingLogIndex = -1; 
+
+// ✅ [신규] 수정 상태 초기화 헬퍼 함수
+const resetEditingState = () => {
+    editingLogIndex = -1;
+    const btn = document.getElementById('insp-save-next-btn');
+    if (btn) {
+        // 버튼을 원래 상태(녹색, 저장)로 복구
+        btn.innerHTML = `<span>검수 완료 및 저장</span><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0 1 18 0Z" /></svg>`;
+        btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+        btn.classList.add('bg-green-600', 'hover:bg-green-700');
+    }
+    clearImageState();
+};
 
 // 검수 세션 초기화 함수 (업무 시작 시 호출)
 export const initializeInspectionSession = async () => {
@@ -25,6 +39,7 @@ export const initializeInspectionSession = async () => {
     todayInspectionList = [];
     currentTodoIndex = -1;
     currentImageBase64 = null;
+    resetEditingState(); // ✅ 수정 상태 초기화 추가
     
     // 2. 입력 폼 UI 초기화
     if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
@@ -102,6 +117,7 @@ export const deleteInspectionList = async () => {
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
         
         currentTodoIndex = -1;
+        resetEditingState(); // ✅ 수정 상태 초기화 추가
 
         showToast("검수 리스트가 초기화되었습니다.");
     } catch (e) {
@@ -145,7 +161,7 @@ export const deleteHistoryInspectionList = async (dateKey) => {
 };
 
 // ======================================================
-// 1. 엑셀 리스트 업로드 및 처리 (매칭 로직 수정됨)
+// 1. 엑셀 리스트 업로드 및 처리
 // ======================================================
 export const handleExcelUpload = (file) => {
     // 1. 패킹출고일(입고일) 추출
@@ -173,8 +189,6 @@ export const handleExcelUpload = (file) => {
             const workbook = XLSX.read(data, { type: 'array' });
             
             // --- [Helper] 매칭 키 정제 함수 ---
-            // 상품명: "(매칭금지-제작샘플)" 및 공백 제거
-            // 옵션: "촬샘-" 및 공백 제거
             const getCleanKey = (name, option) => {
                 const cleanName = String(name || '').replace(/\(매칭금지-제작샘플\)/g, '').replace(/\s/g, '').trim().toLowerCase();
                 const cleanOption = String(option || '').replace(/촬샘-/g, '').replace(/\s/g, '').trim().toLowerCase();
@@ -193,7 +207,6 @@ export const handleExcelUpload = (file) => {
                 for (let i = 1; i < json2.length; i++) {
                     const row = json2[i];
                     if (row) {
-                        // 시트2 구조 가정: Index 1(B열)=상품명, Index 2(C열)=옵션, Index 6(G열)=샘플위치
                         const name = row[1]; 
                         const option = row[2];
                         const location = String(row[6] || '').trim(); // G열
@@ -211,7 +224,6 @@ export const handleExcelUpload = (file) => {
             const sheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-            // --- Deduplication Logic Start ---
             const processedList = [];
             const uniqueKeyMap = new Map(); 
 
@@ -219,7 +231,6 @@ export const handleExcelUpload = (file) => {
                 for (let i = 1; i < jsonData.length; i++) {
                     const row = jsonData[i];
                     if (row && row.length > 1) { 
-                        // 시트1 구조: A=코드, B=상품명, C=옵션, D=수량, E=두께, F=공급처, G=로케이션
                         const code = String(row[0] || '').trim();
                         const name = String(row[1] || '').trim();
                         const option = String(row[2] || '').trim(); // C열
@@ -237,7 +248,7 @@ export const handleExcelUpload = (file) => {
                             const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase();
                             const uniqueKey = `${keySupplierName}::${keyColor}`; 
 
-                            // 2. 시트2와 매칭 확인 (샘플 위치 확인 - 수정된 로직)
+                            // 2. 시트2와 매칭 확인 (샘플 위치 확인)
                             let sampleLocation = null;
                             const matchKey = getCleanKey(name, option);
                             
@@ -260,7 +271,6 @@ export const handleExcelUpload = (file) => {
                     }
                 }
             }
-            // --- Deduplication Logic End ---
 
             if (processedList.length > 0) {
                 await updateDailyData({ inspectionList: processedList });
@@ -284,9 +294,7 @@ export const handleExcelUpload = (file) => {
     reader.readAsArrayBuffer(file);
 };
 
-// ... (이후 openInspectionListWindow, renderTodoList, selectTodoItem 등 나머지 함수들 유지) ...
-
-// ✅ [신규] 리스트 팝업창을 인앱 모달(동적 HTML 생성)로 띄우는 함수
+// 리스트 팝업창을 인앱 모달로 띄우는 함수
 export const openInspectionListWindow = () => {
     const list = State.appState.inspectionList || [];
     if (list.length === 0) {
@@ -318,8 +326,8 @@ export const openInspectionListWindow = () => {
             ? '<span class="text-green-600 font-bold text-xs">완료</span>' 
             : '<span class="text-gray-500 text-xs">대기</span>';
         
-        // 클릭 시 해당 아이템 선택 기능 연결
-        const onClickAttr = isCompleted ? '' : `data-index="${idx}"`;
+        // 클릭 시 해당 아이템 선택 기능 연결 (완료된 것도 수정 위해 클릭 가능하도록 변경)
+        const onClickAttr = `data-index="${idx}"`;
 
         // 정보 표시 (로케이션, 샘플위치)
         const locInfo = item.location ? `<div class="text-xs font-bold text-indigo-600">📦 ${item.location}</div>` : '';
@@ -346,7 +354,7 @@ export const openInspectionListWindow = () => {
         `;
     }).join('');
 
-    // 모달 내부 HTML 구성 (모바일 친화적 폰트 크기 및 스크롤)
+    // 모달 내부 HTML 구성
     modal.innerHTML = `
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden animate-fade-in-up">
             <div class="p-4 bg-indigo-600 text-white flex justify-between items-center shadow-md shrink-0">
@@ -389,18 +397,16 @@ export const openInspectionListWindow = () => {
     document.body.appendChild(modal);
 
     // 이벤트 리스너 연결
-    // 1. 닫기 버튼
     document.getElementById('close-dynamic-modal-btn').addEventListener('click', () => {
         modal.remove();
     });
 
-    // 2. 테이블 행 클릭 위임
     modal.querySelector('tbody').addEventListener('click', (e) => {
         const tr = e.target.closest('tr[data-index]');
         if (tr) {
             const index = parseInt(tr.dataset.index, 10);
             selectTodoItem(index);
-            modal.remove(); // 선택 후 모달 닫기 (사용자 경험상 닫는게 깔끔함, 필요시 유지 가능)
+            modal.remove();
         }
     });
 };
@@ -450,15 +456,15 @@ export const renderTodoList = () => {
     });
 };
 
-export const selectTodoItem = (index) => {
+// ✅ [수정] 리스트 아이템 선택 시 로직 (완료된 건은 수정 모드로 진입)
+export const selectTodoItem = async (index) => {
     const item = State.appState.inspectionList[index];
     if (!item) return;
 
     currentTodoIndex = index; 
 
+    // 기본 정보 채우기
     DOM.inspProductNameInput.value = item.name; 
-    if (DOM.inspInboundDateInput) DOM.inspInboundDateInput.value = item.inboundDate || getTodayDateString();
-    if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = item.qty > 0 ? item.qty : '';
     
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${item.option || '-'}`;
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${item.code || '-'}`;
@@ -469,18 +475,102 @@ export const selectTodoItem = (index) => {
     if (item.packingDate) supplierText += ` / 📅 패킹: ${item.packingDate}`;
     
     if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = supplierText; 
-    
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${item.thickness || '-'}`;
 
-    searchProductHistory(); 
-    
-    DOM.inspNotesInput.value = '';
+    // 이력 조회 호출 (비동기)
+    await searchProductHistory(); 
+
+    // ✅ 만약 완료된 항목이면, 검수 기록을 불러와서 폼에 채우고 수정 모드로 전환
+    if (item.status === '완료') {
+        await loadCompletedInspectionData(item);
+    } else {
+        // 대기 상태면 입력 폼 리셋 및 신규 모드
+        resetEditingState();
+        if (DOM.inspInboundDateInput) DOM.inspInboundDateInput.value = item.inboundDate || getTodayDateString();
+        if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = item.qty > 0 ? item.qty : '';
+        DOM.inspNotesInput.value = '';
+    }
     
     showToast(`'${item.name}' 선택됨`);
 };
 
 // 윈도우 객체에 바인딩
 window.selectInspectionTodoItem = selectTodoItem;
+
+// ✅ [신규] 완료된 항목의 데이터를 Firestore에서 불러와 폼에 채우는 함수
+const loadCompletedInspectionData = async (item) => {
+    try {
+        const docRef = doc(State.db, 'product_history', item.name);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const logs = data.logs || [];
+            
+            // 리스트의 정보(입고일)와 일치하는 가장 최근 로그를 찾음
+            // (동일 상품이 오늘 여러 번 있을 수 있으므로 뒤에서부터 탐색)
+            const targetLogIndex = logs.map((log, idx) => ({ ...log, originalIndex: idx }))
+                                     .reverse()
+                                     .findIndex(log => log.inboundDate === item.inboundDate);
+
+            if (targetLogIndex !== -1) {
+                // 원래 인덱스로 변환 (reverse 했으므로)
+                const realIndex = logs.length - 1 - targetLogIndex;
+                const log = logs[realIndex];
+
+                // 1. 입력 필드 채우기
+                if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = log.inboundQty || 0;
+                if (DOM.inspNotesInput) DOM.inspNotesInput.value = log.note || '';
+                if (DOM.inspInboundDateInput) DOM.inspInboundDateInput.value = log.inboundDate || '';
+
+                // 2. 체크리스트 채우기
+                const cl = log.checklist || {};
+                const setSelect = (dom, val) => { if (dom) dom.value = val || (dom.options[0]?.value || ''); };
+
+                if (DOM.inspCheckThickness) DOM.inspCheckThickness.value = cl.thickness || '';
+                setSelect(DOM.inspCheckFabric, cl.fabric);
+                setSelect(DOM.inspCheckColor, cl.color);
+                setSelect(DOM.inspCheckDistortion, cl.distortion);
+                setSelect(DOM.inspCheckUnraveling, cl.unraveling);
+                setSelect(DOM.inspCheckFinishing, cl.finishing);
+                setSelect(DOM.inspCheckZipper, cl.zipper);
+                setSelect(DOM.inspCheckButton, cl.button);
+                setSelect(DOM.inspCheckLining, cl.lining);
+                setSelect(DOM.inspCheckPilling, cl.pilling);
+                setSelect(DOM.inspCheckDye, cl.dye);
+
+                // 3. 이미지 미리보기
+                if (log.image) {
+                    currentImageBase64 = log.image;
+                    if (DOM.inspImagePreviewBox) {
+                        DOM.inspImagePreviewBox.classList.remove('hidden');
+                        if (DOM.inspImagePreviewImg) DOM.inspImagePreviewImg.src = log.image;
+                    }
+                } else {
+                    clearImageState();
+                }
+
+                // 4. 수정 모드 설정 (버튼 스타일 변경)
+                editingLogIndex = realIndex;
+                const btn = document.getElementById('insp-save-next-btn');
+                if (btn) {
+                    btn.innerHTML = `<span>수정 저장</span><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>`;
+                    btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                }
+                
+                showToast("이전 검수 기록을 불러왔습니다. 수정 가능합니다.");
+                return;
+            }
+        }
+        showToast("이전 상세 기록을 찾을 수 없습니다. (새로 입력하세요)", true);
+        resetEditingState();
+
+    } catch (e) {
+        console.error("Error loading completed item details:", e);
+        resetEditingState();
+    }
+};
 
 export const toggleScanner = () => {
     if (DOM.inspScannerContainer.classList.contains('hidden')) {
@@ -606,10 +696,16 @@ export const searchProductHistory = async () => {
             DOM.inspInboundDateInput.classList.add('bg-gray-100');
             DOM.inspInboundDateInput.classList.remove('bg-white');
         }
-        if (DOM.inspInboundQtyInput) DOM.inspInboundQtyInput.value = matchedItem.qty > 0 ? matchedItem.qty : '';
+        
+        // 🚨 완료된 항목이면 loadCompletedItemDetails가 상세 내용을 채울 것이므로 여기서는 수량 덮어쓰기 안 함
+        if (matchedItem.status !== '완료' && DOM.inspInboundQtyInput) {
+             DOM.inspInboundQtyInput.value = matchedItem.qty > 0 ? matchedItem.qty : '';
+        }
 
     } else {
+        // 매칭되는 항목이 없으면 일반 모드
         currentTodoIndex = -1; 
+        resetEditingState(); // 신규 입력이므로 수정 모드 해제
         
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
@@ -632,8 +728,11 @@ export const searchProductHistory = async () => {
     DOM.inspAlertBox.classList.add('hidden');
     DOM.inspReportTitle.textContent = targetProductName;
     
-    const selects = document.querySelectorAll('#insp-current-input-area select');
-    selects.forEach(sel => sel.value = ""); 
+    // 신규 모드일 경우에만 체크리스트 초기화 (수정 모드일 땐 데이터 로드됨)
+    if (editingLogIndex === -1) {
+        const selects = document.querySelectorAll('#insp-current-input-area select');
+        selects.forEach(sel => sel.value = ""); 
+    }
 
     try {
         const docRef = doc(State.db, 'product_history', targetProductName);
@@ -670,13 +769,16 @@ export const searchProductHistory = async () => {
                 const recentIssues = specialIssues.slice(-5).reverse();
                 DOM.inspAlertMsg.textContent = `최근 특이사항: ${recentIssues[0]}`;
                 
-                setTimeout(() => {
-                    alert(`🚨 [특이사항 알림] 🚨\n\n이 상품은 ${specialIssues.length}건의 특이사항(불량/메모) 기록이 있습니다.\n검수 시 아래 내용을 확인해주세요.\n\n[최근 기록]\n- ${recentIssues.join('\n- ')}`);
-                }, 200);
+                // 알림은 신규 검수일 때만 띄움
+                if (editingLogIndex === -1) {
+                    setTimeout(() => {
+                        alert(`🚨 [특이사항 알림] 🚨\n\n이 상품은 ${specialIssues.length}건의 특이사항(불량/메모) 기록이 있습니다.\n검수 시 아래 내용을 확인해주세요.\n\n[최근 기록]\n- ${recentIssues.join('\n- ')}`);
+                    }, 200);
+                }
             }
         } else {
             DOM.inspReportCount.textContent = '0 (신규)';
-            showToast('신규 상품입니다.');
+            if (editingLogIndex === -1) showToast('신규 상품입니다.');
         }
     } catch (e) {
         console.error("Error searching product history:", e);
@@ -761,59 +863,100 @@ export const saveInspectionAndNext = async () => {
     };
 
     const btn = document.getElementById('insp-save-next-btn');
-    if(btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+    if(btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
 
     try {
         const docRef = doc(State.db, 'product_history', productName);
         
-        const updates = {
-            lastInspectionDate: today,
-            totalInbound: increment(1),
-            logs: arrayUnion(inspectionRecord),
-            updatedAt: serverTimestamp()
-        };
+        // ✅ [수정] 수정 모드인지 확인
+        if (editingLogIndex !== -1) {
+            // 1. 기존 문서를 읽어서 로그 배열 전체를 수정
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const logs = data.logs || [];
+                
+                // 수정할 인덱스 유효성 확인
+                if (editingLogIndex >= 0 && editingLogIndex < logs.length) {
+                    // 기존 로그 정보 유지하면서 내용 업데이트
+                    // (작성일/시간은 업데이트 시점으로 변경)
+                    logs[editingLogIndex] = {
+                        ...logs[editingLogIndex],
+                        ...inspectionRecord
+                    };
+                    
+                    // 불량 요약 업데이트
+                    const newDefectSummary = logs
+                        .filter(l => l.defects && l.defects.length > 0)
+                        .map(l => `${l.date}: ${l.defects.join(', ')}`);
 
-        if (currentItem) {
-            updates.lastCode = currentItem.code;
-            updates.lastOption = currentItem.option;
-            updates.lastSupplierName = currentItem.supplierName; 
+                    await updateDoc(docRef, { 
+                        logs: logs,
+                        defectSummary: newDefectSummary,
+                        updatedAt: serverTimestamp()
+                    });
+                    
+                    showToast(`'${productName}' 검수 기록이 수정되었습니다.`);
+                }
+            }
+        } else {
+            // 2. 신규 저장 (기존 로직)
+            const updates = {
+                lastInspectionDate: today,
+                totalInbound: increment(1),
+                logs: arrayUnion(inspectionRecord),
+                updatedAt: serverTimestamp()
+            };
+
+            if (currentItem) {
+                updates.lastCode = currentItem.code;
+                updates.lastOption = currentItem.option;
+                updates.lastSupplierName = currentItem.supplierName; 
+            }
+
+            if (defectsFound.length > 0) {
+                const defectSummaryStr = `${today}: ${defectsFound.join(', ')}`;
+                updates.defectSummary = arrayUnion(defectSummaryStr);
+            }
+
+            await setDoc(docRef, updates, { merge: true });
+            
+            // 오늘 검수 리스트에 추가 (UI용) - 신규일 때만
+            todayInspectionList.unshift({
+                productName,
+                inboundDate,
+                status,
+                defects: defectsFound,
+                note,
+                time: nowTime
+            });
+            showToast(`'${productName}' 저장 완료!`);
         }
 
-        if (defectsFound.length > 0) {
-            const defectSummaryStr = `${today}: ${defectsFound.join(', ')}`;
-            updates.defectSummary = arrayUnion(defectSummaryStr);
-        }
-
-        await setDoc(docRef, updates, { merge: true });
-
+        // 리스트 상태 업데이트 ('완료' 처리)
         const list = [...State.appState.inspectionList];
         if (currentTodoIndex >= 0 && list[currentTodoIndex]) {
             list[currentTodoIndex].status = '완료';
             await updateDailyData({ inspectionList: list });
         }
 
-        todayInspectionList.unshift({
-            productName,
-            inboundDate,
-            status,
-            defects: defectsFound,
-            note,
-            time: nowTime
-        });
-
         renderTodayInspectionList();
-        showToast(`'${productName}' 저장 완료!`);
         
+        // 폼 리셋 및 다음 단계
         resetInspectionForm(true);
-        clearImageState();
+        resetEditingState();
         
-        if (currentTodoIndex >= 0 && currentTodoIndex < list.length - 1) {
+        // 신규 입력이었다면 다음 항목으로 자동 이동
+        if (editingLogIndex === -1 && currentTodoIndex >= 0 && currentTodoIndex < list.length - 1) {
             selectTodoItem(currentTodoIndex + 1);
         } else {
-            showToast("리스트의 마지막 상품입니다.");
-            DOM.inspHistoryReport.classList.add('hidden');
-            DOM.inspCurrentInputArea.classList.add('hidden');
-            currentTodoIndex = -1;
+            // 마지막이거나 수정 모드였으면 완료 후 대기
+            if (editingLogIndex === -1) {
+                showToast("리스트의 마지막 상품입니다.");
+                DOM.inspHistoryReport.classList.add('hidden');
+                DOM.inspCurrentInputArea.classList.add('hidden');
+                currentTodoIndex = -1;
+            }
         }
 
     } catch (e) {
