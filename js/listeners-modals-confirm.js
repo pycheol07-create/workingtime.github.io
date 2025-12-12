@@ -315,7 +315,12 @@ export function setupConfirmationModalListeners() {
     // 6. 업무 마감 확인
     if (DOM.confirmEndShiftBtn) {
         DOM.confirmEndShiftBtn.addEventListener('click', async () => {
-            await saveDayDataToHistory(false);
+            // ✅ [수정] false -> true 로 변경
+            // 설명: 업무를 이력으로 저장한 후, 현재 라이브 데이터를 '완전 삭제(초기화)'합니다.
+            // 이렇게 하면 다른 기기에서 켜져 있던 창(좀비 탭)이 서버 데이터를 덮어쓰려 할 때
+            // 원본 문서가 없거나 초기화되어 있어 덮어쓰기에 실패하거나 오류가 발생해 멈추게 됩니다.
+            await saveDayDataToHistory(true); 
+            
             DOM.endShiftConfirmModal.classList.add('hidden');
         });
     }
