@@ -1,29 +1,22 @@
 // === js/history-data-manager.js ===
-// 설명: '이력' 기능과 관련된 모든 Firestore 데이터 I/O(읽기/쓰기)를 담당합니다.
-// (수정됨: 시스템 최초 기록일 ~ 오늘까지 날짜 자동 생성 로직 적용)
-
 import * as State from './state.js';
 import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js';
-
-// Firestore 함수 임포트
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc,
     query, where, writeBatch, updateDoc, increment
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ... (기존 헬퍼 함수들 유지: getWorkRecordsCollectionRef, getDailyDocRef, syncTodayToHistory) ...
 
-// workRecords 컬렉션 참조 헬퍼
 export const getWorkRecordsCollectionRef = () => {
     const today = getTodayDateString();
     return collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
 };
 
-// 메인 데일리 문서 참조 헬퍼
 export const getDailyDocRef = () => {
     return doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
 };
 
-// Firestore에서 직접 데이터를 읽어와 로컬 이력 리스트와 동기화
 export const syncTodayToHistory = async () => {
     const todayKey = getTodayDateString();
     const now = getCurrentTime();
@@ -67,7 +60,6 @@ export const syncTodayToHistory = async () => {
         if (idx > -1) {
             State.allHistoryData[idx] = liveTodayData;
         } else {
-            // 만약 리스트에 오늘 날짜가 없었다면 추가 (정렬은 호출처에서 처리됨)
             State.allHistoryData.unshift(liveTodayData);
             State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
         }
@@ -99,6 +91,12 @@ export async function saveProgress(isAutoSave = false) {
             if (data.status === 'ongoing' || data.status === 'paused') {
                 data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
                 data.endTime = now;
+
+                // 20시간 초과 방지 (좀비 탭 방어)
+                if (data.duration > 1200) { 
+                    data.status = 'completed';
+                    console.warn(`[Auto-Fix] 20시간 초과 업무 강제 종료: ${data.task} (${data.member})`);
+                }
             }
             return data;
         }).filter(record => {
@@ -106,6 +104,24 @@ export async function saveProgress(isAutoSave = false) {
             return Math.round(record.duration || 0) > 0;
         });
 
+        // ✅ [핵심 추가] 동시 마감 시 데이터 유실 방지 안전장치
+        // 설명: 내가 지금 저장하려는 기록이 '0건'인데,
+        // 이미 서버 이력(History)에는 '기록'이 존재한다면?
+        // -> 다른 관리자가 방금 막 저장하고 데이터를 삭제했다는 뜻입니다.
+        // -> 그러므로 내 '빈 데이터'로 덮어쓰지 말고 조용히 종료합니다.
+        if (liveWorkRecords.length === 0) {
+            const historySnap = await getDoc(historyDocRef);
+            if (historySnap.exists()) {
+                const existingHistory = historySnap.data();
+                if (existingHistory.workRecords && existingHistory.workRecords.length > 0) {
+                    console.log("Safe-guard: Valid history exists. Skipping overwrite with empty records.");
+                    if (!isAutoSave) showToast("이미 다른 관리자가 마감했습니다. (중복 저장 방지)");
+                    return; // ⛔️ 여기서 중단! 덮어쓰기 방지
+                }
+            }
+        }
+
+        // 기존 빈 데이터 체크 로직 (그대로 유지)
         if (liveWorkRecords.length === 0 && 
             Object.keys(dailyData.taskQuantities || {}).length === 0 && 
             (!dailyData.inspectionList || dailyData.inspectionList.length === 0)) {
@@ -129,13 +145,13 @@ export async function saveProgress(isAutoSave = false) {
         await syncTodayToHistory(); 
 
         if (isAutoSave) {
-            console.log(`Auto-save (server-authoritative) completed at ${now}`);
+            console.log(`Auto-save completed at ${now}`);
         } else {
             showToast('최신 상태가 이력에 안전하게 저장되었습니다.');
         }
 
     } catch (e) {
-        console.error('Error in saveProgress (server-authoritative): ', e);
+        console.error('Error in saveProgress: ', e);
         if (!isAutoSave) {
              showToast(`이력 저장 중 오류가 발생했습니다: ${e.message}`, true);
         }
@@ -225,13 +241,10 @@ export async function saveDayDataToHistory(shouldReset) {
     }
 }
 
-// ✅ [수정됨] 전체 이력 데이터 불러오기 (시스템 최초 기록일 ~ 오늘 자동 채움)
 export async function fetchAllHistoryData() {
     const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     try {
         const querySnapshot = await getDocs(historyCollectionRef);
-        
-        // 1. 실제 데이터 로드 (Map으로 저장하여 빠른 검색)
         const dataMap = new Map();
         querySnapshot.forEach((doc) => {
             const docData = doc.data();
@@ -240,29 +253,24 @@ export async function fetchAllHistoryData() {
             }
         });
 
-        // 2. 날짜 범위 결정 (시스템의 가장 첫 기록일 ~ 오늘)
         const today = getTodayDateString();
-        let minDate = today; // 기본값: 오늘 (데이터가 하나도 없을 때)
+        let minDate = today;
         
         if (dataMap.size > 0) {
             const keys = Array.from(dataMap.keys());
-            keys.sort(); // 날짜 오름차순 정렬 (가장 과거 -> 최신)
-            minDate = keys[0]; // 시스템에 저장된 가장 첫 날짜
+            keys.sort();
+            minDate = keys[0];
         }
 
-        // 3. 시작일(minDate)부터 오늘까지 빈 날짜 채우기
         const fullHistory = [];
         const current = new Date(minDate);
         const end = new Date(today);
 
         while (current <= end) {
             const dateStr = current.toISOString().slice(0, 10);
-            
             if (dataMap.has(dateStr)) {
-                // 실제 데이터가 있으면 사용
                 fullHistory.push(dataMap.get(dateStr));
             } else {
-                // 데이터가 없는 날(주말/휴일 등)은 '빈 데이터' 생성하여 리스트에 표시
                 fullHistory.push({
                     id: dateStr,
                     workRecords: [],
@@ -276,12 +284,9 @@ export async function fetchAllHistoryData() {
             current.setDate(current.getDate() + 1);
         }
 
-        // 4. 내림차순 정렬 (최신 날짜가 위로 오도록)
         fullHistory.sort((a, b) => b.id.localeCompare(a.id));
-
         State.allHistoryData.length = 0; 
         State.allHistoryData.push(...fullHistory); 
-
         return State.allHistoryData;
     } catch (error) {
         console.error('Error fetching all history data:', error);
@@ -313,7 +318,6 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
     const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
     let dayData = dayIndex > -1 ? State.allHistoryData[dayIndex] : null;
     
-    // 만약 빈 날짜였다면 여기서 실제 객체 구조를 갖추게 됨
     if (!dayData) {
         dayData = { id: dateKey, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
         State.allHistoryData.push(dayData);
@@ -421,7 +425,6 @@ export async function saveManagementData(dateKey, managementData) {
     if (dayIndex > -1) {
         State.allHistoryData[dayIndex].management = managementData;
     } else {
-        // 혹시라도 로컬 리스트에 없으면 생성 (자동 생성 로직이 있어서 거의 발생 안 함)
         State.allHistoryData.push({
             id: dateKey,
             workRecords: [],
@@ -441,7 +444,6 @@ export async function saveManagementData(dateKey, managementData) {
             await setDoc(dailyDocRef, updates, { merge: true });
         }
 
-        // history 컬렉션에 저장 (문서가 없으면 생성됨: merge true)
         const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
         await setDoc(historyDocRef, updates, { merge: true });
 
