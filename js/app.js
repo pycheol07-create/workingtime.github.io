@@ -111,8 +111,12 @@ async function applyHistoricalLeaveData() {
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     
-    // 1. 점심시간 자동 일시정지 (12:30)
-    if (now === '12:30' && !State.appState.lunchPauseExecuted) {
+    // ✅ [수정] 오늘이 평일인지 확인 (주말에는 점심시간 자동정지/재개 적용 안 함)
+    const todayDate = getTodayDateString();
+    const isTodayWeekday = isWeekday(todayDate);
+    
+    // 1. 점심시간 자동 일시정지 (12:30) - 평일(isTodayWeekday)일 때만 실행
+    if (isTodayWeekday && now === '12:30' && !State.appState.lunchPauseExecuted) {
         State.appState.lunchPauseExecuted = true;
         if (State.context.autoPauseForLunch) {
             try {
@@ -127,8 +131,8 @@ export const updateElapsedTimes = async () => {
         saveStateToFirestore(); 
     }
 
-    // 2. 점심시간 자동 재개 (13:30)
-    if (now === '13:30' && !State.appState.lunchResumeExecuted) {
+    // 2. 점심시간 자동 재개 (13:30) - 평일(isTodayWeekday)일 때만 실행
+    if (isTodayWeekday && now === '13:30' && !State.appState.lunchResumeExecuted) {
         State.appState.lunchResumeExecuted = true;
         if (State.context.autoResumeFromLunch) {
             try {
