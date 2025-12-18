@@ -37,9 +37,10 @@ import {
     renderPersonalReport,
     renderManagementDaily,
     renderManagementSummary,
-    // ✅ [수정] 누락된 함수 추가 (주별/월별 업무 이력 렌더링)
     renderWeeklyHistory,
-    renderMonthlyHistory
+    renderMonthlyHistory,
+    // ✅ [신규] 실적 예측 렌더러 추가
+    renderPredictionTab
 } from './ui-history.js';
 
 import {
@@ -64,6 +65,9 @@ export function setupHistoryModalListeners() {
     const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
     const inspectionPanel = document.getElementById('inspection-history-panel');
+    // ✅ [신규] 예측 패널 참조
+    const predictionPanel = document.getElementById('prediction-panel');
+    const predictionDaysSelect = document.getElementById('prediction-days-select');
 
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
@@ -381,7 +385,14 @@ export function setupHistoryModalListeners() {
                 if (managementPanel) managementPanel.classList.toggle('hidden', tabName !== 'management');
                 if (inspectionPanel) inspectionPanel.classList.toggle('hidden', tabName !== 'inspection');
                 
-                if (dateListContainer) dateListContainer.style.display = (tabName === 'trends' || tabName === 'inspection') ? 'none' : 'block';
+                // ✅ [신규] 예측 패널 토글
+                if (predictionPanel) predictionPanel.classList.toggle('hidden', tabName !== 'prediction');
+                
+                // ✅ [신규] 날짜 리스트 숨김 처리 (Trend, Inspection, Prediction은 날짜 리스트 불필요)
+                if (dateListContainer) {
+                    const hideListTabs = ['trends', 'inspection', 'prediction'];
+                    dateListContainer.style.display = hideListTabs.includes(tabName) ? 'none' : 'block';
+                }
 
                 if (tabName === 'work') {
                      const view = DOM.historyTabs?.querySelector('button.font-semibold')?.dataset.view || 'daily';
@@ -394,6 +405,10 @@ export function setupHistoryModalListeners() {
                      switchHistoryView(view);
                 } else if (tabName === 'trends') {
                      renderTrendAnalysisCharts(State.allHistoryData, State.appConfig, trendCharts);
+                } else if (tabName === 'prediction') { 
+                     // ✅ [신규] 예측 탭 렌더링 호출
+                     const days = predictionDaysSelect ? Number(predictionDaysSelect.value) : 14;
+                     renderPredictionTab(State.allHistoryData, days);
                 } else if (tabName === 'personal') {
                      if (DOM.personalReportMemberSelect && DOM.personalReportMemberSelect.options.length <= 1) {
                          const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
@@ -426,6 +441,16 @@ export function setupHistoryModalListeners() {
                 } else if (tabName === 'inspection') {
                     fetchAndRenderInspectionHistory();
                 }
+            }
+        });
+    }
+
+    // ✅ [신규] 예측 기간 변경 이벤트 리스너
+    if (predictionDaysSelect) {
+        predictionDaysSelect.addEventListener('change', () => {
+            if (State.context.activeMainHistoryTab === 'prediction') {
+                const days = Number(predictionDaysSelect.value);
+                renderPredictionTab(State.allHistoryData, days);
             }
         });
     }
