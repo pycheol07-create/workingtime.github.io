@@ -4,7 +4,7 @@
 import { formatDuration, getWeekOfYear, isWeekday } from './utils.js';
 import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js';
 import { appConfig } from './state.js';
-import { predictFutureTrends } from './analysis-logic.js';
+// predictFutureTrends import 제거됨
 
 // 헬퍼: 숫자를 통화 형식(콤마)으로 변환
 const formatCurrency = (num) => {
@@ -138,140 +138,6 @@ const generateCostAnalysisHTML = (analysis) => {
             </p>
         </div>
     `;
-};
-
-/**
- * 예측 차트 렌더링 함수
- */
-const renderPredictionChart = (containerId, historyData) => {
-    const ctx = document.getElementById(containerId);
-    if (!ctx) return;
-
-    const result = predictFutureTrends(historyData, 14); // 향후 2주 예측
-    if (!result) {
-        ctx.parentNode.innerHTML = '<div class="text-center text-gray-400 py-10">예측을 위한 데이터가 충분하지 않습니다 (최소 5일 이상).</div>';
-        return;
-    }
-
-    // 1. 라벨 결합: 과거 데이터 전체 + 미래 데이터(오늘 제외, 내일부터)
-    // (result.prediction.labels[0]은 오늘이므로 중복 방지를 위해 slice(1))
-    const labels = [...result.historical.labels, ...result.prediction.labels.slice(1)];
-    
-    // 2. 과거 데이터 패딩 (미래 구간만큼 null 채움)
-    const futureLength = result.prediction.labels.length - 1; // 오늘 제외한 미래 길이
-    const histRevenue = [...result.historical.revenue, ...new Array(futureLength).fill(null)];
-    const histDelivery = [...result.historical.delivery, ...new Array(futureLength).fill(null)];
-
-    // 3. 미래 데이터 패딩 (과거 구간만큼 null 채움)
-    // 과거 데이터의 마지막 인덱스(오늘)부터 예측값이 들어가야 함
-    const pastLength = result.historical.labels.length - 1; // 오늘 제외한 과거 길이
-    const padding = new Array(pastLength).fill(null);
-
-    // 예측 데이터 전체(오늘 포함)를 붙임 -> 오늘 위치에 예측값이 들어감
-    const predRevenue = [...padding, ...result.prediction.revenue];
-    const predDelivery = [...padding, ...result.prediction.delivery];
-
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: '실제 매출',
-                    data: histRevenue,
-                    borderColor: 'rgb(59, 130, 246)', 
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.1,
-                    yAxisID: 'y'
-                },
-                {
-                    label: '예측 매출 (점선)',
-                    data: predRevenue,
-                    borderColor: 'rgb(59, 130, 246)',
-                    borderDash: [5, 5],
-                    borderWidth: 2,
-                    pointRadius: 2,
-                    tension: 0.1,
-                    yAxisID: 'y'
-                },
-                {
-                    label: '실제 국내배송',
-                    data: histDelivery,
-                    borderColor: 'rgb(16, 185, 129)', 
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.1,
-                    yAxisID: 'y1'
-                },
-                {
-                    label: '예측 국내배송 (점선)',
-                    data: predDelivery,
-                    borderColor: 'rgb(16, 185, 129)',
-                    borderDash: [5, 5],
-                    borderWidth: 2,
-                    pointRadius: 2,
-                    tension: 0.1,
-                    yAxisID: 'y1'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                title: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) label += ': ';
-                            if (context.parsed.y !== null) {
-                                if(label.includes('매출')) return label + context.parsed.y.toLocaleString() + '원';
-                                return label + context.parsed.y.toLocaleString() + '건';
-                            }
-                            return null;
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: { grid: { display: false } },
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: { display: true, text: '매출액 (원)' },
-                    grid: { color: '#f3f4f6' }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    title: { display: true, text: '배송량 (건)' },
-                    grid: { drawOnChartArea: false }
-                }
-            }
-        }
-    });
-
-    // 분석 코멘트
-    const trendRev = result.trend.revenueSlope;
-    const trendDel = result.trend.deliverySlope;
-    
-    let comment = `<ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">`;
-    
-    if (trendRev > 1000) comment += `<li>매출은 일 평균 약 <strong>${Math.round(trendRev).toLocaleString()}원씩 증가</strong>하는 추세입니다. 📈</li>`;
-    else if (trendRev < -1000) comment += `<li>매출은 일 평균 약 <strong>${Math.round(Math.abs(trendRev)).toLocaleString()}원씩 감소</strong>하는 추세입니다. 📉</li>`;
-    else comment += `<li>매출은 큰 변동 없이 <strong>보합세</strong>를 유지하고 있습니다. ➡️</li>`;
-
-    if (trendDel > 1) comment += `<li>국내배송량은 일 평균 약 <strong>${trendDel.toFixed(1)}건씩 증가</strong>하고 있습니다. 물량 증가에 대비하세요. 📦</li>`;
-    else if (trendDel < -1) comment += `<li>국내배송량은 일 평균 약 <strong>${Math.abs(trendDel).toFixed(1)}건씩 감소</strong>하고 있습니다.</li>`;
-    
-    comment += `</ul>`;
-    
-    document.getElementById('prediction-analysis-comment').innerHTML = comment;
 };
 
 /**
@@ -417,7 +283,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
 };
 
 /**
- * 2. 기간별(주/월/년) 요약 및 분석 화면 렌더링 (예측 포함)
+ * 2. 기간별(주/월/년) 요약 및 분석 화면 렌더링
  */
 export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     const container = document.getElementById('management-view-container');
@@ -560,28 +426,6 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
         currentStats.revenue
     );
 
-    const predictionHtml = `
-        <div class="mt-8 bg-white p-6 rounded-xl border border-indigo-100 shadow-sm relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -mr-16 -mt-16 z-0"></div>
-            
-            <div class="relative z-10">
-                <h4 class="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                    🔮 향후 2주 실적 예측 (Beta)
-                </h4>
-                <p class="text-sm text-gray-500 mb-6">과거 90일간의 데이터를 기반으로 향후 14일간의 매출과 배송량을 예측합니다. (점선: 예측치)</p>
-                
-                <div class="h-80 w-full">
-                    <canvas id="management-prediction-chart"></canvas>
-                </div>
-
-                <div class="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
-                    <h5 class="text-sm font-bold text-indigo-800 mb-2">📊 트렌드 분석 요약</h5>
-                    <div id="prediction-analysis-comment"></div>
-                </div>
-            </div>
-        </div>
-    `;
-
     let comparisonTitle = prevKey ? `(vs ${prevKey})` : '(이전 데이터 없음)';
 
     container.innerHTML = `
@@ -635,12 +479,6 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
             ${generateCostAnalysisHTML(analysis)}
             
             ${dailyTableHtml}
-
-            ${predictionHtml}
         </div>
     `;
-
-    setTimeout(() => {
-        renderPredictionChart('management-prediction-chart', allHistoryData);
-    }, 100);
 };
