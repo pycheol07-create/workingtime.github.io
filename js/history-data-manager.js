@@ -105,10 +105,6 @@ export async function saveProgress(isAutoSave = false) {
         });
 
         // ✅ [핵심 추가] 동시 마감 시 데이터 유실 방지 안전장치
-        // 설명: 내가 지금 저장하려는 기록이 '0건'인데,
-        // 이미 서버 이력(History)에는 '기록'이 존재한다면?
-        // -> 다른 관리자가 방금 막 저장하고 데이터를 삭제했다는 뜻입니다.
-        // -> 그러므로 내 '빈 데이터'로 덮어쓰지 말고 조용히 종료합니다.
         if (liveWorkRecords.length === 0) {
             const historySnap = await getDoc(historyDocRef);
             if (historySnap.exists()) {
@@ -121,7 +117,7 @@ export async function saveProgress(isAutoSave = false) {
             }
         }
 
-        // 기존 빈 데이터 체크 로직 (그대로 유지)
+        // 기존 빈 데이터 체크 로직
         if (liveWorkRecords.length === 0 && 
             Object.keys(dailyData.taskQuantities || {}).length === 0 && 
             (!dailyData.inspectionList || dailyData.inspectionList.length === 0)) {
@@ -238,6 +234,29 @@ export async function saveDayDataToHistory(shouldReset) {
         
         State.appState.workRecords = []; 
         showToast('오늘의 업무 기록을 초기화했습니다.');
+
+        // ▼▼▼ [수정됨] 마감 직후 화면 복구 로직 추가 ▼▼▼
+        try {
+            const todayKey = getTodayDateString();
+            const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', todayKey);
+            const historySnap = await getDoc(historyDocRef);
+            
+            if (historySnap.exists()) {
+                const savedHistoryData = historySnap.data();
+                // 전체 이력 배열(State.allHistoryData)에서 오늘 날짜 인덱스 찾기
+                const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
+                
+                if (idx > -1) {
+                    State.allHistoryData[idx] = savedHistoryData; // 빈 데이터 대신 저장된 이력 덮어쓰기
+                } else {
+                    State.allHistoryData.unshift(savedHistoryData); // 만약 없다면 추가
+                }
+                console.log("UI View restored from History after reset.");
+            }
+        } catch (restoreErr) {
+            console.error("Error restoring view after reset:", restoreErr);
+        }
+        // ▲▲▲ [여기까지] ▲▲▲
     }
 }
 
