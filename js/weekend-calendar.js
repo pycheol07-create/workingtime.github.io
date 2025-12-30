@@ -7,7 +7,7 @@ import {
 
 let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth(); // 0-based index
-let myRequestsMap = new Map(); // 내가 신청한 날짜를 빠르게 확인하기 위함
+let myRequestsMap = new Map();
 
 // 캘린더 초기화 및 렌더링 함수
 export async function initWeekendCalendar() {
@@ -44,7 +44,7 @@ function renderCalendarGrid(year, month) {
     // 빈 칸 채우기 (지난달)
     for (let i = 0; i < firstDay; i++) {
         const emptyCell = document.createElement('div');
-        emptyCell.className = "bg-gray-100 border-b border-r border-gray-200 min-h-[100px]";
+        emptyCell.className = "bg-gray-50 border-b border-r border-gray-200 min-h-[100px]";
         grid.appendChild(emptyCell);
     }
 
@@ -55,10 +55,10 @@ function renderCalendarGrid(year, month) {
         const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6); // 0:일, 6:토
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         
-        // 주말이면 클릭 가능하게 스타일링
-        let cellClass = `relative border-b border-r border-gray-200 p-2 flex flex-col min-h-[120px] transition-colors `;
+        // 주말이면 클릭 가능하게 스타일링 (클릭 영역임을 명확히)
+        let cellClass = `relative border-b border-r border-gray-200 p-1 md:p-2 flex flex-col min-h-[120px] transition-colors `;
         if (isWeekend) {
-            cellClass += "bg-white hover:bg-blue-50 cursor-pointer";
+            cellClass += "bg-white hover:bg-blue-50 cursor-pointer active:bg-blue-100";
         } else {
             cellClass += "bg-gray-50 opacity-60";
         }
@@ -76,11 +76,11 @@ function renderCalendarGrid(year, month) {
 
         // 신청자 목록 컨테이너
         const listContainer = document.createElement('div');
-        listContainer.className = "flex flex-col gap-1 mt-1 w-full pointer-events-none"; // 클릭 이벤트가 부모(Cell)로 전달되도록
+        listContainer.className = "flex flex-col gap-1 mt-1 w-full pointer-events-none"; 
         listContainer.id = `weekend-list-${dateStr}`;
         cell.appendChild(listContainer);
 
-        // 이벤트: 주말인 경우 날짜 클릭 시 바로 토글(신청/취소)
+        // 이벤트: 주말인 경우 날짜 클릭 시 바로 토글
         if (isWeekend) {
             cell.onclick = () => handleDateClick(dateStr);
         }
@@ -103,12 +103,12 @@ async function loadWeekendRequests(year, month) {
             const data = docSnap.data();
             addBadgeToCalendar(docSnap.id, data);
             
-            // 내 신청 내역 기록 (토글 판별용)
+            // 내 신청 내역 기록
             if (data.member === State.appState.currentUser) {
                 myRequestsMap.set(data.date, docSnap.id);
-                // 내 신청이 있는 칸은 스타일 강조
+                // 내 신청이 있는 칸 강조 (테두리 및 배경)
                 const cell = document.getElementById(`cell-${data.date}`);
-                if (cell) cell.classList.add('bg-blue-50', 'ring-2', 'ring-inset', 'ring-blue-200');
+                if (cell) cell.classList.add('bg-blue-50', 'ring-2', 'ring-inset', 'ring-blue-300');
             }
         });
     } catch (e) {
@@ -129,14 +129,16 @@ function addBadgeToCalendar(docId, data) {
         ? 'bg-blue-100 text-blue-800 border-blue-200' 
         : 'bg-orange-100 text-orange-800 border-orange-200';
     
-    badge.className = `px-2 py-1 rounded text-xs border truncate font-medium flex justify-between items-center ${colorClass} pointer-events-auto`; // 배지는 별도 클릭 가능하게
+    // [수정] 텍스트가 잘리지 않도록 스타일 개선
+    // break-keep: 단어 단위 줄바꿈, leading-tight: 줄간격 좁게
+    badge.className = `px-1 py-0.5 rounded text-[11px] md:text-xs border font-medium text-center break-keep leading-tight ${colorClass} pointer-events-auto`;
     badge.textContent = data.member;
 
     // 관리자는 타인 배지를 클릭해서 승인 관리
     if (isAdmin) {
         badge.style.cursor = 'pointer';
         badge.onclick = (e) => {
-            e.stopPropagation(); // 셀 클릭(본인신청) 방지
+            e.stopPropagation(); 
             handleAdminBadgeClick(docId, data);
         };
     }
@@ -144,7 +146,7 @@ function addBadgeToCalendar(docId, data) {
     container.appendChild(badge);
 }
 
-// [핵심] 날짜 칸 클릭 핸들러 (신청/취소 토글)
+// 날짜 칸 클릭 핸들러 (신청/취소 토글)
 async function handleDateClick(dateStr) {
     const member = State.appState.currentUser;
     if (!member) {
@@ -152,15 +154,14 @@ async function handleDateClick(dateStr) {
         return;
     }
 
-    // 이미 신청한 날짜인지 확인
     if (myRequestsMap.has(dateStr)) {
-        // 이미 신청함 -> 취소(삭제) 프로세스
+        // 이미 신청함 -> 취소(삭제)
         if (confirm(`${dateStr} 근무 신청을 취소하시겠습니까?`)) {
             const docId = myRequestsMap.get(dateStr);
             await deleteRequest(docId);
         }
     } else {
-        // 신청 안 함 -> 신규 신청 프로세스 (사유 입력 없음)
+        // 신청 안 함 -> 신규 신청
         if (confirm(`${dateStr} 근무를 신청하시겠습니까?`)) {
             await createRequest(dateStr, member);
         }
@@ -170,7 +171,7 @@ async function handleDateClick(dateStr) {
 // 신규 신청 생성
 async function createRequest(dateStr, member) {
     const monthStr = dateStr.substring(0, 7); // "YYYY-MM"
-    const docId = `${dateStr}_${member}`; // ID 조합
+    const docId = `${dateStr}_${member}`; 
 
     const requestData = {
         date: dateStr,
@@ -184,11 +185,11 @@ async function createRequest(dateStr, member) {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
         await setDoc(docRef, requestData);
-        showToast(`${dateStr} 근무 신청 완료`);
-        initWeekendCalendar(); // 화면 갱신
+        showToast(`${dateStr} 신청 완료`);
+        initWeekendCalendar(); 
     } catch (e) {
         console.error("Error creating request:", e);
-        showToast("신청 중 오류가 발생했습니다.", true);
+        showToast("신청 실패", true);
     }
 }
 
@@ -197,11 +198,11 @@ async function deleteRequest(docId) {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
         await deleteDoc(docRef);
-        showToast("신청이 취소되었습니다.");
-        initWeekendCalendar(); // 화면 갱신
+        showToast("신청 취소됨");
+        initWeekendCalendar(); 
     } catch (e) {
         console.error("Error deleting request:", e);
-        showToast("취소 중 오류가 발생했습니다.", true);
+        showToast("취소 실패", true);
     }
 }
 
@@ -226,15 +227,15 @@ async function processAdminAction(docId, action) {
     try {
         if (action === 'delete') {
             await deleteDoc(docRef);
-            showToast("반려(삭제) 처리되었습니다.");
+            showToast("반려(삭제) 완료");
         } else if (action === 'confirmed') {
             await updateDoc(docRef, { status: 'confirmed', confirmedAt: new Date().toISOString() });
-            showToast("승인 처리되었습니다.");
+            showToast("승인 완료");
         }
         document.getElementById('weekend-admin-popup').classList.add('hidden');
         initWeekendCalendar();
     } catch (e) {
         console.error("Error admin action:", e);
-        showToast("처리 중 오류 발생", true);
+        showToast("처리 실패", true);
     }
 }

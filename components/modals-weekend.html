@@ -1,46 +1,55 @@
 <div id="weekend-work-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50 flex items-center justify-center">
-    <div class="relative bg-white rounded-lg shadow-xl w-full max-w-6xl p-6 mx-4" style="max-height: 90vh; display: flex; flex-direction: column;">
+    <div class="relative bg-white rounded-lg shadow-xl w-full max-w-6xl p-2 md:p-6 mx-auto my-4 flex flex-col max-h-[95vh]">
         
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+        <div class="flex justify-between items-center mb-4 px-2">
+            <h3 class="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
                 📅 주말 근무 현황
-                <span class="text-sm font-normal text-gray-500 ml-2">(날짜를 클릭하여 신청/취소)</span>
+                <span class="text-xs md:text-sm font-normal text-gray-500 ml-2 hidden md:inline">(날짜를 클릭하여 신청/취소)</span>
             </h3>
             <button id="close-weekend-modal-btn" class="text-gray-400 hover:text-gray-700 text-3xl font-bold">&times;</button>
+        </div>
+        
+        <div class="md:hidden text-xs text-center text-gray-500 mb-2">
+            날짜를 터치하여 근무를 신청하거나 취소하세요.
         </div>
 
         <div class="flex justify-center items-center space-x-6 mb-4">
             <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-100 text-gray-600">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
             </button>
-            <h2 id="current-month-label" class="text-2xl font-bold text-gray-800 w-48 text-center">Loading...</h2>
+            <h2 id="current-month-label" class="text-xl md:text-2xl font-bold text-gray-800 w-40 md:w-48 text-center">Loading...</h2>
             <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-100 text-gray-600">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
             </button>
         </div>
 
-        <div class="flex justify-end space-x-4 mb-2 text-sm font-medium">
+        <div class="flex justify-end space-x-4 mb-2 text-xs md:text-sm font-medium px-2">
             <div class="flex items-center"><span class="w-3 h-3 bg-orange-400 rounded-full mr-2"></span>승인 대기</div>
             <div class="flex items-center"><span class="w-3 h-3 bg-blue-600 rounded-full mr-2"></span>확정됨</div>
         </div>
 
-        <div class="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200 rounded-t-lg">
-            <div class="py-2 text-center font-bold text-red-500 bg-white">일</div>
-            <div class="py-2 text-center font-bold text-gray-700 bg-white">월</div>
-            <div class="py-2 text-center font-bold text-gray-700 bg-white">화</div>
-            <div class="py-2 text-center font-bold text-gray-700 bg-white">수</div>
-            <div class="py-2 text-center font-bold text-gray-700 bg-white">목</div>
-            <div class="py-2 text-center font-bold text-gray-700 bg-white">금</div>
-            <div class="py-2 text-center font-bold text-blue-600 bg-white">토</div>
-        </div>
+        <div class="flex-grow overflow-auto border border-gray-200 rounded-lg">
+            <div class="min-w-[700px]">
+                
+                <div class="grid grid-cols-7 gap-px bg-gray-200 border-b border-gray-200">
+                    <div class="py-2 text-center font-bold text-red-500 bg-white">일</div>
+                    <div class="py-2 text-center font-bold text-gray-700 bg-white">월</div>
+                    <div class="py-2 text-center font-bold text-gray-700 bg-white">화</div>
+                    <div class="py-2 text-center font-bold text-gray-700 bg-white">수</div>
+                    <div class="py-2 text-center font-bold text-gray-700 bg-white">목</div>
+                    <div class="py-2 text-center font-bold text-gray-700 bg-white">금</div>
+                    <div class="py-2 text-center font-bold text-blue-600 bg-white">토</div>
+                </div>
 
-        <div id="weekend-calendar-grid" class="grid grid-cols-7 gap-px bg-gray-200 border-l border-r border-b border-gray-200 overflow-y-auto" style="min-height: 500px;">
+                <div id="weekend-calendar-grid" class="grid grid-cols-7 gap-px bg-gray-200 min-h-[500px]">
+                    </div>
             </div>
+        </div>
     </div>
 </div>
 
-<div id="weekend-admin-popup" class="fixed inset-0 bg-black bg-opacity-40 hidden z-[60] flex items-center justify-center">
-    <div class="bg-white p-6 rounded-lg shadow-2xl w-96">
+<div id="weekend-admin-popup" class="fixed inset-0 bg-black bg-opacity-40 hidden z-[60] flex items-center justify-center px-4">
+    <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm">
         <h4 class="text-lg font-bold mb-4 text-gray-800">신청 관리</h4>
         <div class="mb-6 space-y-2">
             <p class="text-gray-600"><span class="font-bold text-gray-900" id="admin-popup-member"></span>님의 신청</p>
@@ -48,9 +57,9 @@
         </div>
         
         <div class="flex justify-end space-x-2">
-            <button id="admin-reject-btn" class="px-4 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200 font-medium">반려(삭제)</button>
-            <button id="admin-confirm-btn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium">승인 확정</button>
+            <button id="admin-reject-btn" class="px-4 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200 font-medium text-sm">반려(삭제)</button>
+            <button id="admin-confirm-btn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium text-sm">승인 확정</button>
         </div>
-        <button id="admin-close-popup-btn" class="mt-2 w-full text-center text-sm text-gray-400 hover:text-gray-600">닫기</button>
+        <button id="admin-close-popup-btn" class="mt-4 w-full text-center text-sm text-gray-400 hover:text-gray-600">닫기</button>
     </div>
 </div>
