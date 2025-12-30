@@ -6,7 +6,7 @@ import {
     query, where, writeBatch, updateDoc, increment
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ... (기존 헬퍼 함수들 유지: getWorkRecordsCollectionRef, getDailyDocRef, syncTodayToHistory) ...
+// ... (기존 헬퍼 함수들 유지) ...
 
 export const getWorkRecordsCollectionRef = () => {
     const today = getTodayDateString();
@@ -92,7 +92,6 @@ export async function saveProgress(isAutoSave = false) {
                 data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
                 data.endTime = now;
 
-                // 20시간 초과 방지 (좀비 탭 방어)
                 if (data.duration > 1200) { 
                     data.status = 'completed';
                     console.warn(`[Auto-Fix] 20시간 초과 업무 강제 종료: ${data.task} (${data.member})`);
@@ -104,7 +103,6 @@ export async function saveProgress(isAutoSave = false) {
             return Math.round(record.duration || 0) > 0;
         });
 
-        // ✅ [핵심 추가] 동시 마감 시 데이터 유실 방지 안전장치
         if (liveWorkRecords.length === 0) {
             const historySnap = await getDoc(historyDocRef);
             if (historySnap.exists()) {
@@ -112,12 +110,11 @@ export async function saveProgress(isAutoSave = false) {
                 if (existingHistory.workRecords && existingHistory.workRecords.length > 0) {
                     console.log("Safe-guard: Valid history exists. Skipping overwrite with empty records.");
                     if (!isAutoSave) showToast("이미 다른 관리자가 마감했습니다. (중복 저장 방지)");
-                    return; // ⛔️ 여기서 중단! 덮어쓰기 방지
+                    return; 
                 }
             }
         }
 
-        // 기존 빈 데이터 체크 로직
         if (liveWorkRecords.length === 0 && 
             Object.keys(dailyData.taskQuantities || {}).length === 0 && 
             (!dailyData.inspectionList || dailyData.inspectionList.length === 0)) {
@@ -154,11 +151,17 @@ export async function saveProgress(isAutoSave = false) {
     }
 }
 
+// ▼▼▼ [핵심 수정된 함수] ▼▼▼
 export async function saveDayDataToHistory(shouldReset) {
     const workRecordsColRef = getWorkRecordsCollectionRef();
-    const endTime = getCurrentTime();
+    const globalEndTime = getCurrentTime();
 
     try {
+        // 1. 최신 근태 정보 가져오기 (메모리 State 대신 DB 직접 조회)
+        const dailyDocSnap = await getDoc(getDailyDocRef());
+        const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
+        const freshAttendanceMap = dailyData.dailyAttendance || {};
+
         const querySnapshot = await getDocs(workRecordsColRef);
 
         if (!querySnapshot.empty) {
@@ -171,17 +174,39 @@ export async function saveDayDataToHistory(shouldReset) {
                 let duration = record.duration || 0;
                 let pauses = record.pauses || [];
                 let needsUpdate = false;
+                let recordEndTime = globalEndTime; // 기본값: 현재 시간
 
-                if (record.status === 'ongoing' || record.status === 'paused') {
-                    if (record.status === 'paused') {
-                        const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
-                        if (lastPause && lastPause.end === null) {
-                            lastPause.end = endTime;
-                        }
+                // 2. 일시정지(Paused) 상태 처리 로직 개선
+                // - 일시정지 상태로 마감된 경우, '마지막 휴식 시작 시간'을 업무 종료 시간으로 간주합니다.
+                // - (이유: 사용자가 일시정지를 누르고 퇴근했을 가능성이 높음)
+                if (record.status === 'paused') {
+                    const lastPause = (pauses && pauses.length > 0) ? pauses[pauses.length - 1] : null;
+                    if (lastPause && !lastPause.end) {
+                        recordEndTime = lastPause.start; // 종료 시간을 휴식 시작 시간으로 설정
+                        lastPause.end = recordEndTime; // 휴식 종료 시간도 맞춰서 닫아줌
                     }
-                    duration = calcElapsedMinutes(record.startTime, endTime, pauses);
+                } 
+                // 3. 진행 중(Ongoing) 상태 처리 로직 개선
+                // - 사용자가 종료를 안 누르고 퇴근했을 경우, 출퇴근 기록(outTime)을 확인합니다.
+                else if (record.status === 'ongoing') {
+                     const memberName = record.member;
+                     const attendance = freshAttendanceMap[memberName];
+
+                     // 퇴근 기록이 있고, 업무 시작 시간보다 뒤라면 그 시간을 종료 시간으로 사용
+                     if (attendance && attendance.status === 'returned' && attendance.outTime) {
+                         if (attendance.outTime > record.startTime) {
+                             recordEndTime = attendance.outTime;
+                         }
+                     }
+                }
+
+                // 4. 상태 업데이트 및 저장
+                if (record.status === 'ongoing' || record.status === 'paused') {
+                    // 일시정지였든 진행 중이었든, 위에서 결정된 recordEndTime으로 종료 처리
+                    duration = calcElapsedMinutes(record.startTime, recordEndTime, pauses);
+                    
                     record.status = 'completed';
-                    record.endTime = endTime;
+                    record.endTime = recordEndTime;
                     record.duration = duration;
                     record.pauses = pauses;
                     needsUpdate = true;
@@ -194,7 +219,7 @@ export async function saveDayDataToHistory(shouldReset) {
                 } else if (needsUpdate) {
                     batch.update(docSnap.ref, {
                         status: 'completed',
-                        endTime: endTime,
+                        endTime: recordEndTime,
                         duration: duration,
                         pauses: pauses
                     });
@@ -235,7 +260,7 @@ export async function saveDayDataToHistory(shouldReset) {
         State.appState.workRecords = []; 
         showToast('오늘의 업무 기록을 초기화했습니다.');
 
-        // ▼▼▼ [수정됨] 마감 직후 화면 복구 로직 추가 ▼▼▼
+        // 화면 복구 로직
         try {
             const todayKey = getTodayDateString();
             const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', todayKey);
@@ -243,23 +268,22 @@ export async function saveDayDataToHistory(shouldReset) {
             
             if (historySnap.exists()) {
                 const savedHistoryData = historySnap.data();
-                // 전체 이력 배열(State.allHistoryData)에서 오늘 날짜 인덱스 찾기
                 const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
                 
                 if (idx > -1) {
-                    State.allHistoryData[idx] = savedHistoryData; // 빈 데이터 대신 저장된 이력 덮어쓰기
+                    State.allHistoryData[idx] = savedHistoryData; 
                 } else {
-                    State.allHistoryData.unshift(savedHistoryData); // 만약 없다면 추가
+                    State.allHistoryData.unshift(savedHistoryData); 
                 }
                 console.log("UI View restored from History after reset.");
             }
         } catch (restoreErr) {
             console.error("Error restoring view after reset:", restoreErr);
         }
-        // ▲▲▲ [여기까지] ▲▲▲
     }
 }
 
+// ... (나머지 함수 fetchAllHistoryData 등은 기존 코드 그대로 유지) ...
 export async function fetchAllHistoryData() {
     const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     try {
