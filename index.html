@@ -43,6 +43,10 @@
                     </div>
                     
                     <div class="hidden md:flex items-center gap-3">
+                        <button id="open-weekend-modal-btn" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
+                            <span>🗓️</span> <span>주말 근무</span>
+                        </button>
+
                         <div id="personal-attendance-toggle-pc" class="hidden items-center gap-2 mr-2">
                             <span class="text-sm font-semibold text-gray-700" id="pc-attendance-label">내 근태:</span>
                             <label class="attendance-toggle">
@@ -113,6 +117,10 @@
                             </label>
                         </div>
                         
+                        <button id="open-weekend-modal-btn-mobile" class="flex items-center gap-2 bg-indigo-100 text-indigo-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm">
+                            <span>🗓️ 주말 근무 현황</span>
+                        </button>
+
                         <button id="open-my-leave-btn-mobile" class="flex items-center gap-2 bg-orange-100 text-orange-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm">
                             <span>🏖️ 내 연차관리</span>
                         </button>
@@ -246,6 +254,7 @@
     <div id="modals-container-form"></div>
     <div id="modals-container-admin-todo"></div>
     <div id="modals-container-admin-todo-alert"></div>
+    <div id="modals-container-weekend"></div>
 
     <script>
         // 1. 외부 HTML 컴포넌트 로더
@@ -275,8 +284,9 @@
                 loadComponent('components/modals-history.html', 'modals-container-history'),
                 loadComponent('components/modals-form.html', 'modals-container-form'),
                 loadComponent('components/modals-admin-todo.html', 'modals-container-admin-todo'),
-                // ✅ [신규] 알림 모달 로드
-                loadComponent('components/modals-admin-todo-alert.html', 'modals-container-admin-todo-alert')
+                loadComponent('components/modals-admin-todo-alert.html', 'modals-container-admin-todo-alert'),
+                // [신규] 주말 근무 모달 HTML 로드
+                loadComponent('components/modals-weekend.html', 'modals-container-weekend')
             ]);
 
             // (2) 모달이 준비된 후 메인 앱 로직(app.js)을 실행합니다.

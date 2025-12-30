@@ -45,6 +45,9 @@ import { renderTodoList } from './inspection-logic.js';
 // Admin Todo 로직 임포트 (알림 체크용)
 import { checkAdminTodoNotifications } from './admin-todo-logic.js';
 
+// [신규] 주말 근무 리스너 임포트
+import { setupWeekendListeners } from './listeners-weekend.js';
+
 
 // --- 3. 헬퍼 함수 ---
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
@@ -602,6 +605,18 @@ async function main() {
     });
 
     initializeAppListeners();
+    
+    // [신규] 주말 근무 리스너 초기화
+    setupWeekendListeners();
+    
+    // 모바일 버튼 클릭 시 데스크탑 버튼 이벤트 트리거
+    const mobileWeekendBtn = document.getElementById('open-weekend-modal-btn-mobile');
+    if (mobileWeekendBtn) {
+        mobileWeekendBtn.addEventListener('click', () => {
+             const desktopBtn = document.getElementById('open-weekend-modal-btn');
+             if (desktopBtn) desktopBtn.click();
+        });
+    }
 }
 
 main();
