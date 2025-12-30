@@ -43,10 +43,6 @@
                     </div>
                     
                     <div class="hidden md:flex items-center gap-3">
-                        <button id="open-weekend-modal-btn" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
-                            <span>🗓️</span> <span>주말 근무</span>
-                        </button>
-
                         <div id="personal-attendance-toggle-pc" class="hidden items-center gap-2 mr-2">
                             <span class="text-sm font-semibold text-gray-700" id="pc-attendance-label">내 근태:</span>
                             <label class="attendance-toggle">
@@ -68,6 +64,11 @@
                                 <span>메뉴</span>
                             </button>
                             <div id="menu-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                                
+                                <button id="open-weekend-modal-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">
+                                    <span>🗓️</span> <span class="font-medium">주말 근무 신청</span>
+                                </button>
+
                                 <button id="open-my-leave-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">
                                     <span>🏖️</span> <span class="font-medium">내 연차관리</span>
                                 </button>
@@ -266,7 +267,6 @@
                 document.getElementById(containerId).innerHTML = html;
             } catch (error) {
                 console.error("컴포넌트 로딩 실패:", error);
-                // 에러 발생 시 사용자에게 알림
                 const toast = document.createElement('div');
                 toast.className = 'toast show bg-red-500 p-3 rounded-lg shadow-xl text-white';
                 toast.textContent = `필수 구성 요소(${url})를 불러오지 못했습니다. 새로고침 해주세요.`;
@@ -276,7 +276,6 @@
 
         // 2. 앱 시작 (순차 실행 보장)
         async function initApp() {
-            // (1) 모달 HTML 파일들을 먼저 불러와서 DOM에 삽입합니다.
             await Promise.all([
                 loadComponent('components/modals-auth.html', 'modals-container-auth'),
                 loadComponent('components/modals-simulation.html', 'modals-container-simulation'),
@@ -285,11 +284,9 @@
                 loadComponent('components/modals-form.html', 'modals-container-form'),
                 loadComponent('components/modals-admin-todo.html', 'modals-container-admin-todo'),
                 loadComponent('components/modals-admin-todo-alert.html', 'modals-container-admin-todo-alert'),
-                // [신규] 주말 근무 모달 HTML 로드
                 loadComponent('components/modals-weekend.html', 'modals-container-weekend')
             ]);
 
-            // (2) 모달이 준비된 후 메인 앱 로직(app.js)을 실행합니다.
             try {
                 await import('./js/app.js');
             } catch (e) {
