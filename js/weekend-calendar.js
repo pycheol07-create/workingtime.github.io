@@ -2,16 +2,17 @@
 import * as State from './state.js';
 import { showToast } from './utils.js';
 import { 
-    collection, query, where, getDocs, doc, setDoc, deleteDoc, updateDoc 
+    collection, query, where, getDocs, doc, setDoc, deleteDoc, updateDoc, onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth(); // 0-based index
 let myRequestsMap = new Map();
+let unsubscribe = null; // 실시간 리스너 구독 해제 함수 저장용
 
 // 초기화 함수
 export async function initWeekendCalendar() {
-    renderWeekendList(currentYear, currentMonth);
+    // onSnapshot 내부에서 렌더링을 수행하므로, 여기서는 리스너 연결만 시작
     await loadWeekendRequests(currentYear, currentMonth);
 }
 
@@ -24,10 +25,11 @@ export function changeMonth(offset) {
         currentMonth = 11;
         currentYear--;
     }
-    initWeekendCalendar();
+    // 월 변경 시 리스너 재연결
+    loadWeekendRequests(currentYear, currentMonth);
 }
 
-// [핵심 변경] 주말 리스트 렌더링
+// 주말 리스트 렌더링 (틀 그리기)
 function renderWeekendList(year, month) {
     const listView = document.getElementById('weekend-list-view');
     const label = document.getElementById('current-month-label');
@@ -56,8 +58,6 @@ function renderWeekendList(year, month) {
 
             // 리스트 아이템 컨테이너
             const rowItem = document.createElement('div');
-            // 기본 스타일: 회색 테두리, 흰 배경
-            // hover 시 약간 진해짐, 클릭 커서
             rowItem.className = `flex flex-col md:flex-row md:items-center justify-between p-3 rounded-lg border border-gray-200 shadow-sm transition-all cursor-pointer hover:shadow-md active:scale-[0.99] bg-white group`;
             rowItem.id = `row-${dateStr}`;
             rowItem.onclick = () => handleDateClick(dateStr);
@@ -80,9 +80,7 @@ function renderWeekendList(year, month) {
             // 2. 오른쪽: 신청자 배지 목록 영역
             const badgesArea = document.createElement('div');
             badgesArea.className = "flex flex-wrap gap-2 justify-end items-center flex-grow pl-0 md:pl-4";
-            badgesArea.id = `weekend-list-${dateStr}`; // 배지 추가 함수가 이 ID를 찾음
-            
-            // (빈 상태일 때 공간 확보용)
+            badgesArea.id = `weekend-list-${dateStr}`; 
             badgesArea.style.minHeight = "28px"; 
             
             rowItem.appendChild(badgesArea);
@@ -95,49 +93,63 @@ function renderWeekendList(year, month) {
     }
 }
 
-// Firestore에서 데이터 불러오기
+// [핵심 변경] Firestore 실시간 리스너 연결
 async function loadWeekendRequests(year, month) {
     const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
-    myRequestsMap.clear();
+    
+    // 기존에 연결된 리스너가 있다면 해제 (월 이동 시 중복 방지)
+    if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+    }
 
     try {
         const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
         const q = query(colRef, where("month", "==", monthStr));
-        const snapshot = await getDocs(q);
 
-        snapshot.forEach(docSnap => {
-            const data = docSnap.data();
-            addBadgeToCalendar(docSnap.id, data);
+        // onSnapshot을 사용하여 실시간 감시 시작
+        unsubscribe = onSnapshot(q, (snapshot) => {
+            // 데이터가 변경될 때마다 화면을 새로 그림
             
-            // 내 신청 내역 기록
-            if (data.member === State.appState.currentUser) {
-                myRequestsMap.set(data.date, docSnap.id);
+            // 1. 빈 리스트 틀 먼저 그리기
+            renderWeekendList(year, month);
+            myRequestsMap.clear();
+
+            // 2. 데이터 채워 넣기
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                addBadgeToCalendar(docSnap.id, data);
                 
-                // 내 신청이 있는 Row 강조 (파란 테두리 & 배경)
-                const row = document.getElementById(`row-${data.date}`);
-                if (row) {
-                    row.classList.remove('bg-white', 'border-gray-200');
-                    row.classList.add('bg-indigo-50', 'border-indigo-300', 'ring-1', 'ring-indigo-300');
+                // 내 신청 내역 처리 (스타일 강조 등)
+                if (data.member === State.appState.currentUser) {
+                    myRequestsMap.set(data.date, docSnap.id);
                     
-                    // "터치하여 신청/취소" 텍스트 변경
-                    const hintText = row.querySelector('.text-xs.text-gray-400');
-                    if(hintText) {
-                        hintText.textContent = "✅ 신청됨 (터치하여 취소)";
-                        hintText.classList.add('text-indigo-600', 'font-medium');
-                        hintText.classList.remove('text-gray-400');
+                    const row = document.getElementById(`row-${data.date}`);
+                    if (row) {
+                        row.classList.remove('bg-white', 'border-gray-200');
+                        row.classList.add('bg-indigo-50', 'border-indigo-300', 'ring-1', 'ring-indigo-300');
+                        
+                        const hintText = row.querySelector('.text-xs.text-gray-400');
+                        if(hintText) {
+                            hintText.textContent = "✅ 신청됨 (터치하여 취소)";
+                            hintText.classList.add('text-indigo-600', 'font-medium');
+                            hintText.classList.remove('text-gray-400');
+                        }
                     }
                 }
-            }
+            });
+        }, (error) => {
+            console.error("Error in weekend listener:", error);
+            showToast("실시간 데이터를 불러오지 못했습니다.", true);
         });
+
     } catch (e) {
-        console.error("Error loading weekend requests:", e);
-        showToast("데이터 로딩 오류", true);
+        console.error("Error setting up listener:", e);
     }
 }
 
 // 리스트에 배지(이름표) 추가
 function addBadgeToCalendar(docId, data) {
-    // 위에서 생성한 ID와 동일 (weekend-list-YYYY-MM-DD)
     const container = document.getElementById(`weekend-list-${data.date}`);
     if (!container) return;
 
@@ -145,35 +157,30 @@ function addBadgeToCalendar(docId, data) {
     
     const badge = document.createElement('div');
     const colorClass = data.status === 'confirmed' 
-        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' // 확정: 진한 파랑
-        : 'bg-white text-orange-600 border-orange-300 border shadow-sm'; // 대기: 흰배경+주황글씨
+        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+        : 'bg-white text-orange-600 border-orange-300 border shadow-sm'; 
     
     badge.className = `px-3 py-1 rounded-full text-sm font-medium border flex items-center gap-1 transition-transform hover:scale-105 ${colorClass}`;
     
-    // 상태 아이콘
     const icon = data.status === 'confirmed' ? '👌' : '⏳';
     badge.innerHTML = `<span class="text-xs">${icon}</span> ${data.member}`;
 
-    // 관리자 기능 (클릭 시 승인 팝업)
-    // 일반 유저는 Row 클릭 이벤트(신청/취소)가 우선이므로 배지 클릭 막음(pointer-events-none 등 처리 필요없음, 상위 전파 중단)
     if (isAdmin) {
         badge.style.cursor = 'pointer';
         badge.onclick = (e) => {
-            e.stopPropagation(); // Row 클릭(신청/취소) 방지
+            e.stopPropagation(); 
             handleAdminBadgeClick(docId, data);
         };
     } else {
-        // 본인 배지인 경우 그냥 둠 (Row 클릭으로 취소됨)
-        // 타인 배지인 경우 클릭해도 아무 일 없도록
         badge.onclick = (e) => {
-            e.stopPropagation(); // Row 클릭 방지 (남의 이름 눌렀을 때 내 신청 토글되는 것 방지)
+            e.stopPropagation(); 
         };
     }
 
     container.appendChild(badge);
 }
 
-// 클릭 핸들러 (신청/취소 토글)
+// 클릭 핸들러
 async function handleDateClick(dateStr) {
     const member = State.appState.currentUser;
     if (!member) {
@@ -182,21 +189,18 @@ async function handleDateClick(dateStr) {
     }
 
     if (myRequestsMap.has(dateStr)) {
-        // 이미 신청함 -> 취소
         if (confirm(`${dateStr} 근무 신청을 취소하시겠습니까?`)) {
             const docId = myRequestsMap.get(dateStr);
             await deleteRequest(docId);
         }
     } else {
-        // 미신청 -> 신청
-        // (confirm 없이 바로 신청되게 하거나, 물어보거나 선택. 여기선 UX상 물어보는게 안전)
         if (confirm(`${dateStr} 근무를 신청하시겠습니까?`)) {
             await createRequest(dateStr, member);
         }
     }
 }
 
-// 신청 생성
+// 신청 생성 (수동 새로고침 삭제됨)
 async function createRequest(dateStr, member) {
     const monthStr = dateStr.substring(0, 7);
     const docId = `${dateStr}_${member}`; 
@@ -214,20 +218,20 @@ async function createRequest(dateStr, member) {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
         await setDoc(docRef, requestData);
         showToast("신청되었습니다.");
-        initWeekendCalendar(); 
+        // initWeekendCalendar(); // <-- 삭제됨 (자동 업데이트)
     } catch (e) {
         console.error("Error creating request:", e);
         showToast("신청 실패", true);
     }
 }
 
-// 신청 삭제
+// 신청 삭제 (수동 새로고침 삭제됨)
 async function deleteRequest(docId) {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
         await deleteDoc(docRef);
         showToast("취소되었습니다.");
-        initWeekendCalendar(); 
+        // initWeekendCalendar(); // <-- 삭제됨 (자동 업데이트)
     } catch (e) {
         console.error("Error deleting request:", e);
         showToast("취소 실패", true);
@@ -250,6 +254,7 @@ function handleAdminBadgeClick(docId, data) {
     popup.classList.remove('hidden');
 }
 
+// 관리자 액션 처리 (수동 새로고침 삭제됨)
 async function processAdminAction(docId, action) {
     const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
     try {
@@ -261,7 +266,7 @@ async function processAdminAction(docId, action) {
             showToast("승인 완료");
         }
         document.getElementById('weekend-admin-popup').classList.add('hidden');
-        initWeekendCalendar();
+        // initWeekendCalendar(); // <-- 삭제됨 (자동 업데이트)
     } catch (e) {
         console.error("Error admin action:", e);
         showToast("처리 실패", true);
