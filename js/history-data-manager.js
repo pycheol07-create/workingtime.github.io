@@ -16,18 +16,15 @@ export const getDailyDocRef = () => {
     return doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
 };
 
-// [핵심 수정] 라이브 데이터와 이력 데이터를 똑똑하게 병합하여 화면에 표시
 export const syncTodayToHistory = async () => {
     const todayKey = getTodayDateString();
     const now = getCurrentTime();
 
     try {
-        // 1. 현재 라이브 데이터 가져오기
         const workRecordsColRef = getWorkRecordsCollectionRef();
         const recordsSnapshot = await getDocs(workRecordsColRef);
         const liveWorkRecords = recordsSnapshot.docs.map(doc => {
             const data = doc.data();
-            // 진행 중인 업무는 현재 시간까지로 계산하여 보여줌
             if (data.status === 'ongoing' || data.status === 'paused') {
                 data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
                 data.endTime = now;
@@ -38,14 +35,10 @@ export const syncTodayToHistory = async () => {
         const dailyDocSnap = await getDoc(getDailyDocRef());
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
 
-        // 2. 서버에 저장된 이력 데이터 가져오기
         const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', todayKey);
         const historyDocSnap = await getDoc(historyDocRef);
         const historyData = historyDocSnap.exists() ? historyDocSnap.data() : {};
 
-        // 3. 표시할 데이터 결정 (우선순위 로직)
-        // 기본적으로는 라이브 데이터를 사용하지만,
-        // 라이브 데이터가 텅 비어있는데(마감 직후) 서버에는 데이터가 있다면 서버 데이터를 보여줌
         let finalWorkRecords = liveWorkRecords;
         let finalDailyData = dailyData;
 
@@ -53,9 +46,8 @@ export const syncTodayToHistory = async () => {
         const hasHistoryData = historyData.workRecords && historyData.workRecords.length > 0;
 
         if (isLiveEmpty && hasHistoryData) {
-            // 마감 후 상황: 라이브는 비었으나 이력은 존재함 -> 이력 데이터 채택
             finalWorkRecords = historyData.workRecords;
-            finalDailyData = historyData; // taskQuantities 등도 이력에서 가져옴
+            finalDailyData = historyData;
         }
 
         const mergedInspectionList = (finalDailyData.inspectionList && finalDailyData.inspectionList.length > 0) 
@@ -74,7 +66,6 @@ export const syncTodayToHistory = async () => {
             inspectionList: mergedInspectionList 
         };
 
-        // 4. State 업데이트 (화면 갱신용)
         const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
         if (idx > -1) {
             State.allHistoryData[idx] = liveTodayData;
@@ -122,7 +113,6 @@ export async function saveProgress(isAutoSave = false) {
             return Math.round(record.duration || 0) > 0;
         });
 
-        // [중요] 라이브 데이터가 비어있을 때(마감 직후), 기존의 알찬 이력을 덮어쓰지 않도록 방지
         if (liveWorkRecords.length === 0) {
             const historySnap = await getDoc(historyDocRef);
             if (historySnap.exists()) {
@@ -155,8 +145,6 @@ export async function saveProgress(isAutoSave = false) {
         };
 
         await setDoc(historyDocRef, historyData, { merge: true });
-        
-        // 저장 후 화면 동기화
         await syncTodayToHistory(); 
 
         if (isAutoSave) {
@@ -173,17 +161,50 @@ export async function saveProgress(isAutoSave = false) {
     }
 }
 
+// ▼▼▼ [수정된 함수] 퇴근 시간은 '마감 실행 시간'으로 통일 ▼▼▼
 export async function saveDayDataToHistory(shouldReset) {
     const workRecordsColRef = getWorkRecordsCollectionRef();
-    const globalEndTime = getCurrentTime();
+    const globalEndTime = getCurrentTime(); // 마감 실행 시간 (예: 19:00)
 
     try {
-        const dailyDocSnap = await getDoc(getDailyDocRef());
+        // 1. 최신 데이터 가져오기
+        const dailyDocRef = getDailyDocRef();
+        const dailyDocSnap = await getDoc(dailyDocRef);
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
-        const freshAttendanceMap = dailyData.dailyAttendance || {};
+        const dailyAttendance = dailyData.dailyAttendance || {};
 
         const querySnapshot = await getDocs(workRecordsColRef);
+        
+        // --- 2. [수정됨] 퇴근 안 한 인원 자동 퇴근 처리 ---
+        let attendanceUpdated = false;
+        
+        Object.keys(dailyAttendance).forEach(member => {
+            // 아직 '근무 중(working)'인 사람만 찾음
+            if (dailyAttendance[member].status === 'working') {
+                
+                // [변경] 업무 종료 시간과 상관없이, 퇴근 처리는 무조건 '마감 실행 시간'으로 설정
+                let autoOutTime = globalEndTime; 
 
+                // 혹시 모를 오류 방지 (출근 시간보다 퇴근 시간이 빠르면 안 됨)
+                if (dailyAttendance[member].inTime && autoOutTime < dailyAttendance[member].inTime) {
+                    autoOutTime = globalEndTime;
+                }
+
+                // 퇴근 처리 업데이트
+                dailyAttendance[member].status = 'returned';
+                dailyAttendance[member].outTime = autoOutTime;
+                attendanceUpdated = true;
+                console.log(`[Auto-Clock-out] ${member}: ${autoOutTime} 퇴근 처리 (업무 마감 실행)`);
+            }
+        });
+
+        // 변경된 근태 정보를 DB에 먼저 저장
+        if (attendanceUpdated) {
+            await updateDoc(dailyDocRef, { dailyAttendance: dailyAttendance });
+            showToast("미퇴근 인원을 현재 시간으로 퇴근 처리했습니다.");
+        }
+        
+        // --- 3. 업무 기록 종료 처리 ---
         if (!querySnapshot.empty) {
             const batch = writeBatch(State.db);
             let removedCount = 0;
@@ -194,26 +215,29 @@ export async function saveDayDataToHistory(shouldReset) {
                 let duration = record.duration || 0;
                 let pauses = record.pauses || [];
                 let needsUpdate = false;
+                
+                // 기본 종료 시간은 '마감 시간' (진행 중이던 업무용)
                 let recordEndTime = globalEndTime;
 
-                if (record.status === 'paused') {
-                    const lastPause = (pauses && pauses.length > 0) ? pauses[pauses.length - 1] : null;
-                    if (lastPause && !lastPause.end) {
-                        recordEndTime = lastPause.start;
-                        lastPause.end = recordEndTime;
+                // 해당 직원의 퇴근 기록이 있다면 확인
+                const attendance = dailyAttendance[record.member];
+                if (attendance && attendance.status === 'returned' && attendance.outTime) {
+                    // 퇴근 시간이 업무 시작 시간보다 뒤라면, 그 시간을 사용
+                    // (진행 중인 업무를 퇴근 시간에 맞춰 잘라줌)
+                    if (attendance.outTime > record.startTime) {
+                        recordEndTime = attendance.outTime;
                     }
-                } else if (record.status === 'ongoing') {
-                     const memberName = record.member;
-                     const attendance = freshAttendanceMap[memberName];
-
-                     if (attendance && attendance.status === 'returned' && attendance.outTime) {
-                         if (attendance.outTime > record.startTime) {
-                             recordEndTime = attendance.outTime;
-                         }
-                     }
                 }
 
+                // [중요] '진행 중'이거나 '일시정지'인 업무만 강제 종료함
+                // 이미 완료된(completed) 업무는 건드리지 않음 -> 17:30 종료 기록 유지됨
                 if (record.status === 'ongoing' || record.status === 'paused') {
+                    if (record.status === 'paused') {
+                        const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
+                        if (lastPause && lastPause.end === null) {
+                            lastPause.end = recordEndTime;
+                        }
+                    }
                     duration = calcElapsedMinutes(record.startTime, recordEndTime, pauses);
                     
                     record.status = 'completed';
@@ -239,7 +263,7 @@ export async function saveDayDataToHistory(shouldReset) {
             
             await batch.commit();
             
-            if (completedCount > 0) console.log(`${completedCount}개 업무 종료`);
+            if (completedCount > 0) console.log(`${completedCount}개 진행 중 업무 강제 종료`);
             if (removedCount > 0) showToast(`${removedCount}건 정리됨`);
         }
     } catch (e) {
@@ -248,7 +272,7 @@ export async function saveDayDataToHistory(shouldReset) {
     }
 
     await new Promise(resolve => setTimeout(resolve, 500));
-    await saveProgress(false); // 1. 먼저 이력에 안전하게 저장
+    await saveProgress(false);
 
     if (shouldReset) {
          try {
@@ -261,18 +285,16 @@ export async function saveDayDataToHistory(shouldReset) {
             }
              await setDoc(getDailyDocRef(), { state: '{}' });
         } catch (e) {
-             console.error("Clear daily data error: ", e);
+             console.error("Error clearing daily data: ", e);
         }
         
         State.appState.workRecords = []; 
         showToast('오늘의 업무 기록을 초기화했습니다.');
-
-        // [중요] 초기화 직후 화면 복구
-        // syncTodayToHistory가 호출되더라도 데이터가 보이도록 함
         await syncTodayToHistory();
     }
 }
 
+// ... (나머지 fetchAllHistoryData 등 기존 함수 유지) ...
 export async function fetchAllHistoryData() {
     const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     try {
@@ -336,7 +358,7 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
     }
     
     if (newRecordData.status === 'completed' && Math.round(newRecordData.duration || 0) <= 0) {
-        showToast('0분 기록 저장 안됨', true);
+        showToast('소요 시간이 0분이어 기록이 저장되지 않았습니다.', true);
         return;
     }
 
@@ -368,22 +390,13 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
 
     if (dateKey === todayKey) {
         const localRecord = (State.appState.workRecords || []).find(r => r.id === recordId);
-        // 라이브에 없으면 이력에서 찾도록 처리 가능하나, 일단 단순화
         if (!localRecord) {
-             // 만약 라이브가 비었는데 오늘 날짜 수정을 시도한다면, 그것은 이미 '이력' 데이터일 수 있음
-             // 하지만 여기서는 일관성을 위해 일단 예외처리
-             // (마감 후에는 Daily Doc이 비어있으므로 updateDoc이 실패하거나 의미 없을 수 있음)
-             // 마감 후 데이터 수정은 아래 'else' 블록(이력 수정)으로 넘어가는 것이 맞음.
-             // 하지만 dateKey === todayKey 이므로 이 블록에 들어옴.
-             
-             // [수정] 마감 후 오늘 데이터 수정을 위해 이력 직접 수정 시도
              try {
                 const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
                 if (dayIndex > -1) {
                     const dayData = State.allHistoryData[dayIndex];
                     const recIdx = dayData.workRecords.findIndex(r => r.id === recordId);
                     if (recIdx > -1) {
-                         // 이력에 존재함 -> 이력 수정 로직으로 분기
                          return await updateHistoryDirectly(dateKey, recordId, updateData);
                     }
                 }
@@ -406,7 +419,7 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
 
         if (newStatus === 'completed' && newDuration !== null && Math.round(newDuration) <= 0) {
             await deleteHistoryWorkRecord(dateKey, recordId);
-            showToast('0분 기록 삭제됨');
+            showToast('수정 후 소요 시간이 0분이 되어 기록이 삭제되었습니다.');
             return;
         }
         
@@ -419,7 +432,6 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
     await updateHistoryDirectly(dateKey, recordId, updateData);
 }
 
-// 내부 함수: 이력 직접 수정
 async function updateHistoryDirectly(dateKey, recordId, updateData) {
     const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
     if (dayIndex === -1) throw new Error("이력 없음");
@@ -449,12 +461,10 @@ async function updateHistoryDirectly(dateKey, recordId, updateData) {
     await setDoc(historyDocRef, { workRecords: dayData.workRecords }, { merge: true });
 }
 
-
 export async function deleteHistoryWorkRecord(dateKey, recordId) {
     const todayKey = getTodayDateString();
 
     if (dateKey === todayKey) {
-        // 먼저 라이브 데이터 확인
         const dailyRecordRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey, 'workRecords', recordId);
         const dailySnap = await getDoc(dailyRecordRef);
         
@@ -463,17 +473,15 @@ export async function deleteHistoryWorkRecord(dateKey, recordId) {
             await syncTodayToHistory();
             return;
         }
-        // 라이브에 없으면 마감된 데이터일 수 있으므로 아래 로직 진행
     }
 
     const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-    if (dayIndex === -1) throw new Error("이력 없음");
+    if (dayIndex === -1) throw new Error("해당 날짜의 이력을 찾을 수 없습니다.");
 
     const dayData = State.allHistoryData[dayIndex];
     const newRecords = dayData.workRecords.filter(r => r.id !== recordId);
 
     if (dayData.workRecords.length === newRecords.length) {
-        // throw new Error("삭제할 기록을 찾을 수 없습니다."); // 조용히 무시
         return;
     }
 
