@@ -89,10 +89,102 @@
                 </div>
 
                 <div id="trend-analysis-panel" class="hidden flex flex-col h-full p-6 overflow-y-auto bg-gray-50 space-y-8">
+                    <div>
+                        <h3 class="text-xl font-bold mb-4 text-gray-800">주요 지표 트렌드 (최근 30일)</h3>
+                        <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                            <h4 class="text-lg font-semibold text-gray-700 mb-2">📊 분당 평균 처리량 (개/분)</h4>
+                            <div class="h-64"><canvas id="kpi-chart-throughput"></canvas></div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                            <h4 class="text-lg font-semibold text-gray-700 mb-2">💰 개당 평균 처리비용 (원/개)</h4>
+                            <div class="h-64"><canvas id="kpi-chart-cost"></canvas></div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm">
+                            <h4 class="text-lg font-semibold text-gray-700 mb-2">⏳ 총 비업무시간 (분)</h4>
+                            <div class="h-64"><canvas id="kpi-chart-nonwork"></canvas></div>
+                        </div>
                     </div>
+                </div>
 
                 <div id="prediction-panel" class="hidden flex flex-col h-full p-6 overflow-y-auto bg-gray-50 space-y-6">
+                    <div class="flex justify-between items-center bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                🔮 AI 실적 예측 및 분석
+                                <span class="text-xs font-normal text-white bg-indigo-600 px-2 py-0.5 rounded-full">BETA</span>
+                            </h3>
+                            <p class="text-sm text-gray-500 mt-1">최근 90일 데이터를 기반으로 향후 실적을 예측합니다.</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label for="prediction-days-select" class="text-sm font-bold text-gray-600">예측 기간:</label>
+                            <select id="prediction-days-select" class="p-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+                                <option value="7">향후 1주 (7일)</option>
+                                <option value="14" selected>향후 2주 (14일)</option>
+                                <option value="30">향후 1개월 (30일)</option>
+                            </select>
+                        </div>
                     </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-indigo-500 flex flex-col justify-between">
+                            <div>
+                                <p class="text-sm font-bold text-gray-500 uppercase tracking-wide">예상 일평균 매출</p>
+                                <div class="mt-2 flex items-baseline gap-2">
+                                    <span id="pred-avg-revenue" class="text-3xl font-extrabold text-gray-900">-</span>
+                                    <span class="text-sm text-gray-500">원</span>
+                                </div>
+                            </div>
+                            <div class="mt-4 pt-4 border-t border-gray-100">
+                                <p id="pred-revenue-trend" class="text-sm font-medium text-gray-400">데이터 분석 중...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-emerald-500 flex flex-col justify-between">
+                            <div>
+                                <p class="text-sm font-bold text-gray-500 uppercase tracking-wide">예상 일평균 배송량</p>
+                                <div class="mt-2 flex items-baseline gap-2">
+                                    <span id="pred-avg-delivery" class="text-3xl font-extrabold text-gray-900">-</span>
+                                    <span class="text-sm text-gray-500">건</span>
+                                </div>
+                            </div>
+                            <div class="mt-4 pt-4 border-t border-gray-100">
+                                <p id="pred-delivery-trend" class="text-sm font-medium text-gray-400">데이터 분석 중...</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500 flex flex-col justify-between">
+                            <div>
+                                <p class="text-sm font-bold text-gray-500 uppercase tracking-wide">다음 달 예상 총매출</p>
+                                <div class="mt-2 flex items-baseline gap-2">
+                                    <span id="pred-next-month-revenue" class="text-3xl font-extrabold text-blue-700">-</span>
+                                    <span class="text-sm text-gray-500">원</span>
+                                </div>
+                            </div>
+                            <div class="mt-4 pt-4 border-t border-gray-100">
+                                <p class="text-sm font-medium text-blue-600">현재 추세 지속 시 예상치</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-grow min-h-[400px]">
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                            <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                💰 매출 추이 및 예측
+                            </h4>
+                            <div class="flex-grow relative w-full h-full min-h-[300px]">
+                                <canvas id="chart-prediction-revenue"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                            <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                📦 배송량 추이 및 예측 (국내배송)
+                            </h4>
+                            <div class="flex-grow relative w-full h-full min-h-[300px]">
+                                <canvas id="chart-prediction-delivery"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <div id="report-panel" class="hidden flex flex-col h-full">
                     <div class="p-4 border-b border-gray-200 flex-shrink-0 bg-white">
