@@ -39,9 +39,11 @@ import {
     renderManagementSummary,
     renderWeeklyHistory,
     renderMonthlyHistory,
-    // ✅ [신규] 실적 예측 렌더러 추가
     renderPredictionTab
 } from './ui-history.js';
+
+// [신규] 연차 관리 로직 임포트
+import * as UILeave from './ui-history-leave.js';
 
 import {
     syncTodayToHistory,
@@ -65,9 +67,11 @@ export function setupHistoryModalListeners() {
     const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
     const inspectionPanel = document.getElementById('inspection-history-panel');
-    // ✅ [신규] 예측 패널 참조
     const predictionPanel = document.getElementById('prediction-panel');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
+    
+    // [신규] 연차 패널 참조
+    const leavePanel = document.getElementById('history-leave-panel');
 
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
@@ -384,13 +388,14 @@ export function setupHistoryModalListeners() {
                 if (DOM.personalReportPanel) DOM.personalReportPanel.classList.toggle('hidden', tabName !== 'personal');
                 if (managementPanel) managementPanel.classList.toggle('hidden', tabName !== 'management');
                 if (inspectionPanel) inspectionPanel.classList.toggle('hidden', tabName !== 'inspection');
-                
-                // ✅ [신규] 예측 패널 토글
                 if (predictionPanel) predictionPanel.classList.toggle('hidden', tabName !== 'prediction');
                 
-                // ✅ [신규] 날짜 리스트 숨김 처리 (Trend, Inspection, Prediction은 날짜 리스트 불필요)
+                // [신규] 연차 패널 토글
+                if (leavePanel) leavePanel.classList.toggle('hidden', tabName !== 'leave');
+                
+                // 날짜 리스트 숨김 처리 (Trend, Inspection, Prediction, Leave 탭)
                 if (dateListContainer) {
-                    const hideListTabs = ['trends', 'inspection', 'prediction'];
+                    const hideListTabs = ['trends', 'inspection', 'prediction', 'leave'];
                     dateListContainer.style.display = hideListTabs.includes(tabName) ? 'none' : 'block';
                 }
 
@@ -406,7 +411,6 @@ export function setupHistoryModalListeners() {
                 } else if (tabName === 'trends') {
                      renderTrendAnalysisCharts(State.allHistoryData, State.appConfig, trendCharts);
                 } else if (tabName === 'prediction') { 
-                     // ✅ [신규] 예측 탭 렌더링 호출
                      const days = predictionDaysSelect ? Number(predictionDaysSelect.value) : 14;
                      renderPredictionTab(State.allHistoryData, days);
                 } else if (tabName === 'personal') {
@@ -441,11 +445,14 @@ export function setupHistoryModalListeners() {
                 } else if (tabName === 'inspection') {
                     fetchAndRenderInspectionHistory();
                 }
+                // [신규] 연차 탭 로직
+                else if (tabName === 'leave') {
+                    UILeave.initLeaveManagement();
+                }
             }
         });
     }
 
-    // ✅ [신규] 예측 기간 변경 이벤트 리스너
     if (predictionDaysSelect) {
         predictionDaysSelect.addEventListener('change', () => {
             if (State.context.activeMainHistoryTab === 'prediction') {
@@ -502,7 +509,6 @@ export function setupHistoryModalListeners() {
                 const activeTab = State.context.activeMainHistoryTab || 'work';
                 const updates = {};
                 
-                // 탭별 삭제할 필드 지정
                 if (activeTab === 'work' || activeTab === 'report') {
                     updates.workRecords = deleteField();
                     updates.taskQuantities = deleteField();
@@ -515,22 +521,18 @@ export function setupHistoryModalListeners() {
                 } else if (activeTab === 'inspection') {
                     updates.inspectionList = deleteField();
                 } else {
-                    // 기본값 또는 기타 탭: 안전을 위해 아무것도 안함
                     showToast('삭제할 대상 탭이 명확하지 않습니다.', true);
                     return;
                 }
 
                 try {
-                    // 1. History 컬렉션 업데이트 (해당 필드만 삭제)
                     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
                     await updateDoc(historyDocRef, updates);
 
-                    // 2. 만약 오늘 날짜라면 Daily Data 컬렉션도 업데이트
                     if (dateKey === getTodayDateString()) {
                         const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey);
                         await updateDoc(dailyDocRef, updates);
                         
-                        // 로컬 상태 초기화 (즉각 반영을 위해)
                         if (activeTab === 'work' || activeTab === 'report') {
                             State.appState.workRecords = [];
                             State.appState.taskQuantities = {};
