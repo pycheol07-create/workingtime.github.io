@@ -18,8 +18,9 @@ import {
 import {
     processClockIn, processClockOut, cancelClockOut
 } from './app-logic.js';
-import { saveProgress, saveDayDataToHistory } from './history-data-manager.js';
+import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords } from './history-data-manager.js';
 import { checkMissingQuantities } from './analysis-logic.js';
+import { openHistoryQuantityModal } from './app-history-logic.js';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
@@ -193,7 +194,8 @@ export function setupMainScreenListeners() {
 
 
     if (DOM.saveProgressBtn) {
-        DOM.saveProgressBtn.addEventListener('click', () => saveProgress(false));
+        // [수정] 수동 저장 시에는 '확정'이 아닌 '가저장' 상태로 저장 (isQuantityVerified = false)
+        DOM.saveProgressBtn.addEventListener('click', () => saveProgress(false, false));
     }
 
     if (DOM.openManualAddBtn) {
@@ -276,10 +278,12 @@ export function setupMainScreenListeners() {
             renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes || [], missingTasksList, State.appState.confirmedZeroTasks || []);
 
             const title = document.getElementById('quantity-modal-title');
-            if (title) title.textContent = '오늘의 처리량 입력';
+            if (title) title.textContent = '오늘의 처리량 입력 (예상값)';
 
             State.context.quantityModalContext.mode = 'today';
             State.context.quantityModalContext.dateKey = null;
+            // [중요] 오늘의 입력은 '확정' 단계가 아님 (isVerifyingMode = false)
+            State.context.quantityModalContext.isVerifyingMode = false;
 
             State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
                 State.appState.taskQuantities = newQuantities;
@@ -290,7 +294,10 @@ export function setupMainScreenListeners() {
                     confirmedZeroTasks: confirmedZeroTasks
                 });
 
-                showToast('오늘의 처리량이 저장되었습니다.');
+                // 오늘 입력은 '가저장' 상태이므로 isQuantityVerified = false로 저장
+                saveProgress(false, false); 
+
+                showToast('오늘의 처리량(예상)이 저장되었습니다.');
             };
 
             State.context.quantityModalContext.onCancel = () => {};
@@ -321,10 +328,11 @@ export function setupMainScreenListeners() {
             renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes || [], missingTasksList, State.appState.confirmedZeroTasks || []);
 
             const title = document.getElementById('quantity-modal-title');
-            if (title) title.textContent = '오늘의 처리량 입력';
+            if (title) title.textContent = '오늘의 처리량 입력 (예상값)';
 
             State.context.quantityModalContext.mode = 'today';
             State.context.quantityModalContext.dateKey = null;
+            State.context.quantityModalContext.isVerifyingMode = false;
 
             State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
                 State.appState.taskQuantities = newQuantities;
@@ -335,7 +343,9 @@ export function setupMainScreenListeners() {
                     confirmedZeroTasks: confirmedZeroTasks
                 });
                 
-                showToast('오늘의 처리량이 저장되었습니다.');
+                saveProgress(false, false);
+
+                showToast('오늘의 처리량(예상)이 저장되었습니다.');
             };
 
             State.context.quantityModalContext.onCancel = () => {};
@@ -392,8 +402,7 @@ export function setupMainScreenListeners() {
                 const modal = document.getElementById('admin-todo-modal');
                 if (modal) {
                     modal.classList.remove('hidden');
-                    AdminTodoLogic.loadAdminTodos(); // 열 때마다 최신 데이터 로드
-                    // 입력창 포커스
+                    AdminTodoLogic.loadAdminTodos(); 
                     setTimeout(() => document.getElementById('admin-todo-input')?.focus(), 50);
                 }
                 // 메뉴 닫기
@@ -405,17 +414,16 @@ export function setupMainScreenListeners() {
 
     // 2. 모달 내부 동작 (추가, 삭제, 토글)
     const todoInput = document.getElementById('admin-todo-input');
-    const todoDateInput = document.getElementById('admin-todo-datetime'); // ✅ [신규]
+    const todoDateInput = document.getElementById('admin-todo-datetime'); 
     const todoAddBtn = document.getElementById('admin-todo-add-btn');
     const todoList = document.getElementById('admin-todo-list');
 
     if (todoAddBtn && todoInput) {
         // 추가 버튼 클릭
         todoAddBtn.addEventListener('click', () => {
-            // ✅ [수정] 날짜 값 함께 전달
             AdminTodoLogic.addTodo(todoInput.value, todoDateInput ? todoDateInput.value : null);
             todoInput.value = '';
-            if (todoDateInput) todoDateInput.value = ''; // 날짜 초기화
+            if (todoDateInput) todoDateInput.value = ''; 
             todoInput.focus();
         });
         // 엔터키 입력
@@ -444,12 +452,28 @@ export function setupMainScreenListeners() {
         });
     }
 
-    // ✅ [신규] 알림 모달 '확인했습니다' 버튼 리스너
+    // 알림 모달 '확인했습니다' 버튼 리스너
     if (DOM.adminTodoAlertConfirmBtn) {
         DOM.adminTodoAlertConfirmBtn.addEventListener('click', () => {
             if (DOM.adminTodoAlertModal) {
                 DOM.adminTodoAlertModal.classList.add('hidden');
             }
         });
+    }
+}
+
+// [신규] 미확정 처리량 데이터 확인 및 모달 호출 함수 (앱 실행 시 호출 권장)
+export async function checkPendingVerifications() {
+    const unverifiedDates = await checkUnverifiedRecords();
+    
+    if (unverifiedDates.length > 0) {
+        // 가장 최근의 미확정 날짜 선택
+        const targetDate = unverifiedDates[unverifiedDates.length - 1];
+        
+        // confirm 창 또는 전용 모달 띄우기
+        if (confirm(`📅 [${targetDate}] 업무 처리량이 아직 '예상치' 상태입니다.\n실제 값을 확인하고 확정하시겠습니까?`)) {
+            // 히스토리 수정 모달을 '확정 모드'로 염
+            openHistoryQuantityModal(targetDate, true); 
+        }
     }
 }

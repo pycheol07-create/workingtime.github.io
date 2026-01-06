@@ -27,9 +27,13 @@ export function setupFormQuantityListeners() {
                 }
             });
 
+            // [추가] 현재 모달이 '확정(Verification)' 모드인지 확인
+            const isVerifying = State.context.quantityModalContext?.isVerifyingMode;
+
             // 컨텍스트에 저장된 콜백 실행 (일별/이력 모드에 따라 다름)
             if (State.context.quantityModalContext && typeof State.context.quantityModalContext.onConfirm === 'function') {
-                await State.context.quantityModalContext.onConfirm(newQuantities, confirmedZeroTasks);
+                // onConfirm 콜백에 데이터와 함께 '확정 모드 여부'도 전달
+                await State.context.quantityModalContext.onConfirm(newQuantities, confirmedZeroTasks, isVerifying);
             }
 
             if (DOM.quantityModal) DOM.quantityModal.classList.add('hidden');

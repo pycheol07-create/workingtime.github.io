@@ -63,7 +63,9 @@ export const syncTodayToHistory = async () => {
             partTimers: finalDailyData.partTimers || [],
             dailyAttendance: finalDailyData.dailyAttendance || {},
             management: finalDailyData.management || {},
-            inspectionList: mergedInspectionList 
+            inspectionList: mergedInspectionList,
+            // 동기화 시 기존 확정 여부 유지 (없으면 false)
+            isQuantityVerified: finalDailyData.isQuantityVerified || historyData.isQuantityVerified || false
         };
 
         const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
@@ -79,7 +81,8 @@ export const syncTodayToHistory = async () => {
     }
 };
 
-export async function saveProgress(isAutoSave = false) {
+// [수정] isQuantityVerified 파라미터 추가
+export async function saveProgress(isAutoSave = false, isQuantityVerified = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
 
@@ -131,6 +134,9 @@ export async function saveProgress(isAutoSave = false) {
              return;
         }
 
+        // [추가] DB에 저장된 기존 상태 확인 (이미 확정된 경우 false로 덮어쓰지 않기 위함)
+        const currentVerifiedStatus = dailyData.isQuantityVerified === true;
+
         const historyData = {
             id: dateStr,
             workRecords: liveWorkRecords,
@@ -140,11 +146,19 @@ export async function saveProgress(isAutoSave = false) {
             partTimers: dailyData.partTimers || [],
             dailyAttendance: dailyData.dailyAttendance || {},
             management: dailyData.management || {},
-            inspectionList: dailyData.inspectionList || [], 
+            inspectionList: dailyData.inspectionList || [],
+            // [수정] 파라미터가 true거나, 이미 DB에 true로 저장되어 있으면 true 유지
+            isQuantityVerified: isQuantityVerified || currentVerifiedStatus,
             savedAt: now
         };
 
         await setDoc(historyDocRef, historyData, { merge: true });
+        
+        // Daily Data에도 확정 여부 업데이트
+        if (isQuantityVerified) {
+            await setDoc(getDailyDocRef(), { isQuantityVerified: true }, { merge: true });
+        }
+
         await syncTodayToHistory(); 
 
         if (isAutoSave) {
@@ -161,13 +175,11 @@ export async function saveProgress(isAutoSave = false) {
     }
 }
 
-// ▼▼▼ [수정된 함수] 퇴근 시간은 '마감 실행 시간'으로 통일 ▼▼▼
 export async function saveDayDataToHistory(shouldReset) {
     const workRecordsColRef = getWorkRecordsCollectionRef();
-    const globalEndTime = getCurrentTime(); // 마감 실행 시간 (예: 19:00)
+    const globalEndTime = getCurrentTime(); 
 
     try {
-        // 1. 최신 데이터 가져오기
         const dailyDocRef = getDailyDocRef();
         const dailyDocSnap = await getDoc(dailyDocRef);
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
@@ -175,22 +187,14 @@ export async function saveDayDataToHistory(shouldReset) {
 
         const querySnapshot = await getDocs(workRecordsColRef);
         
-        // --- 2. [수정됨] 퇴근 안 한 인원 자동 퇴근 처리 ---
         let attendanceUpdated = false;
         
         Object.keys(dailyAttendance).forEach(member => {
-            // 아직 '근무 중(working)'인 사람만 찾음
             if (dailyAttendance[member].status === 'working') {
-                
-                // [변경] 업무 종료 시간과 상관없이, 퇴근 처리는 무조건 '마감 실행 시간'으로 설정
                 let autoOutTime = globalEndTime; 
-
-                // 혹시 모를 오류 방지 (출근 시간보다 퇴근 시간이 빠르면 안 됨)
                 if (dailyAttendance[member].inTime && autoOutTime < dailyAttendance[member].inTime) {
                     autoOutTime = globalEndTime;
                 }
-
-                // 퇴근 처리 업데이트
                 dailyAttendance[member].status = 'returned';
                 dailyAttendance[member].outTime = autoOutTime;
                 attendanceUpdated = true;
@@ -198,13 +202,11 @@ export async function saveDayDataToHistory(shouldReset) {
             }
         });
 
-        // 변경된 근태 정보를 DB에 먼저 저장
         if (attendanceUpdated) {
             await updateDoc(dailyDocRef, { dailyAttendance: dailyAttendance });
             showToast("미퇴근 인원을 현재 시간으로 퇴근 처리했습니다.");
         }
         
-        // --- 3. 업무 기록 종료 처리 ---
         if (!querySnapshot.empty) {
             const batch = writeBatch(State.db);
             let removedCount = 0;
@@ -216,21 +218,15 @@ export async function saveDayDataToHistory(shouldReset) {
                 let pauses = record.pauses || [];
                 let needsUpdate = false;
                 
-                // 기본 종료 시간은 '마감 시간' (진행 중이던 업무용)
                 let recordEndTime = globalEndTime;
 
-                // 해당 직원의 퇴근 기록이 있다면 확인
                 const attendance = dailyAttendance[record.member];
                 if (attendance && attendance.status === 'returned' && attendance.outTime) {
-                    // 퇴근 시간이 업무 시작 시간보다 뒤라면, 그 시간을 사용
-                    // (진행 중인 업무를 퇴근 시간에 맞춰 잘라줌)
                     if (attendance.outTime > record.startTime) {
                         recordEndTime = attendance.outTime;
                     }
                 }
 
-                // [중요] '진행 중'이거나 '일시정지'인 업무만 강제 종료함
-                // 이미 완료된(completed) 업무는 건드리지 않음 -> 17:30 종료 기록 유지됨
                 if (record.status === 'ongoing' || record.status === 'paused') {
                     if (record.status === 'paused') {
                         const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
@@ -294,7 +290,6 @@ export async function saveDayDataToHistory(shouldReset) {
     }
 }
 
-// ... (나머지 fetchAllHistoryData 등 기존 함수 유지) ...
 export async function fetchAllHistoryData() {
     const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     try {
@@ -521,5 +516,38 @@ export async function saveManagementData(dateKey, managementData) {
     } catch (e) {
         console.error("Error saving management data:", e);
         throw e; 
+    }
+}
+
+// [신규] 미확정(예상치) 처리량 데이터 확인 함수
+export async function checkUnverifiedRecords() {
+    const historyCol = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
+    
+    try {
+        const q = query(historyCol); 
+        const snapshot = await getDocs(q);
+        
+        const unverifiedDates = [];
+        const today = getTodayDateString();
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // 오늘 날짜는 제외 (오늘은 아직 입력 중이므로)
+            if (doc.id !== today) {
+                const hasQuantities = data.taskQuantities && Object.keys(data.taskQuantities).length > 0;
+                // 처리량이 있는데 확정 플래그가 없거나 false인 경우
+                if (hasQuantities && !data.isQuantityVerified) {
+                    unverifiedDates.push(doc.id);
+                }
+            }
+        });
+
+        // 날짜순 정렬 (과거 -> 최신)
+        unverifiedDates.sort();
+        
+        return unverifiedDates; 
+    } catch (e) {
+        console.error("Failed to check unverified records:", e);
+        return [];
     }
 }
