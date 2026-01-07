@@ -194,6 +194,9 @@ export const updateSummary = (appState, appConfig) => {
     if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`;
 
     const quantitiesFromState = appState.taskQuantities || {};
+    // [추가] 수량 상태(예상/확정) 데이터 가져오기 (없으면 빈 객체)
+    const quantityStatuses = appState.taskQuantityStatuses || {};
+    
     const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
     
     for (const task in quantitiesFromState) {
@@ -201,7 +204,21 @@ export const updateSummary = (appState, appConfig) => {
         const targetDashboardId = taskNameToDashboardIdMap[task];
 
         if (targetDashboardId && elements[targetDashboardId]) {
-            elements[targetDashboardId].textContent = quantity;
+            const el = elements[targetDashboardId];
+            el.textContent = quantity;
+
+            // [추가] 상태별 클래스 적용 로직
+            // 기존 상태 클래스 제거
+            el.classList.remove('quantity-estimated', 'quantity-confirmed');
+
+            // 상태 확인 및 클래스 추가
+            const status = quantityStatuses[task];
+            if (status === 'estimated') {
+                el.classList.add('quantity-estimated'); // 빨간색 (예상)
+            } else if (status === 'confirmed') {
+                el.classList.add('quantity-confirmed'); // 녹색 (확정)
+            }
+            // status가 없거나 다른 값이면 기본 스타일(노란색) 유지
         }
     }
 };

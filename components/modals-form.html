@@ -283,6 +283,15 @@
         <div class="p-6 border-b border-gray-200"><h2 id="quantity-modal-title" class="text-xl font-bold text-gray-900">업무별 처리량 입력</h2><button class="modal-close-btn">&times;</button></div>
         <div id="modal-task-quantity-inputs" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[60vh] overflow-y-auto">
             </div>
+            
+        <div class="px-6 pb-2 pt-2 flex items-center justify-end border-t border-gray-100">
+            <label class="inline-flex items-center cursor-pointer select-none group">
+                <input type="checkbox" id="quantity-confirm-checkbox" class="sr-only peer">
+                <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500 transition-colors"></div>
+                <span class="ms-3 text-sm font-bold text-gray-500 group-hover:text-gray-700 peer-checked:text-green-600 transition-colors">확정 입력 (검증 완료)</span>
+            </label>
+        </div>
+
         <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
             <button type="button" id="cancel-quantity-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
             <button type="button" id="confirm-quantity-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">확인 및 저장</button>

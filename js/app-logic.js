@@ -642,3 +642,34 @@ export const autoResumeFromLunch = async () => {
         return 0;
     }
 };
+
+// ✅ [신규] 수동 처리량 입력 저장 (상태 포함)
+export const saveManualTaskQuantities = async (newQuantities, confirmedZeroTasks, newStatuses) => {
+    try {
+        const updates = {};
+
+        // 수량 데이터 준비
+        if (newQuantities && Object.keys(newQuantities).length > 0) {
+            updates.taskQuantities = newQuantities;
+        }
+
+        // 상태 데이터 준비 (예: 'estimated' or 'confirmed')
+        if (newStatuses && Object.keys(newStatuses).length > 0) {
+            updates.taskQuantityStatuses = newStatuses;
+        }
+        
+        // 0건 확인된 태스크 처리
+        if (confirmedZeroTasks && confirmedZeroTasks.length > 0) {
+            updates.confirmedZeroTasks = confirmedZeroTasks;
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await updateDailyData(updates);
+            showToast('처리량 및 상태가 저장되었습니다.');
+        }
+
+    } catch (e) {
+        console.error("Error saving manual quantities:", e);
+        showToast("처리량 저장 중 오류가 발생했습니다.", true);
+    }
+};
