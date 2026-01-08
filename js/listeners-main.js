@@ -16,7 +16,7 @@ import {
     renderLeaveTypeModalOptions 
 } from './ui.js';
 import {
-    processClockIn, processClockOut, cancelClockOut
+    processClockIn, processClockOut, cancelClockOut, stopAllOngoingWorks // [추가] 일괄 종료 함수 임포트
 } from './app-logic.js';
 import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords } from './history-data-manager.js';
 import { checkMissingQuantities } from './analysis-logic.js';
@@ -461,6 +461,40 @@ export function setupMainScreenListeners() {
         });
     }
 }
+
+// [신규] 알림 모달 리스너 설정
+export const setupClosingAlertListeners = () => {
+    const modal = document.getElementById('daily-closing-alert-modal');
+    const btnContinue = document.getElementById('btn-continue-work');
+    const btnFinish = document.getElementById('btn-finish-work');
+    const btnClose = document.getElementById('close-closing-alert-btn');
+
+    const closeModal = () => {
+        if (modal) modal.classList.add('hidden');
+    };
+
+    // 1. 계속 근무
+    if (btnContinue) {
+        btnContinue.addEventListener('click', () => {
+            closeModal();
+            // showToast("업무를 계속 진행합니다.");
+        });
+    }
+
+    // 2. 닫기 버튼
+    if (btnClose) {
+        btnClose.addEventListener('click', closeModal);
+    }
+
+    // 3. 마감하기 (일괄 종료)
+    if (btnFinish) {
+        btnFinish.addEventListener('click', async () => {
+            await stopAllOngoingWorks();
+            closeModal();
+        });
+    }
+};
+
 
 // [신규] 미확정 처리량 데이터 확인 및 모달 호출 함수 (앱 실행 시 호출 권장)
 export async function checkPendingVerifications() {

@@ -18,6 +18,7 @@ import {
     renderManualAddModalDatalists
 } from './ui.js';
 import { initializeAppListeners } from './app-listeners.js';
+import { setupClosingAlertListeners } from './listeners-main.js'; // [추가]
 
 import {
     saveProgress,
@@ -29,7 +30,8 @@ import * as State from './state.js';
 
 import {
     autoPauseForLunch,
-    autoResumeFromLunch
+    autoResumeFromLunch,
+    checkAutoClosingTime // [추가]
 } from './app-logic.js';
 
 import {
@@ -113,6 +115,9 @@ async function applyHistoricalLeaveData() {
 // --- 4. 핵심 코어 함수 ---
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
+    
+    // [신규] 17:30 마감 시간 체크 (자동)
+    checkAutoClosingTime();
     
     // ✅ [수정] 오늘이 평일인지 확인 (주말에는 점심시간 자동정지/재개 적용 안 함)
     const todayDate = getTodayDateString();
@@ -605,6 +610,7 @@ async function main() {
     });
 
     initializeAppListeners();
+    setupClosingAlertListeners(); // [신규] 리스너 등록
     
     // [신규] 주말 근무 리스너 초기화
     setupWeekendListeners();
