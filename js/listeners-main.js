@@ -16,7 +16,7 @@ import {
     renderLeaveTypeModalOptions 
 } from './ui.js';
 import {
-    processClockIn, processClockOut, cancelClockOut, stopAllOngoingWorks, saveManualTaskQuantities // [수정] saveManualTaskQuantities 추가
+    processClockIn, processClockOut, cancelClockOut
 } from './app-logic.js';
 import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords } from './history-data-manager.js';
 import { checkMissingQuantities } from './analysis-logic.js';
@@ -266,6 +266,8 @@ export function setupMainScreenListeners() {
                 return;
             }
 
+            const quantityModal = document.getElementById('quantity-modal');
+
             const todayData = {
                 workRecords: State.appState.workRecords || [],
                 taskQuantities: State.appState.taskQuantities || {},
@@ -278,31 +280,21 @@ export function setupMainScreenListeners() {
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력 (예상값)';
 
-            // [추가] 오늘 입력(초기 입력)이므로 확정 체크박스를 숨기고 체크 해제
-            const confirmCheckboxContainer = document.getElementById('quantity-confirm-container');
-            const confirmCheckbox = document.getElementById('quantity-confirm-checkbox');
-            
-            if (confirmCheckbox) confirmCheckbox.checked = false; // 기본값: 예상
-            if (confirmCheckboxContainer) confirmCheckboxContainer.classList.add('hidden'); // 초기 입력엔 확정 옵션 숨김
-
             State.context.quantityModalContext.mode = 'today';
             State.context.quantityModalContext.dateKey = null;
             // [중요] 오늘의 입력은 '확정' 단계가 아님 (isVerifyingMode = false)
             State.context.quantityModalContext.isVerifyingMode = false;
 
-            // [수정] onConfirm에서 saveManualTaskQuantities 사용 및 'estimated' 상태 강제
-            State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks, isConfirmed, quantityStatuses) => {
+            State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
                 State.appState.taskQuantities = newQuantities;
                 State.appState.confirmedZeroTasks = confirmedZeroTasks;
                 
-                // 오늘 입력은 무조건 'estimated'로 강제 (UI에서 숨겼으므로 안전장치)
-                const finalStatuses = {};
-                Object.keys(newQuantities).forEach(k => finalStatuses[k] = 'estimated');
+                await updateDailyData({
+                    taskQuantities: newQuantities,
+                    confirmedZeroTasks: confirmedZeroTasks
+                });
 
-                // DB 저장 (상태는 estimated)
-                await saveManualTaskQuantities(newQuantities, confirmedZeroTasks, finalStatuses);
-
-                // 이력 저장 (isQuantityVerified = false -> 예상)
+                // 오늘 입력은 '가저장' 상태이므로 isQuantityVerified = false로 저장
                 saveProgress(false, false); 
 
                 showToast('오늘의 처리량(예상)이 저장되었습니다.');
@@ -324,6 +316,8 @@ export function setupMainScreenListeners() {
                 return;
             }
 
+            const quantityModal = document.getElementById('quantity-modal');
+
             const todayData = {
                 workRecords: State.appState.workRecords || [],
                 taskQuantities: State.appState.taskQuantities || {},
@@ -336,25 +330,18 @@ export function setupMainScreenListeners() {
             const title = document.getElementById('quantity-modal-title');
             if (title) title.textContent = '오늘의 처리량 입력 (예상값)';
 
-            // [추가] 모바일 버튼에서도 동일하게 적용
-            const confirmCheckboxContainer = document.getElementById('quantity-confirm-container');
-            const confirmCheckbox = document.getElementById('quantity-confirm-checkbox');
-            
-            if (confirmCheckbox) confirmCheckbox.checked = false;
-            if (confirmCheckboxContainer) confirmCheckboxContainer.classList.add('hidden');
-
             State.context.quantityModalContext.mode = 'today';
             State.context.quantityModalContext.dateKey = null;
             State.context.quantityModalContext.isVerifyingMode = false;
 
-            State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks, isConfirmed, quantityStatuses) => {
+            State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
                 State.appState.taskQuantities = newQuantities;
                 State.appState.confirmedZeroTasks = confirmedZeroTasks;
 
-                const finalStatuses = {};
-                Object.keys(newQuantities).forEach(k => finalStatuses[k] = 'estimated');
-
-                await saveManualTaskQuantities(newQuantities, confirmedZeroTasks, finalStatuses);
+                await updateDailyData({
+                    taskQuantities: newQuantities,
+                    confirmedZeroTasks: confirmedZeroTasks
+                });
                 
                 saveProgress(false, false);
 
@@ -474,40 +461,6 @@ export function setupMainScreenListeners() {
         });
     }
 }
-
-// [신규] 알림 모달 리스너 설정
-export const setupClosingAlertListeners = () => {
-    const modal = document.getElementById('daily-closing-alert-modal');
-    const btnContinue = document.getElementById('btn-continue-work');
-    const btnFinish = document.getElementById('btn-finish-work');
-    const btnClose = document.getElementById('close-closing-alert-btn');
-
-    const closeModal = () => {
-        if (modal) modal.classList.add('hidden');
-    };
-
-    // 1. 계속 근무
-    if (btnContinue) {
-        btnContinue.addEventListener('click', () => {
-            closeModal();
-            // showToast("업무를 계속 진행합니다.");
-        });
-    }
-
-    // 2. 닫기 버튼
-    if (btnClose) {
-        btnClose.addEventListener('click', closeModal);
-    }
-
-    // 3. 마감하기 (일괄 종료)
-    if (btnFinish) {
-        btnFinish.addEventListener('click', async () => {
-            await stopAllOngoingWorks();
-            closeModal();
-        });
-    }
-};
-
 
 // [신규] 미확정 처리량 데이터 확인 및 모달 호출 함수 (앱 실행 시 호출 권장)
 export async function checkPendingVerifications() {

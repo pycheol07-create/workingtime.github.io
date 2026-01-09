@@ -256,38 +256,6 @@
     <div id="modals-container-admin-todo"></div>
     <div id="modals-container-admin-todo-alert"></div>
     <div id="modals-container-weekend"></div>
-    
-    <div id="daily-closing-alert-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center hidden z-[200] p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative overflow-hidden transform transition-all scale-100">
-            <div class="bg-indigo-600 p-4 text-white flex justify-between items-center">
-                <h3 class="text-lg font-bold flex items-center gap-2">
-                    ⏰ 마감 시간 알림 (17:30)
-                </h3>
-                <button class="text-white/80 hover:text-white" id="close-closing-alert-btn">&times;</button>
-            </div>
-            <div class="p-6 text-center">
-                <div class="mb-4">
-                    <span class="inline-block p-3 rounded-full bg-indigo-100 text-indigo-600 mb-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </span>
-                    <p class="text-gray-800 font-bold text-lg">업무를 마감하시겠습니까?</p>
-                    <p class="text-gray-500 text-sm mt-1">현재 진행 중인 모든 업무가 종료됩니다.</p>
-                </div>
-                
-                <div class="flex gap-3 mt-6">
-                    <button id="btn-continue-work" class="flex-1 py-3 px-4 border border-gray-300 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition">
-                        계속 근무
-                    </button>
-                    <button id="btn-finish-work" class="flex-1 py-3 px-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg transition flex justify-center items-center gap-2">
-                        <span>마감하기</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <script>
         // 1. 외부 HTML 컴포넌트 로더

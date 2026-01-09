@@ -648,118 +648,28 @@ export const saveManualTaskQuantities = async (newQuantities, confirmedZeroTasks
     try {
         const updates = {};
 
-        // 1. 수량 데이터
+        // 수량 데이터 준비
         if (newQuantities && Object.keys(newQuantities).length > 0) {
             updates.taskQuantities = newQuantities;
         }
 
-        // 2. [신규] 상태 데이터 (estimated / confirmed)
+        // 상태 데이터 준비 (예: 'estimated' or 'confirmed')
         if (newStatuses && Object.keys(newStatuses).length > 0) {
             updates.taskQuantityStatuses = newStatuses;
         }
         
-        // 3. 0건 확인 데이터
-        if (confirmedZeroTasks) { // 빈 배열이라도 업데이트 할 수 있도록 조건 완화
+        // 0건 확인된 태스크 처리
+        if (confirmedZeroTasks && confirmedZeroTasks.length > 0) {
             updates.confirmedZeroTasks = confirmedZeroTasks;
         }
 
         if (Object.keys(updates).length > 0) {
             await updateDailyData(updates);
-            // showToast는 호출하는 쪽에서 상황에 맞게 띄우거나 여기서 띄움
+            showToast('처리량 및 상태가 저장되었습니다.');
         }
 
     } catch (e) {
         console.error("Error saving manual quantities:", e);
         showToast("처리량 저장 중 오류가 발생했습니다.", true);
-    }
-};
-
-// ✅ [신규] 모든 진행 중인 업무 일괄 종료 (마감용)
-export const stopAllOngoingWorks = async () => {
-    try {
-        const workRecordsColRef = getWorkRecordsCollectionRef();
-        // 진행 중이거나 일시정지인 모든 기록 조회
-        const q = query(workRecordsColRef, where("status", "in", ["ongoing", "paused"]));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-            showToast("종료할 진행 중인 업무가 없습니다.");
-            return;
-        }
-
-        const batch = writeBatch(db);
-        const endTime = getCurrentTime();
-        let count = 0;
-
-        querySnapshot.forEach(docSnap => {
-            const record = docSnap.data();
-            let pauses = record.pauses || [];
-            
-            // 일시정지 상태였다면 마지막 휴식 종료
-            if (record.status === 'paused') {
-                const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
-                if (lastPause && lastPause.end === null) {
-                    lastPause.end = endTime;
-                }
-            }
-            
-            const duration = calcElapsedMinutes(record.startTime, endTime, pauses);
-
-            // 0분 이하는 삭제, 아니면 완료 처리
-            if (Math.round(duration) <= 0) {
-                batch.delete(docSnap.ref);
-            } else {
-                batch.update(docSnap.ref, {
-                    status: 'completed',
-                    endTime: endTime,
-                    duration: duration,
-                    pauses: pauses
-                });
-            }
-            count++;
-        });
-
-        await batch.commit();
-        showToast(`총 ${count}건의 업무가 마감(종료) 처리되었습니다.`);
-
-    } catch (e) {
-        console.error("Error stopping all works: ", e);
-        showToast("업무 일괄 마감 중 오류가 발생했습니다.", true);
-    }
-};
-
-// ✅ [신규] 17:30 자동 알림 체크 로직
-let isClosingAlertShownToday = false; // 오늘 알림을 보였는지 여부
-
-export const checkAutoClosingTime = () => {
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-
-    // 자정이 지나면 플래그 초기화
-    if (hours === 0 && minutes === 0) {
-        isClosingAlertShownToday = false;
-    }
-
-    // 17시 30분이 되었고, 오늘 아직 알림을 안 띄웠다면
-    if (hours === 17 && minutes === 30 && !isClosingAlertShownToday) {
-        
-        // 진행 중인 업무가 있는지 확인
-        const hasOngoing = (appState.workRecords || []).some(r => r.status === 'ongoing' || r.status === 'paused');
-        
-        if (hasOngoing) {
-            const modal = document.getElementById('daily-closing-alert-modal');
-            if (modal) {
-                modal.classList.remove('hidden');
-                isClosingAlertShownToday = true; // 알림 표시됨으로 설정
-                
-                // 알림음 재생 (선택사항)
-                try {
-                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); // 부드러운 알림음 예시
-                    audio.volume = 0.5;
-                    audio.play().catch(() => {}); // 자동재생 차단 방지
-                } catch(e) {}
-            }
-        }
     }
 };
