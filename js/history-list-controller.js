@@ -82,7 +82,7 @@ export const loadAndRenderHistoryList = async () => {
 
 /**
  * 모드(일/주/월/년)에 따라 좌측 리스트를 렌더링합니다.
- * ✅ [수정] selectedKey 파라미터 추가 (특정 날짜 선택 유지 기능)
+ * ✅ [수정] 예상(미확정) 배지 표시 로직 추가
  */
 export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = null) => {
     if (!DOM.historyDateList) return;
@@ -127,19 +127,34 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
         const li = document.createElement('li');
         let hasWarning = false;
         let titleAttr = '';
+        let badgeHtml = ''; // 배지용 HTML
 
         if (mode === 'day') {
             const dayData = filteredData.find(d => d.id === key);
             if (dayData) {
                 const missingTasksList = checkMissingQuantities(dayData);
                 hasWarning = missingTasksList.length > 0;
+                
+                // [신규] 상태 배지 생성 로직
+                // 처리량 데이터가 존재하는데, 확정 여부(isQuantityVerified)가 true가 아닌 경우
+                const hasQuantities = dayData.taskQuantities && Object.keys(dayData.taskQuantities).length > 0;
+                const isVerified = dayData.isQuantityVerified === true;
+
+                if (hasQuantities && !isVerified) {
+                    // 주황색 '예상' 배지 추가
+                    badgeHtml = `<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-800 border border-yellow-200 animate-pulse" title="예상값 (미확정)">예상</span>`;
+                }
+
                 if (hasWarning) {
                     titleAttr = ` title="처리량 누락: ${missingTasksList.join(', ')}"`;
                 }
             }
         }
 
-        li.innerHTML = `<button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300 ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>${key}</button>`;
+        li.innerHTML = `<button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300 flex justify-between items-center ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>
+                            <span>${key}</span>
+                            ${badgeHtml}
+                        </button>`;
         DOM.historyDateList.appendChild(li);
     });
 
@@ -269,34 +284,45 @@ export const switchHistoryView = async (view, preserveKey = null) => {
 /**
  * 처리량 수정 모달을 엽니다.
  */
-export const openHistoryQuantityModal = (dateKey) => {
+export const openHistoryQuantityModal = (dateKey, forceVerificationMode = false) => {
     const todayDateString = getTodayDateString();
 
+    let dataToLoad;
     if (dateKey === todayDateString) {
-        const todayData = {
+        dataToLoad = {
             id: todayDateString,
             workRecords: State.appState.workRecords || [],
             taskQuantities: State.appState.taskQuantities || {},
             confirmedZeroTasks: State.appState.confirmedZeroTasks || []
         };
-        const missingTasksList = checkMissingQuantities(todayData);
-        renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes, missingTasksList, State.appState.confirmedZeroTasks || []);
     } else {
         const dayData = State.allHistoryData.find(d => d.id === dateKey);
         if (!dayData) {
             return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
         }
-        const missingTasksList = checkMissingQuantities(dayData);
-        renderQuantityModalInputs(dayData.taskQuantities || {}, State.appConfig.quantityTaskTypes, missingTasksList, dayData.confirmedZeroTasks || []);
+        dataToLoad = dayData;
     }
+
+    const missingTasksList = checkMissingQuantities(dataToLoad);
+    renderQuantityModalInputs(dataToLoad.taskQuantities || {}, State.appConfig.quantityTaskTypes, missingTasksList, dataToLoad.confirmedZeroTasks || []);
 
     const title = document.getElementById('quantity-modal-title');
     if (title) title.textContent = `${dateKey} 처리량 수정`;
 
+    // [수정] 이력 수정 시에는 '확정 옵션' 보이기
+    const confirmCheckboxContainer = document.getElementById('quantity-confirm-container');
+    const confirmCheckbox = document.getElementById('quantity-confirm-checkbox');
+    
+    if (confirmCheckboxContainer) confirmCheckboxContainer.classList.remove('hidden');
+    // 배지 클릭으로 들어온 경우(forceVerificationMode) 체크박스 기본 선택
+    if (confirmCheckbox && forceVerificationMode) confirmCheckbox.checked = true;
+
     State.context.quantityModalContext.mode = 'history';
     State.context.quantityModalContext.dateKey = dateKey;
+    State.context.quantityModalContext.isVerifyingMode = forceVerificationMode; // 검증 모드 설정
 
-    State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
+    // [수정] onConfirm에서 확정 상태 저장 로직 추가
+    State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks, isConfirmed, quantityStatuses) => {
         if (!dateKey) return;
 
         const idx = State.allHistoryData.findIndex(d => d.id === dateKey);
@@ -304,7 +330,8 @@ export const openHistoryQuantityModal = (dateKey) => {
             State.allHistoryData[idx] = {
                 ...State.allHistoryData[idx],
                 taskQuantities: newQuantities,
-                confirmedZeroTasks: confirmedZeroTasks
+                confirmedZeroTasks: confirmedZeroTasks,
+                isQuantityVerified: isConfirmed // 로컬 상태 즉시 반영
             };
         }
 
@@ -312,23 +339,29 @@ export const openHistoryQuantityModal = (dateKey) => {
         try {
             await setDoc(historyDocRef, {
                 taskQuantities: newQuantities,
-                confirmedZeroTasks: confirmedZeroTasks
+                confirmedZeroTasks: confirmedZeroTasks,
+                taskQuantityStatuses: quantityStatuses, // 상태 맵 저장
+                isQuantityVerified: isConfirmed         // 확정 여부 플래그 저장
             }, { merge: true });
 
-            showToast(`${dateKey}의 처리량이 수정되었습니다.`);
+            showToast(`${dateKey}의 처리량이 ${isConfirmed ? '확정' : '저장(예상)'}되었습니다.`);
 
             if (dateKey === getTodayDateString()) {
                  const dailyDocRef = getDailyDocRef();
-                 await setDoc(dailyDocRef, { taskQuantities: newQuantities, confirmedZeroTasks: confirmedZeroTasks }, { merge: true });
+                 await setDoc(dailyDocRef, { 
+                     taskQuantities: newQuantities, 
+                     confirmedZeroTasks: confirmedZeroTasks,
+                     taskQuantityStatuses: quantityStatuses,
+                     isQuantityVerified: isConfirmed 
+                 }, { merge: true });
             }
 
             if (DOM.historyModal && !DOM.historyModal.classList.contains('hidden')) {
-                // 현재 보고 있는 뷰 갱신
+                // 현재 보고 있는 뷰 갱신 (리스트 배지 업데이트 포함)
                 const activeSubTabBtn = document.querySelector('#history-tabs button.font-semibold')
                                      || document.querySelector('#report-tabs button.font-semibold');
                 const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
                 
-                // ✅ [수정] 수정 후에도 현재 날짜 선택 유지
                 await switchHistoryView(currentView, dateKey);
             }
 
@@ -349,12 +382,6 @@ export const openHistoryQuantityModal = (dateKey) => {
  * 이력 삭제 요청을 처리합니다. (실제 삭제는 Confirmation 모달에서 수행)
  */
 export const requestHistoryDeletion = (dateKey) => {
-    // ... (이전과 동일, 삭제 대상 안내 메시지 로직) ...
-    // (listeners-history.js 파일 내부에 로직이 있으므로 여기서는 모달 호출만 담당)
-    // 하지만 실제 로직은 listeners-history.js에서 처리하고, 여기 있는 함수는 
-    // 다른 곳에서 호출하기 위한 껍데기 역할을 하거나, 중복될 수 있음.
-    // 현재 listeners-history.js가 메인이므로 여기서는 DOM 제어만 수행.
-    
     State.context.historyKeyToDelete = dateKey;
     const activeTab = State.context.activeMainHistoryTab || 'work';
     let targetName = '모든';

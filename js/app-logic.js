@@ -648,24 +648,24 @@ export const saveManualTaskQuantities = async (newQuantities, confirmedZeroTasks
     try {
         const updates = {};
 
-        // 수량 데이터 준비
+        // 1. 수량 데이터
         if (newQuantities && Object.keys(newQuantities).length > 0) {
             updates.taskQuantities = newQuantities;
         }
 
-        // 상태 데이터 준비 (예: 'estimated' or 'confirmed')
+        // 2. [신규] 상태 데이터 (estimated / confirmed)
         if (newStatuses && Object.keys(newStatuses).length > 0) {
             updates.taskQuantityStatuses = newStatuses;
         }
         
-        // 0건 확인된 태스크 처리
-        if (confirmedZeroTasks && confirmedZeroTasks.length > 0) {
+        // 3. 0건 확인 데이터
+        if (confirmedZeroTasks) { // 빈 배열이라도 업데이트 할 수 있도록 조건 완화
             updates.confirmedZeroTasks = confirmedZeroTasks;
         }
 
         if (Object.keys(updates).length > 0) {
             await updateDailyData(updates);
-            showToast('처리량 및 상태가 저장되었습니다.');
+            // showToast는 호출하는 쪽에서 상황에 맞게 띄우거나 여기서 띄움
         }
 
     } catch (e) {
