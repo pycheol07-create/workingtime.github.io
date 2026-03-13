@@ -22,7 +22,8 @@ import {
     updateInspectionLog,
     deleteInspectionLog,
     deleteProductHistory,
-    deleteHistoryInspectionList // ✅ 추가
+    deleteHistoryInspectionList,
+    initializeInspectionSession // ✅ 추가
 } from './inspection-logic.js';
 
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -108,6 +109,18 @@ export function setupHistoryInspectionListeners() {
     // 1. 탭 전환 및 리스트 선택 리스너 (이벤트 위임)
     if (DOM.inspectionHistoryViewContainer) {
         DOM.inspectionHistoryViewContainer.addEventListener('click', async (e) => {
+            
+            // ✅ [신규] G. 수동 검수 추가 버튼 클릭 이벤트
+            const addManualBtn = e.target.closest('#btn-add-inspection-manual');
+            if (addManualBtn) {
+                const modal = document.getElementById('inspection-manager-modal');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    initializeInspectionSession(); // 검수 모달 초기화
+                }
+                return;
+            }
+            
             // A. 상단 탭 버튼 (상품별 / 리스트별)
             const tabBtn = e.target.closest('button[data-insp-tab]');
             if (tabBtn) {
@@ -133,7 +146,7 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // [신규] F. 과거 리스트 삭제 버튼
+            // F. 과거 리스트 삭제 버튼
             const deleteListBtn = e.target.closest('.btn-delete-history-list');
             if (deleteListBtn) {
                 const dateKey = deleteListBtn.dataset.date;
