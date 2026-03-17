@@ -8,7 +8,9 @@ import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
 import { 
     doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, increment, serverTimestamp, collection, getDocs 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable } from './ui-history-inspection.js';
+
+// ✅ UI 렌더러 함수 임포트 추가 (renderExpandedInspectionLog)
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js';
 
 // 로컬 상태 변수
 let todayInspectionList = [];
@@ -919,12 +921,19 @@ export const loadAllInspectionHistory = async () => {
     }
 };
 
-export const loadInspectionLogs = async (productName) => {
+/**
+ * [변경] 클릭 시 모달이 아닌 아코디언 형태로 펼쳐지도록 변경
+ * 파라미터 targetTr(클릭된 행)이 존재할 경우 해당 행 바로 아래에 렌더링
+ */
+export const loadInspectionLogs = async (productName, targetTr = null) => {
     if (!productName) return;
     
-    if (DOM.inspectionLogManagerModal) DOM.inspectionLogManagerModal.classList.remove('hidden');
-    if (DOM.inspectionLogProductName) DOM.inspectionLogProductName.textContent = productName;
-    if (DOM.inspectionLogTableBody) DOM.inspectionLogTableBody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-gray-500">로딩 중...</td></tr>';
+    // 만약 예외적으로 행 데이터 없이 호출되었다면 기존 모달 창 띄우기 방식 사용
+    if (!targetTr && DOM.inspectionLogManagerModal) {
+         DOM.inspectionLogManagerModal.classList.remove('hidden');
+         if (DOM.inspectionLogProductName) DOM.inspectionLogProductName.textContent = productName;
+         if (DOM.inspectionLogTableBody) DOM.inspectionLogTableBody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-gray-500">로딩 중...</td></tr>';
+    }
 
     try {
         const docRef = doc(State.db, 'product_history', productName);
@@ -933,11 +942,17 @@ export const loadInspectionLogs = async (productName) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             currentProductLogs = data.logs || [];
-            renderInspectionLogTable(currentProductLogs, productName);
         } else {
             currentProductLogs = [];
-            renderInspectionLogTable([], productName);
         }
+
+        // 아코디언 방식으로 펼쳐질지 모달로 띄울지 분기
+        if (targetTr) {
+            renderExpandedInspectionLog(targetTr, currentProductLogs, productName);
+        } else {
+            renderInspectionLogTable(currentProductLogs, productName);
+        }
+
     } catch (e) {
         console.error("Error loading inspection logs:", e);
         showToast("상세 이력을 불러오는 중 오류가 발생했습니다.", true);
@@ -971,6 +986,7 @@ export const prepareEditInspectionLog = (productName, index) => {
     setSelect(DOM.editInspCheckPilling, checklist.pilling);
     setSelect(DOM.editInspCheckDye, checklist.dye);
 
+    // 수정 모달은 기존 창 열기 그대로 사용
     if (DOM.inspectionLogEditorModal) DOM.inspectionLogEditorModal.classList.remove('hidden');
 };
 
@@ -1110,7 +1126,6 @@ export const deleteProductHistory = async (productName) => {
     }
 };
 
-// ✅ [신규] 사전 특이사항(입고예정 메모) 등록 함수
 export const savePreInspectionNote = async () => {
     const productNameInput = document.getElementById('pre-insp-product-name');
     const noteInput = document.getElementById('pre-insp-note');
@@ -1126,7 +1141,6 @@ export const savePreInspectionNote = async () => {
     const nowTime = getCurrentTime();
     const inspector = State.appState.currentUser || 'Unknown';
 
-    // 가상의 로그 기록 (상태: 사전메모)
     const preRecord = {
         date: today,
         time: nowTime,

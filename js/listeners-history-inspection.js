@@ -5,7 +5,6 @@ import { showToast, getTodayDateString } from './utils.js';
 
 import { 
     renderInspectionHistoryTable, 
-    renderInspectionLogTable,
     renderInspectionLayout,
     renderInspectionListMode
 } from './ui-history.js'; 
@@ -19,7 +18,7 @@ import {
     deleteInspectionLog,
     deleteProductHistory,
     deleteHistoryInspectionList,
-    savePreInspectionNote // ✅ 신규 함수 임포트
+    savePreInspectionNote
 } from './inspection-logic.js';
 
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -79,7 +78,6 @@ export const fetchAndRenderInspectionHistory = async () => {
 
 export function setupHistoryInspectionListeners() {
 
-    // ✅ [신규] 사전 특이사항 등록 모달 관련 이벤트 리스너
     const preModal = document.getElementById('pre-register-inspection-modal');
     if (preModal) {
         preModal.addEventListener('click', async (e) => {
@@ -89,7 +87,7 @@ export function setupHistoryInspectionListeners() {
             if (e.target.closest('#save-pre-insp-btn')) {
                 const success = await savePreInspectionNote();
                 if (success) {
-                    fetchAndRenderInspectionHistory(); // 목록 새로고침
+                    fetchAndRenderInspectionHistory(); 
                 }
             }
         });
@@ -98,7 +96,7 @@ export function setupHistoryInspectionListeners() {
     if (DOM.inspectionHistoryViewContainer) {
         DOM.inspectionHistoryViewContainer.addEventListener('click', async (e) => {
             
-            // ✅ [신규] 입고예정 특이사항 등록 버튼 클릭 (모달 열기)
+            // 특이사항 사전 등록 모달
             const addPreBtn = e.target.closest('#btn-add-pre-inspection');
             if (addPreBtn) {
                 const modal = document.getElementById('pre-register-inspection-modal');
@@ -110,27 +108,7 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            const tabBtn = e.target.closest('button[data-insp-tab]');
-            if (tabBtn) {
-                const mode = tabBtn.dataset.inspTab;
-                if (State.context.inspectionViewMode !== mode) {
-                    State.context.inspectionViewMode = mode;
-                    State.context.selectedInspectionDate = null; 
-                    fetchAndRenderInspectionHistory(); 
-                }
-                return;
-            }
-
-            const dateBtn = e.target.closest('.btn-select-insp-date');
-            if (dateBtn) {
-                const date = dateBtn.dataset.date;
-                if (State.context.selectedInspectionDate !== date) {
-                    State.context.selectedInspectionDate = date;
-                    fetchAndRenderInspectionHistory(); 
-                }
-                return;
-            }
-
+            // 리스트 삭제
             const deleteListBtn = e.target.closest('.btn-delete-history-list');
             if (deleteListBtn) {
                 const dateKey = deleteListBtn.dataset.date;
@@ -142,6 +120,57 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
+            // 상품 전체 삭제
+            const deleteProductBtn = e.target.closest('.btn-delete-product');
+            if (deleteProductBtn) {
+                const productName = deleteProductBtn.dataset.productName;
+                const success = await deleteProductHistory(productName);
+                if (success) {
+                    fetchAndRenderInspectionHistory();
+                }
+                return;
+            }
+
+            // ✅ [신규] 확장된 상세 행 닫기 버튼
+            const closeExpandedBtn = e.target.closest('.btn-close-expanded');
+            if (closeExpandedBtn) {
+                closeExpandedBtn.closest('.expanded-detail-row').remove();
+                return;
+            }
+
+            // ✅ [신규] 상세 행 내부의 수정 버튼 (수정 모달 열기)
+            const editBtn = e.target.closest('.btn-edit-insp-log');
+            if (editBtn) {
+                const index = parseInt(editBtn.dataset.index, 10);
+                const productName = editBtn.dataset.productName;
+                prepareEditInspectionLog(productName, index);
+                return;
+            }
+
+            // 상단 모드 변경 탭
+            const tabBtn = e.target.closest('button[data-insp-tab]');
+            if (tabBtn) {
+                const mode = tabBtn.dataset.inspTab;
+                if (State.context.inspectionViewMode !== mode) {
+                    State.context.inspectionViewMode = mode;
+                    State.context.selectedInspectionDate = null; 
+                    fetchAndRenderInspectionHistory(); 
+                }
+                return;
+            }
+
+            // 리스트 탭 날짜 선택
+            const dateBtn = e.target.closest('.btn-select-insp-date');
+            if (dateBtn) {
+                const date = dateBtn.dataset.date;
+                if (State.context.selectedInspectionDate !== date) {
+                    State.context.selectedInspectionDate = date;
+                    fetchAndRenderInspectionHistory(); 
+                }
+                return;
+            }
+
+            // 정렬
             const th = e.target.closest('th[data-sort-key]');
             if (th) {
                 const key = th.dataset.sortKey;
@@ -150,20 +179,22 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
+            // ✅ [변경] 행을 클릭하면 상세 내역 아코디언 펼치기
             const detailBtn = e.target.closest('.btn-view-detail');
             if (detailBtn) {
-                const productName = detailBtn.dataset.productName;
-                loadInspectionLogs(productName);
-                return;
-            }
+                // 클릭한 곳이 행 전체(tr)인지 버튼인지 판별
+                const tr = detailBtn.tagName === 'TR' ? detailBtn : detailBtn.closest('tr');
+                const productName = tr.dataset.productName;
 
-            const deleteProductBtn = e.target.closest('.btn-delete-product');
-            if (deleteProductBtn) {
-                const productName = deleteProductBtn.dataset.productName;
-                const success = await deleteProductHistory(productName);
-                if (success) {
-                    fetchAndRenderInspectionHistory();
+                // 이미 열려있으면 닫기 처리
+                const nextTr = tr.nextElementSibling;
+                if (nextTr && nextTr.classList.contains('expanded-detail-row')) {
+                    nextTr.remove(); 
+                    return;
                 }
+
+                // 닫혀있으면 DB에서 데이터를 불러와 펼침
+                loadInspectionLogs(productName, tr);
                 return;
             }
         });
@@ -183,23 +214,11 @@ export function setupHistoryInspectionListeners() {
         });
     }
 
-    const inspLogTableBody = document.getElementById('inspection-log-table-body');
-    if (inspLogTableBody) {
-        inspLogTableBody.addEventListener('click', (e) => {
-            const editBtn = e.target.closest('.btn-edit-insp-log');
-            if (editBtn) {
-                const index = parseInt(editBtn.dataset.index, 10);
-                const productName = DOM.inspectionLogProductName.textContent;
-                prepareEditInspectionLog(productName, index);
-            }
-        });
-    }
-
     if (DOM.saveInspLogBtn) {
         DOM.saveInspLogBtn.addEventListener('click', async () => {
             await updateInspectionLog();
-            if (State.context.activeMainHistoryTab === 'inspection' && State.context.inspectionViewMode === 'product') {
-                fetchAndRenderInspectionHistory();
+            if (State.context.activeMainHistoryTab === 'inspection') {
+                fetchAndRenderInspectionHistory(); // 리스트 갱신
             }
         });
     }
@@ -207,7 +226,7 @@ export function setupHistoryInspectionListeners() {
     if (DOM.deleteInspLogBtn) {
         DOM.deleteInspLogBtn.addEventListener('click', async () => {
             await deleteInspectionLog();
-            if (State.context.activeMainHistoryTab === 'inspection' && State.context.inspectionViewMode === 'product') {
+            if (State.context.activeMainHistoryTab === 'inspection') {
                 fetchAndRenderInspectionHistory();
             }
         });

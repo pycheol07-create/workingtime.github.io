@@ -115,9 +115,9 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                 ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">완료</span>`
                 : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
             
-            // ✅ 수정: tr 태그에 cursor-pointer, btn-view-detail 클래스와 data-product-name 속성을 추가하여 클릭 가능하게 만듦
+            // ✅ 행(tr) 전체 클릭 가능하게 설정
             return `
-                <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail" data-product-name="${item.name}" title="클릭하여 상세 이력 보기">
+                <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail" data-product-name="${item.name}" title="클릭하여 상세 이력 펼치기">
                     <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.code || '-'}</td>
                     <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.name}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${item.option || '-'}</td>
@@ -134,7 +134,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                     <div class="flex items-center gap-2">
                         <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 입고 리스트 상세</h4>
-                        <span class="text-xs text-gray-500">총 ${selectedDateData.length}개 상품</span>
+                        <span class="text-xs text-gray-500">상품을 클릭하면 검수 상세내역이 펼쳐집니다.</span>
                     </div>
                     <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition" 
                             data-action="request-history-deletion" data-date-key="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
@@ -257,8 +257,9 @@ export const renderInspectionHistoryTable = (historyData) => {
                 supplierName = lastLog.supplierName || '-';
             }
 
+            // ✅ 행(tr) 전체 클릭 가능하게 설정
             html += `
-                <tr class="hover:bg-gray-50 transition group">
+                <tr class="hover:bg-blue-50 transition group cursor-pointer btn-view-detail" data-product-name="${item.id}" title="클릭하여 상세 이력 펼치기">
                     <td class="px-6 py-4 font-medium text-gray-900">${item.id}</td>
                     <td class="px-6 py-4 text-xs text-gray-500">
                         <div class="font-mono text-gray-700">${code}</div>
@@ -279,9 +280,8 @@ export const renderInspectionHistoryTable = (historyData) => {
                         ${formatDefectSummary(item.defectSummary)}
                     </td>
                     <td class="px-6 py-4 text-right space-x-1">
-                        <button class="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-200 rounded px-3 py-1.5 hover:bg-indigo-50 transition btn-view-detail" 
-                                data-product-name="${item.id}">
-                            상세보기
+                        <button class="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-200 rounded px-3 py-1.5 hover:bg-indigo-50 transition pointer-events-none">
+                            상세보기 ▾
                         </button>
                         <button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-3 py-1.5 hover:bg-red-50 transition btn-delete-product opacity-0 group-hover:opacity-100" 
                                 data-product-name="${item.id}" title="상품 전체 삭제">
@@ -297,76 +297,124 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
+// 기존 모달 렌더러는 예비용으로 둠
 export const renderInspectionLogTable = (logs, productName) => {
-    const tbody = DOM.inspectionLogTableBody;
-    const titleEl = DOM.inspectionLogProductName;
-    
-    if (!tbody) return;
-    if (titleEl) titleEl.textContent = productName;
+    // ... 기존 코드 유지
+};
 
-    tbody.innerHTML = '';
-
-    if (!logs || logs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="p-6 text-center text-gray-400">검수 기록이 없습니다.</td></tr>';
-        return;
+/**
+ * [신규] 클릭한 행 바로 밑에 상세 로그를 펼치는 (Accordion) 렌더러
+ */
+export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
+    // 1. 이미 열려 있는 다른 상세 행 닫기
+    const table = targetTr.closest('table');
+    if (table) {
+        table.querySelectorAll('.expanded-detail-row').forEach(row => row.remove());
     }
 
-    const logsWithIndex = logs.map((log, idx) => ({ ...log, originalIndex: idx }));
-    logsWithIndex.sort((a, b) => {
-        const tA = (a.date || '') + (a.time || '');
-        const tB = (b.date || '') + (b.time || '');
-        return tB.localeCompare(tA);
-    });
+    const colspan = targetTr.children.length; // 상위 테이블의 열 개수에 맞춤
 
-    logsWithIndex.forEach(item => {
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-gray-50 transition border-b';
+    const tr = document.createElement('tr');
+    tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner';
+    
+    let logsHtml = '';
+    if (!logs || logs.length === 0) {
+        logsHtml = '<div class="p-6 text-center text-gray-500">저장된 상세 검수 기록이 없습니다.</div>';
+    } else {
+        const logsWithIndex = logs.map((log, idx) => ({ ...log, originalIndex: idx }));
+        logsWithIndex.sort((a, b) => {
+            const tA = (a.date || '') + (a.time || '');
+            const tB = (b.date || '') + (b.time || '');
+            return tB.localeCompare(tA); // 최근 순 정렬
+        });
 
-        let statusBadge = '';
-        if (item.status === '정상') {
-            statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">정상</span>`;
-        } else if (item.status === '사전메모') {
-            statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">사전등록</span>`;
-        } else {
-            statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">불량</span>`;
-        }
+        const rows = logsWithIndex.map(item => {
+            // 체크리스트 보기 좋게 뱃지 형태로 변환
+            let checklistStr = [];
+            const cl = item.checklist || {};
+            const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
+            
+            if (cl.thickness) {
+                checklistStr.push(`<span class="inline-block bg-white px-1.5 py-0.5 rounded text-[11px] text-gray-600 border border-gray-200 shadow-sm mr-1 mb-1">두께: <strong class="text-indigo-600">${cl.thickness}</strong></span>`);
+            }
+            
+            const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
+            
+            Object.entries(cl).forEach(([key, val]) => {
+                if (key !== 'thickness' && val) {
+                    const isDefect = !normalValues.includes(val);
+                    const colorClass = isDefect ? 'text-red-700 bg-red-50 border-red-200 font-bold' : 'text-gray-600 bg-white border-gray-200';
+                    checklistStr.push(`<span class="inline-block ${colorClass} px-1.5 py-0.5 rounded text-[11px] border shadow-sm mb-1 mr-1">${labelMap[key]||key}: ${val}</span>`);
+                }
+            });
 
-        let defectText = '';
-        if (item.defects && item.defects.length > 0) {
-            defectText = `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>`;
-        }
-        const noteText = item.note || '';
-        const fullText = (defectText + noteText) || '<span class="text-gray-300">-</span>';
+            const statusBadge = item.status === '정상' 
+                ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-800">정상</span>`
+                : item.status === '사전메모' ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-800">사전메모</span>`
+                : `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800">불량</span>`;
 
-        let imageHtml = '<span class="text-gray-300 text-xs">-</span>';
-        if (item.image) {
-            imageHtml = `
-                <div class="relative group cursor-pointer">
-                    <img src="${item.image}" class="h-8 w-8 object-cover rounded border border-gray-300 hover:scale-150 transition-transform z-0 hover:z-10 bg-white" 
-                         onclick="const w=window.open('','_blank'); w.document.write('<img src=\\'${item.image}\\' style=\\'width:100%\\'/>');">
-                    <span class="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-2 ring-white bg-green-400"></span>
-                </div>`;
-        }
+            let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>` : '';
+            let noteText = item.note || '';
+            let fullNote = (defectText + noteText) || '<span class="text-gray-400">-</span>';
 
-        tr.innerHTML = `
-            <td class="px-4 py-3 whitespace-nowrap text-gray-600 font-mono text-xs">${item.date}<br>${item.time}</td>
-            <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900 text-xs">${item.inspector || '-'}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-600 text-xs">${item.inboundDate || item.packingNo || '-'}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">${item.code || '-'}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500 text-xs truncate max-w-[100px]" title="${item.option}">${item.option || '-'}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500 text-xs truncate max-w-[150px]" title="${item.supplierName}">
-                ${item.supplierName || '-'}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap text-center font-bold text-gray-700 text-xs">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-center">${statusBadge}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-center">${imageHtml}</td>
-            <td class="px-4 py-3 text-xs text-gray-600 max-w-xs break-words">${fullText}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-right">
-                <button class="text-blue-600 hover:text-blue-900 font-medium text-xs border border-blue-200 rounded px-2 py-1 hover:bg-blue-50 transition btn-edit-insp-log" data-index="${item.originalIndex}">수정</button>
-            </td>
+            let imageHtml = '<span class="text-gray-300 text-xs">-</span>';
+            if (item.image) {
+                imageHtml = `
+                    <div class="relative group cursor-pointer inline-block">
+                        <img src="${item.image}" class="h-8 w-8 object-cover rounded border border-gray-300 hover:scale-150 transition-transform z-0 hover:z-10 bg-white" 
+                             onclick="const w=window.open('','_blank'); w.document.write('<img src=\\'${item.image}\\' style=\\'width:100%\\'/>');">
+                    </div>`;
+            }
+
+            return `
+                <tr class="border-b border-indigo-100/50 hover:bg-white transition bg-white/40">
+                    <td class="px-4 py-3 text-[11px] font-mono text-gray-500 whitespace-nowrap">${item.date}<br>${item.time}</td>
+                    <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.inboundDate || '-'}</td>
+                    <td class="px-4 py-3 text-xs font-bold text-gray-700 text-center">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
+                    <td class="px-4 py-3 text-center">${statusBadge}</td>
+                    <td class="px-4 py-3 max-w-[300px] leading-tight">${checklistStr.join('') || '-'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-700 break-words max-w-[250px]">${fullNote}</td>
+                    <td class="px-4 py-3 text-center">${imageHtml}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap">
+                        <button class="text-blue-600 hover:text-blue-800 text-[11px] font-bold px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-50 btn-edit-insp-log transition shadow-sm" data-index="${item.originalIndex}" data-product-name="${productName}">수정</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        logsHtml = `
+            <div class="p-4 bg-indigo-50/50 border-y border-indigo-200">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold text-indigo-900 text-sm flex items-center gap-2">
+                        🔍 상세 검수 이력 <span class="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200">${productName}</span>
+                    </h4>
+                    <button class="text-xs text-gray-500 hover:text-gray-800 font-bold btn-close-expanded px-3 py-1 rounded hover:bg-gray-200 transition border border-gray-300 bg-white shadow-sm">닫기 ✖</button>
+                </div>
+                <div class="overflow-x-auto rounded-lg border border-indigo-200 bg-white shadow-sm">
+                    <table class="w-full text-left">
+                        <thead class="bg-indigo-100 text-[11px] text-indigo-800 uppercase">
+                            <tr>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%]">일시</th>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%]">입고일자</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[5%]">수량</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%]">상태</th>
+                                <th class="px-4 py-2 font-bold w-[30%]">검수항목 (체크리스트)</th>
+                                <th class="px-4 py-2 font-bold w-[20%]">특이사항/메모</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[7%]">사진</th>
+                                <th class="px-4 py-2 font-bold text-right whitespace-nowrap w-[10%]">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         `;
-        tbody.appendChild(tr);
-    });
+    }
+
+    tr.innerHTML = `<td colspan="${colspan}" class="p-0 border-0 cursor-default">${logsHtml}</td>`;
+    targetTr.after(tr); // 클릭한 행 바로 밑에 삽입
 };
 
 export const setSortState = (key) => {
