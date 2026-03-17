@@ -2,10 +2,8 @@
 import * as DOM from './dom-elements.js';
 import { context } from './state.js';
 
-// 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
 
-// 헬퍼: 정렬 아이콘 HTML 생성
 const getSortIcon = (key) => {
     if (sortState.key !== key) return '<span class="text-gray-300 text-[10px] ml-1 opacity-50">↕</span>';
     return sortState.dir === 'asc' 
@@ -13,7 +11,6 @@ const getSortIcon = (key) => {
         : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
 };
 
-// 헬퍼: 불량 이력 요약 (최신 1건 표시)
 const formatDefectSummary = (defectSummary) => {
     if (!defectSummary || defectSummary.length === 0) {
         return '<span class="text-gray-400">-</span>';
@@ -22,9 +19,6 @@ const formatDefectSummary = (defectSummary) => {
     return `<span class="text-red-600 font-medium text-xs truncate block max-w-[200px]" title="${lastDefect}">${lastDefect}</span>`;
 };
 
-/**
- * 메인 프레임 렌더링 (탭 버튼 포함 + 다운로드 버튼 이동)
- */
 export const renderInspectionLayout = (container) => {
     if (!container) return;
     const activeTab = context.inspectionViewMode || 'product';
@@ -43,11 +37,11 @@ export const renderInspectionLayout = (container) => {
                     </button>
                 </div>
                 <div class="pb-1 pr-1 flex gap-2">
-                    <button id="btn-add-inspection-manual" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
+                    <button id="btn-add-pre-inspection" class="text-xs bg-orange-500 hover:bg-orange-600 text-white font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                        수동 검수 추가
+                        입고예정 특이사항 등록
                     </button>
                     <button id="inspection-tab-download-btn" class="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -57,9 +51,7 @@ export const renderInspectionLayout = (container) => {
                     </button>
                 </div>
             </div>
-
-            <div id="inspection-content-area" class="flex-grow overflow-hidden relative">
-            </div>
+            <div id="inspection-content-area" class="flex-grow overflow-hidden relative"></div>
         </div>
     `;
 };
@@ -70,7 +62,6 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
 
     const selectedDate = context.selectedInspectionDate;
 
-    // 1. 날짜 목록 HTML 생성
     let dateListHtml = '';
     if (!dateList || dateList.length === 0) {
         dateListHtml = `<div class="p-4 text-center text-sm text-gray-400">업로드된 리스트가 없습니다.</div>`;
@@ -90,7 +81,6 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
         });
     }
 
-    // 2. 상세 리스트 HTML 생성
     let detailHtml = '';
     if (!selectedDate) {
         detailHtml = `<div class="flex h-full items-center justify-center text-gray-400 text-sm">좌측에서 날짜를 선택해주세요.</div>`;
@@ -232,7 +222,7 @@ export const renderInspectionHistoryTable = (historyData) => {
                         <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="lastInspectionDate">
                             <div class="flex items-center justify-center">최근 검수일 ${getSortIcon('lastInspectionDate')}</div>
                         </th>
-                        <th scope="col" class="px-6 py-3">최근 불량 내역</th>
+                        <th scope="col" class="px-6 py-3">최근 불량/특이사항</th>
                         <th scope="col" class="px-6 py-3 text-right">관리</th>
                     </tr>
                 </thead>
@@ -309,27 +299,6 @@ export const renderInspectionLogTable = (logs, productName) => {
 
     tbody.innerHTML = '';
 
-    const table = tbody.closest('table');
-    if (table) {
-        const thead = table.querySelector('thead');
-        if (thead) {
-            thead.innerHTML = `
-                <tr>
-                    <th class="px-4 py-3 w-[12%]">일시</th>
-                    <th class="px-4 py-3 w-[7%]">담당</th>
-                    <th class="px-4 py-3 w-[10%]">입고일자</th>
-                    <th class="px-4 py-3 w-[8%]">코드</th>
-                    <th class="px-4 py-3 w-[8%]">옵션</th>
-                    <th class="px-4 py-3 w-[10%]">공급처 상품명</th>
-                    <th class="px-4 py-3 w-[5%] text-center">수량</th>
-                    <th class="px-4 py-3 w-[8%] text-center">상태</th>
-                    <th class="px-4 py-3 w-[8%] text-center">사진</th>
-                    <th class="px-4 py-3">특이사항</th>
-                    <th class="px-4 py-3 w-[10%] text-right">관리</th>
-                </tr>`;
-        }
-    }
-
     if (!logs || logs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11" class="p-6 text-center text-gray-400">검수 기록이 없습니다.</td></tr>';
         return;
@@ -346,9 +315,14 @@ export const renderInspectionLogTable = (logs, productName) => {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-gray-50 transition border-b';
 
-        const statusBadge = item.status === '정상' 
-            ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">정상</span>`
-            : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">불량</span>`;
+        let statusBadge = '';
+        if (item.status === '정상') {
+            statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">정상</span>`;
+        } else if (item.status === '사전메모') {
+            statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">사전등록</span>`;
+        } else {
+            statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">불량</span>`;
+        }
 
         let defectText = '';
         if (item.defects && item.defects.length > 0) {
