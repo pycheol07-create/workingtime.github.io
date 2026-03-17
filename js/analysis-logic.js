@@ -52,13 +52,12 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
     const currentAppConfig = State.appConfig || {};
     const standards = calculateStandardThroughputs(State.allHistoryData);
     
-    // 수동 입력된 속도가 있으면 우선 사용, 없으면 이력 기반 평균 속도 사용
     const speedPerPerson = (manualSpeed !== null && manualSpeed > 0) 
         ? Number(manualSpeed) 
-        : (standards[task] || 0); // (개/분/인)
+        : (standards[task] || 0); 
 
     const linkedAvgDurations = calculateLinkedTaskAverageDuration(State.allHistoryData, currentAppConfig);
-    const linkedTaskAvgDuration = includeLinkedTasks ? (linkedAvgDurations[task] || 0) : 0; // (분/건)
+    const linkedTaskAvgDuration = includeLinkedTasks ? (linkedAvgDurations[task] || 0) : 0; 
     const linkedTaskName = currentAppConfig.simulationTaskLinks ? currentAppConfig.simulationTaskLinks[task] : null;
 
     if (speedPerPerson <= 0) {
@@ -66,8 +65,6 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
     }
 
     const avgWagePerMinute = (currentAppConfig.defaultPartTimerWage || 10000) / 60;
-    
-    // '주업무'에 필요한 총 *맨-분* (Man-Minutes)
     const totalManMinutesForMainTask = targetQty / speedPerPerson;
     
     let relatedTaskInfo = null;
@@ -84,22 +81,16 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
     };
 
     if (mode === 'fixed-workers') {
-        result.workerCount = inputValue; // 예: 5명
-
-        // 1. 주 업무에 걸리는 시간
+        result.workerCount = inputValue; 
         const durationForMainTask = totalManMinutesForMainTask / result.workerCount; 
-        
-        // 2. 최종 소요 시간 = (주 업무 시간) + (사전 작업 고정 시간)
         result.durationMinutes = durationForMainTask + linkedTaskAvgDuration; 
 
-        // 3. 총 비용 계산
         const totalManMinutesNeeded = result.durationMinutes * result.workerCount; 
         result.totalCost = totalManMinutesNeeded * avgWagePerMinute;
 
         result.label1 = '예상 소요 시간';
         result.value1 = formatDuration(result.durationMinutes);
 
-        // 휴게시간(12:30~13:30) 고려한 종료 시간 예측
         const now = new Date();
         const safeStartTimeStr = String(startTimeStr || "09:00");
         const [startH, startM] = safeStartTimeStr.split(':').map(Number);
@@ -111,7 +102,7 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
         let endDateTime = new Date(startDateTime.getTime() + result.durationMinutes * 60000);
 
         if (startDateTime < lunchEnd && endDateTime > lunchStart) {
-             result.durationMinutes += 60; // 실제 소요 시간에 점심시간 포함
+             result.durationMinutes += 60; 
              result.value1 = `${formatDuration(result.durationMinutes)} (점심포함)`;
              endDateTime = new Date(endDateTime.getTime() + 60 * 60000); 
              result.includesLunch = true; 
@@ -124,12 +115,11 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
     } else if (mode === 'target-time') {
         result.durationMinutes = inputValue;
         
-        const effectiveDuration = inputValue - linkedTaskAvgDuration; // 목표시간 - 사전작업 고정시간
+        const effectiveDuration = inputValue - linkedTaskAvgDuration; 
         if (effectiveDuration <= 0) {
             return { error: "목표 시간이 사전 작업 시간보다 짧아 계산할 수 없습니다." };
         }
         
-        // 필요 인원을 정수로 올림 처리
         result.workerCount = Math.ceil(totalManMinutesForMainTask / effectiveDuration);
         
         result.label1 = '필요 인원';
@@ -190,7 +180,7 @@ export const analyzeBottlenecks = (historyData) => {
         .map(([task, speed]) => ({
             task,
             speed,
-            timeFor1000: (speed > 0) ? (1000 / speed) : 0 // 1000개 처리 시 필요 시간 (1인 기준)
+            timeFor1000: (speed > 0) ? (1000 / speed) : 0 
         }))
         .filter(item => item.speed > 0)
         .sort((a, b) => b.timeFor1000 - a.timeFor1000) 
@@ -199,16 +189,13 @@ export const analyzeBottlenecks = (historyData) => {
     return ranked;
 };
 
-/**
- * 연관 업무의 '건당 평균 시간' (분/건) 계산 헬퍼
- */
 const calculateLinkedTaskAverageDuration = (allHistoryData, appConfig) => {
     const links = (appConfig && appConfig.simulationTaskLinks) ? appConfig.simulationTaskLinks : {};
     const mainTasks = Object.keys(links);
     if (mainTasks.length === 0 || !allHistoryData) return {};
 
     const linkedTasks = new Set(Object.values(links));
-    const taskStats = {}; // { duration: 총 시간, count: 총 횟수 }
+    const taskStats = {}; 
 
     allHistoryData.forEach(day => {
         (day.workRecords || []).forEach(r => {
@@ -240,40 +227,33 @@ const calculateLinkedTaskAverageDuration = (allHistoryData, appConfig) => {
 };
 
 /**
- * 요일별 패턴 및 최근 추세를 활용한 미래 데이터 예측 함수 (정확도 대폭 향상)
- * @param {Array} historyData - 전체 이력 데이터
- * @param {number} daysToPredict - 예측할 미래 일수 (기본 14일)
+ * ✅ [완전 개편] 오차 누적 기반 보정 알고리즘
+ * "어제의 시점"에서 데이터를 분석해 오늘의 예측값을 산출하고, 과거 14일 오차율을 스스로 학습하여 보정합니다.
  */
 export const predictFutureTrends = (historyData, daysToPredict = 14) => {
-    // 1. 데이터 전처리 (날짜순 정렬 및 최근 90일 데이터 사용)
-    const sortedData = [...historyData]
-        .sort((a, b) => a.id.localeCompare(b.id))
-        .slice(-90); 
+    const todayStr = getTodayDateString();
+    const sortedData = [...historyData].sort((a, b) => a.id.localeCompare(b.id));
 
-    if (sortedData.length < 7) return null; // 최소 1주일치 이상의 데이터 필요
+    // 1. 학습에 사용할 '과거 데이터 (어제까지)' 분리 (오늘 데이터에 오염되지 않기 위해)
+    const pastData = sortedData.filter(d => d.id < todayStr).slice(-90);
+    // 오늘의 실제 데이터 추출
+    const todayData = sortedData.find(d => d.id === todayStr) || { id: todayStr, management: { revenue: 0 }, taskQuantities: { '국내배송': 0 } };
 
-    // 2. 요일별(Day of Week) 평균 계산 및 최근 추세(Trend) 팩터 계산
-    // 요일: 0(일), 1(월), 2(화), 3(수), 4(목), 5(금), 6(토)
-    const dowStats = {
-        revenue: { 0:[], 1:[], 2:[], 3:[], 4:[], 5:[], 6:[] },
-        delivery: { 0:[], 1:[], 2:[], 3:[], 4:[], 5:[], 6:[] }
-    };
+    if (pastData.length < 7) return null; // 예측을 위한 최소 일수
 
-    let recent7Rev = [], recent30Rev = [];
-    let recent7Del = [], recent30Del = [];
+    // 2. 요일별(Day of Week) 평균 및 최근 추세 계산
+    const dowStats = { rev: {0:[],1:[],2:[],3:[],4:[],5:[],6:[]}, del: {0:[],1:[],2:[],3:[],4:[],5:[],6:[]} };
+    let recent7Rev = [], recent30Rev = [], recent7Del = [], recent30Del = [];
 
-    sortedData.forEach((day, index) => {
-        const dateObj = new Date(day.id);
-        const dow = dateObj.getDay();
+    pastData.forEach((day, index) => {
+        const dow = new Date(day.id).getDay();
         const rev = Number(day.management?.revenue) || 0;
         const del = Number(day.taskQuantities?.['국내배송']) || 0;
 
-        // 요일별 누적 (0인 날도 포함하여 해당 요일의 '평균적 확률'을 구함)
-        dowStats.revenue[dow].push(rev);
-        dowStats.delivery[dow].push(del);
+        dowStats.rev[dow].push(rev);
+        dowStats.del[dow].push(del);
 
-        // 추세 비교를 위한 최근 데이터 (실제 영업일 기준 비교를 위해 0 초과 값만 수집)
-        const daysFromEnd = sortedData.length - 1 - index;
+        const daysFromEnd = pastData.length - 1 - index;
         if (daysFromEnd < 7) {
             if (rev > 0) recent7Rev.push(rev);
             if (del > 0) recent7Del.push(del);
@@ -285,49 +265,77 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
     });
 
     const getAvg = (arr) => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
-    
-    const dowAvgRev = {};
-    const dowAvgDel = {};
+    const dowAvgRev = {}, dowAvgDel = {};
     for (let i = 0; i < 7; i++) {
-        dowAvgRev[i] = getAvg(dowStats.revenue[i]);
-        dowAvgDel[i] = getAvg(dowStats.delivery[i]);
+        dowAvgRev[i] = getAvg(dowStats.rev[i]);
+        dowAvgDel[i] = getAvg(dowStats.del[i]);
     }
 
-    // 추세 가중치 계산 (최근 1주 평균 / 최근 1달 평균)
-    const avg30Rev = getAvg(recent30Rev);
-    const avg7Rev = getAvg(recent7Rev);
-    const avg30Del = getAvg(recent30Del);
-    const avg7Del = getAvg(recent7Del);
+    const avg30Rev = getAvg(recent30Rev), avg7Rev = getAvg(recent7Rev);
+    const avg30Del = getAvg(recent30Del), avg7Del = getAvg(recent7Del);
 
-    // 급격한 튐 방지를 위해 가중치를 0.7 ~ 1.3 (±30%) 사이로 제한
     let trendRev = 1, trendDel = 1;
     if (avg30Rev > 0) trendRev = Math.max(0.7, Math.min(1.3, avg7Rev / avg30Rev));
     if (avg30Del > 0) trendDel = Math.max(0.7, Math.min(1.3, avg7Del / avg30Del));
 
-    // 3. 미래 데이터 생성
+    // 3. 🎯 핵심: 최근 14일 백테스팅을 통한 AI 오차 보정치 산출
+    const backtestDays = pastData.slice(-14);
+    let sumActualRev = 0, sumPredRev = 0;
+    let sumActualDel = 0, sumPredDel = 0;
+
+    backtestDays.forEach(day => {
+        const dow = new Date(day.id).getDay();
+        const actualRev = Number(day.management?.revenue) || 0;
+        const actualDel = Number(day.taskQuantities?.['국내배송']) || 0;
+
+        let pRev = dowAvgRev[dow] * trendRev;
+        let pDel = dowAvgDel[dow] * trendDel;
+
+        if (actualRev > 0) { sumActualRev += actualRev; sumPredRev += pRev; }
+        if (actualDel > 0) { sumActualDel += actualDel; sumPredDel += pDel; }
+    });
+
+    // 오차율 가중치 (±20% 리미트)
+    let errorFactorRev = 1;
+    let errorFactorDel = 1;
+    if (sumPredRev > 0) errorFactorRev = Math.max(0.8, Math.min(1.2, sumActualRev / sumPredRev));
+    if (sumPredDel > 0) errorFactorDel = Math.max(0.8, Math.min(1.2, sumActualDel / sumPredDel));
+
+    // 4. "오늘"의 예측값 (어제 기준 모델을 활용하여 산출) 및 실제값 매핑
+    const todayDow = new Date(todayStr).getDay();
+    let todayPredRev = dowAvgRev[todayDow] * trendRev * errorFactorRev;
+    let todayPredDel = dowAvgDel[todayDow] * trendDel * errorFactorDel;
+
+    // 평일인데 요일 평균이 0인 예외 상황 보정
+    if (todayDow > 0 && todayDow < 6) {
+        if (dowAvgRev[todayDow] === 0 && avg30Rev > 0) todayPredRev = avg30Rev * 0.8 * errorFactorRev;
+        if (dowAvgDel[todayDow] === 0 && avg30Del > 0) todayPredDel = avg30Del * 0.8 * errorFactorDel;
+    }
+    todayPredRev = Math.round(Math.max(0, todayPredRev));
+    todayPredDel = Math.round(Math.max(0, todayPredDel));
+
+    const todayActualRev = Number(todayData.management?.revenue) || 0;
+    const todayActualDel = Number(todayData.taskQuantities?.['국내배송']) || 0;
+
+    // 5. "내일"부터 미래 기간 예측
     const futureLabels = [];
     const predictedRevenue = [];
     const predictedDelivery = [];
 
     let tomorrowRev = 0, tomorrowDel = 0;
-    
-    // 마지막 기록된 날짜를 기준으로 내일(i=1)부터 계산
-    const lastDateStr = sortedData[sortedData.length - 1].id;
-    const lastDateObj = new Date(lastDateStr);
+    const todayDateObj = new Date(todayStr);
 
     for (let i = 1; i <= daysToPredict; i++) {
-        const targetDate = new Date(lastDateObj.getTime() + (i * 24 * 60 * 60 * 1000));
+        const targetDate = new Date(todayDateObj.getTime() + (i * 24 * 60 * 60 * 1000));
         const dow = targetDate.getDay();
-        const dateStr = targetDate.toISOString().slice(5, 10); // MM-DD
+        const dateStr = targetDate.toISOString().slice(5, 10);
 
-        // 해당 요일의 평균치 * 최근 성장세/하락세 가중치
-        let pRev = dowAvgRev[dow] * trendRev;
-        let pDel = dowAvgDel[dow] * trendDel;
+        let pRev = dowAvgRev[dow] * trendRev * errorFactorRev;
+        let pDel = dowAvgDel[dow] * trendDel * errorFactorDel;
 
-        // 예외 처리: 평일인데 과거 데이터 누락 등의 이유로 요일 평균이 0일 경우, 30일 평균으로 임시 보정
         if (dow > 0 && dow < 6) {
-            if (dowAvgRev[dow] === 0 && avg30Rev > 0) pRev = avg30Rev * 0.8;
-            if (dowAvgDel[dow] === 0 && avg30Del > 0) pDel = avg30Del * 0.8;
+            if (dowAvgRev[dow] === 0 && avg30Rev > 0) pRev = avg30Rev * 0.8 * errorFactorRev;
+            if (dowAvgDel[dow] === 0 && avg30Del > 0) pDel = avg30Del * 0.8 * errorFactorDel;
         }
 
         pRev = Math.round(Math.max(0, pRev));
@@ -337,16 +345,14 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
         predictedRevenue.push(pRev);
         predictedDelivery.push(pDel);
 
-        // 첫 번째 반복(내일)의 데이터 저장
         if (i === 1) {
             tomorrowRev = pRev;
             tomorrowDel = pDel;
         }
     }
 
-    // 차트 가독성을 위해 과거 데이터는 최근 30일치만 반환
     const displayHist = sortedData.slice(-30);
-    
+
     return {
         historical: {
             labels: displayHist.map(d => d.id.substring(5)),
@@ -357,6 +363,14 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
             labels: futureLabels,
             revenue: predictedRevenue,
             delivery: predictedDelivery,
+            today: {
+                predictedRev: todayPredRev,
+                predictedDel: todayPredDel,
+                actualRev: todayActualRev,
+                actualDel: todayActualDel,
+                errorFactorRev: errorFactorRev,
+                errorFactorDel: errorFactorDel
+            },
             tomorrow: {
                 revenue: tomorrowRev,
                 delivery: tomorrowDel

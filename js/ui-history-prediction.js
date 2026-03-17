@@ -3,30 +3,22 @@
 
 import { predictFutureTrends } from './analysis-logic.js';
 
-// 차트 인스턴스를 저장하여 중복 생성을 방지합니다.
 const predictionCharts = {
     revenue: null,
     delivery: null
 };
 
-/**
- * 실적 예측 탭 렌더링 메인 함수
- * @param {Array} historyData - 전체 이력 데이터
- * @param {number} daysToPredict - 예측할 미래 일수 (기본 14일)
- */
 export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     const revenueCtx = document.getElementById('chart-prediction-revenue');
     const deliveryCtx = document.getElementById('chart-prediction-delivery');
 
     if (!revenueCtx || !deliveryCtx) return;
 
-    // 예측 기간 선택 (selectbox에서 값을 읽어옴, 기본값 파라미터 덮어쓰기)
     const selectEl = document.getElementById('prediction-days-select');
     if (selectEl) {
         daysToPredict = parseInt(selectEl.value, 10);
     }
 
-    // 1. 데이터 분석 및 예측 실행
     const result = predictFutureTrends(historyData, daysToPredict);
 
     if (!result) {
@@ -41,26 +33,31 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     const splitIndex = historical.labels.length;
     const allLabels = [...historical.labels, ...prediction.labels];
 
-    // 3. 차트 렌더링
     renderChart('revenue', revenueCtx, allLabels, historical.revenue, prediction.revenue, splitIndex, '매출 (원)', 'rgb(79, 70, 229)'); 
     renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, splitIndex, '배송량 (건)', 'rgb(16, 185, 129)'); 
 
-    // 4. KPI 카드 업데이트
     updateKPICards(prediction, trend, daysToPredict);
 
-    // 기간 변경 시 즉시 재렌더링을 위한 이벤트 리스너 부착 (최초 1회만 등록)
     if (selectEl && !selectEl.dataset.listenerAttached) {
         selectEl.dataset.listenerAttached = 'true';
         selectEl.addEventListener('change', () => {
-            renderPredictionTab(historyData); // 다시 호출
+            renderPredictionTab(historyData); 
         });
     }
 };
 
-/**
- * KPI 카드 수치 업데이트 함수
- */
 const updateKPICards = (prediction, trend, daysToPredict) => {
+    // Today Monitoring UI
+    const elTodayEstRev = document.getElementById('pred-today-est-rev');
+    const elTodayActRev = document.getElementById('pred-today-act-rev');
+    const elTodayRevBar = document.getElementById('pred-today-rev-bar');
+    
+    const elTodayEstDel = document.getElementById('pred-today-est-del');
+    const elTodayActDel = document.getElementById('pred-today-act-del');
+    const elTodayDelBar = document.getElementById('pred-today-del-bar');
+    const elErrorText = document.getElementById('pred-error-rate-text');
+
+    // Tomorrow & Period UI
     const elTomRev = document.getElementById('pred-tomorrow-revenue');
     const elTomDel = document.getElementById('pred-tomorrow-delivery');
     const elPerAvgRev = document.getElementById('pred-period-avg-revenue');
@@ -74,52 +71,67 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
         if (elTomDel) elTomDel.textContent = '-';
         if (elPerAvgRev) elPerAvgRev.textContent = '-';
         if (elPerAvgDel) elPerAvgDel.textContent = '-';
-        if (elRevTrend) elRevTrend.textContent = '데이터 부족';
-        if (elDelTrend) elDelTrend.textContent = '데이터 부족';
         return;
     }
 
-    // 1. 내일 예측값 추출
-    const tomRev = prediction.tomorrow.revenue;
-    const tomDel = prediction.tomorrow.delivery;
+    const { today, tomorrow, revenue, delivery } = prediction;
 
-    // 2. 선택 기간 평균 계산
-    const avgRev = prediction.revenue.reduce((a,b)=>a+b,0) / prediction.revenue.length;
-    const avgDel = prediction.delivery.reduce((a,b)=>a+b,0) / prediction.delivery.length;
+    // 1. 당일 실적 추적 모니터링 업데이트
+    if (today) {
+        if (elTodayEstRev) elTodayEstRev.textContent = today.predictedRev.toLocaleString();
+        if (elTodayActRev) elTodayActRev.textContent = today.actualRev.toLocaleString();
+        if (elTodayRevBar) {
+            const revPct = today.predictedRev > 0 ? Math.min(100, (today.actualRev / today.predictedRev) * 100) : 0;
+            elTodayRevBar.style.width = `${revPct}%`;
+        }
 
-    // UI 업데이트
-    if (elTomRev) elTomRev.textContent = tomRev > 0 ? tomRev.toLocaleString() : '휴무 예상(0)';
-    if (elTomDel) elTomDel.textContent = tomDel > 0 ? tomDel.toLocaleString() : '휴무 예상(0)';
+        if (elTodayEstDel) elTodayEstDel.textContent = today.predictedDel.toLocaleString();
+        if (elTodayActDel) elTodayActDel.textContent = today.actualDel.toLocaleString();
+        if (elTodayDelBar) {
+            const delPct = today.predictedDel > 0 ? Math.min(100, (today.actualDel / today.predictedDel) * 100) : 0;
+            elTodayDelBar.style.width = `${delPct}%`;
+        }
+
+        // 오차 보정률 텍스트 출력
+        if (elErrorText) {
+            const revFactorPct = ((today.errorFactorRev - 1) * 100).toFixed(1);
+            const delFactorPct = ((today.errorFactorDel - 1) * 100).toFixed(1);
+            const revColor = revFactorPct >= 0 ? 'text-red-500' : 'text-blue-500';
+            const delColor = delFactorPct >= 0 ? 'text-red-500' : 'text-blue-500';
+            
+            elErrorText.innerHTML = `최근 14일 오차율을 분석하여 예측치에 <br/>매출 <strong class="${revColor}">${revFactorPct > 0 ? '+'+revFactorPct : revFactorPct}%</strong>, 배송 <strong class="${delColor}">${delFactorPct > 0 ? '+'+delFactorPct : delFactorPct}%</strong> 자동 보정 반영됨.`;
+        }
+    }
+
+    // 2. 내일 예측 및 기간 평균 업데이트
+    const avgRev = revenue.reduce((a,b)=>a+b,0) / revenue.length;
+    const avgDel = delivery.reduce((a,b)=>a+b,0) / delivery.length;
+
+    if (elTomRev) elTomRev.textContent = tomorrow.revenue > 0 ? tomorrow.revenue.toLocaleString() : '휴무(0)';
+    if (elTomDel) elTomDel.textContent = tomorrow.delivery > 0 ? tomorrow.delivery.toLocaleString() : '휴무(0)';
     
     if (elPerAvgRev) elPerAvgRev.textContent = Math.round(avgRev).toLocaleString();
     if (elPerAvgDel) elPerAvgDel.textContent = Math.round(avgDel).toLocaleString();
     if (elPeriodLabel) elPeriodLabel.textContent = `향후 ${daysToPredict}일 기준`;
 
-    // 3. 추세 텍스트 (Factor: 1.0은 100% 동일, 1.1은 10% 성장)
+    // 3. 장기 추세 안내 텍스트
     if (elRevTrend && trend) {
         const factor = trend.revenueFactor;
-        let trendIcon = '➡️', trendText = '최근 한달과 비슷한 보합세', color = 'text-blue-500';
-        
-        if (factor > 1.05) { trendIcon = '📈'; trendText = `최근 한달 대비 매출 상승 추세`; color = 'text-red-500'; }
-        else if (factor < 0.95) { trendIcon = '📉'; trendText = `최근 한달 대비 매출 하락 추세`; color = 'text-blue-500'; }
-        
+        let trendIcon = '➡️', trendText = '보합세 유지 중', color = 'text-blue-500';
+        if (factor > 1.05) { trendIcon = '📈'; trendText = `최근 매출 꾸준한 상승세`; color = 'text-red-500'; }
+        else if (factor < 0.95) { trendIcon = '📉'; trendText = `최근 매출 하락세 주의`; color = 'text-blue-500'; }
         elRevTrend.innerHTML = `${trendIcon} <span class="${color} font-bold">${trendText}</span>`;
     }
 
     if (elDelTrend && trend) {
         const factor = trend.deliveryFactor;
-        let trendIcon = '➡️', trendText = '최근 한달과 비슷한 보합세', color = 'text-blue-500';
-        
-        if (factor > 1.05) { trendIcon = '📦📈'; trendText = `최근 배송량 뚜렷한 증가 추세`; color = 'text-red-500'; }
+        let trendIcon = '➡️', trendText = '보합세 유지 중', color = 'text-blue-500';
+        if (factor > 1.05) { trendIcon = '📦📈'; trendText = `최근 배송량 증가 추세`; color = 'text-red-500'; }
         else if (factor < 0.95) { trendIcon = '📦📉'; trendText = `최근 배송량 감소 추세`; color = 'text-blue-500'; }
-        
         elDelTrend.innerHTML = `${trendIcon} <span class="${color} font-bold">${trendText}</span>`;
     }
 };
 
-/**
- * Chart.js 차트 생성 헬퍼
- */
 const renderChart = (key, ctx, labels, histData, predData, splitIndex, label, color) => {
     if (predictionCharts[key]) {
         predictionCharts[key].destroy();
