@@ -240,7 +240,7 @@ const calculateLinkedTaskAverageDuration = (allHistoryData, appConfig) => {
 };
 
 /**
- * 선형 회귀 분석을 통한 미래 데이터 예측 함수
+ * 요일별 패턴 및 최근 추세를 활용한 미래 데이터 예측 함수 (정확도 대폭 향상)
  * @param {Array} historyData - 전체 이력 데이터
  * @param {number} daysToPredict - 예측할 미래 일수 (기본 14일)
  */
@@ -250,102 +250,121 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
         .sort((a, b) => a.id.localeCompare(b.id))
         .slice(-90); 
 
-    if (sortedData.length < 5) return null; // 데이터 부족 시 예측 불가
+    if (sortedData.length < 7) return null; // 최소 1주일치 이상의 데이터 필요
 
-    const labels = [];
-    const revenueData = [];
-    const deliveryData = [];
+    // 2. 요일별(Day of Week) 평균 계산 및 최근 추세(Trend) 팩터 계산
+    // 요일: 0(일), 1(월), 2(화), 3(수), 4(목), 5(금), 6(토)
+    const dowStats = {
+        revenue: { 0:[], 1:[], 2:[], 3:[], 4:[], 5:[], 6:[] },
+        delivery: { 0:[], 1:[], 2:[], 3:[], 4:[], 5:[], 6:[] }
+    };
 
-    const firstDate = new Date(sortedData[0].id).getTime();
-    const oneDay = 24 * 60 * 60 * 1000;
+    let recent7Rev = [], recent30Rev = [];
+    let recent7Del = [], recent30Del = [];
 
-    const pointsRevenue = [];
-    const pointsDelivery = [];
-
-    sortedData.forEach(day => {
+    sortedData.forEach((day, index) => {
         const dateObj = new Date(day.id);
-        const x = (dateObj.getTime() - firstDate) / oneDay; 
-        
+        const dow = dateObj.getDay();
         const rev = Number(day.management?.revenue) || 0;
         const del = Number(day.taskQuantities?.['국내배송']) || 0;
 
-        // 0이 아닌 값만 추세선 계산에 반영 (주말 등 제외)
-        if (rev > 0) pointsRevenue.push({ x, y: rev });
-        if (del > 0) pointsDelivery.push({ x, y: del });
+        // 요일별 누적 (0인 날도 포함하여 해당 요일의 '평균적 확률'을 구함)
+        dowStats.revenue[dow].push(rev);
+        dowStats.delivery[dow].push(del);
 
-        labels.push(day.id.substring(5)); // MM-DD
-        revenueData.push(rev);
-        deliveryData.push(del);
+        // 추세 비교를 위한 최근 데이터 (실제 영업일 기준 비교를 위해 0 초과 값만 수집)
+        const daysFromEnd = sortedData.length - 1 - index;
+        if (daysFromEnd < 7) {
+            if (rev > 0) recent7Rev.push(rev);
+            if (del > 0) recent7Del.push(del);
+        }
+        if (daysFromEnd < 30) {
+            if (rev > 0) recent30Rev.push(rev);
+            if (del > 0) recent30Del.push(del);
+        }
     });
 
-    // 2. 선형 회귀 계산 (y = mx + b)
-    const calculateRegression = (points) => {
-        const n = points.length;
-        if (n === 0) return { m: 0, b: 0 };
+    const getAvg = (arr) => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+    
+    const dowAvgRev = {};
+    const dowAvgDel = {};
+    for (let i = 0; i < 7; i++) {
+        dowAvgRev[i] = getAvg(dowStats.revenue[i]);
+        dowAvgDel[i] = getAvg(dowStats.delivery[i]);
+    }
 
-        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-        points.forEach(p => {
-            sumX += p.x;
-            sumY += p.y;
-            sumXY += (p.x * p.y);
-            sumXX += (p.x * p.x);
-        });
+    // 추세 가중치 계산 (최근 1주 평균 / 최근 1달 평균)
+    const avg30Rev = getAvg(recent30Rev);
+    const avg7Rev = getAvg(recent7Rev);
+    const avg30Del = getAvg(recent30Del);
+    const avg7Del = getAvg(recent7Del);
 
-        const m = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-        const b = (sumY - m * sumX) / n;
-        return { m, b };
-    };
-
-    const regRevenue = calculateRegression(pointsRevenue);
-    const regDelivery = calculateRegression(pointsDelivery);
+    // 급격한 튐 방지를 위해 가중치를 0.7 ~ 1.3 (±30%) 사이로 제한
+    let trendRev = 1, trendDel = 1;
+    if (avg30Rev > 0) trendRev = Math.max(0.7, Math.min(1.3, avg7Rev / avg30Rev));
+    if (avg30Del > 0) trendDel = Math.max(0.7, Math.min(1.3, avg7Del / avg30Del));
 
     // 3. 미래 데이터 생성
     const futureLabels = [];
     const predictedRevenue = [];
     const predictedDelivery = [];
+
+    let tomorrowRev = 0, tomorrowDel = 0;
     
-    const lastRealX = (new Date(sortedData[sortedData.length - 1].id).getTime() - firstDate) / oneDay;
+    // 마지막 기록된 날짜를 기준으로 내일(i=1)부터 계산
+    const lastDateStr = sortedData[sortedData.length - 1].id;
+    const lastDateObj = new Date(lastDateStr);
 
-    // ✅ [수정] i = 0 (오늘)부터 시작하도록 변경하여 오늘 예측값 포함
-    for (let i = 0; i <= daysToPredict; i++) {
-        const futureX = lastRealX + i;
-        const futureDate = new Date(firstDate + (futureX * oneDay));
-        const dateStr = futureDate.toISOString().slice(5, 10);
-        
-        const dayNum = futureDate.getDay();
-        const isWeekend = (dayNum === 0 || dayNum === 6);
+    for (let i = 1; i <= daysToPredict; i++) {
+        const targetDate = new Date(lastDateObj.getTime() + (i * 24 * 60 * 60 * 1000));
+        const dow = targetDate.getDay();
+        const dateStr = targetDate.toISOString().slice(5, 10); // MM-DD
 
-        let predRev = regRevenue.m * futureX + regRevenue.b;
-        let predDel = regDelivery.m * futureX + regDelivery.b;
+        // 해당 요일의 평균치 * 최근 성장세/하락세 가중치
+        let pRev = dowAvgRev[dow] * trendRev;
+        let pDel = dowAvgDel[dow] * trendDel;
 
-        predRev = Math.max(0, predRev);
-        predDel = Math.max(0, predDel);
-
-        // 주말 보정 (0 처리)
-        if (isWeekend) {
-            predRev = 0; 
-            predDel = 0;
+        // 예외 처리: 평일인데 과거 데이터 누락 등의 이유로 요일 평균이 0일 경우, 30일 평균으로 임시 보정
+        if (dow > 0 && dow < 6) {
+            if (dowAvgRev[dow] === 0 && avg30Rev > 0) pRev = avg30Rev * 0.8;
+            if (dowAvgDel[dow] === 0 && avg30Del > 0) pDel = avg30Del * 0.8;
         }
 
+        pRev = Math.round(Math.max(0, pRev));
+        pDel = Math.round(Math.max(0, pDel));
+
         futureLabels.push(dateStr);
-        predictedRevenue.push(Math.round(predRev));
-        predictedDelivery.push(Math.round(predDel));
+        predictedRevenue.push(pRev);
+        predictedDelivery.push(pDel);
+
+        // 첫 번째 반복(내일)의 데이터 저장
+        if (i === 1) {
+            tomorrowRev = pRev;
+            tomorrowDel = pDel;
+        }
     }
 
+    // 차트 가독성을 위해 과거 데이터는 최근 30일치만 반환
+    const displayHist = sortedData.slice(-30);
+    
     return {
         historical: {
-            labels,
-            revenue: revenueData,
-            delivery: deliveryData
+            labels: displayHist.map(d => d.id.substring(5)),
+            revenue: displayHist.map(d => Number(d.management?.revenue) || 0),
+            delivery: displayHist.map(d => Number(d.taskQuantities?.['국내배송']) || 0)
         },
         prediction: {
             labels: futureLabels,
             revenue: predictedRevenue,
-            delivery: predictedDelivery
+            delivery: predictedDelivery,
+            tomorrow: {
+                revenue: tomorrowRev,
+                delivery: tomorrowDel
+            }
         },
         trend: {
-            revenueSlope: regRevenue.m,
-            deliverySlope: regDelivery.m
+            revenueFactor: trendRev,
+            deliveryFactor: trendDel
         }
     };
 };

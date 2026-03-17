@@ -20,85 +20,100 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
 
     if (!revenueCtx || !deliveryCtx) return;
 
+    // 예측 기간 선택 (selectbox에서 값을 읽어옴, 기본값 파라미터 덮어쓰기)
+    const selectEl = document.getElementById('prediction-days-select');
+    if (selectEl) {
+        daysToPredict = parseInt(selectEl.value, 10);
+    }
+
     // 1. 데이터 분석 및 예측 실행
     const result = predictFutureTrends(historyData, daysToPredict);
 
     if (!result) {
         renderNoData(revenueCtx, "데이터가 부족하여 예측할 수 없습니다.");
         renderNoData(deliveryCtx, "데이터가 부족하여 예측할 수 없습니다.");
-        updateKPICards(null);
+        updateKPICards(null, null, daysToPredict);
         return;
     }
 
     const { historical, prediction, trend } = result;
 
-    // 2. 차트 데이터 구성 (과거 데이터 + 예측 데이터 연결)
-    // 과거 데이터의 마지막 부분과 예측 데이터의 시작 부분이 자연스럽게 이어지도록 처리
-    // (예측 로직이 오늘부터 시작하므로 그대로 연결 가능)
     const splitIndex = historical.labels.length;
-    
-    // 전체 라벨: 과거 라벨 + 예측 라벨
     const allLabels = [...historical.labels, ...prediction.labels];
 
     // 3. 차트 렌더링
-    // 과거(Historical) 데이터와 예측(Prediction) 데이터 분리하여 전달
-    renderChart('revenue', revenueCtx, allLabels, historical.revenue, prediction.revenue, splitIndex, '매출 (원)', 'rgb(79, 70, 229)'); // Indigo
-    renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, splitIndex, '배송량 (건)', 'rgb(16, 185, 129)'); // Emerald
+    renderChart('revenue', revenueCtx, allLabels, historical.revenue, prediction.revenue, splitIndex, '매출 (원)', 'rgb(79, 70, 229)'); 
+    renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, splitIndex, '배송량 (건)', 'rgb(16, 185, 129)'); 
 
     // 4. KPI 카드 업데이트
-    updateKPICards(prediction, trend);
+    updateKPICards(prediction, trend, daysToPredict);
+
+    // 기간 변경 시 즉시 재렌더링을 위한 이벤트 리스너 부착 (최초 1회만 등록)
+    if (selectEl && !selectEl.dataset.listenerAttached) {
+        selectEl.dataset.listenerAttached = 'true';
+        selectEl.addEventListener('change', () => {
+            renderPredictionTab(historyData); // 다시 호출
+        });
+    }
 };
 
 /**
  * KPI 카드 수치 업데이트 함수
  */
-const updateKPICards = (prediction, trend) => {
-    const elAvgRev = document.getElementById('pred-avg-revenue');
-    const elAvgDel = document.getElementById('pred-avg-delivery');
-    const elNextMonth = document.getElementById('pred-next-month-revenue');
+const updateKPICards = (prediction, trend, daysToPredict) => {
+    const elTomRev = document.getElementById('pred-tomorrow-revenue');
+    const elTomDel = document.getElementById('pred-tomorrow-delivery');
+    const elPerAvgRev = document.getElementById('pred-period-avg-revenue');
+    const elPerAvgDel = document.getElementById('pred-period-avg-delivery');
+    const elPeriodLabel = document.getElementById('pred-period-label');
     const elRevTrend = document.getElementById('pred-revenue-trend');
     const elDelTrend = document.getElementById('pred-delivery-trend');
 
     if (!prediction) {
-        if (elAvgRev) elAvgRev.textContent = '-';
-        if (elAvgDel) elAvgDel.textContent = '-';
-        if (elNextMonth) elNextMonth.textContent = '-';
+        if (elTomRev) elTomRev.textContent = '-';
+        if (elTomDel) elTomDel.textContent = '-';
+        if (elPerAvgRev) elPerAvgRev.textContent = '-';
+        if (elPerAvgDel) elPerAvgDel.textContent = '-';
         if (elRevTrend) elRevTrend.textContent = '데이터 부족';
         if (elDelTrend) elDelTrend.textContent = '데이터 부족';
         return;
     }
 
-    // 예측 기간 내 평균 계산 (0이 아닌 값만 고려 권장하나, 여기서는 전체 평균)
-    // 매출/배송량이 없는 날(0)도 평균에 포함할지 여부는 비즈니스 로직에 따름. 여기서는 단순 평균.
-    const activeRevenues = prediction.revenue; 
-    const avgRev = activeRevenues.length ? (activeRevenues.reduce((a,b)=>a+b,0) / activeRevenues.length) : 0;
+    // 1. 내일 예측값 추출
+    const tomRev = prediction.tomorrow.revenue;
+    const tomDel = prediction.tomorrow.delivery;
+
+    // 2. 선택 기간 평균 계산
+    const avgRev = prediction.revenue.reduce((a,b)=>a+b,0) / prediction.revenue.length;
+    const avgDel = prediction.delivery.reduce((a,b)=>a+b,0) / prediction.delivery.length;
+
+    // UI 업데이트
+    if (elTomRev) elTomRev.textContent = tomRev > 0 ? tomRev.toLocaleString() : '휴무 예상(0)';
+    if (elTomDel) elTomDel.textContent = tomDel > 0 ? tomDel.toLocaleString() : '휴무 예상(0)';
     
-    const activeDeliveries = prediction.delivery;
-    const avgDel = activeDeliveries.length ? (activeDeliveries.reduce((a,b)=>a+b,0) / activeDeliveries.length) : 0;
+    if (elPerAvgRev) elPerAvgRev.textContent = Math.round(avgRev).toLocaleString();
+    if (elPerAvgDel) elPerAvgDel.textContent = Math.round(avgDel).toLocaleString();
+    if (elPeriodLabel) elPeriodLabel.textContent = `향후 ${daysToPredict}일 기준`;
 
-    // 다음 달(30일) 예상 총 매출 (현재 추세 기준)
-    // 단순 평균 * 30일 (또는 근무일 기준 보정)
-    // 여기서는 주말 제외 약 22일 근무 가정으로 계산
-    const nextMonthTotal = Math.round(avgRev * 22); 
-
-    // 화면 표시
-    if (elAvgRev) elAvgRev.textContent = Math.round(avgRev).toLocaleString();
-    if (elAvgDel) elAvgDel.textContent = Math.round(avgDel).toLocaleString();
-    if (elNextMonth) elNextMonth.textContent = nextMonthTotal.toLocaleString();
-
-    // 추세 텍스트
+    // 3. 추세 텍스트 (Factor: 1.0은 100% 동일, 1.1은 10% 성장)
     if (elRevTrend && trend) {
-        const slope = trend.revenueSlope;
-        const trendIcon = slope > 0 ? '📈' : (slope < 0 ? '📉' : '➡️');
-        const trendText = slope > 1000 ? '상승세' : (slope < -1000 ? '하락세' : '보합세');
-        elRevTrend.innerHTML = `${trendIcon} <span class="${slope > 0 ? 'text-red-500' : 'text-blue-500'} font-bold">${trendText}</span> (기울기: ${Math.round(slope)})`;
+        const factor = trend.revenueFactor;
+        let trendIcon = '➡️', trendText = '최근 한달과 비슷한 보합세', color = 'text-blue-500';
+        
+        if (factor > 1.05) { trendIcon = '📈'; trendText = `최근 한달 대비 매출 상승 추세`; color = 'text-red-500'; }
+        else if (factor < 0.95) { trendIcon = '📉'; trendText = `최근 한달 대비 매출 하락 추세`; color = 'text-blue-500'; }
+        
+        elRevTrend.innerHTML = `${trendIcon} <span class="${color} font-bold">${trendText}</span>`;
     }
-    
+
     if (elDelTrend && trend) {
-        const slope = trend.deliverySlope;
-        const trendIcon = slope > 0 ? '📈' : (slope < 0 ? '📉' : '➡️');
-        const trendText = slope > 0.5 ? '상승세' : (slope < -0.5 ? '하락세' : '보합세');
-        elDelTrend.innerHTML = `${trendIcon} <span class="${slope > 0 ? 'text-red-500' : 'text-blue-500'} font-bold">${trendText}</span>`;
+        const factor = trend.deliveryFactor;
+        let trendIcon = '➡️', trendText = '최근 한달과 비슷한 보합세', color = 'text-blue-500';
+        
+        if (factor > 1.05) { trendIcon = '📦📈'; trendText = `최근 배송량 뚜렷한 증가 추세`; color = 'text-red-500'; }
+        else if (factor < 0.95) { trendIcon = '📦📉'; trendText = `최근 배송량 감소 추세`; color = 'text-blue-500'; }
+        
+        elDelTrend.innerHTML = `${trendIcon} <span class="${color} font-bold">${trendText}</span>`;
     }
 };
 
@@ -110,17 +125,11 @@ const renderChart = (key, ctx, labels, histData, predData, splitIndex, label, co
         predictionCharts[key].destroy();
     }
 
-    // 데이터셋 구성: 
-    // 1. 과거 데이터: 처음부터 splitIndex까지 (나머지 null)
-    // 2. 예측 데이터: splitIndex-1(연결점)부터 끝까지 (앞부분 null)
-    
-    // 과거 데이터셋
     const historicalDataset = histData.map((v, i) => i < splitIndex ? v : null);
     
-    // 예측 데이터셋 (연결점 포함)
-    // splitIndex-1은 과거 데이터의 마지막 점. 이 점을 예측 데이터의 시작점으로 삼아야 선이 끊기지 않음.
+    // 선이 이어지도록 예측 데이터의 시작점에 과거 마지막 데이터를 넣음
     const predictionDataset = labels.map((_, i) => {
-        if (i === splitIndex - 1) return histData[splitIndex - 1]; // 연결점
+        if (i === splitIndex - 1) return histData[splitIndex - 1]; 
         if (i >= splitIndex) return predData[i - splitIndex];
         return null;
     });
@@ -143,9 +152,9 @@ const renderChart = (key, ctx, labels, histData, predData, splitIndex, label, co
                 {
                     label: '예측 (AI)',
                     data: predictionDataset,
-                    borderColor: '#f59e0b', // Amber-500
+                    borderColor: '#f59e0b', 
                     borderWidth: 2,
-                    borderDash: [5, 5], // 점선
+                    borderDash: [5, 5], 
                     pointRadius: 0,
                     pointHoverRadius: 4,
                     tension: 0.3,
