@@ -2,8 +2,10 @@
 import * as DOM from './dom-elements.js';
 import { context } from './state.js';
 
+// 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
 
+// 헬퍼: 정렬 아이콘 HTML 생성
 const getSortIcon = (key) => {
     if (sortState.key !== key) return '<span class="text-gray-300 text-[10px] ml-1 opacity-50">↕</span>';
     return sortState.dir === 'asc' 
@@ -11,6 +13,7 @@ const getSortIcon = (key) => {
         : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
 };
 
+// 헬퍼: 불량 이력 요약 (최신 1건 표시)
 const formatDefectSummary = (defectSummary) => {
     if (!defectSummary || defectSummary.length === 0) {
         return '<span class="text-gray-400">-</span>';
@@ -19,6 +22,9 @@ const formatDefectSummary = (defectSummary) => {
     return `<span class="text-red-600 font-medium text-xs truncate block max-w-[200px]" title="${lastDefect}">${lastDefect}</span>`;
 };
 
+/**
+ * 메인 프레임 렌더링 (탭 버튼 포함 + 다운로드 버튼 이동)
+ */
 export const renderInspectionLayout = (container) => {
     if (!container) return;
     const activeTab = context.inspectionViewMode || 'product';
@@ -109,8 +115,9 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                 ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">완료</span>`
                 : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
             
+            // ✅ 수정: tr 태그에 cursor-pointer, btn-view-detail 클래스와 data-product-name 속성을 추가하여 클릭 가능하게 만듦
             return `
-                <tr class="hover:bg-gray-50 transition border-b last:border-0">
+                <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail" data-product-name="${item.name}" title="클릭하여 상세 이력 보기">
                     <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.code || '-'}</td>
                     <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.name}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${item.option || '-'}</td>
