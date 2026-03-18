@@ -114,7 +114,8 @@ export function setupFormAttendanceListeners() {
             const startDate = document.getElementById('leave-start-date-input').value || today;
             const endDate = document.getElementById('leave-end-date-input').value || startDate;
 
-            if (type === '연차' || type === '출장' || type === '결근') {
+            // ✅ '매장근무' 역시 날짜 기반(종일) 근태로 분류하여 처리
+            if (type === '연차' || type === '출장' || type === '결근' || type === '매장근무') {
                 if (startDate > endDate) {
                     showToast('종료 날짜는 시작 날짜보다 빠를 수 없습니다.', true);
                     return;
@@ -213,15 +214,12 @@ export function setupFormAttendanceListeners() {
                          showToast(`${memberName}님 ${type} 처리 완료.`);
                     }
                     
-                    // ✅ [수정] 창을 닫지 않고(주석처리), 입력 필드만 초기화하여 연속 입력 지원
-                    // DOM.leaveTypeModal.classList.add('hidden'); 
-                    
                     document.getElementById('leave-start-date-input').value = '';
                     document.getElementById('leave-end-date-input').value = '';
                 }
 
             } else {
-                // '지각', '외출', '조퇴' 등 Daily 근태
+                // '지각', '외출', '조퇴' 등 Daily(시간 기반) 근태
                 const newDailyEntry = {
                     member: memberName,
                     type: type,
@@ -231,9 +229,6 @@ export function setupFormAttendanceListeners() {
                 State.appState.dailyOnLeaveMembers.push(newDailyEntry);
                 debouncedSaveState();
                 showToast(`${memberName}님 ${type} 처리 완료.`);
-                
-                // ✅ [수정] 창을 닫지 않고 유지 (연속 입력 지원)
-                // DOM.leaveTypeModal.classList.add('hidden');
             }
         });
     }

@@ -31,7 +31,7 @@ const calculateTenure = (joinDateStr) => {
     return `${years}년 ${months}개월 ${days + 1}일째`;
 };
 
-// [신규] 근무 개월 수 계산 헬퍼
+// 근무 개월 수 계산 헬퍼
 const calculateMonthsWorked = (joinDateStr) => {
     if (!joinDateStr || joinDateStr === '-') return 0;
     const start = new Date(joinDateStr);
@@ -45,55 +45,46 @@ const calculateMonthsWorked = (joinDateStr) => {
     return Math.max(0, months);
 };
 
-// 연차 사용 내역 계산 & 자동 병합 로직 (초기화 기준일 적용 + 자동 발생 로직)
+// 연차 사용 내역 계산 & 자동 병합 로직
 const calculateLeaveUsage = (memberName) => {
     const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-', leaveResetDate: '', expirationDate: '' };
     let totalLeave = leaveSettings.totalLeave;
     const joinDate = leaveSettings.joinDate;
-    const leaveResetDate = leaveSettings.leaveResetDate; // 적용 시작일
-    const expirationDate = leaveSettings.expirationDate; // 만료일
+    const leaveResetDate = leaveSettings.leaveResetDate; 
+    const expirationDate = leaveSettings.expirationDate; 
 
     let isAutoCalculated = false;
 
-    // ✅ [수정] 우선순위 로직 적용
-    // 1순위: 관리자가 '적용 시작일(leaveResetDate)'을 직접 설정한 경우 -> 자동 계산 무시하고 설정값(totalLeave) 우선 사용
+    // 1순위: 관리자가 '적용 시작일'을 직접 설정한 경우 (우선 사용)
     if (leaveResetDate && leaveResetDate !== '') {
         isAutoCalculated = false;
-        // totalLeave는 leaveSettings.totalLeave 그대로 유지
     } 
-    // 2순위: 입사일이 있고, 12개월 미만 근속자인 경우 -> 근무 개월 수만큼 연차 자동 부여
+    // 2순위: 12개월 미만 근속자인 경우 -> 근무 개월 수만큼 자동 부여
     else if (joinDate && joinDate !== '-') {
         const monthsWorked = calculateMonthsWorked(joinDate);
-        if (monthsWorked < 12) { // 13개월 -> 12개월로 변경됨
-            totalLeave = monthsWorked; // 1개월 만근 시 1개, 2개월 시 2개...
+        if (monthsWorked < 12) { 
+            totalLeave = monthsWorked; 
             isAutoCalculated = true;
         }
-        // 12개월 이상인 경우: 관리자가 설정한 totalLeave(기본값 등) 유지
     }
 
-    // 1. 해당 멤버의 '연차' 기록 필터링 & 날짜순 정렬
-    // leaveResetDate(초기화 기준일)가 설정되어 있으면 그 이후의 기록만 가져옴
     const rawHistory = (persistentLeaveSchedule.onLeaveMembers || [])
         .filter(item => {
             if (item.member !== memberName || item.type !== '연차') return false;
-            // 초기화 기준일 적용
             if (leaveResetDate && item.startDate < leaveResetDate) return false;
             return true;
         })
         .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
 
-    // 2. 중복/연속된 날짜 병합 (Merge Intervals)
     const mergedHistory = [];
     if (rawHistory.length > 0) {
-        // 첫 번째 기록으로 초기화
         let current = {
             ...rawHistory[0],
             startDate: rawHistory[0].startDate,
             endDate: rawHistory[0].endDate || rawHistory[0].startDate,
-            ids: [rawHistory[0].id] // 원본 ID들을 배열로 관리 (삭제 시 사용)
+            ids: [rawHistory[0].id] 
         };
         
-        // 날짜 비교를 위한 Date 객체 생성
         let currentEndObj = new Date(current.endDate);
 
         for (let i = 1; i < rawHistory.length; i++) {
@@ -101,21 +92,16 @@ const calculateLeaveUsage = (memberName) => {
             const nextStartObj = new Date(next.startDate);
             const nextEndObj = new Date(next.endDate || next.startDate);
             
-            // '현재 구간의 끝 + 1일' 계산 (연속된 날짜 판별용)
             const dayAfterCurrentEnd = new Date(currentEndObj);
             dayAfterCurrentEnd.setDate(dayAfterCurrentEnd.getDate() + 1);
 
-            // 겹치거나(Overlap) 바로 이어지는(Adjacent) 경우 병합
             if (nextStartObj <= dayAfterCurrentEnd) {
-                // 종료일 연장 (더 늦은 날짜로)
                 if (nextEndObj > currentEndObj) {
                     currentEndObj = nextEndObj;
                     current.endDate = next.endDate || next.startDate;
                 }
-                // ID 병합
                 current.ids.push(next.id);
             } else {
-                // 끊기면 현재 구간 저장 후 새로 시작
                 mergedHistory.push(current);
                 current = {
                     ...next,
@@ -129,7 +115,6 @@ const calculateLeaveUsage = (memberName) => {
         mergedHistory.push(current);
     }
 
-    // 3. 차수(Nth) 및 총 사용일 계산
     let realUsedCount = 0;
     let cumulativeDays = 0;
 
@@ -141,14 +126,13 @@ const calculateLeaveUsage = (memberName) => {
         const endNth = cumulativeDays + days;
         cumulativeDays += days;
 
-        // 1일이면 "1", 2일 이상이면 "1~3" 형태로 표시
         const nthStr = (days > 1) ? `${startNth}~${endNth}` : `${startNth}`;
 
         return {
             ...item,
             days,
             nth: nthStr,
-            isMerged: item.ids.length > 1 // 병합된 기록인지 여부
+            isMerged: item.ids.length > 1
         };
     });
 
@@ -157,10 +141,10 @@ const calculateLeaveUsage = (memberName) => {
         used: realUsedCount,
         remaining: totalLeave - realUsedCount,
         joinDate: joinDate,
-        leaveResetDate: leaveResetDate, // 반환
-        expirationDate: expirationDate, // 반환
-        isAutoCalculated: isAutoCalculated, // ✅ 자동 계산 여부 반환
-        history: finalHistory.reverse() // 최신순 정렬
+        leaveResetDate: leaveResetDate, 
+        expirationDate: expirationDate, 
+        isAutoCalculated: isAutoCalculated, 
+        history: finalHistory.reverse() 
     };
 };
 
@@ -404,7 +388,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
 
     const memberName = memberNameEl ? memberNameEl.textContent : '';
 
-    // --- 현황판 데이터 업데이트 함수 ---
     const updateStatusView = () => {
         const stats = calculateLeaveUsage(memberName);
         const today = getTodayDateString();
@@ -416,7 +399,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         const historyListEl = document.getElementById('status-history-list');
 
         if (totalEl) {
-            // ✅ [신규] 자동 계산 여부 표시
             const autoCalcBadge = stats.isAutoCalculated ? '<span class="text-xs text-blue-500 block font-normal">(12개월 미만 자동 계산)</span>' : '';
             totalEl.innerHTML = `${stats.total}일 ${autoCalcBadge}`;
         }
@@ -425,7 +407,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         if (remainEl) {
             remainEl.className = stats.remaining < 0 ? "text-3xl font-bold text-red-600" : "text-3xl font-bold text-blue-600";
             
-            // 사용 가능 기한 표시 (잔여 연차 하단에 작게)
             let periodHtml = '';
             if (stats.leaveResetDate || stats.expirationDate) {
                 const start = stats.leaveResetDate || '';
@@ -445,7 +426,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             const tenureText = calculateTenure(stats.joinDate);
             let dateText = stats.joinDate && stats.joinDate !== '-' ? stats.joinDate : '-';
             
-            // 하단에 표시되던 시작일/만료일 제거됨
             joinDateEl.innerHTML = `${dateText} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>`;
         }
 
@@ -523,7 +503,8 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
-            if (selectedType === '연차' || selectedType === '출장' || selectedType === '결근') {
+            // ✅ '매장근무' 선택 시 날짜 입력칸 보이도록 추가
+            if (selectedType === '연차' || selectedType === '출장' || selectedType === '결근' || selectedType === '매장근무') {
                 dateInputsDiv.classList.remove('hidden');
             } else {
                 dateInputsDiv.classList.add('hidden');
@@ -534,7 +515,8 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
     const firstRadio = container.querySelector('input[type="radio"]');
     if (firstRadio) {
         firstRadio.checked = true;
-        if (firstRadio.value === '연차' || firstRadio.value === '출장' || firstRadio.value === '결근') {
+        // ✅ 첫 렌더링 시에도 '매장근무'에 대한 처리 추가
+        if (firstRadio.value === '연차' || firstRadio.value === '출장' || firstRadio.value === '결근' || firstRadio.value === '매장근무') {
             dateInputsDiv.classList.remove('hidden');
         } else {
             dateInputsDiv.classList.add('hidden');
@@ -549,9 +531,9 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         if (!preview) return;
         if (sInput.value && eInput.value) {
             const diff = calculateDateDifference(sInput.value, eInput.value);
-            preview.textContent = `총 ${diff}일 차감 예정`;
+            preview.textContent = `총 ${diff}일 적용 예정`; // '차감' 대신 중립적 텍스트로 변경
         } else if (sInput.value) {
-            preview.textContent = `1일 차감 예정`;
+            preview.textContent = `1일 적용 예정`;
         } else {
             preview.textContent = '';
         }
