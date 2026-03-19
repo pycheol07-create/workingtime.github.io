@@ -221,7 +221,6 @@ export const renderInspectionHistoryTable = (historyData) => {
                         <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="productName">
                             <div class="flex items-center">상품명 ${getSortIcon('productName')}</div>
                         </th>
-                        <th scope="col" class="px-6 py-3">코드 / 옵션</th>
                         <th scope="col" class="px-6 py-3">공급처 상품명</th>
                         <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="totalInbound">
                             <div class="flex items-center justify-center">총 입고 ${getSortIcon('totalInbound')}</div>
@@ -237,23 +236,16 @@ export const renderInspectionHistoryTable = (historyData) => {
     `;
 
     if (filteredData.length === 0) {
-        html += `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400">
+        html += `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400">
             ${searchTerm ? `'${searchTerm}'에 대한 검색 결과가 없습니다.` : '저장된 검수 이력이 없습니다.'}
         </td></tr>`;
     } else {
         filteredData.forEach(item => {
-            let code = '-';
-            let option = '-';
             let supplierName = '-';
-            
-            if (item.lastCode) code = item.lastCode;
-            if (item.lastOption) option = item.lastOption;
             if (item.lastSupplierName) supplierName = item.lastSupplierName;
 
-            if (code === '-' && item.logs && item.logs.length > 0) {
+            if (supplierName === '-' && item.logs && item.logs.length > 0) {
                 const lastLog = item.logs[item.logs.length - 1];
-                code = lastLog.code || '-';
-                option = lastLog.option || '-';
                 supplierName = lastLog.supplierName || '-';
             }
 
@@ -261,10 +253,6 @@ export const renderInspectionHistoryTable = (historyData) => {
             html += `
                 <tr class="hover:bg-blue-50 transition group cursor-pointer btn-view-detail" data-product-name="${item.id}" title="클릭하여 상세 이력 펼치기">
                     <td class="px-6 py-4 font-medium text-gray-900">${item.id}</td>
-                    <td class="px-6 py-4 text-xs text-gray-500">
-                        <div class="font-mono text-gray-700">${code}</div>
-                        <div class="text-gray-400">${option}</div>
-                    </td>
                     <td class="px-6 py-4 text-xs text-gray-500 truncate max-w-[150px]" title="${supplierName}">
                         ${supplierName}
                     </td>
