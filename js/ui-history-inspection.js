@@ -304,6 +304,7 @@ export const renderInspectionLogTable = (logs, productName) => {
 
 /**
  * [신규] 클릭한 행 바로 밑에 상세 로그를 펼치는 (Accordion) 렌더러
+ * (코드/옵션 기준으로 그룹화하여 표시)
  */
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     // 1. 이미 열려 있는 다른 상세 행 닫기
@@ -321,66 +322,97 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     if (!logs || logs.length === 0) {
         logsHtml = '<div class="p-6 text-center text-gray-500">저장된 상세 검수 기록이 없습니다.</div>';
     } else {
-        const logsWithIndex = logs.map((log, idx) => ({ ...log, originalIndex: idx }));
-        logsWithIndex.sort((a, b) => {
-            const tA = (a.date || '') + (a.time || '');
-            const tB = (b.date || '') + (b.time || '');
-            return tB.localeCompare(tA); // 최근 순 정렬
+        // [수정된 부분 1] 로그를 '코드 / 옵션' 문자열을 키로 하여 그룹화
+        const groupedLogs = {};
+        logs.forEach((log, idx) => {
+            const code = log.code || '-';
+            const option = log.option || '-';
+            const groupKey = `${code} / ${option}`;
+            
+            if (!groupedLogs[groupKey]) {
+                groupedLogs[groupKey] = [];
+            }
+            // 수정 시 원본 인덱스를 참조해야 하므로 추가
+            groupedLogs[groupKey].push({ ...log, originalIndex: idx });
         });
 
-        const rows = logsWithIndex.map(item => {
-            // 체크리스트 보기 좋게 뱃지 형태로 변환
-            let checklistStr = [];
-            const cl = item.checklist || {};
-            const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
+        let rowsHtml = '';
+
+        // [수정된 부분 2] 그룹화된 데이터를 순회하며 UI 생성
+        Object.keys(groupedLogs).sort().forEach(groupKey => {
+            const group = groupedLogs[groupKey];
             
-            if (cl.thickness) {
-                checklistStr.push(`<span class="inline-block bg-white px-1.5 py-0.5 rounded text-[11px] text-gray-600 border border-gray-200 shadow-sm mr-1 mb-1">두께: <strong class="text-indigo-600">${cl.thickness}</strong></span>`);
-            }
-            
-            const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
-            
-            Object.entries(cl).forEach(([key, val]) => {
-                if (key !== 'thickness' && val) {
-                    const isDefect = !normalValues.includes(val);
-                    const colorClass = isDefect ? 'text-red-700 bg-red-50 border-red-200 font-bold' : 'text-gray-600 bg-white border-gray-200';
-                    checklistStr.push(`<span class="inline-block ${colorClass} px-1.5 py-0.5 rounded text-[11px] border shadow-sm mb-1 mr-1">${labelMap[key]||key}: ${val}</span>`);
-                }
+            // 그룹 내에서는 최근 시간 순으로 정렬
+            group.sort((a, b) => {
+                const tA = (a.date || '') + (a.time || '');
+                const tB = (b.date || '') + (b.time || '');
+                return tB.localeCompare(tA); // 최근 순 정렬
             });
 
-            const statusBadge = item.status === '정상' 
-                ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-800">정상</span>`
-                : item.status === '사전메모' ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-800">사전메모</span>`
-                : `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800">불량</span>`;
-
-            let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>` : '';
-            let noteText = item.note || '';
-            let fullNote = (defectText + noteText) || '<span class="text-gray-400">-</span>';
-
-            let imageHtml = '<span class="text-gray-300 text-xs">-</span>';
-            if (item.image) {
-                imageHtml = `
-                    <div class="relative group cursor-pointer inline-block">
-                        <img src="${item.image}" class="h-8 w-8 object-cover rounded border border-gray-300 hover:scale-150 transition-transform z-0 hover:z-10 bg-white" 
-                             onclick="const w=window.open('','_blank'); w.document.write('<img src=\\'${item.image}\\' style=\\'width:100%\\'/>');">
-                    </div>`;
-            }
-
-            return `
-                <tr class="border-b border-indigo-100/50 hover:bg-white transition bg-white/40">
-                    <td class="px-4 py-3 text-[11px] font-mono text-gray-500 whitespace-nowrap">${item.date}<br>${item.time}</td>
-                    <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.inboundDate || '-'}</td>
-                    <td class="px-4 py-3 text-xs font-bold text-gray-700 text-center">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
-                    <td class="px-4 py-3 text-center">${statusBadge}</td>
-                    <td class="px-4 py-3 max-w-[300px] leading-tight">${checklistStr.join('') || '-'}</td>
-                    <td class="px-4 py-3 text-xs text-gray-700 break-words max-w-[250px]">${fullNote}</td>
-                    <td class="px-4 py-3 text-center">${imageHtml}</td>
-                    <td class="px-4 py-3 text-right whitespace-nowrap">
-                        <button class="text-blue-600 hover:text-blue-800 text-[11px] font-bold px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-50 btn-edit-insp-log transition shadow-sm" data-index="${item.originalIndex}" data-product-name="${productName}">수정</button>
+            // 1) 그룹을 구분하는 헤더 행 추가
+            rowsHtml += `
+                <tr class="bg-indigo-100/70 border-y border-indigo-200">
+                    <td colspan="8" class="px-4 py-2 text-xs font-bold text-indigo-900">
+                        🏷️ 분류 (코드 / 옵션) : <span class="text-indigo-700">${groupKey}</span> 
+                        <span class="text-gray-500 font-normal ml-2">(${group.length}건)</span>
                     </td>
                 </tr>
             `;
-        }).join('');
+
+            // 2) 해당 그룹 내 개별 상세 로그 행들 추가
+            rowsHtml += group.map(item => {
+                let checklistStr = [];
+                const cl = item.checklist || {};
+                const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
+                
+                if (cl.thickness) {
+                    checklistStr.push(`<span class="inline-block bg-white px-1.5 py-0.5 rounded text-[11px] text-gray-600 border border-gray-200 shadow-sm mr-1 mb-1">두께: <strong class="text-indigo-600">${cl.thickness}</strong></span>`);
+                }
+                
+                const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
+                
+                Object.entries(cl).forEach(([key, val]) => {
+                    if (key !== 'thickness' && val) {
+                        const isDefect = !normalValues.includes(val);
+                        const colorClass = isDefect ? 'text-red-700 bg-red-50 border-red-200 font-bold' : 'text-gray-600 bg-white border-gray-200';
+                        checklistStr.push(`<span class="inline-block ${colorClass} px-1.5 py-0.5 rounded text-[11px] border shadow-sm mb-1 mr-1">${labelMap[key]||key}: ${val}</span>`);
+                    }
+                });
+
+                const statusBadge = item.status === '정상' 
+                    ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-800">정상</span>`
+                    : item.status === '사전메모' ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-800">사전메모</span>`
+                    : `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800">불량</span>`;
+
+                let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>` : '';
+                let noteText = item.note || '';
+                let fullNote = (defectText + noteText) || '<span class="text-gray-400">-</span>';
+
+                let imageHtml = '<span class="text-gray-300 text-xs">-</span>';
+                if (item.image) {
+                    imageHtml = `
+                        <div class="relative group cursor-pointer inline-block">
+                            <img src="${item.image}" class="h-8 w-8 object-cover rounded border border-gray-300 hover:scale-150 transition-transform z-0 hover:z-10 bg-white" 
+                                 onclick="const w=window.open('','_blank'); w.document.write('<img src=\\'${item.image}\\' style=\\'width:100%\\'/>');">
+                        </div>`;
+                }
+
+                return `
+                    <tr class="border-b border-indigo-100/50 hover:bg-white transition bg-white/40">
+                        <td class="px-4 py-3 text-[11px] font-mono text-gray-500 whitespace-nowrap">${item.date}<br>${item.time}</td>
+                        <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.inboundDate || '-'}</td>
+                        <td class="px-4 py-3 text-xs font-bold text-gray-700 text-center">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
+                        <td class="px-4 py-3 text-center">${statusBadge}</td>
+                        <td class="px-4 py-3 max-w-[300px] leading-tight">${checklistStr.join('') || '-'}</td>
+                        <td class="px-4 py-3 text-xs text-gray-700 break-words max-w-[250px]">${fullNote}</td>
+                        <td class="px-4 py-3 text-center">${imageHtml}</td>
+                        <td class="px-4 py-3 text-right whitespace-nowrap">
+                            <button class="text-blue-600 hover:text-blue-800 text-[11px] font-bold px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-50 btn-edit-insp-log transition shadow-sm" data-index="${item.originalIndex}" data-product-name="${productName}">수정</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        });
 
         logsHtml = `
             <div class="p-4 bg-indigo-50/50 border-y border-indigo-200">
@@ -405,7 +437,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                             </tr>
                         </thead>
                         <tbody>
-                            ${rows}
+                            ${rowsHtml}
                         </tbody>
                     </table>
                 </div>
