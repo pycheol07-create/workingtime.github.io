@@ -20,6 +20,14 @@ let currentProductLogs = [];
 let currentTodoIndex = -1;
 let editingLogIndex = -1; 
 
+// 고유 입고일자 계산 헬퍼 함수 (사전등록 제외)
+const getUniqueInboundCount = (logsArray) => {
+    const validDates = logsArray
+        .map(l => l.inboundDate || l.date)
+        .filter(d => d && !d.includes('사전등록'));
+    return new Set(validDates).size;
+};
+
 const resetEditingState = () => {
     editingLogIndex = -1;
     const btn = document.getElementById('insp-save-next-btn');
@@ -241,9 +249,24 @@ export const handleExcelUpload = (file) => {
             }
 
             if (processedList.length > 0) {
-                await updateDailyData({ inspectionList: processedList });
-                State.appState.inspectionList = processedList;
-                showToast(`${processedList.length}개의 리스트가 업로드되었습니다. (패킹일: ${packingDate})`);
+                // [수정된 부분] 덮어쓰지 않고 기존 리스트를 가져와서 추가(병합)합니다.
+                const existingList = State.appState.inspectionList || [];
+                const mergedList = [...existingList];
+                let addedCount = 0;
+
+                processedList.forEach(newItem => {
+                    // 기존 리스트에 이미 똑같은 상품명+옵션이 있는지 검사 (중복 추가 방지)
+                    const isDuplicate = existingList.some(ex => ex.name === newItem.name && ex.option === newItem.option);
+                    if (!isDuplicate) {
+                        mergedList.push(newItem);
+                        addedCount++;
+                    }
+                });
+
+                await updateDailyData({ inspectionList: mergedList });
+                State.appState.inspectionList = mergedList;
+                
+                showToast(`기존 리스트에 ${addedCount}개의 새 항목이 추가되었습니다. (총 ${mergedList.length}개)`);
                 renderTodoList(); 
                 openInspectionListWindow();
             } else {
@@ -258,7 +281,6 @@ export const handleExcelUpload = (file) => {
 };
 
 export const openInspectionListWindow = () => {
-    // UI 로직 (이전 코드와 동일하므로 생략하지 않고 유지)
     const list = State.appState.inspectionList || [];
     if (list.length === 0) {
         showToast("리스트 데이터가 없습니다.", true);
@@ -698,7 +720,6 @@ export const searchProductHistory = async () => {
 };
 
 export const saveInspectionAndNext = async () => {
-    // DOM 요소를 직접 찾아 안전하게 값 추출 (Silent Crash 방지)
     const getVal = (id) => {
         const el = document.getElementById(id);
         return el ? el.value : '';
@@ -709,7 +730,7 @@ export const saveInspectionAndNext = async () => {
         showToast('상품 조회를 먼저 진행해주세요.', true);
         return;
     }
-    productName = productName.replace(/\//g, '-'); // 안전한 DB 문서 ID 생성
+    productName = productName.replace(/\//g, '-'); 
 
     const checklist = {
         thickness: getVal('insp-check-thickness'),
@@ -782,36 +803,38 @@ export const saveInspectionAndNext = async () => {
 
     try {
         const docRef = doc(State.db, 'product_history', productName);
+        const docSnap = await getDoc(docRef);
+        let existingLogs = [];
+        if (docSnap.exists()) {
+            existingLogs = docSnap.data().logs || [];
+        }
         
         if (editingLogIndex !== -1) {
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                const logs = data.logs || [];
+            if (docSnap.exists() && editingLogIndex >= 0 && editingLogIndex < existingLogs.length) {
+                existingLogs[editingLogIndex] = {
+                    ...existingLogs[editingLogIndex],
+                    ...inspectionRecord
+                };
                 
-                if (editingLogIndex >= 0 && editingLogIndex < logs.length) {
-                    logs[editingLogIndex] = {
-                        ...logs[editingLogIndex],
-                        ...inspectionRecord
-                    };
-                    
-                    const newDefectSummary = logs
-                        .filter(l => l.defects && l.defects.length > 0)
-                        .map(l => `${l.date}: ${l.defects.join(', ')}`);
+                const newDefectSummary = existingLogs
+                    .filter(l => l.defects && l.defects.length > 0)
+                    .map(l => `${l.date}: ${l.defects.join(', ')}`);
 
-                    await updateDoc(docRef, { 
-                        logs: logs,
-                        defectSummary: newDefectSummary,
-                        updatedAt: serverTimestamp()
-                    });
-                    
-                    showToast(`'${productName}' 검수 기록이 수정되었습니다.`);
-                }
+                await updateDoc(docRef, { 
+                    logs: existingLogs,
+                    defectSummary: newDefectSummary,
+                    totalInbound: getUniqueInboundCount(existingLogs), // 수정된 로직
+                    updatedAt: serverTimestamp()
+                });
+                
+                showToast(`'${productName}' 검수 기록이 수정되었습니다.`);
             }
         } else {
+            const tempLogs = [...existingLogs, inspectionRecord]; // 추가될 기록 임시 병합
+            
             const updates = {
                 lastInspectionDate: today,
-                totalInbound: increment(1),
+                totalInbound: getUniqueInboundCount(tempLogs), // 수정된 로직 (고유 입고일)
                 logs: arrayUnion(inspectionRecord),
                 updatedAt: serverTimestamp()
             };
@@ -840,7 +863,6 @@ export const saveInspectionAndNext = async () => {
             showToast(`'${productName}' 저장 완료!`);
         }
 
-        // ✅ 과거 업로드된 엑셀 리스트들의 '대기' 상태도 찾아서 싹 다 '완료' 처리 및 DB 갱신
         let pastListUpdated = false;
         for (let i = 0; i < State.allHistoryData.length; i++) {
             const dayData = State.allHistoryData[i];
@@ -860,7 +882,6 @@ export const saveInspectionAndNext = async () => {
             }
         }
 
-        // 오늘의 리스트 상태도 업데이트
         const list = [...State.appState.inspectionList];
         let isTodayListUpdated = false;
         if (currentTodoIndex >= 0 && list[currentTodoIndex]) {
@@ -978,9 +999,6 @@ export const loadAllInspectionHistory = async () => {
     }
 };
 
-/**
- * 클릭 시 아코디언 형태로 펼쳐지도록 변경
- */
 export const loadInspectionLogs = async (productName, targetTr = null) => {
     if (!productName) return;
     
@@ -1115,6 +1133,7 @@ export const updateInspectionLog = async () => {
         const updates = {
             logs: currentProductLogs,
             defectSummary: newDefectSummary,
+            totalInbound: getUniqueInboundCount(currentProductLogs) // 수정된 로직 반영
         };
         
         if (index === currentProductLogs.length - 1) {
@@ -1157,7 +1176,7 @@ export const deleteInspectionLog = async () => {
         const updates = {
             logs: currentProductLogs,
             defectSummary: newDefectSummary,
-            totalInbound: increment(-1) 
+            totalInbound: getUniqueInboundCount(currentProductLogs) // 단순 -1이 아닌 고유 입고일 재계산
         };
         
         if (currentProductLogs.length > 0) {
@@ -1169,6 +1188,7 @@ export const deleteInspectionLog = async () => {
             updates.lastSupplierName = '-';
             updates.lastCode = '-';
             updates.lastOption = '-';
+            updates.totalInbound = 0; // 로그가 다 지워지면 0으로 초기화
         }
 
         await updateDoc(docRef, updates);
