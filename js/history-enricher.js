@@ -20,8 +20,9 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
         return historyData;
     }
 
+    // ✅ [수정] '매장근무' 항목도 영구 보관 기록(날짜 기반)으로 병합 대상에 추가
     const persistentLeaves = leaves.filter(
-        entry => entry.type === '연차' || entry.type === '출장' || entry.type === '결근'
+        entry => entry.type === '연차' || entry.type === '출장' || entry.type === '결근' || entry.type === '매장근무'
     );
 
     if (persistentLeaves.length === 0) return historyData;
@@ -30,13 +31,14 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
     
     historyData.forEach(day => {
         const entries = new Set();
-        // ✅ [수정] day.onLeaveMembers가 배열인지 확인하고 안전하게 변환 (핵심 수정 부분)
+        // ✅ [수정] day.onLeaveMembers가 배열인지 확인하고 안전하게 변환
         const dayLeaves = Array.isArray(day.onLeaveMembers) 
             ? day.onLeaveMembers 
             : (day.onLeaveMembers ? Object.values(day.onLeaveMembers) : []);
 
         dayLeaves.forEach(entry => {
-            if (entry.startDate || entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+            // ✅ [수정] '매장근무' 포함
+            if (entry.startDate || entry.type === '연차' || entry.type === '출장' || entry.type === '결근' || entry.type === '매장근무') {
                 entries.add(`${entry.member}::${entry.type}`);
             }
         });
@@ -64,7 +66,6 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
                     if (!dayData.onLeaveMembers) {
                         dayData.onLeaveMembers = [];
                     }
-                    // 만약 dayData.onLeaveMembers가 객체라면 배열로 초기화하고 기존 데이터 보존
                     if (!Array.isArray(dayData.onLeaveMembers)) {
                         dayData.onLeaveMembers = dayData.onLeaveMembers ? Object.values(dayData.onLeaveMembers) : [];
                     }

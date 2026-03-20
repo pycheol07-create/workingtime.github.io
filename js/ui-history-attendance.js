@@ -26,7 +26,6 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
 
     let inputHtml = '';
     if (options.length > 0) {
-        // 셀렉트 박스 (유형, 멤버 등)
         const optionsHtml = options.map(opt => 
             `<option value="${opt}" ${currentFilterValue === opt ? 'selected' : ''}>${opt}</option>`
         ).join('');
@@ -38,7 +37,6 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
                 ${optionsHtml}
             </select>`;
     } else {
-        // 텍스트 입력 (옵션이 없을 때 대비)
         inputHtml = `
             <input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                    placeholder="검색어 입력..." 
@@ -47,7 +45,6 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
                    autocomplete="off">`;
     }
 
-    // ✅ 드롭다운에 z-index 60 적용하여 테이블 헤더 위로 올라오게 함
     return `
         <div class="relative inline-block ml-1 filter-container">
             <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
@@ -66,7 +63,6 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
         </div>
     `;
 };
-
 
 /**
  * 근태 이력 - 일별 상세 렌더링
@@ -100,25 +96,14 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         return;
     }
 
-    // ✅ 현재 데이터에 존재하는 멤버 목록 추출 (필터 옵션용)
     const allMembers = [...new Set(data.onLeaveMembers.map(e => e.member))].sort();
-
-    // --- 1. 필터링 및 정렬 로직 ---
     let leaveEntries = [...data.onLeaveMembers];
-    
-    // ✅ 안전한 참조
     const filterState = context.attendanceFilterState?.daily || { member: '', type: '' };
     const sortState = context.attendanceSortState?.daily || { key: 'member', dir: 'asc' };
 
-    // 1-1. 필터링
-    if (filterState.member) {
-        leaveEntries = leaveEntries.filter(e => e.member === filterState.member);
-    }
-    if (filterState.type) {
-        leaveEntries = leaveEntries.filter(e => e.type === filterState.type);
-    }
+    if (filterState.member) leaveEntries = leaveEntries.filter(e => e.member === filterState.member);
+    if (filterState.type) leaveEntries = leaveEntries.filter(e => e.type === filterState.type);
 
-    // 1-2. 정렬
     leaveEntries.sort((a, b) => {
         let valA = '', valB = '';
         if (sortState.key === 'member') { valA = a.member || ''; valB = b.member || ''; }
@@ -130,7 +115,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         return 0;
     });
 
-    // --- 2. 테이블 헤더 생성 ---
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm min-h-[400px]">
             <table class="w-full text-sm text-left text-gray-600">
@@ -166,7 +150,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         return;
     }
 
-    // --- 3. 테이블 바디 생성 ---
     const isGroupedView = (sortState.key === 'member');
 
     if (isGroupedView) {
@@ -228,7 +211,6 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     view.innerHTML = html;
 };
 
-// 헬퍼: 상세 텍스트 포맷팅
 const _formatDetailText = (entry) => {
     if (entry.startTime) {
         let text = formatTimeTo24H(entry.startTime);
@@ -261,19 +243,19 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
     const sortState = context.attendanceSortState?.[mode] || { key: 'member', dir: 'asc' };
     const filterState = context.attendanceFilterState?.[mode] || { member: '' };
 
-    // 1. 집계
     let summary = [];
     const memberMap = {};
-    const allMemberSet = new Set(); // ✅ 멤버 목록 수집용
+    const allMemberSet = new Set(); 
 
     data.leaveEntries.forEach(entry => {
         const member = entry.member;
-        allMemberSet.add(member); // 멤버 추가
+        allMemberSet.add(member); 
 
         if (!memberMap[member]) {
             memberMap[member] = {
                 member: member,
-                counts: { '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0 },
+                // ✅ [수정] counts 객체에 '매장근무' 초기화 추가
+                counts: { '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0, '매장근무': 0 },
                 totalCount: 0,
                 totalAbsenceDays: 0,
                 totalLeaveDays: 0
@@ -287,7 +269,6 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
             rec.counts[type] = (rec.counts[type] || 0) + 1;
         }
         
-        // ✅ [수정] '연차'가 아닐 때만 총 횟수에 포함
         if (type !== '연차') {
             rec.totalCount += 1;
         }
@@ -300,15 +281,10 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
     });
     summary = Object.values(memberMap);
 
-    // ✅ 멤버 리스트 정렬 (필터 드롭다운용)
     const allMembers = [...allMemberSet].sort();
 
-    // 2. 필터링 (정확히 일치)
-    if (filterState.member) {
-        summary = summary.filter(item => item.member === filterState.member);
-    }
+    if (filterState.member) summary = summary.filter(item => item.member === filterState.member);
 
-    // 3. 정렬
     summary.sort((a, b) => {
         let valA = 0, valB = 0;
         const k = sortState.key;
@@ -321,7 +297,6 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         return 0;
     });
 
-    // 4. HTML 생성
     const th = (key, label, width='') => `
         <th scope="col" class="px-4 py-3 border-b cursor-pointer hover:bg-gray-200 select-none group ${width}" data-sort-target="${mode}" data-sort-key="${key}">
             <div class="flex items-center justify-center relative">
@@ -330,6 +305,7 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
             </div>
         </th>`;
 
+    // ✅ [수정] 테이블 헤더에 '매장근무' 추가
     let html = `
         <div class="bg-white p-4 rounded-lg shadow-sm mb-6 min-h-[400px]">
             <h3 class="text-xl font-bold mb-4 text-gray-800">${periodKey} 근태 요약</h3>
@@ -338,17 +314,18 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
                     <thead class="text-xs text-gray-700 uppercase bg-gray-100">
                         <tr>
                             ${th('member', '이름', 'sticky left-0 bg-gray-100 z-10')}
-                            ${th('지각', '지각')} ${th('외출', '외출')} ${th('조퇴', '조퇴')} ${th('결근', '결근')} ${th('연차', '연차')} ${th('출장', '출장')}
+                            ${th('지각', '지각')} ${th('외출', '외출')} ${th('조퇴', '조퇴')} ${th('결근', '결근')} ${th('연차', '연차')} ${th('출장', '출장')} ${th('매장근무', '매장근무')}
                             ${th('totalCount', '총 횟수')} ${th('totalAbsenceDays', '총 결근일')} ${th('totalLeaveDays', '총 연차일')}
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">`;
 
     if (summary.length === 0) {
-         html += `<tr><td colspan="10" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+         html += `<tr><td colspan="11" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
     } else {
         summary.forEach(item => {
             const cell = (k, color='text-gray-400') => `<td class="px-4 py-3 text-center ${item.counts[k]>0 ? 'text-gray-800 font-medium' : color}">${item.counts[k]||0}</td>`;
+            // ✅ [수정] 테이블 바디 데이터에 '매장근무' 추가
             html += `
                 <tr class="bg-white hover:bg-gray-50">
                     <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${item.member}</td>
@@ -358,6 +335,7 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
                     <td class="px-4 py-3 text-center ${item.counts['결근']>0?'text-red-600 font-bold':'text-gray-300'}">${item.counts['결근']||0}</td>
                     <td class="px-4 py-3 text-center ${item.counts['연차']>0?'text-blue-600 font-bold':'text-gray-300'}">${item.counts['연차']||0}</td>
                     ${cell('출장', 'text-gray-300')}
+                    ${cell('매장근무', 'text-gray-300')}
                     <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${item.totalCount}</td>
                     <td class="px-4 py-3 text-center font-bold text-red-600 bg-red-50">${item.totalAbsenceDays}</td>
                     <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${item.totalLeaveDays}</td>
