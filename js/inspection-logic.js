@@ -23,7 +23,7 @@ let editingLogIndex = -1;
 // 고유 입고(검수)일자 계산 헬퍼 함수 (사전등록 제외) - 검수일(date) 기준
 const getUniqueInboundCount = (logsArray) => {
     const validDates = logsArray
-        .map(l => l.date) // 기존 l.inboundDate(출고일)가 아닌 검수 수행일(date)을 기준으로 산정
+        .map(l => l.date) 
         .filter(d => d && !d.includes('사전등록'));
     return new Set(validDates).size;
 };
@@ -53,12 +53,14 @@ export const initializeInspectionSession = async () => {
     const thickInput = document.getElementById('insp-check-thickness');
     if (thickInput) thickInput.value = '';
     
-    const dateInput = document.getElementById('insp-inbound-date');
-    if (dateInput) {
-        dateInput.value = '';
-        dateInput.readOnly = true;
-        dateInput.classList.add('bg-gray-100');
-        dateInput.classList.remove('bg-white');
+    // 출고 일자 초기화
+    const packingDateInput = document.getElementById('insp-packing-date');
+    if (packingDateInput) packingDateInput.value = '';
+
+    // 입고 일자 초기화 (기본 오늘 날짜 세팅)
+    const inboundDateInput = document.getElementById('insp-inbound-date');
+    if (inboundDateInput) {
+        inboundDateInput.value = getTodayDateString();
     }
 
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
@@ -239,8 +241,7 @@ export const handleExcelUpload = (file) => {
                                     code, name, option, qty, thickness, supplierName, location,
                                     sampleLocation: sampleLocation,
                                     status: '대기',
-                                    inboundDate: packingDate,
-                                    packingDate: packingDate
+                                    packingDate: packingDate 
                                 });
                             }
                         }
@@ -425,8 +426,17 @@ export const selectTodoItem = async (index) => {
         await loadCompletedInspectionData(item);
     } else {
         resetEditingState();
-        const dateInput = document.getElementById('insp-inbound-date');
-        if (dateInput) dateInput.value = item.inboundDate || getTodayDateString();
+        
+        // 출고 일자 셋팅
+        const packingDateInput = document.getElementById('insp-packing-date');
+        if (packingDateInput) packingDateInput.value = item.packingDate || '';
+
+        // 입고 일자 셋팅 (기본은 오늘 날짜, 또는 수동 입력 유지)
+        const inboundDateInput = document.getElementById('insp-inbound-date');
+        if (inboundDateInput) {
+            inboundDateInput.value = item.inboundDate || getTodayDateString(); 
+        }
+
         const qtyInput = document.getElementById('insp-inbound-qty');
         if (qtyInput) qtyInput.value = item.qty > 0 ? item.qty : '';
         const notesInput = document.getElementById('insp-notes');
@@ -448,7 +458,7 @@ const loadCompletedInspectionData = async (item) => {
             
             const targetLogIndex = logs.map((log, idx) => ({ ...log, originalIndex: idx }))
                                      .reverse()
-                                     .findIndex(log => log.inboundDate === item.inboundDate);
+                                     .findIndex(log => log.packingDate === item.packingDate);
 
             if (targetLogIndex !== -1) {
                 const realIndex = logs.length - 1 - targetLogIndex;
@@ -458,8 +468,12 @@ const loadCompletedInspectionData = async (item) => {
                 if (qtyInput) qtyInput.value = log.inboundQty || 0;
                 const notesInput = document.getElementById('insp-notes');
                 if (notesInput) notesInput.value = log.note || '';
-                const dateInput = document.getElementById('insp-inbound-date');
-                if (dateInput) dateInput.value = log.inboundDate || '';
+
+                const packingDateInput = document.getElementById('insp-packing-date');
+                if (packingDateInput) packingDateInput.value = log.packingDate || log.inboundDate || ''; // 하위 호환성 위해 inboundDate 백업
+
+                const inboundDateInput = document.getElementById('insp-inbound-date');
+                if (inboundDateInput) inboundDateInput.value = log.inboundDate || ''; 
 
                 const cl = log.checklist || {};
                 const setSelect = (id, val) => { 
@@ -622,12 +636,14 @@ export const searchProductHistory = async () => {
         if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = supplierText; 
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${matchedItem.thickness || '-'}`;
         
-        const dateInput = document.getElementById('insp-inbound-date');
-        if (dateInput) {
-            dateInput.value = matchedItem.inboundDate || getTodayDateString();
-            dateInput.readOnly = true;
-            dateInput.classList.add('bg-gray-100');
-            dateInput.classList.remove('bg-white');
+        const packingDateInput = document.getElementById('insp-packing-date');
+        if (packingDateInput) {
+            packingDateInput.value = matchedItem.packingDate || '';
+        }
+
+        const inboundDateInput = document.getElementById('insp-inbound-date');
+        if (inboundDateInput) {
+            inboundDateInput.value = matchedItem.inboundDate || getTodayDateString();
         }
         
         const qtyInput = document.getElementById('insp-inbound-qty');
@@ -643,15 +659,12 @@ export const searchProductHistory = async () => {
         if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
 
-        const dateInput = document.getElementById('insp-inbound-date');
-        if (dateInput) {
-            dateInput.readOnly = false;
-            dateInput.classList.remove('bg-gray-100');
-            dateInput.classList.add('bg-white');
-            if (!dateInput.value) {
-                dateInput.value = getTodayDateString();
-            }
-        }
+        const packingDateInput = document.getElementById('insp-packing-date');
+        if (packingDateInput) packingDateInput.value = '';
+
+        const inboundDateInput = document.getElementById('insp-inbound-date');
+        if (inboundDateInput) inboundDateInput.value = getTodayDateString();
+
         const qtyInput = document.getElementById('insp-inbound-qty');
         if (qtyInput) qtyInput.value = '';
     }
@@ -718,6 +731,7 @@ export const searchProductHistory = async () => {
 };
 
 export const saveInspectionAndNext = async () => {
+    // DOM 요소를 직접 찾아 안전하게 값 추출
     const getVal = (id) => {
         const el = document.getElementById(id);
         return el ? el.value : '';
@@ -750,6 +764,7 @@ export const saveInspectionAndNext = async () => {
     }
 
     const inboundDate = getVal('insp-inbound-date') || getTodayDateString();
+    const packingDate = getVal('insp-packing-date') || '-';
     const inboundQty = getVal('insp-inbound-qty');
     const note = getVal('insp-notes');
 
@@ -779,16 +794,16 @@ export const saveInspectionAndNext = async () => {
     const nowTime = getCurrentTime();
 
     const inspectionRecord = {
-        date: today,
+        date: today, // 검수일
         time: nowTime,
         inspector: State.appState.currentUser || 'Unknown',
-        inboundDate: inboundDate, 
+        inboundDate: inboundDate, // 직접 입력한 입고일
+        packingDate: packingDate, // 엑셀 출고일
         inboundQty: Number(inboundQty) || 0,
         option: currentItem ? currentItem.option : '-',
         code: currentItem ? currentItem.code : '-',
         supplierName: currentItem ? currentItem.supplierName : '-', 
         location: currentItem ? currentItem.location : '-',
-        packingDate: currentItem ? currentItem.packingDate : '-',
         checklist,
         defects: defectsFound,
         note,
@@ -821,7 +836,7 @@ export const saveInspectionAndNext = async () => {
                 await updateDoc(docRef, { 
                     logs: existingLogs,
                     defectSummary: newDefectSummary,
-                    totalInbound: getUniqueInboundCount(existingLogs), // 수정된 로직 반영
+                    totalInbound: getUniqueInboundCount(existingLogs),
                     updatedAt: serverTimestamp()
                 });
                 
@@ -832,7 +847,7 @@ export const saveInspectionAndNext = async () => {
             
             const updates = {
                 lastInspectionDate: today,
-                totalInbound: getUniqueInboundCount(tempLogs), // 수정된 로직 반영 (검수일 기준)
+                totalInbound: getUniqueInboundCount(tempLogs),
                 logs: arrayUnion(inspectionRecord),
                 updatedAt: serverTimestamp()
             };
@@ -852,7 +867,7 @@ export const saveInspectionAndNext = async () => {
             
             todayInspectionList.unshift({
                 productName,
-                inboundDate,
+                inboundDate: packingDate !== '-' ? packingDate : inboundDate, // 화면 표시용 백업
                 status,
                 defects: defectsFound,
                 note,
@@ -923,6 +938,12 @@ const resetInspectionForm = (clearProductName = false) => {
     
     const thickInput = document.getElementById('insp-check-thickness');
     if (thickInput) thickInput.value = '';
+
+    const packingDateInput = document.getElementById('insp-packing-date');
+    if (packingDateInput) packingDateInput.value = '';
+
+    const inboundDateInput = document.getElementById('insp-inbound-date');
+    if (inboundDateInput) inboundDateInput.value = getTodayDateString();
 
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
@@ -1041,7 +1062,8 @@ export const prepareEditInspectionLog = (productName, index) => {
     
     if (getEl('edit-insp-product-name')) getEl('edit-insp-product-name').value = productName;
     if (getEl('edit-insp-date-time')) getEl('edit-insp-date-time').value = `${log.date} ${log.time}`;
-    if (getEl('edit-insp-packing-no')) getEl('edit-insp-packing-no').value = log.inboundDate || log.packingNo || '';
+    if (getEl('edit-insp-packing-no')) getEl('edit-insp-packing-no').value = log.packingDate || '';
+    if (getEl('edit-insp-inbound-date')) getEl('edit-insp-inbound-date').value = log.inboundDate || '';
     if (getEl('edit-insp-inbound-qty')) getEl('edit-insp-inbound-qty').value = log.inboundQty || 0;
     if (getEl('edit-insp-notes')) getEl('edit-insp-notes').value = log.note || '';
     if (getEl('edit-insp-log-index')) getEl('edit-insp-log-index').value = index;
@@ -1110,7 +1132,8 @@ export const updateInspectionLog = async () => {
 
     const updatedLog = {
         ...currentProductLogs[index], 
-        inboundDate: getEditVal('edit-insp-packing-no'), 
+        packingDate: getEditVal('edit-insp-packing-no'), 
+        inboundDate: getEditVal('edit-insp-inbound-date'), 
         inboundQty: Number(getEditVal('edit-insp-inbound-qty')) || 0,
         supplierName: getEditVal('edit-insp-supplier-name'), 
         checklist: checklist,
@@ -1131,7 +1154,7 @@ export const updateInspectionLog = async () => {
         const updates = {
             logs: currentProductLogs,
             defectSummary: newDefectSummary,
-            totalInbound: getUniqueInboundCount(currentProductLogs) // 수정된 로직 반영
+            totalInbound: getUniqueInboundCount(currentProductLogs)
         };
         
         if (index === currentProductLogs.length - 1) {
@@ -1174,7 +1197,7 @@ export const deleteInspectionLog = async () => {
         const updates = {
             logs: currentProductLogs,
             defectSummary: newDefectSummary,
-            totalInbound: getUniqueInboundCount(currentProductLogs) // 고유 입고일 재계산 반영
+            totalInbound: getUniqueInboundCount(currentProductLogs) 
         };
         
         if (currentProductLogs.length > 0) {
