@@ -20,10 +20,10 @@ let currentProductLogs = [];
 let currentTodoIndex = -1;
 let editingLogIndex = -1; 
 
-// 고유 입고일자 계산 헬퍼 함수 (사전등록 제외)
+// 고유 입고(검수)일자 계산 헬퍼 함수 (사전등록 제외) - 검수일(date) 기준
 const getUniqueInboundCount = (logsArray) => {
     const validDates = logsArray
-        .map(l => l.inboundDate || l.date)
+        .map(l => l.date) // 기존 l.inboundDate(출고일)가 아닌 검수 수행일(date)을 기준으로 산정
         .filter(d => d && !d.includes('사전등록'));
     return new Set(validDates).size;
 };
@@ -128,7 +128,7 @@ export const deleteInspectionList = async () => {
 
 export const deleteHistoryInspectionList = async (dateKey) => {
     if (!dateKey) return false;
-    if (!confirm(`${dateKey}일자의 입고 리스트를 삭제하시겠습니까?\n(이미 완료된 검수 이력 데이터는 삭제되지 않습니다)`)) {
+    if (!confirm(`${dateKey} 출고일자 리스트를 삭제하시겠습니까?\n(이미 완료된 검수 이력 데이터는 삭제되지 않습니다)`)) {
         return false;
     }
     const todayKey = getTodayDateString();
@@ -249,13 +249,11 @@ export const handleExcelUpload = (file) => {
             }
 
             if (processedList.length > 0) {
-                // [수정된 부분] 덮어쓰지 않고 기존 리스트를 가져와서 추가(병합)합니다.
                 const existingList = State.appState.inspectionList || [];
                 const mergedList = [...existingList];
                 let addedCount = 0;
 
                 processedList.forEach(newItem => {
-                    // 기존 리스트에 이미 똑같은 상품명+옵션이 있는지 검사 (중복 추가 방지)
                     const isDuplicate = existingList.some(ex => ex.name === newItem.name && ex.option === newItem.option);
                     if (!isDuplicate) {
                         mergedList.push(newItem);
@@ -325,7 +323,7 @@ export const openInspectionListWindow = () => {
                         📋 검수 대기 리스트
                         <span class="bg-white text-indigo-600 text-xs px-2 py-0.5 rounded-full font-extrabold">${list.length}</span>
                     </h2>
-                    <p class="text-xs text-indigo-200 mt-1">📅 패킹출고일: <span class="font-bold text-white">${packingDate}</span></p>
+                    <p class="text-xs text-indigo-200 mt-1">📅 출고일자: <span class="font-bold text-white">${packingDate}</span></p>
                 </div>
                 <button id="close-dynamic-modal-btn" class="text-white hover:text-gray-200 bg-white/20 hover:bg-white/30 rounded-full p-2 transition">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -384,7 +382,7 @@ export const renderTodoList = () => {
         const statusColor = isCompleted ? 'text-green-600 font-bold' : 'text-gray-400';
         const locationInfo = item.location ? `<span class="text-indigo-600 font-bold bg-indigo-50 px-1 rounded">📦 ${item.location}</span>` : '';
         const sampleInfo = item.sampleLocation ? `<span class="text-red-600 font-bold bg-red-50 px-1 rounded ml-1">📌 샘플: ${item.sampleLocation}</span>` : '';
-        const dateInfo = item.packingDate ? `<span class="text-gray-500 ml-1">📅 ${item.packingDate.slice(2)}</span>` : '';
+        const dateInfo = item.packingDate ? `<span class="text-gray-500 ml-1">📅 출고: ${item.packingDate.slice(2)}</span>` : '';
         
         tr.innerHTML = `
             <td class="px-3 py-2 font-mono text-gray-600 text-xs align-top">${item.code}</td>
@@ -416,7 +414,7 @@ export const selectTodoItem = async (index) => {
     let supplierText = `공급처: ${item.supplierName || '-'}`;
     if (item.location) supplierText += ` / 📦 Loc: ${item.location}`;
     if (item.sampleLocation) supplierText += ` / 📌 샘플: ${item.sampleLocation}`; 
-    if (item.packingDate) supplierText += ` / 📅 패킹: ${item.packingDate}`;
+    if (item.packingDate) supplierText += ` / 📅 출고: ${item.packingDate}`;
     
     if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = supplierText; 
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${item.thickness || '-'}`;
@@ -619,7 +617,7 @@ export const searchProductHistory = async () => {
         let supplierText = `공급처: ${matchedItem.supplierName || '-'}`;
         if (matchedItem.location) supplierText += ` / 📦 Loc: ${matchedItem.location}`;
         if (matchedItem.sampleLocation) supplierText += ` / 📌 샘플: ${matchedItem.sampleLocation}`;
-        if (matchedItem.packingDate) supplierText += ` / 📅 패킹: ${matchedItem.packingDate}`;
+        if (matchedItem.packingDate) supplierText += ` / 📅 출고: ${matchedItem.packingDate}`;
         
         if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = supplierText; 
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${matchedItem.thickness || '-'}`;
@@ -823,18 +821,18 @@ export const saveInspectionAndNext = async () => {
                 await updateDoc(docRef, { 
                     logs: existingLogs,
                     defectSummary: newDefectSummary,
-                    totalInbound: getUniqueInboundCount(existingLogs), // 수정된 로직
+                    totalInbound: getUniqueInboundCount(existingLogs), // 수정된 로직 반영
                     updatedAt: serverTimestamp()
                 });
                 
                 showToast(`'${productName}' 검수 기록이 수정되었습니다.`);
             }
         } else {
-            const tempLogs = [...existingLogs, inspectionRecord]; // 추가될 기록 임시 병합
+            const tempLogs = [...existingLogs, inspectionRecord];
             
             const updates = {
                 lastInspectionDate: today,
-                totalInbound: getUniqueInboundCount(tempLogs), // 수정된 로직 (고유 입고일)
+                totalInbound: getUniqueInboundCount(tempLogs), // 수정된 로직 반영 (검수일 기준)
                 logs: arrayUnion(inspectionRecord),
                 updatedAt: serverTimestamp()
             };
@@ -1176,7 +1174,7 @@ export const deleteInspectionLog = async () => {
         const updates = {
             logs: currentProductLogs,
             defectSummary: newDefectSummary,
-            totalInbound: getUniqueInboundCount(currentProductLogs) // 단순 -1이 아닌 고유 입고일 재계산
+            totalInbound: getUniqueInboundCount(currentProductLogs) // 고유 입고일 재계산 반영
         };
         
         if (currentProductLogs.length > 0) {
@@ -1188,7 +1186,7 @@ export const deleteInspectionLog = async () => {
             updates.lastSupplierName = '-';
             updates.lastCode = '-';
             updates.lastOption = '-';
-            updates.totalInbound = 0; // 로그가 다 지워지면 0으로 초기화
+            updates.totalInbound = 0; 
         }
 
         await updateDoc(docRef, updates);
@@ -1241,7 +1239,7 @@ export const savePreInspectionNote = async () => {
         date: today,
         time: nowTime,
         inspector: inspector,
-        inboundDate: '입고예정(사전등록)',
+        inboundDate: '출고예정(사전등록)',
         inboundQty: 0,
         status: '사전메모',
         note: `[사전등록] ${note}`,

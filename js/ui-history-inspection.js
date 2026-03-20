@@ -39,7 +39,7 @@ export const renderInspectionLayout = (container) => {
                     </button>
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="list">
-                        📅 입고 리스트별 보기
+                        📅 검수 일자별 보기
                     </button>
                 </div>
                 <div class="pb-1 pr-1 flex gap-2">
@@ -47,7 +47,7 @@ export const renderInspectionLayout = (container) => {
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                        입고예정 특이사항 등록
+                        출고예정 특이사항 등록
                     </button>
                     <button id="inspection-tab-download-btn" class="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -97,7 +97,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                     <div class="flex items-center gap-2">
-                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 입고 리스트 상세</h4>
+                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
                         <span class="text-xs text-gray-500">0건</span>
                     </div>
                     <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition" 
@@ -115,7 +115,6 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                 ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">완료</span>`
                 : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
             
-            // ✅ 행(tr) 전체 클릭 가능하게 설정
             return `
                 <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail" data-product-name="${item.name}" title="클릭하여 상세 이력 펼치기">
                     <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.code || '-'}</td>
@@ -133,7 +132,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                     <div class="flex items-center gap-2">
-                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 입고 리스트 상세</h4>
+                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
                         <span class="text-xs text-gray-500">상품을 클릭하면 검수 상세내역이 펼쳐집니다.</span>
                     </div>
                     <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition" 
@@ -223,7 +222,7 @@ export const renderInspectionHistoryTable = (historyData) => {
                         </th>
                         <th scope="col" class="px-6 py-3">공급처 상품명</th>
                         <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="totalInbound">
-                            <div class="flex items-center justify-center">총 입고 ${getSortIcon('totalInbound')}</div>
+                            <div class="flex items-center justify-center">총 입고(검수) ${getSortIcon('totalInbound')}</div>
                         </th>
                         <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="lastInspectionDate">
                             <div class="flex items-center justify-center">최근 검수일 ${getSortIcon('lastInspectionDate')}</div>
@@ -249,7 +248,6 @@ export const renderInspectionHistoryTable = (historyData) => {
                 supplierName = lastLog.supplierName || '-';
             }
 
-            // ✅ 행(tr) 전체 클릭 가능하게 설정
             html += `
                 <tr class="hover:bg-blue-50 transition group cursor-pointer btn-view-detail" data-product-name="${item.id}" title="클릭하여 상세 이력 펼치기">
                     <td class="px-6 py-4 font-medium text-gray-900">${item.id}</td>
@@ -291,17 +289,16 @@ export const renderInspectionLogTable = (logs, productName) => {
 };
 
 /**
- * [신규] 클릭한 행 바로 밑에 상세 로그를 펼치는 (Accordion) 렌더러
+ * 클릭한 행 바로 밑에 상세 로그를 펼치는 (Accordion) 렌더러
  * (코드/옵션 기준으로 그룹화하여 표시)
  */
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
-    // 1. 이미 열려 있는 다른 상세 행 닫기
     const table = targetTr.closest('table');
     if (table) {
         table.querySelectorAll('.expanded-detail-row').forEach(row => row.remove());
     }
 
-    const colspan = targetTr.children.length; // 상위 테이블의 열 개수에 맞춤
+    const colspan = targetTr.children.length; 
 
     const tr = document.createElement('tr');
     tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner';
@@ -310,7 +307,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     if (!logs || logs.length === 0) {
         logsHtml = '<div class="p-6 text-center text-gray-500">저장된 상세 검수 기록이 없습니다.</div>';
     } else {
-        // [수정된 부분 1] 로그를 '코드 / 옵션' 문자열을 키로 하여 그룹화
         const groupedLogs = {};
         logs.forEach((log, idx) => {
             const code = log.code || '-';
@@ -320,24 +316,20 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             if (!groupedLogs[groupKey]) {
                 groupedLogs[groupKey] = [];
             }
-            // 수정 시 원본 인덱스를 참조해야 하므로 추가
             groupedLogs[groupKey].push({ ...log, originalIndex: idx });
         });
 
         let rowsHtml = '';
 
-        // [수정된 부분 2] 그룹화된 데이터를 순회하며 UI 생성
         Object.keys(groupedLogs).sort().forEach(groupKey => {
             const group = groupedLogs[groupKey];
             
-            // 그룹 내에서는 최근 시간 순으로 정렬
             group.sort((a, b) => {
                 const tA = (a.date || '') + (a.time || '');
                 const tB = (b.date || '') + (b.time || '');
-                return tB.localeCompare(tA); // 최근 순 정렬
+                return tB.localeCompare(tA); 
             });
 
-            // 1) 그룹을 구분하는 헤더 행 추가
             rowsHtml += `
                 <tr class="bg-indigo-100/70 border-y border-indigo-200">
                     <td colspan="8" class="px-4 py-2 text-xs font-bold text-indigo-900">
@@ -347,7 +339,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 </tr>
             `;
 
-            // 2) 해당 그룹 내 개별 상세 로그 행들 추가
             rowsHtml += group.map(item => {
                 let checklistStr = [];
                 const cl = item.checklist || {};
@@ -414,8 +405,8 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                     <table class="w-full text-left">
                         <thead class="bg-indigo-100 text-[11px] text-indigo-800 uppercase">
                             <tr>
-                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%]">일시</th>
-                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%]">입고일자</th>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%]">입고(검수)일시</th>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%]">출고일자</th>
                                 <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[5%]">수량</th>
                                 <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%]">상태</th>
                                 <th class="px-4 py-2 font-bold w-[30%]">검수항목 (체크리스트)</th>
@@ -434,7 +425,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     }
 
     tr.innerHTML = `<td colspan="${colspan}" class="p-0 border-0 cursor-default">${logsHtml}</td>`;
-    targetTr.after(tr); // 클릭한 행 바로 밑에 삽입
+    targetTr.after(tr); 
 };
 
 export const setSortState = (key) => {
