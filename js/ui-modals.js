@@ -1,7 +1,8 @@
 // === js/ui-modals.js ===
 
 import { appState, appConfig, persistentLeaveSchedule } from './state.js';
-import { calculateDateDifference, getTodayDateString } from './utils.js';
+// ✅ [수정] calculateWorkingDays 함수 추가 임포트
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays } from './utils.js';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -119,7 +120,8 @@ const calculateLeaveUsage = (memberName) => {
     let cumulativeDays = 0;
 
     const finalHistory = mergedHistory.map((item) => {
-        const days = calculateDateDifference(item.startDate, item.endDate);
+        // ✅ [수정] 연차 차감 일수도 평일 기준으로만 계산
+        const days = calculateWorkingDays(item.startDate, item.endDate);
         realUsedCount += days;
         
         const startNth = cumulativeDays + 1;
@@ -503,7 +505,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
-            // ✅ '매장근무' 선택 시 날짜 입력칸 보이도록 추가
             if (selectedType === '연차' || selectedType === '출장' || selectedType === '결근' || selectedType === '매장근무') {
                 dateInputsDiv.classList.remove('hidden');
             } else {
@@ -515,7 +516,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
     const firstRadio = container.querySelector('input[type="radio"]');
     if (firstRadio) {
         firstRadio.checked = true;
-        // ✅ 첫 렌더링 시에도 '매장근무'에 대한 처리 추가
         if (firstRadio.value === '연차' || firstRadio.value === '출장' || firstRadio.value === '결근' || firstRadio.value === '매장근무') {
             dateInputsDiv.classList.remove('hidden');
         } else {
@@ -527,13 +527,18 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
     const eInput = document.getElementById('leave-end-date-input');
     const preview = document.getElementById('leave-count-preview');
     
+    // ✅ [수정] 모달창의 N일 미리보기 기능도 평일 기준 계산 적용
     const updatePreview = () => {
         if (!preview) return;
-        if (sInput.value && eInput.value) {
-            const diff = calculateDateDifference(sInput.value, eInput.value);
-            preview.textContent = `총 ${diff}일 적용 예정`; // '차감' 대신 중립적 텍스트로 변경
-        } else if (sInput.value) {
-            preview.textContent = `1일 적용 예정`;
+        const sVal = sInput ? sInput.value : '';
+        const eVal = eInput ? eInput.value : '';
+        
+        if (sVal && eVal) {
+            const diff = calculateWorkingDays(sVal, eVal);
+            preview.textContent = `총 ${diff}일(평일기준) 적용 예정`; 
+        } else if (sVal) {
+            const diff = calculateWorkingDays(sVal, sVal);
+            preview.textContent = diff > 0 ? `1일 적용 예정` : `0일 적용 예정 (주말/휴일)`;
         } else {
             preview.textContent = '';
         }
