@@ -1,7 +1,6 @@
 // === js/ui-modals.js ===
 
 import { appState, appConfig, persistentLeaveSchedule } from './state.js';
-// ✅ [수정] calculateWorkingDays 함수 추가 임포트
 import { calculateDateDifference, getTodayDateString, calculateWorkingDays } from './utils.js';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
@@ -120,7 +119,7 @@ const calculateLeaveUsage = (memberName) => {
     let cumulativeDays = 0;
 
     const finalHistory = mergedHistory.map((item) => {
-        // ✅ [수정] 연차 차감 일수도 평일 기준으로만 계산
+        // ✅ [수정] 차감 일수를 평일(주말 제외)로 계산하도록 수정!
         const days = calculateWorkingDays(item.startDate, item.endDate);
         realUsedCount += days;
         
@@ -527,7 +526,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
     const eInput = document.getElementById('leave-end-date-input');
     const preview = document.getElementById('leave-count-preview');
     
-    // ✅ [수정] 모달창의 N일 미리보기 기능도 평일 기준 계산 적용
+    // ✅ [수정] 모달 안의 실시간 N일 미리보기를 평일 기준으로 계산
     const updatePreview = () => {
         if (!preview) return;
         const sVal = sInput ? sInput.value : '';
@@ -535,7 +534,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         
         if (sVal && eVal) {
             const diff = calculateWorkingDays(sVal, eVal);
-            preview.textContent = `총 ${diff}일(평일기준) 적용 예정`; 
+            preview.textContent = `총 ${diff}일(평일) 적용 예정`; 
         } else if (sVal) {
             const diff = calculateWorkingDays(sVal, sVal);
             preview.textContent = diff > 0 ? `1일 적용 예정` : `0일 적용 예정 (주말/휴일)`;
@@ -548,6 +547,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
 };
 
 export const renderManualAddModalDatalists = (appState, appConfig) => {
+    // 기존 로직 유지
     const memberDatalist = document.getElementById('manual-add-member-list');
     const taskDatalist = document.getElementById('manual-add-task-list');
 

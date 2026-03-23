@@ -3,7 +3,7 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast, getTodayDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js'; // ✅ 수정된 부분
+import { showToast, getTodayDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js';
 import { saveStateToFirestore, debouncedSaveState } from './app-data.js';
 import { saveLeaveSchedule } from './config.js';
 import { renderLeaveTypeModalOptions } from './ui-modals.js';
@@ -17,7 +17,7 @@ const updateLocalHistoryForLeave = (leaveEntry, action = 'add') => {
     for(let dt = new Date(startDt); dt <= endDt; dt.setDate(dt.getDate() + 1)) {
         const dateKey = dt.toISOString().slice(0, 10);
         
-        // ✅ [신규] 주말(토, 일)은 이력 추가에서 제외
+        // 주말(토, 일)은 이력 추가에서 제외
         if (!isWeekday(dateKey)) continue; 
 
         let dayData = State.allHistoryData.find(d => d.id === dateKey);
@@ -121,7 +121,6 @@ export function setupFormAttendanceListeners() {
                 for(let dt = new Date(startDt); dt <= endDt; dt.setDate(dt.getDate() + 1)) {
                     const checkDate = dt.toISOString().slice(0, 10);
                     
-                    // ✅ [신규] 중복 검사 시에도 주말은 무시
                     if (!isWeekday(checkDate)) continue; 
 
                     const conflict = State.persistentLeaveSchedule.onLeaveMembers.some(l => {
@@ -178,7 +177,7 @@ export function setupFormAttendanceListeners() {
                 });
                 State.appState.dateBasedOnLeaveMembers = todayLeaves;
 
-                // ✅ [수정] 평일 기준으로만 일수 계산해서 토스트 메시지에 띄움
+                // ✅ [수정] 여기서도 calculateWorkingDays 로 변경
                 const diffDays = calculateWorkingDays(startDate, endDate);
                 
                 if (isEdit) {

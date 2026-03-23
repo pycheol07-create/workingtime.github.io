@@ -1,6 +1,6 @@
 // === js/ui-history-attendance.js ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear, calculateWorkingDays } from './utils.js'; // ✅ calculateWorkingDays 로 변경
+import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js';
 import { context, LEAVE_TYPES } from './state.js';
 
 const getSortIcon = (currentKey, currentDir, targetKey) => {
@@ -59,6 +59,7 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
 
 
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
+    // 일별 렌더링 유지 (수정 없음)
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
@@ -88,18 +89,13 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     }
 
     const allMembers = [...new Set(data.onLeaveMembers.map(e => e.member))].sort();
-
     let leaveEntries = [...data.onLeaveMembers];
     
     const filterState = context.attendanceFilterState?.daily || { member: '', type: '' };
     const sortState = context.attendanceSortState?.daily || { key: 'member', dir: 'asc' };
 
-    if (filterState.member) {
-        leaveEntries = leaveEntries.filter(e => e.member === filterState.member);
-    }
-    if (filterState.type) {
-        leaveEntries = leaveEntries.filter(e => e.type === filterState.type);
-    }
+    if (filterState.member) leaveEntries = leaveEntries.filter(e => e.member === filterState.member);
+    if (filterState.type) leaveEntries = leaveEntries.filter(e => e.type === filterState.type);
 
     leaveEntries.sort((a, b) => {
         let valA = '', valB = '';
@@ -266,11 +262,12 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
             rec.totalCount += 1;
         }
 
-        // ✅ [수정] 평일(Working Days)만 계산하여 총 일수 부여
+        // ✅ [수정] data.leaveEntries는 이미 날짜 단위로 나뉘어 들어온 배열이므로 1개 = 1일입니다.
+        // 기존처럼 여기서 또 날짜 차이를 계산하면 연속 연차가 중복으로 곱해지는 버그가 생깁니다.
         if (type === '결근') {
-            rec.totalAbsenceDays += calculateWorkingDays(entry.startDate, entry.endDate || entry.startDate);
+            rec.totalAbsenceDays += 1;
         } else if (type === '연차') {
-            rec.totalLeaveDays += calculateWorkingDays(entry.startDate, entry.endDate || entry.startDate);
+            rec.totalLeaveDays += 1;
         }
     });
     summary = Object.values(memberMap);
