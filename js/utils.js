@@ -28,19 +28,17 @@ export const calcElapsedMinutes = (start, end, pauses = []) => {
     return Math.max(0, total / 60000);
 };
 
-// ✅ [신규] 총 휴식 시간(분) 계산 함수
+// ✅ 총 휴식 시간(분) 계산 함수
 export const calcTotalPauseMinutes = (pauses = []) => {
     if (!pauses || pauses.length === 0) return 0;
     let total = 0;
     
-    // 현재 시간 (진행 중인 휴식 계산용)
     const now = new Date();
     const nowTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     
     pauses.forEach(p => {
         if (p.start) {
             const s = new Date(`1970-01-01T${p.start}:00Z`).getTime();
-            // 종료 시간이 없으면(현재 휴식 중) 현재 시간을 종료 시간으로 간주
             const endTimeStr = p.end || nowTimeStr;
             const e = new Date(`1970-01-01T${endTimeStr}:00Z`).getTime();
             
@@ -79,7 +77,7 @@ export const formatDuration = (minutes) => {
 export const isWeekday = (dateString) => {
     const date = new Date(dateString + 'T00:00:00');
     const day = date.getDay();
-    return day >= 1 && day <= 5;
+    return day >= 1 && day <= 5; // 월(1) ~ 금(5)
 };
 
 export const getTodayDateString = () => {
@@ -119,6 +117,19 @@ export const calculateDateDifference = (start, end) => {
     const diffTime = endUTC - startUTC;
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
     return diffDays + 1;
+};
+
+// ✅ [신규] 주말을 제외한 평일(Working Days)만 계산하는 함수
+export const calculateWorkingDays = (start, end) => {
+    if (!start) return 0;
+    const startDate = new Date(start + 'T00:00:00');
+    const endDate = end ? new Date(end + 'T00:00:00') : new Date(start + 'T00:00:00');
+    let count = 0;
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const day = d.getDay();
+        if (day >= 1 && day <= 5) count++; // 평일만 카운트
+    }
+    return count;
 };
 
 export const debounce = (func, delay) => {

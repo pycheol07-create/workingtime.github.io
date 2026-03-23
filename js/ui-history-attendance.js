@@ -1,11 +1,8 @@
 // === js/ui-history-attendance.js ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear, calculateDateDifference } from './utils.js';
+import { formatTimeTo24H, formatDuration, getWeekOfYear, calculateWorkingDays } from './utils.js'; // ✅ calculateWorkingDays 로 변경
 import { context, LEAVE_TYPES } from './state.js';
 
-/**
- * 헬퍼: 정렬 아이콘 생성
- */
 const getSortIcon = (currentKey, currentDir, targetKey) => {
     if (currentKey !== targetKey) return '<span class="text-gray-300 text-[10px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
     return currentDir === 'asc' 
@@ -13,15 +10,11 @@ const getSortIcon = (currentKey, currentDir, targetKey) => {
         : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
 };
 
-/**
- * 헬퍼: 필터 드롭다운 UI 생성 (엑셀 스타일)
- */
 const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
-    const dropdownId = `${mode}-${key}`; // 예: daily-member
+    const dropdownId = `${mode}-${key}`; 
     const isActive = context.activeFilterDropdown === dropdownId;
     const hasValue = currentFilterValue && currentFilterValue !== '';
     
-    // 필터 아이콘 색상 (값이 있으면 파란색, 없으면 회색)
     const iconColorClass = hasValue ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:bg-gray-200';
 
     let inputHtml = '';
@@ -64,9 +57,7 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
     `;
 };
 
-/**
- * 근태 이력 - 일별 상세 렌더링
- */
+
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
@@ -97,12 +88,18 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     }
 
     const allMembers = [...new Set(data.onLeaveMembers.map(e => e.member))].sort();
+
     let leaveEntries = [...data.onLeaveMembers];
+    
     const filterState = context.attendanceFilterState?.daily || { member: '', type: '' };
     const sortState = context.attendanceSortState?.daily || { key: 'member', dir: 'asc' };
 
-    if (filterState.member) leaveEntries = leaveEntries.filter(e => e.member === filterState.member);
-    if (filterState.type) leaveEntries = leaveEntries.filter(e => e.type === filterState.type);
+    if (filterState.member) {
+        leaveEntries = leaveEntries.filter(e => e.member === filterState.member);
+    }
+    if (filterState.type) {
+        leaveEntries = leaveEntries.filter(e => e.type === filterState.type);
+    }
 
     leaveEntries.sort((a, b) => {
         let valA = '', valB = '';
@@ -230,9 +227,6 @@ const _formatDetailText = (entry) => {
     return '-';
 };
 
-/**
- * 주별/월별 근태 요약 렌더링
- */
 const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKey, mode) => {
     const data = aggregationMap[periodKey];
     if (!data) {
@@ -254,7 +248,6 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         if (!memberMap[member]) {
             memberMap[member] = {
                 member: member,
-                // ✅ [수정] counts 객체에 '매장근무' 초기화 추가
                 counts: { '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0, '매장근무': 0 },
                 totalCount: 0,
                 totalAbsenceDays: 0,
@@ -273,17 +266,20 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
             rec.totalCount += 1;
         }
 
+        // ✅ [수정] 평일(Working Days)만 계산하여 총 일수 부여
         if (type === '결근') {
-            rec.totalAbsenceDays += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            rec.totalAbsenceDays += calculateWorkingDays(entry.startDate, entry.endDate || entry.startDate);
         } else if (type === '연차') {
-            rec.totalLeaveDays += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            rec.totalLeaveDays += calculateWorkingDays(entry.startDate, entry.endDate || entry.startDate);
         }
     });
     summary = Object.values(memberMap);
 
     const allMembers = [...allMemberSet].sort();
 
-    if (filterState.member) summary = summary.filter(item => item.member === filterState.member);
+    if (filterState.member) {
+        summary = summary.filter(item => item.member === filterState.member);
+    }
 
     summary.sort((a, b) => {
         let valA = 0, valB = 0;
@@ -305,7 +301,6 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
             </div>
         </th>`;
 
-    // ✅ [수정] 테이블 헤더에 '매장근무' 추가
     let html = `
         <div class="bg-white p-4 rounded-lg shadow-sm mb-6 min-h-[400px]">
             <h3 class="text-xl font-bold mb-4 text-gray-800">${periodKey} 근태 요약</h3>
@@ -325,7 +320,6 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
     } else {
         summary.forEach(item => {
             const cell = (k, color='text-gray-400') => `<td class="px-4 py-3 text-center ${item.counts[k]>0 ? 'text-gray-800 font-medium' : color}">${item.counts[k]||0}</td>`;
-            // ✅ [수정] 테이블 바디 데이터에 '매장근무' 추가
             html += `
                 <tr class="bg-white hover:bg-gray-50">
                     <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${item.member}</td>
