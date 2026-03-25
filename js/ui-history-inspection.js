@@ -43,11 +43,11 @@ export const renderInspectionLayout = (container) => {
                     </button>
                 </div>
                 <div class="pb-1 pr-1 flex gap-2">
-                    <button id="btn-add-pre-inspection" class="text-xs bg-orange-500 hover:bg-orange-600 text-white font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
+                    <button id="btn-manual-add-inspection" class="text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                         </svg>
-                        출고예정 특이사항 등록
+                        수동 검수 등록
                     </button>
                     <button id="inspection-tab-download-btn" class="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -283,14 +283,77 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
-// 기존 모달 렌더러는 예비용으로 둠
+/**
+ * 엑셀/모달 로그 관리용 렌더러 (구버전 호환용)
+ */
 export const renderInspectionLogTable = (logs, productName) => {
-    // ... 기존 코드 유지
+    const tbody = document.getElementById('inspection-log-table-body');
+    if (!tbody) return;
+
+    if (!logs || logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="px-6 py-8 text-center text-gray-500">저장된 상세 검수 기록이 없습니다.</td></tr>';
+        return;
+    }
+
+    const logsWithIndex = logs.map((log, idx) => ({ ...log, originalIndex: idx }));
+    logsWithIndex.sort((a, b) => {
+        const tA = (a.date || '') + (a.time || '');
+        const tB = (b.date || '') + (b.time || '');
+        return tB.localeCompare(tA);
+    });
+
+    let html = '';
+    logsWithIndex.forEach((item) => {
+        const cl = item.checklist || {};
+        let checklistStr = [];
+        const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
+
+        if (cl.thickness) checklistStr.push(`<span class="text-[11px] bg-gray-100 px-1 rounded">두께:${cl.thickness}</span>`);
+        const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
+        Object.entries(cl).forEach(([key, val]) => {
+            if (key !== 'thickness' && val) {
+                const isDefect = !normalValues.includes(val);
+                const colorClass = isDefect ? 'text-red-600 font-bold' : 'text-gray-500';
+                checklistStr.push(`<span class="text-[11px] ${colorClass}">${labelMap[key]||key}:${val}</span>`);
+            }
+        });
+
+        const statusBadge = item.status === '정상' 
+            ? `<span class="px-2 py-1 rounded-full text-[11px] font-bold bg-green-100 text-green-800">정상</span>`
+            : item.status === '사전메모' ? `<span class="px-2 py-1 rounded-full text-[11px] font-bold bg-orange-100 text-orange-800">사전메모</span>`
+            : `<span class="px-2 py-1 rounded-full text-[11px] font-bold bg-red-100 text-red-800">불량</span>`;
+
+        let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold">[${item.defects.join(', ')}]</span> ` : '';
+        let fullNote = defectText + (item.note || '');
+
+        let imageHtml = '<span class="text-gray-300">-</span>';
+        if (item.image) {
+            imageHtml = `<img src="${item.image}" class="h-8 w-8 object-cover rounded border border-gray-300 cursor-pointer hover:scale-150 transition" onclick="window.open('${item.image}', '_blank')">`;
+        }
+
+        html += `
+            <tr class="hover:bg-gray-50 transition border-b">
+                <td class="px-6 py-4 text-xs font-mono text-gray-500">${item.date}<br>${item.time}</td>
+                <td class="px-6 py-4 text-xs text-gray-700">${item.inspector || '-'}</td>
+                <td class="px-6 py-4 text-xs text-gray-700">${item.inboundDate || '-'}</td>
+                <td class="px-6 py-4 text-xs text-gray-600 font-mono">${item.code || '-'}</td>
+                <td class="px-6 py-4 text-xs text-gray-600">${item.option || '-'}</td>
+                <td class="px-6 py-4 text-xs text-gray-600">${item.supplierName || '-'}</td>
+                <td class="px-6 py-4 text-xs font-bold text-gray-700 text-center">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
+                <td class="px-6 py-4 text-center">${statusBadge}</td>
+                <td class="px-6 py-4 text-center">${imageHtml}</td>
+                <td class="px-6 py-4 text-xs text-gray-700 break-words max-w-[200px]">${fullNote || '-'}</td>
+                <td class="px-6 py-4 text-right space-x-2">
+                    <button class="text-blue-600 hover:text-blue-800 font-medium text-xs underline btn-edit-insp-log" data-index="${item.originalIndex}" data-product-name="${productName}">수정</button>
+                </td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
 };
 
 /**
- * 클릭한 행 바로 밑에 상세 로그를 펼치는 (Accordion) 렌더러
- * (코드/옵션 기준으로 그룹화하여 표시)
+ * 아코디언 형태로 펼쳐지는 상세 렌더러
  */
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const table = targetTr.closest('table');
