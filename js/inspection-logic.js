@@ -19,6 +19,7 @@ let currentImageBase64 = null;
 let currentProductLogs = []; 
 let currentTodoIndex = -1;
 let editingLogIndex = -1; 
+let manualImageBase64 = null; // 수동 등록용 이미지 상태 변수 추가
 
 // 고유 입고(검수)일자 계산 헬퍼 함수 (사전등록 제외) - 검수일(date) 기준
 const getUniqueInboundCount = (logsArray) => {
@@ -43,6 +44,7 @@ export const initializeInspectionSession = async () => {
     todayInspectionList = [];
     currentTodoIndex = -1;
     currentImageBase64 = null;
+    manualImageBase64 = null;
     resetEditingState(); 
     
     if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
@@ -597,6 +599,48 @@ export const clearImageState = () => {
     if (DOM.inspImagePreviewBox) DOM.inspImagePreviewBox.classList.add('hidden');
     if (DOM.inspImageInput) DOM.inspImageInput.value = '';
 };
+
+// 수동 추가 모달용 이미지 처리
+export const handleManualImageSelect = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            let width = img.width;
+            let height = img.height;
+            if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            manualImageBase64 = canvas.toDataURL('image/jpeg', 0.7); 
+            
+            const previewContainer = document.getElementById('manual-insp-image-preview-container');
+            const previewImg = document.getElementById('manual-insp-image-preview');
+            if (previewContainer && previewImg) {
+                previewContainer.classList.remove('hidden');
+                previewImg.src = manualImageBase64;
+            }
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+
+export const clearManualImageState = () => {
+    manualImageBase64 = null;
+    const previewContainer = document.getElementById('manual-insp-image-preview-container');
+    const input = document.getElementById('manual-insp-image');
+    if (previewContainer) previewContainer.classList.add('hidden');
+    if (input) input.value = '';
+};
+
 
 export const searchProductHistory = async () => {
     let searchTerm = DOM.inspProductNameInput ? DOM.inspProductNameInput.value.trim() : document.getElementById('insp-product-name').value.trim();
@@ -1242,76 +1286,151 @@ export const deleteProductHistory = async (productName) => {
     }
 };
 
+// 완전히 변경된 수동 검수 상세 등록 및 즉시 저장 함수
 export const savePreInspectionNote = async () => {
-    // 변경된 모달의 입력값 가져오기
-    const productNameInput = document.getElementById('manual-insp-product-name');
-    const codeInput = document.getElementById('manual-insp-code');
-    const optionInput = document.getElementById('manual-insp-option');
-    const qtyInput = document.getElementById('manual-insp-qty');
-    const thicknessInput = document.getElementById('manual-insp-thickness');
-    const supplierInput = document.getElementById('manual-insp-supplier');
+    const getVal = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.value : '';
+    };
 
-    let productName = productNameInput ? productNameInput.value.trim() : '';
-    const code = codeInput ? codeInput.value.trim() : '';
-    const option = optionInput ? optionInput.value.trim() : '';
-    const qty = qtyInput ? Number(qtyInput.value) || 0 : 0;
-    const thickness = thicknessInput ? thicknessInput.value.trim() : '';
-    const supplierName = supplierInput ? supplierInput.value.trim() : '';
-
+    let productName = getVal('manual-insp-product-name').trim();
     if (!productName) {
         showToast("상품명은 필수 입력 항목입니다.", true);
         return false;
     }
-
+    
+    // 파일명 등에서 에러 유발 가능성 있는 슬래시 처리
     productName = productName.replace(/\//g, '-'); 
-    const today = getTodayDateString();
 
-    // 새 검수 리스트 항목 객체 생성
-    const newItem = {
-        name: productName,
-        code: code,
-        option: option,
-        qty: qty,
-        thickness: thickness,
-        supplierName: supplierName,
-        status: '대기', // 초기 상태는 대기
-        packingDate: today, // 수동 추가는 오늘 날짜 기준
-        location: '수동추가',
-        sampleLocation: null
+    const checklist = {
+        thickness: getVal('manual-insp-check-thickness'),
+        fabric: getVal('manual-insp-check-fabric'),
+        color: getVal('manual-insp-check-color'),
+        distortion: getVal('manual-insp-check-distortion'),
+        unraveling: getVal('manual-insp-check-unraveling'),
+        finishing: getVal('manual-insp-check-finishing'),
+        zipper: getVal('manual-insp-check-zipper'),
+        button: getVal('manual-insp-check-button'),
+        lining: getVal('manual-insp-check-lining'),
+        pilling: getVal('manual-insp-check-pilling'),
+        dye: getVal('manual-insp-check-dye')
     };
 
-    try {
-        // 기존 리스트 가져오기
-        const existingList = State.appState.inspectionList || [];
-        const mergedList = [...existingList, newItem];
+    if (!checklist.thickness || Object.values(checklist).some(v => v === "" || v === null)) {
+        alert("⚠️ 두께 기준을 포함한 모든 품질 체크리스트 항목을 확인해주세요.");
+        return false;
+    }
 
-        // 파이어베이스(Daily Data)에 업데이트
-        await updateDailyData({ inspectionList: mergedList });
+    const today = getTodayDateString();
+    const inboundDate = getVal('manual-insp-inbound-date') || today;
+    const packingDate = getVal('manual-insp-packing-date') || '-';
+    const inboundQty = getVal('manual-insp-qty');
+    const note = getVal('manual-insp-note');
+    const code = getVal('manual-insp-code') || '-';
+    const option = getVal('manual-insp-option') || '-';
+    const supplierName = getVal('manual-insp-supplier') || '-';
+
+    const defectsFound = [];
+    const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
+    
+    const labelMap = {
+        fabric: '원단', color: '컬러', distortion: '뒤틀림',
+        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
+        lining: '안감', pilling: '보풀', dye: '이염'
+    };
+
+    Object.entries(checklist).forEach(([key, value]) => {
+        if (key === 'thickness') return;
+        if (!NORMAL_VALUES.includes(value)) {
+            defectsFound.push(`${labelMap[key] || key}(${value})`);
+        }
+    });
+
+    const status = defectsFound.length > 0 ? '불량' : '정상';
+    const nowTime = getCurrentTime();
+
+    // 완료된 검수 기록 객체 생성
+    const inspectionRecord = {
+        date: today,
+        time: nowTime,
+        inspector: State.appState.currentUser || 'Unknown',
+        inboundDate: inboundDate,
+        packingDate: packingDate,
+        inboundQty: Number(inboundQty) || 0,
+        option: option,
+        code: code,
+        supplierName: supplierName, 
+        location: '수동등록',
+        checklist,
+        defects: defectsFound,
+        note,
+        status,
+        image: manualImageBase64 || null
+    };
+
+    const btn = document.getElementById('save-pre-insp-btn');
+    if(btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+
+    try {
+        const docRef = doc(State.db, 'product_history', productName);
+        const docSnap = await getDoc(docRef);
+        let existingLogs = [];
         
-        // 로컬 상태 업데이트
-        State.appState.inspectionList = mergedList;
+        if (docSnap.exists()) {
+            existingLogs = docSnap.data().logs || [];
+        }
         
-        showToast(`'${productName}' 상품이 리스트에 추가되었습니다.`);
+        const tempLogs = [...existingLogs, inspectionRecord];
+            
+        const updates = {
+            lastInspectionDate: today,
+            totalInbound: getUniqueInboundCount(tempLogs),
+            logs: arrayUnion(inspectionRecord),
+            updatedAt: serverTimestamp(),
+            lastCode: code,
+            lastOption: option,
+            lastSupplierName: supplierName
+        };
+
+        if (defectsFound.length > 0) {
+            const defectSummaryStr = `${today}: ${defectsFound.join(', ')}`;
+            updates.defectSummary = arrayUnion(defectSummaryStr);
+        }
+
+        // 데이터베이스에 검수 완료 이력으로 즉시 병합 저장
+        await setDoc(docRef, updates, { merge: true });
         
-        // 메인 리스트 렌더링 (메인 화면의 리스트 업데이트)
-        renderTodoList();
+        // 폼 초기화
+        const getEl = (id) => document.getElementById(id);
+        if (getEl('manual-insp-product-name')) getEl('manual-insp-product-name').value = '';
+        if (getEl('manual-insp-code')) getEl('manual-insp-code').value = '';
+        if (getEl('manual-insp-option')) getEl('manual-insp-option').value = '';
+        if (getEl('manual-insp-qty')) getEl('manual-insp-qty').value = '';
+        if (getEl('manual-insp-thickness')) getEl('manual-insp-check-thickness').value = '';
+        if (getEl('manual-insp-supplier')) getEl('manual-insp-supplier').value = '';
+        if (getEl('manual-insp-note')) getEl('manual-insp-note').value = '';
+        if (getEl('manual-insp-packing-date')) getEl('manual-insp-packing-date').value = '';
+        
+        const selects = document.querySelectorAll('#pre-register-inspection-modal select');
+        selects.forEach(sel => sel.value = "정상"); 
+
+        clearManualImageState();
 
         // 모달 닫기
         const preModal = document.getElementById('pre-register-inspection-modal');
         if (preModal) preModal.classList.add('hidden');
         
-        // 입력 필드 초기화
-        if (productNameInput) productNameInput.value = '';
-        if (codeInput) codeInput.value = '';
-        if (optionInput) optionInput.value = '';
-        if (qtyInput) qtyInput.value = '';
-        if (thicknessInput) thicknessInput.value = '';
-        if (supplierInput) supplierInput.value = '';
-
+        showToast(`'${productName}' 수동 검수 저장 완료!`);
         return true;
+
     } catch (e) {
-        console.error("Error adding manual item:", e);
-        showToast("추가 중 오류가 발생했습니다.", true);
+        console.error("Error saving manual inspection:", e);
+        showToast("수동 등록 저장 중 오류가 발생했습니다.", true);
         return false;
+    } finally {
+        if(btn) { 
+            btn.disabled = false; 
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg> 검수 완료 및 즉시 저장`; 
+        }
     }
 };

@@ -581,49 +581,106 @@
         </div>
         
         <div id="pre-register-inspection-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[80] p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md relative flex flex-col">
-                <div class="p-5 border-b border-gray-200 bg-indigo-50 flex justify-between items-center rounded-t-2xl">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col relative animate-fade-in-up">
+                
+                <div class="p-5 border-b border-gray-200 bg-indigo-50 flex justify-between items-center rounded-t-2xl shrink-0">
                     <div>
                         <h2 class="text-xl font-bold text-indigo-900 flex items-center gap-2">
-                            ➕ 수동 검수 상품 추가
+                            ➕ 수동 검수 상세 등록
                         </h2>
-                        <p class="text-xs text-indigo-700 mt-1">리스트에 없는 상품을 수동으로 추가하여 검수합니다.</p>
+                        <p class="text-xs text-indigo-700 mt-1">리스트에 없는 상품의 검수 결과를 직접 입력하고 즉시 저장합니다.</p>
                     </div>
-                    <button id="close-pre-insp-modal" class="text-indigo-400 hover:text-indigo-700 text-2xl leading-none">&times;</button>
+                    <button id="close-pre-insp-modal" class="text-indigo-400 hover:text-indigo-700 text-3xl font-light leading-none">&times;</button>
                 </div>
-                <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                    <div>
-                        <label class="block text-sm font-bold text-gray-700 mb-1">상품명 (필수)</label>
-                        <input type="text" id="manual-insp-product-name" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="상품명을 입력하세요">
+                
+                <div class="p-6 overflow-y-auto flex-grow space-y-8 bg-gray-50">
+                    
+                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                        <h3 class="text-sm font-extrabold text-gray-800 border-b pb-2 flex items-center gap-2">
+                            📦 상품 기본 정보
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">상품명 <span class="text-red-500">*</span></label>
+                                <input type="text" id="manual-insp-product-name" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="정확한 상품명을 입력하세요">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">공급처</label>
+                                <input type="text" id="manual-insp-supplier" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="공급처명">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">상품코드</label>
+                                <input type="text" id="manual-insp-code" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="예: CD-123">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">옵션</label>
+                                <input type="text" id="manual-insp-option" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="예: 블랙/FREE">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">출고일자 (엑셀 기준)</label>
+                                <input type="date" id="manual-insp-packing-date" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm text-gray-600">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">입고(검수)일자 <span class="text-red-500">*</span></label>
+                                <input type="date" id="manual-insp-inbound-date" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm text-gray-600">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">수량</label>
+                                <input type="number" id="manual-insp-qty" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0">
+                            </div>
+                        </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
+
+                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                        <h3 class="text-sm font-extrabold text-gray-800 border-b pb-2 flex items-center gap-2">
+                            ✅ 품질 체크리스트
+                        </h3>
+                        
+                        <div class="mb-4">
+                            <label class="block text-xs font-bold text-gray-700 mb-1">기준 (두께 등) <span class="text-red-500">*</span></label>
+                            <input type="text" id="manual-insp-check-thickness" class="w-full md:w-1/2 p-2 border border-yellow-400 bg-yellow-50 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm font-bold" placeholder="예: 3">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">원단</label><select id="manual-insp-check-fabric" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">컬러</label><select id="manual-insp-check-color" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">뒤틀림</label><select id="manual-insp-check-distortion" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">올풀림</label><select id="manual-insp-check-unraveling" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">마감</label><select id="manual-insp-check-finishing" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">지퍼</label><select id="manual-insp-check-zipper" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="해당없음">해당없음</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">단추</label><select id="manual-insp-check-button" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="해당없음">해당없음</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">안감</label><select id="manual-insp-check-lining" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="해당없음">해당없음</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">보풀</label><select id="manual-insp-check-pilling" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">이염</label><select id="manual-insp-check-dye" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                        <h3 class="text-sm font-extrabold text-gray-800 border-b pb-2 flex items-center gap-2">
+                            📝 특이사항 및 사진 첨부
+                        </h3>
                         <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">상품코드</label>
-                            <input type="text" id="manual-insp-code" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="예: CD-123">
+                            <label class="block text-xs font-bold text-gray-700 mb-1">특이사항 (메모)</label>
+                            <textarea id="manual-insp-note" rows="2" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="불량 상세 내용이나 주의사항을 입력하세요"></textarea>
                         </div>
                         <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">옵션</label>
-                            <input type="text" id="manual-insp-option" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="예: 블랙/FREE">
+                            <label class="block text-xs font-bold text-gray-700 mb-1">사진 첨부 (선택사항)</label>
+                            <input type="file" id="manual-insp-image" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition">
+                            <div id="manual-insp-image-preview-container" class="mt-3 hidden relative inline-block">
+                                <img id="manual-insp-image-preview" src="" class="h-32 object-contain border border-gray-300 rounded-lg shadow-sm">
+                                <button type="button" id="manual-insp-image-clear-btn" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-md hover:bg-red-600">&times;</button>
+                            </div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">수량</label>
-                            <input type="number" id="manual-insp-qty" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="0">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">기준 (두께 등)</label>
-                            <input type="text" id="manual-insp-thickness" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="예: 3">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold text-gray-700 mb-1">공급처</label>
-                        <input type="text" id="manual-insp-supplier" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="공급처명">
-                    </div>
+
                 </div>
-                <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-2 rounded-b-2xl">
-                    <button type="button" id="cancel-pre-insp-btn" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 font-bold py-2 px-4 rounded-lg transition">취소</button>
-                    <button type="button" id="save-pre-insp-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-md">리스트에 추가</button>
+                
+                <div class="p-4 bg-white border-t border-gray-200 flex justify-end gap-3 rounded-b-2xl shrink-0">
+                    <button type="button" id="cancel-pre-insp-btn" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 font-bold py-2.5 px-6 rounded-lg transition text-sm">취소</button>
+                    <button type="button" id="save-pre-insp-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-8 rounded-lg transition shadow-md text-sm flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                        검수 완료 및 즉시 저장
+                    </button>
                 </div>
             </div>
         </div>

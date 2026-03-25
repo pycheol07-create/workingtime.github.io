@@ -18,7 +18,9 @@ import {
     deleteInspectionLog,
     deleteProductHistory,
     deleteHistoryInspectionList,
-    savePreInspectionNote
+    savePreInspectionNote,
+    handleManualImageSelect, // [신규] 수동 등록 이미지 처리
+    clearManualImageState    // [신규] 수동 등록 이미지 초기화
 } from './inspection-logic.js';
 
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -78,11 +80,13 @@ export const fetchAndRenderInspectionHistory = async () => {
 
 export function setupHistoryInspectionListeners() {
 
+    // [변경됨] 수동 추가 모달 이벤트 및 이미지 처리 연결
     const preModal = document.getElementById('pre-register-inspection-modal');
     if (preModal) {
         preModal.addEventListener('click', async (e) => {
             if (e.target.closest('#close-pre-insp-modal') || e.target.closest('#cancel-pre-insp-btn')) {
                 preModal.classList.add('hidden');
+                clearManualImageState(); // 닫을 때 이미지 초기화
             }
             if (e.target.closest('#save-pre-insp-btn')) {
                 const success = await savePreInspectionNote();
@@ -90,20 +94,54 @@ export function setupHistoryInspectionListeners() {
                     fetchAndRenderInspectionHistory(); 
                 }
             }
+            // 이미지 삭제 버튼 클릭 시
+            if (e.target.closest('#manual-insp-image-clear-btn')) {
+                clearManualImageState();
+            }
         });
+
+        // 이미지 파일 선택(첨부) 변경 이벤트
+        const imageInput = document.getElementById('manual-insp-image');
+        if (imageInput) {
+            imageInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    handleManualImageSelect(file);
+                }
+            });
+        }
     }
 
     if (DOM.inspectionHistoryViewContainer) {
         DOM.inspectionHistoryViewContainer.addEventListener('click', async (e) => {
             
-            // 특이사항 사전 등록 모달
+            // [변경됨] 수동 검수 추가 모달 열기 (확장된 폼 초기화)
             const addPreBtn = e.target.closest('#btn-add-pre-inspection');
             if (addPreBtn) {
                 const modal = document.getElementById('pre-register-inspection-modal');
                 if (modal) {
                     modal.classList.remove('hidden');
-                    document.getElementById('pre-insp-product-name').value = '';
-                    document.getElementById('pre-insp-note').value = '';
+                    
+                    // 모든 폼 데이터 깨끗하게 초기화
+                    const getEl = (id) => document.getElementById(id);
+                    if (getEl('manual-insp-product-name')) getEl('manual-insp-product-name').value = '';
+                    if (getEl('manual-insp-code')) getEl('manual-insp-code').value = '';
+                    if (getEl('manual-insp-option')) getEl('manual-insp-option').value = '';
+                    if (getEl('manual-insp-qty')) getEl('manual-insp-qty').value = '';
+                    if (getEl('manual-insp-check-thickness')) getEl('manual-insp-check-thickness').value = '';
+                    if (getEl('manual-insp-supplier')) getEl('manual-insp-supplier').value = '';
+                    if (getEl('manual-insp-note')) getEl('manual-insp-note').value = '';
+                    if (getEl('manual-insp-packing-date')) getEl('manual-insp-packing-date').value = '';
+                    
+                    // 입고(검수)일자는 오늘 날짜로 기본 세팅
+                    if (getEl('manual-insp-inbound-date')) getEl('manual-insp-inbound-date').value = getTodayDateString();
+                    
+                    // 체크리스트 모두 '정상'으로 초기화
+                    const selects = modal.querySelectorAll('select');
+                    selects.forEach(sel => sel.value = "정상"); 
+                    
+                    // 이미지 초기화
+                    clearManualImageState();
                 }
                 return;
             }
@@ -131,14 +169,14 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // ✅ [신규] 확장된 상세 행 닫기 버튼
+            // 확장된 상세 행 닫기 버튼
             const closeExpandedBtn = e.target.closest('.btn-close-expanded');
             if (closeExpandedBtn) {
                 closeExpandedBtn.closest('.expanded-detail-row').remove();
                 return;
             }
 
-            // ✅ [신규] 상세 행 내부의 수정 버튼 (수정 모달 열기)
+            // 상세 행 내부의 수정 버튼 (수정 모달 열기)
             const editBtn = e.target.closest('.btn-edit-insp-log');
             if (editBtn) {
                 const index = parseInt(editBtn.dataset.index, 10);
@@ -179,7 +217,7 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // ✅ [변경] 행을 클릭하면 상세 내역 아코디언 펼치기
+            // 행을 클릭하면 상세 내역 아코디언 펼치기
             const detailBtn = e.target.closest('.btn-view-detail');
             if (detailBtn) {
                 // 클릭한 곳이 행 전체(tr)인지 버튼인지 판별
