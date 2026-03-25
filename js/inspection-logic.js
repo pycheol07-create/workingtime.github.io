@@ -1243,67 +1243,75 @@ export const deleteProductHistory = async (productName) => {
 };
 
 export const savePreInspectionNote = async () => {
-    const productNameInput = document.getElementById('pre-insp-product-name');
-    const noteInput = document.getElementById('pre-insp-note');
-    let productName = productNameInput ? productNameInput.value.trim() : '';
-    const note = noteInput ? noteInput.value.trim() : '';
+    // 변경된 모달의 입력값 가져오기
+    const productNameInput = document.getElementById('manual-insp-product-name');
+    const codeInput = document.getElementById('manual-insp-code');
+    const optionInput = document.getElementById('manual-insp-option');
+    const qtyInput = document.getElementById('manual-insp-qty');
+    const thicknessInput = document.getElementById('manual-insp-thickness');
+    const supplierInput = document.getElementById('manual-insp-supplier');
 
-    if (!productName || !note) {
-        showToast("상품명과 특이사항을 모두 입력해주세요.", true);
+    let productName = productNameInput ? productNameInput.value.trim() : '';
+    const code = codeInput ? codeInput.value.trim() : '';
+    const option = optionInput ? optionInput.value.trim() : '';
+    const qty = qtyInput ? Number(qtyInput.value) || 0 : 0;
+    const thickness = thicknessInput ? thicknessInput.value.trim() : '';
+    const supplierName = supplierInput ? supplierInput.value.trim() : '';
+
+    if (!productName) {
+        showToast("상품명은 필수 입력 항목입니다.", true);
         return false;
     }
 
     productName = productName.replace(/\//g, '-'); 
     const today = getTodayDateString();
-    const nowTime = getCurrentTime();
-    const inspector = State.appState.currentUser || 'Unknown';
 
-    const preRecord = {
-        date: today,
-        time: nowTime,
-        inspector: inspector,
-        inboundDate: '출고예정(사전등록)',
-        inboundQty: 0,
-        status: '사전메모',
-        note: `[사전등록] ${note}`,
-        defects: [],
-        checklist: {}
+    // 새 검수 리스트 항목 객체 생성
+    const newItem = {
+        name: productName,
+        code: code,
+        option: option,
+        qty: qty,
+        thickness: thickness,
+        supplierName: supplierName,
+        status: '대기', // 초기 상태는 대기
+        packingDate: today, // 수동 추가는 오늘 날짜 기준
+        location: '수동추가',
+        sampleLocation: null
     };
 
-    const docRef = doc(State.db, 'product_history', productName);
-
     try {
-        const docSnap = await getDoc(docRef);
-        const defectStr = `${today}: [사전등록] ${note}`;
+        // 기존 리스트 가져오기
+        const existingList = State.appState.inspectionList || [];
+        const mergedList = [...existingList, newItem];
 
-        if (docSnap.exists()) {
-            await updateDoc(docRef, {
-                logs: arrayUnion(preRecord),
-                defectSummary: arrayUnion(defectStr),
-                updatedAt: serverTimestamp()
-            });
-        } else {
-            await setDoc(docRef, {
-                id: productName,
-                totalInbound: 0,
-                lastInspectionDate: '-',
-                logs: [preRecord],
-                defectSummary: [defectStr],
-                updatedAt: serverTimestamp()
-            });
-        }
+        // 파이어베이스(Daily Data)에 업데이트
+        await updateDailyData({ inspectionList: mergedList });
+        
+        // 로컬 상태 업데이트
+        State.appState.inspectionList = mergedList;
+        
+        showToast(`'${productName}' 상품이 리스트에 추가되었습니다.`);
+        
+        // 메인 리스트 렌더링 (메인 화면의 리스트 업데이트)
+        renderTodoList();
 
-        showToast(`'${productName}' 사전 특이사항 등록 완료`);
+        // 모달 닫기
         const preModal = document.getElementById('pre-register-inspection-modal');
         if (preModal) preModal.classList.add('hidden');
         
+        // 입력 필드 초기화
         if (productNameInput) productNameInput.value = '';
-        if (noteInput) noteInput.value = '';
+        if (codeInput) codeInput.value = '';
+        if (optionInput) optionInput.value = '';
+        if (qtyInput) qtyInput.value = '';
+        if (thicknessInput) thicknessInput.value = '';
+        if (supplierInput) supplierInput.value = '';
 
         return true;
     } catch (e) {
-        console.error("Error saving pre-note:", e);
-        showToast("저장 중 오류가 발생했습니다.", true);
+        console.error("Error adding manual item:", e);
+        showToast("추가 중 오류가 발생했습니다.", true);
         return false;
     }
 };
