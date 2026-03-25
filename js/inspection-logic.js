@@ -53,9 +53,11 @@ export const initializeInspectionSession = async () => {
     const thickInput = document.getElementById('insp-check-thickness');
     if (thickInput) thickInput.value = '';
     
+    // 출고 일자 초기화
     const packingDateInput = document.getElementById('insp-packing-date');
     if (packingDateInput) packingDateInput.value = '';
 
+    // 입고 일자 초기화 (기본 오늘 날짜 세팅)
     const inboundDateInput = document.getElementById('insp-inbound-date');
     if (inboundDateInput) {
         inboundDateInput.value = getTodayDateString();
@@ -425,9 +427,11 @@ export const selectTodoItem = async (index) => {
     } else {
         resetEditingState();
         
+        // 출고 일자 셋팅
         const packingDateInput = document.getElementById('insp-packing-date');
         if (packingDateInput) packingDateInput.value = item.packingDate || '';
 
+        // 입고 일자 셋팅 (기본은 오늘 날짜, 또는 수동 입력 유지)
         const inboundDateInput = document.getElementById('insp-inbound-date');
         if (inboundDateInput) {
             inboundDateInput.value = item.inboundDate || getTodayDateString(); 
@@ -466,7 +470,7 @@ const loadCompletedInspectionData = async (item) => {
                 if (notesInput) notesInput.value = log.note || '';
 
                 const packingDateInput = document.getElementById('insp-packing-date');
-                if (packingDateInput) packingDateInput.value = log.packingDate || log.inboundDate || ''; 
+                if (packingDateInput) packingDateInput.value = log.packingDate || log.inboundDate || ''; // 하위 호환성 위해 inboundDate 백업
 
                 const inboundDateInput = document.getElementById('insp-inbound-date');
                 if (inboundDateInput) inboundDateInput.value = log.inboundDate || ''; 
@@ -727,6 +731,7 @@ export const searchProductHistory = async () => {
 };
 
 export const saveInspectionAndNext = async () => {
+    // DOM 요소를 직접 찾아 안전하게 값 추출
     const getVal = (id) => {
         const el = document.getElementById(id);
         return el ? el.value : '';
@@ -789,11 +794,11 @@ export const saveInspectionAndNext = async () => {
     const nowTime = getCurrentTime();
 
     const inspectionRecord = {
-        date: today,
+        date: today, // 검수일
         time: nowTime,
         inspector: State.appState.currentUser || 'Unknown',
-        inboundDate: inboundDate, 
-        packingDate: packingDate, 
+        inboundDate: inboundDate, // 직접 입력한 입고일
+        packingDate: packingDate, // 엑셀 출고일
         inboundQty: Number(inboundQty) || 0,
         option: currentItem ? currentItem.option : '-',
         code: currentItem ? currentItem.code : '-',
@@ -862,7 +867,7 @@ export const saveInspectionAndNext = async () => {
             
             todayInspectionList.unshift({
                 productName,
-                inboundDate: packingDate !== '-' ? packingDate : inboundDate, 
+                inboundDate: packingDate !== '-' ? packingDate : inboundDate, // 화면 표시용 백업
                 status,
                 defects: defectsFound,
                 note,
@@ -1149,7 +1154,7 @@ export const updateInspectionLog = async () => {
         const updates = {
             logs: currentProductLogs,
             defectSummary: newDefectSummary,
-            totalInbound: getUniqueInboundCount(currentProductLogs) 
+            totalInbound: getUniqueInboundCount(currentProductLogs)
         };
         
         if (index === currentProductLogs.length - 1) {
@@ -1237,112 +1242,67 @@ export const deleteProductHistory = async (productName) => {
     }
 };
 
-export const saveManualInspectionHistory = async () => {
-    const getVal = (id) => {
-        const el = document.getElementById(id);
-        return el ? el.value : '';
-    };
-    
-    let productName = getVal('manual-insp-product-name').trim();
-    if (!productName) {
-        showToast("상품명을 입력해주세요.", true);
-        return false;
-    }
-    productName = productName.replace(/\//g, '-');
+export const savePreInspectionNote = async () => {
+    const productNameInput = document.getElementById('pre-insp-product-name');
+    const noteInput = document.getElementById('pre-insp-note');
+    let productName = productNameInput ? productNameInput.value.trim() : '';
+    const note = noteInput ? noteInput.value.trim() : '';
 
-    const checklist = {
-        thickness: getVal('manual-insp-check-thickness'),
-        fabric: getVal('manual-insp-check-fabric'),
-        color: getVal('manual-insp-check-color'),
-        distortion: getVal('manual-insp-check-distortion'),
-        unraveling: getVal('manual-insp-check-unraveling'),
-        finishing: getVal('manual-insp-check-finishing'),
-        zipper: getVal('manual-insp-check-zipper'),
-        button: getVal('manual-insp-check-button'),
-        lining: getVal('manual-insp-check-lining'),
-        pilling: getVal('manual-insp-check-pilling'),
-        dye: getVal('manual-insp-check-dye')
-    };
-
-    if (checklist.thickness === '' || Object.values(checklist).some(v => v === "" || v === null)) {
-        alert("⚠️ 모든 품질 체크리스트 항목을 확인하고 선택해주세요.");
+    if (!productName || !note) {
+        showToast("상품명과 특이사항을 모두 입력해주세요.", true);
         return false;
     }
 
-    const defectsFound = [];
-    const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
-    const labelMap = {
-        fabric: '원단', color: '컬러', distortion: '뒤틀림',
-        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-        lining: '안감', pilling: '보풀', dye: '이염'
-    };
-
-    Object.entries(checklist).forEach(([key, value]) => {
-        if (key === 'thickness') return;
-        if (!NORMAL_VALUES.includes(value)) {
-            defectsFound.push(`${labelMap[key] || key}(${value})`);
-        }
-    });
-
+    productName = productName.replace(/\//g, '-'); 
     const today = getTodayDateString();
     const nowTime = getCurrentTime();
-    const status = defectsFound.length > 0 ? '불량' : '정상';
+    const inspector = State.appState.currentUser || 'Unknown';
 
-    const inboundDate = getVal('manual-insp-inbound-date') || today;
-    const packingDate = getVal('manual-insp-packing-date') || '-';
-
-    const newRecord = {
+    const preRecord = {
         date: today,
         time: nowTime,
-        inspector: State.appState.currentUser || 'Unknown(수동입력)',
-        packingDate: packingDate,
-        inboundDate: inboundDate,
-        inboundQty: Number(getVal('manual-insp-inbound-qty')) || 0,
-        supplierName: getVal('manual-insp-supplier-name') || '-',
-        code: getVal('manual-insp-code') || '-',
-        option: getVal('manual-insp-option') || '-',
-        location: '-',
-        checklist,
-        defects: defectsFound,
-        note: getVal('manual-insp-notes'),
-        status,
-        image: null 
+        inspector: inspector,
+        inboundDate: '출고예정(사전등록)',
+        inboundQty: 0,
+        status: '사전메모',
+        note: `[사전등록] ${note}`,
+        defects: [],
+        checklist: {}
     };
 
+    const docRef = doc(State.db, 'product_history', productName);
+
     try {
-        const docRef = doc(State.db, 'product_history', productName);
         const docSnap = await getDoc(docRef);
-        let existingLogs = [];
+        const defectStr = `${today}: [사전등록] ${note}`;
+
         if (docSnap.exists()) {
-            existingLogs = docSnap.data().logs || [];
-        }
-        
-        const tempLogs = [...existingLogs, newRecord];
-        const updates = {
-            lastInspectionDate: today,
-            totalInbound: getUniqueInboundCount(tempLogs),
-            logs: arrayUnion(newRecord),
-            updatedAt: serverTimestamp()
-        };
-
-        updates.lastCode = newRecord.code;
-        updates.lastOption = newRecord.option;
-        updates.lastSupplierName = newRecord.supplierName;
-
-        if (defectsFound.length > 0) {
-            const defectSummaryStr = `${today}: ${defectsFound.join(', ')}`;
-            updates.defectSummary = arrayUnion(defectSummaryStr);
+            await updateDoc(docRef, {
+                logs: arrayUnion(preRecord),
+                defectSummary: arrayUnion(defectStr),
+                updatedAt: serverTimestamp()
+            });
+        } else {
+            await setDoc(docRef, {
+                id: productName,
+                totalInbound: 0,
+                lastInspectionDate: '-',
+                logs: [preRecord],
+                defectSummary: [defectStr],
+                updatedAt: serverTimestamp()
+            });
         }
 
-        await setDoc(docRef, updates, { merge: true });
-
-        showToast(`'${productName}' 수동 검수 등록 완료`);
-        const modal = document.getElementById('manual-add-inspection-modal');
-        if (modal) modal.classList.add('hidden');
+        showToast(`'${productName}' 사전 특이사항 등록 완료`);
+        const preModal = document.getElementById('pre-register-inspection-modal');
+        if (preModal) preModal.classList.add('hidden');
         
+        if (productNameInput) productNameInput.value = '';
+        if (noteInput) noteInput.value = '';
+
         return true;
     } catch (e) {
-        console.error("Error saving manual inspection:", e);
+        console.error("Error saving pre-note:", e);
         showToast("저장 중 오류가 발생했습니다.", true);
         return false;
     }

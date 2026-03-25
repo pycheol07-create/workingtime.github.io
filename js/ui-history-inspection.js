@@ -5,6 +5,7 @@ import { context } from './state.js';
 // 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
 
+// 헬퍼: 정렬 아이콘 HTML 생성
 const getSortIcon = (key) => {
     if (sortState.key !== key) return '<span class="text-gray-300 text-[10px] ml-1 opacity-50">↕</span>';
     return sortState.dir === 'asc' 
@@ -12,6 +13,7 @@ const getSortIcon = (key) => {
         : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
 };
 
+// 헬퍼: 불량 이력 요약 (최신 1건 표시)
 const formatDefectSummary = (defectSummary) => {
     if (!defectSummary || defectSummary.length === 0) {
         return '<span class="text-gray-400">-</span>';
@@ -20,6 +22,9 @@ const formatDefectSummary = (defectSummary) => {
     return `<span class="text-red-600 font-medium text-xs truncate block max-w-[200px]" title="${lastDefect}">${lastDefect}</span>`;
 };
 
+/**
+ * 메인 프레임 렌더링 (탭 버튼 포함 + 다운로드 버튼 이동)
+ */
 export const renderInspectionLayout = (container) => {
     if (!container) return;
     const activeTab = context.inspectionViewMode || 'product';
@@ -38,11 +43,11 @@ export const renderInspectionLayout = (container) => {
                     </button>
                 </div>
                 <div class="pb-1 pr-1 flex gap-2">
-                    <button id="btn-manual-add-inspection" class="text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
+                    <button id="btn-add-pre-inspection" class="text-xs bg-orange-500 hover:bg-orange-600 text-white font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                        수동 검수 등록
+                        출고예정 특이사항 등록
                     </button>
                     <button id="inspection-tab-download-btn" class="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -278,6 +283,15 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
+// 기존 모달 렌더러는 예비용으로 둠
+export const renderInspectionLogTable = (logs, productName) => {
+    // ... 기존 코드 유지
+};
+
+/**
+ * 클릭한 행 바로 밑에 상세 로그를 펼치는 (Accordion) 렌더러
+ * (코드/옵션 기준으로 그룹화하여 표시)
+ */
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const table = targetTr.closest('table');
     if (table) {
