@@ -365,7 +365,8 @@ async function startAppAfterLogin(user) {
         const leaves = State.persistentLeaveSchedule.onLeaveMembers || [];
         
         State.appState.dateBasedOnLeaveMembers = leaves.filter(entry => {
-            if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근') {
+            // ✅ [수정] '매장근무' 항목을 조건에 추가
+            if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근' || entry.type === '매장근무') {
                 const endDate = entry.endDate || entry.startDate;
                 return entry.startDate && typeof entry.startDate === 'string' &&
                     today >= entry.startDate && today <= (endDate || entry.startDate);
