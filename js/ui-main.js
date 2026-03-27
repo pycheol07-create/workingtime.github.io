@@ -1,6 +1,6 @@
 // === js/ui-main.js ===
 
-import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday, calculateDateDifference, calcTotalPauseMinutes } from './utils.js';
+import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, isWeekday, calculateDateDifference, calculateWorkingDays, calcTotalPauseMinutes } from './utils.js';
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 
 // State 전체 임포트
@@ -9,6 +9,7 @@ import * as State from './state.js';
 /**
  * 연차 표시 라벨 생성 헬퍼 (예: "연차1" or "연차1-3")
  * ✅ [수정] 모달과 동일한 '병합(Merge)' 로직을 적용하여 차수(Nth) 불일치 해결
+ * ✅ [수정] 주말을 제외한 평일 기준으로 연차 일수 계산
  */
 const getLeaveDisplayLabel = (member, leaveEntry) => {
     if (leaveEntry.type !== '연차') return leaveEntry.type;
@@ -76,7 +77,12 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     let cumulativeDays = 0;
     
     for (const block of mergedHistory) {
-        const days = calculateDateDifference(block.startDate, block.endDate);
+        // 주말을 제외하고 일수를 계산합니다.
+        const days = calculateWorkingDays(block.startDate, block.endDate);
+        
+        // 주말만 포함된 기간이라면 카운트하지 않습니다.
+        if (days === 0) continue;
+
         const startNth = cumulativeDays + 1;
         const endNth = cumulativeDays + days;
         cumulativeDays += days;
