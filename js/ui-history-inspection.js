@@ -6,7 +6,6 @@ import { getWeekOfYear } from './utils.js';
 // 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
 
-// 헬퍼: 정렬 아이콘 HTML 생성
 const getSortIcon = (key) => {
     if (sortState.key !== key) return '<span class="text-gray-300 text-[10px] ml-1 opacity-50">↕</span>';
     return sortState.dir === 'asc' 
@@ -14,7 +13,6 @@ const getSortIcon = (key) => {
         : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
 };
 
-// 헬퍼: 불량 이력 요약 (최신 1건 표시)
 const formatDefectSummary = (defectSummary) => {
     if (!defectSummary || defectSummary.length === 0) {
         return '<span class="text-gray-400">-</span>';
@@ -23,9 +21,6 @@ const formatDefectSummary = (defectSummary) => {
     return `<span class="text-red-600 font-medium text-xs truncate block max-w-[200px]" title="${lastDefect}">${lastDefect}</span>`;
 };
 
-/**
- * 메인 프레임 렌더링 (탭 버튼 포함 + 다운로드 버튼 이동)
- */
 export const renderInspectionLayout = (container) => {
     if (!container) return;
     const activeTab = context.inspectionViewMode || 'product';
@@ -49,15 +44,11 @@ export const renderInspectionLayout = (container) => {
                 </div>
                 <div class="pb-1 pr-1 flex gap-2">
                     <button id="btn-add-pre-inspection" class="text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
                         수동 상품 추가
                     </button>
                     <button id="inspection-tab-download-btn" class="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                         다운로드
                     </button>
                 </div>
@@ -105,10 +96,6 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                         <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
                         <span class="text-xs text-gray-500">0건</span>
                     </div>
-                    <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition" 
-                            data-action="request-history-deletion" data-date-key="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
-                        🗑️ 리스트 삭제
-                    </button>
                 </div>
                 <div class="flex h-full items-center justify-center text-gray-400 text-sm">해당 날짜의 리스트 데이터가 없습니다.</div>
             </div>
@@ -145,8 +132,8 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                         <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
                         <span class="text-xs text-gray-500">상품을 클릭하면 검수 상세내역이 펼쳐집니다.</span>
                     </div>
-                    <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition" 
-                            data-action="request-history-deletion" data-date-key="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
+                    <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list" 
+                            data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
                         🗑️ 리스트 삭제
                     </button>
                 </div>
@@ -293,10 +280,8 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
-// [중요] ui-history.js 에서의 import 에러 방지용 모달 렌더러 함수
-export const renderInspectionLogTable = (logs, productName) => {
-    // UI 변경으로 인해 사용되지 않지만, 다른 모듈의 참조 오류를 방지하기 위해 남겨둡니다.
-};
+// [중요] ui-history.js 에서의 import 에러 방지용
+export const renderInspectionLogTable = (logs, productName) => {};
 
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const table = targetTr.closest('table');
@@ -462,66 +447,105 @@ export const setSortState = (key) => {
 };
 
 /**
- * QC 통계 리포트 렌더링
+ * ★ 수정된 QC 통계 리포트 렌더링 (원본 상세 DB 데이터를 인자로 받음)
  */
-export const renderQCStatsMode = (periodType = 'month', selectedPeriod = '') => {
+export const renderQCStatsMode = (historyData, periodType = 'month', selectedPeriod = '') => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
 
-    // 1. 기간 옵션 생성 (최근 데이터 기준)
+    if (!historyData || historyData.length === 0) {
+        container.innerHTML = '<div class="text-center py-10 text-gray-500">데이터를 로드하는 중이거나 데이터가 없습니다.</div>';
+        return;
+    }
+
+    // 1. 기간 옵션 생성 (DB의 상세 로그 기준)
     const weeks = new Set();
     const months = new Set();
     
-    allHistoryData.forEach(day => {
-        if (day.inspectionList && day.inspectionList.length > 0) {
-            months.add(day.id.substring(0, 7)); // YYYY-MM
-            weeks.add(getWeekOfYear(new Date(day.id))); // YYYY-Wxx
+    historyData.forEach(product => {
+        if (product.logs && Array.isArray(product.logs)) {
+            product.logs.forEach(log => {
+                if (log.date) {
+                    months.add(log.date.substring(0, 7)); // YYYY-MM
+                    weeks.add(getWeekOfYear(new Date(log.date))); // YYYY-Wxx
+                }
+            });
         }
     });
 
     const monthOptions = Array.from(months).sort().reverse();
     const weekOptions = Array.from(weeks).sort().reverse();
 
-    // 기본 선택값 설정
     if (!selectedPeriod) {
         selectedPeriod = periodType === 'month' ? monthOptions[0] : weekOptions[0];
     }
 
-    // 2. 선택된 기간의 데이터 집계
+    // 2. 선택된 기간의 상세 데이터 집계
     let totalInspected = 0;
     let totalDefects = 0;
     const inspectedProducts = new Set();
-    const productStats = {}; // { '상품명': { total: 0, defects: 0, types: [] } }
+    const productStats = {}; 
 
-    allHistoryData.forEach(day => {
-        const dayMonth = day.id.substring(0, 7);
-        const dayWeek = getWeekOfYear(new Date(day.id));
-
-        const isMatch = (periodType === 'month' && dayMonth === selectedPeriod) || 
-                        (periodType === 'week' && dayWeek === selectedPeriod);
-
-        if (isMatch && day.inspectionList) {
-            day.inspectionList.forEach(log => {
-                // 상품 이름 추출
-                const pName = log.name || log.code || '알 수 없음';
-                inspectedProducts.add(pName);
+    historyData.forEach(product => {
+        const pName = product.id;
+        
+        if (product.logs && Array.isArray(product.logs)) {
+            product.logs.forEach(log => {
+                if (!log.date) return;
                 
-                if (!productStats[pName]) {
-                    productStats[pName] = { total: 0, defects: 0, defectsList: [] };
-                }
+                const logMonth = log.date.substring(0, 7);
+                const logWeek = getWeekOfYear(new Date(log.date));
 
-                // 검수 수량 누적
-                const qty = Number(log.qty) || 1; 
-                productStats[pName].total += qty;
-                totalInspected += qty;
+                const isMatch = (periodType === 'month' && logMonth === selectedPeriod) || 
+                                (periodType === 'week' && logWeek === selectedPeriod);
 
-                // 불량 여부 확인
-                const isDefect = log.status === '불량' || (log.defects && log.defects.length > 0);
-                if (isDefect) {
-                    productStats[pName].defects += qty;
-                    totalDefects += qty;
-                    if (log.defects) {
-                        productStats[pName].defectsList.push(...log.defects);
+                if (isMatch) {
+                    inspectedProducts.add(pName);
+                    
+                    if (!productStats[pName]) {
+                        productStats[pName] = { total: 0, defects: 0, defectsList: [] };
+                    }
+
+                    // 수량 추출 (우선순위: inboundQty -> qty -> 1)
+                    const qty = Number(log.inboundQty) || Number(log.qty) || 1; 
+                    productStats[pName].total += qty;
+                    totalInspected += qty;
+
+                    // ★ 철저한 불량 기준 검사
+                    let isDefect = false;
+                    const defectReasons = [];
+                    const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
+
+                    // 1) 상태값이 '불량'인 경우
+                    if (log.status === '불량') isDefect = true;
+                    
+                    // 2) 별도 defects 배열이 있는 경우
+                    if (log.defects && Array.isArray(log.defects) && log.defects.length > 0) {
+                        isDefect = true;
+                        defectReasons.push(...log.defects);
+                    }
+
+                    // 3) 체크리스트에 비정상적인 값이 있는 경우 모두 색출
+                    if (log.checklist) {
+                        const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
+                        Object.entries(log.checklist).forEach(([key, val]) => {
+                            // 두께(thickness)는 예외, 값(val)이 존재하고, 정상값 범주에 없으면 불량 처리
+                            if (key !== 'thickness' && val && !normalValues.includes(val)) {
+                                isDefect = true;
+                                defectReasons.push(`${labelMap[key] || key}: ${val}`);
+                            }
+                        });
+                    }
+
+                    // 불량으로 판정된 경우 카운트 및 사유 저장
+                    if (isDefect) {
+                        productStats[pName].defects += qty;
+                        totalDefects += qty;
+                        if (defectReasons.length > 0) {
+                            productStats[pName].defectsList.push(...defectReasons);
+                        } else {
+                            productStats[pName].defectsList.push('상태 불량/기타');
+                        }
                     }
                 }
             });
@@ -574,15 +598,15 @@ export const renderQCStatsMode = (periodType = 'month', selectedPeriod = '') => 
             
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500">
-                    <div class="text-xs text-gray-500 mb-1">총 검수 수량</div>
+                    <div class="text-xs text-gray-500 mb-1">총 입고(검수) 수량</div>
                     <div class="text-2xl font-bold text-gray-800">${totalInspected.toLocaleString()} <span class="text-sm font-normal text-gray-500">건</span></div>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
-                    <div class="text-xs text-gray-500 mb-1">검수 상품 종류</div>
+                    <div class="text-xs text-gray-500 mb-1">입고 상품 종류</div>
                     <div class="text-2xl font-bold text-gray-800">${totalProductTypes.toLocaleString()} <span class="text-sm font-normal text-gray-500">종</span></div>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
-                    <div class="text-xs text-gray-500 mb-1">총 불량 발견 수</div>
+                    <div class="text-xs text-gray-500 mb-1">총 불량 발견 수량</div>
                     <div class="text-2xl font-bold text-red-600">${totalDefects.toLocaleString()} <span class="text-sm font-normal text-gray-500">건</span></div>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 ${defectRate > 5 ? 'border-red-500' : 'border-green-500'}">
@@ -599,11 +623,11 @@ export const renderQCStatsMode = (periodType = 'month', selectedPeriod = '') => 
                     <table class="w-full text-sm text-left">
                         <thead class="text-xs text-gray-500 uppercase bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3">상품명</th>
+                                <th class="px-4 py-3 w-1/4">상품명</th>
                                 <th class="px-4 py-3 text-center">검수 수량</th>
                                 <th class="px-4 py-3 text-center">불량 건수</th>
                                 <th class="px-4 py-3 text-center">불량률</th>
-                                <th class="px-4 py-3">주요 불량 사유</th>
+                                <th class="px-4 py-3 w-1/3">주요 불량 사유</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
@@ -611,18 +635,18 @@ export const renderQCStatsMode = (periodType = 'month', selectedPeriod = '') => 
                                 <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다. 🎉</td></tr>
                             ` : topDefectiveProducts.map((p, idx) => `
                                 <tr class="hover:bg-red-50 transition">
-                                    <td class="px-4 py-3 font-medium text-gray-900">
+                                    <td class="px-4 py-3 font-medium text-gray-900 break-words">
                                         <span class="inline-block w-4 h-4 text-center rounded-full ${idx < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'} text-[10px] mr-1 leading-4">${idx + 1}</span>
                                         ${p.name}
                                     </td>
                                     <td class="px-4 py-3 text-center text-gray-600">${p.total}</td>
                                     <td class="px-4 py-3 text-center font-bold text-red-600">${p.defects}</td>
                                     <td class="px-4 py-3 text-center">
-                                        <span class="px-2 py-1 rounded text-xs ${p.rate > 10 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
+                                        <span class="px-2 py-1 rounded text-xs font-bold ${p.rate > 10 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
                                             ${p.rate}%
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 text-xs text-gray-500">${p.commonDefects}</td>
+                                    <td class="px-4 py-3 text-[11px] text-gray-500 break-words">${p.commonDefects}</td>
                                 </tr>
                             `).join('')}
                         </tbody>

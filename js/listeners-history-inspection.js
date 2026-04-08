@@ -38,7 +38,8 @@ export const fetchAndRenderInspectionHistory = async () => {
 
     const viewMode = State.context.inspectionViewMode || 'product';
 
-    if (viewMode === 'product') {
+    // ★ 상품별 보기 또는 QC 통계 모드일 때 전체 상세 DB 데이터를 불러옵니다.
+    if (viewMode === 'product' || viewMode === 'qc') {
         try {
             const colRef = collection(State.db, 'product_history');
             const snapshot = await getDocs(colRef);
@@ -47,7 +48,13 @@ export const fetchAndRenderInspectionHistory = async () => {
             snapshot.forEach(doc => {
                 cachedInspectionData.push({ id: doc.id, ...doc.data() });
             });
-            renderInspectionHistoryTable(cachedInspectionData);
+            
+            if (viewMode === 'product') {
+                renderInspectionHistoryTable(cachedInspectionData);
+            } else if (viewMode === 'qc') {
+                // QC 통계 모드일 때 원본 데이터를 넘겨줍니다.
+                renderQCStatsMode(cachedInspectionData, 'month', '');
+            }
         } catch (e) {
             console.error("Error loading inspection history:", e);
             contentArea.innerHTML = '<div class="text-center text-red-500 py-10">데이터 로딩 실패</div>';
@@ -75,15 +82,11 @@ export const fetchAndRenderInspectionHistory = async () => {
         } else {
             renderInspectionListMode([], []);
         }
-    } else if (viewMode === 'qc') {
-        // ★ QC 통계 대시보드 렌더링
-        renderQCStatsMode('month', '');
     }
 };
 
 export function setupHistoryInspectionListeners() {
 
-    // 수동 추가 모달 이벤트 및 이미지 처리 연결
     const preModal = document.getElementById('pre-register-inspection-modal');
     if (preModal) {
         preModal.addEventListener('click', async (e) => {
@@ -97,13 +100,11 @@ export function setupHistoryInspectionListeners() {
                     fetchAndRenderInspectionHistory(); 
                 }
             }
-            // 이미지 삭제 버튼 클릭 시
             if (e.target.closest('#manual-insp-image-clear-btn')) {
                 clearManualImageState();
             }
         });
 
-        // 이미지 파일 선택(첨부) 변경 이벤트
         const imageInput = document.getElementById('manual-insp-image');
         if (imageInput) {
             imageInput.addEventListener('change', (e) => {
@@ -117,16 +118,15 @@ export function setupHistoryInspectionListeners() {
 
     if (DOM.inspectionHistoryViewContainer) {
         
-        // QC 조회 기간 조건(월간/주간) 변경 이벤트
+        // ★ QC 조회 기간 조건 변경 이벤트 (캐시된 상세 데이터 활용)
         DOM.inspectionHistoryViewContainer.addEventListener('change', (e) => {
             if (e.target.id === 'qc-period-type') {
-                renderQCStatsMode(e.target.value, '');
+                renderQCStatsMode(cachedInspectionData, e.target.value, '');
             }
         });
 
         DOM.inspectionHistoryViewContainer.addEventListener('click', async (e) => {
             
-            // 수동 검수 추가 모달 열기 (확장된 폼 초기화)
             const addPreBtn = e.target.closest('#btn-add-pre-inspection');
             if (addPreBtn) {
                 const modal = document.getElementById('pre-register-inspection-modal');
@@ -153,18 +153,17 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // QC 통계 리포트 조회 버튼
+            // ★ QC 통계 리포트 조회 버튼 (캐시된 상세 데이터 활용)
             const refreshQcBtn = e.target.closest('#btn-refresh-qc');
             if (refreshQcBtn) {
                 const typeSelect = document.getElementById('qc-period-type');
                 const valueSelect = document.getElementById('qc-period-value');
                 if (typeSelect && valueSelect) {
-                    renderQCStatsMode(typeSelect.value, valueSelect.value);
+                    renderQCStatsMode(cachedInspectionData, typeSelect.value, valueSelect.value);
                 }
                 return;
             }
 
-            // 리스트 삭제
             const deleteListBtn = e.target.closest('.btn-delete-history-list');
             if (deleteListBtn) {
                 const dateKey = deleteListBtn.dataset.date;
@@ -176,7 +175,6 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // 상품 전체 삭제
             const deleteProductBtn = e.target.closest('.btn-delete-product');
             if (deleteProductBtn) {
                 const productName = deleteProductBtn.dataset.productName;
@@ -187,14 +185,12 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // 확장된 상세 행 닫기 버튼
             const closeExpandedBtn = e.target.closest('.btn-close-expanded');
             if (closeExpandedBtn) {
                 closeExpandedBtn.closest('.expanded-detail-row').remove();
                 return;
             }
 
-            // 상세 행 내부의 수정 버튼 (수정 모달 열기)
             const editBtn = e.target.closest('.btn-edit-insp-log');
             if (editBtn) {
                 const index = parseInt(editBtn.dataset.index, 10);
@@ -203,7 +199,6 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // 상단 모드 변경 탭 (상품별, 리스트별, QC 통계별)
             const tabBtn = e.target.closest('button[data-insp-tab]');
             if (tabBtn) {
                 const mode = tabBtn.dataset.inspTab;
@@ -215,7 +210,6 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // 리스트 탭 날짜 선택
             const dateBtn = e.target.closest('.btn-select-insp-date');
             if (dateBtn) {
                 const date = dateBtn.dataset.date;
@@ -226,7 +220,6 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // 정렬
             const th = e.target.closest('th[data-sort-key]');
             if (th) {
                 const key = th.dataset.sortKey;
@@ -235,7 +228,6 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // 행을 클릭하면 상세 내역 아코디언 펼치기
             const detailBtn = e.target.closest('.btn-view-detail');
             if (detailBtn) {
                 const tr = detailBtn.tagName === 'TR' ? detailBtn : detailBtn.closest('tr');
