@@ -1,6 +1,7 @@
 // === js/ui-history-inspection.js ===
 import * as DOM from './dom-elements.js';
-import { context } from './state.js';
+import { context, allHistoryData } from './state.js';
+import { getWeekOfYear } from './utils.js';
 
 // 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
@@ -40,6 +41,10 @@ export const renderInspectionLayout = (container) => {
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="list">
                         📅 검수 일자별 보기
+                    </button>
+                    <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'qc' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
+                            data-insp-tab="qc">
+                        📊 QC 통계 리포트
                     </button>
                 </div>
                 <div class="pb-1 pr-1 flex gap-2">
@@ -115,7 +120,6 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                 ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">완료</span>`
                 : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
             
-            // ✅ [수정] 옵션, 코드, 날짜 데이터를 숨김 속성으로 전달
             return `
                 <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail" 
                     data-product-name="${item.name}" 
@@ -289,15 +293,6 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
-// 기존 모달 렌더러는 예비용으로 둠
-export const renderInspectionLogTable = (logs, productName) => {
-    // ... 기존 코드 유지
-};
-
-/**
- * 클릭한 행 바로 밑에 상세 로그를 펼치는 (Accordion) 렌더러
- * (코드/옵션 기준으로 그룹화하여 표시)
- */
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const table = targetTr.closest('table');
     if (table) {
@@ -306,7 +301,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
 
     const colspan = targetTr.children.length; 
 
-    // ✅ [추가] '검수 일자별 보기(list)' 모드일 때 옵션/코드/날짜 기반 필터링 적용
     let displayLogs = logs;
     if (context.inspectionViewMode === 'list') {
         const targetOption = targetTr.dataset.productOption;
@@ -318,8 +312,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 const logOption = log.option || '-';
                 const logCode = log.code || '-';
                 const logDate = log.date || '-';
-
-                // 해당 날짜, 해당 코드, 해당 옵션인 로그만 남김
                 return logOption === targetOption && logCode === targetCode && logDate === targetDate;
             });
         }
@@ -329,13 +321,11 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner';
     
     let logsHtml = '';
-    // ✅ [수정] logs 대신 displayLogs를 사용하도록 변경
     if (!displayLogs || displayLogs.length === 0) {
         logsHtml = '<div class="p-6 text-center text-gray-500">해당 조건의 상세 검수 기록이 없습니다.</div>';
     } else {
         const groupedLogs = {};
         displayLogs.forEach((log, idx) => {
-            // 원본 인덱스를 보존
             const originalIdx = log.originalIndex !== undefined ? log.originalIndex : idx;
 
             const code = log.code || '-';
@@ -464,4 +454,177 @@ export const setSortState = (key) => {
         sortState.key = key;
         sortState.dir = 'desc';
     }
+};
+
+/**
+ * QC 통계 리포트 렌더링
+ */
+export const renderQCStatsMode = (periodType = 'month', selectedPeriod = '') => {
+    const container = document.getElementById('inspection-content-area');
+    if (!container) return;
+
+    // 1. 기간 옵션 생성 (최근 데이터 기준)
+    const weeks = new Set();
+    const months = new Set();
+    
+    allHistoryData.forEach(day => {
+        if (day.inspectionList && day.inspectionList.length > 0) {
+            months.add(day.id.substring(0, 7)); // YYYY-MM
+            weeks.add(getWeekOfYear(new Date(day.id))); // YYYY-Wxx
+        }
+    });
+
+    const monthOptions = Array.from(months).sort().reverse();
+    const weekOptions = Array.from(weeks).sort().reverse();
+
+    // 기본 선택값 설정
+    if (!selectedPeriod) {
+        selectedPeriod = periodType === 'month' ? monthOptions[0] : weekOptions[0];
+    }
+
+    // 2. 선택된 기간의 데이터 집계
+    let totalInspected = 0;
+    let totalDefects = 0;
+    const inspectedProducts = new Set();
+    const productStats = {}; // { '상품명': { total: 0, defects: 0, types: [] } }
+
+    allHistoryData.forEach(day => {
+        const dayMonth = day.id.substring(0, 7);
+        const dayWeek = getWeekOfYear(new Date(day.id));
+
+        const isMatch = (periodType === 'month' && dayMonth === selectedPeriod) || 
+                        (periodType === 'week' && dayWeek === selectedPeriod);
+
+        if (isMatch && day.inspectionList) {
+            day.inspectionList.forEach(log => {
+                // 상품 이름 추출
+                const pName = log.name || log.code || '알 수 없음';
+                inspectedProducts.add(pName);
+                
+                if (!productStats[pName]) {
+                    productStats[pName] = { total: 0, defects: 0, defectsList: [] };
+                }
+
+                // 검수 수량 누적
+                const qty = Number(log.qty) || 1; 
+                productStats[pName].total += qty;
+                totalInspected += qty;
+
+                // 불량 여부 확인
+                const isDefect = log.status === '불량' || (log.defects && log.defects.length > 0);
+                if (isDefect) {
+                    productStats[pName].defects += qty;
+                    totalDefects += qty;
+                    if (log.defects) {
+                        productStats[pName].defectsList.push(...log.defects);
+                    }
+                }
+            });
+        }
+    });
+
+    const defectRate = totalInspected > 0 ? ((totalDefects / totalInspected) * 100).toFixed(1) : 0;
+    const totalProductTypes = inspectedProducts.size;
+
+    // 불량률이 높은 상위 10개 상품 정렬
+    const topDefectiveProducts = Object.entries(productStats)
+        .map(([name, stats]) => ({
+            name,
+            total: stats.total,
+            defects: stats.defects,
+            rate: stats.total > 0 ? ((stats.defects / stats.total) * 100).toFixed(1) : 0,
+            commonDefects: [...new Set(stats.defectsList)].join(', ') || '-'
+        }))
+        .filter(p => p.defects > 0)
+        .sort((a, b) => b.defects - a.defects) // 불량 건수 순 정렬
+        .slice(0, 10);
+
+    // 3. HTML 생성
+    container.innerHTML = `
+        <div class="h-full flex flex-col bg-gray-50 p-4 rounded-lg overflow-y-auto">
+            
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 flex gap-4 items-end">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">통계 기준</label>
+                    <select id="qc-period-type" class="border border-gray-300 rounded p-1.5 text-sm focus:ring-indigo-500">
+                        <option value="month" ${periodType === 'month' ? 'selected' : ''}>월간 (Monthly)</option>
+                        <option value="week" ${periodType === 'week' ? 'selected' : ''}>주간 (Weekly)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">조회 기간</label>
+                    <select id="qc-period-value" class="border border-gray-300 rounded p-1.5 text-sm focus:ring-indigo-500 min-w-[120px]">
+                        ${periodType === 'month' 
+                            ? monthOptions.map(m => `<option value="${m}" ${selectedPeriod === m ? 'selected' : ''}>${m}</option>`).join('')
+                            : weekOptions.map(w => `<option value="${w}" ${selectedPeriod === w ? 'selected' : ''}>${w}</option>`).join('')
+                        }
+                    </select>
+                </div>
+                <button id="btn-refresh-qc" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-1.5 px-4 rounded shadow transition">
+                    조회
+                </button>
+            </div>
+
+            ${!selectedPeriod ? `<div class="text-center text-gray-500 py-10">해당 기간에 검수 데이터가 없습니다.</div>` : `
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500">
+                    <div class="text-xs text-gray-500 mb-1">총 검수 수량</div>
+                    <div class="text-2xl font-bold text-gray-800">${totalInspected.toLocaleString()} <span class="text-sm font-normal text-gray-500">건</span></div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
+                    <div class="text-xs text-gray-500 mb-1">검수 상품 종류</div>
+                    <div class="text-2xl font-bold text-gray-800">${totalProductTypes.toLocaleString()} <span class="text-sm font-normal text-gray-500">종</span></div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
+                    <div class="text-xs text-gray-500 mb-1">총 불량 발견 수</div>
+                    <div class="text-2xl font-bold text-red-600">${totalDefects.toLocaleString()} <span class="text-sm font-normal text-gray-500">건</span></div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 ${defectRate > 5 ? 'border-red-500' : 'border-green-500'}">
+                    <div class="text-xs text-gray-500 mb-1">평균 불량률</div>
+                    <div class="text-2xl font-bold ${defectRate > 5 ? 'text-red-600' : 'text-gray-800'}">${defectRate} <span class="text-sm font-normal text-gray-500">%</span></div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex-grow">
+                <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                    <h3 class="font-bold text-gray-700">⚠️ QC 집중 관리 대상 (불량 다발 상품 TOP 10)</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-gray-500 uppercase bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3">상품명</th>
+                                <th class="px-4 py-3 text-center">검수 수량</th>
+                                <th class="px-4 py-3 text-center">불량 건수</th>
+                                <th class="px-4 py-3 text-center">불량률</th>
+                                <th class="px-4 py-3">주요 불량 사유</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            ${topDefectiveProducts.length === 0 ? `
+                                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다. 🎉</td></tr>
+                            ` : topDefectiveProducts.map((p, idx) => `
+                                <tr class="hover:bg-red-50 transition">
+                                    <td class="px-4 py-3 font-medium text-gray-900">
+                                        <span class="inline-block w-4 h-4 text-center rounded-full ${idx < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'} text-[10px] mr-1 leading-4">${idx + 1}</span>
+                                        ${p.name}
+                                    </td>
+                                    <td class="px-4 py-3 text-center text-gray-600">${p.total}</td>
+                                    <td class="px-4 py-3 text-center font-bold text-red-600">${p.defects}</td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="px-2 py-1 rounded text-xs ${p.rate > 10 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
+                                            ${p.rate}%
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-xs text-gray-500">${p.commonDefects}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            `}
+        </div>
+    `;
 };
