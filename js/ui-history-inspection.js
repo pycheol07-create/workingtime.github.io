@@ -307,7 +307,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     }
 
     const tr = document.createElement('tr');
-    tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner';
+    tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner relative z-0';
     
     let logsHtml = '';
     if (!displayLogs || displayLogs.length === 0) {
@@ -410,7 +410,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                     <button class="text-xs text-gray-500 hover:text-gray-800 font-bold btn-close-expanded px-3 py-1 rounded hover:bg-gray-200 transition border border-gray-300 bg-white shadow-sm">닫기 ✖</button>
                 </div>
                 <div class="overflow-x-auto rounded-lg border border-indigo-200 bg-white shadow-sm">
-                    <table class="w-full text-left">
+                    <table class="w-full text-left relative z-0">
                         <thead class="bg-indigo-100 text-[11px] text-indigo-800 uppercase">
                             <tr>
                                 <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%]">입고(검수)일시</th>
@@ -454,7 +454,6 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         return;
     }
 
-    // 1. 기간 옵션 생성
     const weeks = new Set();
     const months = new Set();
     
@@ -476,7 +475,6 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         selectedPeriod = periodType === 'month' ? monthOptions[0] : weekOptions[0];
     }
 
-    // 2. 선택된 기간의 횟수 및 수량 데이터 집계
     let totalInspectedQty = 0;
     let totalDefectQty = 0;
     let totalInspectionCount = 0;
@@ -504,10 +502,8 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                         productStats[pName] = { totalQty: 0, defectQty: 0, inspCount: 0, defectCount: 0, defectsList: [] };
                     }
 
-                    // 수량 추출
                     const qty = Number(log.inboundQty) || Number(log.qty) || 1; 
                     
-                    // 횟수와 수량 누적
                     productStats[pName].inspCount += 1;
                     totalInspectionCount += 1;
                     
@@ -535,7 +531,6 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                         });
                     }
 
-                    // 불량 발생 시 횟수와 불량수량 동시 처리
                     if (isDefect) {
                         productStats[pName].defectCount += 1;
                         totalDefectCount += 1;
@@ -558,7 +553,6 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
     const countDefectRate = totalInspectionCount > 0 ? ((totalDefectCount / totalInspectionCount) * 100).toFixed(1) : 0;
     const totalProductTypes = inspectedProducts.size;
 
-    // 불량률이 높은 상위 15개 상품 (횟수 불량 우선 정렬)
     const topDefectiveProducts = Object.entries(productStats)
         .map(([name, stats]) => ({
             name,
@@ -574,11 +568,10 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         .sort((a, b) => b.defectCount - a.defectCount || b.defectQty - a.defectQty) 
         .slice(0, 15);
 
-    // 3. HTML 생성
     container.innerHTML = `
         <div class="h-full flex flex-col bg-gray-50 p-4 rounded-lg overflow-y-auto">
             
-            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 flex gap-4 items-end">
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 flex gap-4 items-end shrink-0">
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">통계 기준</label>
                     <select id="qc-period-type" class="border border-gray-300 rounded p-1.5 text-sm focus:ring-indigo-500">
@@ -602,7 +595,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
 
             ${!selectedPeriod ? `<div class="text-center text-gray-500 py-10">해당 기간에 검수 데이터가 없습니다.</div>` : `
             
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 shrink-0">
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500">
                     <div class="text-xs text-gray-500 mb-1">총 검수 진행 횟수</div>
                     <div class="text-2xl font-bold text-gray-800">${totalInspectionCount.toLocaleString()} <span class="text-sm font-normal text-gray-500">회</span></div>
@@ -621,21 +614,23 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex-grow">
-                <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col flex-grow min-h-[300px]">
+                <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
                     <h3 class="font-bold text-gray-700">⚠️ QC 집중 관리 대상 (발생 횟수 최다 상품 TOP 15)</h3>
                     <span class="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded shadow-sm">💡 행을 클릭하면 상세 내역을 볼 수 있습니다.</span>
                 </div>
-                <div class="overflow-x-auto">
+                
+                <div class="overflow-auto flex-grow custom-scrollbar relative">
                     <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-gray-500 bg-gray-50">
-                            <tr>
+                        
+                        <thead class="text-xs text-gray-500 bg-gray-50 sticky top-0 z-20 shadow-sm outline outline-1 outline-gray-200">
+                            <tr class="bg-gray-50">
                                 <th class="px-4 py-3 border-b">상품명</th>
                                 <th class="px-4 py-3 text-center border-b border-l bg-gray-100/50" colspan="3">📊 검수 횟수 (상품 건별) 기준</th>
                                 <th class="px-4 py-3 text-center border-b border-l" colspan="3">📦 검수 수량 (개수) 기준</th>
                                 <th class="px-4 py-3 border-b border-l">주요 불량 사유</th>
                             </tr>
-                            <tr class="text-[11px] text-gray-400">
+                            <tr class="text-[11px] text-gray-400 bg-gray-50">
                                 <th class="px-4 py-2 border-b"></th>
                                 <th class="px-2 py-2 text-center border-b border-l bg-gray-100/50">총 횟수</th>
                                 <th class="px-2 py-2 text-center border-b bg-gray-100/50">불량 횟수</th>
@@ -646,7 +641,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                                 <th class="px-4 py-2 border-b border-l"></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100">
+                        <tbody class="divide-y divide-gray-100 relative z-0">
                             ${topDefectiveProducts.length === 0 ? `
                                 <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다. 🎉</td></tr>
                             ` : topDefectiveProducts.map((p, idx) => `
