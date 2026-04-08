@@ -447,7 +447,7 @@ export const setSortState = (key) => {
 };
 
 /**
- * ★ 수정된 QC 통계 리포트 렌더링 (원본 상세 DB 데이터를 인자로 받음)
+ * ★ 수정된 QC 통계 리포트 (횟수 기반 + 수량 기반 통합 대시보드)
  */
 export const renderQCStatsMode = (historyData, periodType = 'month', selectedPeriod = '') => {
     const container = document.getElementById('inspection-content-area');
@@ -458,7 +458,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         return;
     }
 
-    // 1. 기간 옵션 생성 (DB의 상세 로그 기준)
+    // 1. 기간 옵션 생성
     const weeks = new Set();
     const months = new Set();
     
@@ -480,9 +480,11 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         selectedPeriod = periodType === 'month' ? monthOptions[0] : weekOptions[0];
     }
 
-    // 2. 선택된 기간의 상세 데이터 집계
-    let totalInspected = 0;
-    let totalDefects = 0;
+    // 2. 선택된 기간의 횟수 및 수량 데이터 집계
+    let totalInspectedQty = 0;
+    let totalDefectQty = 0;
+    let totalInspectionCount = 0;
+    let totalDefectCount = 0;
     const inspectedProducts = new Set();
     const productStats = {}; 
 
@@ -503,33 +505,33 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                     inspectedProducts.add(pName);
                     
                     if (!productStats[pName]) {
-                        productStats[pName] = { total: 0, defects: 0, defectsList: [] };
+                        productStats[pName] = { totalQty: 0, defectQty: 0, inspCount: 0, defectCount: 0, defectsList: [] };
                     }
 
-                    // 수량 추출 (우선순위: inboundQty -> qty -> 1)
+                    // 수량 추출
                     const qty = Number(log.inboundQty) || Number(log.qty) || 1; 
-                    productStats[pName].total += qty;
-                    totalInspected += qty;
+                    
+                    // 횟수와 수량 누적
+                    productStats[pName].inspCount += 1;
+                    totalInspectionCount += 1;
+                    
+                    productStats[pName].totalQty += qty;
+                    totalInspectedQty += qty;
 
-                    // ★ 철저한 불량 기준 검사
                     let isDefect = false;
                     const defectReasons = [];
                     const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
 
-                    // 1) 상태값이 '불량'인 경우
                     if (log.status === '불량') isDefect = true;
                     
-                    // 2) 별도 defects 배열이 있는 경우
                     if (log.defects && Array.isArray(log.defects) && log.defects.length > 0) {
                         isDefect = true;
                         defectReasons.push(...log.defects);
                     }
 
-                    // 3) 체크리스트에 비정상적인 값이 있는 경우 모두 색출
                     if (log.checklist) {
                         const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
                         Object.entries(log.checklist).forEach(([key, val]) => {
-                            // 두께(thickness)는 예외, 값(val)이 존재하고, 정상값 범주에 없으면 불량 처리
                             if (key !== 'thickness' && val && !normalValues.includes(val)) {
                                 isDefect = true;
                                 defectReasons.push(`${labelMap[key] || key}: ${val}`);
@@ -537,10 +539,14 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                         });
                     }
 
-                    // 불량으로 판정된 경우 카운트 및 사유 저장
+                    // 불량 발생 시 횟수와 불량수량 동시 처리
                     if (isDefect) {
-                        productStats[pName].defects += qty;
-                        totalDefects += qty;
+                        productStats[pName].defectCount += 1;
+                        totalDefectCount += 1;
+                        
+                        productStats[pName].defectQty += qty;
+                        totalDefectQty += qty;
+
                         if (defectReasons.length > 0) {
                             productStats[pName].defectsList.push(...defectReasons);
                         } else {
@@ -552,21 +558,25 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         }
     });
 
-    const defectRate = totalInspected > 0 ? ((totalDefects / totalInspected) * 100).toFixed(1) : 0;
+    const qtyDefectRate = totalInspectedQty > 0 ? ((totalDefectQty / totalInspectedQty) * 100).toFixed(1) : 0;
+    const countDefectRate = totalInspectionCount > 0 ? ((totalDefectCount / totalInspectionCount) * 100).toFixed(1) : 0;
     const totalProductTypes = inspectedProducts.size;
 
-    // 불량률이 높은 상위 10개 상품 정렬
+    // 불량률이 높은 상위 15개 상품 (횟수 불량 우선 정렬)
     const topDefectiveProducts = Object.entries(productStats)
         .map(([name, stats]) => ({
             name,
-            total: stats.total,
-            defects: stats.defects,
-            rate: stats.total > 0 ? ((stats.defects / stats.total) * 100).toFixed(1) : 0,
+            totalQty: stats.totalQty,
+            defectQty: stats.defectQty,
+            qtyRate: stats.totalQty > 0 ? ((stats.defectQty / stats.totalQty) * 100).toFixed(1) : 0,
+            inspCount: stats.inspCount,
+            defectCount: stats.defectCount,
+            countRate: stats.inspCount > 0 ? ((stats.defectCount / stats.inspCount) * 100).toFixed(1) : 0,
             commonDefects: [...new Set(stats.defectsList)].join(', ') || '-'
         }))
-        .filter(p => p.defects > 0)
-        .sort((a, b) => b.defects - a.defects) // 불량 건수 순 정렬
-        .slice(0, 10);
+        .filter(p => p.defectCount > 0 || p.defectQty > 0)
+        .sort((a, b) => b.defectCount - a.defectCount || b.defectQty - a.defectQty) 
+        .slice(0, 15);
 
     // 3. HTML 생성
     container.innerHTML = `
@@ -598,55 +608,72 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
             
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500">
-                    <div class="text-xs text-gray-500 mb-1">총 입고(검수) 수량</div>
-                    <div class="text-2xl font-bold text-gray-800">${totalInspected.toLocaleString()} <span class="text-sm font-normal text-gray-500">건</span></div>
+                    <div class="text-xs text-gray-500 mb-1">총 검수 진행 횟수</div>
+                    <div class="text-2xl font-bold text-gray-800">${totalInspectionCount.toLocaleString()} <span class="text-sm font-normal text-gray-500">회</span></div>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
-                    <div class="text-xs text-gray-500 mb-1">입고 상품 종류</div>
+                    <div class="text-xs text-gray-500 mb-1">검수 상품 종류</div>
                     <div class="text-2xl font-bold text-gray-800">${totalProductTypes.toLocaleString()} <span class="text-sm font-normal text-gray-500">종</span></div>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
-                    <div class="text-xs text-gray-500 mb-1">총 불량 발견 수량</div>
-                    <div class="text-2xl font-bold text-red-600">${totalDefects.toLocaleString()} <span class="text-sm font-normal text-gray-500">건</span></div>
+                    <div class="text-xs text-gray-500 mb-1">불량 발생 횟수 / 수량</div>
+                    <div class="text-xl font-bold text-red-600">${totalDefectCount.toLocaleString()}<span class="text-sm font-normal text-gray-500">회</span> <span class="text-gray-300 mx-1">/</span> ${totalDefectQty.toLocaleString()}<span class="text-sm font-normal text-gray-500">개</span></div>
                 </div>
-                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 ${defectRate > 5 ? 'border-red-500' : 'border-green-500'}">
-                    <div class="text-xs text-gray-500 mb-1">평균 불량률</div>
-                    <div class="text-2xl font-bold ${defectRate > 5 ? 'text-red-600' : 'text-gray-800'}">${defectRate} <span class="text-sm font-normal text-gray-500">%</span></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 ${countDefectRate > 10 ? 'border-red-500' : 'border-orange-500'}">
+                    <div class="text-xs text-gray-500 mb-1">평균 불량률 (횟수 / 수량)</div>
+                    <div class="text-xl font-bold text-orange-600">${countDefectRate}<span class="text-sm font-normal text-gray-500">%</span> <span class="text-gray-300 mx-1">/</span> ${qtyDefectRate}<span class="text-sm font-normal text-gray-500">%</span></div>
                 </div>
             </div>
 
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex-grow">
                 <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
-                    <h3 class="font-bold text-gray-700">⚠️ QC 집중 관리 대상 (불량 다발 상품 TOP 10)</h3>
+                    <h3 class="font-bold text-gray-700">⚠️ QC 집중 관리 대상 (발생 횟수 최다 상품 TOP 15)</h3>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-gray-500 uppercase bg-gray-50">
+                        <thead class="text-xs text-gray-500 bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 w-1/4">상품명</th>
-                                <th class="px-4 py-3 text-center">검수 수량</th>
-                                <th class="px-4 py-3 text-center">불량 건수</th>
-                                <th class="px-4 py-3 text-center">불량률</th>
-                                <th class="px-4 py-3 w-1/3">주요 불량 사유</th>
+                                <th class="px-4 py-3 border-b">상품명</th>
+                                <th class="px-4 py-3 text-center border-b border-l bg-gray-100/50" colspan="3">📊 검수 횟수 (상품 건별) 기준</th>
+                                <th class="px-4 py-3 text-center border-b border-l" colspan="3">📦 검수 수량 (개수) 기준</th>
+                                <th class="px-4 py-3 border-b border-l">주요 불량 사유</th>
+                            </tr>
+                            <tr class="text-[11px] text-gray-400">
+                                <th class="px-4 py-2 border-b"></th>
+                                <th class="px-2 py-2 text-center border-b border-l bg-gray-100/50">총 횟수</th>
+                                <th class="px-2 py-2 text-center border-b bg-gray-100/50">불량 횟수</th>
+                                <th class="px-2 py-2 text-center border-b bg-gray-100/50">횟수 불량률</th>
+                                <th class="px-2 py-2 text-center border-b border-l">총 수량</th>
+                                <th class="px-2 py-2 text-center border-b">불량 수량</th>
+                                <th class="px-2 py-2 text-center border-b">수량 불량률</th>
+                                <th class="px-4 py-2 border-b border-l"></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             ${topDefectiveProducts.length === 0 ? `
-                                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다. 🎉</td></tr>
+                                <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다. 🎉</td></tr>
                             ` : topDefectiveProducts.map((p, idx) => `
                                 <tr class="hover:bg-red-50 transition">
-                                    <td class="px-4 py-3 font-medium text-gray-900 break-words">
+                                    <td class="px-4 py-3 font-medium text-gray-900 break-words max-w-[200px]">
                                         <span class="inline-block w-4 h-4 text-center rounded-full ${idx < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'} text-[10px] mr-1 leading-4">${idx + 1}</span>
                                         ${p.name}
                                     </td>
-                                    <td class="px-4 py-3 text-center text-gray-600">${p.total}</td>
-                                    <td class="px-4 py-3 text-center font-bold text-red-600">${p.defects}</td>
-                                    <td class="px-4 py-3 text-center">
-                                        <span class="px-2 py-1 rounded text-xs font-bold ${p.rate > 10 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
-                                            ${p.rate}%
+                                    
+                                    <td class="px-2 py-3 text-center text-gray-600 border-l bg-gray-50/30">${p.inspCount}회</td>
+                                    <td class="px-2 py-3 text-center font-bold text-red-600 bg-gray-50/30">${p.defectCount}회</td>
+                                    <td class="px-2 py-3 text-center bg-gray-50/30">
+                                        <span class="px-2 py-1 rounded text-[11px] font-bold ${p.countRate > 20 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
+                                            ${p.countRate}%
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 text-[11px] text-gray-500 break-words">${p.commonDefects}</td>
+
+                                    <td class="px-2 py-3 text-center text-gray-500 border-l">${p.totalQty}개</td>
+                                    <td class="px-2 py-3 text-center text-orange-600">${p.defectQty}개</td>
+                                    <td class="px-2 py-3 text-center">
+                                        <span class="text-[11px] text-gray-500">${p.qtyRate}%</span>
+                                    </td>
+
+                                    <td class="px-4 py-3 text-[11px] text-gray-500 break-words border-l max-w-[250px]">${p.commonDefects}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
