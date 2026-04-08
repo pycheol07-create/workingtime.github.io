@@ -9,7 +9,7 @@ import {
     renderInspectionListMode
 } from './ui-history.js'; 
 
-import { setSortState } from './ui-history-inspection.js';
+import { setSortState, renderQCStatsMode } from './ui-history-inspection.js';
 
 import {
     loadInspectionLogs,
@@ -19,8 +19,8 @@ import {
     deleteProductHistory,
     deleteHistoryInspectionList,
     savePreInspectionNote,
-    handleManualImageSelect, // [신규] 수동 등록 이미지 처리
-    clearManualImageState    // [신규] 수동 등록 이미지 초기화
+    handleManualImageSelect, 
+    clearManualImageState    
 } from './inspection-logic.js';
 
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -52,7 +52,7 @@ export const fetchAndRenderInspectionHistory = async () => {
             console.error("Error loading inspection history:", e);
             contentArea.innerHTML = '<div class="text-center text-red-500 py-10">데이터 로딩 실패</div>';
         }
-    } else {
+    } else if (viewMode === 'list') {
         const dateList = [];
         State.allHistoryData.forEach(day => {
             if (day.inspectionList && day.inspectionList.length > 0) {
@@ -75,18 +75,21 @@ export const fetchAndRenderInspectionHistory = async () => {
         } else {
             renderInspectionListMode([], []);
         }
+    } else if (viewMode === 'qc') {
+        // ★ QC 통계 대시보드 렌더링
+        renderQCStatsMode('month', '');
     }
 };
 
 export function setupHistoryInspectionListeners() {
 
-    // [변경됨] 수동 추가 모달 이벤트 및 이미지 처리 연결
+    // 수동 추가 모달 이벤트 및 이미지 처리 연결
     const preModal = document.getElementById('pre-register-inspection-modal');
     if (preModal) {
         preModal.addEventListener('click', async (e) => {
             if (e.target.closest('#close-pre-insp-modal') || e.target.closest('#cancel-pre-insp-btn')) {
                 preModal.classList.add('hidden');
-                clearManualImageState(); // 닫을 때 이미지 초기화
+                clearManualImageState(); 
             }
             if (e.target.closest('#save-pre-insp-btn')) {
                 const success = await savePreInspectionNote();
@@ -113,16 +116,23 @@ export function setupHistoryInspectionListeners() {
     }
 
     if (DOM.inspectionHistoryViewContainer) {
+        
+        // QC 조회 기간 조건(월간/주간) 변경 이벤트
+        DOM.inspectionHistoryViewContainer.addEventListener('change', (e) => {
+            if (e.target.id === 'qc-period-type') {
+                renderQCStatsMode(e.target.value, '');
+            }
+        });
+
         DOM.inspectionHistoryViewContainer.addEventListener('click', async (e) => {
             
-            // [변경됨] 수동 검수 추가 모달 열기 (확장된 폼 초기화)
+            // 수동 검수 추가 모달 열기 (확장된 폼 초기화)
             const addPreBtn = e.target.closest('#btn-add-pre-inspection');
             if (addPreBtn) {
                 const modal = document.getElementById('pre-register-inspection-modal');
                 if (modal) {
                     modal.classList.remove('hidden');
                     
-                    // 모든 폼 데이터 깨끗하게 초기화
                     const getEl = (id) => document.getElementById(id);
                     if (getEl('manual-insp-product-name')) getEl('manual-insp-product-name').value = '';
                     if (getEl('manual-insp-code')) getEl('manual-insp-code').value = '';
@@ -133,15 +143,23 @@ export function setupHistoryInspectionListeners() {
                     if (getEl('manual-insp-note')) getEl('manual-insp-note').value = '';
                     if (getEl('manual-insp-packing-date')) getEl('manual-insp-packing-date').value = '';
                     
-                    // 입고(검수)일자는 오늘 날짜로 기본 세팅
                     if (getEl('manual-insp-inbound-date')) getEl('manual-insp-inbound-date').value = getTodayDateString();
                     
-                    // 체크리스트 모두 '정상'으로 초기화
                     const selects = modal.querySelectorAll('select');
                     selects.forEach(sel => sel.value = "정상"); 
                     
-                    // 이미지 초기화
                     clearManualImageState();
+                }
+                return;
+            }
+
+            // QC 통계 리포트 조회 버튼
+            const refreshQcBtn = e.target.closest('#btn-refresh-qc');
+            if (refreshQcBtn) {
+                const typeSelect = document.getElementById('qc-period-type');
+                const valueSelect = document.getElementById('qc-period-value');
+                if (typeSelect && valueSelect) {
+                    renderQCStatsMode(typeSelect.value, valueSelect.value);
                 }
                 return;
             }
@@ -185,7 +203,7 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // 상단 모드 변경 탭
+            // 상단 모드 변경 탭 (상품별, 리스트별, QC 통계별)
             const tabBtn = e.target.closest('button[data-insp-tab]');
             if (tabBtn) {
                 const mode = tabBtn.dataset.inspTab;
@@ -220,18 +238,15 @@ export function setupHistoryInspectionListeners() {
             // 행을 클릭하면 상세 내역 아코디언 펼치기
             const detailBtn = e.target.closest('.btn-view-detail');
             if (detailBtn) {
-                // 클릭한 곳이 행 전체(tr)인지 버튼인지 판별
                 const tr = detailBtn.tagName === 'TR' ? detailBtn : detailBtn.closest('tr');
                 const productName = tr.dataset.productName;
 
-                // 이미 열려있으면 닫기 처리
                 const nextTr = tr.nextElementSibling;
                 if (nextTr && nextTr.classList.contains('expanded-detail-row')) {
                     nextTr.remove(); 
                     return;
                 }
 
-                // 닫혀있으면 DB에서 데이터를 불러와 펼침
                 loadInspectionLogs(productName, tr);
                 return;
             }
@@ -256,7 +271,7 @@ export function setupHistoryInspectionListeners() {
         DOM.saveInspLogBtn.addEventListener('click', async () => {
             await updateInspectionLog();
             if (State.context.activeMainHistoryTab === 'inspection') {
-                fetchAndRenderInspectionHistory(); // 리스트 갱신
+                fetchAndRenderInspectionHistory(); 
             }
         });
     }

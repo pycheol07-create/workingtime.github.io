@@ -293,9 +293,9 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
-// [수정됨] 기존 모달 렌더러 - ui-history.js 에서의 import 에러 방지용으로 유지
+// [중요] ui-history.js 에서의 import 에러 방지용 모달 렌더러 함수
 export const renderInspectionLogTable = (logs, productName) => {
-    // UI 변경으로 인해 사용되지 않지만, 다른 모듈의 참조 오류를 방지하기 위해 껍데기만 남겨둡니다.
+    // UI 변경으로 인해 사용되지 않지만, 다른 모듈의 참조 오류를 방지하기 위해 남겨둡니다.
 };
 
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
