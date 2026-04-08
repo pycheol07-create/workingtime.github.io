@@ -280,7 +280,6 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
-// [중요] ui-history.js 에서의 import 에러 방지용
 export const renderInspectionLogTable = (logs, productName) => {};
 
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
@@ -446,9 +445,6 @@ export const setSortState = (key) => {
     }
 };
 
-/**
- * ★ 수정된 QC 통계 리포트 (횟수 기반 + 수량 기반 통합 대시보드)
- */
 export const renderQCStatsMode = (historyData, periodType = 'month', selectedPeriod = '') => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -626,8 +622,9 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
             </div>
 
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex-grow">
-                <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
                     <h3 class="font-bold text-gray-700">⚠️ QC 집중 관리 대상 (발생 횟수 최다 상품 TOP 15)</h3>
+                    <span class="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded shadow-sm">💡 행을 클릭하면 상세 내역을 볼 수 있습니다.</span>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left">
@@ -653,27 +650,27 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                             ${topDefectiveProducts.length === 0 ? `
                                 <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다. 🎉</td></tr>
                             ` : topDefectiveProducts.map((p, idx) => `
-                                <tr class="hover:bg-red-50 transition">
+                                <tr class="hover:bg-indigo-50/50 transition cursor-pointer btn-view-detail group" data-product-name="${p.name}" title="클릭하여 상세 이력 펼치기">
                                     <td class="px-4 py-3 font-medium text-gray-900 break-words max-w-[200px]">
                                         <span class="inline-block w-4 h-4 text-center rounded-full ${idx < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'} text-[10px] mr-1 leading-4">${idx + 1}</span>
-                                        ${p.name}
+                                        <span class="group-hover:text-indigo-600 group-hover:underline transition-all">${p.name}</span>
                                     </td>
                                     
-                                    <td class="px-2 py-3 text-center text-gray-600 border-l bg-gray-50/30">${p.inspCount}회</td>
-                                    <td class="px-2 py-3 text-center font-bold text-red-600 bg-gray-50/30">${p.defectCount}회</td>
-                                    <td class="px-2 py-3 text-center bg-gray-50/30">
+                                    <td class="px-2 py-3 text-center text-gray-600 border-l bg-gray-50/30 group-hover:bg-transparent">${p.inspCount}회</td>
+                                    <td class="px-2 py-3 text-center font-bold text-red-600 bg-gray-50/30 group-hover:bg-transparent">${p.defectCount}회</td>
+                                    <td class="px-2 py-3 text-center bg-gray-50/30 group-hover:bg-transparent">
                                         <span class="px-2 py-1 rounded text-[11px] font-bold ${p.countRate > 20 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
                                             ${p.countRate}%
                                         </span>
                                     </td>
 
-                                    <td class="px-2 py-3 text-center text-gray-500 border-l">${p.totalQty}개</td>
-                                    <td class="px-2 py-3 text-center text-orange-600">${p.defectQty}개</td>
-                                    <td class="px-2 py-3 text-center">
+                                    <td class="px-2 py-3 text-center text-gray-500 border-l group-hover:bg-transparent">${p.totalQty}개</td>
+                                    <td class="px-2 py-3 text-center text-orange-600 group-hover:bg-transparent">${p.defectQty}개</td>
+                                    <td class="px-2 py-3 text-center group-hover:bg-transparent">
                                         <span class="text-[11px] text-gray-500">${p.qtyRate}%</span>
                                     </td>
 
-                                    <td class="px-4 py-3 text-[11px] text-gray-500 break-words border-l max-w-[250px]">${p.commonDefects}</td>
+                                    <td class="px-4 py-3 text-[11px] text-gray-500 break-words border-l max-w-[250px] group-hover:bg-transparent">${p.commonDefects}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
