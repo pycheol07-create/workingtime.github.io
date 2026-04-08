@@ -280,6 +280,7 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
+// ui-history.js 에서의 import 에러 방지용
 export const renderInspectionLogTable = (logs, productName) => {};
 
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
@@ -289,10 +290,12 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     }
 
     const colspan = targetTr.children.length; 
+    
+    // ★ 클릭된 행(tr)에 심어둔 QC 리포트 명찰 확인!
+    const isQcReport = targetTr.dataset.isQcReport === 'true';
 
     let displayLogs = logs;
     
-    // ★ 1. 리스트별 보기: 클릭된 옵션/코드에 해당하는 내역만 필터
     if (context.inspectionViewMode === 'list') {
         const targetOption = targetTr.dataset.productOption;
         const targetCode = targetTr.dataset.productCode;
@@ -307,32 +310,36 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             });
         }
     } 
-    // ★ 2. QC 통계 탭: 현재 선택된 조회 기간(월/주)의 불량 내역만 필터!
-    else if (context.inspectionViewMode === 'qc') {
-        const typeSelect = document.getElementById('qc-period-type');
-        const valueSelect = document.getElementById('qc-period-value');
-        const pType = typeSelect ? typeSelect.value : 'month';
-        const pVal = valueSelect ? valueSelect.value : '';
+    // ★ QC 통계 모드일 때 (명찰 기반으로 확실히 필터링)
+    else if (isQcReport) {
+        const pType = targetTr.dataset.qcPeriodType || 'month';
+        const pVal = targetTr.dataset.qcPeriodValue || '';
 
         displayLogs = logs.filter(log => {
-            // 기간 체크
+            // 1. 기간 체크
             if (pVal && log.date) {
                 const logMonth = log.date.substring(0, 7);
                 const logWeek = getWeekOfYear(new Date(log.date));
                 const isMatch = (pType === 'month' && logMonth === pVal) || (pType === 'week' && logWeek === pVal);
-                if (!isMatch) return false; // 조회 기간이 아니면 제외
+                if (!isMatch) return false; 
             }
 
-            // 불량 여부 체크 (하나라도 불량 사유가 있으면 포함)
+            // 2. 불량 여부 체크 (공백까지 제거하여 깐깐하게 검사)
             let isDefect = false;
-            const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
+            // 가능한 모든 '정상' 범주의 텍스트를 나열
+            const normalValues = ['정상', '양호', '동일', '없음', '해당없음', '통과', '-', ''];
 
             if (log.status === '불량') isDefect = true;
             if (log.defects && Array.isArray(log.defects) && log.defects.length > 0) isDefect = true;
+            
             if (log.checklist) {
                 Object.entries(log.checklist).forEach(([key, val]) => {
-                    if (key !== 'thickness' && val && !normalValues.includes(val)) {
-                        isDefect = true;
+                    if (key !== 'thickness' && val) {
+                        // 공백 제거 후 비교
+                        const cleanVal = String(val).trim();
+                        if (cleanVal && !normalValues.includes(cleanVal)) {
+                            isDefect = true;
+                        }
                     }
                 });
             }
@@ -394,7 +401,8 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 
                 Object.entries(cl).forEach(([key, val]) => {
                     if (key !== 'thickness' && val) {
-                        const isDefect = !normalValues.includes(val);
+                        const cleanVal = String(val).trim();
+                        const isDefect = !normalValues.includes(cleanVal);
                         const colorClass = isDefect ? 'text-red-700 bg-red-50 border-red-200 font-bold' : 'text-gray-600 bg-white border-gray-200';
                         checklistStr.push(`<span class="inline-block ${colorClass} px-1.5 py-0.5 rounded text-[11px] border shadow-sm mb-1 mr-1">${labelMap[key]||key}: ${val}</span>`);
                     }
@@ -435,8 +443,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             }).join('');
         });
 
-        // 타이틀 문구에 모드에 따른 설명을 동적으로 추가
-        const headerTitle = context.inspectionViewMode === 'qc' 
+        const headerTitle = isQcReport 
             ? `🔍 상세 불량 내역 (해당 기간)` 
             : `🔍 상세 검수 이력`;
 
@@ -501,8 +508,8 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         if (product.logs && Array.isArray(product.logs)) {
             product.logs.forEach(log => {
                 if (log.date) {
-                    months.add(log.date.substring(0, 7)); // YYYY-MM
-                    weeks.add(getWeekOfYear(new Date(log.date))); // YYYY-Wxx
+                    months.add(log.date.substring(0, 7)); 
+                    weeks.add(getWeekOfYear(new Date(log.date))); 
                 }
             });
         }
@@ -552,7 +559,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
 
                     let isDefect = false;
                     const defectReasons = [];
-                    const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
+                    const normalValues = ['정상', '양호', '동일', '없음', '해당없음', '통과', '-', ''];
 
                     if (log.status === '불량') isDefect = true;
                     
@@ -564,9 +571,12 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                     if (log.checklist) {
                         const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
                         Object.entries(log.checklist).forEach(([key, val]) => {
-                            if (key !== 'thickness' && val && !normalValues.includes(val)) {
-                                isDefect = true;
-                                defectReasons.push(`${labelMap[key] || key}: ${val}`);
+                            if (key !== 'thickness' && val) {
+                                const cleanVal = String(val).trim();
+                                if (cleanVal && !normalValues.includes(cleanVal)) {
+                                    isDefect = true;
+                                    defectReasons.push(`${labelMap[key] || key}: ${cleanVal}`);
+                                }
                             }
                         });
                     }
@@ -684,7 +694,12 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                             ${topDefectiveProducts.length === 0 ? `
                                 <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다. 🎉</td></tr>
                             ` : topDefectiveProducts.map((p, idx) => `
-                                <tr class="hover:bg-indigo-50/50 transition cursor-pointer btn-view-detail group" data-product-name="${p.name}" title="해당 기간의 불량 상세 이력 펼치기">
+                                <tr class="hover:bg-indigo-50/50 transition cursor-pointer btn-view-detail group" 
+                                    data-product-name="${p.name}" 
+                                    data-is-qc-report="true"
+                                    data-qc-period-type="${periodType}"
+                                    data-qc-period-value="${selectedPeriod}"
+                                    title="해당 기간의 불량 상세 이력 펼치기">
                                     <td class="px-4 py-3 font-medium text-gray-900 break-words max-w-[200px]">
                                         <span class="inline-block w-4 h-4 text-center rounded-full ${idx < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'} text-[10px] mr-1 leading-4">${idx + 1}</span>
                                         <span class="group-hover:text-indigo-600 group-hover:underline transition-all">${p.name}</span>
