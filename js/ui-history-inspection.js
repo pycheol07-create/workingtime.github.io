@@ -115,8 +115,14 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                 ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">완료</span>`
                 : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
             
+            // ✅ [수정] 옵션, 코드, 날짜 데이터를 숨김 속성으로 전달
             return `
-                <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail" data-product-name="${item.name}" title="클릭하여 상세 이력 펼치기">
+                <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail" 
+                    data-product-name="${item.name}" 
+                    data-product-option="${item.option || '-'}" 
+                    data-product-code="${item.code || '-'}" 
+                    data-target-date="${selectedDate}"
+                    title="클릭하여 상세 이력 펼치기">
                     <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.code || '-'}</td>
                     <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.name}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${item.option || '-'}</td>
@@ -300,15 +306,38 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
 
     const colspan = targetTr.children.length; 
 
+    // ✅ [추가] '검수 일자별 보기(list)' 모드일 때 옵션/코드/날짜 기반 필터링 적용
+    let displayLogs = logs;
+    if (context.inspectionViewMode === 'list') {
+        const targetOption = targetTr.dataset.productOption;
+        const targetCode = targetTr.dataset.productCode;
+        const targetDate = targetTr.dataset.targetDate;
+
+        if (targetOption !== undefined) {
+            displayLogs = logs.filter(log => {
+                const logOption = log.option || '-';
+                const logCode = log.code || '-';
+                const logDate = log.date || '-';
+
+                // 해당 날짜, 해당 코드, 해당 옵션인 로그만 남김
+                return logOption === targetOption && logCode === targetCode && logDate === targetDate;
+            });
+        }
+    }
+
     const tr = document.createElement('tr');
     tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner';
     
     let logsHtml = '';
-    if (!logs || logs.length === 0) {
-        logsHtml = '<div class="p-6 text-center text-gray-500">저장된 상세 검수 기록이 없습니다.</div>';
+    // ✅ [수정] logs 대신 displayLogs를 사용하도록 변경
+    if (!displayLogs || displayLogs.length === 0) {
+        logsHtml = '<div class="p-6 text-center text-gray-500">해당 조건의 상세 검수 기록이 없습니다.</div>';
     } else {
         const groupedLogs = {};
-        logs.forEach((log, idx) => {
+        displayLogs.forEach((log, idx) => {
+            // 원본 인덱스를 보존
+            const originalIdx = log.originalIndex !== undefined ? log.originalIndex : idx;
+
             const code = log.code || '-';
             const option = log.option || '-';
             const groupKey = `${code} / ${option}`;
@@ -316,7 +345,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             if (!groupedLogs[groupKey]) {
                 groupedLogs[groupKey] = [];
             }
-            groupedLogs[groupKey].push({ ...log, originalIndex: idx });
+            groupedLogs[groupKey].push({ ...log, originalIndex: originalIdx });
         });
 
         let rowsHtml = '';
