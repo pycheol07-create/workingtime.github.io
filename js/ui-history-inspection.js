@@ -26,8 +26,8 @@ export const renderInspectionLayout = (container) => {
     const activeTab = context.inspectionViewMode || 'product';
 
     container.innerHTML = `
-        <div class="flex flex-col h-full">
-            <div class="flex justify-between items-end border-b border-gray-200 mb-4">
+        <div class="flex flex-col h-full relative">
+            <div class="flex justify-between items-end border-b border-gray-200 mb-4 shrink-0">
                 <div class="flex">
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'product' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="product">
@@ -53,7 +53,7 @@ export const renderInspectionLayout = (container) => {
                     </button>
                 </div>
             </div>
-            <div id="inspection-content-area" class="flex-grow overflow-hidden relative"></div>
+            <div id="inspection-content-area" class="flex-grow relative overflow-hidden"></div>
         </div>
     `;
 };
@@ -91,7 +91,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
     } else if (selectedDateData.length === 0) {
         detailHtml = `
             <div class="flex flex-col h-full">
-                <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-2">
                         <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
                         <span class="text-xs text-gray-500">0건</span>
@@ -127,7 +127,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
 
         detailHtml = `
             <div class="flex flex-col h-full">
-                <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-2">
                         <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
                         <span class="text-xs text-gray-500">상품을 클릭하면 검수 상세내역이 펼쳐집니다.</span>
@@ -137,9 +137,9 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                         🗑️ 리스트 삭제
                     </button>
                 </div>
-                <div class="flex-grow overflow-y-auto">
+                <div class="flex-grow overflow-y-auto custom-scrollbar relative">
                     <table class="w-full text-left border-collapse">
-                        <thead class="bg-white text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm">
+                        <thead class="bg-white text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm outline outline-1 outline-gray-200">
                             <tr>
                                 <th class="px-4 py-2 font-semibold bg-gray-50">코드</th>
                                 <th class="px-4 py-2 font-semibold bg-gray-50">상품명</th>
@@ -160,8 +160,8 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
     }
 
     container.innerHTML = `
-        <div class="flex h-full border border-gray-200 rounded-lg overflow-hidden bg-white">
-            <div class="w-1/4 min-w-[180px] border-r border-gray-200 bg-gray-50 overflow-y-auto custom-scrollbar">
+        <div class="absolute inset-0 flex border border-gray-200 rounded-lg overflow-hidden bg-white">
+            <div class="w-1/4 min-w-[180px] border-r border-gray-200 bg-gray-50 overflow-y-auto custom-scrollbar shrink-0">
                 ${dateListHtml}
             </div>
             <div class="flex-1 overflow-hidden bg-white relative">
@@ -210,22 +210,22 @@ export const renderInspectionHistoryTable = (historyData) => {
     });
 
     let html = `
-        <div class="h-full overflow-y-auto border border-gray-200 rounded-lg">
-            <table class="w-full text-sm text-left text-gray-600">
-                <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10 shadow-sm">
+        <div class="absolute inset-0 overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg bg-white">
+            <table class="w-full text-sm text-left text-gray-600 relative">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-20 shadow-sm outline outline-1 outline-gray-200">
                     <tr>
-                        <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="productName">
+                        <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-200 transition select-none bg-gray-100" data-sort-key="productName">
                             <div class="flex items-center">상품명 ${getSortIcon('productName')}</div>
                         </th>
-                        <th scope="col" class="px-6 py-3">공급처 상품명</th>
-                        <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="totalInbound">
+                        <th scope="col" class="px-6 py-3 bg-gray-100">공급처 상품명</th>
+                        <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none bg-gray-100" data-sort-key="totalInbound">
                             <div class="flex items-center justify-center">총 입고(검수) ${getSortIcon('totalInbound')}</div>
                         </th>
-                        <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none" data-sort-key="lastInspectionDate">
+                        <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none bg-gray-100" data-sort-key="lastInspectionDate">
                             <div class="flex items-center justify-center">최근 검수일 ${getSortIcon('lastInspectionDate')}</div>
                         </th>
-                        <th scope="col" class="px-6 py-3">최근 불량/특이사항</th>
-                        <th scope="col" class="px-6 py-3 text-right">관리</th>
+                        <th scope="col" class="px-6 py-3 bg-gray-100">최근 불량/특이사항</th>
+                        <th scope="col" class="px-6 py-3 text-right bg-gray-100">관리</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 bg-white">
@@ -263,10 +263,10 @@ export const renderInspectionHistoryTable = (historyData) => {
                         ${formatDefectSummary(item.defectSummary)}
                     </td>
                     <td class="px-6 py-4 text-right space-x-1">
-                        <button class="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-200 rounded px-3 py-1.5 hover:bg-indigo-50 transition pointer-events-none">
+                        <button class="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-200 rounded px-3 py-1.5 hover:bg-indigo-50 transition pointer-events-none shadow-sm">
                             상세보기 ▾
                         </button>
-                        <button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-3 py-1.5 hover:bg-red-50 transition btn-delete-product opacity-0 group-hover:opacity-100" 
+                        <button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-3 py-1.5 hover:bg-red-50 transition btn-delete-product opacity-0 group-hover:opacity-100 shadow-sm" 
                                 data-product-name="${item.id}" title="상품 전체 삭제">
                             삭제
                         </button>
@@ -280,6 +280,7 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
+// ui-history.js 에서의 import 에러 방지용
 export const renderInspectionLogTable = (logs, productName) => {};
 
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
@@ -307,7 +308,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     }
 
     const tr = document.createElement('tr');
-    tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner relative z-0';
+    tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner';
     
     let logsHtml = '';
     if (!displayLogs || displayLogs.length === 0) {
@@ -409,18 +410,19 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                     </h4>
                     <button class="text-xs text-gray-500 hover:text-gray-800 font-bold btn-close-expanded px-3 py-1 rounded hover:bg-gray-200 transition border border-gray-300 bg-white shadow-sm">닫기 ✖</button>
                 </div>
-                <div class="overflow-x-auto rounded-lg border border-indigo-200 bg-white shadow-sm">
+                
+                <div class="max-h-[400px] overflow-y-auto overflow-x-auto rounded-lg border border-indigo-200 bg-white shadow-sm custom-scrollbar relative">
                     <table class="w-full text-left relative z-0">
-                        <thead class="bg-indigo-100 text-[11px] text-indigo-800 uppercase">
+                        <thead class="bg-indigo-100 text-[11px] text-indigo-800 uppercase sticky top-0 z-10 shadow-sm outline outline-1 outline-indigo-200">
                             <tr>
-                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%]">입고(검수)일시</th>
-                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%]">출고일자</th>
-                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[5%]">수량</th>
-                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%]">상태</th>
-                                <th class="px-4 py-2 font-bold w-[30%]">검수항목 (체크리스트)</th>
-                                <th class="px-4 py-2 font-bold w-[20%]">특이사항/메모</th>
-                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[7%]">사진</th>
-                                <th class="px-4 py-2 font-bold text-right whitespace-nowrap w-[10%]">관리</th>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">입고(검수)일시</th>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">출고일자</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[5%] bg-indigo-100">수량</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%] bg-indigo-100">상태</th>
+                                <th class="px-4 py-2 font-bold w-[30%] bg-indigo-100">검수항목 (체크리스트)</th>
+                                <th class="px-4 py-2 font-bold w-[20%] bg-indigo-100">특이사항/메모</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[7%] bg-indigo-100">사진</th>
+                                <th class="px-4 py-2 font-bold text-right whitespace-nowrap w-[10%] bg-indigo-100">관리</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -569,7 +571,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         .slice(0, 15);
 
     container.innerHTML = `
-        <div class="h-full flex flex-col bg-gray-50 p-4 rounded-lg overflow-y-auto">
+        <div class="absolute inset-0 flex flex-col bg-gray-50 p-4 rounded-lg overflow-y-auto custom-scrollbar">
             
             <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 flex gap-4 items-end shrink-0">
                 <div>
@@ -614,16 +616,15 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col flex-grow min-h-[300px]">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col shrink-0 mb-8">
                 <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
                     <h3 class="font-bold text-gray-700">⚠️ QC 집중 관리 대상 (발생 횟수 최다 상품 TOP 15)</h3>
                     <span class="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded shadow-sm">💡 행을 클릭하면 상세 내역을 볼 수 있습니다.</span>
                 </div>
                 
-                <div class="overflow-auto flex-grow custom-scrollbar relative">
-                    <table class="w-full text-sm text-left">
-                        
-                        <thead class="text-xs text-gray-500 bg-gray-50 sticky top-0 z-20 shadow-sm outline outline-1 outline-gray-200">
+                <div class="overflow-x-auto relative">
+                    <table class="w-full text-sm text-left relative">
+                        <thead class="text-xs text-gray-500 bg-gray-50 outline outline-1 outline-gray-200">
                             <tr class="bg-gray-50">
                                 <th class="px-4 py-3 border-b">상품명</th>
                                 <th class="px-4 py-3 text-center border-b border-l bg-gray-100/50" colspan="3">📊 검수 횟수 (상품 건별) 기준</th>
