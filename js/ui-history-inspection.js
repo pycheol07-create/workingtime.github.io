@@ -280,7 +280,6 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
-// ui-history.js 에서의 import 에러 방지용
 export const renderInspectionLogTable = (logs, productName) => {};
 
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
@@ -292,6 +291,8 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const colspan = targetTr.children.length; 
 
     let displayLogs = logs;
+    
+    // ★ 1. 리스트별 보기: 클릭된 옵션/코드에 해당하는 내역만 필터
     if (context.inspectionViewMode === 'list') {
         const targetOption = targetTr.dataset.productOption;
         const targetCode = targetTr.dataset.productCode;
@@ -305,14 +306,46 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 return logOption === targetOption && logCode === targetCode && logDate === targetDate;
             });
         }
+    } 
+    // ★ 2. QC 통계 탭: 현재 선택된 조회 기간(월/주)의 불량 내역만 필터!
+    else if (context.inspectionViewMode === 'qc') {
+        const typeSelect = document.getElementById('qc-period-type');
+        const valueSelect = document.getElementById('qc-period-value');
+        const pType = typeSelect ? typeSelect.value : 'month';
+        const pVal = valueSelect ? valueSelect.value : '';
+
+        displayLogs = logs.filter(log => {
+            // 기간 체크
+            if (pVal && log.date) {
+                const logMonth = log.date.substring(0, 7);
+                const logWeek = getWeekOfYear(new Date(log.date));
+                const isMatch = (pType === 'month' && logMonth === pVal) || (pType === 'week' && logWeek === pVal);
+                if (!isMatch) return false; // 조회 기간이 아니면 제외
+            }
+
+            // 불량 여부 체크 (하나라도 불량 사유가 있으면 포함)
+            let isDefect = false;
+            const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
+
+            if (log.status === '불량') isDefect = true;
+            if (log.defects && Array.isArray(log.defects) && log.defects.length > 0) isDefect = true;
+            if (log.checklist) {
+                Object.entries(log.checklist).forEach(([key, val]) => {
+                    if (key !== 'thickness' && val && !normalValues.includes(val)) {
+                        isDefect = true;
+                    }
+                });
+            }
+            return isDefect;
+        });
     }
 
     const tr = document.createElement('tr');
-    tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner';
+    tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner relative z-0';
     
     let logsHtml = '';
     if (!displayLogs || displayLogs.length === 0) {
-        logsHtml = '<div class="p-6 text-center text-gray-500">해당 조건의 상세 검수 기록이 없습니다.</div>';
+        logsHtml = '<div class="p-6 text-center text-gray-500">해당 조건(불량/특정기간)에 해당하는 상세 검수 기록이 없습니다.</div>';
     } else {
         const groupedLogs = {};
         displayLogs.forEach((log, idx) => {
@@ -402,11 +435,16 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             }).join('');
         });
 
+        // 타이틀 문구에 모드에 따른 설명을 동적으로 추가
+        const headerTitle = context.inspectionViewMode === 'qc' 
+            ? `🔍 상세 불량 내역 (해당 기간)` 
+            : `🔍 상세 검수 이력`;
+
         logsHtml = `
             <div class="p-4 bg-indigo-50/50 border-y border-indigo-200">
                 <div class="flex items-center justify-between mb-3">
                     <h4 class="font-bold text-indigo-900 text-sm flex items-center gap-2">
-                        🔍 상세 검수 이력 <span class="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200">${productName}</span>
+                        ${headerTitle} <span class="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200">${productName}</span>
                     </h4>
                     <button class="text-xs text-gray-500 hover:text-gray-800 font-bold btn-close-expanded px-3 py-1 rounded hover:bg-gray-200 transition border border-gray-300 bg-white shadow-sm">닫기 ✖</button>
                 </div>
@@ -619,7 +657,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col shrink-0 mb-8">
                 <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
                     <h3 class="font-bold text-gray-700">⚠️ QC 집중 관리 대상 (발생 횟수 최다 상품 TOP 15)</h3>
-                    <span class="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded shadow-sm">💡 행을 클릭하면 상세 내역을 볼 수 있습니다.</span>
+                    <span class="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded shadow-sm">💡 행을 클릭하면 해당 기간의 불량 상세 내역을 볼 수 있습니다.</span>
                 </div>
                 
                 <div class="overflow-x-auto relative">
@@ -646,7 +684,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                             ${topDefectiveProducts.length === 0 ? `
                                 <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다. 🎉</td></tr>
                             ` : topDefectiveProducts.map((p, idx) => `
-                                <tr class="hover:bg-indigo-50/50 transition cursor-pointer btn-view-detail group" data-product-name="${p.name}" title="클릭하여 상세 이력 펼치기">
+                                <tr class="hover:bg-indigo-50/50 transition cursor-pointer btn-view-detail group" data-product-name="${p.name}" title="해당 기간의 불량 상세 이력 펼치기">
                                     <td class="px-4 py-3 font-medium text-gray-900 break-words max-w-[200px]">
                                         <span class="inline-block w-4 h-4 text-center rounded-full ${idx < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'} text-[10px] mr-1 leading-4">${idx + 1}</span>
                                         <span class="group-hover:text-indigo-600 group-hover:underline transition-all">${p.name}</span>
