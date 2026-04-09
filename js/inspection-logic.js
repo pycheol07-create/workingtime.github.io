@@ -775,7 +775,6 @@ export const searchProductHistory = async () => {
 };
 
 export const saveInspectionAndNext = async () => {
-    // DOM 요소를 직접 찾아 안전하게 값 추출
     const getVal = (id) => {
         const el = document.getElementById(id);
         return el ? el.value : '';
@@ -837,12 +836,15 @@ export const saveInspectionAndNext = async () => {
     const today = getTodayDateString();
     const nowTime = getCurrentTime();
 
+    // 완료된 검수 기록 객체 생성
     const inspectionRecord = {
-        date: today, // 검수일
+        date: today, 
         time: nowTime,
         inspector: State.appState.currentUser || 'Unknown',
-        inboundDate: inboundDate, // 직접 입력한 입고일
-        packingDate: packingDate, // 엑셀 출고일
+        // ✅ [추가] 검수 방식 저장 (State에서 가져오거나 기본값 세팅)
+        inspectionType: State.context.currentInspectionType || '샘플검수', 
+        inboundDate: inboundDate, 
+        packingDate: packingDate, 
         inboundQty: Number(inboundQty) || 0,
         option: currentItem ? currentItem.option : '-',
         code: currentItem ? currentItem.code : '-',
@@ -911,7 +913,7 @@ export const saveInspectionAndNext = async () => {
             
             todayInspectionList.unshift({
                 productName,
-                inboundDate: packingDate !== '-' ? packingDate : inboundDate, // 화면 표시용 백업
+                inboundDate: packingDate !== '-' ? packingDate : inboundDate, 
                 status,
                 defects: defectsFound,
                 note,
@@ -1286,7 +1288,6 @@ export const deleteProductHistory = async (productName) => {
     }
 };
 
-// 완전히 변경된 수동 검수 상세 등록 및 즉시 저장 함수
 export const savePreInspectionNote = async () => {
     const getVal = (id) => {
         const el = document.getElementById(id);
@@ -1299,7 +1300,6 @@ export const savePreInspectionNote = async () => {
         return false;
     }
     
-    // 파일명 등에서 에러 유발 가능성 있는 슬래시 처리
     productName = productName.replace(/\//g, '-'); 
 
     const checklist = {
@@ -1354,6 +1354,8 @@ export const savePreInspectionNote = async () => {
         date: today,
         time: nowTime,
         inspector: State.appState.currentUser || 'Unknown',
+        // ✅ [추가] 수동 추가 시, 모달의 드롭다운 값을 가져오거나 기본값 '샘플검수' 지정
+        inspectionType: getVal('manual-insp-type') || '샘플검수', 
         inboundDate: inboundDate,
         packingDate: packingDate,
         inboundQty: Number(inboundQty) || 0,
@@ -1411,6 +1413,9 @@ export const savePreInspectionNote = async () => {
         if (getEl('manual-insp-note')) getEl('manual-insp-note').value = '';
         if (getEl('manual-insp-packing-date')) getEl('manual-insp-packing-date').value = '';
         
+        // ✅ [추가] 모달 리셋 시 검수 방식도 초기화
+        if (getEl('manual-insp-type')) getEl('manual-insp-type').value = '샘플검수'; 
+
         const selects = document.querySelectorAll('#pre-register-inspection-modal select');
         selects.forEach(sel => sel.value = "정상"); 
 
