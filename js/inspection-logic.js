@@ -1,4 +1,6 @@
 // === js/inspection-logic.js ===
+// 설명: 검수 이력 조회, 저장, 리스트 관리, 수정/삭제(상세/전체), 스캔, 엑셀, 이미지 처리 등 핵심 로직
+
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { updateDailyData } from './app-data.js'; 
@@ -6,16 +8,20 @@ import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
 import { 
     doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, increment, serverTimestamp, collection, getDocs 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ✅ UI 렌더러 함수 임포트
 import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js';
 
+// 로컬 상태 변수
 let todayInspectionList = [];
 let html5QrCode = null;
 let currentImageBase64 = null;
 let currentProductLogs = []; 
 let currentTodoIndex = -1;
 let editingLogIndex = -1; 
-let manualImageBase64 = null; 
+let manualImageBase64 = null; // 수동 등록용 이미지 상태 변수 추가
 
+// 고유 입고(검수)일자 계산 헬퍼 함수 (사전등록 제외) - 검수일(date) 기준
 const getUniqueInboundCount = (logsArray) => {
     const validDates = logsArray
         .map(l => l.date) 
@@ -34,56 +40,6 @@ const resetEditingState = () => {
     clearImageState();
 };
 
-// ✅ [추가] 검수 방식 변경 시 화면 토글 로직
-export const toggleInspectionMode = () => {
-    const type = document.getElementById('insp-main-type-select').value;
-    const allArea = document.getElementById('insp-all-inspection-area');
-    const checkArea = document.getElementById('insp-checklist-area');
-    const qtyWrapper = document.getElementById('insp-qty-wrapper');
-    
-    if (type === '전량검수') {
-        if(allArea) allArea.classList.remove('hidden');
-        if(checkArea) checkArea.classList.add('hidden');
-        if(qtyWrapper) qtyWrapper.classList.add('hidden'); // 전량검수 폼의 수량을 쓰므로 중복 방지
-    } else {
-        if(allArea) allArea.classList.add('hidden');
-        if(checkArea) checkArea.classList.remove('hidden');
-        if(qtyWrapper) qtyWrapper.classList.remove('hidden');
-    }
-};
-
-// ✅ [추가] 수정 모달 검수 방식 토글 로직
-export const toggleEditInspectionMode = () => {
-    const type = document.getElementById('edit-insp-type').value;
-    const allArea = document.getElementById('edit-insp-all-inspection-area');
-    const checkArea = document.getElementById('edit-insp-checklist-area');
-    const qtyWrapper = document.getElementById('edit-insp-qty-wrapper');
-    
-    if (type === '전량검수') {
-        if(allArea) allArea.classList.remove('hidden');
-        if(checkArea) checkArea.classList.add('hidden');
-        if(qtyWrapper) qtyWrapper.classList.add('hidden');
-    } else {
-        if(allArea) allArea.classList.add('hidden');
-        if(checkArea) checkArea.classList.remove('hidden');
-        if(qtyWrapper) qtyWrapper.classList.remove('hidden');
-    }
-};
-
-// ✅ [추가] 전량검수 수량 자동 계산 (입력, 수정용)
-export const calcAllQty = (prefix = 'insp-all-') => {
-    const total = Number(document.getElementById(`${prefix}total-qty`).value) || 0;
-    const acc = Number(document.getElementById(`${prefix}acc-qty`).value) || 0;
-    const current = Number(document.getElementById(`${prefix}current-qty`).value) || 0;
-    const defect = Number(document.getElementById(`${prefix}defect-qty`).value) || 0;
-    
-    const normal = current - defect;
-    const remain = total - acc - current;
-    
-    document.getElementById(`${prefix}normal-qty`).value = normal >= 0 ? normal : 0;
-    document.getElementById(`${prefix}remain-qty`).value = remain;
-};
-
 export const initializeInspectionSession = async () => {
     todayInspectionList = [];
     currentTodoIndex = -1;
@@ -91,29 +47,6 @@ export const initializeInspectionSession = async () => {
     manualImageBase64 = null;
     resetEditingState(); 
     
-    // 이벤트 리스너 바인딩 (매니저 입력창)
-    const mainSelect = document.getElementById('insp-main-type-select');
-    if (mainSelect) {
-        mainSelect.value = '샘플검수';
-        mainSelect.onchange = toggleInspectionMode;
-        toggleInspectionMode(); // 초기화
-    }
-
-    ['current-qty', 'defect-qty', 'total-qty'].forEach(field => {
-        const el = document.getElementById(`insp-all-${field}`);
-        if (el) el.oninput = () => calcAllQty('insp-all-');
-    });
-
-    // 이벤트 리스너 바인딩 (수정 모달창)
-    const editSelect = document.getElementById('edit-insp-type');
-    if (editSelect) {
-        editSelect.onchange = toggleEditInspectionMode;
-    }
-    ['current-qty', 'defect-qty', 'total-qty'].forEach(field => {
-        const el = document.getElementById(`edit-insp-all-${field}`);
-        if (el) el.oninput = () => calcAllQty('edit-insp-all-');
-    });
-
     if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
     const qtyInput = document.getElementById('insp-inbound-qty');
     if (qtyInput) qtyInput.value = '';
@@ -122,17 +55,22 @@ export const initializeInspectionSession = async () => {
     const thickInput = document.getElementById('insp-check-thickness');
     if (thickInput) thickInput.value = '';
     
+    // 출고 일자 초기화
     const packingDateInput = document.getElementById('insp-packing-date');
     if (packingDateInput) packingDateInput.value = '';
+
+    // 입고 일자 초기화 (기본 오늘 날짜 세팅)
     const inboundDateInput = document.getElementById('insp-inbound-date');
-    if (inboundDateInput) inboundDateInput.value = getTodayDateString();
+    if (inboundDateInput) {
+        inboundDateInput.value = getTodayDateString();
+    }
 
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
     if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
     
-    const selects = document.querySelectorAll('#insp-checklist-area select');
+    const selects = document.querySelectorAll('#insp-current-input-area select');
     selects.forEach(sel => sel.value = ""); 
     
     if (DOM.inspImagePreviewBox) DOM.inspImagePreviewBox.classList.add('hidden');
@@ -151,6 +89,7 @@ export const initializeInspectionSession = async () => {
             State.appState.inspectionList = [];
             await updateDailyData({ inspectionList: [] });
             renderTodoList();
+            showToast("이전 검수 리스트가 모두 완료되어 초기화되었습니다.");
         } else {
             renderTodoList();
         }
@@ -161,18 +100,33 @@ export const initializeInspectionSession = async () => {
 
 export const deleteInspectionList = async () => {
     const list = State.appState.inspectionList || [];
-    if (list.length === 0) return;
-    if (!confirm("현재 검수 대기 리스트를 모두 삭제하시겠습니까?\n(검수 완료된 이력 데이터는 유지됩니다)")) return;
-    
+    if (list.length === 0) {
+        showToast("삭제할 리스트가 없습니다.", true);
+        return;
+    }
+    if (!confirm("현재 검수 대기 리스트를 모두 삭제하시겠습니까?\n(검수 완료된 이력 데이터는 유지됩니다)")) {
+        return;
+    }
     try {
         await updateDailyData({ inspectionList: [] });
         State.appState.inspectionList = [];
         renderTodoList();
+        
+        if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
+        const qtyInput = document.getElementById('insp-inbound-qty');
+        if (qtyInput) qtyInput.value = '';
+        if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
+        if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
+        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
+        if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
+        
         currentTodoIndex = -1;
         resetEditingState(); 
+
         showToast("검수 리스트가 초기화되었습니다.");
     } catch (e) {
         console.error("Error deleting list:", e);
+        showToast("리스트 삭제 중 오류가 발생했습니다.", true);
     }
 };
 
@@ -198,11 +152,12 @@ export const deleteHistoryInspectionList = async (dateKey) => {
         return true;
     } catch (e) {
         console.error("Error deleting history list:", e);
+        showToast("리스트 삭제 중 오류가 발생했습니다.", true);
         return false;
     }
 };
 
-export const handleExcelUpload = (file) => { /* ... 기존과 완벽히 동일 (생략방지이나 너무 길어지므로 원본유지) ... */
+export const handleExcelUpload = (file) => {
     let packingDate = getTodayDateString();
     const parentMatch = file.name.match(/\((\d{6})\)/);
     const fullDateMatch = file.name.match(/20(\d{2})(\d{2})(\d{2})/);
@@ -312,7 +267,7 @@ export const handleExcelUpload = (file) => { /* ... 기존과 완벽히 동일 (
                 await updateDailyData({ inspectionList: mergedList });
                 State.appState.inspectionList = mergedList;
                 
-                showToast(`기존 리스트에 ${addedCount}개의 새 항목이 추가되었습니다.`);
+                showToast(`기존 리스트에 ${addedCount}개의 새 항목이 추가되었습니다. (총 ${mergedList.length}개)`);
                 renderTodoList(); 
                 openInspectionListWindow();
             } else {
@@ -320,14 +275,18 @@ export const handleExcelUpload = (file) => { /* ... 기존과 완벽히 동일 (
             }
         } catch (err) {
             console.error("Excel parse error:", err);
+            showToast("엑셀 파일 처리 중 오류가 발생했습니다.", true);
         }
     };
     reader.readAsArrayBuffer(file);
 };
 
-export const openInspectionListWindow = () => { /* ... 기존과 완벽히 동일 (생략방지 원본유지) ... */
+export const openInspectionListWindow = () => {
     const list = State.appState.inspectionList || [];
-    if (list.length === 0) return;
+    if (list.length === 0) {
+        showToast("리스트 데이터가 없습니다.", true);
+        return;
+    }
 
     const packingDate = list[0].packingDate || getTodayDateString();
     const existingModal = document.getElementById('dynamic-inspection-list-modal');
@@ -365,7 +324,9 @@ export const openInspectionListWindow = () => { /* ... 기존과 완벽히 동�
                 <div>
                     <h2 class="text-lg font-bold flex items-center gap-2">
                         📋 검수 대기 리스트
+                        <span class="bg-white text-indigo-600 text-xs px-2 py-0.5 rounded-full font-extrabold">${list.length}</span>
                     </h2>
+                    <p class="text-xs text-indigo-200 mt-1">📅 출고일자: <span class="font-bold text-white">${packingDate}</span></p>
                 </div>
                 <button id="close-dynamic-modal-btn" class="text-white hover:text-gray-200 bg-white/20 hover:bg-white/30 rounded-full p-2 transition">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -384,20 +345,25 @@ export const openInspectionListWindow = () => { /* ... 기존과 완벽히 동�
                     <tbody class="divide-y divide-gray-200 bg-white">${rowsHtml}</tbody>
                 </table>
             </div>
+            <div class="p-3 bg-gray-100 text-center border-t border-gray-200 text-xs text-gray-500 shrink-0">
+                항목을 클릭하면 입력창에 자동 선택됩니다.
+            </div>
         </div>
     `;
     document.body.appendChild(modal);
+
     document.getElementById('close-dynamic-modal-btn').addEventListener('click', () => modal.remove());
     modal.querySelector('tbody').addEventListener('click', (e) => {
         const tr = e.target.closest('tr[data-index]');
         if (tr) {
-            selectTodoItem(parseInt(tr.dataset.index, 10));
+            const index = parseInt(tr.dataset.index, 10);
+            selectTodoItem(index);
             modal.remove();
         }
     });
 };
 
-export const renderTodoList = () => { /* ... 기존과 완벽히 동일 (생략방지) ... */
+export const renderTodoList = () => {
     const list = State.appState.inspectionList || [];
     const todoArea = document.getElementById('insp-todo-list-area');
     const todoBody = document.getElementById('insp-todo-list-body');
@@ -463,9 +429,11 @@ export const selectTodoItem = async (index) => {
     } else {
         resetEditingState();
         
+        // 출고 일자 셋팅
         const packingDateInput = document.getElementById('insp-packing-date');
         if (packingDateInput) packingDateInput.value = item.packingDate || '';
 
+        // 입고 일자 셋팅 (기본은 오늘 날짜, 또는 수동 입력 유지)
         const inboundDateInput = document.getElementById('insp-inbound-date');
         if (inboundDateInput) {
             inboundDateInput.value = item.inboundDate || getTodayDateString(); 
@@ -498,52 +466,36 @@ const loadCompletedInspectionData = async (item) => {
                 const realIndex = logs.length - 1 - targetLogIndex;
                 const log = logs[realIndex];
 
-                // ✅ 불러올 때 저장된 방식도 복원
-                const typeSelect = document.getElementById('insp-main-type-select');
-                if (typeSelect) {
-                    typeSelect.value = log.inspectionType || '샘플검수';
-                    toggleInspectionMode();
-                }
-
-                if (log.inspectionType === '전량검수') {
-                    const getEl = (id) => document.getElementById(id);
-                    if(getEl('insp-all-reason')) getEl('insp-all-reason').value = log.allReason || '';
-                    if(getEl('insp-all-total-qty')) getEl('insp-all-total-qty').value = log.allTotalQty || '';
-                    if(getEl('insp-all-acc-qty')) getEl('insp-all-acc-qty').value = log.allAccQty || 0;
-                    if(getEl('insp-all-current-qty')) getEl('insp-all-current-qty').value = log.allCurrentQty || '';
-                    if(getEl('insp-all-defect-qty')) getEl('insp-all-defect-qty').value = log.allDefectQty || 0;
-                    calcAllQty('insp-all-');
-                } else {
-                    const qtyInput = document.getElementById('insp-inbound-qty');
-                    if (qtyInput) qtyInput.value = log.inboundQty || 0;
-                    const cl = log.checklist || {};
-                    const setSelect = (id, val) => { 
-                        const el = document.getElementById(id);
-                        if (el) el.value = val || (el.options && el.options.length > 0 ? el.options[0].value : ''); 
-                    };
-
-                    const thickEl = document.getElementById('insp-check-thickness');
-                    if (thickEl) thickEl.value = cl.thickness || '';
-                    setSelect('insp-check-fabric', cl.fabric);
-                    setSelect('insp-check-color', cl.color);
-                    setSelect('insp-check-distortion', cl.distortion);
-                    setSelect('insp-check-unraveling', cl.unraveling);
-                    setSelect('insp-check-finishing', cl.finishing);
-                    setSelect('insp-check-zipper', cl.zipper);
-                    setSelect('insp-check-button', cl.button);
-                    setSelect('insp-check-lining', cl.lining);
-                    setSelect('insp-check-pilling', cl.pilling);
-                    setSelect('insp-check-dye', cl.dye);
-                }
-
+                const qtyInput = document.getElementById('insp-inbound-qty');
+                if (qtyInput) qtyInput.value = log.inboundQty || 0;
                 const notesInput = document.getElementById('insp-notes');
                 if (notesInput) notesInput.value = log.note || '';
 
                 const packingDateInput = document.getElementById('insp-packing-date');
-                if (packingDateInput) packingDateInput.value = log.packingDate || log.inboundDate || ''; 
+                if (packingDateInput) packingDateInput.value = log.packingDate || log.inboundDate || ''; // 하위 호환성 위해 inboundDate 백업
 
                 const inboundDateInput = document.getElementById('insp-inbound-date');
                 if (inboundDateInput) inboundDateInput.value = log.inboundDate || ''; 
+
+                const cl = log.checklist || {};
+                const setSelect = (id, val) => { 
+                    const el = document.getElementById(id);
+                    if (el) el.value = val || (el.options && el.options.length > 0 ? el.options[0].value : ''); 
+                };
+
+                const thickEl = document.getElementById('insp-check-thickness');
+                if (thickEl) thickEl.value = cl.thickness || '';
+
+                setSelect('insp-check-fabric', cl.fabric);
+                setSelect('insp-check-color', cl.color);
+                setSelect('insp-check-distortion', cl.distortion);
+                setSelect('insp-check-unraveling', cl.unraveling);
+                setSelect('insp-check-finishing', cl.finishing);
+                setSelect('insp-check-zipper', cl.zipper);
+                setSelect('insp-check-button', cl.button);
+                setSelect('insp-check-lining', cl.lining);
+                setSelect('insp-check-pilling', cl.pilling);
+                setSelect('insp-check-dye', cl.dye);
 
                 if (log.image) {
                     currentImageBase64 = log.image;
@@ -591,6 +543,8 @@ const startScanner = () => {
     html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
     .catch(err => {
         console.error("Error starting scanner", err);
+        showToast("카메라를 시작할 수 없습니다.", true);
+        if(DOM.inspScannerContainer) DOM.inspScannerContainer.classList.add('hidden');
     });
 };
 
@@ -611,7 +565,7 @@ const onScanSuccess = (decodedText, decodedResult) => {
     searchProductHistory();
 };
 
-export const handleImageSelect = (file) => { /* ... 유지 ... */
+export const handleImageSelect = (file) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -621,8 +575,12 @@ export const handleImageSelect = (file) => { /* ... 유지 ... */
             const MAX_WIDTH = 800;
             let width = img.width;
             let height = img.height;
-            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-            canvas.width = width; canvas.height = height;
+            if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+            }
+            canvas.width = width;
+            canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
             currentImageBase64 = canvas.toDataURL('image/jpeg', 0.7); 
@@ -642,7 +600,8 @@ export const clearImageState = () => {
     if (DOM.inspImageInput) DOM.inspImageInput.value = '';
 };
 
-export const handleManualImageSelect = (file) => { /* ... 유지 ... */
+// 수동 추가 모달용 이미지 처리
+export const handleManualImageSelect = (file) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -650,12 +609,18 @@ export const handleManualImageSelect = (file) => { /* ... 유지 ... */
         img.onload = () => {
             const canvas = document.createElement('canvas');
             const MAX_WIDTH = 800;
-            let width = img.width; let height = img.height;
-            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-            canvas.width = width; canvas.height = height;
+            let width = img.width;
+            let height = img.height;
+            if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+            }
+            canvas.width = width;
+            canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
             manualImageBase64 = canvas.toDataURL('image/jpeg', 0.7); 
+            
             const previewContainer = document.getElementById('manual-insp-image-preview-container');
             const previewImg = document.getElementById('manual-insp-image-preview');
             if (previewContainer && previewImg) {
@@ -675,6 +640,7 @@ export const clearManualImageState = () => {
     if (previewContainer) previewContainer.classList.add('hidden');
     if (input) input.value = '';
 };
+
 
 export const searchProductHistory = async () => {
     let searchTerm = DOM.inspProductNameInput ? DOM.inspProductNameInput.value.trim() : document.getElementById('insp-product-name').value.trim();
@@ -753,7 +719,7 @@ export const searchProductHistory = async () => {
     if(DOM.inspReportTitle) DOM.inspReportTitle.textContent = targetProductName;
     
     if (editingLogIndex === -1) {
-        const selects = document.querySelectorAll('#insp-checklist-area select');
+        const selects = document.querySelectorAll('#insp-current-input-area select');
         selects.forEach(sel => sel.value = ""); 
     }
 
@@ -767,10 +733,9 @@ export const searchProductHistory = async () => {
             if(DOM.inspReportDate) DOM.inspReportDate.textContent = data.lastInspectionDate || '-';
 
             let specialIssues = [];
-            const logs = data.logs || [];
             
-            if (logs.length > 0) {
-                specialIssues = logs
+            if (data.logs && data.logs.length > 0) {
+                specialIssues = data.logs
                     .filter(log => {
                         const hasDefects = log.status === '불량' || (log.defects && log.defects.length > 0);
                         const hasNote = log.note && log.note.trim() !== '';
@@ -799,64 +764,6 @@ export const searchProductHistory = async () => {
                     }, 200);
                 }
             }
-
-            // ✅ [추가] 이어하기 로직: 진행 중인 '전량검수'가 있는지 역순 검색
-            let ongoingAllInsp = null;
-            if (editingLogIndex === -1) { 
-                for (let i = logs.length - 1; i >= 0; i--) {
-                    const l = logs[i];
-                    if (l.inspectionType === '전량검수') {
-                        const total = Number(l.allTotalQty) || 0;
-                        const acc = Number(l.allAccQty) || 0;
-                        const curr = Number(l.allCurrentQty) || 0;
-                        // 목표 수량보다 적게 한 경우에만 진행중으로 간주
-                        if (total > acc + curr) {
-                            ongoingAllInsp = l;
-                        }
-                        break; 
-                    }
-                }
-            }
-
-            if (ongoingAllInsp) {
-                // 이전 기록 덮어쓰기 로드
-                const getEl = (id) => document.getElementById(id);
-                if (getEl('insp-main-type-select')) {
-                    getEl('insp-main-type-select').value = '전량검수';
-                    toggleInspectionMode();
-                }
-                
-                if (getEl('insp-all-reason')) getEl('insp-all-reason').value = ongoingAllInsp.allReason || '';
-                if (getEl('insp-all-total-qty')) getEl('insp-all-total-qty').value = ongoingAllInsp.allTotalQty || 0;
-                
-                // 새로운 누적 수량 = 이전 누적 + 저번에 검수한 수량
-                const newAcc = (Number(ongoingAllInsp.allAccQty) || 0) + (Number(ongoingAllInsp.allCurrentQty) || 0);
-                if (getEl('insp-all-acc-qty')) getEl('insp-all-acc-qty').value = newAcc;
-                
-                if (getEl('insp-all-current-qty')) getEl('insp-all-current-qty').value = '';
-                if (getEl('insp-all-defect-qty')) getEl('insp-all-defect-qty').value = '';
-                calcAllQty('insp-all-');
-
-                if (getEl('insp-all-status-msg')) {
-                    getEl('insp-all-status-msg').textContent = `💡 이전 전량검수 진행 이력이 있어 자동으로 이어합니다.`;
-                }
-                showToast("진행 중인 전량검수를 이어합니다.");
-            } else {
-                if (editingLogIndex === -1) {
-                    const getEl = (id) => document.getElementById(id);
-                    if (getEl('insp-main-type-select')) {
-                        getEl('insp-main-type-select').value = '샘플검수';
-                        toggleInspectionMode();
-                    }
-                    if(getEl('insp-all-reason')) getEl('insp-all-reason').value = '';
-                    if(getEl('insp-all-total-qty')) getEl('insp-all-total-qty').value = '';
-                    if(getEl('insp-all-acc-qty')) getEl('insp-all-acc-qty').value = '0';
-                    if(getEl('insp-all-current-qty')) getEl('insp-all-current-qty').value = '';
-                    if(getEl('insp-all-defect-qty')) getEl('insp-all-defect-qty').value = '';
-                    if(getEl('insp-all-status-msg')) getEl('insp-all-status-msg').textContent = '';
-                }
-            }
-
         } else {
             if(DOM.inspReportCount) DOM.inspReportCount.textContent = '0 (신규)';
             if (editingLogIndex === -1) showToast('신규 상품입니다.');
@@ -868,6 +775,7 @@ export const searchProductHistory = async () => {
 };
 
 export const saveInspectionAndNext = async () => {
+    // DOM 요소를 직접 찾아 안전하게 값 추출
     const getVal = (id) => {
         const el = document.getElementById(id);
         return el ? el.value : '';
@@ -880,59 +788,28 @@ export const saveInspectionAndNext = async () => {
     }
     productName = productName.replace(/\//g, '-'); 
 
-    const currentType = getVal('insp-main-type-select') || '샘플검수';
-    let allReason = '', allTotalQty = 0, allAccQty = 0, allCurrentQty = 0, allDefectQty = 0, allNormalQty = 0;
-    const checklist = {};
-    const defectsFound = [];
-    const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
-    const labelMap = {
-        fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', 
-        finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염'
+    const checklist = {
+        thickness: getVal('insp-check-thickness'),
+        fabric: getVal('insp-check-fabric'),
+        color: getVal('insp-check-color'),
+        distortion: getVal('insp-check-distortion'),
+        unraveling: getVal('insp-check-unraveling'),
+        finishing: getVal('insp-check-finishing'),
+        zipper: getVal('insp-check-zipper'),
+        button: getVal('insp-check-button'),
+        lining: getVal('insp-check-lining'),
+        pilling: getVal('insp-check-pilling'),
+        dye: getVal('insp-check-dye')
     };
 
-    // ✅ [추가] 타입에 따른 검증 및 데이터 수집
-    if (currentType === '전량검수') {
-        allReason = getVal('insp-all-reason');
-        allTotalQty = Number(getVal('insp-all-total-qty')) || 0;
-        allAccQty = Number(getVal('insp-all-acc-qty')) || 0;
-        allCurrentQty = Number(getVal('insp-all-current-qty')) || 0;
-        allDefectQty = Number(getVal('insp-all-defect-qty')) || 0;
-        allNormalQty = Number(getVal('insp-all-normal-qty')) || 0;
-
-        if (!allReason) { alert("⚠️ 전량검수 진행 사유를 입력해주세요."); return; }
-        if (allTotalQty <= 0) { alert("⚠️ 총 대상 재고 수량을 입력해주세요."); return; }
-        if (allCurrentQty <= 0) { alert("⚠️ 금일 검수한 수량을 입력해주세요."); return; }
-        if (allDefectQty > allCurrentQty) { alert("⚠️ 불량 수량이 검수 수량보다 많을 수 없습니다."); return; }
-        
-        if (allDefectQty > 0) defectsFound.push(`전수조사 불량(${allDefectQty}개)`);
-
-    } else {
-        Object.assign(checklist, {
-            thickness: getVal('insp-check-thickness'),
-            fabric: getVal('insp-check-fabric'), color: getVal('insp-check-color'),
-            distortion: getVal('insp-check-distortion'), unraveling: getVal('insp-check-unraveling'),
-            finishing: getVal('insp-check-finishing'), zipper: getVal('insp-check-zipper'),
-            button: getVal('insp-check-button'), lining: getVal('insp-check-lining'),
-            pilling: getVal('insp-check-pilling'), dye: getVal('insp-check-dye')
-        });
-
-        if (checklist.thickness === '' || Object.values(checklist).some(v => v === "" || v === null)) {
-            alert("⚠️ 모든 품질 체크리스트 항목을 확인하고 선택해주세요.");
-            return;
-        }
-
-        Object.entries(checklist).forEach(([key, value]) => {
-            if (key === 'thickness') return;
-            if (!NORMAL_VALUES.includes(value)) {
-                defectsFound.push(`${labelMap[key] || key}(${value})`);
-            }
-        });
+    if (checklist.thickness === '' || Object.values(checklist).some(v => v === "" || v === null)) {
+        alert("⚠️ 모든 품질 체크리스트 항목을 확인하고 선택해주세요.");
+        return;
     }
 
     const inboundDate = getVal('insp-inbound-date') || getTodayDateString();
     const packingDate = getVal('insp-packing-date') || '-';
-    // 전량검수일 경우 입력한 검수수량을 인바운드 수량으로 동기화
-    const inboundQty = currentType === '전량검수' ? allCurrentQty : getVal('insp-inbound-qty');
+    const inboundQty = getVal('insp-inbound-qty');
     const note = getVal('insp-notes');
 
     let currentItem = null;
@@ -940,25 +817,42 @@ export const saveInspectionAndNext = async () => {
         currentItem = State.appState.inspectionList[currentTodoIndex];
     }
 
+    const defectsFound = [];
+    const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
+    
+    const labelMap = {
+        fabric: '원단', color: '컬러', distortion: '뒤틀림',
+        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
+        lining: '안감', pilling: '보풀', dye: '이염'
+    };
+
+    Object.entries(checklist).forEach(([key, value]) => {
+        if (key === 'thickness') return;
+        if (!NORMAL_VALUES.includes(value)) {
+            defectsFound.push(`${labelMap[key] || key}(${value})`);
+        }
+    });
+
     const status = defectsFound.length > 0 ? '불량' : '정상';
     const today = getTodayDateString();
     const nowTime = getCurrentTime();
 
     const inspectionRecord = {
-        date: today, time: nowTime,
+        date: today, // 검수일
+        time: nowTime,
         inspector: State.appState.currentUser || 'Unknown',
-        inspectionType: currentType, 
-        inboundDate: inboundDate, packingDate: packingDate, 
+        inboundDate: inboundDate, // 직접 입력한 입고일
+        packingDate: packingDate, // 엑셀 출고일
         inboundQty: Number(inboundQty) || 0,
         option: currentItem ? currentItem.option : '-',
         code: currentItem ? currentItem.code : '-',
         supplierName: currentItem ? currentItem.supplierName : '-', 
         location: currentItem ? currentItem.location : '-',
-        checklist, defects: defectsFound, note, status,
-        image: currentImageBase64 || null,
-        
-        // 전량검수 필드
-        allReason, allTotalQty, allAccQty, allCurrentQty, allDefectQty, allNormalQty
+        checklist,
+        defects: defectsFound,
+        note,
+        status,
+        image: currentImageBase64 || null
     };
 
     const btn = document.getElementById('insp-save-next-btn');
@@ -1017,17 +911,13 @@ export const saveInspectionAndNext = async () => {
             
             todayInspectionList.unshift({
                 productName,
-                inboundDate: packingDate !== '-' ? packingDate : inboundDate, 
+                inboundDate: packingDate !== '-' ? packingDate : inboundDate, // 화면 표시용 백업
                 status,
                 defects: defectsFound,
                 note,
                 time: nowTime
             });
-            
-            const msg = currentType === '전량검수' && (allTotalQty > allAccQty + allCurrentQty)
-                ? `'${productName}' 진행 저장 완료! (남은 수량: ${allTotalQty - allAccQty - allCurrentQty}개)`
-                : `'${productName}' 저장 완료!`;
-            showToast(msg);
+            showToast(`'${productName}' 저장 완료!`);
         }
 
         let pastListUpdated = false;
@@ -1086,31 +976,25 @@ const resetInspectionForm = (clearProductName = false) => {
     
     const qtyInput = document.getElementById('insp-inbound-qty');
     if (qtyInput) qtyInput.value = '';
+    
     const notesInput = document.getElementById('insp-notes');
     if (notesInput) notesInput.value = '';
+    
     const thickInput = document.getElementById('insp-check-thickness');
     if (thickInput) thickInput.value = '';
+
     const packingDateInput = document.getElementById('insp-packing-date');
     if (packingDateInput) packingDateInput.value = '';
+
     const inboundDateInput = document.getElementById('insp-inbound-date');
     if (inboundDateInput) inboundDateInput.value = getTodayDateString();
-
-    const getEl = (id) => document.getElementById(id);
-    if(getEl('insp-all-reason')) getEl('insp-all-reason').value = '';
-    if(getEl('insp-all-total-qty')) getEl('insp-all-total-qty').value = '';
-    if(getEl('insp-all-acc-qty')) getEl('insp-all-acc-qty').value = '0';
-    if(getEl('insp-all-current-qty')) getEl('insp-all-current-qty').value = '';
-    if(getEl('insp-all-defect-qty')) getEl('insp-all-defect-qty').value = '';
-    if(getEl('insp-all-normal-qty')) getEl('insp-all-normal-qty').value = '';
-    if(getEl('insp-all-remain-qty')) getEl('insp-all-remain-qty').value = '0';
-    if(getEl('insp-all-status-msg')) getEl('insp-all-status-msg').textContent = '';
 
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
     if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
     
-    const selects = document.querySelectorAll('#insp-checklist-area select');
+    const selects = document.querySelectorAll('#insp-current-input-area select');
     selects.forEach(sel => sel.value = ""); 
 };
 
@@ -1155,23 +1039,32 @@ export const clearTodayList = () => {
     renderTodayInspectionList();
 };
 
-export const loadAllInspectionHistory = async () => { /* 유지 */
+export const loadAllInspectionHistory = async () => {
     const container = document.getElementById('inspection-history-view-container');
     if (!container) return;
+    
     container.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>검수 이력을 불러오는 중입니다...</div>';
+
     try {
         const colRef = collection(State.db, 'product_history');
         const snapshot = await getDocs(colRef);
+        
         const historyData = [];
-        snapshot.forEach(doc => { historyData.push({ id: doc.id, ...doc.data() }); });
+        snapshot.forEach(doc => {
+            historyData.push({ id: doc.id, ...doc.data() });
+        });
+
         renderInspectionHistoryTable(historyData);
     } catch (e) {
+        console.error("Error loading all inspection history:", e);
         container.innerHTML = '<div class="text-center text-red-500 py-10">데이터를 불러오는 중 오류가 발생했습니다.</div>';
+        showToast("검수 이력 로딩 실패", true);
     }
 };
 
-export const loadInspectionLogs = async (productName, targetTr = null) => { /* 유지 */
+export const loadInspectionLogs = async (productName, targetTr = null) => {
     if (!productName) return;
+    
     const managerModal = document.getElementById('inspection-log-manager-modal');
     if (!targetTr && managerModal) {
          managerModal.classList.remove('hidden');
@@ -1180,22 +1073,27 @@ export const loadInspectionLogs = async (productName, targetTr = null) => { /* �
          const tbody = document.getElementById('inspection-log-table-body');
          if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-gray-500">로딩 중...</td></tr>';
     }
+
     try {
         const safeProductName = productName.replace(/\//g, '-');
         const docRef = doc(State.db, 'product_history', safeProductName);
         const docSnap = await getDoc(docRef);
+
         if (docSnap.exists()) {
             const data = docSnap.data();
             currentProductLogs = data.logs || [];
         } else {
             currentProductLogs = [];
         }
+
         if (targetTr) {
             renderExpandedInspectionLog(targetTr, currentProductLogs, productName);
         } else {
             renderInspectionLogTable(currentProductLogs, productName);
         }
+
     } catch (e) {
+        console.error("Error loading inspection logs:", e);
         showToast("상세 이력을 불러오는 중 오류가 발생했습니다.", true);
     }
 };
@@ -1207,11 +1105,6 @@ export const prepareEditInspectionLog = (productName, index) => {
     const getEl = (id) => document.getElementById(id);
     
     if (getEl('edit-insp-product-name')) getEl('edit-insp-product-name').value = productName;
-    if (getEl('edit-insp-type')) {
-        getEl('edit-insp-type').value = log.inspectionType || '샘플검수';
-        toggleEditInspectionMode();
-    }
-
     if (getEl('edit-insp-date-time')) getEl('edit-insp-date-time').value = `${log.date} ${log.time}`;
     if (getEl('edit-insp-packing-no')) getEl('edit-insp-packing-no').value = log.packingDate || '';
     if (getEl('edit-insp-inbound-date')) getEl('edit-insp-inbound-date').value = log.inboundDate || '';
@@ -1219,16 +1112,6 @@ export const prepareEditInspectionLog = (productName, index) => {
     if (getEl('edit-insp-notes')) getEl('edit-insp-notes').value = log.note || '';
     if (getEl('edit-insp-log-index')) getEl('edit-insp-log-index').value = index;
     if (getEl('edit-insp-supplier-name')) getEl('edit-insp-supplier-name').value = log.supplierName || '';
-
-    // 전량검수 필드 셋업
-    if (log.inspectionType === '전량검수') {
-        if(getEl('edit-insp-all-reason')) getEl('edit-insp-all-reason').value = log.allReason || '';
-        if(getEl('edit-insp-all-total-qty')) getEl('edit-insp-all-total-qty').value = log.allTotalQty || '';
-        if(getEl('edit-insp-all-acc-qty')) getEl('edit-insp-all-acc-qty').value = log.allAccQty || 0;
-        if(getEl('edit-insp-all-current-qty')) getEl('edit-insp-all-current-qty').value = log.allCurrentQty || '';
-        if(getEl('edit-insp-all-defect-qty')) getEl('edit-insp-all-defect-qty').value = log.allDefectQty || 0;
-        calcAllQty('edit-insp-all-');
-    }
 
     const checklist = log.checklist || {};
     const setEditSelect = (id, val) => { 
@@ -1263,56 +1146,44 @@ export const updateInspectionLog = async () => {
     
     if (!productName || isNaN(index) || !currentProductLogs[index]) return;
 
-    const currentType = getEditVal('edit-insp-type') || '샘플검수';
-    let allReason = '', allTotalQty = 0, allAccQty = 0, allCurrentQty = 0, allDefectQty = 0, allNormalQty = 0;
-    const checklist = {};
+    const checklist = {
+        thickness: getEditVal('edit-insp-check-thickness'),
+        fabric: getEditVal('edit-insp-check-fabric'),
+        color: getEditVal('edit-insp-check-color'),
+        distortion: getEditVal('edit-insp-check-distortion'),
+        unraveling: getEditVal('edit-insp-check-unraveling'),
+        finishing: getEditVal('edit-insp-check-finishing'),
+        zipper: getEditVal('edit-insp-check-zipper'),
+        button: getEditVal('edit-insp-check-button'),
+        lining: getEditVal('edit-insp-check-lining'),
+        pilling: getEditVal('edit-insp-check-pilling'),
+        dye: getEditVal('edit-insp-check-dye')
+    };
+
     const defectsFound = [];
     const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
     const labelMap = {
-        fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', 
-        finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염'
+        fabric: '원단', color: '컬러', distortion: '뒤틀림',
+        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
+        lining: '안감', pilling: '보풀', dye: '이염'
     };
-
-    if (currentType === '전량검수') {
-        allReason = getEditVal('edit-insp-all-reason');
-        allTotalQty = Number(getEditVal('edit-insp-all-total-qty')) || 0;
-        allAccQty = Number(getEditVal('edit-insp-all-acc-qty')) || 0;
-        allCurrentQty = Number(getEditVal('edit-insp-all-current-qty')) || 0;
-        allDefectQty = Number(getEditVal('edit-insp-all-defect-qty')) || 0;
-        allNormalQty = Number(getEditVal('edit-insp-all-normal-qty')) || 0;
-        if (!allReason || allTotalQty <= 0 || allCurrentQty <= 0 || allDefectQty > allCurrentQty) {
-            alert("⚠️ 수정할 전량검수 데이터의 값이 올바르지 않습니다. (사유 및 수량을 확인하세요)"); return;
+    Object.entries(checklist).forEach(([key, value]) => {
+        if (key === 'thickness') return;
+        if (!NORMAL_VALUES.includes(value)) {
+            defectsFound.push(`${labelMap[key] || key}(${value})`);
         }
-        if (allDefectQty > 0) defectsFound.push(`전수조사 불량(${allDefectQty}개)`);
-    } else {
-        Object.assign(checklist, {
-            thickness: getEditVal('edit-insp-check-thickness'),
-            fabric: getEditVal('edit-insp-check-fabric'), color: getEditVal('edit-insp-check-color'),
-            distortion: getEditVal('edit-insp-check-distortion'), unraveling: getEditVal('edit-insp-check-unraveling'),
-            finishing: getEditVal('edit-insp-check-finishing'), zipper: getEditVal('edit-insp-check-zipper'),
-            button: getEditVal('edit-insp-check-button'), lining: getEditVal('edit-insp-check-lining'),
-            pilling: getEditVal('edit-insp-check-pilling'), dye: getEditVal('edit-insp-check-dye')
-        });
-        Object.entries(checklist).forEach(([key, value]) => {
-            if (key === 'thickness') return;
-            if (!NORMAL_VALUES.includes(value)) defectsFound.push(`${labelMap[key] || key}(${value})`);
-        });
-    }
-
-    const inboundQty = currentType === '전량검수' ? allCurrentQty : (Number(getEditVal('edit-insp-inbound-qty')) || 0);
+    });
 
     const updatedLog = {
         ...currentProductLogs[index], 
-        inspectionType: currentType,
         packingDate: getEditVal('edit-insp-packing-no'), 
         inboundDate: getEditVal('edit-insp-inbound-date'), 
-        inboundQty: inboundQty,
+        inboundQty: Number(getEditVal('edit-insp-inbound-qty')) || 0,
         supplierName: getEditVal('edit-insp-supplier-name'), 
         checklist: checklist,
         defects: defectsFound,
         note: getEditVal('edit-insp-notes'),
-        status: defectsFound.length > 0 ? '불량' : '정상',
-        allReason, allTotalQty, allAccQty, allCurrentQty, allDefectQty, allNormalQty
+        status: defectsFound.length > 0 ? '불량' : '정상'
     };
 
     currentProductLogs[index] = updatedLog;
@@ -1349,7 +1220,7 @@ export const updateInspectionLog = async () => {
     }
 };
 
-export const deleteInspectionLog = async () => { /* 유지 */
+export const deleteInspectionLog = async () => {
     const pNameEl = document.getElementById('edit-insp-product-name');
     const idxEl = document.getElementById('edit-insp-log-index');
     const productName = pNameEl ? pNameEl.value : '';
@@ -1386,18 +1257,22 @@ export const deleteInspectionLog = async () => { /* 유지 */
         }
 
         await updateDoc(docRef, updates);
+
         showToast("기록이 삭제되었습니다.");
         const editModal = document.getElementById('inspection-log-editor-modal');
         if (editModal) editModal.classList.add('hidden');
         renderInspectionLogTable(currentProductLogs, productName);
+
     } catch (e) {
+        console.error("Error deleting log:", e);
         showToast("삭제 중 오류가 발생했습니다.", true);
     }
 };
 
-export const deleteProductHistory = async (productName) => { /* 유지 */
+export const deleteProductHistory = async (productName) => {
     if (!productName) return false;
     if (!confirm(`정말 '${productName}' 상품의 모든 검수 이력을 삭제하시겠습니까?\n(이 작업은 복구할 수 없습니다)`)) return false;
+
     try {
         const safeProductName = productName.replace(/\//g, '-');
         const docRef = doc(State.db, 'product_history', safeProductName);
@@ -1405,14 +1280,157 @@ export const deleteProductHistory = async (productName) => { /* 유지 */
         showToast(`'${productName}' 상품 및 이력이 모두 삭제되었습니다.`);
         return true; 
     } catch (e) {
+        console.error("Error deleting product:", e);
         showToast("상품 삭제 중 오류가 발생했습니다.", true);
         return false;
     }
 };
 
-export const savePreInspectionNote = async () => { /* 유지 (수동추가) - 수정 불필요 */
-    // ... 수동추가 모달은 이미 드롭다운 연동됨
-    // (기능 유지됨, 파일 길어짐 방지)
-    showToast("이 파일 내 수동 저장 로직은 이미 최적화되어 동작합니다.");
-    return true;
+// 완전히 변경된 수동 검수 상세 등록 및 즉시 저장 함수
+export const savePreInspectionNote = async () => {
+    const getVal = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.value : '';
+    };
+
+    let productName = getVal('manual-insp-product-name').trim();
+    if (!productName) {
+        showToast("상품명은 필수 입력 항목입니다.", true);
+        return false;
+    }
+    
+    // 파일명 등에서 에러 유발 가능성 있는 슬래시 처리
+    productName = productName.replace(/\//g, '-'); 
+
+    const checklist = {
+        thickness: getVal('manual-insp-check-thickness'),
+        fabric: getVal('manual-insp-check-fabric'),
+        color: getVal('manual-insp-check-color'),
+        distortion: getVal('manual-insp-check-distortion'),
+        unraveling: getVal('manual-insp-check-unraveling'),
+        finishing: getVal('manual-insp-check-finishing'),
+        zipper: getVal('manual-insp-check-zipper'),
+        button: getVal('manual-insp-check-button'),
+        lining: getVal('manual-insp-check-lining'),
+        pilling: getVal('manual-insp-check-pilling'),
+        dye: getVal('manual-insp-check-dye')
+    };
+
+    if (!checklist.thickness || Object.values(checklist).some(v => v === "" || v === null)) {
+        alert("⚠️ 두께 기준을 포함한 모든 품질 체크리스트 항목을 확인해주세요.");
+        return false;
+    }
+
+    const today = getTodayDateString();
+    const inboundDate = getVal('manual-insp-inbound-date') || today;
+    const packingDate = getVal('manual-insp-packing-date') || '-';
+    const inboundQty = getVal('manual-insp-qty');
+    const note = getVal('manual-insp-note');
+    const code = getVal('manual-insp-code') || '-';
+    const option = getVal('manual-insp-option') || '-';
+    const supplierName = getVal('manual-insp-supplier') || '-';
+
+    const defectsFound = [];
+    const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
+    
+    const labelMap = {
+        fabric: '원단', color: '컬러', distortion: '뒤틀림',
+        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
+        lining: '안감', pilling: '보풀', dye: '이염'
+    };
+
+    Object.entries(checklist).forEach(([key, value]) => {
+        if (key === 'thickness') return;
+        if (!NORMAL_VALUES.includes(value)) {
+            defectsFound.push(`${labelMap[key] || key}(${value})`);
+        }
+    });
+
+    const status = defectsFound.length > 0 ? '불량' : '정상';
+    const nowTime = getCurrentTime();
+
+    // 완료된 검수 기록 객체 생성
+    const inspectionRecord = {
+        date: today,
+        time: nowTime,
+        inspector: State.appState.currentUser || 'Unknown',
+        inboundDate: inboundDate,
+        packingDate: packingDate,
+        inboundQty: Number(inboundQty) || 0,
+        option: option,
+        code: code,
+        supplierName: supplierName, 
+        location: '수동등록',
+        checklist,
+        defects: defectsFound,
+        note,
+        status,
+        image: manualImageBase64 || null
+    };
+
+    const btn = document.getElementById('save-pre-insp-btn');
+    if(btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+
+    try {
+        const docRef = doc(State.db, 'product_history', productName);
+        const docSnap = await getDoc(docRef);
+        let existingLogs = [];
+        
+        if (docSnap.exists()) {
+            existingLogs = docSnap.data().logs || [];
+        }
+        
+        const tempLogs = [...existingLogs, inspectionRecord];
+            
+        const updates = {
+            lastInspectionDate: today,
+            totalInbound: getUniqueInboundCount(tempLogs),
+            logs: arrayUnion(inspectionRecord),
+            updatedAt: serverTimestamp(),
+            lastCode: code,
+            lastOption: option,
+            lastSupplierName: supplierName
+        };
+
+        if (defectsFound.length > 0) {
+            const defectSummaryStr = `${today}: ${defectsFound.join(', ')}`;
+            updates.defectSummary = arrayUnion(defectSummaryStr);
+        }
+
+        // 데이터베이스에 검수 완료 이력으로 즉시 병합 저장
+        await setDoc(docRef, updates, { merge: true });
+        
+        // 폼 초기화
+        const getEl = (id) => document.getElementById(id);
+        if (getEl('manual-insp-product-name')) getEl('manual-insp-product-name').value = '';
+        if (getEl('manual-insp-code')) getEl('manual-insp-code').value = '';
+        if (getEl('manual-insp-option')) getEl('manual-insp-option').value = '';
+        if (getEl('manual-insp-qty')) getEl('manual-insp-qty').value = '';
+        if (getEl('manual-insp-thickness')) getEl('manual-insp-check-thickness').value = '';
+        if (getEl('manual-insp-supplier')) getEl('manual-insp-supplier').value = '';
+        if (getEl('manual-insp-note')) getEl('manual-insp-note').value = '';
+        if (getEl('manual-insp-packing-date')) getEl('manual-insp-packing-date').value = '';
+        
+        const selects = document.querySelectorAll('#pre-register-inspection-modal select');
+        selects.forEach(sel => sel.value = "정상"); 
+
+        clearManualImageState();
+
+        // 모달 닫기
+        const preModal = document.getElementById('pre-register-inspection-modal');
+        if (preModal) preModal.classList.add('hidden');
+        
+        showToast(`'${productName}' 수동 검수 저장 완료!`);
+        return true;
+
+    } catch (e) {
+        console.error("Error saving manual inspection:", e);
+        showToast("수동 등록 저장 중 오류가 발생했습니다.", true);
+        return false;
+    } finally {
+        if(btn) { 
+            btn.disabled = false; 
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg> 검수 완료 및 즉시 저장`; 
+        }
+    }
 };

@@ -14,7 +14,9 @@ const getSortIcon = (key) => {
 };
 
 const formatDefectSummary = (defectSummary) => {
-    if (!defectSummary || defectSummary.length === 0) return '<span class="text-gray-400">-</span>';
+    if (!defectSummary || defectSummary.length === 0) {
+        return '<span class="text-gray-400">-</span>';
+    }
     const lastDefect = defectSummary[defectSummary.length - 1];
     return `<span class="text-red-600 font-medium text-xs truncate block max-w-[200px]" title="${lastDefect}">${lastDefect}</span>`;
 };
@@ -27,9 +29,28 @@ export const renderInspectionLayout = (container) => {
         <div class="flex flex-col h-full relative">
             <div class="flex justify-between items-end border-b border-gray-200 mb-4 shrink-0">
                 <div class="flex">
-                    <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'product' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" data-insp-tab="product">📦 상품별 보기</button>
-                    <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" data-insp-tab="list">📅 검수 일자별 보기</button>
-                    <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'qc' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" data-insp-tab="qc">📊 QC 통계 리포트</button>
+                    <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'product' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
+                            data-insp-tab="product">
+                        📦 상품별 보기
+                    </button>
+                    <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
+                            data-insp-tab="list">
+                        📅 검수 일자별 보기
+                    </button>
+                    <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'qc' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
+                            data-insp-tab="qc">
+                        📊 QC 통계 리포트
+                    </button>
+                </div>
+                <div class="pb-1 pr-1 flex gap-2">
+                    <button id="btn-add-pre-inspection" class="text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+                        수동 상품 추가
+                    </button>
+                    <button id="inspection-tab-download-btn" class="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        다운로드
+                    </button>
                 </div>
             </div>
             <div id="inspection-content-area" class="flex-grow relative overflow-hidden"></div>
@@ -259,6 +280,7 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
+// ui-history.js 에서의 import 에러 방지용
 export const renderInspectionLogTable = (logs, productName) => {};
 
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
@@ -268,6 +290,8 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     }
 
     const colspan = targetTr.children.length; 
+    
+    // ★ 클릭된 행(tr)에 심어둔 QC 리포트 명찰 확인!
     const isQcReport = targetTr.dataset.isQcReport === 'true';
 
     let displayLogs = logs;
@@ -286,11 +310,13 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             });
         }
     } 
+    // ★ QC 통계 모드일 때 (명찰 기반으로 확실히 필터링)
     else if (isQcReport) {
         const pType = targetTr.dataset.qcPeriodType || 'month';
         const pVal = targetTr.dataset.qcPeriodValue || '';
 
         displayLogs = logs.filter(log => {
+            // 1. 기간 체크
             if (pVal && log.date) {
                 const logMonth = log.date.substring(0, 7);
                 const logWeek = getWeekOfYear(new Date(log.date));
@@ -298,7 +324,9 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 if (!isMatch) return false; 
             }
 
+            // 2. 불량 여부 체크 (공백까지 제거하여 깐깐하게 검사)
             let isDefect = false;
+            // 가능한 모든 '정상' 범주의 텍스트를 나열
             const normalValues = ['정상', '양호', '동일', '없음', '해당없음', '통과', '-', ''];
 
             if (log.status === '불량') isDefect = true;
@@ -307,8 +335,11 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             if (log.checklist) {
                 Object.entries(log.checklist).forEach(([key, val]) => {
                     if (key !== 'thickness' && val) {
+                        // 공백 제거 후 비교
                         const cleanVal = String(val).trim();
-                        if (cleanVal && !normalValues.includes(cleanVal)) isDefect = true;
+                        if (cleanVal && !normalValues.includes(cleanVal)) {
+                            isDefect = true;
+                        }
                     }
                 });
             }
@@ -321,16 +352,19 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     
     let logsHtml = '';
     if (!displayLogs || displayLogs.length === 0) {
-        logsHtml = '<div class="p-6 text-center text-gray-500">해당 조건에 해당하는 상세 검수 기록이 없습니다.</div>';
+        logsHtml = '<div class="p-6 text-center text-gray-500">해당 조건(불량/특정기간)에 해당하는 상세 검수 기록이 없습니다.</div>';
     } else {
         const groupedLogs = {};
         displayLogs.forEach((log, idx) => {
             const originalIdx = log.originalIndex !== undefined ? log.originalIndex : idx;
+
             const code = log.code || '-';
             const option = log.option || '-';
             const groupKey = `${code} / ${option}`;
             
-            if (!groupedLogs[groupKey]) groupedLogs[groupKey] = [];
+            if (!groupedLogs[groupKey]) {
+                groupedLogs[groupKey] = [];
+            }
             groupedLogs[groupKey].push({ ...log, originalIndex: originalIdx });
         });
 
@@ -338,6 +372,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
 
         Object.keys(groupedLogs).sort().forEach(groupKey => {
             const group = groupedLogs[groupKey];
+            
             group.sort((a, b) => {
                 const tA = (a.date || '') + (a.time || '');
                 const tB = (b.date || '') + (b.time || '');
@@ -346,7 +381,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
 
             rowsHtml += `
                 <tr class="bg-indigo-100/70 border-y border-indigo-200">
-                    <td colspan="9" class="px-4 py-2 text-xs font-bold text-indigo-900">
+                    <td colspan="8" class="px-4 py-2 text-xs font-bold text-indigo-900">
                         🏷️ 분류 (코드 / 옵션) : <span class="text-indigo-700">${groupKey}</span> 
                         <span class="text-gray-500 font-normal ml-2">(${group.length}건)</span>
                     </td>
@@ -354,11 +389,24 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             `;
 
             rowsHtml += group.map(item => {
-                const typeStr = item.inspectionType === '전량검수' ? '전량검수' : '샘플검수';
-                const typeClass = typeStr === '전량검수' 
-                    ? 'bg-purple-100 text-purple-800 border-purple-200' 
-                    : 'bg-blue-100 text-blue-800 border-blue-200';
-                const typeBadge = `<span class="px-2 py-0.5 rounded text-[11px] font-bold border shadow-sm ${typeClass}">${typeStr}</span>`;
+                let checklistStr = [];
+                const cl = item.checklist || {};
+                const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
+                
+                if (cl.thickness) {
+                    checklistStr.push(`<span class="inline-block bg-white px-1.5 py-0.5 rounded text-[11px] text-gray-600 border border-gray-200 shadow-sm mr-1 mb-1">두께: <strong class="text-indigo-600">${cl.thickness}</strong></span>`);
+                }
+                
+                const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
+                
+                Object.entries(cl).forEach(([key, val]) => {
+                    if (key !== 'thickness' && val) {
+                        const cleanVal = String(val).trim();
+                        const isDefect = !normalValues.includes(cleanVal);
+                        const colorClass = isDefect ? 'text-red-700 bg-red-50 border-red-200 font-bold' : 'text-gray-600 bg-white border-gray-200';
+                        checklistStr.push(`<span class="inline-block ${colorClass} px-1.5 py-0.5 rounded text-[11px] border shadow-sm mb-1 mr-1">${labelMap[key]||key}: ${val}</span>`);
+                    }
+                });
 
                 const statusBadge = item.status === '정상' 
                     ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-800">정상</span>`
@@ -368,47 +416,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>` : '';
                 let noteText = item.note || '';
                 let fullNote = (defectText + noteText) || '<span class="text-gray-400">-</span>';
-
-                let detailContent = '';
-                
-                if (typeStr === '전량검수') {
-                    const tQty = item.allTotalQty || 0;
-                    const accQty = (item.allAccQty || 0) + (item.allCurrentQty || 0);
-                    const dQty = item.allDefectQty || 0;
-                    
-                    detailContent = `
-                        <div class="bg-purple-50/50 border border-purple-100 p-2 rounded text-[11px]">
-                            <div class="font-bold text-purple-900 mb-1">💬 [사유] ${item.allReason || '-'}</div>
-                            <div class="flex gap-2 text-purple-700 mt-1">
-                                <span>총 대상: <b>${tQty}</b>개</span> /
-                                <span>누적 완료: <b>${accQty}</b>개 (금일 ${item.allCurrentQty || 0}개)</span>
-                            </div>
-                            <div class="mt-1 font-bold ${dQty > 0 ? 'text-red-600' : 'text-green-600'}">
-                                ${dQty > 0 ? `⚠️ 금일 불량: ${dQty}개 발견됨` : `✅ 불량 없음`}
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    let checklistStr = [];
-                    const cl = item.checklist || {};
-                    const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
-                    
-                    if (cl.thickness) {
-                        checklistStr.push(`<span class="inline-block bg-white px-1.5 py-0.5 rounded text-[11px] text-gray-600 border border-gray-200 shadow-sm mr-1 mb-1">두께: <strong class="text-indigo-600">${cl.thickness}</strong></span>`);
-                    }
-                    
-                    const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
-                    
-                    Object.entries(cl).forEach(([key, val]) => {
-                        if (key !== 'thickness' && val) {
-                            const cleanVal = String(val).trim();
-                            const isDefect = !normalValues.includes(cleanVal);
-                            const colorClass = isDefect ? 'text-red-700 bg-red-50 border-red-200 font-bold' : 'text-gray-600 bg-white border-gray-200';
-                            checklistStr.push(`<span class="inline-block ${colorClass} px-1.5 py-0.5 rounded text-[11px] border shadow-sm mb-1 mr-1">${labelMap[key]||key}: ${val}</span>`);
-                        }
-                    });
-                    detailContent = checklistStr.join('') || '-';
-                }
 
                 let imageHtml = '<span class="text-gray-300 text-xs">-</span>';
                 if (item.image) {
@@ -422,10 +429,10 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 return `
                     <tr class="border-b border-indigo-100/50 hover:bg-white transition bg-white/40">
                         <td class="px-4 py-3 text-[11px] font-mono text-gray-500 whitespace-nowrap">${item.date}<br>${item.time}</td>
-                        <td class="px-4 py-3 text-center">${typeBadge}</td>
+                        <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.inboundDate || '-'}</td>
                         <td class="px-4 py-3 text-xs font-bold text-gray-700 text-center">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
                         <td class="px-4 py-3 text-center">${statusBadge}</td>
-                        <td class="px-4 py-3 max-w-[300px] leading-tight">${detailContent}</td>
+                        <td class="px-4 py-3 max-w-[300px] leading-tight">${checklistStr.join('') || '-'}</td>
                         <td class="px-4 py-3 text-xs text-gray-700 break-words max-w-[250px]">${fullNote}</td>
                         <td class="px-4 py-3 text-center">${imageHtml}</td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
@@ -453,11 +460,11 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                     <table class="w-full text-left relative z-0">
                         <thead class="bg-indigo-100 text-[11px] text-indigo-800 uppercase sticky top-0 z-10 shadow-sm outline outline-1 outline-indigo-200">
                             <tr>
-                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">검수 일시</th>
-                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%] bg-indigo-100">검수 방식</th>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">입고(검수)일시</th>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">출고일자</th>
                                 <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[5%] bg-indigo-100">수량</th>
                                 <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%] bg-indigo-100">상태</th>
-                                <th class="px-4 py-2 font-bold w-[30%] bg-indigo-100">검수 내용 (체크리스트/전량)</th>
+                                <th class="px-4 py-2 font-bold w-[30%] bg-indigo-100">검수항목 (체크리스트)</th>
                                 <th class="px-4 py-2 font-bold w-[20%] bg-indigo-100">특이사항/메모</th>
                                 <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[7%] bg-indigo-100">사진</th>
                                 <th class="px-4 py-2 font-bold text-right whitespace-nowrap w-[10%] bg-indigo-100">관리</th>
@@ -476,7 +483,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     targetTr.after(tr); 
 };
 
-// 🔥 [중요] 빠졌던 정렬 함수를 완벽하게 복구했습니다! 🔥
 export const setSortState = (key) => {
     if (sortState.key === key) {
         sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
