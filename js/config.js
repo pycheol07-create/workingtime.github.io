@@ -73,8 +73,7 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
             
-            // ✅ [수정] 병합 순서 변경 (loadedData를 먼저, defaultData를 나중에)
-            // 이렇게 하면 코드에 있는 기본값(...사전작업)이 DB에 저장된 옛날 값(...준비작업)을 덮어씁니다.
+            // 병합 순서 변경 (loadedData를 먼저, defaultData를 나중에)
             mergedConfig.simulationTaskLinks = { ...(loadedData.simulationTaskLinks || {}), ...defaultData.simulationTaskLinks };
 
             return mergedConfig;
@@ -150,16 +149,16 @@ function getDefaultConfig() {
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
         taskGroups: [
-            // [수정됨] '직진배송 사전작업'
             { name: '공통', tasks: ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업', '직진배송 사전작업'] },
-            { name: '담당', tasks: ['개인담당업무', '상.하차', '검수', '아이롱', '오류'] },
+            // ✅ '검수'를 '샘플검수'로 변경하고 '전량검수' 추가
+            { name: '담당', tasks: ['개인담당업무', '상.하차', '샘플검수', '전량검수', '아이롱', '오류'] },
             { name: '기타', tasks: ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무'] }
         ],
-        quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '검수'],
+        // ✅ 처리량 입력 대상 업무에도 '샘플검수'와 '전량검수' 반영
+        quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '샘플검수', '전량검수'],
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
         defaultPartTimerWage: 10000,
 
-        // [수정됨] '직진배송 사전작업'
         simulationTaskLinks: {
             '직진배송': '직진배송 사전작업' 
         },

@@ -491,7 +491,7 @@ const loadCompletedInspectionData = async (item) => {
                 setSelect('insp-check-distortion', cl.distortion);
                 setSelect('insp-check-unraveling', cl.unraveling);
                 setSelect('insp-check-finishing', cl.finishing);
-                setSelect('insp-check-zipper', cl.zipper);
+                setSelect('insp-check-zipper', cl.button);
                 setSelect('insp-check-button', cl.button);
                 setSelect('insp-check-lining', cl.lining);
                 setSelect('insp-check-pilling', cl.pilling);
@@ -1286,7 +1286,6 @@ export const deleteProductHistory = async (productName) => {
     }
 };
 
-// 완전히 변경된 수동 검수 상세 등록 및 즉시 저장 함수
 export const savePreInspectionNote = async () => {
     const getVal = (id) => {
         const el = document.getElementById(id);
@@ -1299,7 +1298,6 @@ export const savePreInspectionNote = async () => {
         return false;
     }
     
-    // 파일명 등에서 에러 유발 가능성 있는 슬래시 처리
     productName = productName.replace(/\//g, '-'); 
 
     const checklist = {
@@ -1349,7 +1347,6 @@ export const savePreInspectionNote = async () => {
     const status = defectsFound.length > 0 ? '불량' : '정상';
     const nowTime = getCurrentTime();
 
-    // 완료된 검수 기록 객체 생성
     const inspectionRecord = {
         date: today,
         time: nowTime,
@@ -1397,10 +1394,8 @@ export const savePreInspectionNote = async () => {
             updates.defectSummary = arrayUnion(defectSummaryStr);
         }
 
-        // 데이터베이스에 검수 완료 이력으로 즉시 병합 저장
         await setDoc(docRef, updates, { merge: true });
         
-        // 폼 초기화
         const getEl = (id) => document.getElementById(id);
         if (getEl('manual-insp-product-name')) getEl('manual-insp-product-name').value = '';
         if (getEl('manual-insp-code')) getEl('manual-insp-code').value = '';
@@ -1416,7 +1411,6 @@ export const savePreInspectionNote = async () => {
 
         clearManualImageState();
 
-        // 모달 닫기
         const preModal = document.getElementById('pre-register-inspection-modal');
         if (preModal) preModal.classList.add('hidden');
         
@@ -1432,5 +1426,89 @@ export const savePreInspectionNote = async () => {
             btn.disabled = false; 
             btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg> 검수 완료 및 즉시 저장`; 
         }
+    }
+};
+
+// ==========================================================
+// ✅ [신규 추가] 전량검수 진행상태 조회 및 저장/누적(이어하기) 로직
+// ==========================================================
+
+// 1. 전량검수 진행상태 조회 (이어하기)
+export const fetchFullInspectionStatus = async (productName) => {
+    if (!productName) return null;
+    try {
+        const safeName = productName.replace(/\//g, '-');
+        const docRef = doc(State.db, 'product_full_inspection', safeName);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            return docSnap.data(); // 진행중인 데이터 반환
+        }
+        return null; // 신규 등록
+    } catch (e) {
+        console.error("전량검수 상태 조회 실패:", e);
+        return null;
+    }
+};
+
+// 2. 전량검수 저장 및 누적 로직
+export const saveFullInspectionData = async (data) => {
+    try {
+        const safeName = data.productName.replace(/\//g, '-');
+        const docRef = doc(State.db, 'product_full_inspection', safeName);
+        const docSnap = await getDoc(docRef);
+
+        const today = getTodayDateString();
+        const nowTime = getCurrentTime();
+        
+        const newLog = {
+            date: today,
+            time: nowTime,
+            inspector: State.appState.currentUser || 'Unknown',
+            normalQty: data.todayNormal,
+            defectQty: data.todayDefect,
+            note: data.note
+        };
+
+        const todayTotal = data.todayNormal + data.todayDefect;
+
+        if (docSnap.exists()) {
+            // 기존 데이터가 있으면 '이어하기' (누적)
+            const existing = docSnap.data();
+            const newCompletedQty = existing.completedQty + todayTotal;
+            const status = newCompletedQty >= existing.totalStock ? '완료' : '진행중';
+
+            await updateDoc(docRef, {
+                completedQty: newCompletedQty,
+                normalQty: existing.normalQty + data.todayNormal,
+                defectQty: existing.defectQty + data.todayDefect,
+                status: status,
+                logs: arrayUnion(newLog),
+                lastUpdate: serverTimestamp()
+            });
+            showToast(`이어서 저장되었습니다! (진척도: ${newCompletedQty}/${existing.totalStock})`);
+        } else {
+            // 신규 전량검수 등록
+            const status = todayTotal >= data.totalStock ? '완료' : '진행중';
+            await setDoc(docRef, {
+                productName: data.productName,
+                reason: data.reason,
+                inspectionPart: data.part,
+                totalStock: data.totalStock,
+                completedQty: todayTotal,
+                normalQty: data.todayNormal,
+                defectQty: data.todayDefect,
+                status: status,
+                logs: [newLog],
+                createdAt: serverTimestamp(),
+                lastUpdate: serverTimestamp()
+            });
+            showToast("신규 전량검수가 시작되었습니다.");
+        }
+        return true;
+    } catch (e) {
+        console.error("전량검수 저장 실패:", e);
+        showToast("저장 중 오류가 발생했습니다.", true);
+        return false;
     }
 };
