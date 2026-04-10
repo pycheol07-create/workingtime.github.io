@@ -3,6 +3,7 @@ import * as DOM from './dom-elements.js';
 import { context, allHistoryData } from './state.js';
 import { getWeekOfYear } from './utils.js';
 
+// 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
 
 const getSortIcon = (key) => {
@@ -36,7 +37,6 @@ export const renderInspectionLayout = (container) => {
     `;
 };
 
-// ... [중략] renderInspectionListMode 및 renderInspectionHistoryTable 등은 이전과 동일하므로 UI 영역이 그대로 유지됩니다.
 export const renderInspectionListMode = (dateList, selectedDateData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -261,7 +261,6 @@ export const renderInspectionHistoryTable = (historyData) => {
 
 export const renderInspectionLogTable = (logs, productName) => {};
 
-// ✅ [추가 및 변경] 전량검수 데이터가 표에 완벽히 표시되도록 랜더러 수정
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const table = targetTr.closest('table');
     if (table) {
@@ -355,29 +354,24 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             `;
 
             rowsHtml += group.map(item => {
-                // 🌟 검수 방식 뱃지 (전량 / 샘플)
                 const typeStr = item.inspectionType === '전량검수' ? '전량검수' : '샘플검수';
                 const typeClass = typeStr === '전량검수' 
                     ? 'bg-purple-100 text-purple-800 border-purple-200' 
                     : 'bg-blue-100 text-blue-800 border-blue-200';
                 const typeBadge = `<span class="px-2 py-0.5 rounded text-[11px] font-bold border shadow-sm ${typeClass}">${typeStr}</span>`;
 
-                // 🌟 상태 뱃지
                 const statusBadge = item.status === '정상' 
                     ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-800">정상</span>`
                     : item.status === '사전메모' ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-800">사전메모</span>`
                     : `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800">불량</span>`;
 
-                // 🌟 메모 및 특이사항
                 let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>` : '';
                 let noteText = item.note || '';
                 let fullNote = (defectText + noteText) || '<span class="text-gray-400">-</span>';
 
-                // 🌟 내용 (체크리스트 or 전량검수 내역)
                 let detailContent = '';
                 
                 if (typeStr === '전량검수') {
-                    // 전량검수 전용 카드 UI
                     const tQty = item.allTotalQty || 0;
                     const accQty = (item.allAccQty || 0) + (item.allCurrentQty || 0);
                     const dQty = item.allDefectQty || 0;
@@ -395,7 +389,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                         </div>
                     `;
                 } else {
-                    // 샘플검수 기존 체크리스트 로직
                     let checklistStr = [];
                     const cl = item.checklist || {};
                     const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
@@ -483,8 +476,17 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     targetTr.after(tr); 
 };
 
-// ... [이하 QCStatsMode 로직은 수정사항 없음] ...
-export const renderQCStatsMode = (historyData, periodType = 'month', selectedPeriod = '') => { /* ... 기존과 완전히 동일 ... */
+// 🔥 [중요] 빠졌던 정렬 함수를 완벽하게 복구했습니다! 🔥
+export const setSortState = (key) => {
+    if (sortState.key === key) {
+        sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortState.key = key;
+        sortState.dir = 'desc';
+    }
+};
+
+export const renderQCStatsMode = (historyData, periodType = 'month', selectedPeriod = '') => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
 
@@ -500,8 +502,8 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         if (product.logs && Array.isArray(product.logs)) {
             product.logs.forEach(log => {
                 if (log.date) {
-                    months.add(log.date.substring(0, 7)); // YYYY-MM
-                    weeks.add(getWeekOfYear(new Date(log.date))); // YYYY-Wxx
+                    months.add(log.date.substring(0, 7)); 
+                    weeks.add(getWeekOfYear(new Date(log.date))); 
                 }
             });
         }
