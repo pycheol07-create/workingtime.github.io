@@ -19,8 +19,9 @@ let currentImageBase64 = null;
 let currentProductLogs = []; 
 let currentTodoIndex = -1;
 let editingLogIndex = -1; 
-let manualImageBase64 = null; 
+let manualImageBase64 = null; // 수동 등록용 이미지 상태 변수 추가
 
+// 고유 입고(검수)일자 계산 헬퍼 함수 (사전등록 제외) - 검수일(date) 기준
 const getUniqueInboundCount = (logsArray) => {
     const validDates = logsArray
         .map(l => l.date) 
@@ -46,10 +47,6 @@ export const initializeInspectionSession = async () => {
     manualImageBase64 = null;
     resetEditingState(); 
     
-    // ✅ 매니저 열릴 때 드롭다운 '샘플검수'로 기본화
-    const mainSelect = document.getElementById('insp-main-type-select');
-    if (mainSelect) mainSelect.value = '샘플검수';
-
     if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
     const qtyInput = document.getElementById('insp-inbound-qty');
     if (qtyInput) qtyInput.value = '';
@@ -58,9 +55,11 @@ export const initializeInspectionSession = async () => {
     const thickInput = document.getElementById('insp-check-thickness');
     if (thickInput) thickInput.value = '';
     
+    // 출고 일자 초기화
     const packingDateInput = document.getElementById('insp-packing-date');
     if (packingDateInput) packingDateInput.value = '';
 
+    // 입고 일자 초기화 (기본 오늘 날짜 세팅)
     const inboundDateInput = document.getElementById('insp-inbound-date');
     if (inboundDateInput) {
         inboundDateInput.value = getTodayDateString();
@@ -330,7 +329,7 @@ export const openInspectionListWindow = () => {
                     <p class="text-xs text-indigo-200 mt-1">📅 출고일자: <span class="font-bold text-white">${packingDate}</span></p>
                 </div>
                 <button id="close-dynamic-modal-btn" class="text-white hover:text-gray-200 bg-white/20 hover:bg-white/30 rounded-full p-2 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>
             <div class="flex-grow overflow-y-auto overflow-x-auto bg-gray-50 p-2">
@@ -430,9 +429,11 @@ export const selectTodoItem = async (index) => {
     } else {
         resetEditingState();
         
+        // 출고 일자 셋팅
         const packingDateInput = document.getElementById('insp-packing-date');
         if (packingDateInput) packingDateInput.value = item.packingDate || '';
 
+        // 입고 일자 셋팅 (기본은 오늘 날짜, 또는 수동 입력 유지)
         const inboundDateInput = document.getElementById('insp-inbound-date');
         if (inboundDateInput) {
             inboundDateInput.value = item.inboundDate || getTodayDateString(); 
@@ -471,7 +472,7 @@ const loadCompletedInspectionData = async (item) => {
                 if (notesInput) notesInput.value = log.note || '';
 
                 const packingDateInput = document.getElementById('insp-packing-date');
-                if (packingDateInput) packingDateInput.value = log.packingDate || log.inboundDate || ''; 
+                if (packingDateInput) packingDateInput.value = log.packingDate || log.inboundDate || ''; // 하위 호환성 위해 inboundDate 백업
 
                 const inboundDateInput = document.getElementById('insp-inbound-date');
                 if (inboundDateInput) inboundDateInput.value = log.inboundDate || ''; 
@@ -599,6 +600,7 @@ export const clearImageState = () => {
     if (DOM.inspImageInput) DOM.inspImageInput.value = '';
 };
 
+// 수동 추가 모달용 이미지 처리
 export const handleManualImageSelect = (file) => {
     if (!file) return;
     const reader = new FileReader();
@@ -638,6 +640,7 @@ export const clearManualImageState = () => {
     if (previewContainer) previewContainer.classList.add('hidden');
     if (input) input.value = '';
 };
+
 
 export const searchProductHistory = async () => {
     let searchTerm = DOM.inspProductNameInput ? DOM.inspProductNameInput.value.trim() : document.getElementById('insp-product-name').value.trim();
@@ -772,6 +775,7 @@ export const searchProductHistory = async () => {
 };
 
 export const saveInspectionAndNext = async () => {
+    // DOM 요소를 직접 찾아 안전하게 값 추출
     const getVal = (id) => {
         const el = document.getElementById(id);
         return el ? el.value : '';
@@ -833,16 +837,12 @@ export const saveInspectionAndNext = async () => {
     const today = getTodayDateString();
     const nowTime = getCurrentTime();
 
-    // ✅ 화면의 검수 방식 드롭다운에서 직접 값 읽어오기
-    const currentType = getVal('insp-main-type-select') || '샘플검수';
-
     const inspectionRecord = {
-        date: today, 
+        date: today, // 검수일
         time: nowTime,
         inspector: State.appState.currentUser || 'Unknown',
-        inspectionType: currentType, // ✅ 추가된 부분
-        inboundDate: inboundDate, 
-        packingDate: packingDate, 
+        inboundDate: inboundDate, // 직접 입력한 입고일
+        packingDate: packingDate, // 엑셀 출고일
         inboundQty: Number(inboundQty) || 0,
         option: currentItem ? currentItem.option : '-',
         code: currentItem ? currentItem.code : '-',
@@ -911,7 +911,7 @@ export const saveInspectionAndNext = async () => {
             
             todayInspectionList.unshift({
                 productName,
-                inboundDate: packingDate !== '-' ? packingDate : inboundDate, 
+                inboundDate: packingDate !== '-' ? packingDate : inboundDate, // 화면 표시용 백업
                 status,
                 defects: defectsFound,
                 note,
@@ -970,6 +970,134 @@ export const saveInspectionAndNext = async () => {
     }
 };
 
+const resetInspectionForm = (clearProductName = false) => {
+    const pNameInput = document.getElementById('insp-product-name');
+    if (clearProductName && pNameInput) pNameInput.value = '';
+    
+    const qtyInput = document.getElementById('insp-inbound-qty');
+    if (qtyInput) qtyInput.value = '';
+    
+    const notesInput = document.getElementById('insp-notes');
+    if (notesInput) notesInput.value = '';
+    
+    const thickInput = document.getElementById('insp-check-thickness');
+    if (thickInput) thickInput.value = '';
+
+    const packingDateInput = document.getElementById('insp-packing-date');
+    if (packingDateInput) packingDateInput.value = '';
+
+    const inboundDateInput = document.getElementById('insp-inbound-date');
+    if (inboundDateInput) inboundDateInput.value = getTodayDateString();
+
+    if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
+    if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
+    if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
+    if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
+    
+    const selects = document.querySelectorAll('#insp-current-input-area select');
+    selects.forEach(sel => sel.value = ""); 
+};
+
+export const renderTodayInspectionList = () => {
+    const tbody = document.getElementById('insp-today-list-body');
+    const countEl = document.getElementById('insp-today-count');
+    if (!tbody) return;
+    if (countEl) countEl.textContent = todayInspectionList.length;
+    tbody.innerHTML = '';
+
+    if (todayInspectionList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400 text-xs">아직 검수된 상품이 없습니다.</td></tr>';
+        return;
+    }
+
+    todayInspectionList.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = 'bg-white border-b hover:bg-gray-50';
+        
+        const statusBadge = item.status === '정상' 
+            ? `<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold">정상</span>`
+            : `<span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold">불량</span>`;
+
+        let detailText = item.note || '';
+        if (item.defects.length > 0) {
+            detailText = `<span class="text-red-600 font-bold">${item.defects.join(', ')}</span> ` + detailText;
+        }
+        if (!detailText) detailText = '<span class="text-gray-300">-</span>';
+
+        tr.innerHTML = `
+            <td class="px-4 py-2 font-medium text-gray-900">${item.productName}</td>
+            <td class="px-4 py-2 text-gray-600 text-xs">${item.inboundDate || '-'}</td>
+            <td class="px-4 py-2 text-sm">${statusBadge} <span class="ml-1 text-xs">${detailText}</span></td>
+            <td class="px-4 py-2 text-right text-gray-500 text-xs font-mono">${item.time}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+};
+
+export const clearTodayList = () => {
+    todayInspectionList = [];
+    renderTodayInspectionList();
+};
+
+export const loadAllInspectionHistory = async () => {
+    const container = document.getElementById('inspection-history-view-container');
+    if (!container) return;
+    
+    container.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>검수 이력을 불러오는 중입니다...</div>';
+
+    try {
+        const colRef = collection(State.db, 'product_history');
+        const snapshot = await getDocs(colRef);
+        
+        const historyData = [];
+        snapshot.forEach(doc => {
+            historyData.push({ id: doc.id, ...doc.data() });
+        });
+
+        renderInspectionHistoryTable(historyData);
+    } catch (e) {
+        console.error("Error loading all inspection history:", e);
+        container.innerHTML = '<div class="text-center text-red-500 py-10">데이터를 불러오는 중 오류가 발생했습니다.</div>';
+        showToast("검수 이력 로딩 실패", true);
+    }
+};
+
+export const loadInspectionLogs = async (productName, targetTr = null) => {
+    if (!productName) return;
+    
+    const managerModal = document.getElementById('inspection-log-manager-modal');
+    if (!targetTr && managerModal) {
+         managerModal.classList.remove('hidden');
+         const title = document.getElementById('inspection-log-product-name');
+         if (title) title.textContent = productName;
+         const tbody = document.getElementById('inspection-log-table-body');
+         if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-gray-500">로딩 중...</td></tr>';
+    }
+
+    try {
+        const safeProductName = productName.replace(/\//g, '-');
+        const docRef = doc(State.db, 'product_history', safeProductName);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            currentProductLogs = data.logs || [];
+        } else {
+            currentProductLogs = [];
+        }
+
+        if (targetTr) {
+            renderExpandedInspectionLog(targetTr, currentProductLogs, productName);
+        } else {
+            renderInspectionLogTable(currentProductLogs, productName);
+        }
+
+    } catch (e) {
+        console.error("Error loading inspection logs:", e);
+        showToast("상세 이력을 불러오는 중 오류가 발생했습니다.", true);
+    }
+};
+
 export const prepareEditInspectionLog = (productName, index) => {
     const log = currentProductLogs[index];
     if (!log) return;
@@ -977,10 +1105,6 @@ export const prepareEditInspectionLog = (productName, index) => {
     const getEl = (id) => document.getElementById(id);
     
     if (getEl('edit-insp-product-name')) getEl('edit-insp-product-name').value = productName;
-    
-    // ✅ [추가] 수정 모달에 검수 방식 값 바인딩
-    if (getEl('edit-insp-type')) getEl('edit-insp-type').value = log.inspectionType || '샘플검수';
-
     if (getEl('edit-insp-date-time')) getEl('edit-insp-date-time').value = `${log.date} ${log.time}`;
     if (getEl('edit-insp-packing-no')) getEl('edit-insp-packing-no').value = log.packingDate || '';
     if (getEl('edit-insp-inbound-date')) getEl('edit-insp-inbound-date').value = log.inboundDate || '';
@@ -1052,8 +1176,6 @@ export const updateInspectionLog = async () => {
 
     const updatedLog = {
         ...currentProductLogs[index], 
-        // ✅ [추가] 수정한 검수 방식 저장
-        inspectionType: getEditVal('edit-insp-type') || '샘플검수',
         packingDate: getEditVal('edit-insp-packing-no'), 
         inboundDate: getEditVal('edit-insp-inbound-date'), 
         inboundQty: Number(getEditVal('edit-insp-inbound-qty')) || 0,
@@ -1164,6 +1286,7 @@ export const deleteProductHistory = async (productName) => {
     }
 };
 
+// 완전히 변경된 수동 검수 상세 등록 및 즉시 저장 함수
 export const savePreInspectionNote = async () => {
     const getVal = (id) => {
         const el = document.getElementById(id);
@@ -1176,6 +1299,7 @@ export const savePreInspectionNote = async () => {
         return false;
     }
     
+    // 파일명 등에서 에러 유발 가능성 있는 슬래시 처리
     productName = productName.replace(/\//g, '-'); 
 
     const checklist = {
@@ -1225,11 +1349,11 @@ export const savePreInspectionNote = async () => {
     const status = defectsFound.length > 0 ? '불량' : '정상';
     const nowTime = getCurrentTime();
 
+    // 완료된 검수 기록 객체 생성
     const inspectionRecord = {
         date: today,
         time: nowTime,
         inspector: State.appState.currentUser || 'Unknown',
-        inspectionType: getVal('manual-insp-type') || '샘플검수', 
         inboundDate: inboundDate,
         packingDate: packingDate,
         inboundQty: Number(inboundQty) || 0,
@@ -1273,25 +1397,26 @@ export const savePreInspectionNote = async () => {
             updates.defectSummary = arrayUnion(defectSummaryStr);
         }
 
+        // 데이터베이스에 검수 완료 이력으로 즉시 병합 저장
         await setDoc(docRef, updates, { merge: true });
         
+        // 폼 초기화
         const getEl = (id) => document.getElementById(id);
         if (getEl('manual-insp-product-name')) getEl('manual-insp-product-name').value = '';
         if (getEl('manual-insp-code')) getEl('manual-insp-code').value = '';
         if (getEl('manual-insp-option')) getEl('manual-insp-option').value = '';
         if (getEl('manual-insp-qty')) getEl('manual-insp-qty').value = '';
-        if (getEl('manual-insp-check-thickness')) getEl('manual-insp-check-thickness').value = '';
+        if (getEl('manual-insp-thickness')) getEl('manual-insp-check-thickness').value = '';
         if (getEl('manual-insp-supplier')) getEl('manual-insp-supplier').value = '';
         if (getEl('manual-insp-note')) getEl('manual-insp-note').value = '';
         if (getEl('manual-insp-packing-date')) getEl('manual-insp-packing-date').value = '';
         
-        if (getEl('manual-insp-type')) getEl('manual-insp-type').value = '샘플검수'; 
-
         const selects = document.querySelectorAll('#pre-register-inspection-modal select');
         selects.forEach(sel => sel.value = "정상"); 
 
         clearManualImageState();
 
+        // 모달 닫기
         const preModal = document.getElementById('pre-register-inspection-modal');
         if (preModal) preModal.classList.add('hidden');
         
