@@ -93,37 +93,6 @@ const openMemberActionModal = (memberName) => {
 
 export function setupMainBoardListeners() {
 
-    // [업무 시작/팀원 확정 버튼 클릭 로직]
-    if (DOM.confirmTeamSelectBtn) {
-        DOM.confirmTeamSelectBtn.addEventListener('click', () => {
-            if (State.context.selectedTaskForStart === '검수') {
-                
-                // ✅ [추가] 드롭다운에서 선택한 방식을 상태에 저장
-                const typeSelect = document.getElementById('team-select-inspection-type');
-                if (typeSelect) {
-                    State.context.currentInspectionType = typeSelect.value;
-                }
-
-                setTimeout(() => {
-                    initializeInspectionSession();
-                    
-                    // ✅ [추가] 검수 매니저 상단에 현재 방식 배지 업데이트
-                    const badge = document.getElementById('insp-current-type-badge');
-                    if (badge) {
-                        const isAll = State.context.currentInspectionType === '전량검수';
-                        badge.textContent = isAll ? '전량검수 진행중' : '샘플검수 진행중';
-                        badge.className = isAll 
-                            ? 'hidden md:inline-block px-3 py-1 text-xs font-bold rounded-full bg-purple-100 text-purple-800 border border-purple-200 ml-4 shadow-sm'
-                            : 'hidden md:inline-block px-3 py-1 text-xs font-bold rounded-full bg-blue-100 text-blue-800 border border-blue-200 ml-4 shadow-sm';
-                    }
-
-                    if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
-                    if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
-                }, 300);
-            }
-        });
-    }
-
     if (DOM.teamStatusBoard) {
         DOM.teamStatusBoard.addEventListener('click', (e) => {
 
@@ -297,22 +266,15 @@ export function setupMainBoardListeners() {
                     renderTeamSelectionModalContent(task, State.appState, State.appConfig.teamGroups);
                     const titleEl = document.getElementById('team-select-modal-title');
                     if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
-
-                    // ✅ [추가] 빈 카드에서 시작할 때, 검수 방식 드롭다운 보이기
-                    const typeContainer = document.getElementById('team-select-inspection-type-container');
-                    if (typeContainer) {
-                        typeContainer.classList.toggle('hidden', task !== '검수');
-                        if (task === '검수') document.getElementById('team-select-inspection-type').value = '샘플검수'; 
-                    }
-
                     if (DOM.teamSelectModal) DOM.teamSelectModal.classList.remove('hidden');
                     return;
                 } else if (action === 'other') {
                     if (DOM.taskSelectModal) DOM.taskSelectModal.classList.remove('hidden');
                     return;
                 } else if (groupId && task) {
-                    // 진행중인 그룹에 인원 추가 또는 모달 열기
+                    // 진행중인 그룹 카드 클릭 시
                     if (task === '검수') {
+                        // ✅ 검수 카드 클릭 시 바로 매니저 오픈
                         renderTodayInspectionList();
                         if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
                         if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
@@ -324,11 +286,6 @@ export function setupMainBoardListeners() {
                     renderTeamSelectionModalContent(task, State.appState, State.appConfig.teamGroups);
                     const titleEl = document.getElementById('team-select-modal-title');
                     if (titleEl) titleEl.textContent = `'${task}' 인원 추가`;
-
-                    // ✅ [추가] 기존에 진행중이던 그룹에 인원 추가할 때는 드롭다운 숨김
-                    const typeContainer = document.getElementById('team-select-inspection-type-container');
-                    if (typeContainer) typeContainer.classList.add('hidden');
-
                     if (DOM.teamSelectModal) DOM.teamSelectModal.classList.remove('hidden');
                     return;
                 }
