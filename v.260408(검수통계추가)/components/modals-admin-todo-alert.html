@@ -1,0 +1,18 @@
+<div id="admin-todo-alert-modal" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center hidden z-[200] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative overflow-hidden animate-bounce-gentle">
+        <div class="p-6 text-center">
+            <div class="mx-auto mb-4 flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100">
+                <span class="text-3xl">⏰</span>
+            </div>
+            <h3 class="mb-2 text-xl font-bold text-gray-900">할 일 마감 알림</h3>
+            <p class="text-xs text-gray-500 mb-4">아직 완료되지 않은 마감 업무가 있습니다.</p>
+            
+            <div id="admin-todo-alert-list" class="mb-6 text-left bg-gray-50 p-3 rounded-lg border border-gray-200 max-h-48 overflow-y-auto text-sm text-gray-700 space-y-2">
+                </div>
+
+            <button type="button" id="admin-todo-alert-confirm-btn" class="w-full text-white bg-indigo-600 hover:bg-indigo-700 font-bold rounded-xl text-lg px-5 py-3 transition shadow-md active:scale-[0.98]">
+                확인했습니다
+            </button>
+        </div>
+    </div>
+</div>
