@@ -51,18 +51,41 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardItems = loadedData.dashboardItems || defaultData.dashboardItems;
             mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) };
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
-            mergedConfig.quantityTaskTypes = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
+            
+            // ✅ [자동 마이그레이션 1] 기존 DB에 '검수'가 남아있다면 강제로 '샘플검수', '전량검수'로 분리
+            let loadedQtyTasks = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
+            if (loadedQtyTasks.includes('검수')) {
+                loadedQtyTasks = loadedQtyTasks.filter(t => t !== '검수');
+                if (!loadedQtyTasks.includes('샘플검수')) loadedQtyTasks.push('샘플검수');
+                if (!loadedQtyTasks.includes('전량검수')) loadedQtyTasks.push('전량검수');
+            }
+            mergedConfig.quantityTaskTypes = loadedQtyTasks;
+
             mergedConfig.qualityCostTasks = loadedData.qualityCostTasks || defaultData.qualityCostTasks;
             mergedConfig.systemAccounts = loadedData.systemAccounts || defaultData.systemAccounts;
             
             // 표준 일일 근무시간 안전 병합
             mergedConfig.standardDailyWorkHours = { ...defaultData.standardDailyWorkHours, ...(loadedData.standardDailyWorkHours || {}) };
 
+            // ✅ [자동 마이그레이션 2] 업무 그룹(taskGroups) 내의 '검수'를 '샘플검수', '전량검수'로 분리
             if (Array.isArray(loadedData.taskGroups)) {
-                mergedConfig.taskGroups = loadedData.taskGroups;
+                mergedConfig.taskGroups = loadedData.taskGroups.map(group => {
+                    if (group.tasks && group.tasks.includes('검수')) {
+                        group.tasks = group.tasks.filter(t => t !== '검수');
+                        if (!group.tasks.includes('샘플검수')) group.tasks.push('샘플검수');
+                        if (!group.tasks.includes('전량검수')) group.tasks.push('전량검수');
+                    }
+                    return group;
+                });
             } else if (typeof loadedData.taskGroups === 'object' && loadedData.taskGroups !== null && !Array.isArray(loadedData.taskGroups)) {
                 mergedConfig.taskGroups = Object.entries(loadedData.taskGroups).map(([groupName, tasks]) => {
-                    return { name: groupName, tasks: Array.isArray(tasks) ? tasks : [] };
+                    let parsedTasks = Array.isArray(tasks) ? tasks : [];
+                    if (parsedTasks.includes('검수')) {
+                        parsedTasks = parsedTasks.filter(t => t !== '검수');
+                        if (!parsedTasks.includes('샘플검수')) parsedTasks.push('샘플검수');
+                        if (!parsedTasks.includes('전량검수')) parsedTasks.push('전량검수');
+                    }
+                    return { name: groupName, tasks: parsedTasks };
                 });
             } else {
                 mergedConfig.taskGroups = defaultData.taskGroups;
@@ -73,9 +96,10 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
             
-            // ✅ [수정] 병합 순서 변경 (loadedData를 먼저, defaultData를 나중에)
-            // 이렇게 하면 코드에 있는 기본값(...사전작업)이 DB에 저장된 옛날 값(...준비작업)을 덮어씁니다.
             mergedConfig.simulationTaskLinks = { ...(loadedData.simulationTaskLinks || {}), ...defaultData.simulationTaskLinks };
+
+            // 🔥 [중요] 변경된 마이그레이션 설정을 다시 데이터베이스(Firestore)에 덮어써서 동기화
+            saveAppConfig(dbToUse, mergedConfig).catch(e => console.error("DB 업데이트 실패:", e));
 
             return mergedConfig;
         } else {
@@ -151,10 +175,10 @@ function getDefaultConfig() {
         quantityToDashboardMap: {},
         taskGroups: [
             { name: '공통', tasks: ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업', '직진배송 사전작업'] },
-            { name: '담당', tasks: ['개인담당업무', '상.하차', '샘플검수', '전량검수', '아이롱', '오류'] }, // ✅ '샘플검수', '전량검수'로 변경됨
+            { name: '담당', tasks: ['개인담당업무', '상.하차', '샘플검수', '전량검수', '아이롱', '오류'] }, // ✅ '샘플검수', '전량검수' 적용
             { name: '기타', tasks: ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무'] }
         ],
-        quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '샘플검수', '전량검수'], // ✅ '샘플검수', '전량검수' 추가
+        quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '샘플검수', '전량검수'], // ✅ '샘플검수', '전량검수' 적용
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
         defaultPartTimerWage: 10000,
 
