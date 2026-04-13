@@ -361,3 +361,16 @@ export const editInspCheckDye = document.getElementById('edit-insp-check-dye');
 
 export const deleteInspLogBtn = document.getElementById('delete-insp-log-btn');
 export const saveInspLogBtn = document.getElementById('save-insp-log-btn');
+
+// [신규] 전량 검수 매니저 관련 요소
+export const totalInspModal = document.getElementById('total-inspection-manager-modal');
+export const totalInspProductName = document.getElementById('total-insp-product-name');
+export const totalInspSearchBtn = document.getElementById('total-insp-search-btn');
+export const totalInspContentArea = document.getElementById('total-insp-content-area');
+export const totalInspReason = document.getElementById('total-insp-reason');
+export const totalInspTotalStock = document.getElementById('total-insp-total-stock');
+export const totalInspAccumulated = document.getElementById('total-insp-accumulated');
+export const totalInspTodayNormal = document.getElementById('total-insp-today-normal');
+export const totalInspTodayDefective = document.getElementById('total-insp-today-defective');
+export const totalInspRemaining = document.getElementById('total-insp-remaining');
+export const totalInspSaveBtn = document.getElementById('total-insp-save-btn');

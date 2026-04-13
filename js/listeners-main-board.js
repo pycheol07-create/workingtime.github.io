@@ -16,6 +16,7 @@ import {
 } from './app-logic.js';
 
 import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js';
+import { searchTotalInspection } from './total-inspection-logic.js'; // [신규] 전량 검수 초기화용
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -25,7 +26,7 @@ const openLeaveModal = (memberName) => {
     if (DOM.leaveTypeModal) DOM.leaveTypeModal.classList.remove('hidden');
 };
 
-// [수정] 통합 액션 모달 열기 (관리자/본인 공용)
+// 통합 액션 모달 열기 (관리자/본인 공용)
 const openMemberActionModal = (memberName) => {
     State.context.memberToAction = memberName;
     if (DOM.actionMemberName) DOM.actionMemberName.textContent = memberName;
@@ -107,14 +108,19 @@ const openMemberActionModal = (memberName) => {
 
 export function setupMainBoardListeners() {
 
-    // '업무 시작' 버튼 클릭 시 '검수' 업무라면 자동으로 검수 모달 띄우기
+    // [수정됨] '업무 시작' 버튼 클릭 시 '샘플검수'와 '전량검수' 분기 처리
     if (DOM.confirmTeamSelectBtn) {
         DOM.confirmTeamSelectBtn.addEventListener('click', () => {
-            if (State.context.selectedTaskForStart === '검수') {
+            if (State.context.selectedTaskForStart === '샘플검수') {
                 setTimeout(() => {
                     initializeInspectionSession();
                     if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
                     if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
+                }, 300);
+            } else if (State.context.selectedTaskForStart === '전량검수') {
+                setTimeout(() => {
+                    if (DOM.totalInspModal) DOM.totalInspModal.classList.remove('hidden');
+                    if (DOM.totalInspProductName) DOM.totalInspProductName.focus();
                 }, 300);
             }
         });
@@ -275,7 +281,7 @@ export function setupMainBoardListeners() {
                 return;
             }
 
-            // --- [핵심 수정] 팀원 카드 클릭 (근태 토글 및 관리) ---
+            // --- 팀원 카드 클릭 (근태 토글 및 관리) ---
             const memberCard = e.target.closest('[data-action="member-toggle-leave"]');
             if (memberCard) {
                 const memberName = memberCard.dataset.memberName;
@@ -288,8 +294,6 @@ export function setupMainBoardListeners() {
                 }
 
                 // 2. 통합 관리 모달 열기 (관리자/본인 모두)
-                // 기존에는 본인일 경우 상태에 따라 분기했지만, 이제는 모달로 통합하여
-                // 모달 내부에서 복귀/취소/설정 버튼을 선택하도록 함.
                 openMemberActionModal(memberName);
                 return;
             }
@@ -314,10 +318,15 @@ export function setupMainBoardListeners() {
                     if (DOM.taskSelectModal) DOM.taskSelectModal.classList.remove('hidden');
                     return;
                 } else if (groupId && task) {
-                    if (task === '검수') {
+                    // [수정됨] 대시보드 카드 클릭 시 '샘플검수'와 '전량검수' 분기 처리
+                    if (task === '샘플검수') {
                         renderTodayInspectionList();
                         if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
                         if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
+                        return;
+                    } else if (task === '전량검수') {
+                        if (DOM.totalInspModal) DOM.totalInspModal.classList.remove('hidden');
+                        if (DOM.totalInspProductName) DOM.totalInspProductName.focus();
                         return;
                     }
                     State.context.selectedTaskForStart = task;

@@ -1,10 +1,7 @@
 // === js/ui-history-inspection.js ===
-// 설명: 샘플검수(상품별/일자별) 및 전량검수 이력/통계 UI 렌더링 담당
-
 import * as DOM from './dom-elements.js';
-import { context, allHistoryData, db } from './state.js';
-import { getWeekOfYear, getTodayDateString } from './utils.js';
-import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { context, allHistoryData } from './state.js';
+import { getWeekOfYear } from './utils.js';
 
 // 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
@@ -24,29 +21,21 @@ const formatDefectSummary = (defectSummary) => {
     return `<span class="text-red-600 font-medium text-xs truncate block max-w-[200px]" title="${lastDefect}">${lastDefect}</span>`;
 };
 
-/**
- * 검수 탭 기본 레이아웃 렌더링
- * '검수'를 '샘플검수'로 명칭 변경하고 '전량검수 현황' 버튼을 추가했습니다.
- */
 export const renderInspectionLayout = (container) => {
     if (!container) return;
     const activeTab = context.inspectionViewMode || 'product';
 
     container.innerHTML = `
         <div class="flex flex-col h-full relative">
-            <div class="flex justify-between items-end border-b border-gray-200 mb-4 shrink-0 overflow-x-auto">
+            <div class="flex justify-between items-end border-b border-gray-200 mb-4 shrink-0">
                 <div class="flex">
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'product' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="product">
-                        📦 샘플검수(상품별)
+                        📦 상품별 보기
                     </button>
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="list">
-                        📅 샘플검수(일자별)
-                    </button>
-                    <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'full' ? 'border-orange-600 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
-                            data-insp-tab="full">
-                        🔍 전량검수 현황
+                        📅 검수 일자별 보기
                     </button>
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'qc' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="qc">
@@ -69,9 +58,6 @@ export const renderInspectionLayout = (container) => {
     `;
 };
 
-/**
- * 샘플검수(일자별) 모드 렌더링
- */
 export const renderInspectionListMode = (dateList, selectedDateData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -107,7 +93,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-2">
-                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 샘플검수 리스트 상세</h4>
+                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
                         <span class="text-xs text-gray-500">0건</span>
                     </div>
                 </div>
@@ -143,8 +129,8 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-2">
-                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 샘플검수 리스트 상세</h4>
-                        <span class="text-xs text-gray-500">상품을 클릭하면 상세내역이 펼쳐집니다.</span>
+                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
+                        <span class="text-xs text-gray-500">상품을 클릭하면 검수 상세내역이 펼쳐집니다.</span>
                     </div>
                     <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list" 
                             data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
@@ -185,9 +171,6 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
     `;
 };
 
-/**
- * 샘플검수(상품별) 테이블 렌더링
- */
 export const renderInspectionHistoryTable = (historyData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -250,7 +233,7 @@ export const renderInspectionHistoryTable = (historyData) => {
 
     if (filteredData.length === 0) {
         html += `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400">
-            ${searchTerm ? `'${searchTerm}'에 대한 검색 결과가 없습니다.` : '저장된 샘플검수 이력이 없습니다.'}
+            ${searchTerm ? `'${searchTerm}'에 대한 검색 결과가 없습니다.` : '저장된 검수 이력이 없습니다.'}
         </td></tr>`;
     } else {
         filteredData.forEach(item => {
@@ -297,93 +280,9 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
-/**
- * ✨ [신규 추가] 전량검수 현황 테이블 렌더링
- * Firestore 'full_inspections' 컬렉션의 데이터를 실시간으로 가져와 보여줍니다.
- */
-export const renderFullInspectionTable = async () => {
-    const container = document.getElementById('inspection-content-area');
-    if (!container) return;
-
-    container.innerHTML = `<div class="p-10 text-center text-gray-400 flex flex-col items-center justify-center">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mb-2"></div>
-        전량검수 데이터를 불러오는 중...
-    </div>`;
-
-    try {
-        const q = query(collection(db, 'full_inspections'), orderBy('startDate', 'desc'));
-        const querySnapshot = await getDocs(q);
-        
-        let rowsHtml = '';
-        if (querySnapshot.empty) {
-            rowsHtml = `<tr><td colspan="7" class="px-6 py-10 text-center text-gray-400">기록된 전량검수 데이터가 없습니다.</td></tr>`;
-        } else {
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                const total = data.totalInventory || 0;
-                const done = data.cumulativeQty || 0;
-                const progress = total > 0 ? ((done / total) * 100).toFixed(1) : 0;
-                
-                const statusClass = data.status === '완료' 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-orange-100 text-orange-800 border border-orange-200';
-
-                rowsHtml += `
-                    <tr class="hover:bg-orange-50/30 transition border-b border-gray-100">
-                        <td class="px-6 py-4 font-bold text-gray-900">${data.productName}</td>
-                        <td class="px-6 py-4 text-xs text-gray-500 font-mono">${data.startDate} ~ ${data.endDate || '진행중'}</td>
-                        <td class="px-6 py-4 text-center font-bold text-gray-700">${total.toLocaleString()}</td>
-                        <td class="px-6 py-4 text-center">
-                            <div class="flex flex-col items-center">
-                                <span class="font-bold text-blue-600">${done.toLocaleString()}</span>
-                                <div class="w-20 bg-gray-200 rounded-full h-1.5 mt-1.5 overflow-hidden">
-                                    <div class="bg-orange-500 h-full rounded-full transition-all duration-500" style="width: ${progress}%"></div>
-                                </div>
-                                <span class="text-[10px] text-gray-400 mt-1">${progress}% 완료</span>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 text-center text-green-600 font-bold">${(data.cumulativeNormal || 0).toLocaleString()}</td>
-                        <td class="px-6 py-4 text-center text-red-500 font-bold">${(data.cumulativeDefect || 0).toLocaleString()}</td>
-                        <td class="px-6 py-4 text-center">
-                            <span class="px-3 py-1 rounded-full text-xs font-extrabold ${statusClass}">${data.status}</span>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
-
-        container.innerHTML = `
-            <div class="absolute inset-0 overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg bg-white shadow-sm">
-                <table class="w-full text-sm text-left text-gray-600 relative">
-                    <thead class="text-xs text-orange-900 uppercase bg-orange-50 sticky top-0 z-20 shadow-sm border-b border-orange-100">
-                        <tr>
-                            <th class="px-6 py-4 font-bold">상품명</th>
-                            <th class="px-6 py-4 font-bold">검수 기간</th>
-                            <th class="px-6 py-4 font-bold text-center">총 재고</th>
-                            <th class="px-6 py-4 font-bold text-center">누적 검수(진행률)</th>
-                            <th class="px-6 py-4 font-bold text-center">정상 수량</th>
-                            <th class="px-6 py-4 font-bold text-center">불량 수량</th>
-                            <th class="px-6 py-4 font-bold text-center">현재 상태</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-50 bg-white">
-                        ${rowsHtml}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    } catch (e) {
-        console.error("전량검수 로드 실패:", e);
-        container.innerHTML = `<div class="p-10 text-center text-red-500">데이터를 불러오는 중 오류가 발생했습니다.</div>`;
-    }
-};
-
 // ui-history.js 에서의 import 에러 방지용
 export const renderInspectionLogTable = (logs, productName) => {};
 
-/**
- * 상세 이력 펼치기 로직 (샘플검수 전용)
- */
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const table = targetTr.closest('table');
     if (table) {
@@ -391,7 +290,10 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     }
 
     const colspan = targetTr.children.length; 
+    
+    // ★ 클릭된 행(tr)에 심어둔 QC 리포트 명찰 확인!
     const isQcReport = targetTr.dataset.isQcReport === 'true';
+
     let displayLogs = logs;
     
     if (context.inspectionViewMode === 'list') {
@@ -408,24 +310,36 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             });
         }
     } 
+    // ★ QC 통계 모드일 때 (명찰 기반으로 확실히 필터링)
     else if (isQcReport) {
         const pType = targetTr.dataset.qcPeriodType || 'month';
         const pVal = targetTr.dataset.qcPeriodValue || '';
 
         displayLogs = logs.filter(log => {
+            // 1. 기간 체크
             if (pVal && log.date) {
                 const logMonth = log.date.substring(0, 7);
                 const logWeek = getWeekOfYear(new Date(log.date));
                 const isMatch = (pType === 'month' && logMonth === pVal) || (pType === 'week' && logWeek === pVal);
                 if (!isMatch) return false; 
             }
-            let isDefect = log.status === '불량' || (log.defects && log.defects.length > 0);
+
+            // 2. 불량 여부 체크 (공백까지 제거하여 깐깐하게 검사)
+            let isDefect = false;
+            // 가능한 모든 '정상' 범주의 텍스트를 나열
             const normalValues = ['정상', '양호', '동일', '없음', '해당없음', '통과', '-', ''];
+
+            if (log.status === '불량') isDefect = true;
+            if (log.defects && Array.isArray(log.defects) && log.defects.length > 0) isDefect = true;
+            
             if (log.checklist) {
                 Object.entries(log.checklist).forEach(([key, val]) => {
                     if (key !== 'thickness' && val) {
+                        // 공백 제거 후 비교
                         const cleanVal = String(val).trim();
-                        if (cleanVal && !normalValues.includes(cleanVal)) isDefect = true;
+                        if (cleanVal && !normalValues.includes(cleanVal)) {
+                            isDefect = true;
+                        }
                     }
                 });
             }
@@ -438,84 +352,127 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     
     let logsHtml = '';
     if (!displayLogs || displayLogs.length === 0) {
-        logsHtml = '<div class="p-6 text-center text-gray-500">상세 기록이 없습니다.</div>';
+        logsHtml = '<div class="p-6 text-center text-gray-500">해당 조건(불량/특정기간)에 해당하는 상세 검수 기록이 없습니다.</div>';
     } else {
         const groupedLogs = {};
         displayLogs.forEach((log, idx) => {
             const originalIdx = log.originalIndex !== undefined ? log.originalIndex : idx;
-            const groupKey = `${log.code || '-'} / ${log.option || '-'}`;
-            if (!groupedLogs[groupKey]) groupedLogs[groupKey] = [];
+
+            const code = log.code || '-';
+            const option = log.option || '-';
+            const groupKey = `${code} / ${option}`;
+            
+            if (!groupedLogs[groupKey]) {
+                groupedLogs[groupKey] = [];
+            }
             groupedLogs[groupKey].push({ ...log, originalIndex: originalIdx });
         });
 
         let rowsHtml = '';
+
         Object.keys(groupedLogs).sort().forEach(groupKey => {
             const group = groupedLogs[groupKey];
-            group.sort((a, b) => ((b.date || '') + (b.time || '')).localeCompare((a.date || '') + (a.time || '')));
+            
+            group.sort((a, b) => {
+                const tA = (a.date || '') + (a.time || '');
+                const tB = (b.date || '') + (b.time || '');
+                return tB.localeCompare(tA); 
+            });
 
             rowsHtml += `
                 <tr class="bg-indigo-100/70 border-y border-indigo-200">
                     <td colspan="8" class="px-4 py-2 text-xs font-bold text-indigo-900">
-                        🏷️ 분류 (코드 / 옵션) : <span class="text-indigo-700">${groupKey}</span> (${group.length}건)
+                        🏷️ 분류 (코드 / 옵션) : <span class="text-indigo-700">${groupKey}</span> 
+                        <span class="text-gray-500 font-normal ml-2">(${group.length}건)</span>
                     </td>
                 </tr>
             `;
 
             rowsHtml += group.map(item => {
                 let checklistStr = [];
+                const cl = item.checklist || {};
                 const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
+                
+                if (cl.thickness) {
+                    checklistStr.push(`<span class="inline-block bg-white px-1.5 py-0.5 rounded text-[11px] text-gray-600 border border-gray-200 shadow-sm mr-1 mb-1">두께: <strong class="text-indigo-600">${cl.thickness}</strong></span>`);
+                }
+                
                 const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
                 
-                if (item.checklist?.thickness) {
-                    checklistStr.push(`<span class="inline-block bg-white px-1.5 py-0.5 rounded text-[11px] text-gray-600 border border-gray-200 mr-1 mb-1">두께: <strong>${item.checklist.thickness}</strong></span>`);
-                }
-                
-                if (item.checklist) {
-                    Object.entries(item.checklist).forEach(([k, v]) => {
-                        if (k !== 'thickness' && v) {
-                            const isDef = !normalValues.includes(String(v).trim());
-                            checklistStr.push(`<span class="inline-block ${isDef ? 'text-red-700 bg-red-50 border-red-200 font-bold' : 'text-gray-600 bg-white border-gray-200'} px-1.5 py-0.5 rounded text-[11px] border mb-1 mr-1">${labelMap[k]||k}: ${v}</span>`);
-                        }
-                    });
-                }
+                Object.entries(cl).forEach(([key, val]) => {
+                    if (key !== 'thickness' && val) {
+                        const cleanVal = String(val).trim();
+                        const isDefect = !normalValues.includes(cleanVal);
+                        const colorClass = isDefect ? 'text-red-700 bg-red-50 border-red-200 font-bold' : 'text-gray-600 bg-white border-gray-200';
+                        checklistStr.push(`<span class="inline-block ${colorClass} px-1.5 py-0.5 rounded text-[11px] border shadow-sm mb-1 mr-1">${labelMap[key]||key}: ${val}</span>`);
+                    }
+                });
 
                 const statusBadge = item.status === '정상' 
                     ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-800">정상</span>`
+                    : item.status === '사전메모' ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-800">사전메모</span>`
                     : `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800">불량</span>`;
+
+                let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>` : '';
+                let noteText = item.note || '';
+                let fullNote = (defectText + noteText) || '<span class="text-gray-400">-</span>';
+
+                let imageHtml = '<span class="text-gray-300 text-xs">-</span>';
+                if (item.image) {
+                    imageHtml = `
+                        <div class="relative group cursor-pointer inline-block">
+                            <img src="${item.image}" class="h-8 w-8 object-cover rounded border border-gray-300 hover:scale-150 transition-transform z-0 hover:z-10 bg-white" 
+                                 onclick="const w=window.open('','_blank'); w.document.write('<img src=\\'${item.image}\\' style=\\'width:100%\\'/>');">
+                        </div>`;
+                }
 
                 return `
                     <tr class="border-b border-indigo-100/50 hover:bg-white transition bg-white/40">
                         <td class="px-4 py-3 text-[11px] font-mono text-gray-500 whitespace-nowrap">${item.date}<br>${item.time}</td>
-                        <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.packingDate || '-'}</td>
-                        <td class="px-4 py-3 text-xs font-bold text-center">${(item.inboundQty || 0).toLocaleString()}</td>
+                        <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.inboundDate || '-'}</td>
+                        <td class="px-4 py-3 text-xs font-bold text-gray-700 text-center">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
                         <td class="px-4 py-3 text-center">${statusBadge}</td>
                         <td class="px-4 py-3 max-w-[300px] leading-tight">${checklistStr.join('') || '-'}</td>
-                        <td class="px-4 py-3 text-xs text-gray-700 break-words max-w-[250px]">${item.note || '-'}</td>
-                        <td class="px-4 py-3 text-center">${item.image ? `<img src="${item.image}" class="h-8 w-8 object-cover rounded border border-gray-300 hover:scale-150 transition-transform cursor-pointer" onclick="window.open(this.src)">` : '-'}</td>
+                        <td class="px-4 py-3 text-xs text-gray-700 break-words max-w-[250px]">${fullNote}</td>
+                        <td class="px-4 py-3 text-center">${imageHtml}</td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
-                            <button class="text-blue-600 text-[11px] font-bold px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-50 btn-edit-insp-log" data-index="${item.originalIndex}" data-product-name="${productName}">수정</button>
+                            <button class="text-blue-600 hover:text-blue-800 text-[11px] font-bold px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-50 btn-edit-insp-log transition shadow-sm" data-index="${item.originalIndex}" data-product-name="${productName}">수정</button>
                         </td>
                     </tr>
                 `;
             }).join('');
         });
 
+        const headerTitle = isQcReport 
+            ? `🔍 상세 불량 내역 (해당 기간)` 
+            : `🔍 상세 검수 이력`;
+
         logsHtml = `
             <div class="p-4 bg-indigo-50/50 border-y border-indigo-200">
                 <div class="flex items-center justify-between mb-3">
-                    <h4 class="font-bold text-indigo-900 text-sm">🔍 상세 샘플검수 이력: ${productName}</h4>
-                    <button class="text-xs font-bold btn-close-expanded px-3 py-1 border rounded bg-white hover:bg-gray-100">닫기 ✖</button>
+                    <h4 class="font-bold text-indigo-900 text-sm flex items-center gap-2">
+                        ${headerTitle} <span class="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200">${productName}</span>
+                    </h4>
+                    <button class="text-xs text-gray-500 hover:text-gray-800 font-bold btn-close-expanded px-3 py-1 rounded hover:bg-gray-200 transition border border-gray-300 bg-white shadow-sm">닫기 ✖</button>
                 </div>
-                <div class="max-h-[400px] overflow-auto rounded-lg border border-indigo-200 bg-white">
-                    <table class="w-full text-left">
-                        <thead class="bg-indigo-100 text-[11px] text-indigo-800 uppercase sticky top-0 shadow-sm z-10">
+                
+                <div class="max-h-[400px] overflow-y-auto overflow-x-auto rounded-lg border border-indigo-200 bg-white shadow-sm custom-scrollbar relative">
+                    <table class="w-full text-left relative z-0">
+                        <thead class="bg-indigo-100 text-[11px] text-indigo-800 uppercase sticky top-0 z-10 shadow-sm outline outline-1 outline-indigo-200">
                             <tr>
-                                <th class="px-4 py-2 whitespace-nowrap">입고(검수)일시</th><th class="px-4 py-2 whitespace-nowrap">출고일자</th><th class="px-4 py-2 text-center whitespace-nowrap">수량</th>
-                                <th class="px-4 py-2 text-center whitespace-nowrap">상태</th><th class="px-4 py-2">체크리스트</th><th class="px-4 py-2">특이사항</th>
-                                <th class="px-4 py-2 text-center whitespace-nowrap">사진</th><th class="px-4 py-2 text-right whitespace-nowrap">관리</th>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">입고(검수)일시</th>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">출고일자</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[5%] bg-indigo-100">수량</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%] bg-indigo-100">상태</th>
+                                <th class="px-4 py-2 font-bold w-[30%] bg-indigo-100">검수항목 (체크리스트)</th>
+                                <th class="px-4 py-2 font-bold w-[20%] bg-indigo-100">특이사항/메모</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[7%] bg-indigo-100">사진</th>
+                                <th class="px-4 py-2 font-bold text-right whitespace-nowrap w-[10%] bg-indigo-100">관리</th>
                             </tr>
                         </thead>
-                        <tbody>${rowsHtml}</tbody>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -526,9 +483,15 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     targetTr.after(tr); 
 };
 
-/**
- * QC 통계 리포트 렌더링
- */
+export const setSortState = (key) => {
+    if (sortState.key === key) {
+        sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortState.key = key;
+        sortState.dir = 'desc';
+    }
+};
+
 export const renderQCStatsMode = (historyData, periodType = 'month', selectedPeriod = '') => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -538,7 +501,9 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         return;
     }
 
-    const weeks = new Set(), months = new Set();
+    const weeks = new Set();
+    const months = new Set();
+    
     historyData.forEach(product => {
         if (product.logs && Array.isArray(product.logs)) {
             product.logs.forEach(log => {
@@ -553,80 +518,215 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
     const monthOptions = Array.from(months).sort().reverse();
     const weekOptions = Array.from(weeks).sort().reverse();
 
-    if (!selectedPeriod) selectedPeriod = periodType === 'month' ? monthOptions[0] : weekOptions[0];
+    if (!selectedPeriod) {
+        selectedPeriod = periodType === 'month' ? monthOptions[0] : weekOptions[0];
+    }
 
-    let totalInspectedQty = 0, totalDefectQty = 0, totalInspectionCount = 0, totalDefectCount = 0;
-    const inspectedProducts = new Set(), productStats = {}; 
+    let totalInspectedQty = 0;
+    let totalDefectQty = 0;
+    let totalInspectionCount = 0;
+    let totalDefectCount = 0;
+    const inspectedProducts = new Set();
+    const productStats = {}; 
 
     historyData.forEach(product => {
+        const pName = product.id;
+        
         if (product.logs && Array.isArray(product.logs)) {
             product.logs.forEach(log => {
                 if (!log.date) return;
-                const logMonth = log.date.substring(0, 7), logWeek = getWeekOfYear(new Date(log.date));
-                const isMatch = (periodType === 'month' && logMonth === selectedPeriod) || (periodType === 'week' && logWeek === selectedPeriod);
+                
+                const logMonth = log.date.substring(0, 7);
+                const logWeek = getWeekOfYear(new Date(log.date));
+
+                const isMatch = (periodType === 'month' && logMonth === selectedPeriod) || 
+                                (periodType === 'week' && logWeek === selectedPeriod);
 
                 if (isMatch) {
-                    inspectedProducts.add(product.id);
-                    if (!productStats[product.id]) productStats[product.id] = { totalQty: 0, defectQty: 0, inspCount: 0, defectCount: 0, defectsList: [] };
+                    inspectedProducts.add(pName);
+                    
+                    if (!productStats[pName]) {
+                        productStats[pName] = { totalQty: 0, defectQty: 0, inspCount: 0, defectCount: 0, defectsList: [] };
+                    }
+
                     const qty = Number(log.inboundQty) || Number(log.qty) || 1; 
-                    productStats[product.id].inspCount += 1; totalInspectionCount += 1;
-                    productStats[product.id].totalQty += qty; totalInspectedQty += qty;
+                    
+                    productStats[pName].inspCount += 1;
+                    totalInspectionCount += 1;
+                    
+                    productStats[pName].totalQty += qty;
+                    totalInspectedQty += qty;
 
                     let isDefect = false;
                     const defectReasons = [];
                     const normalValues = ['정상', '양호', '동일', '없음', '해당없음', '통과', '-', ''];
-                    if (log.status === '불량' || (log.defects && log.defects.length > 0)) isDefect = true;
+
+                    if (log.status === '불량') isDefect = true;
+                    
+                    if (log.defects && Array.isArray(log.defects) && log.defects.length > 0) {
+                        isDefect = true;
+                        defectReasons.push(...log.defects);
+                    }
+
                     if (log.checklist) {
                         const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
                         Object.entries(log.checklist).forEach(([key, val]) => {
-                            if (key !== 'thickness' && val && !normalValues.includes(String(val).trim())) {
-                                isDefect = true; defectReasons.push(`${labelMap[key] || key}: ${val}`);
+                            if (key !== 'thickness' && val) {
+                                const cleanVal = String(val).trim();
+                                if (cleanVal && !normalValues.includes(cleanVal)) {
+                                    isDefect = true;
+                                    defectReasons.push(`${labelMap[key] || key}: ${cleanVal}`);
+                                }
                             }
                         });
                     }
+
                     if (isDefect) {
-                        productStats[product.id].defectCount += 1; totalDefectCount += 1;
-                        productStats[product.id].defectQty += qty; totalDefectQty += qty;
-                        productStats[product.id].defectsList.push(...defectReasons);
+                        productStats[pName].defectCount += 1;
+                        totalDefectCount += 1;
+                        
+                        productStats[pName].defectQty += qty;
+                        totalDefectQty += qty;
+
+                        if (defectReasons.length > 0) {
+                            productStats[pName].defectsList.push(...defectReasons);
+                        } else {
+                            productStats[pName].defectsList.push('상태 불량/기타');
+                        }
                     }
                 }
             });
         }
     });
 
+    const qtyDefectRate = totalInspectedQty > 0 ? ((totalDefectQty / totalInspectedQty) * 100).toFixed(1) : 0;
     const countDefectRate = totalInspectionCount > 0 ? ((totalDefectCount / totalInspectionCount) * 100).toFixed(1) : 0;
+    const totalProductTypes = inspectedProducts.size;
+
     const topDefectiveProducts = Object.entries(productStats)
-        .map(([name, s]) => ({ name, inspCount: s.inspCount, defectCount: s.defectCount, countRate: s.inspCount > 0 ? ((s.defectCount / s.inspCount) * 100).toFixed(1) : 0 }))
-        .sort((a, b) => b.defectCount - a.defectCount).slice(0, 15);
+        .map(([name, stats]) => ({
+            name,
+            totalQty: stats.totalQty,
+            defectQty: stats.defectQty,
+            qtyRate: stats.totalQty > 0 ? ((stats.defectQty / stats.totalQty) * 100).toFixed(1) : 0,
+            inspCount: stats.inspCount,
+            defectCount: stats.defectCount,
+            countRate: stats.inspCount > 0 ? ((stats.defectCount / stats.inspCount) * 100).toFixed(1) : 0,
+            commonDefects: [...new Set(stats.defectsList)].join(', ') || '-'
+        }))
+        .filter(p => p.defectCount > 0 || p.defectQty > 0)
+        .sort((a, b) => b.defectCount - a.defectCount || b.defectQty - a.defectQty) 
+        .slice(0, 15);
 
     container.innerHTML = `
         <div class="absolute inset-0 flex flex-col bg-gray-50 p-4 rounded-lg overflow-y-auto custom-scrollbar">
-            <div class="bg-white p-4 rounded-lg shadow-sm border mb-4 flex gap-4 items-end shrink-0">
-                <div><label class="block text-xs font-bold text-gray-600 mb-1">기준</label><select id="qc-period-type" class="border rounded p-1.5 text-sm"><option value="month" ${periodType==='month'?'selected':''}>월간</option><option value="week" ${periodType==='week'?'selected':''}>주간</option></select></div>
-                <div><label class="block text-xs font-bold text-gray-600 mb-1">기간</label><select id="qc-period-value" class="border rounded p-1.5 text-sm min-w-[120px]">${periodType==='month'?monthOptions.map(m=>`<option value="${m}" ${selectedPeriod===m?'selected':''}>${m}</option>`).join(''):weekOptions.map(w=>`<option value="${w}" ${selectedPeriod===w?'selected':''}>${w}</option>`).join('')}</select></div>
-                <button id="btn-refresh-qc" class="bg-indigo-600 text-white text-sm font-bold py-1.5 px-4 rounded shadow">조회</button>
+            
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 flex gap-4 items-end shrink-0">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">통계 기준</label>
+                    <select id="qc-period-type" class="border border-gray-300 rounded p-1.5 text-sm focus:ring-indigo-500">
+                        <option value="month" ${periodType === 'month' ? 'selected' : ''}>월간 (Monthly)</option>
+                        <option value="week" ${periodType === 'week' ? 'selected' : ''}>주간 (Weekly)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">조회 기간</label>
+                    <select id="qc-period-value" class="border border-gray-300 rounded p-1.5 text-sm focus:ring-indigo-500 min-w-[120px]">
+                        ${periodType === 'month' 
+                            ? monthOptions.map(m => `<option value="${m}" ${selectedPeriod === m ? 'selected' : ''}>${m}</option>`).join('')
+                            : weekOptions.map(w => `<option value="${w}" ${selectedPeriod === w ? 'selected' : ''}>${w}</option>`).join('')
+                        }
+                    </select>
+                </div>
+                <button id="btn-refresh-qc" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-1.5 px-4 rounded shadow transition">
+                    조회
+                </button>
             </div>
-            <div class="grid grid-cols-4 gap-4 mb-6 shrink-0">
-                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500"><div class="text-xs text-gray-500 mb-1">총 검수 횟수</div><div class="text-2xl font-bold">${totalInspectionCount}회</div></div>
-                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500"><div class="text-xs text-gray-500 mb-1">상품 종류</div><div class="text-2xl font-bold">${inspectedProducts.size}종</div></div>
-                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500"><div class="text-xs text-gray-500 mb-1">불량 건수</div><div class="text-2xl font-bold text-red-600">${totalDefectCount}건</div></div>
-                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-orange-500"><div class="text-xs text-gray-500 mb-1">평균 불량률</div><div class="text-2xl font-bold text-orange-600">${countDefectRate}%</div></div>
+
+            ${!selectedPeriod ? `<div class="text-center text-gray-500 py-10">해당 기간에 검수 데이터가 없습니다.</div>` : `
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 shrink-0">
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500">
+                    <div class="text-xs text-gray-500 mb-1">총 검수 진행 횟수</div>
+                    <div class="text-2xl font-bold text-gray-800">${totalInspectionCount.toLocaleString()} <span class="text-sm font-normal text-gray-500">회</span></div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
+                    <div class="text-xs text-gray-500 mb-1">검수 상품 종류</div>
+                    <div class="text-2xl font-bold text-gray-800">${totalProductTypes.toLocaleString()} <span class="text-sm font-normal text-gray-500">종</span></div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
+                    <div class="text-xs text-gray-500 mb-1">불량 발생 횟수 / 수량</div>
+                    <div class="text-xl font-bold text-red-600">${totalDefectCount.toLocaleString()}<span class="text-sm font-normal text-gray-500">회</span> <span class="text-gray-300 mx-1">/</span> ${totalDefectQty.toLocaleString()}<span class="text-sm font-normal text-gray-500">개</span></div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 ${countDefectRate > 10 ? 'border-red-500' : 'border-orange-500'}">
+                    <div class="text-xs text-gray-500 mb-1">평균 불량률 (횟수 / 수량)</div>
+                    <div class="text-xl font-bold text-orange-600">${countDefectRate}<span class="text-sm font-normal text-gray-500">%</span> <span class="text-gray-300 mx-1">/</span> ${qtyDefectRate}<span class="text-sm font-normal text-gray-500">%</span></div>
+                </div>
             </div>
-            <div class="bg-white rounded-lg shadow-sm border overflow-hidden"><div class="px-4 py-3 bg-gray-50 font-bold border-b">⚠️ QC 집중 관리 대상 TOP 15</div>
-                <table class="w-full text-sm text-left"><thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="px-4 py-3">상품명</th><th class="px-4 py-3 text-center">검수횟수</th><th class="px-4 py-3 text-center">불량횟수</th><th class="px-4 py-3 text-center">불량률</th></tr></thead>
-                <tbody>${topDefectiveProducts.map((p,i)=>`
-                    <tr class="hover:bg-indigo-50/50 transition cursor-pointer btn-view-detail" data-product-name="${p.name}" data-is-qc-report="true" data-qc-period-type="${periodType}" data-qc-period-value="${selectedPeriod}">
-                        <td class="px-4 py-3 font-medium text-gray-900">${i+1}. ${p.name}</td>
-                        <td class="px-4 py-3 text-center">${p.inspCount}회</td>
-                        <td class="px-4 py-3 text-center text-red-600 font-bold">${p.defectCount}회</td>
-                        <td class="px-4 py-3 text-center"><span class="bg-red-50 text-red-700 px-2 py-1 rounded font-bold">${p.countRate}%</span></td>
-                    </tr>`).join('')}</tbody></table>
+
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col shrink-0 mb-8">
+                <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
+                    <h3 class="font-bold text-gray-700">⚠️ QC 집중 관리 대상 (발생 횟수 최다 상품 TOP 15)</h3>
+                    <span class="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded shadow-sm">💡 행을 클릭하면 해당 기간의 불량 상세 내역을 볼 수 있습니다.</span>
+                </div>
+                
+                <div class="overflow-x-auto relative">
+                    <table class="w-full text-sm text-left relative">
+                        <thead class="text-xs text-gray-500 bg-gray-50 outline outline-1 outline-gray-200">
+                            <tr class="bg-gray-50">
+                                <th class="px-4 py-3 border-b">상품명</th>
+                                <th class="px-4 py-3 text-center border-b border-l bg-gray-100/50" colspan="3">📊 검수 횟수 (상품 건별) 기준</th>
+                                <th class="px-4 py-3 text-center border-b border-l" colspan="3">📦 검수 수량 (개수) 기준</th>
+                                <th class="px-4 py-3 border-b border-l">주요 불량 사유</th>
+                            </tr>
+                            <tr class="text-[11px] text-gray-400 bg-gray-50">
+                                <th class="px-4 py-2 border-b"></th>
+                                <th class="px-2 py-2 text-center border-b border-l bg-gray-100/50">총 횟수</th>
+                                <th class="px-2 py-2 text-center border-b bg-gray-100/50">불량 횟수</th>
+                                <th class="px-2 py-2 text-center border-b bg-gray-100/50">횟수 불량률</th>
+                                <th class="px-2 py-2 text-center border-b border-l">총 수량</th>
+                                <th class="px-2 py-2 text-center border-b">불량 수량</th>
+                                <th class="px-2 py-2 text-center border-b">수량 불량률</th>
+                                <th class="px-4 py-2 border-b border-l"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 relative z-0">
+                            ${topDefectiveProducts.length === 0 ? `
+                                <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다. 🎉</td></tr>
+                            ` : topDefectiveProducts.map((p, idx) => `
+                                <tr class="hover:bg-indigo-50/50 transition cursor-pointer btn-view-detail group" 
+                                    data-product-name="${p.name}" 
+                                    data-is-qc-report="true"
+                                    data-qc-period-type="${periodType}"
+                                    data-qc-period-value="${selectedPeriod}"
+                                    title="해당 기간의 불량 상세 이력 펼치기">
+                                    <td class="px-4 py-3 font-medium text-gray-900 break-words max-w-[200px]">
+                                        <span class="inline-block w-4 h-4 text-center rounded-full ${idx < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'} text-[10px] mr-1 leading-4">${idx + 1}</span>
+                                        <span class="group-hover:text-indigo-600 group-hover:underline transition-all">${p.name}</span>
+                                    </td>
+                                    
+                                    <td class="px-2 py-3 text-center text-gray-600 border-l bg-gray-50/30 group-hover:bg-transparent">${p.inspCount}회</td>
+                                    <td class="px-2 py-3 text-center font-bold text-red-600 bg-gray-50/30 group-hover:bg-transparent">${p.defectCount}회</td>
+                                    <td class="px-2 py-3 text-center bg-gray-50/30 group-hover:bg-transparent">
+                                        <span class="px-2 py-1 rounded text-[11px] font-bold ${p.countRate > 20 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
+                                            ${p.countRate}%
+                                        </span>
+                                    </td>
+
+                                    <td class="px-2 py-3 text-center text-gray-500 border-l group-hover:bg-transparent">${p.totalQty}개</td>
+                                    <td class="px-2 py-3 text-center text-orange-600 group-hover:bg-transparent">${p.defectQty}개</td>
+                                    <td class="px-2 py-3 text-center group-hover:bg-transparent">
+                                        <span class="text-[11px] text-gray-500">${p.qtyRate}%</span>
+                                    </td>
+
+                                    <td class="px-4 py-3 text-[11px] text-gray-500 break-words border-l max-w-[250px] group-hover:bg-transparent">${p.commonDefects}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             </div>
+            `}
         </div>
     `;
-};
-
-export const setSortState = (key) => {
-    if (sortState.key === key) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
-    else { sortState.key = key; sortState.dir = 'desc'; }
 };

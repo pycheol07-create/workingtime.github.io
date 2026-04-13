@@ -73,7 +73,8 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
             
-            // 병합 순서 변경 (loadedData를 먼저, defaultData를 나중에)
+            // ✅ [수정] 병합 순서 변경 (loadedData를 먼저, defaultData를 나중에)
+            // 이렇게 하면 코드에 있는 기본값(...사전작업)이 DB에 저장된 옛날 값(...준비작업)을 덮어씁니다.
             mergedConfig.simulationTaskLinks = { ...(loadedData.simulationTaskLinks || {}), ...defaultData.simulationTaskLinks };
 
             return mergedConfig;
@@ -139,8 +140,7 @@ function getDefaultConfig() {
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
-        // '전량검수' 추가
-        keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무', '전량검수'],
+        keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'],
         dashboardItems: [
             'total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff',
             'ongoing-tasks', 'total-work-time',
@@ -151,12 +151,10 @@ function getDefaultConfig() {
         quantityToDashboardMap: {},
         taskGroups: [
             { name: '공통', tasks: ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업', '직진배송 사전작업'] },
-            // '검수' -> '샘플검수' 변경 및 '전량검수' 추가
-            { name: '담당', tasks: ['개인담당업무', '상.하차', '샘플검수', '전량검수', '아이롱', '오류'] },
+            { name: '담당', tasks: ['개인담당업무', '상.하차', '샘플검수', '전량검수', '아이롱', '오류'] }, // ✅ '샘플검수', '전량검수'로 변경됨
             { name: '기타', tasks: ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무'] }
         ],
-        // '검수' -> '샘플검수' 변경 및 '전량검수' 추가
-        quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '샘플검수', '전량검수'],
+        quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '샘플검수', '전량검수'], // ✅ '샘플검수', '전량검수' 추가
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
         defaultPartTimerWage: 10000,
 
@@ -164,7 +162,7 @@ function getDefaultConfig() {
             '직진배송': '직진배송 사전작업' 
         },
 
-        // 매출액 및 근무시간 분석 기준
+        // ✨ 매출액 및 근무시간 분석 기준
         revenueIncrementUnit: 10000000,
         standardMonthlyWorkHours: 209,
         standardDailyWorkHours: {
