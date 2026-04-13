@@ -1,5 +1,5 @@
 // === js/inspection-logic.js ===
-// 설명: 검수 이력 조회, 저장, 리스트 관리, 수정/삭제(상세/전체), 스캔, 엑셀, 이미지 처리 등 핵심 로직
+// 설명: 검수 이력 조회, 저장, 리스트 관리, 수정/삭제(상세/전체), 스캔, 엑셀, 이미지 처리 및 [전량검수] 로직 통합
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
@@ -20,6 +20,9 @@ let currentProductLogs = [];
 let currentTodoIndex = -1;
 let editingLogIndex = -1; 
 let manualImageBase64 = null; // 수동 등록용 이미지 상태 변수 추가
+
+// ✨ [신규] 전량검수 세션 상태 변수
+let currentFullSession = null;
 
 // 고유 입고(검수)일자 계산 헬퍼 함수 (사전등록 제외) - 검수일(date) 기준
 const getUniqueInboundCount = (logsArray) => {
@@ -884,7 +887,7 @@ export const saveInspectionAndNext = async () => {
                     updatedAt: serverTimestamp()
                 });
                 
-                showToast(`'${productName}' 검수 기록이 수정되었습니다.`);
+                showToast(`'${productName}' 샘플검수 기록이 수정되었습니다.`);
             }
         } else {
             const tempLogs = [...existingLogs, inspectionRecord];
@@ -917,7 +920,7 @@ export const saveInspectionAndNext = async () => {
                 note,
                 time: nowTime
             });
-            showToast(`'${productName}' 저장 완료!`);
+            showToast(`'${productName}' 샘플검수 저장 완료!`);
         }
 
         let pastListUpdated = false;
@@ -992,7 +995,7 @@ const resetInspectionForm = (clearProductName = false) => {
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
     if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
-    if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
+    if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: -`;
     
     const selects = document.querySelectorAll('#insp-current-input-area select');
     selects.forEach(sel => sel.value = ""); 
@@ -1209,7 +1212,7 @@ export const updateInspectionLog = async () => {
         
         await updateDoc(docRef, updates);
 
-        showToast("기록이 수정되었습니다.");
+        showToast("샘플검수 기록이 수정되었습니다.");
         const editModal = document.getElementById('inspection-log-editor-modal');
         if (editModal) editModal.classList.add('hidden');
         renderInspectionLogTable(currentProductLogs, productName);
@@ -1420,7 +1423,7 @@ export const savePreInspectionNote = async () => {
         const preModal = document.getElementById('pre-register-inspection-modal');
         if (preModal) preModal.classList.add('hidden');
         
-        showToast(`'${productName}' 수동 검수 저장 완료!`);
+        showToast(`'${productName}' 수동 샘플검수 저장 완료!`);
         return true;
 
     } catch (e) {
@@ -1432,5 +1435,143 @@ export const savePreInspectionNote = async () => {
             btn.disabled = false; 
             btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg> 검수 완료 및 즉시 저장`; 
         }
+    }
+};
+
+// ==========================================
+// 🚀 [신규 추가] 전량검수 로직 (데이터 누적 및 세션 유지)
+// ==========================================
+
+/**
+ * 전량검수 세션 불러오기 (상품 조회 시 "이어서 하기" 지원)
+ */
+export const loadFullInspectionSession = async () => {
+    const productName = document.getElementById('full-insp-product-name').value.trim();
+    if (!productName) {
+        showToast("상품명을 입력해주세요.", true);
+        return;
+    }
+
+    try {
+        const docRef = doc(State.db, 'full_inspections', productName);
+        const docSnap = await getDoc(docRef);
+
+        const statusArea = document.getElementById('full-insp-status-area');
+        const newArea = document.getElementById('full-insp-new-session-area');
+        const completeBtn = document.getElementById('full-insp-complete-session-btn');
+
+        if (docSnap.exists() && docSnap.data().status === '진행중') {
+            const data = docSnap.data();
+            currentFullSession = data;
+            
+            // UI에 기존 세션 데이터 바인딩
+            statusArea.classList.remove('hidden');
+            newArea.classList.add('hidden');
+            completeBtn.classList.remove('hidden');
+
+            document.getElementById('full-insp-start-date').textContent = `시작일: ${data.startDate}`;
+            document.getElementById('full-insp-total-inventory').textContent = data.totalInventory;
+            document.getElementById('full-insp-cumulative-qty').textContent = data.cumulativeQty;
+            document.getElementById('full-insp-reason').value = data.reason || '';
+
+            // 진행률 계산 및 프로그레스 바 업데이트
+            const progress = (data.cumulativeQty / data.totalInventory * 100).toFixed(1);
+            document.getElementById('full-insp-progress-percent').textContent = `${progress}%`;
+            document.getElementById('full-insp-progress-bar').style.width = `${progress}%`;
+            
+            showToast("진행 중인 전량검수 세션을 불러왔습니다.");
+        } else {
+            // 진행 중인 세션이 없으면 신규로 시작
+            currentFullSession = null;
+            statusArea.classList.add('hidden');
+            newArea.classList.remove('hidden');
+            completeBtn.classList.add('hidden');
+            
+            document.getElementById('full-insp-total-input').value = '';
+            document.getElementById('full-insp-reason').value = '';
+            showToast("신규 전량검수를 시작합니다.");
+        }
+    } catch (e) {
+        console.error("전량검수 로딩 실패:", e);
+    }
+};
+
+/**
+ * 전량검수 결과 누적 저장
+ */
+export const saveFullInspectionRecord = async () => {
+    const productName = document.getElementById('full-insp-product-name').value.trim();
+    const todayQty = Number(document.getElementById('full-insp-today-total').value) || 0;
+    const normalQty = Number(document.getElementById('full-insp-today-normal').value) || 0;
+    const defectQty = Number(document.getElementById('full-insp-today-defect').value) || 0;
+    const note = document.getElementById('full-insp-today-note').value;
+    const today = getTodayDateString();
+
+    if (!productName) { showToast("상품명을 입력해주세요.", true); return; }
+    if (todayQty <= 0) { showToast("오늘 검수한 수량을 입력해주세요.", true); return; }
+
+    try {
+        const docRef = doc(State.db, 'full_inspections', productName);
+        const logEntry = {
+            date: today,
+            inspector: State.appState.currentUser,
+            todayQty, normalQty, defectQty, note,
+            time: getCurrentTime()
+        };
+
+        if (!currentFullSession) {
+            // 신규 전량검수 세션 생성
+            const totalInv = Number(document.getElementById('full-insp-total-input').value) || 0;
+            const reason = document.getElementById('full-insp-reason').value;
+            if (totalInv <= 0) { showToast("총 재고 수량을 입력해주세요.", true); return; }
+
+            await setDoc(docRef, {
+                productName,
+                totalInventory: totalInv,
+                reason,
+                startDate: today,
+                cumulativeQty: todayQty,
+                cumulativeNormal: normalQty,
+                cumulativeDefect: defectQty,
+                status: '진행중',
+                logs: [logEntry]
+            });
+        } else {
+            // 기존 세션에 수치 누적
+            await updateDoc(docRef, {
+                cumulativeQty: increment(todayQty),
+                cumulativeNormal: increment(normalQty),
+                cumulativeDefect: increment(defectQty),
+                logs: arrayUnion(logEntry)
+            });
+        }
+
+        // 메인 대시보드 및 일일 수량 데이터에도 '전량검수' 수치 반영
+        const currentQty = State.appState.taskQuantities['전량검수'] || 0;
+        await updateDailyData({ taskQuantities: { ...State.appState.taskQuantities, '전량검수': currentQty + todayQty } });
+
+        showToast(`${productName} 전량검수 기록이 저장되었습니다.`);
+        document.getElementById('full-inspection-modal').classList.add('hidden');
+        
+    } catch (e) {
+        console.error("전량검수 저장 실패:", e);
+        showToast("저장 중 오류가 발생했습니다.", true);
+    }
+};
+
+/**
+ * 전량검수 최종 세션 종료
+ */
+export const completeFullInspectionSession = async () => {
+    const productName = document.getElementById('full-insp-product-name').value.trim();
+    if (!productName || !confirm("해당 상품의 전량검수를 완전히 종료하시겠습니까? (완료 처리)")) return;
+
+    try {
+        const docRef = doc(State.db, 'full_inspections', productName);
+        await updateDoc(docRef, { status: '완료', endDate: getTodayDateString() });
+        showToast("전량검수 세션이 완료 처리되었습니다.");
+        document.getElementById('full-inspection-modal').classList.add('hidden');
+    } catch (e) {
+        console.error("세션 종료 실패:", e);
     }
 };
