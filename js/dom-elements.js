@@ -219,8 +219,6 @@ export const adminClockInBtn = document.getElementById('admin-clock-in-btn');
 export const adminClockOutBtn = document.getElementById('admin-clock-out-btn');
 export const adminCancelClockOutBtn = document.getElementById('admin-cancel-clock-out-btn');
 export const openLeaveModalBtn = document.getElementById('open-leave-modal-btn');
-
-// ✅ [추가] 근태 취소 버튼 요소
 export const adminCancelLeaveBtn = document.getElementById('admin-cancel-leave-btn');
 export const adminCancelLeaveText = document.getElementById('admin-cancel-leave-text');
 
@@ -374,3 +372,12 @@ export const totalInspTodayNormal = document.getElementById('total-insp-today-no
 export const totalInspTodayDefective = document.getElementById('total-insp-today-defective');
 export const totalInspRemaining = document.getElementById('total-insp-remaining');
 export const totalInspSaveBtn = document.getElementById('total-insp-save-btn');
+
+// ✅ [신규] 샘플 -> 전량 전환용 버튼 및 전량 검수 상세 필드 추가
+export const inspSwitchToTotalBtn = document.getElementById('insp-switch-to-total-btn');
+export const totalInspCode = document.getElementById('total-insp-code');
+export const totalInspOption = document.getElementById('total-insp-option');
+export const totalInspSupplier = document.getElementById('total-insp-supplier');
+export const totalInspLocation = document.getElementById('total-insp-location');
+export const totalInspInboundDate = document.getElementById('total-insp-inbound-date');
+export const totalInspBackBtn = document.getElementById('total-insp-back-btn');

@@ -8,6 +8,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/fi
 
 // 현재 조회된 상품의 누적 상태를 저장할 내부 변수
 let currentTotalInspData = null;
+let pendingDataFromSample = null; // 샘플 검수에서 넘어온 데이터를 임시 저장하는 변수
 
 // 남은 수량 실시간 계산 함수
 export function updateTotalInspRemaining() {
@@ -25,6 +26,37 @@ export function updateTotalInspRemaining() {
     } else {
         DOM.totalInspRemaining.classList.remove('text-red-500');
     }
+}
+
+// ✅ [신규] 샘플 검수에서 전량 검수로 원클릭 전환
+export async function triggerTotalInspectionFromSample() {
+    const productName = DOM.inspProductNameInput.value.trim();
+    if (!productName) {
+        showToast('샘플 검수 중인 상품명이 없습니다.', true);
+        return;
+    }
+    
+    // 샘플 검수 UI에 있는 데이터 가져오기
+    const code = DOM.inspCodeDisplay.textContent.replace('코드: ', '').trim();
+    const option = DOM.inspOptionDisplay.textContent.replace('옵션: ', '').trim();
+    const supplier = DOM.inspSupplierDisplay.textContent.replace('공급처: ', '').trim();
+    const inboundDate = DOM.inspInboundDateInput.value;
+
+    // 전량검수 모달 띄우기 (z-index가 더 높으므로 겹쳐서 열림)
+    DOM.totalInspModal.classList.remove('hidden');
+    DOM.totalInspProductName.value = productName;
+    
+    // 임시 변수에 데이터 저장
+    pendingDataFromSample = {
+        code: code && code !== '-' ? code : '',
+        option: option && option !== '-' ? option : '',
+        supplier: supplier && supplier !== '-' ? supplier : '',
+        inboundDate: inboundDate || '',
+        location: '' // 로케이션은 전량 검수 창에서 수동 입력
+    };
+
+    // 데이터 자동 조회 실행
+    await searchTotalInspection();
 }
 
 // 상품명 기반 누적 데이터 조회
@@ -49,6 +81,13 @@ export async function searchTotalInspection() {
             DOM.totalInspTotalStock.value = currentTotalInspData.totalStock || 0;
             DOM.totalInspAccumulated.textContent = currentTotalInspData.accumulatedTotal || 0;
             
+            // 기존 DB 데이터 렌더링 (없으면 방금 넘어온 pendingData 사용)
+            DOM.totalInspCode.textContent = currentTotalInspData.code || (pendingDataFromSample?.code || '-');
+            DOM.totalInspOption.textContent = currentTotalInspData.option || (pendingDataFromSample?.option || '-');
+            DOM.totalInspSupplier.textContent = currentTotalInspData.supplier || (pendingDataFromSample?.supplier || '-');
+            DOM.totalInspLocation.value = currentTotalInspData.location || (pendingDataFromSample?.location || '');
+            DOM.totalInspInboundDate.value = currentTotalInspData.inboundDate || (pendingDataFromSample?.inboundDate || '');
+            
             showToast('기존 검수 내역을 불러왔습니다. 이어서 입력하세요.');
         } else {
             // 처음 검수하는 경우
@@ -58,6 +97,13 @@ export async function searchTotalInspection() {
             DOM.totalInspTotalStock.value = '';
             DOM.totalInspAccumulated.textContent = '0';
             
+            // 넘어온 pendingData 사용
+            DOM.totalInspCode.textContent = pendingDataFromSample?.code || '-';
+            DOM.totalInspOption.textContent = pendingDataFromSample?.option || '-';
+            DOM.totalInspSupplier.textContent = pendingDataFromSample?.supplier || '-';
+            DOM.totalInspLocation.value = pendingDataFromSample?.location || '';
+            DOM.totalInspInboundDate.value = pendingDataFromSample?.inboundDate || '';
+            
             showToast('새로운 전량 검수 건입니다. 총 재고와 사유를 입력하세요.');
         }
 
@@ -65,6 +111,8 @@ export async function searchTotalInspection() {
         DOM.totalInspTodayNormal.value = '';
         DOM.totalInspTodayDefective.value = '';
         updateTotalInspRemaining();
+        
+        pendingDataFromSample = null; // 초기화
 
     } catch (error) {
         console.error("Error searching total inspection:", error);
@@ -78,6 +126,13 @@ export async function saveTotalInspection() {
     const reason = DOM.totalInspReason.value.trim();
     const totalStock = parseInt(DOM.totalInspTotalStock.value) || 0;
     
+    // 추가 상세 정보 가져오기
+    const code = DOM.totalInspCode.textContent !== '-' ? DOM.totalInspCode.textContent : '';
+    const option = DOM.totalInspOption.textContent !== '-' ? DOM.totalInspOption.textContent : '';
+    const supplier = DOM.totalInspSupplier.textContent !== '-' ? DOM.totalInspSupplier.textContent : '';
+    const location = DOM.totalInspLocation.value.trim();
+    const inboundDate = DOM.totalInspInboundDate.value;
+
     const todayNormal = parseInt(DOM.totalInspTodayNormal.value) || 0;
     const todayDefective = parseInt(DOM.totalInspTodayDefective.value) || 0;
     const todayTotal = todayNormal + todayDefective;
@@ -105,6 +160,12 @@ export async function saveTotalInspection() {
             accumulatedNormal: newAccumulatedNormal,
             accumulatedDefective: newAccumulatedDefective,
             accumulatedTotal: newAccumulatedTotal,
+            // 상세 정보 저장
+            code: code,
+            option: option,
+            supplier: supplier,
+            location: location,
+            inboundDate: inboundDate,
             lastUpdated: serverTimestamp()
         }, { merge: true });
 
@@ -115,13 +176,19 @@ export async function saveTotalInspection() {
             reason: reason,
             todayNormal: todayNormal,
             todayDefective: todayDefective,
+            // 히스토리에도 상세 정보 기록
+            code: code,
+            option: option,
+            supplier: supplier,
+            location: location,
+            inboundDate: inboundDate,
             timestamp: serverTimestamp(),
             worker: State.auth.currentUser?.email || 'unknown'
         });
 
         showToast(`${productName} 전량 검수 내역이 누적 저장되었습니다.`);
         
-        // 저장 완료 후 창 닫기 및 초기화
+        // 저장 완료 후 창 닫기 및 초기화 (샘플 검수 창이 켜져있다면 다시 보임)
         DOM.totalInspModal.classList.add('hidden');
         DOM.totalInspContentArea.classList.add('hidden');
         DOM.totalInspProductName.value = '';
