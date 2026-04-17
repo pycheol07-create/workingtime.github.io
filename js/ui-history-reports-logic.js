@@ -294,7 +294,7 @@ export const aggregateDaysToSingleData = (daysData, id) => {
     return aggregated;
 };
 
-// ✅ [수정] 표준 속도 산출 로직 개선 (Top 3 -> Top 10 & 오늘 데이터 제외)
+// ✅ [수정] 표준 속도 산출 로직 개선 (상위 7개 평균으로 확장)
 export const calculateStandardThroughputs = (allHistoryData) => {
     const todayKey = getTodayDateString(); // 오늘 날짜
     const taskDailySpeeds = {}; 
@@ -336,8 +336,8 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     const standards = {};
     Object.keys(taskDailySpeeds).forEach(task => {
         const speeds = taskDailySpeeds[task];
-        // ✅ [수정] 효율이 좋았던 상위 10개(Top 10)의 평균으로 확장
-        const topN = speeds.sort((a, b) => b - a).slice(0, 10);
+        // ✅ [수정] 효율이 좋았던 상위 7개(Top 7)의 평균으로 적용
+        const topN = speeds.sort((a, b) => b - a).slice(0, 7);
         
         if (topN.length > 0) {
             const avgTopN = topN.reduce((a, b) => a + b, 0) / topN.length;
