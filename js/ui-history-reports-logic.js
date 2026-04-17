@@ -294,12 +294,15 @@ export const aggregateDaysToSingleData = (daysData, id) => {
     return aggregated;
 };
 
-// ✅ [수정] 표준 속도 산출 로직 개선 (상위 20개 평균으로 확장)
+// ✅ [수정] 표준 속도 산출 로직 개선 (최근 10개의 데이터 평균)
 export const calculateStandardThroughputs = (allHistoryData) => {
     const todayKey = getTodayDateString();
+    
+    // 확실하게 과거 데이터부터 최신 데이터 순(날짜 오름차순)으로 정렬합니다.
+    const sortedHistory = [...allHistoryData].sort((a, b) => a.id.localeCompare(b.id));
     const taskDailySpeeds = {};
 
-    allHistoryData.forEach(day => {
+    sortedHistory.forEach(day => {
         if (day.id === todayKey) return;
 
         const records = day.workRecords || [];
@@ -326,6 +329,7 @@ export const calculateStandardThroughputs = (allHistoryData) => {
             if (stats.duration >= 10 && stats.quantity > 0) {
                 const speed = stats.quantity / stats.duration;
                 if (!taskDailySpeeds[task]) taskDailySpeeds[task] = [];
+                // 시간의 흐름(날짜)에 따라 순서대로 속도가 저장됩니다.
                 taskDailySpeeds[task].push(speed);
             }
         });
@@ -334,12 +338,14 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     const standards = {};
     Object.keys(taskDailySpeeds).forEach(task => {
         const speeds = taskDailySpeeds[task];
-        // ✅ [수정] 상위 20개(Top 20)의 평균으로 적용
-        const topN = speeds.sort((a, b) => b - a).slice(0, 20);
         
-        if (topN.length > 0) {
-            const avgTopN = topN.reduce((a, b) => a + b, 0) / topN.length;
-            standards[task] = avgTopN;
+        // ✅ [수정] 정렬(sort)을 제거하고, 배열의 뒤(가장 최신)에서 10개를 가져옵니다.
+        // 만약 '상위 10개'를 원하셨다면: speeds.sort((a,b) => b-a).slice(0, 10); 를 사용하시면 됩니다.
+        const recent10 = speeds.slice(-10);
+        
+        if (recent10.length > 0) {
+            const avgRecent = recent10.reduce((a, b) => a + b, 0) / recent10.length;
+            standards[task] = avgRecent;
         } else {
             standards[task] = 0;
         }
