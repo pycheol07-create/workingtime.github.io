@@ -41,7 +41,7 @@ export const checkMissingQuantities = (dayData) => {
 };
 
 /**
- * 인건비 시뮬레이션 계산 로직
+ * 단일 업무 인건비 시뮬레이션 계산 로직
  */
 export const calculateSimulation = (mode, task, targetQty, inputValue, startTimeStr = "09:00", includeLinkedTasks = true, manualSpeed = null) => {
     // mode: 'fixed-workers' | 'target-time'
@@ -227,21 +227,17 @@ const calculateLinkedTaskAverageDuration = (allHistoryData, appConfig) => {
 };
 
 /**
- * ✅ [완전 개편] 오차 누적 기반 보정 알고리즘
- * "어제의 시점"에서 데이터를 분석해 오늘의 예측값을 산출하고, 과거 14일 오차율을 스스로 학습하여 보정합니다.
+ * 오차 누적 기반 보정 알고리즘
  */
 export const predictFutureTrends = (historyData, daysToPredict = 14) => {
     const todayStr = getTodayDateString();
     const sortedData = [...historyData].sort((a, b) => a.id.localeCompare(b.id));
 
-    // 1. 학습에 사용할 '과거 데이터 (어제까지)' 분리 (오늘 데이터에 오염되지 않기 위해)
     const pastData = sortedData.filter(d => d.id < todayStr).slice(-90);
-    // 오늘의 실제 데이터 추출
     const todayData = sortedData.find(d => d.id === todayStr) || { id: todayStr, management: { revenue: 0 }, taskQuantities: { '국내배송': 0 } };
 
-    if (pastData.length < 7) return null; // 예측을 위한 최소 일수
+    if (pastData.length < 7) return null; 
 
-    // 2. 요일별(Day of Week) 평균 및 최근 추세 계산
     const dowStats = { rev: {0:[],1:[],2:[],3:[],4:[],5:[],6:[]}, del: {0:[],1:[],2:[],3:[],4:[],5:[],6:[]} };
     let recent7Rev = [], recent30Rev = [], recent7Del = [], recent30Del = [];
 
@@ -278,7 +274,6 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
     if (avg30Rev > 0) trendRev = Math.max(0.7, Math.min(1.3, avg7Rev / avg30Rev));
     if (avg30Del > 0) trendDel = Math.max(0.7, Math.min(1.3, avg7Del / avg30Del));
 
-    // 3. 🎯 핵심: 최근 14일 백테스팅을 통한 AI 오차 보정치 산출
     const backtestDays = pastData.slice(-14);
     let sumActualRev = 0, sumPredRev = 0;
     let sumActualDel = 0, sumPredDel = 0;
@@ -295,18 +290,15 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
         if (actualDel > 0) { sumActualDel += actualDel; sumPredDel += pDel; }
     });
 
-    // 오차율 가중치 (±20% 리미트)
     let errorFactorRev = 1;
     let errorFactorDel = 1;
     if (sumPredRev > 0) errorFactorRev = Math.max(0.8, Math.min(1.2, sumActualRev / sumPredRev));
     if (sumPredDel > 0) errorFactorDel = Math.max(0.8, Math.min(1.2, sumActualDel / sumPredDel));
 
-    // 4. "오늘"의 예측값 (어제 기준 모델을 활용하여 산출) 및 실제값 매핑
     const todayDow = new Date(todayStr).getDay();
     let todayPredRev = dowAvgRev[todayDow] * trendRev * errorFactorRev;
     let todayPredDel = dowAvgDel[todayDow] * trendDel * errorFactorDel;
 
-    // 평일인데 요일 평균이 0인 예외 상황 보정
     if (todayDow > 0 && todayDow < 6) {
         if (dowAvgRev[todayDow] === 0 && avg30Rev > 0) todayPredRev = avg30Rev * 0.8 * errorFactorRev;
         if (dowAvgDel[todayDow] === 0 && avg30Del > 0) todayPredDel = avg30Del * 0.8 * errorFactorDel;
@@ -317,7 +309,6 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
     const todayActualRev = Number(todayData.management?.revenue) || 0;
     const todayActualDel = Number(todayData.taskQuantities?.['국내배송']) || 0;
 
-    // 5. "내일"부터 미래 기간 예측
     const futureLabels = [];
     const predictedRevenue = [];
     const predictedDelivery = [];
@@ -380,5 +371,97 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
             revenueFactor: trendRev,
             deliveryFactor: trendDel
         }
+    };
+};
+
+/**
+ * 🚀 [신규] 다중 스케줄 연속 시뮬레이션 (시간 예측 & 필요 인원 예측 통합)
+ * mode: 'fixed-workers' (시간 예측) | 'target-time' (필요 인원 예측)
+ */
+export const calculateSequentialSimulation = (mode, taskList, inputValue, startTimeStr = "09:00", manualSpeeds = {}) => {
+    if (!taskList || taskList.length === 0 || !inputValue) {
+        return { error: "업무 목록과 입력값을 올바르게 설정해주세요." };
+    }
+
+    const currentAppConfig = State.appConfig || {};
+    const standards = calculateStandardThroughputs(State.allHistoryData);
+    
+    const now = new Date();
+    const safeStartTimeStr = String(startTimeStr || "09:00");
+    const [startH, startM] = safeStartTimeStr.split(':').map(Number);
+    const startDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
+
+    const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
+    const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 13, 30);
+
+    // 1. 모든 업무의 총 작업량(분) 계산
+    let totalManMinutesNeeded = 0;
+    const taskDetails = taskList.map(item => {
+        const speed = (manualSpeeds[item.task] > 0) ? manualSpeeds[item.task] : (standards[item.task] || 0);
+        const manMinutes = item.targetQty / (speed || 1);
+        totalManMinutesNeeded += manMinutes;
+        return { ...item, speed, manMinutes };
+    });
+
+    if (totalManMinutesNeeded === 0) return { error: "업무량 또는 속도 데이터가 유효하지 않습니다." };
+
+    let workerCount = 1;
+
+    // 2. [필요 인원 예측] 모드 로직
+    if (mode === 'target-time') {
+        const [endH, endM] = String(inputValue).split(':').map(Number);
+        const targetEndTimeObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM);
+        let availableMinutes = (targetEndTimeObj.getTime() - startDateTime.getTime()) / 60000;
+        
+        if (startDateTime < lunchEnd && targetEndTimeObj > lunchStart) availableMinutes -= 60;
+
+        if (availableMinutes <= 0) return { error: "목표 시간이 너무 짧습니다." };
+        workerCount = Math.ceil(totalManMinutesNeeded / availableMinutes);
+    } 
+    // 3. [시간 예측] 모드 로직
+    else {
+        workerCount = Number(inputValue);
+    }
+
+    // 4. 타임라인 생성
+    const timeline = [];
+    let currentTime = new Date(startDateTime.getTime());
+    let totalDurationMinutes = 0;
+    let includesLunch = false;
+
+    for (const task of taskDetails) {
+        const taskDurationMinutes = task.manMinutes / workerCount;
+        const taskStartTimeStr = `${currentTime.getHours().toString().padStart(2, '0')}:${currentTime.getMinutes().toString().padStart(2, '0')}`;
+        
+        let taskEndTime = new Date(currentTime.getTime() + taskDurationMinutes * 60000);
+
+        // 점심시간 처리
+        if (currentTime < lunchEnd && taskEndTime > lunchStart) {
+             taskEndTime = new Date(taskEndTime.getTime() + 60 * 60000);
+             includesLunch = true;
+        }
+
+        const taskEndTimeStr = `${taskEndTime.getHours().toString().padStart(2, '0')}:${taskEndTime.getMinutes().toString().padStart(2, '0')}`;
+
+        timeline.push({
+            task: task.task,
+            quantity: task.targetQty,
+            duration: formatDuration(taskDurationMinutes),
+            startTime: taskStartTimeStr,
+            endTime: taskEndTimeStr
+        });
+
+        currentTime = taskEndTime;
+        totalDurationMinutes += taskDurationMinutes;
+    }
+
+    const avgWagePerMinute = (currentAppConfig.defaultPartTimerWage || 10000) / 60;
+    return {
+        mode,
+        workerCount,
+        finalEndTime: `${currentTime.getHours().toString().padStart(2, '0')}:${currentTime.getMinutes().toString().padStart(2, '0')}`,
+        totalCost: (totalDurationMinutes * workerCount) * avgWagePerMinute,
+        includesLunch,
+        timeline
     };
 };
