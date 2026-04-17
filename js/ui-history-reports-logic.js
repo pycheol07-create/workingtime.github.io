@@ -1,6 +1,6 @@
 // === js/ui-history-reports-logic.js ===
 
-import { formatDuration, isWeekday, getWeekOfYear, getTodayDateString } from './utils.js'; // ✅ getTodayDateString 추가
+import { formatDuration, isWeekday, getWeekOfYear, getTodayDateString } from './utils.js';
 import { appConfig } from './state.js';
 
 // ================== [ 1. 헬퍼 함수 ] ==================
@@ -19,9 +19,9 @@ export const getDiffHtmlForMetric = (metric, current, previous) => {
         if (currValue === 0) return `<span class="text-xs text-gray-400 ml-1">(-)</span>`;
         
         const sign = '↑';
-        let colorClass = 'text-green-600'; 
+        let colorClass = 'text-green-600';
         if (['avgCostPerItem', 'duration', 'totalDuration', 'totalCost', 'nonWorkTime', 'coqPercentage', 'totalLossCost', 'availabilityLossCost', 'performanceLossCost', 'qualityLossCost', 'unitTotalCost'].includes(metric)) {
-             colorClass = 'text-red-600'; 
+             colorClass = 'text-red-600';
         }
         
         let diffStr = '';
@@ -227,7 +227,7 @@ export const calculateReportAggregations = (data, appConfig, wageMap, memberToPa
         taskSummary[r.task].members.add(r.member);
         taskSummary[r.task].recordCount += 1;
         
-        const recordDate = r.date || data.id; 
+        const recordDate = r.date || data.id;
         if (recordDate) {
             taskSummary[r.task].uniqueDays.add(recordDate);
         }
@@ -294,13 +294,12 @@ export const aggregateDaysToSingleData = (daysData, id) => {
     return aggregated;
 };
 
-// ✅ [수정] 표준 속도 산출 로직 개선 (상위 7개 평균으로 확장)
+// ✅ [수정] 표준 속도 산출 로직 개선 (상위 20개 평균으로 확장)
 export const calculateStandardThroughputs = (allHistoryData) => {
-    const todayKey = getTodayDateString(); // 오늘 날짜
-    const taskDailySpeeds = {}; 
+    const todayKey = getTodayDateString();
+    const taskDailySpeeds = {};
 
     allHistoryData.forEach(day => {
-        // ✅ 오늘 날짜 기록은 계산에서 제외 (진행 중인 데이터 오염 방지)
         if (day.id === todayKey) return;
 
         const records = day.workRecords || [];
@@ -324,7 +323,6 @@ export const calculateStandardThroughputs = (allHistoryData) => {
         });
 
         Object.entries(dailyTaskStats).forEach(([task, stats]) => {
-            // 유효성 검사: 10분 이상 작업하고 처리량이 있는 경우만 인정
             if (stats.duration >= 10 && stats.quantity > 0) {
                 const speed = stats.quantity / stats.duration;
                 if (!taskDailySpeeds[task]) taskDailySpeeds[task] = [];
@@ -336,8 +334,8 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     const standards = {};
     Object.keys(taskDailySpeeds).forEach(task => {
         const speeds = taskDailySpeeds[task];
-        // ✅ [수정] 효율이 좋았던 상위 7개(Top 7)의 평균으로 적용
-        const topN = speeds.sort((a, b) => b - a).slice(0, 7);
+        // ✅ [수정] 상위 20개(Top 20)의 평균으로 적용
+        const topN = speeds.sort((a, b) => b - a).slice(0, 20);
         
         if (topN.length > 0) {
             const avgTopN = topN.reduce((a, b) => a + b, 0) / topN.length;
@@ -371,7 +369,7 @@ export const calculateAverageStaffing = (allHistoryData) => {
         const totalDays = dayEntries.length;
         if (totalDays > 0) {
             const totalStaffSum = dayEntries.reduce((sum, daySet) => sum + daySet.size, 0);
-            avgStaffMap[task] = totalStaffSum / totalDays; 
+            avgStaffMap[task] = totalStaffSum / totalDays;
         }
     });
     return avgStaffMap;
@@ -481,7 +479,7 @@ export const analyzeUnitCost = (data, appConfig, wageMap, totalRevenue = 0) => {
     const totalUnitCost = perItemLaborCost + fixedMaterialCost + fixedShippingCost + perItemDirectCost;
 
     let salesCount = Number(data.management?.orderCount) || 0;
-    if (salesCount === 0) salesCount = maxTaskQuantity; 
+    if (salesCount === 0) salesCount = maxTaskQuantity;
 
     let revenuePerItem = 0;
     let margin = 0;
@@ -611,7 +609,7 @@ export const PRODUCTIVITY_METRIC_DESCRIPTIONS = {
     },
     efficiencyRatio: {
         title: "업무 효율성 (Performance)",
-        desc: "표준 속도(과거 Top3 평균) 대비 실제 작업 속도의 비율입니다. 100%보다 높으면 표준보다 빠르게, 낮으면 느리게 작업했음을 의미합니다."
+        desc: "표준 속도 대비 실제 작업 속도의 비율입니다. 100%보다 높으면 표준보다 빠르게, 낮으면 느리게 작업했음을 의미합니다."
     },
     qualityRatio: {
         title: "품질 효율 (Quality)",
@@ -672,7 +670,7 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
     else if (utilizationRate <= 75) comments.push(`근무 시간 중 <strong>약 ${(100 - utilizationRate).toFixed(0)}%가 대기 시간</strong> 등으로 활용되지 못했습니다. 업무 배분 효율화가 필요해 보입니다.`);
     else comments.push(`근무 시간 활용률은 <strong>${utilizationRate.toFixed(0)}%</strong>로 적정 수준을 유지했습니다.`);
 
-    if (efficiencyRatio >= 115) comments.push(`표준 속도(과거 Top3 평균)보다 <strong>${(efficiencyRatio - 100).toFixed(0)}% 더 빠르게</strong> 업무를 처리하며 뛰어난 숙련도를 보였습니다.`);
+    if (efficiencyRatio >= 115) comments.push(`표준 속도보다 <strong>${(efficiencyRatio - 100).toFixed(0)}% 더 빠르게</strong> 업무를 처리하며 뛰어난 숙련도를 보였습니다.`);
     else if (efficiencyRatio <= 85) comments.push(`표준 대비 <strong>속도가 다소 저하(${(100 - efficiencyRatio).toFixed(0)}% 느림)</strong>되었습니다. 병목 현상이 있었는지 확인이 필요합니다.`);
 
     if (qualityRatio < 95) comments.push(`재작업 등으로 인한 <strong>품질 손실이 약 ${(100 - qualityRatio).toFixed(1)}%</strong> 발생했습니다. 오류 감소를 위한 노력이 필요합니다.`);
