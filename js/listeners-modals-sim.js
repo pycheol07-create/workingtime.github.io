@@ -19,7 +19,6 @@ const sortTasksCustom = (a, b) => {
     return a.localeCompare(b);
 };
 
-// 행의 동시성 체크박스 상태 업데이트 헬퍼 (드래그/삭제 시 호출)
 const updateFirstRowCheckbox = () => {
     const tbody = document.getElementById('sim-task-table-body');
     if (!tbody) return;
@@ -45,7 +44,6 @@ const updateFirstRowCheckbox = () => {
 const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false, standardSpeed = 0) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
-    // 💡 드래그 속성 부여
     row.draggable = true;
     
     const isFirstRow = tbody.children.length === 0;
@@ -64,7 +62,6 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
     const workerVal = workers > 0 ? Math.round(workers) : '';
     const speedVal = standardSpeed > 0 ? standardSpeed.toFixed(2) : '';
 
-    // 💡 열 2개 추가: 1.드래그 핸들, 2.개별 시작 시각 입력칸
     row.innerHTML = `
         <td class="px-2 py-2 text-center cursor-grab text-gray-400 hover:text-indigo-600 active:cursor-grabbing" title="드래그하여 순서 변경">
             <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path></svg>
@@ -104,7 +101,6 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
 };
 
 function makeDraggable(modalOverlay, header, contentBox) {
-    // 모달 드래그 로직 (생략 - 기존 유지)
     let isDragging = false;
     let offsetX, offsetY;
 
@@ -284,7 +280,7 @@ export function setupSimulationModalListeners() {
         } else {
             renderSimulationResults(null); 
             if (simStartTimeInput) simStartTimeInput.value = "08:30"; 
-            if (simEndTimeInput) simEndTimeInput.value = "17:00"; 
+            if (simEndTimeInput) simEndTimeInput.value = "17:30"; 
         }
 
         const contentBox = document.getElementById('sim-modal-content-box');
@@ -319,16 +315,14 @@ export function setupSimulationModalListeners() {
     }
 
     if (simTaskTableBody) {
-        // 행 삭제
         simTaskTableBody.addEventListener('click', (e) => {
             const deleteBtn = e.target.closest('.sim-row-delete-btn');
             if (deleteBtn) {
                 deleteBtn.closest('tr').remove();
-                updateFirstRowCheckbox(); // 삭제 후 체크박스 업데이트
+                updateFirstRowCheckbox();
             }
         });
 
-        // 자동 속도 채우기
         simTaskTableBody.addEventListener('change', (e) => {
             if (e.target.classList.contains('sim-row-task')) {
                 const taskName = e.target.value;
@@ -342,7 +336,6 @@ export function setupSimulationModalListeners() {
             }
         });
 
-        // 💡 드래그 앤 드롭 이벤트 리스너 추가
         let draggedRow = null;
 
         simTaskTableBody.addEventListener('dragstart', (e) => {
@@ -374,14 +367,14 @@ export function setupSimulationModalListeners() {
                 draggedRow.classList.remove('opacity-50', 'bg-indigo-50');
                 draggedRow = null;
             }
-            updateFirstRowCheckbox(); // 드롭 후 체크박스 업데이트
+            updateFirstRowCheckbox();
         });
     }
 
     if (DOM.simCalculateBtn) {
         DOM.simCalculateBtn.addEventListener('click', () => {
             const currentStartTimeStr = simStartTimeInput ? simStartTimeInput.value : "09:00";
-            const currentEndTimeStr = simEndTimeInput ? simEndTimeInput.value : "17:00";
+            const currentEndTimeStr = simEndTimeInput ? simEndTimeInput.value : "17:30";
             const includeLinkedTasks = document.getElementById('sim-include-linked-tasks-checkbox')?.checked || false;
 
             const rows = document.querySelectorAll('.sim-task-row');
@@ -416,23 +409,16 @@ export function setupSimulationModalListeners() {
                 const workerInput = Number(row.querySelector('.sim-row-worker-or-time').value);
                 const isConcurrent = row.querySelector('.sim-row-concurrent').checked;
                 const manualSpeed = Number(row.querySelector('.sim-row-speed').value);
-                
-                // 💡 개별 시작 시각 가져오기
                 const manualStartInput = row.querySelector('.sim-row-manual-start').value;
 
                 if (task && qty > 0 && workerInput > 0) {
                     let thisTaskStart;
                     
-                    // 💡 시작 시각 처리 로직
                     if (manualStartInput) {
-                        // 수동으로 시작 시각이 지정된 경우
                         const [manH, manM] = manualStartInput.split(':').map(Number);
                         thisTaskStart = new Date(globalStart.getFullYear(), globalStart.getMonth(), globalStart.getDate(), manH, manM);
-                        
-                        // 현재 배치의 기준 시간을 수동 입력된 시간으로 변경
                         currentBatchStartTime = new Date(thisTaskStart);
                         
-                        // 만약 수동 지정한 시작시간이 현재까지의 가장 늦은 종료시간보다 늦다면 Max 종료시간도 갱신
                         if (thisTaskStart > currentBatchMaxEndTime) {
                             currentBatchMaxEndTime = new Date(thisTaskStart);
                         }
