@@ -113,7 +113,7 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
         result.expectedEndTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`;
 
     } else if (mode === 'target-time') {
-        result.durationMinutes = inputValue;
+        // ✅ [버그 수정] result.durationMinutes = inputValue; (강제 덮어쓰기 삭제)
         
         const effectiveDuration = inputValue - linkedTaskAvgDuration; 
         if (effectiveDuration <= 0) {
@@ -121,6 +121,10 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
         }
         
         result.workerCount = Math.ceil(totalManMinutesForMainTask / effectiveDuration);
+        
+        // ✅ [핵심 로직] 투입 인원(workerCount)이 확정되었으므로, 실제 걸리는 시간을 올바르게 역산합니다.
+        const actualMainTaskDuration = totalManMinutesForMainTask / result.workerCount;
+        result.durationMinutes = actualMainTaskDuration + linkedTaskAvgDuration; 
         
         result.label1 = '필요 인원';
         result.value1 = `${result.workerCount} 명`;
@@ -136,7 +140,8 @@ export const calculateSimulation = (mode, task, targetQty, inputValue, startTime
         const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
         const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 13, 30);
         
-        let endDateTime = new Date(startDateTime.getTime() + inputValue * 60000);
+        // ✅ 역산된 실제 소요 시간을 기준으로 최종 종료 시간을 정확하게 구합니다.
+        let endDateTime = new Date(startDateTime.getTime() + result.durationMinutes * 60000);
         
         if (startDateTime < lunchEnd && endDateTime > lunchStart) {
              endDateTime = new Date(endDateTime.getTime() + 60 * 60000);
@@ -430,6 +435,7 @@ export const calculateSequentialSimulation = (mode, taskList, inputValue, startT
     let includesLunch = false;
 
     for (const task of taskDetails) {
+        // ✅ 인원수로 나누어 각각의 실제 걸리는 소요 시간을 도출!
         const taskDurationMinutes = task.manMinutes / workerCount;
         const taskStartTimeStr = `${currentTime.getHours().toString().padStart(2, '0')}:${currentTime.getMinutes().toString().padStart(2, '0')}`;
         
