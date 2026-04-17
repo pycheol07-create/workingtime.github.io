@@ -19,16 +19,41 @@ const sortTasksCustom = (a, b) => {
     return a.localeCompare(b);
 };
 
+// 행의 동시성 체크박스 상태 업데이트 헬퍼 (드래그/삭제 시 호출)
+const updateFirstRowCheckbox = () => {
+    const tbody = document.getElementById('sim-task-table-body');
+    if (!tbody) return;
+    const rows = tbody.querySelectorAll('.sim-task-row');
+    rows.forEach((row, index) => {
+        const checkbox = row.querySelector('.sim-row-concurrent');
+        const label = row.querySelector('span');
+        if (index === 0) {
+            checkbox.disabled = true;
+            checkbox.checked = false;
+            checkbox.classList.add('opacity-30', 'cursor-not-allowed');
+            checkbox.classList.remove('cursor-pointer');
+            if(label) label.classList.add('invisible');
+        } else {
+            checkbox.disabled = false;
+            checkbox.classList.remove('opacity-30', 'cursor-not-allowed');
+            checkbox.classList.add('cursor-pointer');
+            if(label) label.classList.remove('invisible');
+        }
+    });
+};
+
 const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false, standardSpeed = 0) => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
+    // 💡 드래그 속성 부여
+    row.draggable = true;
     
     const isFirstRow = tbody.children.length === 0;
     const disableCheckbox = isFirstRow ? 'disabled' : '';
     const checkedAttr = (!isFirstRow && isConcurrent) ? 'checked' : '';
     const checkboxClass = isFirstRow ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer';
 
-    let taskOptions = '<option value="">업무 선택</option>';
+    let taskOptions = '<option value="">선택</option>';
     const quantityTaskTypes = (appConfig && appConfig.quantityTaskTypes) ? appConfig.quantityTaskTypes : [];
     
     quantityTaskTypes.sort(sortTasksCustom).forEach(taskName => {
@@ -39,30 +64,37 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
     const workerVal = workers > 0 ? Math.round(workers) : '';
     const speedVal = standardSpeed > 0 ? standardSpeed.toFixed(2) : '';
 
+    // 💡 열 2개 추가: 1.드래그 핸들, 2.개별 시작 시각 입력칸
     row.innerHTML = `
+        <td class="px-2 py-2 text-center cursor-grab text-gray-400 hover:text-indigo-600 active:cursor-grabbing" title="드래그하여 순서 변경">
+            <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path></svg>
+        </td>
         <td class="px-2 py-2 text-center border-r border-gray-100">
             <div class="flex flex-col items-center justify-center">
                 <input type="checkbox" class="sim-row-concurrent w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 ${checkboxClass}" ${disableCheckbox} ${checkedAttr}>
                 <span class="text-[10px] text-gray-400 mt-0.5 ${isFirstRow ? 'invisible' : ''}">동시</span>
             </div>
         </td>
-        <td class="px-4 py-2">
+        <td class="px-2 py-2">
             <select class="sim-row-task w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm">
                 ${taskOptions}
             </select>
         </td>
-        <td class="px-4 py-2">
+        <td class="px-2 py-2">
+            <input type="time" class="sim-row-manual-start w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-indigo-600 font-semibold" title="입력 시, 이 시각부터 시작합니다">
+        </td>
+        <td class="px-2 py-2">
             <input type="number" class="sim-row-speed w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right bg-blue-50/30" placeholder="자동" step="0.01" value="${speedVal}">
         </td>
-        <td class="px-4 py-2">
+        <td class="px-2 py-2">
             <input type="number" class="sim-row-qty w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="1000" min="1" value="${qty > 0 ? qty : ''}">
         </td>
-        <td class="px-4 py-2 sim-row-worker-or-time-cell">
+        <td class="px-2 py-2 sim-row-worker-or-time-cell">
             <input type="number" class="sim-row-worker-or-time w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="5" min="1" step="1" value="${workerVal}">
         </td>
-        <td class="px-4 py-2 text-center">
+        <td class="px-2 py-2 text-center">
             <button class="sim-row-delete-btn text-gray-400 hover:text-red-500 transition">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
                 </svg>
             </button>
@@ -72,6 +104,7 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
 };
 
 function makeDraggable(modalOverlay, header, contentBox) {
+    // 모달 드래그 로직 (생략 - 기존 유지)
     let isDragging = false;
     let offsetX, offsetY;
 
@@ -165,7 +198,7 @@ const renderSimulationResults = (data) => {
             <tr class="bg-white hover:bg-gray-50 transition">
                 <td class="px-4 py-3 font-medium text-gray-900">
                     ${res.task} ${concurrentIcon}
-                    <div class="text-xs text-gray-400 font-normal">${res.startTime} 시작</div>
+                    <div class="text-xs text-indigo-500 font-semibold">${res.startTime} 시작</div>
                     ${relatedTaskHtml} 
                 </td>
                 <td class="px-4 py-3 text-right text-gray-500 font-mono">
@@ -194,8 +227,6 @@ export function setupSimulationModalListeners() {
     const simTaskTableBody = document.getElementById('sim-task-table-body');
     const simStartTimeInput = document.getElementById('sim-start-time-input');
     const simEndTimeInput = document.getElementById('sim-end-time-input');
-    
-    // 이전에 동적 주입되던 헤더 스크립트 삭제 (HTML에 반영됨)
 
     const openSimulationModalLogic = () => {
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
@@ -224,7 +255,6 @@ export function setupSimulationModalListeners() {
             Array.from(tasksToShow).sort(sortTasksCustom).forEach(taskName => {
                 if (quantityTaskSet.has(taskName)) { 
                     const qty = Number(quantities[taskName]) || 0;
-                    
                     let avgStaff = avgStaffMap[taskName] || 0;
                     if (currentActiveCount > 0 && avgStaff > 0) {
                         avgStaff = Math.min(avgStaff, currentActiveCount);
@@ -289,13 +319,16 @@ export function setupSimulationModalListeners() {
     }
 
     if (simTaskTableBody) {
+        // 행 삭제
         simTaskTableBody.addEventListener('click', (e) => {
             const deleteBtn = e.target.closest('.sim-row-delete-btn');
             if (deleteBtn) {
                 deleteBtn.closest('tr').remove();
+                updateFirstRowCheckbox(); // 삭제 후 체크박스 업데이트
             }
         });
 
+        // 자동 속도 채우기
         simTaskTableBody.addEventListener('change', (e) => {
             if (e.target.classList.contains('sim-row-task')) {
                 const taskName = e.target.value;
@@ -308,9 +341,43 @@ export function setupSimulationModalListeners() {
                 }
             }
         });
+
+        // 💡 드래그 앤 드롭 이벤트 리스너 추가
+        let draggedRow = null;
+
+        simTaskTableBody.addEventListener('dragstart', (e) => {
+            const target = e.target.closest('tr');
+            if (target) {
+                draggedRow = target;
+                e.dataTransfer.effectAllowed = 'move';
+                setTimeout(() => target.classList.add('opacity-50', 'bg-indigo-50'), 0);
+            }
+        });
+
+        simTaskTableBody.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const targetRow = e.target.closest('tr');
+            if (targetRow && targetRow !== draggedRow) {
+                const bounding = targetRow.getBoundingClientRect();
+                const offset = bounding.y + (bounding.height / 2);
+                if (e.clientY - offset > 0) {
+                    targetRow.after(draggedRow);
+                } else {
+                    targetRow.before(draggedRow);
+                }
+            }
+        });
+
+        simTaskTableBody.addEventListener('dragend', (e) => {
+            if (draggedRow) {
+                draggedRow.classList.remove('opacity-50', 'bg-indigo-50');
+                draggedRow = null;
+            }
+            updateFirstRowCheckbox(); // 드롭 후 체크박스 업데이트
+        });
     }
 
-    // 통합된 예측 실행 로직
     if (DOM.simCalculateBtn) {
         DOM.simCalculateBtn.addEventListener('click', () => {
             const currentStartTimeStr = simStartTimeInput ? simStartTimeInput.value : "09:00";
@@ -333,7 +400,6 @@ export function setupSimulationModalListeners() {
                 return `${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}`;
             };
 
-            // 목표 시간에 맞추기 위한 전체 가용 시간(분) 도출
             let durationMinutesForTarget = calcElapsedMinutes(currentStartTimeStr, currentEndTimeStr, []);
             const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
             const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 13, 30);
@@ -350,30 +416,41 @@ export function setupSimulationModalListeners() {
                 const workerInput = Number(row.querySelector('.sim-row-worker-or-time').value);
                 const isConcurrent = row.querySelector('.sim-row-concurrent').checked;
                 const manualSpeed = Number(row.querySelector('.sim-row-speed').value);
+                
+                // 💡 개별 시작 시각 가져오기
+                const manualStartInput = row.querySelector('.sim-row-manual-start').value;
 
                 if (task && qty > 0 && workerInput > 0) {
-                    
                     let thisTaskStart;
-                    if (index === 0 || !isConcurrent) {
+                    
+                    // 💡 시작 시각 처리 로직
+                    if (manualStartInput) {
+                        // 수동으로 시작 시각이 지정된 경우
+                        const [manH, manM] = manualStartInput.split(':').map(Number);
+                        thisTaskStart = new Date(globalStart.getFullYear(), globalStart.getMonth(), globalStart.getDate(), manH, manM);
+                        
+                        // 현재 배치의 기준 시간을 수동 입력된 시간으로 변경
+                        currentBatchStartTime = new Date(thisTaskStart);
+                        
+                        // 만약 수동 지정한 시작시간이 현재까지의 가장 늦은 종료시간보다 늦다면 Max 종료시간도 갱신
+                        if (thisTaskStart > currentBatchMaxEndTime) {
+                            currentBatchMaxEndTime = new Date(thisTaskStart);
+                        }
+                    } else if (index === 0 || !isConcurrent) {
                         thisTaskStart = new Date(currentBatchMaxEndTime);
-                        currentBatchStartTime = thisTaskStart;
+                        currentBatchStartTime = new Date(thisTaskStart);
                     } else {
                         thisTaskStart = new Date(currentBatchStartTime);
                     }
                     
                     const startTimeStr = formatTimeStr(thisTaskStart);
 
-                    // 1. 투입 인원 기준 소요 시간 예측
                     const timeRes = calculateSimulation('fixed-workers', task, qty, workerInput, startTimeStr, includeLinkedTasks, manualSpeed);
-                    
-                    // 2. 목표 시간 기준 필요 인원 예측
                     const workerRes = calculateSimulation('target-time', task, qty, durationMinutesForTarget, startTimeStr, includeLinkedTasks, manualSpeed);
 
                     if (!timeRes.error) {
                         timeRes.startTime = startTimeStr;
                         timeRes.isConcurrent = (index > 0 && isConcurrent);
-                        
-                        // 병합
                         timeRes.requiredWorkers = (!workerRes.error) ? workerRes.workerCount : '-';
                         
                         results.push({ task, ...timeRes });

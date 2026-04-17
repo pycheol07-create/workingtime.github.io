@@ -9,7 +9,7 @@
         <div class="p-6 space-y-6">
             
             <div id="sim-common-settings" class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 flex items-center flex-wrap gap-4">
-                <label for="sim-start-time-input" class="text-sm font-semibold text-indigo-900">예상 시작 시각:</label>
+                <label for="sim-start-time-input" class="text-sm font-semibold text-indigo-900">예상 시작 시각 (전체):</label>
                 <input type="time" id="sim-start-time-input" class="p-2 border border-indigo-300 rounded-md text-sm" value="09:00">
                 
                 <div id="sim-end-time-wrapper" class="flex items-center gap-2">
@@ -30,12 +30,14 @@
                 <table class="w-full text-sm text-left text-gray-600 border rounded-lg overflow-hidden">
                     <thead class="text-xs text-gray-700 uppercase bg-gray-100">
                         <tr>
-                            <th class="px-4 py-3 w-12 text-center">동시</th>
-                            <th class="px-4 py-3">업무</th>
-                            <th class="px-4 py-3 w-[120px]">표준속도 (개/분)</th> 
-                            <th class="px-4 py-3">목표 수량 (개)</th>
-                            <th class="px-4 py-3" id="sim-table-header-worker">투입 인원 (명)</th>
-                            <th class="px-4 py-3 text-center">삭제</th>
+                            <th class="px-2 py-3 w-10 text-center">≡</th>
+                            <th class="px-2 py-3 w-12 text-center">동시</th>
+                            <th class="px-3 py-3">업무</th>
+                            <th class="px-3 py-3 w-[110px] text-center">시작 지정</th>
+                            <th class="px-3 py-3 w-[100px] text-right">표준속도</th> 
+                            <th class="px-3 py-3 w-[100px] text-right">목표 수량</th>
+                            <th class="px-3 py-3 w-[100px] text-right" id="sim-table-header-worker">투입 인원</th>
+                            <th class="px-2 py-3 text-center w-12">삭제</th>
                         </tr>
                     </thead>
                     <tbody id="sim-task-table-body" class="divide-y divide-gray-200 bg-white">
