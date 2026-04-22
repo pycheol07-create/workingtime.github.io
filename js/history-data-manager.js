@@ -81,7 +81,7 @@ export const syncTodayToHistory = async () => {
     }
 };
 
-// [수정] isQuantityVerified 파라미터 추가
+// [수정] isQuantityVerified 파라미터 추가 및 덮어쓰기 방지 로직 강화
 export async function saveProgress(isAutoSave = false, isQuantityVerified = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
@@ -116,15 +116,17 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             return Math.round(record.duration || 0) > 0;
         });
 
-        if (liveWorkRecords.length === 0) {
-            const historySnap = await getDoc(historyDocRef);
-            if (historySnap.exists()) {
-                const existingHistory = historySnap.data();
-                if (existingHistory.workRecords && existingHistory.workRecords.length > 0) {
-                    console.log("Safe-guard: Valid history exists. Skipping overwrite with empty records.");
-                    if (!isAutoSave) showToast("이미 다른 관리자가 마감했습니다. (중복 저장 방지)");
-                    return; 
-                }
+        // 🌟 [핵심 수정] 기존 이력 데이터 확인 및 덮어쓰기 방지 로직 강화
+        const historySnap = await getDoc(historyDocRef);
+        if (historySnap.exists()) {
+            const existingHistory = historySnap.data();
+            const existingRecordsCount = (existingHistory.workRecords || []).length;
+            
+            // 기존 이력에 데이터가 있는데, 현재 덮어씌우려는 데이터가 아예 없거나 현저히 적은 경우 (마감 후 덮어쓰기 방지)
+            if (existingRecordsCount > 0 && liveWorkRecords.length < existingRecordsCount) {
+                console.log(`Safe-guard: 기존 기록(${existingRecordsCount}개)이 현재 라이브 기록(${liveWorkRecords.length}개)보다 많습니다. 덮어쓰기를 방지합니다.`);
+                if (!isAutoSave) showToast("이미 데이터가 안전하게 마감/저장되었습니다. (초기화 후 중복 덮어쓰기 차단)");
+                return; 
             }
         }
 
@@ -190,7 +192,8 @@ export async function saveDayDataToHistory(shouldReset) {
         let attendanceUpdated = false;
         
         Object.keys(dailyAttendance).forEach(member => {
-            if (dailyAttendance[member].status === 'working') {
+            // 🌟 [핵심 수정] 출근 상태 체크를 'working'에서 'active'로 변경
+            if (dailyAttendance[member].status === 'active') {
                 let autoOutTime = globalEndTime; 
                 if (dailyAttendance[member].inTime && autoOutTime < dailyAttendance[member].inTime) {
                     autoOutTime = globalEndTime;
@@ -519,7 +522,6 @@ export async function saveManagementData(dateKey, managementData) {
     }
 }
 
-// [신규] 미확정(예상치) 처리량 데이터 확인 함수
 export async function checkUnverifiedRecords() {
     const historyCol = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     
