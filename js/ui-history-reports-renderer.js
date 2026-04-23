@@ -582,8 +582,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="workDays">진행 일수 ${getSortIcon(tSort.key, tSort.dir, 'workDays')}</th>
             
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgThroughput">분당 처리량 ${getSortIcon(tSort.key, tSort.dir, 'avgThroughput')}</th>
-            <th class="px-4 py-2">표준 속도 (Top3)</th>
-            <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgCostPerItem">개당 처리비용 ${getSortIcon(tSort.key, tSort.dir, 'avgCostPerItem')}</th>
+            <th class="px-4 py-2">기간 평균 속도</th> <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgCostPerItem">개당 처리비용 ${getSortIcon(tSort.key, tSort.dir, 'avgCostPerItem')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgDailyStaff">평균 투입인원 ${getSortIcon(tSort.key, tSort.dir, 'avgDailyStaff')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgStaff">총 인원 ${getSortIcon(tSort.key, tSort.dir, 'avgStaff')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgTime">평균 시간 ${getSortIcon(tSort.key, tSort.dir, 'avgTime')}</th>
