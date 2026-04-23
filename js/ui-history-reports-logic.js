@@ -294,11 +294,10 @@ export const aggregateDaysToSingleData = (daysData, id) => {
     return aggregated;
 };
 
-// ✅ [수정] 표준 속도 산출 로직 개선 (최근 10개의 데이터 평균)
+// ✅ [수정] 시뮬레이션 및 벤치마크용 표준 속도 산출 (상위 20개 데이터의 평균)
 export const calculateStandardThroughputs = (allHistoryData) => {
     const todayKey = getTodayDateString();
     
-    // 확실하게 과거 데이터부터 최신 데이터 순(날짜 오름차순)으로 정렬합니다.
     const sortedHistory = [...allHistoryData].sort((a, b) => a.id.localeCompare(b.id));
     const taskDailySpeeds = {};
 
@@ -326,10 +325,10 @@ export const calculateStandardThroughputs = (allHistoryData) => {
         });
 
         Object.entries(dailyTaskStats).forEach(([task, stats]) => {
+            // duration이 10분 이상일 때만 유효한 속도로 인정 (기존 로직 유지)
             if (stats.duration >= 10 && stats.quantity > 0) {
                 const speed = stats.quantity / stats.duration;
                 if (!taskDailySpeeds[task]) taskDailySpeeds[task] = [];
-                // 시간의 흐름(날짜)에 따라 순서대로 속도가 저장됩니다.
                 taskDailySpeeds[task].push(speed);
             }
         });
@@ -339,18 +338,67 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     Object.keys(taskDailySpeeds).forEach(task => {
         const speeds = taskDailySpeeds[task];
         
-        // ✅ [수정] 정렬(sort)을 제거하고, 배열의 뒤(가장 최신)에서 10개를 가져옵니다.
-        // 만약 '상위 10개'를 원하셨다면: speeds.sort((a,b) => b-a).slice(0, 10); 를 사용하시면 됩니다.
-        const recent10 = speeds.slice(-10);
+        // 🌟 내림차순 정렬 후 상위 20개 데이터 추출
+        speeds.sort((a, b) => b - a);
+        const top20 = speeds.slice(0, 20);
         
-        if (recent10.length > 0) {
-            const avgRecent = recent10.reduce((a, b) => a + b, 0) / recent10.length;
-            standards[task] = avgRecent;
+        if (top20.length > 0) {
+            const avgTop = top20.reduce((a, b) => a + b, 0) / top20.length;
+            standards[task] = avgTop;
         } else {
             standards[task] = 0;
         }
     });
     return standards;
+};
+
+// ✅ [추가] 업무 리포트 통계용 표준 속도 산출 (선택된 기간의 평균값 산출)
+export const calculatePeriodThroughputs = (daysData) => {
+    const taskDailySpeeds = {};
+
+    daysData.forEach(day => {
+        const records = day.workRecords || [];
+        const quantities = day.taskQuantities || {};
+        const dailyTaskStats = {};
+
+        records.forEach(r => {
+            const duration = Number(r.duration) || 0;
+            if (r.task && duration > 0) {
+                if (!dailyTaskStats[r.task]) dailyTaskStats[r.task] = { duration: 0, quantity: 0 };
+                dailyTaskStats[r.task].duration += duration;
+            }
+        });
+
+        Object.entries(quantities).forEach(([task, qty]) => {
+            const q = Number(qty) || 0;
+            if (q > 0) {
+                if (!dailyTaskStats[task]) dailyTaskStats[task] = { duration: 0, quantity: 0 };
+                dailyTaskStats[task].quantity += q;
+            }
+        });
+
+        Object.entries(dailyTaskStats).forEach(([task, stats]) => {
+            // 리포트용이므로 조건 제약을 최소화하거나 동일하게 적용
+            if (stats.duration > 0 && stats.quantity > 0) {
+                const speed = stats.quantity / stats.duration;
+                if (!taskDailySpeeds[task]) taskDailySpeeds[task] = [];
+                taskDailySpeeds[task].push(speed);
+            }
+        });
+    });
+
+    const periodStandards = {};
+    Object.keys(taskDailySpeeds).forEach(task => {
+        const speeds = taskDailySpeeds[task];
+        if (speeds.length > 0) {
+            // 🌟 해당 기간 내의 모든 속도 데이터를 기반으로 평균 산출
+            const avgPeriod = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+            periodStandards[task] = avgPeriod;
+        } else {
+            periodStandards[task] = 0;
+        }
+    });
+    return periodStandards;
 };
 
 export const calculateAverageStaffing = (allHistoryData) => {
