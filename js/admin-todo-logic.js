@@ -2,12 +2,11 @@
 import * as State from './state.js';
 import * as DOM from './dom-elements.js';
 import { showToast } from './utils.js';
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// 💡 getDoc 대신 실시간 감지를 위한 onSnapshot 임포트
+import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 헬퍼: ID 생성
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
-// 헬퍼: 날짜 포맷 (MM/DD HH:mm)
 const formatDateTimeShort = (isoString) => {
     if (!isoString) return '';
     const date = new Date(isoString);
@@ -18,41 +17,47 @@ const formatDateTimeShort = (isoString) => {
     return `${m}/${d} ${h}:${min}`;
 };
 
-// Firestore 참조
 const getTodoDocRef = () => doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'adminTodos');
 
 // ==========================================
-// 1. 공통 데이터 로드 및 저장
+// 1. 공통 데이터 로드 및 저장 (💡 실시간 동기화 적용)
 // ==========================================
-export const loadAdminTodos = async () => {
-    try {
-        const docSnap = await getDoc(getTodoDocRef());
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            State.appState.adminTodos = data.tasks || [];
-            State.appState.importantNotices = data.notices || []; // 💡 중요 알림 데이터 분리 로드
-        } else {
-            State.appState.adminTodos = [];
-            State.appState.importantNotices = [];
+export const loadAdminTodos = () => {
+    return new Promise((resolve) => {
+        try {
+            // 💡 onSnapshot을 사용하여 데이터가 변경될 때마다 전 기기 실시간 렌더링
+            onSnapshot(getTodoDocRef(), (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    State.appState.adminTodos = data.tasks || [];
+                    State.appState.importantNotices = data.notices || [];
+                } else {
+                    State.appState.adminTodos = [];
+                    State.appState.importantNotices = [];
+                }
+                renderAdminTodoList();
+                // 데이터가 갱신될 때마다 화면 위젯도 즉시 다시 그리도록 지시
+                document.dispatchEvent(new CustomEvent('renderNotices'));
+                resolve(); 
+            }, (error) => {
+                console.error("실시간 동기화 오류:", error);
+                resolve(); 
+            });
+        } catch (e) {
+            console.error("데이터 로딩 오류:", e);
+            resolve();
         }
-        renderAdminTodoList();
-        
-        // 💡 로드 완료 후 중요 알림 위젯 렌더링 지시
-        document.dispatchEvent(new CustomEvent('renderNotices'));
-    } catch (e) {
-        console.error("Error loading admin data:", e);
-        showToast("데이터를 불러오지 못했습니다.", true);
-    }
+    });
 };
 
 export const saveAdminTodos = async () => {
     try {
         await setDoc(getTodoDocRef(), { 
             tasks: State.appState.adminTodos || [],
-            notices: State.appState.importantNotices || [] // 💡 중요 알림 데이터 함께 저장
+            notices: State.appState.importantNotices || [] 
         }, { merge: true });
     } catch (e) {
-        console.error("Error saving admin data:", e);
+        console.error("데이터 저장 오류:", e);
     }
 };
 
@@ -127,7 +132,6 @@ export const addTodo = async (text, dateStr) => {
         id: createId(), text: text.trim(), completed: false, dueDateTime: dateStr || null, alertConfirmed: false, createdAt: Date.now()
     };
     State.appState.adminTodos.push(newTodo);
-    renderAdminTodoList();
     await saveAdminTodos();
 };
 
@@ -135,7 +139,6 @@ export const toggleTodo = async (id) => {
     const todo = State.appState.adminTodos.find(t => t.id === id);
     if (todo) {
         todo.completed = !todo.completed;
-        renderAdminTodoList();
         await saveAdminTodos();
     }
 };
@@ -143,7 +146,6 @@ export const toggleTodo = async (id) => {
 export const deleteTodo = async (id) => {
     if (!confirm("이 할 일을 삭제하시겠습니까?")) return;
     State.appState.adminTodos = State.appState.adminTodos.filter(t => t.id !== id);
-    renderAdminTodoList();
     await saveAdminTodos();
 };
 
@@ -191,14 +193,12 @@ export const confirmPendingAlerts = async () => {
 
     if (hasChanges) {
         await saveAdminTodos();
-        renderAdminTodoList(); 
     }
-    
     if (DOM.adminTodoAlertModal) { DOM.adminTodoAlertModal.classList.add('hidden'); }
 };
 
 // ==========================================
-// 💡 3. 중요 알림(Notice) 전용 로직
+// 3. 중요 알림(Notice) 전용 로직
 // ==========================================
 export const addNotice = async (text) => {
     if (!text.trim()) { showToast("알림 내용을 입력해주세요.", true); return; }
@@ -208,7 +208,6 @@ export const addNotice = async (text) => {
     if(!State.appState.importantNotices) State.appState.importantNotices = [];
     State.appState.importantNotices.push(newNotice);
     await saveAdminTodos();
-    document.dispatchEvent(new CustomEvent('renderNotices'));
 };
 
 export const toggleNotice = async (id) => {
@@ -216,7 +215,6 @@ export const toggleNotice = async (id) => {
     if (notice) {
         notice.completed = !notice.completed;
         await saveAdminTodos();
-        document.dispatchEvent(new CustomEvent('renderNotices'));
     }
 };
 
@@ -224,7 +222,6 @@ export const deleteNotice = async (id) => {
     if (!confirm("이 중요 알림을 삭제하시겠습니까?")) return;
     State.appState.importantNotices = State.appState.importantNotices.filter(n => n.id !== id);
     await saveAdminTodos();
-    document.dispatchEvent(new CustomEvent('renderNotices'));
 };
 
 export const editNotice = async (id, newText) => {
@@ -232,6 +229,5 @@ export const editNotice = async (id, newText) => {
     if (notice && newText.trim()) {
         notice.text = newText.trim();
         await saveAdminTodos();
-        document.dispatchEvent(new CustomEvent('renderNotices'));
     }
 };
