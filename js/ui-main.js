@@ -83,7 +83,7 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 💡 알림 위젯 렌더링 로직
+// 알림 위젯 렌더링 로직
 export const renderMemoWidget = (appState) => {
     const memoList = document.getElementById('widget-memo-list');
     if (!memoList) return;
@@ -104,7 +104,7 @@ export const renderMemoWidget = (appState) => {
     memoList.innerHTML = html;
 };
 
-// 1. 대시보드 레이아웃 렌더링 (다크 모드 클래스 추가)
+// 1. 대시보드 레이아웃 렌더링 
 export const renderDashboardLayout = (appConfig) => {
     const personnelContainer = document.getElementById('summary-personnel');
     const workloadContainer = document.getElementById('summary-workload');
@@ -470,7 +470,7 @@ export const renderAttendanceToggle = (appState) => {
     if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
-// 3. 실시간 팀 업무 진행 보드 렌더링 (에러 픽스 반영)
+// 3. 실시간 팀 업무 진행 보드 렌더링 (에러 픽스 반영: classList.add 공백 제거)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
@@ -639,7 +639,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.endTime = leaveInfo.endTime || ''; 
                 card.dataset.endDate = leaveInfo.endDate || '';
                 
-                // 💡 안전하게 다중 클래스 부여
                 card.classList.add('bg-gray-100', 'dark:bg-gray-700', 'border-gray-300', 'dark:border-gray-600', 'text-gray-500', 'dark:text-gray-400');
                 if (currentUserRole === 'admin' || isSelf) {
                     card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500', 'hover:bg-blue-50', 'dark:hover:bg-blue-900/30');
@@ -655,7 +654,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.action = 'member-toggle-leave';
                 card.classList.add('opacity-80', 'cursor-not-allowed');
                 
-                // 💡 에러 픽스: 문자열에 공백을 넣는 대신 각각의 인자로 전달
+                // 💡 해결된 에러 픽스: 문자열 쪼개서 넣기
                 if (ongoingMembers.has(member)) {
                     card.classList.add('bg-red-50', 'dark:bg-red-900/20', 'border-red-200', 'dark:border-red-800');
                 } else {
@@ -720,7 +719,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.action = 'member-toggle-leave';
                 card.classList.add('opacity-80', 'cursor-not-allowed');
                 
-                // 💡 에러 픽스: 문자열에 공백을 넣는 대신 각각의 인자로 전달
+                // 💡 해결된 에러 픽스: 문자열 쪼개서 넣기
                 if (ongoingMembers.has(pt.name)) {
                     card.classList.add('bg-red-50', 'dark:bg-red-900/20', 'border-red-200', 'dark:border-red-800');
                 } else {
