@@ -83,7 +83,7 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 💡 중요 알림 전용 위젯 렌더링 로직
+// 💡 알림 위젯 렌더링 로직 (줄바꿈 <br> 처리 추가)
 export const renderNoticeWidget = (appState) => {
     const memoList = document.getElementById('widget-memo-list');
     if (!memoList) return;
@@ -99,11 +99,16 @@ export const renderNoticeWidget = (appState) => {
     notices.forEach(notice => {
         const textClass = notice.completed ? 'line-through text-yellow-700/50 dark:text-yellow-500/50' : 'text-yellow-900 dark:text-yellow-200 font-bold';
         const icon = notice.completed ? '✅' : '📌';
-        html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2 mb-1.5"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug">${notice.text}</span></li>`;
+        
+        // XSS 방지 및 줄바꿈 처리
+        const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+        
+        html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2 mb-1.5"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words">${safeText}</span></li>`;
     });
     memoList.innerHTML = html;
 };
 
+// 1. 대시보드 레이아웃 렌더링
 export const renderDashboardLayout = (appConfig) => {
     const personnelContainer = document.getElementById('summary-personnel');
     const workloadContainer = document.getElementById('summary-workload');
@@ -143,6 +148,7 @@ export const renderDashboardLayout = (appConfig) => {
     if (workloadContainer) workloadContainer.innerHTML = workloadHtml;
 };
 
+// 2. 대시보드 수치 업데이트
 export const updateSummary = (appState, appConfig) => {
     const allDefinitions = getAllDashboardDefinitions(appConfig);
     const elements = {};
