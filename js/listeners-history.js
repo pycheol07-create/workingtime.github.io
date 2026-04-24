@@ -1,82 +1,40 @@
 // === js/listeners-history.js ===
-// 설명: 이력 보기 모달의 메인 진입점으로, 하위 리스너 모듈을 통합하고 탭/필터/윈도우 제어를 담당합니다.
-
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getTodayDateString } from './utils.js';
 
-// 분리된 하위 리스너 모듈 임포트
 import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js';
 import { setupHistoryRecordListeners } from './listeners-history-records.js';
 import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js';
 import { setupHistoryInspectionListeners, fetchAndRenderInspectionHistory } from './listeners-history-inspection.js';
 
-import {
-    renderTrendAnalysisCharts,
-    trendCharts
-} from './ui.js';
-
-import {
-    loadAndRenderHistoryList,
-    renderHistoryDetail,
-    switchHistoryView,
-    renderHistoryDateListByMode,
-    openHistoryQuantityModal,
-    // requestHistoryDeletion, // <--- 제거됨 (이 파일 내에서 재정의)
-    augmentHistoryWithPersistentLeave 
-} from './app-history-logic.js';
-
-import {
-    renderAttendanceDailyHistory,
-    renderAttendanceWeeklyHistory,
-    renderAttendanceMonthlyHistory,
-    renderReportDaily,
-    renderReportWeekly,
-    renderReportMonthly,
-    renderReportYearly,
-    renderPersonalReport,
-    renderManagementDaily,
-    renderManagementSummary,
-    renderWeeklyHistory,
-    renderMonthlyHistory,
-    renderPredictionTab
-} from './ui-history.js';
-
-// [신규] 연차 관리 로직 임포트
+import { renderTrendAnalysisCharts, trendCharts } from './ui.js';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, renderHistoryDateListByMode, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderPredictionTab } from './ui-history.js';
 import * as UILeave from './ui-history-leave.js';
-
-import {
-    syncTodayToHistory,
-    saveManagementData 
-} from './history-data-manager.js';
-
-import { doc, deleteDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
+import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isHistoryMaximized = false;
 
 export function setupHistoryModalListeners() {
     
-    // 1. 하위 모듈 리스너 초기화
     setupHistoryDownloadListeners();
     setupHistoryRecordListeners();
     setupHistoryAttendanceListeners();
     setupHistoryInspectionListeners();
 
-    // --- DOM 요소 참조 ---
     const managementPanel = document.getElementById('management-panel');
     const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
     const inspectionPanel = document.getElementById('inspection-history-panel');
     const predictionPanel = document.getElementById('prediction-panel');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
-    
-    // [신규] 연차 패널 참조
     const leavePanel = document.getElementById('history-leave-panel');
 
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
 
-    // --- 전체화면 제어 ---
     const setHistoryMaximized = (maximized) => {
         isHistoryMaximized = maximized;
         const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
@@ -122,7 +80,6 @@ export function setupHistoryModalListeners() {
         return 'day';
     };
 
-    // --- 헬퍼 함수들 ---
     const getFilteredHistoryData = () => {
         return (State.context.historyStartDate || State.context.historyEndDate)
             ? State.allHistoryData.filter(d => {
@@ -142,7 +99,6 @@ export function setupHistoryModalListeners() {
         return btn ? btn.dataset.key : null;
     };
 
-    // 뷰 갱신 함수들
     const refreshAttendanceView = async () => {
         const dateKey = getSelectedDateKey();
         if (dateKey === getTodayDateString()) {
@@ -198,7 +154,6 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    // --- 이벤트 리스너 ---
     if (DOM.historyFilterBtn) {
         DOM.historyFilterBtn.addEventListener('click', () => {
             const startDate = DOM.historyStartDateInput.value;
@@ -240,6 +195,14 @@ export function setupHistoryModalListeners() {
             if (DOM.historyEndDateInput) DOM.historyEndDateInput.value = '';
             State.context.historyStartDate = null;
             State.context.historyEndDate = null;
+            
+            // 모달을 열 때 기본적으로 "기간 엑셀" 버튼을 보이게 초기화 (업무 이력 탭이 기본이므로)
+            const periodExcelBtn = document.getElementById('history-download-period-excel-btn');
+            if (periodExcelBtn) {
+                periodExcelBtn.classList.remove('hidden');
+                periodExcelBtn.classList.add('flex');
+            }
+
             try {
                 await loadAndRenderHistoryList();
             } catch (loadError) {
@@ -372,6 +335,18 @@ export function setupHistoryModalListeners() {
                 State.context.activeMainHistoryTab = tabName;
                 State.context.activeFilterDropdown = null; 
                 
+                // 💡 기간 엑셀 다운로드 버튼 토글 로직 추가
+                const periodExcelBtn = document.getElementById('history-download-period-excel-btn');
+                if (periodExcelBtn) {
+                    if (tabName === 'work' || tabName === 'report') {
+                        periodExcelBtn.classList.remove('hidden');
+                        periodExcelBtn.classList.add('flex');
+                    } else {
+                        periodExcelBtn.classList.add('hidden');
+                        periodExcelBtn.classList.remove('flex');
+                    }
+                }
+                
                 document.querySelectorAll('.history-main-tab-btn').forEach(b => {
                     b.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
                     b.classList.add('font-medium', 'text-gray-500');
@@ -389,11 +364,8 @@ export function setupHistoryModalListeners() {
                 if (managementPanel) managementPanel.classList.toggle('hidden', tabName !== 'management');
                 if (inspectionPanel) inspectionPanel.classList.toggle('hidden', tabName !== 'inspection');
                 if (predictionPanel) predictionPanel.classList.toggle('hidden', tabName !== 'prediction');
-                
-                // [신규] 연차 패널 토글
                 if (leavePanel) leavePanel.classList.toggle('hidden', tabName !== 'leave');
                 
-                // 날짜 리스트 숨김 처리 (Trend, Inspection, Prediction, Leave 탭)
                 if (dateListContainer) {
                     const hideListTabs = ['trends', 'inspection', 'prediction', 'leave'];
                     dateListContainer.style.display = hideListTabs.includes(tabName) ? 'none' : 'block';
@@ -444,9 +416,7 @@ export function setupHistoryModalListeners() {
                      renderHistoryDateListByMode(listMode);
                 } else if (tabName === 'inspection') {
                     fetchAndRenderInspectionHistory();
-                }
-                // [신규] 연차 탭 로직
-                else if (tabName === 'leave') {
+                } else if (tabName === 'leave') {
                     UILeave.initLeaveManagement();
                 }
             }
