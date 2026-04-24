@@ -83,7 +83,7 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 1. 대시보드 레이아웃 렌더링 (인원 / 처리량 분리 로직)
+// 1. 대시보드 레이아웃 렌더링 (인원 / 처리량 분리 로직 및 간격 최적화)
 export const renderDashboardLayout = (appConfig) => {
     const personnelContainer = document.getElementById('summary-personnel');
     const workloadContainer = document.getElementById('summary-workload');
@@ -103,17 +103,17 @@ export const renderDashboardLayout = (appConfig) => {
         const isQuantity = def.isQuantity === true;
 
         if (isQuantity) {
-            // 처리량 데이터 (파란색 테마)
+            // 처리량 데이터 (파란색 테마, py-2로 간격 압축)
             workloadHtml += `
-                <div class="flex justify-between items-center py-2.5 border-b border-blue-50 last:border-0 hover:bg-blue-50/50 transition-colors px-2 rounded">
+                <div class="flex justify-between items-center py-2 border-b border-blue-50 last:border-0 hover:bg-blue-50/50 transition-colors px-2 rounded">
                     <span class="text-xs font-bold text-blue-600">${def.title}</span>
                     <span id="${def.valueId}" class="text-sm font-extrabold text-blue-700 bg-white px-2 py-0.5 rounded-md shadow-sm border border-blue-100 transition-all">0</span>
                 </div>
             `;
         } else {
-            // 인원 데이터 (회색 테마)
+            // 인원 데이터 (회색 테마, py-2로 간격 압축)
             personnelHtml += `
-                <div class="flex justify-between items-center py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors px-2 rounded">
+                <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors px-2 rounded">
                     <span class="text-xs font-medium text-gray-500">${def.title}</span>
                     <span id="${def.valueId}" class="text-sm font-extrabold text-gray-800 transition-all">0</span>
                 </div>
