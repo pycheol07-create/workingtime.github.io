@@ -140,7 +140,7 @@
                                 <span>👥</span> 실시간 인원 현황
                             </h3>
                         </div>
-                        <div id="summary-personnel" class="p-4 flex-1 flex flex-col justify-center space-y-1 overflow-y-auto max-h-60">
+                        <div id="summary-personnel" class="p-3 md:p-4 flex-1 flex flex-col space-y-0.5 overflow-y-auto min-h-[160px]">
                             </div>
                     </div>
 
@@ -150,7 +150,7 @@
                                 <span>📦</span> 오늘 업무 처리량
                             </h3>
                         </div>
-                        <div id="summary-workload" class="p-4 flex-1 flex flex-col justify-center space-y-1 overflow-y-auto max-h-60">
+                        <div id="summary-workload" class="p-3 md:p-4 flex-1 flex flex-col space-y-0.5 overflow-y-auto min-h-[160px]">
                             </div>
                     </div>
 
@@ -164,8 +164,9 @@
                         </div>
                         <div class="p-4 flex-1 overflow-y-auto text-sm text-yellow-900 leading-relaxed font-medium">
                             <ul class="list-disc pl-4 space-y-1">
-                                <li>메모 기능이 활성화되었습니다.</li>
-                                <li>위의 [관리] 버튼을 눌러보세요.</li>
+                                <li>대한통운 픽업 16:30 조기 마감</li>
+                                <li>오후 휴식시간 15:30분으로 변경</li>
+                                <li>포장 부자재 부족 (발주완료)</li>
                             </ul>
                         </div>
                     </div>
@@ -288,7 +289,7 @@
             if (e.target && e.target.id === 'open-admin-todo-btn-widget') {
                 const realAdminBtn = document.getElementById('open-admin-todo-btn');
                 if (realAdminBtn) {
-                    realAdminBtn.click(); // 숨겨진 원래 관리자 버튼을 클릭하도록 명령합니다.
+                    realAdminBtn.click();
                 } else {
                     console.error("관리자 메모 원본 버튼을 찾을 수 없습니다.");
                 }
