@@ -83,7 +83,31 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 1. 대시보드 레이아웃 렌더링 (인원 / 처리량 분리 로직 및 간격 최적화)
+// 💡 메모 위젯 렌더링 로직 추가
+export const renderMemoWidget = (appState) => {
+    const memoList = document.getElementById('widget-memo-list');
+    if (!memoList) return;
+
+    // 기존 앱의 메모 데이터를 가져옵니다. (앱 구조에 따라 속성명이 다를 수 있어 유연하게 체크)
+    const todos = appState.adminTodos || appState.todos || [];
+    
+    if (todos.length === 0) {
+        memoList.innerHTML = `<li class="text-yellow-700/60 list-none -ml-4 text-center text-xs py-4 font-normal">등록된 중요 메모가 없습니다.</li>`;
+        return;
+    }
+
+    let html = '';
+    todos.forEach(todo => {
+        // 메모 객체에서 텍스트를 추출 (앱 구조에 맞춰 text, content 등 체크)
+        const text = todo.text || todo.content || todo.title || todo.memo || (typeof todo === 'string' ? todo : '내용 없음');
+        // 완료된 항목은 취소선 스타일 추가
+        const textClass = todo.isCompleted || todo.status === 'completed' ? 'line-through text-yellow-700/50' : '';
+        html += `<li class="${textClass}">${text}</li>`;
+    });
+    memoList.innerHTML = html;
+};
+
+// 1. 대시보드 레이아웃 렌더링 (인원 / 처리량 분리)
 export const renderDashboardLayout = (appConfig) => {
     const personnelContainer = document.getElementById('summary-personnel');
     const workloadContainer = document.getElementById('summary-workload');
@@ -103,7 +127,6 @@ export const renderDashboardLayout = (appConfig) => {
         const isQuantity = def.isQuantity === true;
 
         if (isQuantity) {
-            // 처리량 데이터 (파란색 테마, py-2로 간격 압축)
             workloadHtml += `
                 <div class="flex justify-between items-center py-2 border-b border-blue-50 last:border-0 hover:bg-blue-50/50 transition-colors px-2 rounded">
                     <span class="text-xs font-bold text-blue-600">${def.title}</span>
@@ -111,7 +134,6 @@ export const renderDashboardLayout = (appConfig) => {
                 </div>
             `;
         } else {
-            // 인원 데이터 (회색 테마, py-2로 간격 압축)
             personnelHtml += `
                 <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors px-2 rounded">
                     <span class="text-xs font-medium text-gray-500">${def.title}</span>
@@ -212,6 +234,9 @@ export const updateSummary = (appState, appConfig) => {
             }
         }
     }
+
+    // 💡 상단 정보 업데이트 시, 중요 메모 위젯도 함께 동기화(업데이트) 합니다.
+    renderMemoWidget(appState);
 };
 
 export const renderTaskAnalysis = (appState, appConfig) => {
