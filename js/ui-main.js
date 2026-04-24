@@ -470,7 +470,7 @@ export const renderAttendanceToggle = (appState) => {
     if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
-// 3. 실시간 팀 업무 진행 보드 렌더링 (다크 모드 적용)
+// 3. 실시간 팀 업무 진행 보드 렌더링 (에러 픽스 반영)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
@@ -639,6 +639,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.endTime = leaveInfo.endTime || ''; 
                 card.dataset.endDate = leaveInfo.endDate || '';
                 
+                // 💡 안전하게 다중 클래스 부여
                 card.classList.add('bg-gray-100', 'dark:bg-gray-700', 'border-gray-300', 'dark:border-gray-600', 'text-gray-500', 'dark:text-gray-400');
                 if (currentUserRole === 'admin' || isSelf) {
                     card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500', 'hover:bg-blue-50', 'dark:hover:bg-blue-900/30');
@@ -652,7 +653,15 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-0.5">${member}</div><div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded inline-block">${displayLabel}</div>${detailText ? `<div class="text-[10px] mt-1 text-gray-400 dark:text-gray-500">${detailText}</div>` : ''}`;
             } else if (isWorking) {
                 card.dataset.action = 'member-toggle-leave';
-                card.classList.add('opacity-80', 'cursor-not-allowed', ongoingMembers.has(member) ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20', ongoingMembers.has(member) ? 'border-red-200 dark:border-red-800' : 'border-yellow-200 dark:border-yellow-800');
+                card.classList.add('opacity-80', 'cursor-not-allowed');
+                
+                // 💡 에러 픽스: 문자열에 공백을 넣는 대신 각각의 인자로 전달
+                if (ongoingMembers.has(member)) {
+                    card.classList.add('bg-red-50', 'dark:bg-red-900/20', 'border-red-200', 'dark:border-red-800');
+                } else {
+                    card.classList.add('bg-yellow-50', 'dark:bg-yellow-900/20', 'border-yellow-200', 'dark:border-yellow-800');
+                }
+
                 card.innerHTML = `<div class="font-extrabold text-sm ${ongoingMembers.has(member) ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'} mb-1">${member}</div><div class="text-[10px] font-bold ${ongoingMembers.has(member) ? 'text-red-500 dark:text-red-500' : 'text-yellow-600 dark:text-yellow-500'} truncate px-1" title="${workingMembersMap.get(member)}">${ongoingMembers.has(member) ? workingMembersMap.get(member) : '휴식 중'}</div>`;
             } else if (isClockedIn) {
                 card.dataset.action = 'member-toggle-leave';
@@ -696,14 +705,28 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             card.dataset.memberName = pt.name;
             if (isAlbaOnLeave) {
                 card.dataset.action = 'member-toggle-leave'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
+                
                 card.classList.add('bg-gray-100', 'dark:bg-gray-700', 'border-gray-300', 'dark:border-gray-600', 'text-gray-500', 'dark:text-gray-400');
-                if (currentUserRole === 'admin' || isSelfAlba) card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500'); else card.classList.add('cursor-not-allowed');
+                if (currentUserRole === 'admin' || isSelfAlba) {
+                    card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500', 'hover:bg-blue-50', 'dark:hover:bg-blue-900/30');
+                } else {
+                    card.classList.add('cursor-not-allowed');
+                }
+
                 const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
                 let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? ' ~' : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
                 card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-0.5">${pt.name}</div><div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded inline-block">${displayLabel}</div>${detailText ? `<div class="text-[10px] mt-1 text-gray-400 dark:text-gray-500">${detailText}</div>` : ''}`;
             } else if (isAlbaWorking) {
                 card.dataset.action = 'member-toggle-leave';
-                card.classList.add('opacity-80', 'cursor-not-allowed', ongoingMembers.has(pt.name) ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20', ongoingMembers.has(pt.name) ? 'border-red-200 dark:border-red-800' : 'border-yellow-200 dark:border-yellow-800');
+                card.classList.add('opacity-80', 'cursor-not-allowed');
+                
+                // 💡 에러 픽스: 문자열에 공백을 넣는 대신 각각의 인자로 전달
+                if (ongoingMembers.has(pt.name)) {
+                    card.classList.add('bg-red-50', 'dark:bg-red-900/20', 'border-red-200', 'dark:border-red-800');
+                } else {
+                    card.classList.add('bg-yellow-50', 'dark:bg-yellow-900/20', 'border-yellow-200', 'dark:border-yellow-800');
+                }
+
                 card.innerHTML = `<div class="font-extrabold text-sm ${ongoingMembers.has(pt.name) ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'} mb-1">${pt.name}</div><div class="text-[10px] font-bold ${ongoingMembers.has(pt.name) ? 'text-red-500 dark:text-red-500' : 'text-yellow-600 dark:text-yellow-500'} truncate px-1">${ongoingMembers.has(pt.name) ? workingMembersMap.get(pt.name) : '휴식 중'}</div>`;
             } else if (isAlbaClockedIn) {
                  card.dataset.action = 'member-toggle-leave';
@@ -730,7 +753,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     renderAttendanceToggle(appState);
 };
 
-// 4. 완료된 업무 렌더링 (다크 모드 적용)
 export const renderCompletedWorkLog = (appState) => {
     const workLogBody = document.getElementById('work-log-body');
     if (!workLogBody) return;
@@ -744,7 +766,6 @@ export const renderCompletedWorkLog = (appState) => {
         return;
     }
 
-    // 최신 완료순 정렬
     completedRecords.sort((a, b) => (b.endTime || '').localeCompare(a.endTime || ''));
 
     completedRecords.forEach(record => {
