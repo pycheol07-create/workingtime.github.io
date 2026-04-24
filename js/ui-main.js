@@ -83,27 +83,28 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 💡 중요 알림 전용 위젯 렌더링 로직
-export const renderNoticeWidget = (appState) => {
+// 알림 위젯 렌더링 로직
+export const renderMemoWidget = (appState) => {
     const memoList = document.getElementById('widget-memo-list');
     if (!memoList) return;
 
-    const notices = appState.importantNotices || [];
+    const todos = appState.adminTodos || appState.todos || [];
     
-    if (notices.length === 0) {
+    if (todos.length === 0) {
         memoList.innerHTML = `<li class="text-yellow-700/60 dark:text-yellow-500/60 list-none -ml-4 text-center text-xs py-4 font-normal">등록된 중요 알림이 없습니다.</li>`;
         return;
     }
 
     let html = '';
-    notices.forEach(notice => {
-        const textClass = notice.completed ? 'line-through text-yellow-700/50 dark:text-yellow-500/50' : 'text-yellow-900 dark:text-yellow-200 font-bold';
-        const icon = notice.completed ? '✅' : '📌';
-        html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2 mb-1.5"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug">${notice.text}</span></li>`;
+    todos.forEach(todo => {
+        const text = todo.text || todo.content || todo.title || todo.memo || (typeof todo === 'string' ? todo : '내용 없음');
+        const textClass = todo.isCompleted || todo.status === 'completed' ? 'line-through text-yellow-700/50 dark:text-yellow-500/50' : 'text-yellow-900 dark:text-yellow-200';
+        html += `<li class="${textClass}">${text}</li>`;
     });
     memoList.innerHTML = html;
 };
 
+// 1. 대시보드 레이아웃 렌더링
 export const renderDashboardLayout = (appConfig) => {
     const personnelContainer = document.getElementById('summary-personnel');
     const workloadContainer = document.getElementById('summary-workload');
@@ -143,6 +144,7 @@ export const renderDashboardLayout = (appConfig) => {
     if (workloadContainer) workloadContainer.innerHTML = workloadHtml;
 };
 
+// 2. 대시보드 수치 업데이트
 export const updateSummary = (appState, appConfig) => {
     const allDefinitions = getAllDashboardDefinitions(appConfig);
     const elements = {};
@@ -230,7 +232,7 @@ export const updateSummary = (appState, appConfig) => {
         }
     }
 
-    renderNoticeWidget(appState);
+    renderMemoWidget(appState);
 };
 
 export const renderTaskAnalysis = (appState, appConfig) => {
@@ -468,6 +470,7 @@ export const renderAttendanceToggle = (appState) => {
     if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
+// 3. 실시간 팀 업무 진행 보드 렌더링 (💡 완벽한 안전성을 위해 className += 방식 사용)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
@@ -578,6 +581,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     presetTaskContainer.appendChild(presetGrid);
     teamStatusBoard.appendChild(presetTaskContainer);
 
+    // --- 전체 팀원 현황 (하단) ---
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container';
     if (isMobileMemberViewExpanded) allMembersContainer.classList.add('mobile-expanded');
@@ -604,6 +608,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         teamGroups.find(g => g.name === '관리'), teamGroups.find(g => g.name === '공통파트'), teamGroups.find(g => g.name === '담당파트'), teamGroups.find(g => g.name === '제작파트')
     ].filter(Boolean);
 
+    // ==========================================
+    // 💡 에러 픽스: classList.add() 관련 오류 원천 차단
+    // 클래스를 동적으로 할당할 때 띄어쓰기 에러가 없도록 className += 를 사용합니다.
+    // ==========================================
     orderedTeamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
         groupContainer.className = 'mb-6';
@@ -624,6 +632,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const isSelf = (member === currentUserName);
             const visibilityClass = (isSelf || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
             
+            // 기본 클래스 할당
             card.className = `p-2 rounded-xl border text-center transition-all min-h-[76px] ${visibilityClass} ${isSelf ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center shadow-sm`;
             card.dataset.memberName = member;
 
@@ -650,6 +659,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.action = 'member-toggle-leave';
                 card.className += ' opacity-80 cursor-not-allowed';
                 
+                // 근무 상태 색상 처리
                 if (ongoingMembers.has(member)) {
                     card.className += ' bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
                 } else {
@@ -702,6 +712,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
              const isSelfAlba = (pt.name === currentUserName);
              const visibilityClassAlba = (isSelfAlba || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
              
+             // 기본 클래스
              card.className = `p-2 rounded-xl border text-center transition-all min-h-[76px] ${visibilityClassAlba} ${isSelfAlba ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center shadow-sm`;
              
              const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
@@ -730,6 +741,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.action = 'member-toggle-leave';
                 card.className += ' opacity-80 cursor-not-allowed';
                 
+                // 근무 상태 색상 처리
                 if (ongoingMembers.has(pt.name)) {
                     card.className += ' bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
                 } else {

@@ -23,7 +23,7 @@ import {
 } from './admin-logic.js';
 
 let db, auth;
-let appConfig = {}; 
+let appConfig = {}; // 모듈 레벨 전역 변수
 
 // 드래그 앤 드롭 상태 변수
 let draggedItem = null;
@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
         console.error(e);
         if (adminContent) {
-            adminContent.innerHTML = `<div class="flex justify-center items-center h-full"><h2 class="text-2xl font-bold text-red-600 bg-red-50 p-6 rounded-2xl">Firebase 초기화 실패.</h2></div>`;
+            adminContent.innerHTML = `<h2 class="text-2xl font-bold text-red-600 p-8 text-center">Firebase 초기화 실패.</h2>`;
             adminContent.classList.remove('hidden');
         }
         return;
@@ -52,19 +52,22 @@ document.addEventListener('DOMContentLoaded', () => {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             try {
+                // 설정 로드
                 appConfig = await loadAppConfig(db);
 
+                // 권한 확인
                 const userEmailLower = (user.email || '').toLowerCase();
                 const memberRoles = appConfig.memberRoles || {};
                 const currentUserRole = memberRoles[userEmailLower] || 'user';
 
                 if (currentUserRole === 'admin') {
+                    // 관리자라면 UI 렌더링 및 이벤트 연결
                     renderAdminUI(appConfig);
                     setupEventListeners();
                     if (adminContent) adminContent.classList.remove('hidden');
                 } else {
                     if (adminContent) {
-                         adminContent.innerHTML = `<div class="flex justify-center items-center h-full mt-20"><div class="text-center bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700"><span class="text-4xl mb-4 block">🚫</span><h2 class="text-xl font-bold text-gray-800 dark:text-white mb-2">접근 권한이 없습니다</h2><p class="text-gray-500 dark:text-gray-400 text-sm">관리자 계정으로 로그인해주세요.</p></div></div>`;
+                         adminContent.innerHTML = `<h2 class="text-2xl font-bold text-yellow-600 p-8 text-center">접근 거부: 관리자 계정이 아닙니다.</h2>`;
                          adminContent.classList.remove('hidden');
                     }
                 }
@@ -74,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
              if (adminContent) {
-                adminContent.innerHTML = `<div class="flex justify-center items-center h-full mt-20"><div class="text-center bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700"><span class="text-4xl mb-4 block">🔒</span><h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">로그인이 필요합니다</h2><a href="index.html" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">메인 앱으로 이동</a></div></div>`;
+                adminContent.innerHTML = `<h2 class="text-2xl font-bold text-gray-600 p-8 text-center">접근 거부: 로그인이 필요합니다.<br><br><a href="index.html" class="text-blue-600 hover:underline">메인 앱으로 이동</a></h2>`;
                 adminContent.classList.remove('hidden');
              }
         }
@@ -85,8 +88,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // 2. 이벤트 리스너 설정 (Controller)
 // =================================================================
 function setupEventListeners() {
+    // 상단 메인 버튼
     document.getElementById('save-all-btn')?.addEventListener('click', handleSaveAll);
     
+    // ✅ [추가] 모달 닫기 버튼 공통 리스너
     document.querySelectorAll('.modal-close-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const modalId = btn.dataset.modalId;
@@ -97,11 +102,13 @@ function setupEventListeners() {
         });
     });
     
+    // 추가 버튼들
     document.getElementById('add-team-group-btn')?.addEventListener('click', addTeamGroup);
     document.getElementById('add-task-group-btn')?.addEventListener('click', addTaskGroup);
     document.getElementById('add-dashboard-item-btn')?.addEventListener('click', () => openDashboardItemModal(appConfig));
     document.getElementById('add-custom-dashboard-item-btn')?.addEventListener('click', addCustomDashboardItem);
 
+    // 모달 열기 버튼들
     document.getElementById('add-key-task-btn')?.addEventListener('click', () => {
         currentModalTarget = 'key';
         populateTaskSelectModal('key');
@@ -113,6 +120,7 @@ function setupEventListeners() {
         document.getElementById('select-task-modal')?.classList.remove('hidden');
     });
 
+    // 모달 내부 선택 이벤트
     document.getElementById('select-task-list')?.addEventListener('click', (e) => {
         const button = e.target.closest('.task-select-list-btn');
         if (button) {
@@ -132,6 +140,7 @@ function setupEventListeners() {
             if (!appConfig.dashboardItems) appConfig.dashboardItems = [];
             appConfig.dashboardItems.push(itemId);
             
+            // 부분 재렌더링
             renderDashboardItemsConfig(appConfig.dashboardItems, appConfig);
             renderQuantityToDashboardMapping(appConfig);
             
@@ -139,6 +148,7 @@ function setupEventListeners() {
         }
     });
 
+    // 알림 모달 버튼
     document.getElementById('confirm-add-to-quantity-btn')?.addEventListener('click', () => {
         if (taskJustAdded) addQuantityTask(taskJustAdded);
         document.getElementById('confirm-add-to-quantity-modal')?.classList.add('hidden');
@@ -149,55 +159,69 @@ function setupEventListeners() {
         taskJustAdded = null;
     });
 
+    // 동적 요소 클릭 이벤트 위임 (삭제 버튼 등)
     document.body.addEventListener('click', handleDynamicClicks);
+
+    // 드래그 앤 드롭 활성화
     setupAllDragListeners();
 }
 
 // =================================================================
 // 3. 주요 액션 핸들러 (Controller Logic)
 // =================================================================
+
+// 저장 핸들러
 async function handleSaveAll() {
     const btn = document.getElementById('save-all-btn');
     if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
 
     try {
+        // 1. DOM에서 데이터 수집 (admin-logic.js)
         const newConfig = collectConfigFromDOM(appConfig);
+        
+        // 2. 유효성 검사 (admin-logic.js)
         validateConfig(newConfig);
+
+        // 3. Firebase 저장 (config.js)
         await saveAppConfig(db, newConfig);
         
+        // 4. 성공 처리
         appConfig = newConfig;
         alert('✅ 모든 변경사항이 성공적으로 저장되었습니다!');
         
+        // 5. UI 새로고침 (완전 동기화)
         renderAdminUI(appConfig);
-        setupAllDragListeners(); 
+        setupAllDragListeners(); // DOM이 교체되었으므로 드래그 리스너 재연결
 
     } catch (e) {
         console.error("저장 실패:", e);
         alert(`❌ 저장 실패:\n${e.message}`);
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = `<svg class="w-4 h-4 inline-block -mt-1 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg> 전체 저장`; }
+        if (btn) { btn.disabled = false; btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block -mt-1 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z" /></svg> 모든 변경사항 저장`; }
     }
 }
 
+// 주요 업무 추가
 function addKeyTask(taskName) {
     const nameToAdd = taskName || '새 주요 업무';
     if (!appConfig.keyTasks) appConfig.keyTasks = [];
 
     if (appConfig.keyTasks.some(t => t.trim().toLowerCase() === nameToAdd.trim().toLowerCase())) {
-        alert("이미 등록된 업무입니다.");
+        alert("이미 '주요 업무'에 등록된 업무입니다.");
         return;
     }
     appConfig.keyTasks.push(nameToAdd);
     renderKeyTasks(appConfig.keyTasks);
 }
 
+// 처리량 업무 추가
 function addQuantityTask(taskName) {
     const nameToAdd = taskName || '새 처리량 업무';
     if (!appConfig.quantityTaskTypes) appConfig.quantityTaskTypes = [];
 
     if (appConfig.quantityTaskTypes.some(t => t.trim().toLowerCase() === nameToAdd.trim().toLowerCase())) {
-        if (taskJustAdded === taskName) return; 
-        alert("이미 등록된 업무입니다.");
+        if (taskJustAdded === taskName) return; // 중복 알림 방지
+        alert("이미 '처리량 집계 업무'에 등록된 업무입니다.");
         return;
     }
     appConfig.quantityTaskTypes.push(nameToAdd);
@@ -205,6 +229,7 @@ function addQuantityTask(taskName) {
     renderQuantityToDashboardMapping(appConfig);
 }
 
+// 커스텀 현황판 항목 추가
 function addCustomDashboardItem() {
     const newTitle = prompt("새로 추가할 수량 항목의 이름을 입력하세요:");
     if (!newTitle || newTitle.trim() === '') return;
@@ -231,55 +256,54 @@ function addCustomDashboardItem() {
 // 4. UI 인터랙션 (Interactive UI Builders)
 // =================================================================
 
+// 새 팀 그룹 추가 (DOM 생성)
 function addTeamGroup() {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
 
     const groupEl = document.createElement('div');
-    // 💡 모던 카드 UI 및 다크모드 적용
-    groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm team-group-card transition-colors';
+    groupEl.className = 'p-4 border rounded-lg bg-gray-50 team-group-card';
     groupEl.innerHTML = `
-        <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
-            <div class="flex items-center gap-2">
+        <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center">
                 <span class="drag-handle" draggable="true">☰</span> 
-                <input type="text" value="새 그룹" class="text-lg font-extrabold text-gray-800 dark:text-white team-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1">
+                <input type="text" value="새 그룹" class="text-lg font-semibold team-group-name w-auto">
             </div>
-            <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-team-group-btn">그룹 삭제</button>
+            <button class="btn btn-danger btn-small delete-team-group-btn">그룹 삭제</button>
         </div>
-        <div class="space-y-3 members-container"></div>
-        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 text-center">
-            <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition w-full md:w-auto shadow-sm add-member-btn">+ 팀원 추가</button>
-        </div>
+        <div class="pl-4 border-l-2 border-gray-200 space-y-2 members-container">
+             </div>
+        <button class="btn btn-secondary btn-small mt-3 add-member-btn">+ 팀원 추가</button>
     `;
     container.appendChild(groupEl);
-    setupDragDropListeners('.members-container', '.member-item'); 
+    setupDragDropListeners('.members-container', '.member-item'); // 새 컨테이너에 드래그 리스너 연결
 }
 
+// 새 업무 그룹 추가 (DOM 생성)
 function addTaskGroup() {
     const container = document.getElementById('task-groups-container');
     if (!container) return;
 
     const groupEl = document.createElement('div');
-    // 💡 모던 카드 UI 적용
-    groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm task-group-card transition-colors';
+    groupEl.className = 'p-4 border rounded-lg bg-gray-50 task-group-card';
     groupEl.innerHTML = `
-         <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
-            <div class="flex items-center gap-2"> 
+         <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center"> 
                <span class="drag-handle" draggable="true">☰</span>
-               <input type="text" value="새 업무 그룹" class="text-lg font-extrabold text-gray-800 dark:text-white task-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1">
+               <input type="text" value="새 업무 그룹" class="text-lg font-semibold task-group-name w-auto">
              </div>
-            <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-task-group-btn">그룹 삭제</button>
+            <button class="btn btn-danger btn-small delete-task-group-btn">그룹 삭제</button>
         </div>
-        <div class="space-y-2 tasks-container grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2"></div>
-        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-            <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition shadow-sm add-task-btn">+ 업무 추가</button>
-        </div>
+        <div class="pl-4 border-l-2 border-gray-200 space-y-2 tasks-container"></div>
+        <button class="btn btn-secondary btn-small mt-3 add-task-btn">+ 업무 추가</button>
     `;
     container.appendChild(groupEl);
     setupDragDropListeners('.tasks-container', '.task-item');
 }
 
+// 동적 클릭 이벤트 핸들러 (위임)
 function handleDynamicClicks(e) {
+    // 1. 삭제 버튼들
     if (e.target.classList.contains('delete-member-btn')) e.target.closest('.member-item')?.remove();
     else if (e.target.classList.contains('delete-team-group-btn')) e.target.closest('.team-group-card')?.remove();
     else if (e.target.classList.contains('delete-key-task-btn')) e.target.closest('.key-task-item')?.remove();
@@ -287,87 +311,47 @@ function handleDynamicClicks(e) {
     else if (e.target.classList.contains('delete-task-group-btn')) e.target.closest('.task-group-card')?.remove();
     else if (e.target.classList.contains('delete-quantity-task-btn')) {
         e.target.closest('.quantity-task-item')?.remove();
-        renderQuantityToDashboardMapping({ ...appConfig, quantityTaskTypes: getAllCurrentQuantityTasks() });
+        renderQuantityToDashboardMapping({ ...appConfig, quantityTaskTypes: getAllCurrentQuantityTasks() }); // 매핑 업데이트
     }
     else if (e.target.classList.contains('delete-dashboard-item-btn')) {
         e.target.closest('.dashboard-item-config')?.remove();
+        // 현황판 항목 삭제 시 매핑 드롭다운도 업데이트 필요
         setTimeout(() => renderQuantityToDashboardMapping(collectConfigFromDOM(appConfig)), 0);
     }
 
+    // 2. 추가 버튼들 (그룹 내부)
     else if (e.target.classList.contains('add-member-btn')) {
-        // 💡 새 팀원 추가 시 모던 UI 클래스 삽입
-        const container = e.target.closest('.team-group-card').querySelector('.members-container');
+        const container = e.target.previousElementSibling;
         const defaultWage = document.getElementById('default-part-timer-wage')?.value || 10000;
         const newMemberEl = document.createElement('div');
-        newMemberEl.className = 'flex flex-col gap-3 mb-4 p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30 shadow-sm member-item transition-colors';
-        
-        // 오늘 날짜 가져오기 (초기값용)
-        const today = new Date().toISOString().split('T')[0];
-
+        newMemberEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 member-item';
         newMemberEl.innerHTML = `
-            <div class="flex flex-wrap md:flex-nowrap justify-between items-start gap-4">
-                <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                    <span class="drag-handle" draggable="true">☰</span>
-                    <div class="flex flex-col">
-                        <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이름</label>
-                        <input type="text" value="새 팀원" class="member-name w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white">
-                    </div>
-                    <div class="flex flex-col">
-                        <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">이메일</label>
-                        <input type="email" value="" class="member-email w-48 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white" placeholder="example@email.com">
-                    </div>
-                    <div class="flex flex-col">
-                        <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">시급</label>
-                        <input type="number" value="${defaultWage}" class="member-wage w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white">
-                    </div>
-                    <div class="flex flex-col">
-                        <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">권한</label>
-                        <select class="member-role w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white">
-                            <option value="user" selected>일반</option>
-                            <option value="admin">관리자</option>
-                        </select>
-                    </div>
-                </div>
-                <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-2 rounded-md transition delete-member-btn">삭제</button>
-            </div>
-            
-            <div class="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <span class="text-xs font-bold text-blue-600 dark:text-blue-400 w-full md:w-auto mb-2 md:mb-0">🏖️ 연차 설정</span>
-                <div class="flex flex-col">
-                    <label class="text-[9px] text-blue-600 dark:text-blue-400 mb-1">입사일자</label>
-                    <input type="date" value="${today}" class="member-join-date w-32 p-1.5 border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 rounded text-xs dark:text-gray-200">
-                </div>
-                <div class="flex flex-col">
-                    <label class="text-[9px] text-blue-600 dark:text-blue-400 mb-1">총연차(일)</label>
-                    <input type="number" value="15" class="member-total-leave w-16 p-1.5 border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 rounded text-xs text-center dark:text-gray-200" min="0">
-                </div>
-                <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
-                <div class="flex flex-col">
-                    <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1 font-bold">적용 시작일</label>
-                    <input type="date" value="${today}" class="member-leave-reset-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-700 dark:text-gray-200">
-                </div>
-                <div class="flex flex-col">
-                    <label class="text-[9px] text-red-500 dark:text-red-400 mb-1 font-bold">사용 만료일</label>
-                    <input type="date" value="" class="member-leave-expiration-date w-32 p-1.5 border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 rounded text-xs text-red-700 dark:text-red-400">
-                </div>
-            </div>
+            <span class="drag-handle" draggable="true">☰</span>
+            <input type="text" value="새 팀원" class="member-name w-32" placeholder="팀원 이름">
+            <label class="text-sm whitespace-nowrap ml-2">로그인 이메일:</label>
+            <input type="email" value="" class="member-email w-48" placeholder="example@email.com">
+            <label class="text-sm whitespace-nowrap ml-2">시급:</label>
+            <input type="number" value="${defaultWage}" class="member-wage w-20" placeholder="시급">
+            <label class="text-sm whitespace-nowrap ml-2">역할:</label>
+            <select class="member-role w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="user" selected>일반사용자</option>
+                <option value="admin">관리자</option>
+            </select>
+            <button class="btn btn-danger btn-small delete-member-btn ml-auto">삭제</button>
         `;
         container.appendChild(newMemberEl);
     }
     else if (e.target.classList.contains('add-task-btn')) {
-        // 💡 새 업무 추가 시 모던 UI 적용
-        const container = e.target.closest('.task-group-card').querySelector('.tasks-container');
+        const container = e.target.previousElementSibling;
         const newTaskEl = document.createElement('div');
-        newTaskEl.className = 'flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group shadow-sm';
+        newTaskEl.className = 'flex items-center gap-2 mb-2 p-1 rounded hover:bg-gray-100 task-item';
         newTaskEl.innerHTML = `
-            <div class="flex items-center gap-2 flex-grow">
-                <span class="drag-handle" draggable="true">☰</span>
-                <input type="text" value="새 업무" class="task-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none">
-            </div>
-            <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100">삭제</button>
+            <span class="drag-handle" draggable="true">☰</span>
+            <input type="text" value="새 업무" class="task-name flex-grow">
+            <button class="btn btn-danger btn-small delete-task-btn">삭제</button>
         `;
         container.appendChild(newTaskEl);
-        
+        // 새 업무 입력 시 자동 포커스 및 블러 이벤트 연결
         const input = newTaskEl.querySelector('.task-name');
         if (input) {
             input.focus();
@@ -375,6 +359,7 @@ function handleDynamicClicks(e) {
         }
     }
 
+    // 3. 카드 토글
     const toggleBtn = e.target.closest('.config-card-toggle');
     if (toggleBtn) {
         const card = toggleBtn.closest('.config-card');
@@ -383,19 +368,23 @@ function handleDynamicClicks(e) {
     }
 }
 
+// 새 업무 이름 입력 완료 시 처리량 추가 제안
 function handleNewTaskNameBlur(e) {
     const newTaskName = e.target.value.trim();
     if (!newTaskName || newTaskName === '새 업무') return;
 
+    // 이미 처리량 목록에 있는지 확인
     const currentQuantityTasks = getAllCurrentQuantityTasks();
     if (currentQuantityTasks.some(t => t.toLowerCase() === newTaskName.toLowerCase())) return;
 
+    // 알림 모달 표시
     taskJustAdded = newTaskName;
     const msgEl = document.getElementById('confirm-add-to-quantity-message');
     if (msgEl) msgEl.textContent = `방금 추가한 '${newTaskName}' 업무를 처리량 집계 목록에도 추가하시겠습니까?`;
     document.getElementById('confirm-add-to-quantity-modal')?.classList.remove('hidden');
 }
 
+// 현재 DOM 기준 처리량 업무 목록 가져오기 헬퍼
 function getAllCurrentQuantityTasks() {
     const tasks = [];
     document.querySelectorAll('#quantity-tasks-container .quantity-task-name').forEach(el => {
@@ -420,6 +409,7 @@ function setupAllDragListeners() {
 function setupDragDropListeners(containerSelector, itemSelector) {
     const containers = document.querySelectorAll(containerSelector);
     containers.forEach(container => {
+        // 중복 리스너 방지
         if (container.dataset.dragAttached) return;
         container.dataset.dragAttached = 'true';
 
@@ -438,6 +428,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
                 draggedItem = null;
             }
             container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            // 순서 변경 후 필요한 경우 매핑 UI 업데이트
             if (containerSelector === '#dashboard-items-container') {
                 renderQuantityToDashboardMapping(collectConfigFromDOM(appConfig));
             }
