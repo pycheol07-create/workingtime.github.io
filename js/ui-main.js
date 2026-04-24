@@ -83,37 +83,46 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 1. 대시보드 레이아웃 렌더링 (카드 내 목록형 테마 적용)
+// 1. 대시보드 레이아웃 렌더링 (인원 / 처리량 분리 로직)
 export const renderDashboardLayout = (appConfig) => {
-    const container = document.getElementById('summary-content');
-    if (!container) return;
+    const personnelContainer = document.getElementById('summary-personnel');
+    const workloadContainer = document.getElementById('summary-workload');
+    
+    if (!personnelContainer && !workloadContainer) return;
 
     const itemIds = appConfig.dashboardItems || [];
     const allDefinitions = getAllDashboardDefinitions(appConfig);
 
-    container.innerHTML = '';
-    let html = '';
+    let personnelHtml = '';
+    let workloadHtml = '';
 
     itemIds.forEach(id => {
         const def = allDefinitions[id];
         if (!def) return;
 
         const isQuantity = def.isQuantity === true;
-        
-        // 수량 데이터는 글씨 색상에 포인트를 줌
-        const titleColor = isQuantity ? 'text-blue-600 font-bold' : 'text-gray-500 font-medium';
-        const valueColor = isQuantity ? 'text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md' : 'text-gray-800';
 
-        // 개별 카드가 아닌, 텍스트가 좌우로 나뉘는 깔끔한 리스트 항목으로 렌더링
-        html += `
-            <div class="flex justify-between items-center py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors px-2 rounded">
-                <span class="text-xs ${titleColor}">${def.title}</span>
-                <span id="${def.valueId}" class="text-sm font-extrabold ${valueColor} transition-all">0</span>
-            </div>
-        `;
+        if (isQuantity) {
+            // 처리량 데이터 (파란색 테마)
+            workloadHtml += `
+                <div class="flex justify-between items-center py-2.5 border-b border-blue-50 last:border-0 hover:bg-blue-50/50 transition-colors px-2 rounded">
+                    <span class="text-xs font-bold text-blue-600">${def.title}</span>
+                    <span id="${def.valueId}" class="text-sm font-extrabold text-blue-700 bg-white px-2 py-0.5 rounded-md shadow-sm border border-blue-100 transition-all">0</span>
+                </div>
+            `;
+        } else {
+            // 인원 데이터 (회색 테마)
+            personnelHtml += `
+                <div class="flex justify-between items-center py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors px-2 rounded">
+                    <span class="text-xs font-medium text-gray-500">${def.title}</span>
+                    <span id="${def.valueId}" class="text-sm font-extrabold text-gray-800 transition-all">0</span>
+                </div>
+            `;
+        }
     });
 
-    container.innerHTML = html;
+    if (personnelContainer) personnelContainer.innerHTML = personnelHtml;
+    if (workloadContainer) workloadContainer.innerHTML = workloadHtml;
 };
 
 // 2. 대시보드 수치 업데이트
