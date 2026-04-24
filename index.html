@@ -160,13 +160,11 @@
                             <h3 class="text-sm font-bold text-yellow-800 flex items-center gap-2">
                                 <span>📌</span> 중요 메모
                             </h3>
-                            <button id="open-admin-todo-btn-widget" class="text-[10px] bg-yellow-200 text-yellow-800 px-2 py-1 rounded font-bold hover:bg-yellow-300 transition cursor-pointer">관리</button>
+                            <button id="open-admin-todo-btn-widget" class="text-[10px] bg-yellow-200 text-yellow-800 px-2 py-1 rounded font-bold hover:bg-yellow-300 transition cursor-pointer shadow-sm">관리</button>
                         </div>
                         <div class="p-4 flex-1 overflow-y-auto text-sm text-yellow-900 leading-relaxed font-medium">
-                            <ul class="list-disc pl-4 space-y-1">
-                                <li>대한통운 픽업 16:30 조기 마감</li>
-                                <li>오후 휴식시간 15:30분으로 변경</li>
-                                <li>포장 부자재 부족 (발주완료)</li>
+                            <ul id="widget-memo-list" class="list-disc pl-4 space-y-1">
+                                <li class="text-yellow-700/60 list-none -ml-4 text-center text-xs py-4 font-normal">등록된 중요 메모가 없습니다.</li>
                             </ul>
                         </div>
                     </div>
@@ -284,7 +282,7 @@
 
         initApp();
 
-        // 💡 중요 메모 위젯의 '관리' 버튼 작동을 위한 연결(Trigger) 코드
+        // 💡 중요 메모 위젯의 '관리' 버튼 클릭 이벤트를 원본 버튼으로 연결합니다.
         document.addEventListener('click', function(e) {
             if (e.target && e.target.id === 'open-admin-todo-btn-widget') {
                 const realAdminBtn = document.getElementById('open-admin-todo-btn');
