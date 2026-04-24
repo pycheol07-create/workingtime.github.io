@@ -3,6 +3,8 @@ import * as State from './state.js';
 import * as DOM from './dom-elements.js';
 import { showToast } from './utils.js';
 import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// 💡 에러 해결: Firebase 초기화 모듈을 직접 가져옵니다.
+import { initializeFirebase } from './config.js';
 
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
@@ -16,9 +18,13 @@ const formatDateTimeShort = (isoString) => {
     return `${m}/${d} ${h}:${min}`;
 };
 
-const getTodoDocRef = () => doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'adminTodos');
+// 💡 에러 해결: State.db가 비어있을 수 있으므로(너무 빨리 실행될 경우), 
+// config.js의 initializeFirebase()를 호출하여 무조건 확실하게 db를 확보합니다.
+const getTodoDocRef = () => {
+    const firebase = initializeFirebase();
+    return doc(firebase.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'adminTodos');
+};
 
-// 💡 중복 실행 방지를 위한 플래그 변수
 let isSnapshotAttached = false; 
 
 // ==========================================
@@ -27,7 +33,6 @@ let isSnapshotAttached = false;
 export const loadAdminTodos = () => {
     return new Promise((resolve) => {
         try {
-            // 이미 실시간 감지 중이라면 중복 실행하지 않음
             if (isSnapshotAttached) {
                 resolve();
                 return;
@@ -45,8 +50,6 @@ export const loadAdminTodos = () => {
                 }
                 
                 renderAdminTodoList();
-                
-                // 데이터가 갱신될 때마다 화면 위젯을 즉시 다시 그리도록 이벤트 발송
                 document.dispatchEvent(new CustomEvent('renderNotices'));
                 resolve(); 
             }, (error) => {
