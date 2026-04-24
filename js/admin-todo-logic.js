@@ -2,7 +2,6 @@
 import * as State from './state.js';
 import * as DOM from './dom-elements.js';
 import { showToast } from './utils.js';
-// 💡 getDoc 대신 실시간 감지를 위한 onSnapshot 임포트
 import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -19,13 +18,22 @@ const formatDateTimeShort = (isoString) => {
 
 const getTodoDocRef = () => doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'adminTodos');
 
+// 💡 중복 실행 방지를 위한 플래그 변수
+let isSnapshotAttached = false; 
+
 // ==========================================
-// 1. 공통 데이터 로드 및 저장 (💡 실시간 동기화 적용)
+// 1. 공통 데이터 로드 및 저장 (실시간 동기화)
 // ==========================================
 export const loadAdminTodos = () => {
     return new Promise((resolve) => {
         try {
-            // 💡 onSnapshot을 사용하여 데이터가 변경될 때마다 전 기기 실시간 렌더링
+            // 이미 실시간 감지 중이라면 중복 실행하지 않음
+            if (isSnapshotAttached) {
+                resolve();
+                return;
+            }
+            isSnapshotAttached = true;
+            
             onSnapshot(getTodoDocRef(), (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
@@ -35,8 +43,10 @@ export const loadAdminTodos = () => {
                     State.appState.adminTodos = [];
                     State.appState.importantNotices = [];
                 }
+                
                 renderAdminTodoList();
-                // 데이터가 갱신될 때마다 화면 위젯도 즉시 다시 그리도록 지시
+                
+                // 데이터가 갱신될 때마다 화면 위젯을 즉시 다시 그리도록 이벤트 발송
                 document.dispatchEvent(new CustomEvent('renderNotices'));
                 resolve(); 
             }, (error) => {
