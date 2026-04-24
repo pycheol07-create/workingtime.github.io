@@ -83,7 +83,7 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 1. 대시보드 레이아웃 렌더링 (1픽셀 일체형 통계 패널 테마 적용)
+// 1. 대시보드 레이아웃 렌더링 (카드 내 목록형 테마 적용)
 export const renderDashboardLayout = (appConfig) => {
     const container = document.getElementById('summary-content');
     if (!container) return;
@@ -100,18 +100,15 @@ export const renderDashboardLayout = (appConfig) => {
 
         const isQuantity = def.isQuantity === true;
         
-        // 수량 데이터는 옅은 파란 배경으로 시인성 강화, 일반 데이터는 순백색 유지
-        const bgClass = isQuantity ? 'bg-[#f8fafc]' : 'bg-white';
-        const titleColor = isQuantity ? 'text-blue-500' : 'text-gray-500';
-        const valueColor = isQuantity ? 'text-blue-700' : 'text-gray-800';
+        // 수량 데이터는 글씨 색상에 포인트를 줌
+        const titleColor = isQuantity ? 'text-blue-600 font-bold' : 'text-gray-500 font-medium';
+        const valueColor = isQuantity ? 'text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md' : 'text-gray-800';
 
-        // 💡 개별 테두리와 그림자를 없애고 hover 애니메이션 추가
+        // 개별 카드가 아닌, 텍스트가 좌우로 나뉘는 깔끔한 리스트 항목으로 렌더링
         html += `
-            <div class="${bgClass} p-5 flex flex-col justify-center items-center text-center transition-colors hover:bg-gray-50 group">
-                <h4 class="text-[11px] font-bold ${titleColor} uppercase tracking-wider mb-2">
-                    ${def.title}
-                </h4>
-                <p id="${def.valueId}" class="text-2xl md:text-3xl font-extrabold ${valueColor} group-hover:scale-110 transition-transform duration-300">0</p>
+            <div class="flex justify-between items-center py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors px-2 rounded">
+                <span class="text-xs ${titleColor}">${def.title}</span>
+                <span id="${def.valueId}" class="text-sm font-extrabold ${valueColor} transition-all">0</span>
             </div>
         `;
     });
