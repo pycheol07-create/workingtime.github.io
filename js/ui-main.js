@@ -83,7 +83,7 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 💡 중요 알림 전용 위젯 렌더링 로직
+// 💡 알림 위젯 렌더링 로직
 export const renderNoticeWidget = (appState) => {
     const memoList = document.getElementById('widget-memo-list');
     if (!memoList) return;
@@ -99,11 +99,16 @@ export const renderNoticeWidget = (appState) => {
     notices.forEach(notice => {
         const textClass = notice.completed ? 'line-through text-yellow-700/50 dark:text-yellow-500/50' : 'text-yellow-900 dark:text-yellow-200 font-bold';
         const icon = notice.completed ? '✅' : '📌';
-        html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2 mb-1.5"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug">${notice.text}</span></li>`;
+        
+        // XSS 방지 및 줄바꿈 처리
+        const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+        
+        html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2 mb-1.5"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words">${safeText}</span></li>`;
     });
     memoList.innerHTML = html;
 };
 
+// 1. 대시보드 레이아웃 렌더링
 export const renderDashboardLayout = (appConfig) => {
     const personnelContainer = document.getElementById('summary-personnel');
     const workloadContainer = document.getElementById('summary-workload');
@@ -143,6 +148,7 @@ export const renderDashboardLayout = (appConfig) => {
     if (workloadContainer) workloadContainer.innerHTML = workloadHtml;
 };
 
+// 2. 대시보드 수치 업데이트
 export const updateSummary = (appState, appConfig) => {
     const allDefinitions = getAllDashboardDefinitions(appConfig);
     const elements = {};
@@ -469,6 +475,17 @@ export const renderAttendanceToggle = (appState) => {
 };
 
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
+    
+    // 💡 Firebase 갱신(리렌더링) 시 기존에 사용자가 눌러둔 토글 상태를 유지하는 스마트 로직
+    const taskToggleBtn = document.getElementById('toggle-all-tasks-mobile');
+    if (taskToggleBtn && taskToggleBtn.textContent === '간략히') {
+        isMobileTaskViewExpanded = true;
+    }
+    const memberToggleBtn = document.getElementById('toggle-all-members-mobile');
+    if (memberToggleBtn && memberToggleBtn.textContent === '간략히') {
+        isMobileMemberViewExpanded = true;
+    }
+
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
     const teamStatusBoard = document.getElementById('team-status-board');
@@ -491,6 +508,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         const isCurrentUserWorkingOnThisTask = groupRecords.some(r => r.member === currentUserName);
         const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
         const isOngoing = groupRecords.some(r => r.status === 'ongoing');
+        
+        // 💡 내가 참여한 일이거나, 전체보기(Expanded) 상태일 때만 보이도록 클래스 세팅
         const mobileVisibilityClass = (isCurrentUserWorkingOnThisTask || isMobileTaskViewExpanded) ? 'flex' : 'hidden md:flex mobile-task-hidden';
         
         if (groupRecords.length > 0) {
@@ -585,7 +604,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     allMembersContainer.innerHTML = `
         <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-3 mb-6 mt-10">
             <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span class="text-xl">🧑‍🤝‍🧑</span> 전체 팀원 현황
+                <span class="text-xl">🧑‍🤝‍🧑</span> 팀원 현황
                 <span class="text-xs font-normal text-gray-400 dark:text-gray-500 hidden md:inline ml-2">(클릭하여 근태 설정/수정)</span>
             </h3>
             <button id="toggle-all-members-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">${isMobileMemberViewExpanded ? '간략히' : '전체보기'}</button>
@@ -678,11 +697,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             } else {
                 card.dataset.action = 'member-toggle-leave';
                 card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 opacity-60';
-                if (currentUserRole === 'admin' || isSelf) {
-                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
-                } else {
-                    card.className += ' cursor-not-allowed';
-                }
+                 if (currentUserRole === 'admin' || isSelf) {
+                     card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                 } else {
+                     card.className += ' cursor-not-allowed';
+                 }
                 card.innerHTML = `<div class="font-extrabold text-sm mb-1">${member}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">출근 전</div>`;
             }
             groupGrid.appendChild(card);
