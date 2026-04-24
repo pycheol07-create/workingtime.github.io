@@ -154,27 +154,33 @@
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                     
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col h-full overflow-hidden transition-colors">
-                        <div class="p-4 border-b border-gray-50 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50 shrink-0">
-                            <h3 class="text-sm font-bold text-gray-700 dark:text-gray-200 flex items-center gap-2">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col h-auto md:h-full overflow-hidden transition-colors">
+                        <div id="toggle-personnel" class="p-4 border-b border-gray-50 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50 shrink-0 cursor-pointer md:cursor-auto group">
+                            <h3 class="text-sm font-bold text-gray-700 dark:text-gray-200 flex items-center gap-2 group-hover:text-blue-600 transition-colors">
                                 <span>👥</span> 실시간 인원 현황
                             </h3>
+                            <svg id="personnel-arrow" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 md:hidden transition-transform transform rotate-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
-                        <div id="summary-personnel" class="p-3 md:p-4 flex-1 flex flex-col space-y-0.5 overflow-y-auto min-h-[160px]">
+                        <div id="summary-personnel" class="hidden md:flex p-3 md:p-4 flex-1 flex-col space-y-0.5 overflow-y-auto min-h-[160px]">
                             </div>
                     </div>
 
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-blue-100 dark:border-blue-900/50 flex flex-col h-full overflow-hidden transition-colors">
-                        <div class="p-4 border-b border-blue-50 dark:border-blue-900/30 flex justify-between items-center bg-blue-50/30 dark:bg-blue-900/10 shrink-0">
-                            <h3 class="text-sm font-bold text-blue-800 dark:text-blue-400 flex items-center gap-2">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-blue-100 dark:border-blue-900/50 flex flex-col h-auto md:h-full overflow-hidden transition-colors">
+                        <div id="toggle-workload" class="p-4 border-b border-blue-50 dark:border-blue-900/30 flex justify-between items-center bg-blue-50/30 dark:bg-blue-900/10 shrink-0 cursor-pointer md:cursor-auto group">
+                            <h3 class="text-sm font-bold text-blue-800 dark:text-blue-400 flex items-center gap-2 group-hover:text-blue-600 transition-colors">
                                 <span>📦</span> 오늘 업무 처리량
                             </h3>
+                            <svg id="workload-arrow" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-400 md:hidden transition-transform transform rotate-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
-                        <div id="summary-workload" class="p-3 md:p-4 flex-1 flex flex-col space-y-0.5 overflow-y-auto min-h-[160px]">
+                        <div id="summary-workload" class="hidden md:flex p-3 md:p-4 flex-1 flex-col space-y-0.5 overflow-y-auto min-h-[160px]">
                             </div>
                     </div>
 
-                    <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-2xl shadow-sm border border-yellow-200 dark:border-yellow-700/50 flex flex-col relative overflow-hidden h-full transition-colors">
+                    <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-2xl shadow-sm border border-yellow-200 dark:border-yellow-700/50 flex flex-col relative overflow-hidden h-auto md:h-full transition-colors">
                         <div class="absolute top-0 left-0 w-1 h-full bg-yellow-400 dark:bg-yellow-600"></div>
                         <div class="p-4 border-b border-yellow-100/50 dark:border-yellow-800/50 flex justify-between items-center bg-yellow-50/80 dark:bg-yellow-900/40 shrink-0">
                             <h3 class="text-sm font-bold text-yellow-800 dark:text-yellow-400 flex items-center gap-2">
@@ -184,7 +190,8 @@
                         </div>
                         <div class="p-4 flex-1 overflow-y-auto text-sm text-yellow-900 dark:text-yellow-200 leading-relaxed font-medium">
                             <ul id="widget-memo-list" class="list-disc pl-4 space-y-1">
-                                </ul>
+                                <li class="text-yellow-700/60 dark:text-yellow-500/60 list-none -ml-4 text-center text-xs py-4 font-normal">등록된 중요 알림이 없습니다.</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
@@ -356,6 +363,37 @@
         if (themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
         if (themeToggleBtnMobile) themeToggleBtnMobile.addEventListener('click', toggleTheme);
         updateThemeIcons();
+        
+        // ==========================================
+        // 💡 인원 및 업무 위젯 모바일 토글 (접기/펴기) 로직
+        // ==========================================
+        function setupWidgetToggle(toggleId, contentId, arrowId) {
+            const toggleBtn = document.getElementById(toggleId);
+            if (!toggleBtn) return;
+            
+            toggleBtn.addEventListener('click', () => {
+                // 데스크탑(MD 사이즈 768px 이상) 화면에서는 토글 클릭 무시
+                if (window.innerWidth >= 768) return; 
+                
+                const content = document.getElementById(contentId);
+                const arrow = document.getElementById(arrowId);
+                
+                if (content.classList.contains('hidden')) {
+                    // 열기
+                    content.classList.remove('hidden');
+                    content.classList.add('flex');
+                    arrow.classList.add('rotate-180');
+                } else {
+                    // 닫기
+                    content.classList.add('hidden');
+                    content.classList.remove('flex');
+                    arrow.classList.remove('rotate-180');
+                }
+            });
+        }
+
+        setupWidgetToggle('toggle-personnel', 'summary-personnel', 'personnel-arrow');
+        setupWidgetToggle('toggle-workload', 'summary-workload', 'workload-arrow');
     </script>
 
     <script type="module">
@@ -363,7 +401,6 @@
         import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/admin-todo-logic.js';
         import { renderNoticeWidget } from './js/ui-main.js';
 
-        // 모달 열기 및 닫기
         document.addEventListener('click', function(e) {
             if (e.target && e.target.id === 'open-notice-modal-btn') {
                 document.getElementById('notice-management-modal').classList.remove('hidden');
@@ -374,7 +411,6 @@
             }
         });
 
-        // 등록 버튼 동작
         document.getElementById('add-notice-btn')?.addEventListener('click', () => {
             const input = document.getElementById('new-notice-input');
             if (input && input.value) {
@@ -383,18 +419,15 @@
             }
         });
 
-        // 엔터키 등록 동작
         document.getElementById('new-notice-input')?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') document.getElementById('add-notice-btn').click();
         });
 
-        // 화면 갱신 이벤트 (데이터 변경 시 호출됨)
         document.addEventListener('renderNotices', () => {
             renderNoticeWidget(appState);
             renderNoticeModalList();
         });
 
-        // 모달 내부 리스트를 그리는 함수
         window.renderNoticeModalList = () => {
             const list = document.getElementById('notice-management-list');
             if (!list) return;
@@ -426,7 +459,6 @@
             `).join('');
         };
 
-        // 리스트 내부 버튼 클릭 (이벤트 위임)
         document.getElementById('notice-management-list')?.addEventListener('click', (e) => {
             const toggleBtn = e.target.closest('.toggle-notice-btn');
             const editBtn = e.target.closest('.edit-notice-btn');
