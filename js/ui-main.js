@@ -83,7 +83,7 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 1. 대시보드 레이아웃 렌더링 (모던 화이트 테마 적용)
+// 1. 대시보드 레이아웃 렌더링 (1픽셀 일체형 통계 패널 테마 적용)
 export const renderDashboardLayout = (appConfig) => {
     const container = document.getElementById('summary-content');
     if (!container) return;
@@ -99,10 +99,19 @@ export const renderDashboardLayout = (appConfig) => {
         if (!def) return;
 
         const isQuantity = def.isQuantity === true;
+        
+        // 수량 데이터는 옅은 파란 배경으로 시인성 강화, 일반 데이터는 순백색 유지
+        const bgClass = isQuantity ? 'bg-[#f8fafc]' : 'bg-white';
+        const titleColor = isQuantity ? 'text-blue-500' : 'text-gray-500';
+        const valueColor = isQuantity ? 'text-blue-700' : 'text-gray-800';
+
+        // 💡 개별 테두리와 그림자를 없애고 hover 애니메이션 추가
         html += `
-            <div class="bg-white rounded-2xl p-5 shadow-sm border ${isQuantity ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100'} flex flex-col justify-center items-center text-center transition-all hover:shadow-md">
-                <h4 class="text-[11px] font-bold ${isQuantity ? 'text-blue-500' : 'text-gray-400'} uppercase tracking-wider mb-2">${def.title}</h4>
-                <p id="${def.valueId}" class="text-2xl md:text-3xl font-extrabold ${isQuantity ? 'text-blue-700' : 'text-gray-800'}">0</p>
+            <div class="${bgClass} p-5 flex flex-col justify-center items-center text-center transition-colors hover:bg-gray-50 group">
+                <h4 class="text-[11px] font-bold ${titleColor} uppercase tracking-wider mb-2">
+                    ${def.title}
+                </h4>
+                <p id="${def.valueId}" class="text-2xl md:text-3xl font-extrabold ${valueColor} group-hover:scale-110 transition-transform duration-300">0</p>
             </div>
         `;
     });
@@ -445,7 +454,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const presetTaskContainer = document.createElement('div');
     presetTaskContainer.className = 'mb-6';
     const presetGrid = document.createElement('div');
-    // 카드 간격을 넗게 적용 (gap-4 -> gap-5)
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5';
     if (isMobileTaskViewExpanded) presetGrid.classList.add('mobile-expanded');
 
@@ -551,7 +559,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     allMembersContainer.id = 'all-members-container';
     if (isMobileMemberViewExpanded) allMembersContainer.classList.add('mobile-expanded');
     
-    // 헤더 영역 둥글고 깔끔하게
     allMembersContainer.innerHTML = `
         <div class="flex justify-between items-center border-b border-gray-200 pb-3 mb-6 mt-10">
             <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -594,7 +601,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const isSelf = (member === currentUserName);
             const visibilityClass = (isSelf || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
             
-            // 기존 rounded-lg를 rounded-xl로 변경하여 둥글기 통일
             card.className = `p-2 rounded-xl border text-center transition-all min-h-[76px] ${visibilityClass} ${isSelf ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center shadow-sm`;
             card.dataset.memberName = member;
 
@@ -643,7 +649,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         allMembersContainer.appendChild(groupContainer);
     });
 
-    // 알바 렌더링도 위와 동일하게 rounded-xl 디자인 적용
     const activePartTimers = (appState.partTimers || []).filter(pt => ongoingMembers.has(pt.name) || onLeaveStatusMap.has(pt.name) || appState.dailyAttendance?.[pt.name]);
     if (activePartTimers.length > 0) {
         const albaContainer = document.createElement('div'); albaContainer.className = 'mb-6'; 
@@ -662,7 +667,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
              const isAlbaReturned = albaAttendance && albaAttendance.status === 'returned';
 
             card.dataset.memberName = pt.name;
-            // 내부 로직은 Staff와 동일하게 세팅
             if (isAlbaOnLeave) {
                 card.dataset.action = 'member-toggle-leave'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
                 card.classList.add('bg-gray-100', 'border-gray-300', 'text-gray-500');
