@@ -13,247 +13,189 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="bg-gray-50 text-gray-800 font-['Inter'] overflow-hidden">
     <div id="toast-container" class="fixed bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
 
-    <div id="app-content" class="w-full min-h-screen bg-white p-6 md:p-8 flex flex-col">
+    <div class="flex h-screen bg-gray-50 overflow-hidden w-full">
+        
+        <aside class="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-20 shadow-sm shrink-0">
+            <div class="p-6 border-b border-gray-100 flex items-center gap-2">
+                <h1 class="text-xl font-bold text-gray-900 tracking-tight">📦 물류팀 현황판</h1>
+            </div>
+            
+            <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+                <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">메인 업무</div>
+                <button class="w-full flex items-center gap-3 bg-blue-50 text-blue-700 px-4 py-3 rounded-xl font-semibold transition">
+                    <span class="text-lg">📊</span> 대시보드
+                </button>
+                <button id="open-quantity-modal-today" class="w-full flex items-center gap-3 text-gray-600 hover:bg-gray-50 px-4 py-3 rounded-xl font-medium transition">
+                    <span class="text-lg">📈</span> 오늘 처리량 입력
+                </button>
+                <button id="end-shift-btn" class="w-full flex items-center gap-3 text-gray-600 hover:bg-gray-50 px-4 py-3 rounded-xl font-medium transition">
+                    <span class="text-lg">🏁</span> 업무 마감
+                </button>
 
-        <div class="relative">
-            <div class="flex justify-between items-center md:hidden mb-4 pt-4">
-                <h1 class="text-3xl font-bold text-gray-900">물류팀 업무현황</h1>
-                <button id="hamburger-btn" class="p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
+                <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6 px-2">관리 및 조회</div>
+                <button id="open-weekend-modal-btn" class="w-full flex items-center gap-3 text-gray-600 hover:bg-gray-50 px-4 py-3 rounded-xl font-medium transition">
+                    <span class="text-lg">🗓️</span> 주말 근무 신청
+                </button>
+                <button id="open-my-leave-btn" class="w-full flex items-center gap-3 text-gray-600 hover:bg-gray-50 px-4 py-3 rounded-xl font-medium transition">
+                    <span class="text-lg">🏖️</span> 내 연차관리
+                </button>
+                <button id="open-cost-simulation-btn" class="w-full flex items-center gap-3 text-gray-600 hover:bg-gray-50 px-4 py-3 rounded-xl font-medium transition">
+                    <span class="text-lg">💰</span> 운영 시뮬레이션
+                </button>
+                
+                <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6 px-2">관리자 메뉴</div>
+                <button id="open-history-btn" class="w-full flex items-center gap-3 text-gray-600 hover:bg-gray-50 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
+                    <span class="text-lg">📜</span> 데이터 관리
+                </button>
+                <button id="open-admin-todo-btn" class="w-full flex items-center gap-3 text-gray-600 hover:bg-gray-50 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
+                    <span class="text-lg">📝</span> 관리자 메모
+                </button>
+                <a href="location.html" id="location-link-btn" target="location_window" class="w-full flex items-center gap-3 text-gray-600 hover:bg-gray-50 px-4 py-3 rounded-xl font-medium transition">
+                    <span class="text-lg">📍</span> 로케이션 관리
+                </a>
+                <a href="admin.html" id="admin-link-btn" target="admin_window" class="w-full flex items-center gap-3 text-gray-600 hover:bg-gray-50 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
+                    <span class="text-lg">⚙️</span> 관리자 페이지
+                </a>
+                <button id="reset-app-btn" class="w-full flex items-center gap-3 text-gray-600 hover:bg-gray-50 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
+                    <span class="text-lg">🔄</span> 데이터 초기화
+                </button>
+            </nav>
+
+            <div class="p-4 border-t border-gray-100 bg-white">
+                <div class="bg-gray-50 border border-gray-100 rounded-xl p-4 flex flex-col items-center relative">
+                    <span class="text-sm font-bold text-gray-700 mb-3" id="pc-attendance-label">내 출퇴근 상태</span>
+                    <label class="attendance-toggle">
+                        <input type="checkbox" id="pc-attendance-checkbox" class="sr-only peer">
+                        <span class="attendance-toggle-text text-in">출근</span>
+                        <span class="attendance-toggle-text text-out">퇴근</span>
+                        <span class="attendance-toggle-knob"></span>
+                    </label>
+                    <button id="pc-clock-out-cancel-btn" class="hidden mt-2 text-[11px] font-bold bg-yellow-100 text-yellow-800 px-3 py-1 rounded-md animate-pulse">퇴근 취소</button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col h-full overflow-hidden relative bg-gray-50/50">
+            
+            <div class="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center z-30 shadow-sm shrink-0">
+                <h1 class="text-lg font-bold text-gray-900">📦 물류팀 현황판</h1>
+                <button id="hamburger-btn" class="p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
                 </button>
             </div>
 
-            <div id="nav-content"
-                 class="hidden md:flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-2 w-full
-                        absolute md:relative top-20 md:top-auto left-0 md:left-auto right-0 md:right-auto
-                        bg-white md:bg-transparent shadow-lg md:shadow-none z-40 p-4 md:p-0 rounded-lg md:rounded-none border md:border-none">
+            <div id="nav-content" class="hidden absolute top-[60px] left-0 w-full bg-white shadow-xl z-40 border-b flex-col max-h-[80vh] overflow-y-auto pb-4">
+                <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
+                    <span class="font-bold text-gray-800 flex items-center gap-2">내 출퇴근 상태</span>
+                    <div class="flex items-center gap-2">
+                        <button id="mobile-clock-out-cancel-btn" class="hidden text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-md font-bold">취소</button>
+                        <label class="attendance-toggle scale-90 m-0">
+                            <input type="checkbox" id="mobile-attendance-checkbox" class="sr-only peer">
+                            <span class="attendance-toggle-text text-in">출근</span>
+                            <span class="attendance-toggle-text text-out">퇴근</span>
+                            <span class="attendance-toggle-knob"></span>
+                        </label>
+                    </div>
+                </div>
+                <button id="open-quantity-modal-today-mobile" class="text-left px-5 py-4 border-b text-sm font-medium flex items-center gap-2"><span class="text-lg">📊</span> 오늘 처리량 입력</button>
+                <button id="open-weekend-modal-btn-mobile" class="text-left px-5 py-4 border-b text-sm font-medium flex items-center gap-2"><span class="text-lg">🗓️</span> 주말 근무 신청</button>
+                <button id="open-my-leave-btn-mobile" class="text-left px-5 py-4 border-b text-sm font-medium flex items-center gap-2"><span class="text-lg">🏖️</span> 내 연차관리</button>
+                <button id="open-cost-simulation-btn-mobile" class="text-left px-5 py-4 border-b text-sm font-medium flex items-center gap-2"><span class="text-lg">💰</span> 운영 시뮬레이션</button>
+                <button id="end-shift-btn-mobile" class="text-left px-5 py-4 border-b text-sm font-bold text-red-600 flex items-center gap-2"><span class="text-lg">🏁</span> 업무 마감</button>
+                
+                <div class="px-5 py-2 mt-2 text-xs font-bold text-gray-400 uppercase">관리자 메뉴</div>
+                <button id="open-history-btn-mobile" class="text-left px-5 py-3 border-b text-sm font-medium flex items-center gap-2" style="display: none;"><span class="text-lg">📜</span> 데이터 관리</button>
+                <button id="open-admin-todo-btn-mobile" class="text-left px-5 py-3 border-b text-sm font-medium flex items-center gap-2" style="display: none;"><span class="text-lg">📝</span> 관리자 메모</button>
+                <a href="location.html" id="location-link-btn-mobile" target="location_window" class="text-left px-5 py-3 border-b text-sm font-medium flex items-center gap-2"><span class="text-lg">📍</span> 로케이션 관리</a>
+                <a href="admin.html" id="admin-link-btn-mobile" target="admin_window" class="text-left px-5 py-3 border-b text-sm font-medium flex items-center gap-2" style="display: none;"><span class="text-lg">⚙️</span> 관리자 페이지</a>
+                <button id="reset-app-btn-mobile" class="text-left px-5 py-3 border-b text-sm font-medium flex items-center gap-2" style="display: none;"><span class="text-lg">🔄</span> 데이터 초기화</button>
+                <button id="logout-btn-mobile" class="hidden text-left px-5 py-4 text-sm font-bold text-red-600 flex items-center gap-2 bg-red-50"><span class="text-lg">🚪</span> 로그아웃</button>
+            </div>
 
-                <div id="current-date-display" class="text-lg font-bold text-gray-700 hidden md:text-lg md:mr-auto"></div>
-
-                <div id="top-right-controls" class="flex flex-col items-start md:items-end gap-2 hidden">
+            <header class="hidden md:flex h-16 bg-white border-b border-gray-100 items-center justify-between px-8 shrink-0">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-lg font-bold text-gray-800">대시보드</h2>
                     <div id="connection-indicator" class="flex items-center gap-2">
-                        <span id="user-greeting" class="text-sm font-semibold text-gray-700 mr-2 hidden"></span>
-                        <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
-                        <span id="connection-status" class="text-xs font-medium text-gray-500"></span>
-                    </div>
-                    
-                    <div class="hidden md:flex items-center gap-3">
-                        <div id="personal-attendance-toggle-pc" class="hidden items-center gap-2 mr-2">
-                            <span class="text-sm font-semibold text-gray-700" id="pc-attendance-label">내 근태:</span>
-                            <label class="attendance-toggle">
-                                <input type="checkbox" id="pc-attendance-checkbox" class="sr-only peer">
-                                <span class="attendance-toggle-text text-in">출근</span>
-                                <span class="attendance-toggle-text text-out">퇴근</span>
-                                <span class="attendance-toggle-knob"></span>
-                            </label>
-                            <button id="pc-clock-out-cancel-btn" class="hidden text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium px-2 py-1 rounded-md transition animate-pulse" title="방금 한 퇴근을 취소하고 다시 근무 상태로 되돌립니다.">
-                                퇴근 취소
-                            </button>
-                        </div>
-
-                        <div class="relative hidden md:block">
-                            <button id="menu-toggle-btn" class="flex items-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm transition active:scale-[0.98]">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                                </svg>
-                                <span>메뉴</span>
-                            </button>
-                            <div id="menu-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-50">
-                                
-                                <button id="open-weekend-modal-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">
-                                    <span>🗓️</span> <span class="font-medium">주말 근무 신청</span>
-                                </button>
-
-                                <button id="open-my-leave-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">
-                                    <span>🏖️</span> <span class="font-medium">내 연차관리</span>
-                                </button>
-
-                                <button id="open-quantity-modal-today" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">
-                                    <span>📊</span> <span class="font-medium">오늘 처리량 입력</span>
-                                </button>
-                                <button id="open-cost-simulation-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">
-                                    <span>💰</span> <span class="font-medium">운영 시뮬레이션</span>
-                                </button>
-                                
-                                <button id="open-history-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100" style="display: none;">
-                                    <span>📜</span> <span class="font-medium">데이터 관리</span>
-                                </button>
-                                <button id="end-shift-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">
-                                    <span>🏁</span> <span class="font-medium">업무 마감</span>
-                                </button>
-
-                                <button id="open-admin-todo-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100" style="display: none;">
-                                    <span>📝</span> <span class="font-medium">관리자 메모/할일</span>
-                                </button>
-
-                                <a href="location.html" id="location-link-btn" target="location_window" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">
-                                    <span>📍</span> <span class="font-medium">로케이션 관리</span>
-                                </a>
-
-                                <a href="admin.html" id="admin-link-btn" target="admin_window" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100" style="display: none;">
-                                    <span>⚙️</span> <span class="font-medium">관리자 페이지</span>
-                                </a>
-                                <button id="reset-app-btn" class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100" style="display: none;">
-                                    <span>🔄</span> <span class="font-medium">오늘 데이터 초기화</span>
-                                </button>
-                                <button id="logout-btn" class="hidden w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-red-600 hover:bg-red-50 rounded-b-md">
-                                    <span>🚪</span> <span class="font-semibold">로그아웃</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col items-start gap-2 md:hidden">
-                         <div id="personal-attendance-toggle-mobile" class="flex justify-between items-center w-full p-3 bg-white rounded-lg border shadow-sm hidden">
-                            <div class="flex items-center gap-2">
-                                <span class="font-bold text-gray-800 flex items-center gap-2">내 출퇴근</span>
-                                <button id="mobile-clock-out-cancel-btn" class="hidden text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-md">취소</button>
-                            </div>
-                            <label class="attendance-toggle">
-                                <input type="checkbox" id="mobile-attendance-checkbox" class="sr-only peer">
-                                <span class="attendance-toggle-text text-in">출근</span>
-                                <span class="attendance-toggle-text text-out">퇴근</span>
-                                <span class="attendance-toggle-knob"></span>
-                            </label>
-                        </div>
-                        
-                        <button id="open-weekend-modal-btn-mobile" class="flex items-center gap-2 bg-indigo-100 text-indigo-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm">
-                            <span>🗓️ 주말 근무 현황</span>
-                        </button>
-
-                        <button id="open-my-leave-btn-mobile" class="flex items-center gap-2 bg-orange-100 text-orange-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm">
-                            <span>🏖️ 내 연차관리</span>
-                        </button>
-
-                        <button id="open-quantity-modal-today-mobile" class="flex items-center gap-2 bg-purple-100 text-purple-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm">
-                            <span>📊 처리량 입력</span>
-                        </button>
-                        
-                        <button id="open-cost-simulation-btn-mobile" class="flex items-center gap-2 bg-indigo-100 text-indigo-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm">
-                            <span>💰 운영 시뮬레이션</span>
-                        </button>
-                        <button id="open-history-btn-mobile" class="flex items-center gap-2 bg-gray-100 text-gray-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm" style="display: none;">
-                            <span>📜 데이터 관리</span>
-                        </button>
-                        <button id="end-shift-btn-mobile" class="flex items-center gap-2 bg-red-100 text-red-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm">
-                            <span>🏁 업무 마감</span>
-                        </button>
-
-                        <button id="open-admin-todo-btn-mobile" class="flex items-center gap-2 bg-indigo-50 text-indigo-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm" style="display: none;">
-                            <span>📝 관리자 메모</span>
-                        </button>
-
-                        <a href="location.html" id="location-link-btn-mobile" target="location_window" class="flex items-center gap-2 bg-teal-100 text-teal-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm">
-                            <span>📍 로케이션 관리</span>
-                        </a>
-
-                        <a href="admin.html" id="admin-link-btn-mobile" target="admin_window" class="flex items-center gap-2 bg-blue-100 text-blue-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm" style="display: none;">
-                            <span>⚙️ 관리</span>
-                        </a>
-                        <button id="reset-app-btn-mobile" class="flex items-center gap-2 bg-gray-200 text-gray-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm" style="display: none;">
-                            <span>🔄 초기화</span>
-                        </button>
-                        <button id="logout-btn-mobile" class="hidden flex items-center gap-1 bg-red-100 text-red-800 font-semibold text-sm py-1.5 px-3 rounded-md shadow-sm">
-                            <span>🚪 로그아웃</span>
-                        </button>
+                        <span id="user-greeting" class="text-sm font-semibold text-gray-700 hidden"></span>
+                        <span id="status-dot" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        <span id="connection-status" class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md">접속됨</span>
                     </div>
                 </div>
-            </div>
-
-            <header class="mb-8 text-center hidden md:block">
-                <h1 class="text-3xl md:text-4xl font-bold text-gray-900">물류팀 업무현황</h1>
+                <div class="flex items-center gap-4">
+                    <div id="current-date-display" class="text-sm font-bold text-gray-500">로딩중...</div>
+                    <button id="logout-btn" class="hidden text-xs bg-red-50 hover:bg-red-100 text-red-600 font-bold py-1.5 px-3 rounded-md transition border border-red-100">로그아웃</button>
+                </div>
             </header>
-        </div>
 
-        <div class="mb-8 bg-gray-800 text-white rounded-lg border border-gray-700 shadow-lg hidden">
-            <div id="toggle-summary" class="flex justify-between items-center p-4 cursor-pointer md:cursor-auto">
-                <h2 class="text-xl font-bold">업무 현황 및 업무량</h2>
-                <svg id="summary-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-            </div>
-            <div id="summary-content" class="hidden md:grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 p-6 text-center">
-                </div>
-        </div>
-
-        <div id="main-content-area" class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 flex-grow flex flex-col hidden">
-            <h2 class="text-xl font-bold text-gray-900 mb-4">업무 진행</h2>
-            <div id="loading-spinner" class="text-center py-10">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-                <p class="mt-4 text-gray-600">데이터를 불러오는 중입니다...</p>
-            </div>
-            <div id="team-status-board" class="space-y-8 flex-grow">
-                </div>
-        </div>
-
-        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 hidden">
-            <div id="toggle-completed-log" class="flex justify-between items-center cursor-pointer md:cursor-auto">
-                <h2 class="text-xl font-bold text-gray-900">오늘 완료된 업무</h2>
-                <svg id="completed-log-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-            </div>
-            <div id="completed-log-content" class="hidden md:block mt-4">
-                <div class="flex flex-wrap gap-2 justify-end items-center mb-4">
-                    <button id="save-progress-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md">중간 저장</button>
-                </div>
-                <div class="overflow-auto relative bg-white rounded-md max-h-96">
-                    <table class="w-full text-sm text-left text-gray-600">
-                        <thead class="text-xs text-blue-500 uppercase bg-gray-100 sticky top-0 z-10">
-                            <tr>
-                                <th scope="col" class="px-6 py-3">이름</th>
-                                <th scope="col" class="px-6 py-3">업무</th>
-                                <th scope="col" class="px-6 py-3">시작 시간</th>
-                                <th scope="col" class="px-6 py-3">종료 시간</th>
-                                <th scope="col" class="px-6 py-3">소요 시간</th>
-                                <th scope="col" class="px-6 py-3 text-right">
-                                    <button id="open-manual-add-btn" class="text-xs font-bold text-blue-500 uppercase hover:text-blue-700 mr-3">수동 추가</button>
-                                    <button id="delete-all-completed-btn" class="text-xs font-bold text-red-500 uppercase hover:text-red-700">일괄삭제</button>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody id="work-log-body"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 hidden">
-            <div id="toggle-analysis" class="flex justify-between items-center cursor-pointer md:cursor-auto">
-                <h2 class="text-xl font-bold text-gray-900">오늘의 업무 분석</h2>
-                 <svg id="analysis-arrow" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-            </div>
-            <div id="analysis-content" class="hidden md:block mt-4">
-                <div class="mb-4 border-b border-gray-200">
-                    <nav id="analysis-tabs" class="flex space-x-4" aria-label="Tabs">
-                        <button type="button" data-tab-panel="analysis-task-summary-panel" class="analysis-tab-btn whitespace-nowrap pb-3 px-1 border-b-2 font-medium text-sm text-blue-600 border-blue-600">업무별 요약</button>
-                        <button type="button" data-tab-panel="analysis-personal-stats-panel" class="analysis-tab-btn whitespace-nowrap pb-3 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300">개인별 통계</button>
-                    </nav>
-                </div>
-                <div id="analysis-panels">
-                    <div id="analysis-task-summary-panel" class="analysis-tab-panel"></div>
-                    <div id="analysis-personal-stats-panel" class="analysis-tab-panel hidden">
-                        <div class="max-w-md mb-4">
-                            <label for="analysis-member-select" class="block text-sm font-medium text-gray-700 mb-1">직원 선택</label>
-                            <select id="analysis-member-select" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                                <option value="">--- 직원/알바 선택 ---</option>
-                            </select>
+            <div id="app-content" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
+                
+                <div>
+                    <h3 class="text-sm font-bold text-gray-500 mb-3 md:mb-4">오늘의 요약</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4" id="summary-content">
                         </div>
-                        <div id="analysis-personal-stats-container" class="mt-4 p-4 bg-white rounded-lg border min-h-[150px]">
-                            <p class="text-center text-gray-500">통계를 보려면 위에서 직원을 선택하세요.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-start">
+                    
+                    <div class="lg:col-span-2">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+                            실시간 팀 업무 진행
+                        </h3>
+                        <div id="team-status-board" class="space-y-6">
+                            </div>
+                    </div>
+
+                    <div class="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-fit md:max-h-[800px]">
+                        <div class="p-4 md:p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-t-2xl shrink-0">
+                            <h3 class="text-md font-bold text-gray-800">최근 완료된 업무</h3>
+                            <div class="flex gap-2">
+                                <button id="open-manual-add-btn" class="text-xs bg-blue-50 text-blue-600 font-bold px-2 py-1 rounded hover:bg-blue-100 transition shadow-sm">+ 추가</button>
+                                <button id="delete-all-completed-btn" class="hidden md:block text-xs bg-red-50 text-red-600 font-bold px-2 py-1 rounded hover:bg-red-100 transition shadow-sm">일괄삭제</button>
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-2" id="completed-log-content">
+                            <div id="work-log-body" class="space-y-2 p-2"></div>
                         </div>
                     </div>
                 </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 mt-8 overflow-hidden">
+                    <div id="toggle-analysis" class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition">
+                        <h3 class="text-md font-bold text-gray-800 flex items-center gap-2">
+                            <span>📊</span> 오늘의 업무 분석
+                        </h3>
+                        <svg id="analysis-arrow" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 transition-transform transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                    <div id="analysis-content" class="p-5 md:block">
+                        <div class="mb-4 border-b border-gray-100">
+                            <nav id="analysis-tabs" class="flex space-x-6" aria-label="Tabs">
+                                <button type="button" data-tab-panel="analysis-task-summary-panel" class="analysis-tab-btn pb-3 px-1 border-b-2 font-bold text-sm text-blue-600 border-blue-600">업무별 요약</button>
+                                <button type="button" data-tab-panel="analysis-personal-stats-panel" class="analysis-tab-btn pb-3 px-1 border-b-2 font-medium text-sm text-gray-400 border-transparent hover:text-gray-700 hover:border-gray-300">개인별 통계</button>
+                            </nav>
+                        </div>
+                        <div id="analysis-panels">
+                            <div id="analysis-task-summary-panel" class="analysis-tab-panel"></div>
+                            <div id="analysis-personal-stats-panel" class="analysis-tab-panel hidden">
+                                <div class="max-w-md mb-4">
+                                    <label for="analysis-member-select" class="block text-xs font-bold text-gray-500 uppercase mb-2">직원 선택</label>
+                                    <select id="analysis-member-select" class="w-full p-2.5 border border-gray-200 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-gray-50">
+                                        <option value="">--- 직원/알바 선택 ---</option>
+                                    </select>
+                                </div>
+                                <div id="analysis-personal-stats-container" class="mt-4 p-5 bg-gray-50 rounded-xl border border-gray-100 min-h-[150px]">
+                                    <p class="text-center text-gray-400 text-sm py-4">통계를 보려면 위에서 직원을 선택하세요.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
-        </div>
-    
+        </main>
     </div>
     
     <div id="modals-container-auth"></div>
@@ -266,7 +208,6 @@
     <div id="modals-container-weekend"></div>
 
     <script>
-        // 1. 외부 HTML 컴포넌트 로더
         async function loadComponent(url, containerId) {
             try {
                 const response = await fetch(url);
@@ -282,7 +223,6 @@
             }
         }
 
-        // 2. 앱 시작 (순차 실행 보장)
         async function initApp() {
             await Promise.all([
                 loadComponent('components/modals-auth.html', 'modals-container-auth'),
