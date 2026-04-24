@@ -104,7 +104,7 @@ export const renderMemoWidget = (appState) => {
     memoList.innerHTML = html;
 };
 
-// 1. 대시보드 레이아웃 렌더링 
+// 1. 대시보드 레이아웃 렌더링
 export const renderDashboardLayout = (appConfig) => {
     const personnelContainer = document.getElementById('summary-personnel');
     const workloadContainer = document.getElementById('summary-workload');
@@ -470,7 +470,7 @@ export const renderAttendanceToggle = (appState) => {
     if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
-// 3. 실시간 팀 업무 진행 보드 렌더링 (에러 픽스 반영: classList.add 공백 제거)
+// 3. 실시간 팀 업무 진행 보드 렌더링 (💡 완벽한 안전성을 위해 className += 방식 사용)
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
@@ -608,6 +608,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         teamGroups.find(g => g.name === '관리'), teamGroups.find(g => g.name === '공통파트'), teamGroups.find(g => g.name === '담당파트'), teamGroups.find(g => g.name === '제작파트')
     ].filter(Boolean);
 
+    // ==========================================
+    // 💡 에러 픽스: classList.add() 관련 오류 원천 차단
+    // 클래스를 동적으로 할당할 때 띄어쓰기 에러가 없도록 className += 를 사용합니다.
+    // ==========================================
     orderedTeamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
         groupContainer.className = 'mb-6';
@@ -628,6 +632,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const isSelf = (member === currentUserName);
             const visibilityClass = (isSelf || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
             
+            // 기본 클래스 할당
             card.className = `p-2 rounded-xl border text-center transition-all min-h-[76px] ${visibilityClass} ${isSelf ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center shadow-sm`;
             card.dataset.memberName = member;
 
@@ -639,11 +644,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.endTime = leaveInfo.endTime || ''; 
                 card.dataset.endDate = leaveInfo.endDate || '';
                 
-                card.classList.add('bg-gray-100', 'dark:bg-gray-700', 'border-gray-300', 'dark:border-gray-600', 'text-gray-500', 'dark:text-gray-400');
+                card.className += ' bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400';
                 if (currentUserRole === 'admin' || isSelf) {
-                    card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500', 'hover:bg-blue-50', 'dark:hover:bg-blue-900/30');
+                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30';
                 } else {
-                    card.classList.add('cursor-not-allowed');
+                    card.className += ' cursor-not-allowed';
                 }
                 
                 const displayLabel = getLeaveDisplayLabel(member, leaveInfo);
@@ -652,30 +657,42 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-0.5">${member}</div><div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded inline-block">${displayLabel}</div>${detailText ? `<div class="text-[10px] mt-1 text-gray-400 dark:text-gray-500">${detailText}</div>` : ''}`;
             } else if (isWorking) {
                 card.dataset.action = 'member-toggle-leave';
-                card.classList.add('opacity-80', 'cursor-not-allowed');
+                card.className += ' opacity-80 cursor-not-allowed';
                 
-                // 💡 해결된 에러 픽스: 문자열 쪼개서 넣기
+                // 근무 상태 색상 처리
                 if (ongoingMembers.has(member)) {
-                    card.classList.add('bg-red-50', 'dark:bg-red-900/20', 'border-red-200', 'dark:border-red-800');
+                    card.className += ' bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
                 } else {
-                    card.classList.add('bg-yellow-50', 'dark:bg-yellow-900/20', 'border-yellow-200', 'dark:border-yellow-800');
+                    card.className += ' bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800';
                 }
 
                 card.innerHTML = `<div class="font-extrabold text-sm ${ongoingMembers.has(member) ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'} mb-1">${member}</div><div class="text-[10px] font-bold ${ongoingMembers.has(member) ? 'text-red-500 dark:text-red-500' : 'text-yellow-600 dark:text-yellow-500'} truncate px-1" title="${workingMembersMap.get(member)}">${ongoingMembers.has(member) ? workingMembersMap.get(member) : '휴식 중'}</div>`;
             } else if (isClockedIn) {
                 card.dataset.action = 'member-toggle-leave';
-                if (currentUserRole === 'admin' || isSelf) card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500'); else card.classList.add('cursor-not-allowed', 'opacity-70');
-                card.classList.add('bg-green-50', 'dark:bg-green-900/20', 'border-green-200', 'dark:border-green-800');
+                card.className += ' bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
+                if (currentUserRole === 'admin' || isSelf) {
+                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                } else {
+                    card.className += ' cursor-not-allowed opacity-70';
+                }
                 card.innerHTML = `<div class="font-extrabold text-sm text-green-700 dark:text-green-400 mb-1">${member}</div><div class="text-[11px] font-bold text-green-600 dark:text-green-500">대기 중</div>`;
             } else if (isReturned) {
                 card.dataset.action = 'member-toggle-leave';
-                if (currentUserRole === 'admin' || isSelf) card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500'); else card.classList.add('cursor-not-allowed', 'opacity-60');
-                card.classList.add('bg-white', 'dark:bg-gray-800', 'border-gray-200', 'dark:border-gray-700');
+                card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700';
+                if (currentUserRole === 'admin' || isSelf) {
+                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                } else {
+                    card.className += ' cursor-not-allowed opacity-60';
+                }
                 card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-1">${member}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">퇴근 완료</div>`;
             } else {
                 card.dataset.action = 'member-toggle-leave';
-                card.classList.add('bg-white', 'dark:bg-gray-800', 'border-gray-200', 'dark:border-gray-700', 'text-gray-400', 'dark:text-gray-500', 'opacity-60');
-                 if (currentUserRole === 'admin' || isSelf) card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500'); else card.classList.add('cursor-not-allowed');
+                card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 opacity-60';
+                if (currentUserRole === 'admin' || isSelf) {
+                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                } else {
+                    card.className += ' cursor-not-allowed';
+                }
                 card.innerHTML = `<div class="font-extrabold text-sm mb-1">${member}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">출근 전</div>`;
             }
             groupGrid.appendChild(card);
@@ -689,11 +706,15 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         const albaContainer = document.createElement('div'); albaContainer.className = 'mb-6'; 
         albaContainer.innerHTML = `<div class="flex items-center gap-2 mb-3 hidden md:flex"><h4 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">알바</h4><div class="h-px bg-gray-200 dark:bg-gray-700 flex-grow"></div></div>`;
         const albaGrid = document.createElement('div'); albaGrid.className = 'flex flex-wrap gap-2.5';
+        
         activePartTimers.forEach(pt => {
              const card = document.createElement('button');
              const isSelfAlba = (pt.name === currentUserName);
              const visibilityClassAlba = (isSelfAlba || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
+             
+             // 기본 클래스
              card.className = `p-2 rounded-xl border text-center transition-all min-h-[76px] ${visibilityClassAlba} ${isSelfAlba ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center shadow-sm`;
+             
              const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
              const isAlbaOnLeave = !!albaLeaveInfo;
              const isAlbaWorking = workingMembersMap.has(pt.name) || pausedMembers.has(pt.name);
@@ -702,14 +723,15 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
              const isAlbaReturned = albaAttendance && albaAttendance.status === 'returned';
 
             card.dataset.memberName = pt.name;
+            
             if (isAlbaOnLeave) {
                 card.dataset.action = 'member-toggle-leave'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
                 
-                card.classList.add('bg-gray-100', 'dark:bg-gray-700', 'border-gray-300', 'dark:border-gray-600', 'text-gray-500', 'dark:text-gray-400');
+                card.className += ' bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400';
                 if (currentUserRole === 'admin' || isSelfAlba) {
-                    card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500', 'hover:bg-blue-50', 'dark:hover:bg-blue-900/30');
+                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30';
                 } else {
-                    card.classList.add('cursor-not-allowed');
+                    card.className += ' cursor-not-allowed';
                 }
 
                 const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
@@ -717,30 +739,42 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-0.5">${pt.name}</div><div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded inline-block">${displayLabel}</div>${detailText ? `<div class="text-[10px] mt-1 text-gray-400 dark:text-gray-500">${detailText}</div>` : ''}`;
             } else if (isAlbaWorking) {
                 card.dataset.action = 'member-toggle-leave';
-                card.classList.add('opacity-80', 'cursor-not-allowed');
+                card.className += ' opacity-80 cursor-not-allowed';
                 
-                // 💡 해결된 에러 픽스: 문자열 쪼개서 넣기
+                // 근무 상태 색상 처리
                 if (ongoingMembers.has(pt.name)) {
-                    card.classList.add('bg-red-50', 'dark:bg-red-900/20', 'border-red-200', 'dark:border-red-800');
+                    card.className += ' bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
                 } else {
-                    card.classList.add('bg-yellow-50', 'dark:bg-yellow-900/20', 'border-yellow-200', 'dark:border-yellow-800');
+                    card.className += ' bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800';
                 }
 
                 card.innerHTML = `<div class="font-extrabold text-sm ${ongoingMembers.has(pt.name) ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'} mb-1">${pt.name}</div><div class="text-[10px] font-bold ${ongoingMembers.has(pt.name) ? 'text-red-500 dark:text-red-500' : 'text-yellow-600 dark:text-yellow-500'} truncate px-1">${ongoingMembers.has(pt.name) ? workingMembersMap.get(pt.name) : '휴식 중'}</div>`;
             } else if (isAlbaClockedIn) {
                  card.dataset.action = 'member-toggle-leave';
-                 if (currentUserRole === 'admin' || isSelfAlba) card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500'); else card.classList.add('cursor-not-allowed', 'opacity-70');
-                 card.classList.add('bg-green-50', 'dark:bg-green-900/20', 'border-green-200', 'dark:border-green-800');
+                 card.className += ' bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
+                 if (currentUserRole === 'admin' || isSelfAlba) {
+                     card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                 } else {
+                     card.className += ' cursor-not-allowed opacity-70';
+                 }
                  card.innerHTML = `<div class="font-extrabold text-sm text-green-700 dark:text-green-400 mb-1">${pt.name}</div><div class="text-[11px] font-bold text-green-600 dark:text-green-500">대기 중</div>`;
             } else if (isAlbaReturned) {
                  card.dataset.action = 'member-toggle-leave';
-                 if (currentUserRole === 'admin' || isSelfAlba) card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500'); else card.classList.add('cursor-not-allowed', 'opacity-60');
-                 card.classList.add('bg-white', 'dark:bg-gray-800', 'border-gray-200', 'dark:border-gray-700');
+                 card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700';
+                 if (currentUserRole === 'admin' || isSelfAlba) {
+                     card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                 } else {
+                     card.className += ' cursor-not-allowed opacity-60';
+                 }
                  card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-1">${pt.name}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">퇴근 완료</div>`;
             } else {
                  card.dataset.action = 'member-toggle-leave';
-                 card.classList.add('bg-white', 'dark:bg-gray-800', 'border-gray-200', 'dark:border-gray-700', 'text-gray-400', 'dark:text-gray-500', 'opacity-60');
-                 if (currentUserRole === 'admin' || isSelfAlba) card.classList.add('cursor-pointer', 'hover:border-blue-400', 'dark:hover:border-blue-500'); else card.classList.add('cursor-not-allowed');
+                 card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 opacity-60';
+                 if (currentUserRole === 'admin' || isSelfAlba) {
+                     card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                 } else {
+                     card.className += ' cursor-not-allowed';
+                 }
                  card.innerHTML = `<div class="font-extrabold text-sm mb-1">${pt.name}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">출근 전</div>`;
             }
              albaGrid.appendChild(card);
