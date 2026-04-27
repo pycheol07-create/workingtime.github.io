@@ -130,6 +130,7 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        
                         <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-amber-500 flex flex-col justify-between">
                             <div>
                                 <div class="flex justify-between items-start mb-4">
@@ -138,21 +139,21 @@
                                 </div>
                                 <div class="space-y-4">
                                     <div>
-                                        <div class="flex justify-between text-xs mb-1">
-                                            <span class="text-gray-500">예측 매출: <strong id="pred-today-est-rev" class="text-gray-800 font-mono">-</strong></span>
-                                            <span class="text-blue-600 font-bold">현재: <span id="pred-today-act-rev" class="font-mono">-</span></span>
+                                        <div class="flex justify-between items-end mb-1">
+                                            <span class="text-sm text-gray-500 font-bold">매출 <span class="text-xs text-gray-400 font-normal">(예측 <span id="pred-today-est-rev">-</span>)</span></span>
+                                            <span id="pred-today-act-rev" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
                                         </div>
                                         <div class="w-full bg-gray-100 rounded-full h-1.5">
-                                            <div id="pred-today-rev-bar" class="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                                            <div id="pred-today-rev-bar" class="bg-amber-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
                                         </div>
                                     </div>
                                     <div>
-                                        <div class="flex justify-between text-xs mb-1">
-                                            <span class="text-gray-500">예측 배송: <strong id="pred-today-est-del" class="text-gray-800 font-mono">-</strong></span>
-                                            <span class="text-emerald-600 font-bold">현재: <span id="pred-today-act-del" class="font-mono">-</span></span>
-                                </div>
+                                        <div class="flex justify-between items-end mb-1">
+                                            <span class="text-sm text-gray-500 font-bold">배송 <span class="text-xs text-gray-400 font-normal">(예측 <span id="pred-today-est-del">-</span>)</span></span>
+                                            <span id="pred-today-act-del" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
+                                        </div>
                                         <div class="w-full bg-gray-100 rounded-full h-1.5">
-                                            <div id="pred-today-del-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                                            <div id="pred-today-del-bar" class="bg-amber-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -172,14 +173,14 @@
                                     <div class="flex justify-between items-end border-b border-gray-50 pb-2">
                                         <span class="text-sm text-gray-500 font-bold">매출:</span>
                                         <div class="flex items-baseline gap-1">
-                                            <span id="pred-tomorrow-revenue" class="text-2xl font-extrabold text-gray-900 font-mono">-</span>
+                                            <span id="pred-tomorrow-revenue" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
                                             <span class="text-sm text-gray-500">원</span>
                                         </div>
                                     </div>
                                     <div class="flex justify-between items-end border-b border-gray-50 pb-2">
                                         <span class="text-sm text-gray-500 font-bold">배송:</span>
                                         <div class="flex items-baseline gap-1">
-                                            <span id="pred-tomorrow-delivery" class="text-2xl font-extrabold text-gray-900 font-mono">-</span>
+                                            <span id="pred-tomorrow-delivery" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
                                             <span class="text-sm text-gray-500">건</span>
                                         </div>
                                     </div>
@@ -190,23 +191,28 @@
                             </div>
                         </div>
 
-                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500 flex flex-col justify-between">
+                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-500 flex flex-col justify-between">
                             <div>
-                                <p class="text-sm font-bold text-blue-600 uppercase tracking-wide">선택 기간 일평균 예측</p>
-                                <p class="text-xs text-gray-400 mt-1" id="pred-period-label">향후 14일 기준</p>
-                                <div class="mt-4 space-y-3">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div>
+                                        <p class="text-sm font-bold text-blue-600 uppercase tracking-wide">선택 기간 일평균 예측</p>
+                                        <p class="text-[10px] text-gray-400 mt-0.5" id="pred-period-label">향후 14일 기준</p>
+                                    </div>
+                                    <span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold">목표치</span>
+                                </div>
+                                <div class="mt-2 space-y-4">
                                     <div class="flex justify-between items-end border-b border-gray-50 pb-2">
                                         <span class="text-sm text-gray-500 font-bold">매출:</span>
                                         <div class="flex items-baseline gap-1">
-                                            <span id="pred-period-avg-revenue" class="text-xl font-bold text-gray-800 font-mono">-</span>
-                                            <span class="text-xs text-gray-500">원/일</span>
+                                            <span id="pred-period-avg-revenue" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
+                                            <span class="text-sm text-gray-500">원/일</span>
                                         </div>
                                     </div>
-                                    <div class="flex justify-between items-end">
+                                    <div class="flex justify-between items-end border-b border-gray-50 pb-2">
                                         <span class="text-sm text-gray-500 font-bold">배송량:</span>
                                         <div class="flex items-baseline gap-1">
-                                            <span id="pred-period-avg-delivery" class="text-xl font-bold text-gray-800 font-mono">-</span>
-                                            <span class="text-xs text-gray-500">건/일</span>
+                                            <span id="pred-period-avg-delivery" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
+                                            <span class="text-sm text-gray-500">건/일</span>
                                         </div>
                                     </div>
                                 </div>
@@ -215,6 +221,7 @@
                                 <p id="pred-delivery-trend" class="text-[11px] font-medium text-gray-400 leading-tight">데이터 분석 중...</p>
                             </div>
                         </div>
+
                     </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-grow min-h-[400px]">
