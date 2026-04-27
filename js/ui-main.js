@@ -169,9 +169,14 @@ export const updateSummary = (appState, appConfig) => {
     const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
     const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
 
+    // 💡 수정된 부분: 휴무자를 카운트할 때 '현재 우리 직원이 맞는지(퇴사자가 아닌지)' 한 번 더 검사합니다.
     const onLeaveMemberNames = new Set(
         combinedOnLeaveMembers
-            .filter(item => !(item.type === '외출' && item.endTime))
+            .filter(item => {
+                if (item.type === '외출' && item.endTime) return false;
+                // 현재 직원 목록 또는 알바 목록에 있는 이름만 카운트!
+                return allStaffMembers.has(item.member) || allPartTimers.has(item.member);
+            })
             .map(item => item.member)
     );
     const onLeaveTotalCount = onLeaveMemberNames.size;
