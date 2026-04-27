@@ -2,6 +2,7 @@
 
 export const showToast = (message, isError = false) => {
     const container = document.getElementById('toast-container');
+    if (!container) return; // toast-container가 없는 화면에서도 에러 방지
     const toast = document.createElement('div');
     toast.className = `toast p-3 rounded-lg shadow-xl text-white ${isError ? 'bg-red-500' : 'bg-green-500'}`;
     toast.textContent = message;
@@ -103,7 +104,12 @@ export const displayCurrentDate = () => {
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
     const dayOfWeek = weekdays[now.getDay()];
     const dateString = `${year}년 ${month}월 ${day}일 (${dayOfWeek})`;
-    document.getElementById('current-date-display').textContent = dateString;
+    
+    // 💡 에러 방지 처리: 해당 요소가 존재하는지 먼저 확인합니다.
+    const dateDisplayElement = document.getElementById('current-date-display');
+    if (dateDisplayElement) {
+        dateDisplayElement.textContent = dateString;
+    }
 };
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
@@ -119,7 +125,7 @@ export const calculateDateDifference = (start, end) => {
     return diffDays + 1;
 };
 
-// ✅ [신규] 주말을 제외한 평일(Working Days)만 계산하는 함수
+// ✅ 주말을 제외한 평일(Working Days)만 계산하는 함수
 export const calculateWorkingDays = (start, end) => {
     if (!start) return 0;
     const startDate = new Date(start + 'T00:00:00');
