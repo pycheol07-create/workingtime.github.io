@@ -83,7 +83,7 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 💡 중요 알림 위젯 렌더링 로직
+// 중요 알림 위젯 렌더링 로직
 export const renderNoticeWidget = (appState) => {
     const memoList = document.getElementById('widget-memo-list');
     if (!memoList) return;
@@ -105,6 +105,22 @@ export const renderNoticeWidget = (appState) => {
         html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2 mb-1.5"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words flex-1">${safeText}</span></li>`;
     });
     memoList.innerHTML = html;
+};
+
+// 💡 실시간 데이터 수동 업데이트 함수 분리 (화면이 지워질 때 복구하는 역할)
+export const updateEzadminDisplay = () => {
+    const ezData = State.ezadminData;
+    if (!ezData) return;
+
+    const invoiceEl = document.getElementById('ezadmin-invoice-count');
+    const deliveryEl = document.getElementById('ezadmin-delivery-count');
+
+    if (invoiceEl && ezData.invoice !== undefined) {
+        invoiceEl.textContent = ezData.invoice.toLocaleString();
+    }
+    if (deliveryEl && ezData.delivery !== undefined) {
+        deliveryEl.textContent = ezData.delivery.toLocaleString();
+    }
 };
 
 export const renderDashboardLayout = (appConfig) => {
@@ -143,7 +159,10 @@ export const renderDashboardLayout = (appConfig) => {
         }
     });
 
-    // 💡 변경점: 점선 대신 '위젯과 동일한 디자인의 실선 박스'로 이지어드민 연동 영역을 생성합니다.
+    // 💡 변경점: State에 보관된 이지어드민 데이터를 가져와서 박스를 그릴 때 바로 채워 넣습니다.
+    const ezInvoice = (State.ezadminData && State.ezadminData.invoice) || 0;
+    const ezDelivery = (State.ezadminData && State.ezadminData.delivery) || 0;
+
     workloadHtml += `
         <div class="mt-4 p-3 border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl shadow-sm">
             <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-2.5 flex items-center gap-1">
@@ -152,11 +171,11 @@ export const renderDashboardLayout = (appConfig) => {
             <div class="flex gap-2">
                 <div class="flex-1 flex justify-between items-center bg-orange-50 dark:bg-orange-900/20 px-2.5 py-2 rounded-lg border border-orange-100 dark:border-orange-800/50 transition-colors shadow-sm">
                     <span class="text-xs font-extrabold text-orange-600 dark:text-orange-400 break-keep">송장</span>
-                    <span id="ezadmin-invoice-count" class="text-sm font-black text-orange-700 dark:text-orange-300 transition-all duration-300">0</span>
+                    <span id="ezadmin-invoice-count" class="text-sm font-black text-orange-700 dark:text-orange-300 transition-all duration-300">${ezInvoice.toLocaleString()}</span>
                 </div>
                 <div class="flex-1 flex justify-between items-center bg-purple-50 dark:bg-purple-900/20 px-2.5 py-2 rounded-lg border border-purple-100 dark:border-purple-800/50 transition-colors shadow-sm">
                     <span class="text-xs font-extrabold text-purple-600 dark:text-purple-400 break-keep">배송</span>
-                    <span id="ezadmin-delivery-count" class="text-sm font-black text-purple-700 dark:text-purple-300 transition-all duration-300">0</span>
+                    <span id="ezadmin-delivery-count" class="text-sm font-black text-purple-700 dark:text-purple-300 transition-all duration-300">${ezDelivery.toLocaleString()}</span>
                 </div>
             </div>
         </div>
@@ -256,6 +275,8 @@ export const updateSummary = (appState, appConfig) => {
         }
     }
 
+    // 💡 중요: 현황 위젯이 업데이트될 때 이지어드민 숫자도 다시 강제로 그려줍니다!
+    updateEzadminDisplay();
     renderNoticeWidget(appState);
 };
 
@@ -854,26 +875,40 @@ export const renderCompletedWorkLog = (appState) => {
     });
 };
 
-// 🚀 이지어드민 데이터 수신 리스너
+// 🚀 [핵심 수정] 이지어드민 데이터 수신 리스너 (상태 저장 포함)
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
         const ezData = event.data.data;
-        
-        // 💡 잘 도착했는지 F12 콘솔창에 찍어봅니다!
         console.log("🎯 [대시보드 탭] 데이터 도착 완료!! :", ezData);
         
+        // 💡 [중요] 받은 데이터를 State(시스템 메모리)에 즉시 저장합니다.
+        State.ezadminData = ezData; 
+
         const invoiceEl = document.getElementById('ezadmin-invoice-count');
         const deliveryEl = document.getElementById('ezadmin-delivery-count');
         
+        // 화면에 즉시 업데이트 및 반짝임(애니메이션) 효과 부여
         if (invoiceEl && ezData.invoice !== undefined) {
             invoiceEl.textContent = ezData.invoice.toLocaleString();
-            invoiceEl.classList.add('scale-125');
-            setTimeout(() => invoiceEl.classList.remove('scale-125'), 500);
+            invoiceEl.classList.add('scale-125', 'text-orange-500');
+            setTimeout(() => invoiceEl.classList.remove('scale-125', 'text-orange-500'), 500);
         }
         if (deliveryEl && ezData.delivery !== undefined) {
             deliveryEl.textContent = ezData.delivery.toLocaleString();
-            deliveryEl.classList.add('scale-125');
-            setTimeout(() => deliveryEl.classList.remove('scale-125'), 500);
+            deliveryEl.classList.add('scale-125', 'text-purple-500');
+            setTimeout(() => deliveryEl.classList.remove('scale-125', 'text-purple-500'), 500);
         }
     }
 });
+
+// 모바일 새로고침 버튼
+const setupMobileRefreshButton = () => {
+    if (document.getElementById('mobile-refresh-btn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'mobile-refresh-btn';
+    btn.className = 'fixed bottom-6 right-6 w-12 h-12 bg-blue-600/90 text-white rounded-full shadow-lg z-50 md:hidden flex items-center justify-center';
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>`;
+    btn.onclick = () => window.location.reload();
+    document.body.appendChild(btn);
+};
+setupMobileRefreshButton();
