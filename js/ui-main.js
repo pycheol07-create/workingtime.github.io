@@ -125,7 +125,7 @@ export const renderDashboardLayout = (appConfig) => {
         if (!def) return;
 
         const isQuantity = def.isQuantity === true;
-        // 💡 띄어쓰기 공간을 &nbsp;로 치환하여 어떠한 상황에서도 띄어쓰기에서 줄바꿈이 생기지 않도록 차단
+        // 💡 공백을 &nbsp;로 치환하여 어떠한 상황에서도 띄어쓰기에서 줄바꿈이 생기지 않도록 차단
         const safeTitle = def.title.replace(/ /g, '&nbsp;'); 
 
         if (isQuantity) {
@@ -169,12 +169,12 @@ export const updateSummary = (appState, appConfig) => {
     const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
     const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
 
-    // 💡 수정된 부분: 휴무자를 카운트할 때 '현재 우리 직원이 맞는지(퇴사자가 아닌지)' 한 번 더 검사합니다.
+    // 💡 퇴사자(삭제된 인원)를 휴무 카운트에서 제외하는 로직
     const onLeaveMemberNames = new Set(
         combinedOnLeaveMembers
             .filter(item => {
                 if (item.type === '외출' && item.endTime) return false;
-                // 현재 직원 목록 또는 알바 목록에 있는 이름만 카운트!
+                // 현재 직원 목록이나 알바 목록에 실존하는 이름만 카운트합니다.
                 return allStaffMembers.has(item.member) || allPartTimers.has(item.member);
             })
             .map(item => item.member)
@@ -839,29 +839,24 @@ export const renderCompletedWorkLog = (appState) => {
     });
 };
 
-// 이지어드민 크롬 확장 프로그램에서 보내는 데이터 수신 대기
+// 💡 이지어드민 크롬 확장 프로그램에서 보내는 데이터 수신 대기 (마지막에 추가)
 window.addEventListener('message', (event) => {
-    // 우리가 보낸 데이터가 맞는지 확인
     if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
         const ezData = event.data.data;
         
-        // 브라우저 콘솔(F12)에서 데이터가 잘 들어오는지 확인
-        // console.log("🎉 이지어드민 데이터 도착:", ezData); 
-
-        // 1. 송장(invoice) 숫자를 대시보드의 '국내송장(예상)' 위젯에 꽂아넣기
-        // (ui.js나 config에 정의된 dashboard-item의 valueId를 맞춰주면 됩니다)
-        
-        // 예: 국내송장(예상) 항목의 ID가 DOM에 어떻게 렌더링되었는지 확인 후 업데이트
-        // (ui-main.js의 renderDashboardLayout 로직에 따라 id는 def.valueId가 됩니다)
+        // 1. 송장(invoice) 숫자를 대시보드의 '국내송장(예상)' 위젯에 업데이트
         const invoiceElement = document.getElementById('dashboard-value-domestic-invoice'); 
         if (invoiceElement) {
             invoiceElement.textContent = ezData.invoice;
-            // 숫자가 업데이트될 때 반짝! 하는 효과 (선택사항)
+            // 시각적 피드백 효과
             invoiceElement.classList.add('text-pink-500', 'scale-110');
             setTimeout(() => invoiceElement.classList.remove('text-pink-500', 'scale-110'), 500);
         }
 
-        // 2. 다른 항목들(접수, 배송 등)도 대시보드에 표시하고 싶다면
-        // 관리자페이지에서 위젯 항목을 추가한 뒤 위와 똑같이 ID를 찾아 값을 넣어주면 됩니다!
+        // 2. 다른 연동 항목(접수 등)이 필요할 경우 동일하게 추가 가능
+        const receiptElement = document.getElementById('dashboard-value-receipt-count'); // ID 예시
+        if (receiptElement) {
+            receiptElement.textContent = ezData.receipt;
+        }
     }
 });
