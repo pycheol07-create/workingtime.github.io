@@ -3,18 +3,15 @@
 
 import { getAllDashboardDefinitions } from './admin-ui.js';
 
-/**
- * DOM에서 현재 입력된 모든 설정 데이터를 수집하여 객체로 반환합니다.
- */
 export function collectConfigFromDOM(currentConfig) {
     const newConfig = {
-        // 1. DOM에서 수집할 항목 (초기화)
         teamGroups: [],
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
-        memberRanks: {}, // 💡 직급 추가
-        memberLeaveSettings: {}, // 연차 설정
+        memberRanks: {}, 
+        memberLeaveSettings: {},
+        systemAccounts: [], // 💡 [신규] 시스템 전용 계정 배열
         dashboardItems: [],
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
@@ -22,28 +19,25 @@ export function collectConfigFromDOM(currentConfig) {
         taskGroups: [],
         quantityTaskTypes: [],
         
-        // 2. DOM에서 수집할 항목 (기본값)
         defaultPartTimerWage: 10000,
         revenueIncrementUnit: 10000000,
         standardMonthlyWorkHours: 209,
 
-        // 상품 원가 및 손익 분석 설정
         fixedMaterialCost: 0,
         fixedShippingCost: 0,
         fixedDirectDeliveryCost: 0,
         costCalcTasks: [],
 
-        // UI에서 수정하지 않는 중요 설정값 보존
         simulationTaskLinks: currentConfig.simulationTaskLinks || {},
         qualityCostTasks: currentConfig.qualityCostTasks || [],
-        systemAccounts: currentConfig.systemAccounts || [],
+        systemAccountsOld: currentConfig.systemAccounts || [], // 백업용
         standardDailyWorkHours: currentConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 }
     };
 
     const emailCheck = new Map();
     let duplicateEmailError = null;
 
-    // 1. 팀원 그룹 및 멤버 정보 수집
+    // 1. 일반 팀원 그룹 정보 수집
     document.querySelectorAll('#team-groups-container .team-group-card').forEach(groupCard => {
         const groupNameInput = groupCard.querySelector('.team-group-name');
         const groupName = groupNameInput ? groupNameInput.value.trim() : '';
@@ -56,7 +50,7 @@ export function collectConfigFromDOM(currentConfig) {
             const memberEmail = memberItem.querySelector('.member-email').value.trim();
             const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
             const memberRole = memberItem.querySelector('.member-role').value || 'user';
-            const memberRank = memberItem.querySelector('.member-rank')?.value || '사원'; // 💡 직급 수집
+            const memberRank = memberItem.querySelector('.member-rank')?.value || '사원'; 
 
             const joinDate = memberItem.querySelector('.member-join-date').value;
             const totalLeave = Number(memberItem.querySelector('.member-total-leave').value) || 0;
@@ -67,9 +61,8 @@ export function collectConfigFromDOM(currentConfig) {
 
             newGroup.members.push(memberName);
             newConfig.memberWages[memberName] = memberWage;
-            newConfig.memberRanks[memberName] = memberRank; // 💡 직급 저장
+            newConfig.memberRanks[memberName] = memberRank; 
 
-            // 연차 설정 저장
             newConfig.memberLeaveSettings[memberName] = {
                 joinDate: joinDate,
                 totalLeave: totalLeave,
@@ -90,11 +83,28 @@ export function collectConfigFromDOM(currentConfig) {
         newConfig.teamGroups.push(newGroup);
     });
 
+    // 💡 [신규] 2. 시스템 전용 계정 수집 로직
+    document.querySelectorAll('#system-accounts-container .system-account-item').forEach(item => {
+        const name = item.querySelector('.sys-name').value.trim();
+        const email = item.querySelector('.sys-email').value.trim();
+        const role = item.querySelector('.sys-role').value;
+
+        if (name && email) {
+            newConfig.systemAccounts.push({ name, email, role });
+            
+            const emailLower = email.toLowerCase();
+            if (emailCheck.has(emailLower) && emailCheck.get(emailLower) !== name) {
+                duplicateEmailError = email;
+            }
+            emailCheck.set(emailLower, name);
+            newConfig.memberRoles[emailLower] = role;
+        }
+    });
+
     if (duplicateEmailError) {
-        throw new Error(`이메일 주소 '${duplicateEmailError}'가 중복 할당되었습니다. 각 팀원의 이메일은 고유해야 합니다.`);
+        throw new Error(`이메일 주소 '${duplicateEmailError}'가 중복 할당되었습니다. 모든 팀원 및 시스템 계정의 이메일은 고유해야 합니다.`);
     }
 
-    // 2. 현황판 항목 수집
     const allDefinitions = getAllDashboardDefinitions(currentConfig);
     document.querySelectorAll('#dashboard-items-container .dashboard-item-config').forEach(item => {
         const nameSpan = item.querySelector('.dashboard-item-name');
@@ -111,13 +121,11 @@ export function collectConfigFromDOM(currentConfig) {
         }
     });
 
-    // 3. 주요 업무 수집
     document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
         const nameEl = item.querySelector('.key-task-name');
         if (nameEl) newConfig.keyTasks.push(nameEl.textContent.trim());
     });
 
-    // 4. 업무 그룹 수집
     document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
         const groupNameInput = groupCard.querySelector('.task-group-name');
         const groupName = groupNameInput ? groupNameInput.value.trim() : '';
@@ -131,13 +139,11 @@ export function collectConfigFromDOM(currentConfig) {
         newConfig.taskGroups.push({ name: groupName, tasks: tasks });
     });
 
-    // 5. 처리량 집계 업무 수집
     document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
         const nameEl = item.querySelector('.quantity-task-name');
         if (nameEl) newConfig.quantityTaskTypes.push(nameEl.textContent.trim());
     });
 
-    // 6. 기타 단일 값 설정 수집
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
 
@@ -147,7 +153,6 @@ export function collectConfigFromDOM(currentConfig) {
     const workHoursInput = document.getElementById('standard-monthly-work-hours');
     if (workHoursInput) newConfig.standardMonthlyWorkHours = Number(workHoursInput.value) || 209;
 
-    // 상품 원가 및 손익 분석 설정 수집
     const materialCostInput = document.getElementById('fixed-material-cost');
     if (materialCostInput) newConfig.fixedMaterialCost = Number(materialCostInput.value) || 0;
 
@@ -157,12 +162,10 @@ export function collectConfigFromDOM(currentConfig) {
     const directDeliveryCostInput = document.getElementById('fixed-direct-delivery-cost');
     if (directDeliveryCostInput) newConfig.fixedDirectDeliveryCost = Number(directDeliveryCostInput.value) || 0;
 
-    // 체크박스로 선택된 업무들 수집
     document.querySelectorAll('.cost-calc-task-checkbox:checked').forEach(checkbox => {
         newConfig.costCalcTasks.push(checkbox.value);
     });
 
-    // 7. 처리량-현황판 매핑 정보 수집
     document.querySelectorAll('#quantity-mapping-container .mapping-row').forEach(row => {
         const taskName = row.dataset.taskName;
         const select = row.querySelector('.dashboard-mapping-select');
@@ -174,9 +177,6 @@ export function collectConfigFromDOM(currentConfig) {
     return newConfig;
 }
 
-/**
- * 수집된 설정 객체의 정합성을 검사합니다.
- */
 export function validateConfig(newConfig) {
     const allTaskNames = new Set(
         newConfig.taskGroups.flatMap(group => group.tasks).map(t => t.trim().toLowerCase())

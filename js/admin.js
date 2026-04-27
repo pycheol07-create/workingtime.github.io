@@ -291,6 +291,37 @@ function handleDynamicClicks(e) {
         e.target.closest('.dashboard-item-config')?.remove();
         setTimeout(() => renderQuantityToDashboardMapping(collectConfigFromDOM(appConfig)), 0);
     }
+    
+    // 💡 [신규] 시스템 계정 삭제 및 추가 로직
+    else if (e.target.classList.contains('delete-sys-account-btn')) {
+        e.target.closest('.system-account-item')?.remove();
+    }
+    else if (e.target.closest('#add-system-account-btn')) {
+        const container = document.getElementById('system-accounts-container');
+        if (!container) return;
+        
+        const item = document.createElement('div');
+        item.className = 'system-account-item flex flex-wrap md:flex-nowrap items-end gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 transition-colors';
+        item.innerHTML = `
+            <div class="flex flex-col flex-1 min-w-[150px]">
+                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">계정 이름 (별칭)</label>
+                <input type="text" class="sys-name p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="예: 외부 관리자">
+            </div>
+            <div class="flex flex-col flex-1 min-w-[200px]">
+                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이메일 (로그인 ID)</label>
+                <input type="email" class="sys-email p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="admin@example.com">
+            </div>
+            <div class="flex flex-col w-full md:w-32">
+                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">권한</label>
+                <select class="sys-role p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white font-bold text-blue-600 dark:text-blue-400 outline-none focus:border-blue-500">
+                    <option value="admin" selected>관리자</option>
+                    <option value="user">일반</option>
+                </select>
+            </div>
+            <button type="button" class="delete-sys-account-btn w-full md:w-auto text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-4 py-2.5 rounded-md md:h-[38px] transition-colors shadow-sm">삭제</button>
+        `;
+        container.appendChild(item);
+    }
 
     else if (e.target.classList.contains('add-member-btn')) {
         const container = e.target.closest('.team-group-card').querySelector('.members-container');

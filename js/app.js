@@ -1,4 +1,4 @@
-// === js/app.js (리팩토링 완료) ===
+// === js/app.js ===
 
 // --- 1. Firebase 및 라이브러리 임포트 ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -252,8 +252,13 @@ async function startAppAfterLogin(user) {
             return acc;
         }, {});
 
-        const currentUserName = emailToMemberMap[userEmailLower];
-        const currentUserRole = memberRoles[userEmailLower] || 'user';
+        // 💡 [핵심] 일반 팀원 외에 '시스템 전용 계정'인지도 확인합니다.
+        const systemAccounts = State.appConfig.systemAccounts || [];
+        const sysAcc = systemAccounts.find(acc => acc.email.toLowerCase() === userEmailLower);
+
+        // 팀원 목록에 있거나, 시스템 계정에 등록되어 있으면 로그인 허용
+        const currentUserName = emailToMemberMap[userEmailLower] || (sysAcc ? sysAcc.name : null);
+        const currentUserRole = memberRoles[userEmailLower] || (sysAcc ? sysAcc.role : 'user');
 
         if (!currentUserName) {
             showToast('로그인했으나 앱에 등록된 사용자가 아닙니다. 관리자에게 문의하세요.', true);
@@ -274,17 +279,24 @@ async function startAppAfterLogin(user) {
         if (DOM.logoutBtn) DOM.logoutBtn.classList.remove('hidden');
         if (DOM.logoutBtnMobile) DOM.logoutBtnMobile.classList.remove('hidden');
 
-        const pcAttendanceToggle = document.getElementById('personal-attendance-toggle-pc');
-        const pcAttendanceLabel = document.getElementById('pc-attendance-label');
-        if (pcAttendanceToggle && pcAttendanceLabel) {
-            pcAttendanceLabel.textContent = `${currentUserName}님 근태:`;
-            pcAttendanceToggle.classList.remove('hidden');
-            pcAttendanceToggle.classList.add('flex');
-        }
-        const mobileAttendanceToggle = document.getElementById('personal-attendance-toggle-mobile');
-        if (mobileAttendanceToggle) {
-             mobileAttendanceToggle.classList.remove('hidden');
-             mobileAttendanceToggle.classList.add('flex');
+        // 시스템 전용 계정은 대시보드 인원에 카운트 안 되므로 출퇴근 토글 버튼을 숨김 처리
+        if (!sysAcc) {
+            const pcAttendanceToggle = document.getElementById('personal-attendance-toggle-pc');
+            const pcAttendanceLabel = document.getElementById('pc-attendance-label');
+            if (pcAttendanceToggle && pcAttendanceLabel) {
+                pcAttendanceLabel.textContent = `${currentUserName}님 근태:`;
+                pcAttendanceToggle.classList.remove('hidden');
+                pcAttendanceToggle.classList.add('flex');
+            }
+            const mobileAttendanceToggle = document.getElementById('personal-attendance-toggle-mobile');
+            if (mobileAttendanceToggle) {
+                 mobileAttendanceToggle.classList.remove('hidden');
+                 mobileAttendanceToggle.classList.add('flex');
+            }
+        } else {
+             // 시스템 계정은 출퇴근 UI를 강제로 숨깁니다.
+             document.getElementById('personal-attendance-toggle-pc')?.classList.add('hidden');
+             document.getElementById('personal-attendance-toggle-mobile')?.classList.add('hidden');
         }
 
         const adminLinkBtn = document.getElementById('admin-link-btn');
@@ -364,11 +376,9 @@ async function startAppAfterLogin(user) {
         State.setPersistentLeaveSchedule(docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] });
         const today = getTodayDateString();
         
-        // ✅ 안전한 배열 접근
         const leaves = State.persistentLeaveSchedule.onLeaveMembers || [];
         
         State.appState.dateBasedOnLeaveMembers = leaves.filter(entry => {
-            // ✅ [수정] '매장근무' 항목을 조건에 추가
             if (entry.type === '연차' || entry.type === '출장' || entry.type === '결근' || entry.type === '매장근무') {
                 const endDate = entry.endDate || entry.startDate;
                 return entry.startDate && typeof entry.startDate === 'string' &&
@@ -468,7 +478,6 @@ async function startAppAfterLogin(user) {
             State.appState.partTimers = data.partTimers || legacyState.partTimers || [];
             State.appState.hiddenGroupIds = data.hiddenGroupIds || legacyState.hiddenGroupIds || [];
             
-            // ✅ [수정] 오염된 onLeaveMembers가 있을 경우 배열로 변환하여 로드
             const rawLeaves = data.onLeaveMembers || legacyState.onLeaveMembers || [];
             State.appState.dailyOnLeaveMembers = Array.isArray(rawLeaves) ? rawLeaves : Object.values(rawLeaves);
 
@@ -610,10 +619,8 @@ async function main() {
 
     initializeAppListeners();
     
-    // [신규] 주말 근무 리스너 초기화
     setupWeekendListeners();
     
-    // 모바일 버튼 클릭 시 데스크탑 버튼 이벤트 트리거
     const mobileWeekendBtn = document.getElementById('open-weekend-modal-btn-mobile');
     if (mobileWeekendBtn) {
         mobileWeekendBtn.addEventListener('click', () => {

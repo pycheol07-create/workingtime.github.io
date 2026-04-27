@@ -46,8 +46,11 @@ export function renderAdminUI(config) {
         config.memberEmails || {}, 
         config.memberRoles || {}, 
         config.memberLeaveSettings || {},
-        config.memberRanks || {} // 💡 직급 추가
+        config.memberRanks || {} 
     );
+    
+    // 💡 [신규] 시스템 전용 계정 렌더링 호출
+    renderSystemAccountsConfig(config.systemAccounts || []);
     
     renderDashboardItemsConfig(config.dashboardItems || [], config);
     renderKeyTasks(config.keyTasks || []);
@@ -55,6 +58,62 @@ export function renderAdminUI(config) {
     renderQuantityTasks(config.quantityTaskTypes || []);
     renderQuantityToDashboardMapping(config);
     renderCostAnalysisConfig(config);
+}
+
+// 💡 [신규] 시스템 전용 계정(팀원 외) UI 생성 함수
+export function renderSystemAccountsConfig(accounts) {
+    let container = document.getElementById('system-accounts-container');
+    
+    // DOM에 해당 영역이 없으면 팀 그룹 설정 밑에 자동으로 동적 생성합니다.
+    if (!container) {
+        const teamContainer = document.getElementById('team-groups-container');
+        if (teamContainer) {
+            const parentSection = teamContainer.parentElement;
+            const sysWrapper = document.createElement('div');
+            sysWrapper.className = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mt-8 transition-colors';
+            sysWrapper.innerHTML = `
+                <div class="mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+                    <h2 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                        <span class="text-2xl">🖥️</span> 시스템 전용 계정 관리
+                    </h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">대시보드 팀원 현황에는 표시되지 않지만, 프로그램에 로그인하여 권한을 행사할 수 있는 별도 계정입니다. (최고 관리자, 외부 인력 등)</p>
+                </div>
+                <div id="system-accounts-container" class="space-y-3"></div>
+                <div class="mt-5">
+                    <button id="add-system-account-btn" type="button" class="bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold py-2.5 px-4 rounded-lg transition text-sm shadow-sm flex items-center gap-2">+ 계정 추가</button>
+                </div>
+            `;
+            parentSection.parentNode.insertBefore(sysWrapper, parentSection.nextSibling);
+            container = document.getElementById('system-accounts-container');
+        }
+    }
+
+    if (!container) return;
+    container.innerHTML = '';
+
+    accounts.forEach(acc => {
+        const item = document.createElement('div');
+        item.className = 'system-account-item flex flex-wrap md:flex-nowrap items-end gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 transition-colors';
+        item.innerHTML = `
+            <div class="flex flex-col flex-1 min-w-[150px]">
+                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">계정 이름 (별칭)</label>
+                <input type="text" value="${acc.name || ''}" class="sys-name p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="예: 외부 관리자">
+            </div>
+            <div class="flex flex-col flex-1 min-w-[200px]">
+                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이메일 (로그인 ID)</label>
+                <input type="email" value="${acc.email || ''}" class="sys-email p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="admin@example.com">
+            </div>
+            <div class="flex flex-col w-full md:w-32">
+                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">권한</label>
+                <select class="sys-role p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white font-bold text-blue-600 dark:text-blue-400 outline-none focus:border-blue-500">
+                    <option value="admin" ${acc.role === 'admin' ? 'selected' : ''}>관리자</option>
+                    <option value="user" ${acc.role === 'user' ? 'selected' : ''}>일반</option>
+                </select>
+            </div>
+            <button type="button" class="delete-sys-account-btn w-full md:w-auto text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-4 py-2.5 rounded-md md:h-[38px] transition-colors shadow-sm">삭제</button>
+        `;
+        container.appendChild(item);
+    });
 }
 
 export function renderCostAnalysisConfig(config) {
@@ -108,7 +167,7 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
         const membersHtml = group.members.map((member, mIndex) => {
             const memberEmail = memberEmails[member] || '';
             const currentRole = (memberEmail && memberRoles[memberEmail.toLowerCase()]) ? memberRoles[memberEmail.toLowerCase()] : 'user';
-            const currentRank = memberRanks[member] || '사원'; // 💡 직급
+            const currentRank = memberRanks[member] || '사원'; 
             
             const settings = memberLeaveSettings[member] || {};
             const joinDate = settings.joinDate || '';
