@@ -854,27 +854,26 @@ export const renderCompletedWorkLog = (appState) => {
     });
 };
 
-// 💡 새로고침할 때마다 이지어드민의 송장/배송 데이터가 바로 이 새 박스로 쏙쏙 들어갑니다!
+// 🚀 이지어드민 데이터 수신 리스너
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
         const ezData = event.data.data;
         
-        // 1. 송장 숫자 업데이트 (주황색 테마 ID)
-        const invoiceElement = document.getElementById('ezadmin-invoice-count'); 
-        if (invoiceElement && ezData.invoice !== undefined) {
-            invoiceElement.textContent = ezData.invoice;
-            // 시각적 피드백 효과
-            invoiceElement.classList.add('scale-125');
-            setTimeout(() => invoiceElement.classList.remove('scale-125'), 500);
+        // 💡 잘 도착했는지 F12 콘솔창에 찍어봅니다!
+        console.log("🎯 [대시보드 탭] 데이터 도착 완료!! :", ezData);
+        
+        const invoiceEl = document.getElementById('ezadmin-invoice-count');
+        const deliveryEl = document.getElementById('ezadmin-delivery-count');
+        
+        if (invoiceEl && ezData.invoice !== undefined) {
+            invoiceEl.textContent = ezData.invoice.toLocaleString();
+            invoiceEl.classList.add('scale-125');
+            setTimeout(() => invoiceEl.classList.remove('scale-125'), 500);
         }
-
-        // 2. 배송 숫자 업데이트 (보라색 테마 ID)
-        const deliveryElement = document.getElementById('ezadmin-delivery-count'); 
-        if (deliveryElement && ezData.delivery !== undefined) {
-            deliveryElement.textContent = ezData.delivery;
-            // 시각적 피드백 효과
-            deliveryElement.classList.add('scale-125');
-            setTimeout(() => deliveryElement.classList.remove('scale-125'), 500);
+        if (deliveryEl && ezData.delivery !== undefined) {
+            deliveryEl.textContent = ezData.delivery.toLocaleString();
+            deliveryEl.classList.add('scale-125');
+            setTimeout(() => deliveryEl.classList.remove('scale-125'), 500);
         }
     }
 });
