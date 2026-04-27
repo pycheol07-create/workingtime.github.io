@@ -181,22 +181,32 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    const openHistoryModalLogic = async () => {
+    // 💡 변경점: PC환경(768px 이상)일 경우 모달 대신 새 탭으로 history.html을 엽니다.
+    const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
             if (DOM.historyModal) DOM.historyModal.classList.add('hidden');
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
             return;
         }
+
+        // 화면 너비가 768px 이상(PC)이면 새 창으로 열기
+        if (window.innerWidth >= 768) {
+            if (e) e.preventDefault();
+            window.open('history.html', '_blank');
+            return;
+        }
+
+        // 모바일 화면이면 기존처럼 모달 팝업으로 열기
         if (DOM.historyModal) {
             DOM.historyModal.classList.remove('hidden');
-            setHistoryMaximized(false);
+            setHistoryMaximized(true); // 모바일에서는 꽉 찬 화면이 기본
             if (DOM.historyStartDateInput) DOM.historyStartDateInput.value = '';
             if (DOM.historyEndDateInput) DOM.historyEndDateInput.value = '';
             State.context.historyStartDate = null;
             State.context.historyEndDate = null;
             
-            // 모달을 열 때 기본적으로 "기간 엑셀" 버튼을 보이게 초기화 (업무 이력 탭이 기본이므로)
+            // 모달을 열 때 기본적으로 "기간 엑셀" 버튼을 보이게 초기화
             const periodExcelBtn = document.getElementById('history-download-period-excel-btn');
             if (periodExcelBtn) {
                 periodExcelBtn.classList.remove('hidden');
@@ -213,10 +223,11 @@ export function setupHistoryModalListeners() {
     };
 
     if (DOM.openHistoryBtn) DOM.openHistoryBtn.addEventListener('click', openHistoryModalLogic);
-    if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.addEventListener('click', () => {
-        openHistoryModalLogic();
+    if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.addEventListener('click', (e) => {
+        openHistoryModalLogic(e);
         if (DOM.navContent) DOM.navContent.classList.add('hidden');
     });
+    
     if (DOM.closeHistoryBtn) DOM.closeHistoryBtn.addEventListener('click', () => {
         if (DOM.historyModal) {
             DOM.historyModal.classList.add('hidden');
