@@ -143,11 +143,11 @@ export const renderDashboardLayout = (appConfig) => {
         }
     });
 
-    // 💡 변경점: 업무처리량 박스 맨 밑에 이지어드민 전용 공간을 새롭게 추가합니다!
+    // 💡 변경점: 점선 대신 '위젯과 동일한 디자인의 실선 박스'로 이지어드민 연동 영역을 생성합니다.
     workloadHtml += `
-        <div class="mt-3 pt-3 border-t-2 border-dashed border-blue-200 dark:border-blue-800/50">
-            <div class="text-[10px] font-bold text-blue-400 dark:text-blue-500 mb-2 flex items-center gap-1">
-                <span>🚚</span> 물류 시스템 실시간 연동
+        <div class="mt-4 p-3 border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl shadow-sm">
+            <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-2.5 flex items-center gap-1">
+                <span>🚚</span> 이지어드민 연동
             </div>
             <div class="flex gap-2">
                 <div class="flex-1 flex justify-between items-center bg-orange-50 dark:bg-orange-900/20 px-2.5 py-2 rounded-lg border border-orange-100 dark:border-orange-800/50 transition-colors shadow-sm">
