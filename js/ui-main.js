@@ -4,7 +4,6 @@ import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, is
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 import * as State from './state.js';
 
-// 💡 [핵심 수정] 모듈 객체(State)를 직접 수정하지 않고, 이 파일 안에서만 안전하게 쓸 변수를 만듭니다.
 let currentEzadminData = null;
 
 const getLeaveDisplayLabel = (member, leaveEntry) => {
@@ -109,7 +108,6 @@ export const renderNoticeWidget = (appState) => {
     memoList.innerHTML = html;
 };
 
-// 💡 전용 변수에서 데이터를 가져와 업데이트합니다.
 export const updateEzadminDisplay = () => {
     const ezData = currentEzadminData;
     if (!ezData) return;
@@ -161,7 +159,6 @@ export const renderDashboardLayout = (appConfig) => {
         }
     });
 
-    // 💡 전용 변수에서 데이터를 꺼내 옵니다.
     const ezInvoice = (currentEzadminData && currentEzadminData.invoice) || 0;
     const ezDelivery = (currentEzadminData && currentEzadminData.delivery) || 0;
 
@@ -516,6 +513,7 @@ export const renderAttendanceToggle = (appState) => {
     if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
+// 💡 [핵심 수정] 새롭게 분리된 박스(task-status-board, member-status-board)에 각각 렌더링되도록 처리
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
     
     const taskToggleBtn = document.getElementById('toggle-all-tasks-mobile');
@@ -529,12 +527,22 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
+    
+    // HTML의 분리된 두 컨테이너 타겟팅
+    const taskStatusBoard = document.getElementById('task-status-board');
+    const memberStatusBoard = document.getElementById('member-status-board');
+    
+    // 이전 버전(하나의 박스)과의 호환성을 위한 폴백
     const teamStatusBoard = document.getElementById('team-status-board');
-    if (!teamStatusBoard) return;
-    teamStatusBoard.innerHTML = '';
 
-    const presetTaskContainer = document.createElement('div');
-    presetTaskContainer.className = 'mb-6';
+    // 초기화
+    if (taskStatusBoard) taskStatusBoard.innerHTML = '';
+    if (memberStatusBoard) memberStatusBoard.innerHTML = '';
+    if (teamStatusBoard) teamStatusBoard.innerHTML = '';
+
+    // ============================================
+    // 1. 업무 현황 영역 렌더링
+    // ============================================
     const presetGrid = document.createElement('div');
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5';
     if (isMobileTaskViewExpanded) presetGrid.classList.add('mobile-expanded');
@@ -633,21 +641,36 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 font-medium">새로운 업무 만들기</p>
     `;
     presetGrid.appendChild(otherTaskCard);
-    presetTaskContainer.appendChild(presetGrid);
-    teamStatusBoard.appendChild(presetTaskContainer);
+    
+    // 업무 박스에 결합
+    if (taskStatusBoard) {
+        taskStatusBoard.appendChild(presetGrid);
+    } else if (teamStatusBoard) {
+        // 호환성 폴백
+        const presetTaskContainer = document.createElement('div');
+        presetTaskContainer.className = 'mb-6';
+        presetTaskContainer.appendChild(presetGrid);
+        teamStatusBoard.appendChild(presetTaskContainer);
+    }
 
+    // ============================================
+    // 2. 팀원 현황 영역 렌더링
+    // ============================================
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container';
     if (isMobileMemberViewExpanded) allMembersContainer.classList.add('mobile-expanded');
     
-    allMembersContainer.innerHTML = `
-        <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-3 mb-6 mt-10">
-            <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span class="text-xl">🧑‍🤝‍🧑</span> 전체 팀원 현황
-                <span class="text-xs font-normal text-gray-400 dark:text-gray-500 hidden md:inline ml-2">(클릭하여 근태 설정/수정)</span>
-            </h3>
-            <button id="toggle-all-members-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">${isMobileMemberViewExpanded ? '간략히' : '전체보기'}</button>
-        </div>`;
+    // 만약 예전 방식의 HTML을 사용 중이라면 동적으로 제목 헤더 생성
+    if (!memberStatusBoard) {
+        allMembersContainer.innerHTML = `
+            <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-3 mb-6 mt-10">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                    <span class="text-xl">🧑‍🤝‍🧑</span> 전체 팀원 현황
+                    <span class="text-xs font-normal text-gray-400 dark:text-gray-500 hidden md:inline ml-2">(클릭하여 근태 설정/수정)</span>
+                </h3>
+                <button id="toggle-all-members-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">${isMobileMemberViewExpanded ? '간략히' : '전체보기'}</button>
+            </div>`;
+    }
 
     const ongoingMembers = new Set(ongoingRecords.filter(r => r.status === 'ongoing').map(r => r.member));
     const pausedMembers = new Set(ongoingRecords.filter(r => r.status === 'paused').map(r => r.member));
@@ -825,9 +848,16 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             }
              albaGrid.appendChild(card);
         });
-        albaContainer.appendChild(albaGrid); allMembersContainer.appendChild(albaContainer);
+        albaContainer.appendChild(albaGrid); 
     }
-    teamStatusBoard.appendChild(allMembersContainer);
+    
+    // 멤버 박스에 결합
+    if (memberStatusBoard) {
+        memberStatusBoard.appendChild(allMembersContainer);
+    } else if (teamStatusBoard) {
+        // 호환성 폴백
+        teamStatusBoard.appendChild(allMembersContainer);
+    }
 
     renderAttendanceToggle(appState);
 };
@@ -876,16 +906,13 @@ export const renderCompletedWorkLog = (appState) => {
     });
 };
 
-// 🚀 이지어드민 데이터 수신 리스너 (전용 로컬 변수에 데이터 저장)
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
         const ezData = event.data.data;
         console.log("🎯 [대시보드 탭] 데이터 도착 완료!! :", ezData);
         
-        // 💡 [핵심] 받은 데이터를 이 파일 내의 전용 변수에 저장
         currentEzadminData = ezData; 
 
-        // 화면에 즉시 업데이트 및 반짝임 효과
         const invoiceEl = document.getElementById('ezadmin-invoice-count');
         const deliveryEl = document.getElementById('ezadmin-delivery-count');
         
@@ -902,7 +929,6 @@ window.addEventListener('message', (event) => {
     }
 });
 
-// 모바일 새로고침 버튼
 const setupMobileRefreshButton = () => {
     if (document.getElementById('mobile-refresh-btn')) return;
     const btn = document.createElement('button');
