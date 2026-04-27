@@ -86,23 +86,29 @@
             </div>
         </aside>
 
-        <main class="flex-1 flex flex-col h-full overflow-hidden relative bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-gray-800 transition-colors">
+        <main class="flex-1 flex flex-col h-full overflow-hidden relative bg-[#f1f5f9] dark:bg-gray-900 transition-colors">
             
-            <div class="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex justify-between items-center z-30 shadow-sm shrink-0 transition-colors">
+            <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
+                <div class="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] max-w-[600px] max-h-[600px] rounded-full bg-blue-300/40 dark:bg-blue-600/20 blur-[100px]"></div>
+                <div class="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] max-w-[600px] max-h-[600px] rounded-full bg-purple-300/40 dark:bg-purple-600/20 blur-[100px]"></div>
+                <div class="absolute top-[30%] left-[20%] w-[40vw] h-[40vw] max-w-[500px] max-h-[500px] rounded-full bg-emerald-200/40 dark:bg-emerald-600/10 blur-[100px]"></div>
+            </div>
+
+            <div class="relative z-30 md:hidden bg-white/40 dark:bg-gray-800/40 backdrop-blur-md border-b border-white/50 dark:border-gray-700/50 px-4 py-3 flex justify-between items-center shadow-sm shrink-0 transition-colors">
                 <h1 class="text-lg font-bold text-gray-900 dark:text-white">📦 물류팀 시스템</h1>
                 <div class="flex items-center gap-2">
-                    <button id="theme-toggle-mobile" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm p-2">
+                    <button id="theme-toggle-mobile" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100/50 dark:hover:bg-gray-700/50 rounded-lg text-sm p-2">
                         <svg id="theme-toggle-dark-icon-mobile" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
                         <svg id="theme-toggle-light-icon-mobile" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
                     </button>
-                    <button id="hamburger-btn" class="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none">
+                    <button id="hamburger-btn" class="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100/50 dark:hover:bg-gray-700/50 focus:outline-none">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
                     </button>
                 </div>
             </div>
 
-            <div id="nav-content" class="hidden absolute top-[60px] left-0 w-full bg-white dark:bg-gray-800 shadow-xl z-40 border-b dark:border-gray-700 flex-col max-h-[80vh] overflow-y-auto pb-4 transition-colors">
-                <div class="p-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex justify-between items-center">
+            <div id="nav-content" class="hidden absolute top-[60px] left-0 w-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl shadow-xl z-40 border-b dark:border-gray-700 flex-col max-h-[80vh] overflow-y-auto pb-4 transition-colors">
+                <div class="p-4 bg-gray-50/50 dark:bg-gray-700/50 border-b dark:border-gray-600 flex justify-between items-center">
                     <span class="font-bold text-gray-800 dark:text-white flex items-center gap-2">내 출퇴근 상태</span>
                     <div class="flex items-center gap-2">
                         <button id="mobile-clock-out-cancel-btn" class="hidden text-xs bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-400 px-2 py-1 rounded-md font-bold">취소</button>
@@ -114,43 +120,43 @@
                         </label>
                     </div>
                 </div>
-                <button id="open-quantity-modal-today-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📊</span> 오늘 처리량 입력</button>
-                <button id="open-weekend-modal-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🗓️</span> 주말 근무 신청</button>
-                <button id="open-my-leave-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🏖️</span> 내 연차관리</button>
-                <button id="open-cost-simulation-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">💰</span> 운영 시뮬레이션</button>
-                <button id="end-shift-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2"><span class="text-lg">🏁</span> 업무 마감</button>
+                <button id="open-quantity-modal-today-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700/50 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📊</span> 오늘 처리량 입력</button>
+                <button id="open-weekend-modal-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700/50 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🗓️</span> 주말 근무 신청</button>
+                <button id="open-my-leave-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700/50 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🏖️</span> 내 연차관리</button>
+                <button id="open-cost-simulation-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700/50 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">💰</span> 운영 시뮬레이션</button>
+                <button id="end-shift-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700/50 text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2"><span class="text-lg">🏁</span> 업무 마감</button>
                 
                 <div class="px-5 py-2 mt-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">관리자 메뉴</div>
-                <button id="open-history-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📜</span> 데이터 관리</button>
-                <button id="open-admin-todo-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📅</span> 관리자 일정/투두</button>
-                <a href="location.html" id="location-link-btn-mobile" target="location_window" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📍</span> 로케이션 관리</a>
-                <a href="admin.html" id="admin-link-btn-mobile" target="admin_window" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">⚙️</span> 관리자 페이지</a>
-                <button id="reset-app-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">🔄</span> 데이터 초기화</button>
-                <button id="logout-btn-mobile" class="hidden text-left px-5 py-4 text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2 bg-red-50 dark:bg-red-900/20"><span class="text-lg">🚪</span> 로그아웃</button>
+                <button id="open-history-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700/50 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📜</span> 데이터 관리</button>
+                <button id="open-admin-todo-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700/50 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📅</span> 관리자 일정/투두</button>
+                <a href="location.html" id="location-link-btn-mobile" target="location_window" class="text-left px-5 py-3 border-b dark:border-gray-700/50 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📍</span> 로케이션 관리</a>
+                <a href="admin.html" id="admin-link-btn-mobile" target="admin_window" class="text-left px-5 py-3 border-b dark:border-gray-700/50 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">⚙️</span> 관리자 페이지</a>
+                <button id="reset-app-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700/50 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">🔄</span> 데이터 초기화</button>
+                <button id="logout-btn-mobile" class="hidden text-left px-5 py-4 text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2 bg-red-50/50 dark:bg-red-900/20"><span class="text-lg">🚪</span> 로그아웃</button>
             </div>
 
-            <header class="hidden md:flex h-16 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 items-center justify-between px-8 shrink-0 transition-colors">
+            <header class="relative z-30 hidden md:flex h-16 bg-white/40 dark:bg-gray-800/40 backdrop-blur-md border-b border-white/50 dark:border-gray-700/50 items-center justify-between px-8 shrink-0 transition-colors">
                 <div class="flex items-center gap-4">
                     <h2 class="text-lg font-bold text-gray-800 dark:text-white">대시보드</h2>
                     <div id="connection-indicator" class="flex items-center gap-2">
                         <span id="user-greeting" class="text-sm font-semibold text-gray-700 dark:text-gray-300 hidden"></span>
                         <span id="status-dot" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                        <span id="connection-status" class="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-md">접속됨</span>
+                        <span id="connection-status" class="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50/80 dark:bg-green-900/40 px-2 py-1 rounded-md">접속됨</span>
                     </div>
                 </div>
                 <div class="flex items-center gap-4">
                     <div id="current-date-display" class="text-sm font-bold text-gray-500 dark:text-gray-400">로딩중...</div>
                     
-                    <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm p-2 transition-colors">
+                    <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100/50 dark:hover:bg-gray-700/50 rounded-lg text-sm p-2 transition-colors">
                         <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
                         <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
                     </button>
 
-                    <button id="logout-btn" class="hidden text-xs bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 font-bold py-1.5 px-3 rounded-md transition border border-red-100 dark:border-red-800">로그아웃</button>
+                    <button id="logout-btn" class="hidden text-xs bg-red-50/80 dark:bg-red-900/40 hover:bg-red-100/80 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 font-bold py-1.5 px-3 rounded-md transition border border-red-100 dark:border-red-800">로그아웃</button>
                 </div>
             </header>
 
-            <div id="app-content" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
+            <div id="app-content" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 relative z-10">
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                     
@@ -186,7 +192,7 @@
                             <h3 class="text-sm font-bold text-yellow-800 dark:text-yellow-400 flex items-center gap-2">
                                 <span>📌</span> 중요 알림
                             </h3>
-                            <button id="open-notice-modal-btn" class="text-[10px] bg-yellow-200 dark:bg-yellow-700 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded font-bold hover:bg-yellow-300 dark:hover:bg-yellow-600 transition cursor-pointer shadow-sm">관리</button>
+                            <button id="open-notice-modal-btn" class="text-[10px] bg-yellow-400/50 dark:bg-yellow-700/50 text-yellow-900 dark:text-yellow-200 px-2 py-1 rounded font-bold hover:bg-yellow-400/80 dark:hover:bg-yellow-600/80 transition cursor-pointer shadow-sm">관리</button>
                         </div>
                         <div class="p-4 flex-1 overflow-y-auto text-sm text-yellow-900 dark:text-yellow-200 leading-relaxed font-medium">
                             <ul id="widget-memo-list" class="list-disc pl-4 space-y-1">
@@ -203,7 +209,7 @@
                                 <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
                                 업무 현황
                             </h3>
-                            <button id="toggle-all-tasks-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">전체보기</button>
+                            <button id="toggle-all-tasks-mobile" class="md:hidden glass-card hover:bg-white/50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm border border-white/50">전체보기</button>
                         </div>
                         <div id="team-status-board" class="space-y-6">
                             </div>
@@ -218,8 +224,8 @@
                                 </svg>
                             </div>
                             <div class="flex gap-2 relative z-10">
-                                <button id="open-manual-add-btn" class="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold px-2 py-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition shadow-sm">+ 추가</button>
-                                <button id="delete-all-completed-btn" class="hidden md:block text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold px-2 py-1 rounded hover:bg-red-100 dark:hover:bg-red-900/50 transition shadow-sm">일괄삭제</button>
+                                <button id="open-manual-add-btn" class="text-xs bg-blue-50/80 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-bold px-2 py-1 rounded hover:bg-blue-100/80 dark:hover:bg-blue-900/60 transition shadow-sm border border-blue-200/50 dark:border-blue-700/50">+ 추가</button>
+                                <button id="delete-all-completed-btn" class="hidden md:block text-xs bg-red-50/80 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-bold px-2 py-1 rounded hover:bg-red-100/80 dark:hover:bg-red-900/60 transition shadow-sm border border-red-200/50 dark:border-red-700/50">일괄삭제</button>
                             </div>
                         </div>
                         
@@ -237,7 +243,7 @@
                         <svg id="analysis-arrow" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                     </div>
                     <div id="analysis-content" class="p-5 md:block">
-                        <div class="mb-4 border-b border-gray-100 dark:border-gray-700">
+                        <div class="mb-4 border-b border-gray-200/50 dark:border-gray-700/50">
                             <nav id="analysis-tabs" class="flex space-x-6" aria-label="Tabs">
                                 <button type="button" data-tab-panel="analysis-task-summary-panel" class="analysis-tab-btn pb-3 px-1 border-b-2 font-bold text-sm text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400">업무별 요약</button>
                                 <button type="button" data-tab-panel="analysis-personal-stats-panel" class="analysis-tab-btn pb-3 px-1 border-b-2 font-medium text-sm text-gray-400 dark:text-gray-500 border-transparent hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600">개인별 통계</button>
@@ -248,12 +254,12 @@
                             <div id="analysis-personal-stats-panel" class="analysis-tab-panel hidden">
                                 <div class="max-w-md mb-4">
                                     <label for="analysis-member-select" class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2">직원 선택</label>
-                                    <select id="analysis-member-select" class="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-gray-50 dark:bg-gray-700 dark:text-white">
+                                    <select id="analysis-member-select" class="w-full p-2.5 border border-white/50 dark:border-gray-700/50 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md dark:text-white outline-none">
                                         <option value="">--- 직원/알바 선택 ---</option>
                                     </select>
                                 </div>
-                                <div id="analysis-personal-stats-container" class="mt-4 p-5 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-600 min-h-[150px]">
-                                    <p class="text-center text-gray-400 dark:text-gray-500 text-sm py-4">통계를 보려면 위에서 직원을 선택하세요.</p>
+                                <div id="analysis-personal-stats-container" class="mt-4 p-5 bg-white/30 dark:bg-gray-800/30 rounded-xl border border-white/50 dark:border-gray-600/50 min-h-[150px]">
+                                    <p class="text-center text-gray-500 dark:text-gray-400 text-sm py-4">통계를 보려면 위에서 직원을 선택하세요.</p>
                                 </div>
                             </div>
                         </div>
