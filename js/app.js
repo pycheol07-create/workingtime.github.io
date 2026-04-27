@@ -114,6 +114,9 @@ async function applyHistoricalLeaveData() {
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     
+    // 💡 [추가] 타이머가 돌 때마다 대시보드 메인 시계도 함께 새로고침 합니다. (화면 깜빡임 없음)
+    displayCurrentDate();
+    
     // ✅ [수정] 오늘이 평일인지 확인 (주말에는 점심시간 자동정지/재개 적용 안 함)
     const todayDate = getTodayDateString();
     const isTodayWeekday = isWeekday(todayDate);
