@@ -231,7 +231,7 @@ export function renderKeyTasks(keyTasks) {
         taskEl.dataset.index = index;
         taskEl.innerHTML = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
-            <span class="key-task-name flex-grow font-bold text-sm text-gray-700 dark:text-gray-300">⭐ ${task}</span>
+            <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300">⭐ <span class="key-task-name">${task}</span></span>
             <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-key-task-btn opacity-0 group-hover:opacity-100" data-index="${index}">삭제</button>
         `;
         container.appendChild(taskEl);
@@ -288,7 +288,7 @@ export function renderQuantityTasks(quantityTasks) {
         taskEl.dataset.index = index;
         taskEl.innerHTML = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
-            <span class="quantity-task-name flex-grow font-bold text-sm text-gray-700 dark:text-gray-300">📝 ${task}</span>
+            <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300">📝 <span class="quantity-task-name">${task}</span></span>
             <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-quantity-task-btn opacity-0 group-hover:opacity-100" data-index="${index}">삭제</button>
         `;
         container.appendChild(taskEl);
