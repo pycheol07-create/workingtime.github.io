@@ -4,6 +4,9 @@ import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, is
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 import * as State from './state.js';
 
+// 💡 [핵심 수정] 모듈 객체(State)를 직접 수정하지 않고, 이 파일 안에서만 안전하게 쓸 변수를 만듭니다.
+let currentEzadminData = null;
+
 const getLeaveDisplayLabel = (member, leaveEntry) => {
     if (leaveEntry.type !== '연차') return leaveEntry.type;
     const settings = State.appConfig.memberLeaveSettings?.[member] || {};
@@ -83,7 +86,6 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 중요 알림 위젯 렌더링 로직
 export const renderNoticeWidget = (appState) => {
     const memoList = document.getElementById('widget-memo-list');
     if (!memoList) return;
@@ -107,9 +109,9 @@ export const renderNoticeWidget = (appState) => {
     memoList.innerHTML = html;
 };
 
-// 💡 실시간 데이터 수동 업데이트 함수 분리 (화면이 지워질 때 복구하는 역할)
+// 💡 전용 변수에서 데이터를 가져와 업데이트합니다.
 export const updateEzadminDisplay = () => {
-    const ezData = State.ezadminData;
+    const ezData = currentEzadminData;
     if (!ezData) return;
 
     const invoiceEl = document.getElementById('ezadmin-invoice-count');
@@ -159,9 +161,9 @@ export const renderDashboardLayout = (appConfig) => {
         }
     });
 
-    // 💡 변경점: State에 보관된 이지어드민 데이터를 가져와서 박스를 그릴 때 바로 채워 넣습니다.
-    const ezInvoice = (State.ezadminData && State.ezadminData.invoice) || 0;
-    const ezDelivery = (State.ezadminData && State.ezadminData.delivery) || 0;
+    // 💡 전용 변수에서 데이터를 꺼내 옵니다.
+    const ezInvoice = (currentEzadminData && currentEzadminData.invoice) || 0;
+    const ezDelivery = (currentEzadminData && currentEzadminData.delivery) || 0;
 
     workloadHtml += `
         <div class="mt-4 p-3 border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl shadow-sm">
@@ -275,7 +277,6 @@ export const updateSummary = (appState, appConfig) => {
         }
     }
 
-    // 💡 중요: 현황 위젯이 업데이트될 때 이지어드민 숫자도 다시 강제로 그려줍니다!
     updateEzadminDisplay();
     renderNoticeWidget(appState);
 };
@@ -875,19 +876,19 @@ export const renderCompletedWorkLog = (appState) => {
     });
 };
 
-// 🚀 [핵심 수정] 이지어드민 데이터 수신 리스너 (상태 저장 포함)
+// 🚀 이지어드민 데이터 수신 리스너 (전용 로컬 변수에 데이터 저장)
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
         const ezData = event.data.data;
         console.log("🎯 [대시보드 탭] 데이터 도착 완료!! :", ezData);
         
-        // 💡 [중요] 받은 데이터를 State(시스템 메모리)에 즉시 저장합니다.
-        State.ezadminData = ezData; 
+        // 💡 [핵심] 받은 데이터를 이 파일 내의 전용 변수에 저장
+        currentEzadminData = ezData; 
 
+        // 화면에 즉시 업데이트 및 반짝임 효과
         const invoiceEl = document.getElementById('ezadmin-invoice-count');
         const deliveryEl = document.getElementById('ezadmin-delivery-count');
         
-        // 화면에 즉시 업데이트 및 반짝임(애니메이션) 효과 부여
         if (invoiceEl && ezData.invoice !== undefined) {
             invoiceEl.textContent = ezData.invoice.toLocaleString();
             invoiceEl.classList.add('scale-125', 'text-orange-500');
