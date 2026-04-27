@@ -838,3 +838,30 @@ export const renderCompletedWorkLog = (appState) => {
         workLogBody.appendChild(item);
     });
 };
+
+// 이지어드민 크롬 확장 프로그램에서 보내는 데이터 수신 대기
+window.addEventListener('message', (event) => {
+    // 우리가 보낸 데이터가 맞는지 확인
+    if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
+        const ezData = event.data.data;
+        
+        // 브라우저 콘솔(F12)에서 데이터가 잘 들어오는지 확인
+        // console.log("🎉 이지어드민 데이터 도착:", ezData); 
+
+        // 1. 송장(invoice) 숫자를 대시보드의 '국내송장(예상)' 위젯에 꽂아넣기
+        // (ui.js나 config에 정의된 dashboard-item의 valueId를 맞춰주면 됩니다)
+        
+        // 예: 국내송장(예상) 항목의 ID가 DOM에 어떻게 렌더링되었는지 확인 후 업데이트
+        // (ui-main.js의 renderDashboardLayout 로직에 따라 id는 def.valueId가 됩니다)
+        const invoiceElement = document.getElementById('dashboard-value-domestic-invoice'); 
+        if (invoiceElement) {
+            invoiceElement.textContent = ezData.invoice;
+            // 숫자가 업데이트될 때 반짝! 하는 효과 (선택사항)
+            invoiceElement.classList.add('text-pink-500', 'scale-110');
+            setTimeout(() => invoiceElement.classList.remove('text-pink-500', 'scale-110'), 500);
+        }
+
+        // 2. 다른 항목들(접수, 배송 등)도 대시보드에 표시하고 싶다면
+        // 관리자페이지에서 위젯 항목을 추가한 뒤 위와 똑같이 ID를 찾아 값을 넣어주면 됩니다!
+    }
+});
