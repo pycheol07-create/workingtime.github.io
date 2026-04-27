@@ -4,6 +4,7 @@ import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, is
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 import * as State from './state.js';
 
+// 💡 [핵심 수정] 모듈 객체(State)를 직접 수정하지 않고, 이 파일 안에서만 안전하게 쓸 변수를 만듭니다.
 let currentEzadminData = null;
 
 const getLeaveDisplayLabel = (member, leaveEntry) => {
@@ -92,22 +93,23 @@ export const renderNoticeWidget = (appState) => {
     const notices = appState.importantNotices || [];
     
     if (notices.length === 0) {
-        memoList.innerHTML = `<li class="text-yellow-700/60 dark:text-yellow-500/60 list-none -ml-4 text-center text-xs py-4 font-medium">등록된 중요 알림이 없습니다.</li>`;
+        memoList.innerHTML = `<li class="text-yellow-700/60 dark:text-yellow-500/60 list-none -ml-4 text-center text-xs py-4 font-normal">등록된 중요 알림이 없습니다.</li>`;
         return;
     }
 
     let html = '';
     notices.forEach(notice => {
-        const textClass = notice.completed ? 'line-through text-yellow-700/50 dark:text-yellow-500/50' : 'text-yellow-900 dark:text-yellow-200 font-extrabold';
+        const textClass = notice.completed ? 'line-through text-yellow-700/50 dark:text-yellow-500/50' : 'text-yellow-900 dark:text-yellow-200 font-bold';
         const icon = notice.completed ? '✅' : '📌';
         
         const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
         
-        html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2.5 py-1 px-2 rounded-md hover:bg-yellow-100/50 dark:hover:bg-yellow-800/30 transition-colors"><span class="shrink-0 text-sm mt-0.5 shadow-sm">${icon}</span> <span class="text-[13px] leading-snug break-words flex-1">${safeText}</span></li>`;
+        html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2 mb-1.5"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words flex-1">${safeText}</span></li>`;
     });
     memoList.innerHTML = html;
 };
 
+// 💡 전용 변수에서 데이터를 가져와 업데이트합니다.
 export const updateEzadminDisplay = () => {
     const ezData = currentEzadminData;
     if (!ezData) return;
@@ -144,37 +146,37 @@ export const renderDashboardLayout = (appConfig) => {
 
         if (isQuantity) {
             workloadHtml += `
-                <div class="flex justify-between items-center py-2 px-2.5 mb-1.5 bg-blue-50/30 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:shadow-sm hover:border-blue-200 hover:-translate-y-[1px] transition-all duration-200">
-                    <span class="text-xs font-extrabold text-blue-700 dark:text-blue-400 whitespace-nowrap shrink-0 break-keep tracking-tight">${safeTitle}</span>
-                    <span id="${def.valueId}" class="text-sm font-black text-blue-800 dark:text-blue-300 bg-white dark:bg-gray-800 px-2 py-0.5 rounded shadow-sm border border-blue-200/60 dark:border-blue-700 transition-all shrink-0">0</span>
+                <div class="flex justify-between items-center py-2 border-b border-blue-50 dark:border-blue-900/50 last:border-0 hover:bg-blue-50/50 dark:hover:bg-blue-900/30 transition-colors px-2 rounded gap-2 overflow-hidden">
+                    <span class="text-sm font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap shrink-0 break-keep tracking-tight">${safeTitle}</span>
+                    <span id="${def.valueId}" class="text-sm font-extrabold text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-md shadow-sm border border-blue-100 dark:border-blue-800 transition-all shrink-0">0</span>
                 </div>
             `;
         } else {
             personnelHtml += `
-                <div class="flex justify-between items-center py-2 px-2.5 mb-1.5 bg-gray-50/50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-600 rounded-lg hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm hover:border-gray-200 hover:-translate-y-[1px] transition-all duration-200">
-                    <span class="text-xs font-bold text-gray-600 dark:text-gray-400 whitespace-nowrap shrink-0 break-keep tracking-tight">${safeTitle}</span>
-                    <span id="${def.valueId}" class="text-sm font-black text-gray-800 dark:text-gray-200 transition-all shrink-0 bg-white dark:bg-gray-800 px-2 py-0.5 rounded shadow-sm border border-gray-200/60 dark:border-gray-600">0</span>
+                <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors px-2 rounded gap-2 overflow-hidden">
+                    <span class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap shrink-0 break-keep tracking-tight">${safeTitle}</span>
+                    <span id="${def.valueId}" class="text-sm font-extrabold text-gray-800 dark:text-gray-200 transition-all shrink-0">0</span>
                 </div>
             `;
         }
     });
 
+    // 💡 전용 변수에서 데이터를 꺼내 옵니다.
     const ezInvoice = (currentEzadminData && currentEzadminData.invoice) || 0;
     const ezDelivery = (currentEzadminData && currentEzadminData.delivery) || 0;
 
     workloadHtml += `
-        <div class="mt-3 p-3 border border-gray-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 to-purple-500 opacity-80"></div>
-            <div class="text-[10px] font-extrabold text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1">
-                <span class="drop-shadow-sm text-xs">🚚</span> 이지어드민 시스템 연동
+        <div class="mt-4 p-3 border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl shadow-sm">
+            <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-2.5 flex items-center gap-1">
+                <span>🚚</span> 이지어드민 연동
             </div>
             <div class="flex gap-2">
-                <div class="flex-1 flex justify-between items-center bg-orange-50 dark:bg-orange-900/20 px-2 py-2 rounded-lg border border-orange-100 dark:border-orange-800/50 transition-colors shadow-sm group-hover:shadow-sm group-hover:border-orange-200 duration-300">
-                    <span class="text-[10px] font-black text-orange-600 dark:text-orange-400 break-keep">송장</span>
+                <div class="flex-1 flex justify-between items-center bg-orange-50 dark:bg-orange-900/20 px-2.5 py-2 rounded-lg border border-orange-100 dark:border-orange-800/50 transition-colors shadow-sm">
+                    <span class="text-xs font-extrabold text-orange-600 dark:text-orange-400 break-keep">송장</span>
                     <span id="ezadmin-invoice-count" class="text-sm font-black text-orange-700 dark:text-orange-300 transition-all duration-300">${ezInvoice.toLocaleString()}</span>
                 </div>
-                <div class="flex-1 flex justify-between items-center bg-purple-50 dark:bg-purple-900/20 px-2 py-2 rounded-lg border border-purple-100 dark:border-purple-800/50 transition-colors shadow-sm group-hover:shadow-sm group-hover:border-purple-200 duration-300">
-                    <span class="text-[10px] font-black text-purple-600 dark:text-purple-400 break-keep">배송</span>
+                <div class="flex-1 flex justify-between items-center bg-purple-50 dark:bg-purple-900/20 px-2.5 py-2 rounded-lg border border-purple-100 dark:border-purple-800/50 transition-colors shadow-sm">
+                    <span class="text-xs font-extrabold text-purple-600 dark:text-purple-400 break-keep">배송</span>
                     <span id="ezadmin-delivery-count" class="text-sm font-black text-purple-700 dark:text-purple-300 transition-all duration-300">${ezDelivery.toLocaleString()}</span>
                 </div>
             </div>
@@ -288,7 +290,7 @@ export const renderTaskAnalysis = (appState, appConfig) => {
     const allRecords = appState.workRecords || [];
     
     if (allRecords.length === 0) {
-        analysisContainer.innerHTML = `<div class="text-center text-gray-400 py-8 text-sm font-medium">기록된 업무가 없어 분석을 시작할 수 없습니다.</div>`;
+        analysisContainer.innerHTML = `<div class="text-center text-gray-400 py-8 text-sm">기록된 업무가 없어 분석을 시작할 수 없습니다.</div>`;
         const memberSelect = document.getElementById('analysis-member-select');
         if (memberSelect) memberSelect.innerHTML = '<option value="">--- 직원/알바 선택 ---</option>';
         return;
@@ -328,7 +330,7 @@ export const renderTaskAnalysis = (appState, appConfig) => {
 
     let gradientParts = [];
     let cumulativePercentage = 0;
-    let legendHTML = '<div class="flex-grow max-h-[250px] overflow-y-auto pr-2 space-y-1.5">'; 
+    let legendHTML = '<div class="flex-grow max-h-72 overflow-y-auto pr-2 space-y-2">';
 
     sortedTasks.forEach(([task, minutes]) => {
         const percentage = totalLoggedMinutes > 0 ? (minutes / totalLoggedMinutes) * 100 : 0;
@@ -337,18 +339,7 @@ export const renderTaskAnalysis = (appState, appConfig) => {
             gradientParts.push(`${color} ${cumulativePercentage}% ${cumulativePercentage + percentage}%`);
             cumulativePercentage += percentage;
         }
-        
-        legendHTML += `
-        <div class="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-600 shadow-sm hover:shadow-md hover:border-blue-200 hover:-translate-y-0.5 transition-all duration-300 group">
-            <div class="flex items-center">
-                <span class="w-3 h-3 rounded-full mr-2.5 shadow-sm group-hover:scale-110 transition-transform" style="background-color: ${color};"></span>
-                <span class="font-bold text-gray-700 dark:text-gray-200 text-sm">${task}</span>
-            </div>
-            <div class="text-right">
-                <div class="text-sm font-extrabold text-gray-800 dark:text-white">${formatDuration(minutes)}</div>
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500">${percentage.toFixed(1)}%</div>
-            </div>
-        </div>`;
+        legendHTML += `<div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600"><div class="flex items-center"><span class="w-3 h-3 rounded-full mr-2 shadow-sm" style="background-color: ${color};"></span><span class="font-bold text-gray-700 dark:text-gray-200 text-sm">${task}</span></div><div class="text-right"><div class="text-sm font-extrabold text-gray-800 dark:text-white">${formatDuration(minutes)}</div><div class="text-[10px] text-gray-500 dark:text-gray-400">${percentage.toFixed(1)}%</div></div></div>`;
     });
     legendHTML += '</div>';
 
@@ -356,15 +347,15 @@ export const renderTaskAnalysis = (appState, appConfig) => {
     
     analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8">
         <div class="flex-shrink-0">
-            <div class="chart shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-white dark:border-gray-700 hover:scale-105 transition-transform duration-500" style="background: ${finalGradient}; width: 150px; height: 150px;">
-                <div class="chart-center shadow-inner dark:bg-gray-800 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
-                    <span class="text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-0.5">총 업무시간</span>
-                    <span class="text-xl font-black text-blue-600 dark:text-blue-400">${formatDuration(totalLoggedMinutes)}</span>
-                    <span class="text-[10px] font-bold text-gray-400 mt-0.5">휴식 ${formatDuration(Math.round(totalBreakMinutes))}</span>
+            <div class="chart shadow-sm" style="background: ${finalGradient}; width: 160px; height: 160px;">
+                <div class="chart-center shadow-sm dark:bg-gray-800">
+                    <span class="text-xs font-bold text-gray-400 dark:text-gray-500">총 업무</span>
+                    <span class="text-xl font-extrabold text-blue-600 dark:text-blue-400">${formatDuration(totalLoggedMinutes)}</span>
+                    <span class="text-[10px] text-gray-400 mt-1">휴식: ${formatDuration(Math.round(totalBreakMinutes))}</span>
                 </div>
             </div>
         </div>
-        <div class="flex-grow w-full md:w-auto bg-gray-50 dark:bg-gray-900/50 p-3 rounded-2xl border border-gray-100/50 dark:border-gray-700 shadow-inner">
+        <div class="flex-grow w-full md:w-auto">
             ${legendHTML}
         </div>
     </div>`;
@@ -400,9 +391,9 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     
     let currentStatusHtml = '';
     if (ongoingRecord) {
-        currentStatusHtml = `<span class="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md border border-blue-100">업무 중: ${ongoingRecord.task}</span>`;
+        currentStatusHtml = `<span class="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md">업무 중: ${ongoingRecord.task}</span>`;
     } else if (pausedRecord) {
-        currentStatusHtml = `<span class="text-xs font-bold text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded-md border border-yellow-100">휴식 중</span>`;
+        currentStatusHtml = `<span class="text-sm font-bold text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded-md">휴식 중</span>`;
     } else {
         const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
         const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
@@ -411,22 +402,22 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember && !(m.type === '외출' && m.endTime));
         if (leaveInfo) {
              const label = getLeaveDisplayLabel(selectedMember, leaveInfo);
-             currentStatusHtml = `<span class="text-xs font-bold text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-md">${label} 중</span>`;
+             currentStatusHtml = `<span class="text-sm font-bold text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-md">${label} 중</span>`;
         } else {
              if (attendance && attendance.status === 'active') {
-                 currentStatusHtml = `<span class="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-md border border-green-100">대기 중</span>`;
+                 currentStatusHtml = `<span class="text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-md">대기 중</span>`;
              } else if (attendance && attendance.status === 'returned') {
-                 currentStatusHtml = `<span class="text-xs font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md border border-gray-200">퇴근 완료</span>`;
+                 currentStatusHtml = `<span class="text-sm font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">퇴근 완료</span>`;
              } else {
-                 currentStatusHtml = `<span class="text-xs font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md border border-gray-200">출근 전</span>`;
+                 currentStatusHtml = `<span class="text-sm font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">출근 전</span>`;
              }
         }
     }
 
     if (memberRecords.length === 0) {
          container.innerHTML = `
-            <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
-                <h4 class="text-lg font-bold text-gray-800 dark:text-white">${selectedMember}</h4>
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                <h4 class="text-lg font-extrabold text-gray-800 dark:text-white">${selectedMember}</h4>
                 ${currentStatusHtml}
             </div>
             <p class="text-center text-gray-400 text-sm py-4">오늘 업무 기록이 없습니다.</p>`;
@@ -473,28 +464,28 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     const totalNonWorkMinutes = Math.max(0, totalTimeSpanMinutes - totalLiveMinutes);
 
     let html = `
-        <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-200/60 dark:border-gray-700">
-            <h4 class="text-lg font-extrabold text-gray-800 dark:text-white drop-shadow-sm">${selectedMember}</h4>
+        <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+            <h4 class="text-lg font-extrabold text-gray-800 dark:text-white">${selectedMember}</h4>
             ${currentStatusHtml}
         </div>
         <div class="grid grid-cols-2 gap-3 mb-4 text-center">
-            <div class="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-[0_4px_15px_rgba(0,0,0,0.03)] flex flex-col justify-center">
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1">실제 업무시간</div>
-                <div class="text-xl font-black text-blue-600 dark:text-blue-400">${formatDuration(totalLiveMinutes)}</div>
+            <div class="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-center">
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1">실제 업무시간</div>
+                <div class="text-xl font-extrabold text-blue-600 dark:text-blue-400">${formatDuration(totalLiveMinutes)}</div>
             </div>
-             <div class="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-[0_4px_15px_rgba(0,0,0,0.03)] flex flex-col justify-center">
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1">비업무/휴식 추정</div>
-                <div class="text-xl font-black text-gray-500 dark:text-gray-400">${formatDuration(Math.round(totalNonWorkMinutes))}</div>
+             <div class="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-center">
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1">비업무/휴식 추정</div>
+                <div class="text-xl font-extrabold text-gray-500 dark:text-gray-400">${formatDuration(Math.round(totalNonWorkMinutes))}</div>
             </div>
         </div>
         <div>
-            <h5 class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 ml-1">오늘 수행한 업무</h5>
-            <ul class="space-y-2 max-h-40 overflow-y-auto pr-2">
+            <h5 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">오늘 수행한 업무</h5>
+            <ul class="space-y-2 max-h-40 overflow-y-auto pr-1">
     `;
     if (sortedTasks.length > 0) {
         sortedTasks.forEach(([task, minutes]) => {
             if (minutes > 0) {
-                html += `<li class="flex justify-between items-center p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md hover:-translate-y-[1px] transition-all"><span class="font-bold text-sm text-gray-700 dark:text-gray-200">${task}</span><span class="text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 px-2 py-0.5 rounded-md">${formatDuration(minutes)}</span></li>`;
+                html += `<li class="flex justify-between items-center p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm"><span class="font-bold text-sm text-gray-700 dark:text-gray-200">${task}</span><span class="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">${formatDuration(minutes)}</span></li>`;
             }
         });
     } else {
@@ -543,7 +534,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     teamStatusBoard.innerHTML = '';
 
     const presetTaskContainer = document.createElement('div');
-    presetTaskContainer.className = 'mb-5';
+    presetTaskContainer.className = 'mb-6';
     const presetGrid = document.createElement('div');
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5';
     if (isMobileTaskViewExpanded) presetGrid.classList.add('mobile-expanded');
@@ -562,33 +553,33 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
-            const headerColor = isPaused ? 'bg-gradient-to-r from-yellow-50 to-white dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800' : 'bg-gradient-to-r from-blue-50/50 to-white dark:bg-blue-900/20 border-blue-200 dark:border-blue-800';
+            const headerColor = isPaused ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800' : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800';
             const titleColor = isPaused ? 'text-yellow-800 dark:text-yellow-400' : 'text-blue-800 dark:text-blue-400';
             
-            card.className = `${mobileVisibilityClass} flex-col min-h-[260px] bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700 shadow-[0_8px_25px_rgba(0,0,0,0.06)] overflow-hidden transition-all duration-300 hover:shadow-[0_12px_35px_rgba(0,0,0,0.12)] hover:-translate-y-1 cursor-pointer relative group`;
+            card.className = `${mobileVisibilityClass} flex-col min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden transition-all hover:shadow-md cursor-pointer`;
             card.dataset.task = task; 
             card.dataset.groupId = firstRecord.groupId; 
 
-            let membersHtml = '<div class="p-2 overflow-y-auto max-h-40 space-y-1.5 bg-gray-50/50 dark:bg-gray-900/50 flex-grow">';
+            let membersHtml = '<div class="p-2 overflow-y-auto max-h-48 space-y-1.5 bg-gray-50/50 dark:bg-gray-900/50 flex-grow">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 const isRecPaused = rec.status === 'paused';
                 const pauseMin = calcTotalPauseMinutes(rec.pauses);
-                const memberPauseText = pauseMin > 0 ? `<span class="text-[10px] text-gray-400 ml-1 font-medium">(휴:${formatDuration(pauseMin)})</span>` : '';
+                const memberPauseText = pauseMin > 0 ? `<span class="text-[10px] text-gray-400 ml-1">(휴:${formatDuration(pauseMin)})</span>` : '';
 
                 membersHtml += `
-                    <div class="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-gray-800 border ${isRecPaused ? 'border-yellow-200/80 dark:border-yellow-700' : 'border-gray-100 dark:border-gray-700'} shadow-sm hover:shadow-md hover:border-blue-300 hover:-translate-y-[1px] dark:hover:border-blue-500 transition-all duration-200 member-row">
+                    <div class="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-gray-800 border ${isRecPaused ? 'border-yellow-200 dark:border-yellow-700' : 'border-gray-100 dark:border-gray-700'} shadow-sm hover:border-blue-300 dark:hover:border-blue-500 transition-colors member-row">
                         <div class="flex items-center gap-2 overflow-hidden">
-                            <div class="w-2.5 h-2.5 shrink-0 rounded-full ${isRecPaused ? 'bg-yellow-500 animate-pulse shadow-[0_0_8px_rgba(234,179,8,0.6)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]'}"></div>
-                            <span class="font-bold text-gray-800 dark:text-gray-200 text-[13px] truncate" title="${rec.member}">${rec.member}</span>
-                            <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 shrink-0">(${formatTimeTo24H(rec.startTime)})${memberPauseText}</span>
+                            <div class="w-2 h-2 shrink-0 rounded-full ${isRecPaused ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}"></div>
+                            <span class="font-bold text-gray-800 dark:text-gray-200 text-sm truncate" title="${rec.member}">${rec.member}</span>
+                            <span class="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">(${formatTimeTo24H(rec.startTime)})${memberPauseText}</span>
                         </div>
-                        <div class="flex gap-1.5 shrink-0 member-actions">
+                        <div class="flex gap-1 shrink-0 member-actions">
                             ${isRecPaused 
-                                ? `<button data-action="resume-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-lg bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-800/50 transition-colors shadow-sm" title="재개"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg></button>`
-                                : `<button data-action="pause-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-lg bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-800/50 transition-colors shadow-sm" title="정지"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg></button>`
+                                ? `<button data-action="resume-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-md bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-800/50 transition" title="재개"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg></button>`
+                                : `<button data-action="pause-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-md bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-800/50 transition" title="정지"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg></button>`
                             }
-                            <button data-action="stop-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-800/50 transition-colors shadow-sm" title="종료"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-                            <button data-action="edit-individual-start-time" data-record-id="${rec.id}" data-current-start-time="${rec.startTime || ''}" class="w-7 h-7 flex items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors shadow-sm" title="시작시간 수정"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
+                            <button data-action="stop-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-md bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-800/50 transition" title="종료"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                            <button data-action="edit-individual-start-time" data-record-id="${rec.id}" data-current-start-time="${rec.startTime || ''}" class="w-7 h-7 flex items-center justify-center rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition" title="시작시간 수정"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
                         </div>
                     </div>`;
             });
@@ -598,49 +589,48 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
             const pausesJson = JSON.stringify(representativeRecord.pauses || []);
             const totalPauseMinutes = calcTotalPauseMinutes(representativeRecord.pauses);
-            const pauseDisplay = totalPauseMinutes > 0 ? `<span class="text-[10px] text-gray-500 font-medium ml-1">(전체휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
+            const pauseDisplay = totalPauseMinutes > 0 ? `<span class="text-[10px] text-gray-500 font-normal ml-1">(전체휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
 
             card.innerHTML = `
-                <div class="px-4 py-3 ${headerColor} border-b flex justify-between items-start shrink-0 relative">
-                    ${isPaused ? '<div class="absolute top-0 left-0 w-1.5 h-full bg-yellow-400"></div>' : '<div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>'}
+                <div class="px-4 py-3 ${headerColor} border-b flex justify-between items-start shrink-0">
                     <div>
-                        <h3 class="font-black text-[15px] ${titleColor} tracking-tight drop-shadow-sm">${task}</h3>
+                        <h3 class="font-bold text-lg ${titleColor} tracking-tight">${task}</h3>
                         <div class="text-[11px] ${isPaused ? 'text-yellow-700 dark:text-yellow-500' : 'text-blue-600 dark:text-blue-400'} mt-1 font-bold group-time-display cursor-pointer" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}" title="그룹 시작시간 수정">
                             시작: ${formatTimeTo24H(earliestStartTime)}
-                            <span class="ongoing-duration ml-1 font-extrabold bg-white/50 px-1.5 py-0.5 rounded shadow-sm" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>
+                            <span class="ongoing-duration ml-1 font-extrabold" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>
                             ${pauseDisplay}
                         </div>
                     </div>
-                    <span class="px-2 py-1 ${isPaused ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' : 'bg-white dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-100'} text-[10px] font-black rounded-lg shadow-sm">${groupRecords.length}명 참여</span>
+                    <span class="px-2 py-1 ${isPaused ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'} text-xs font-bold rounded-full shadow-sm">${groupRecords.length}명 참여</span>
                 </div>
                 ${membersHtml}
-                <div class="p-2 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex gap-2 shrink-0 card-actions">
-                    <button data-task="${task}" class="${isPaused ? 'resume-work-group-btn bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 hover:bg-green-200' : 'pause-work-group-btn bg-yellow-50 border border-yellow-200 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-100'} flex-1 py-1.5 font-bold text-xs rounded-lg transition-all shadow-sm hover:shadow-md flex justify-center items-center gap-1">${isPaused ? '▶ 전체재개' : '⏸ 전체정지'}</button>
-                    <button data-task="${task}" class="stop-work-group-btn flex-1 py-1.5 bg-red-50 border border-red-200 dark:bg-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-100 hover:text-red-700 font-bold text-xs rounded-lg transition-all shadow-sm hover:shadow-md flex justify-center items-center gap-1">⏹ 전체종료</button>
+                <div class="p-3 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex gap-2 shrink-0 card-actions">
+                    <button data-task="${task}" class="${isPaused ? 'resume-work-group-btn bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800/60' : 'pause-work-group-btn bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-800/60'} flex-1 py-2 font-bold text-sm rounded-xl transition flex justify-center items-center gap-1 shadow-sm">${isPaused ? '▶ 전체재개' : '⏸ 전체정지'}</button>
+                    <button data-task="${task}" class="stop-work-group-btn flex-1 py-2 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800/60 font-bold text-sm rounded-xl transition flex justify-center items-center gap-1 shadow-sm">⏹ 전체종료</button>
                 </div>
             `;
         } else {
-            card.className = `${mobileVisibilityClass} flex-col justify-center items-center min-h-[260px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-blue-50/30 dark:hover:bg-gray-700 hover:border-blue-400 hover:shadow-[0_8px_25px_rgba(59,130,246,0.1)] hover:-translate-y-1 transition-all duration-300 group`;
+            card.className = `${mobileVisibilityClass} flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-400 dark:hover:border-blue-500 transition-all group`;
             card.dataset.action = 'start-task';
             card.dataset.task = task;
             card.innerHTML = `
-                <div class="w-12 h-12 bg-gray-50 dark:bg-gray-700 border border-gray-200/80 dark:border-gray-600 rounded-xl shadow-sm flex items-center justify-center text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:bg-blue-100/50 group-hover:border-blue-200 group-hover:scale-110 transition-all duration-300 mb-3 text-xl font-light">+</div>
-                <h3 class="font-extrabold text-[15px] text-gray-600 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors drop-shadow-sm">${task} 시작</h3>
-                <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-2 font-bold bg-gray-100 px-3 py-1 rounded-full group-hover:bg-blue-100/50 group-hover:text-blue-600 transition-colors">클릭하여 인원 선택</p>
+                <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 group-hover:border-blue-200 dark:group-hover:border-blue-800 group-hover:scale-110 transition-all mb-4 text-2xl font-light">+</div>
+                <h3 class="font-bold text-lg text-gray-600 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">${task} 시작</h3>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 font-medium">클릭하여 인원 선택</p>
             `;
         }
         presetGrid.appendChild(card);
     });
 
     const otherTaskCard = document.createElement('div');
-    otherTaskCard.className = `flex flex-col justify-center items-center min-h-[260px] bg-gray-50/50 dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-white dark:hover:bg-gray-700 hover:border-gray-400 hover:shadow-[0_8px_25px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all duration-300 group`;
+    otherTaskCard.className = `flex flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all group`;
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
-        <div class="w-12 h-12 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 group-hover:scale-110 transition-all duration-300 mb-3 text-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 group-hover:scale-110 transition-all mb-4 text-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         </div>
-        <h3 class="font-extrabold text-[15px] text-gray-500 dark:text-gray-300 group-hover:text-gray-700">기타 업무</h3>
-        <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-2 font-bold bg-white border border-gray-100 px-3 py-1 rounded-full group-hover:border-gray-300 transition-colors">새로운 업무 만들기</p>
+        <h3 class="font-bold text-lg text-gray-600 dark:text-gray-300">기타 업무</h3>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 font-medium">새로운 업무 만들기</p>
     `;
     presetGrid.appendChild(otherTaskCard);
     presetTaskContainer.appendChild(presetGrid);
@@ -651,12 +641,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     if (isMobileMemberViewExpanded) allMembersContainer.classList.add('mobile-expanded');
     
     allMembersContainer.innerHTML = `
-        <div class="flex justify-between items-center border-b border-gray-200/60 dark:border-gray-700 pb-3 mb-6 mt-10">
-            <h3 class="text-lg font-extrabold text-gray-800 dark:text-white flex items-center gap-2 drop-shadow-sm">
+        <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-3 mb-6 mt-10">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
                 <span class="text-xl">🧑‍🤝‍🧑</span> 전체 팀원 현황
-                <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 hidden md:inline ml-2 bg-gray-100 px-2 py-1 rounded-lg">클릭하여 근태 설정/수정</span>
+                <span class="text-xs font-normal text-gray-400 dark:text-gray-500 hidden md:inline ml-2">(클릭하여 근태 설정/수정)</span>
             </h3>
-            <button id="toggle-all-members-mobile" class="md:hidden bg-white border border-gray-200 dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">${isMobileMemberViewExpanded ? '간략히' : '전체보기'}</button>
+            <button id="toggle-all-members-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">${isMobileMemberViewExpanded ? '간략히' : '전체보기'}</button>
         </div>`;
 
     const ongoingMembers = new Set(ongoingRecords.filter(r => r.status === 'ongoing').map(r => r.member));
@@ -674,8 +664,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
     orderedTeamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
-        groupContainer.className = 'mb-6 bg-white/50 p-3 rounded-2xl border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)]';
-        groupContainer.innerHTML = `<div class="flex items-center gap-2 mb-3 hidden md:flex"><h4 class="text-xs font-black text-gray-500 dark:text-gray-500 uppercase tracking-wider bg-gray-200/50 px-2 py-1 rounded-md">${group.name}</h4><div class="h-px bg-gradient-to-r from-gray-200 to-transparent dark:bg-gray-700 flex-grow"></div></div>`;
+        groupContainer.className = 'mb-6';
+        groupContainer.innerHTML = `<div class="flex items-center gap-2 mb-3 hidden md:flex"><h4 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">${group.name}</h4><div class="h-px bg-gray-200 dark:bg-gray-700 flex-grow"></div></div>`;
         const groupGrid = document.createElement('div');
         groupGrid.className = 'flex flex-wrap gap-2.5';
         
@@ -692,7 +682,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const isSelf = (member === currentUserName);
             const visibilityClass = (isSelf || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
             
-            card.className = `p-2 rounded-xl border text-center transition-all duration-300 min-h-[76px] shadow-sm hover:shadow-[0_4px_15px_rgba(0,0,0,0.05)] hover:-translate-y-0.5 ${visibilityClass} ${isSelf ? 'w-full md:w-[105px]' : 'w-[105px]'} flex-col justify-center relative overflow-hidden`;
+            card.className = `p-2 rounded-xl border text-center transition-all min-h-[76px] ${visibilityClass} ${isSelf ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center shadow-sm`;
             card.dataset.memberName = member;
 
             if (isOnLeave) {
@@ -703,9 +693,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.endTime = leaveInfo.endTime || ''; 
                 card.dataset.endDate = leaveInfo.endDate || '';
                 
-                card.className += ' bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400';
+                card.className += ' bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400';
                 if (currentUserRole === 'admin' || isSelf) {
-                    card.className += ' cursor-pointer hover:border-blue-300 dark:hover:border-blue-500';
+                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30';
                 } else {
                     card.className += ' cursor-not-allowed';
                 }
@@ -713,10 +703,10 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 const displayLabel = getLeaveDisplayLabel(member, leaveInfo);
                 let detailText = leaveInfo.startTime ? formatTimeTo24H(leaveInfo.startTime) + (leaveInfo.endTime ? ` - ${formatTimeTo24H(leaveInfo.endTime)}` : (leaveInfo.type === '외출' ? ' ~' : '')) : (leaveInfo.startDate ? leaveInfo.startDate.substring(5) + (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate ? ` ~ ${leaveInfo.endDate.substring(5)}` : '') : '');
                 
-                card.innerHTML = `<div class="font-extrabold text-[13px] text-gray-600 dark:text-gray-300 mb-1">${member}</div><div class="text-[10px] font-extrabold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded inline-block shadow-inner">${displayLabel}</div>${detailText ? `<div class="text-[9px] mt-1 font-bold text-gray-400 dark:text-gray-500">${detailText}</div>` : ''}`;
+                card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-0.5">${member}</div><div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded inline-block">${displayLabel}</div>${detailText ? `<div class="text-[10px] mt-1 text-gray-400 dark:text-gray-500">${detailText}</div>` : ''}`;
             } else if (isWorking) {
                 card.dataset.action = 'member-toggle-leave';
-                card.className += ' cursor-pointer hover:border-blue-300';
+                card.className += ' opacity-80 cursor-not-allowed';
                 
                 if (ongoingMembers.has(member)) {
                     card.className += ' bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
@@ -724,16 +714,16 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                     card.className += ' bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800';
                 }
 
-                card.innerHTML = `<div class="font-black text-[13px] ${ongoingMembers.has(member) ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'} mb-1.5 drop-shadow-sm">${member}</div><div class="text-[10px] font-bold ${ongoingMembers.has(member) ? 'text-white bg-red-500 shadow-sm' : 'text-yellow-800 bg-yellow-300 shadow-sm'} truncate px-1.5 py-0.5 rounded-full mx-1" title="${workingMembersMap.get(member)}">${ongoingMembers.has(member) ? workingMembersMap.get(member) : '휴식 중'}</div>`;
+                card.innerHTML = `<div class="font-extrabold text-sm ${ongoingMembers.has(member) ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'} mb-1">${member}</div><div class="text-[10px] font-bold ${ongoingMembers.has(member) ? 'text-red-500 dark:text-red-500' : 'text-yellow-600 dark:text-yellow-500'} truncate px-1" title="${workingMembersMap.get(member)}">${ongoingMembers.has(member) ? workingMembersMap.get(member) : '휴식 중'}</div>`;
             } else if (isClockedIn) {
                 card.dataset.action = 'member-toggle-leave';
                 card.className += ' bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
                 if (currentUserRole === 'admin' || isSelf) {
                     card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
                 } else {
-                    card.className += ' cursor-not-allowed opacity-80';
+                    card.className += ' cursor-not-allowed opacity-70';
                 }
-                card.innerHTML = `<div class="absolute top-0 left-0 w-full h-1 bg-green-400"></div><div class="font-extrabold text-[13px] text-green-700 dark:text-green-400 mb-1">${member}</div><div class="text-[10px] font-extrabold text-green-600 bg-white px-1.5 py-0.5 rounded-full shadow-sm mx-2">대기 중</div>`;
+                card.innerHTML = `<div class="font-extrabold text-sm text-green-700 dark:text-green-400 mb-1">${member}</div><div class="text-[11px] font-bold text-green-600 dark:text-green-500">대기 중</div>`;
             } else if (isReturned) {
                 card.dataset.action = 'member-toggle-leave';
                 card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700';
@@ -742,16 +732,16 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 } else {
                     card.className += ' cursor-not-allowed opacity-60';
                 }
-                card.innerHTML = `<div class="font-extrabold text-[13px] text-gray-600 dark:text-gray-300 mb-1">${member}</div><div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded-md">퇴근 완료</div>`;
+                card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-1">${member}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">퇴근 완료</div>`;
             } else {
                 card.dataset.action = 'member-toggle-leave';
-                card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500';
+                card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 opacity-60';
                  if (currentUserRole === 'admin' || isSelf) {
                      card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
                  } else {
-                     card.className += ' cursor-not-allowed opacity-50 shadow-none';
+                     card.className += ' cursor-not-allowed';
                  }
-                card.innerHTML = `<div class="font-extrabold text-[13px] mb-1 opacity-70">${member}</div><div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded-md opacity-70">출근 전</div>`;
+                card.innerHTML = `<div class="font-extrabold text-sm mb-1">${member}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">출근 전</div>`;
             }
             groupGrid.appendChild(card);
         });
@@ -761,8 +751,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
     const activePartTimers = (appState.partTimers || []).filter(pt => ongoingMembers.has(pt.name) || onLeaveStatusMap.has(pt.name) || appState.dailyAttendance?.[pt.name]);
     if (activePartTimers.length > 0) {
-        const albaContainer = document.createElement('div'); albaContainer.className = 'mb-6 bg-white/50 p-3 rounded-2xl border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)]'; 
-        albaContainer.innerHTML = `<div class="flex items-center gap-2 mb-3 hidden md:flex"><h4 class="text-xs font-black text-gray-500 dark:text-gray-500 uppercase tracking-wider bg-gray-200/50 px-2 py-1 rounded-md">알바</h4><div class="h-px bg-gradient-to-r from-gray-200 to-transparent dark:bg-gray-700 flex-grow"></div></div>`;
+        const albaContainer = document.createElement('div'); albaContainer.className = 'mb-6'; 
+        albaContainer.innerHTML = `<div class="flex items-center gap-2 mb-3 hidden md:flex"><h4 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">알바</h4><div class="h-px bg-gray-200 dark:bg-gray-700 flex-grow"></div></div>`;
         const albaGrid = document.createElement('div'); albaGrid.className = 'flex flex-wrap gap-2.5';
         
         activePartTimers.forEach(pt => {
@@ -770,7 +760,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
              const isSelfAlba = (pt.name === currentUserName);
              const visibilityClassAlba = (isSelfAlba || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
              
-             card.className = `p-2 rounded-xl border text-center transition-all duration-300 min-h-[76px] shadow-sm hover:shadow-[0_4px_15px_rgba(0,0,0,0.05)] hover:-translate-y-0.5 ${visibilityClassAlba} ${isSelfAlba ? 'w-full md:w-[105px]' : 'w-[105px]'} flex-col justify-center relative overflow-hidden`;
+             card.className = `p-2 rounded-xl border text-center transition-all min-h-[76px] ${visibilityClassAlba} ${isSelfAlba ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center shadow-sm`;
              
              const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
              const isAlbaOnLeave = !!albaLeaveInfo;
@@ -784,19 +774,19 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             if (isAlbaOnLeave) {
                 card.dataset.action = 'member-toggle-leave'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
                 
-                card.className += ' bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400';
+                card.className += ' bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400';
                 if (currentUserRole === 'admin' || isSelfAlba) {
-                    card.className += ' cursor-pointer hover:border-blue-300 dark:hover:border-blue-500';
+                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30';
                 } else {
                     card.className += ' cursor-not-allowed';
                 }
 
                 const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
                 let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? ' ~' : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
-                card.innerHTML = `<div class="font-extrabold text-[13px] text-gray-600 dark:text-gray-300 mb-1">${pt.name}</div><div class="text-[10px] font-extrabold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded inline-block shadow-inner">${displayLabel}</div>${detailText ? `<div class="text-[9px] mt-1 font-bold text-gray-400 dark:text-gray-500">${detailText}</div>` : ''}`;
+                card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-0.5">${pt.name}</div><div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded inline-block">${displayLabel}</div>${detailText ? `<div class="text-[10px] mt-1 text-gray-400 dark:text-gray-500">${detailText}</div>` : ''}`;
             } else if (isAlbaWorking) {
                 card.dataset.action = 'member-toggle-leave';
-                card.className += ' cursor-pointer hover:border-blue-300';
+                card.className += ' opacity-80 cursor-not-allowed';
                 
                 if (ongoingMembers.has(pt.name)) {
                     card.className += ' bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
@@ -804,16 +794,16 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                     card.className += ' bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800';
                 }
 
-                card.innerHTML = `<div class="font-black text-[13px] ${ongoingMembers.has(pt.name) ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'} mb-1.5 drop-shadow-sm">${pt.name}</div><div class="text-[10px] font-bold ${ongoingMembers.has(pt.name) ? 'text-white bg-red-500 shadow-sm' : 'text-yellow-800 bg-yellow-300 shadow-sm'} truncate px-1.5 py-0.5 rounded-full mx-1">${ongoingMembers.has(pt.name) ? workingMembersMap.get(pt.name) : '휴식 중'}</div>`;
+                card.innerHTML = `<div class="font-extrabold text-sm ${ongoingMembers.has(pt.name) ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'} mb-1">${pt.name}</div><div class="text-[10px] font-bold ${ongoingMembers.has(pt.name) ? 'text-red-500 dark:text-red-500' : 'text-yellow-600 dark:text-yellow-500'} truncate px-1">${ongoingMembers.has(pt.name) ? workingMembersMap.get(pt.name) : '휴식 중'}</div>`;
             } else if (isAlbaClockedIn) {
                  card.dataset.action = 'member-toggle-leave';
                  card.className += ' bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
                  if (currentUserRole === 'admin' || isSelfAlba) {
                      card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
                  } else {
-                     card.className += ' cursor-not-allowed opacity-80';
+                     card.className += ' cursor-not-allowed opacity-70';
                  }
-                 card.innerHTML = `<div class="absolute top-0 left-0 w-full h-1 bg-green-400"></div><div class="font-extrabold text-[13px] text-green-700 dark:text-green-400 mb-1">${pt.name}</div><div class="text-[10px] font-extrabold text-green-600 bg-white px-1.5 py-0.5 rounded-full shadow-sm mx-2">대기 중</div>`;
+                 card.innerHTML = `<div class="font-extrabold text-sm text-green-700 dark:text-green-400 mb-1">${pt.name}</div><div class="text-[11px] font-bold text-green-600 dark:text-green-500">대기 중</div>`;
             } else if (isAlbaReturned) {
                  card.dataset.action = 'member-toggle-leave';
                  card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700';
@@ -822,16 +812,16 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                  } else {
                      card.className += ' cursor-not-allowed opacity-60';
                  }
-                 card.innerHTML = `<div class="font-extrabold text-[13px] text-gray-600 dark:text-gray-300 mb-1">${pt.name}</div><div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded-md">퇴근 완료</div>`;
+                 card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-1">${pt.name}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">퇴근 완료</div>`;
             } else {
                  card.dataset.action = 'member-toggle-leave';
-                 card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500';
+                 card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 opacity-60';
                  if (currentUserRole === 'admin' || isSelfAlba) {
                      card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
                  } else {
-                     card.className += ' cursor-not-allowed opacity-50 shadow-none';
+                     card.className += ' cursor-not-allowed';
                  }
-                 card.innerHTML = `<div class="font-extrabold text-[13px] mb-1 opacity-70">${pt.name}</div><div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded-md opacity-70">출근 전</div>`;
+                 card.innerHTML = `<div class="font-extrabold text-sm mb-1">${pt.name}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">출근 전</div>`;
             }
              albaGrid.appendChild(card);
         });
@@ -851,7 +841,7 @@ export const renderCompletedWorkLog = (appState) => {
     const completedRecords = allRecords.filter(r => r.status === 'completed');
 
     if (completedRecords.length === 0) {
-        workLogBody.innerHTML = `<div class="text-center py-8 text-gray-400 dark:text-gray-500 text-sm font-medium">오늘 완료된 업무가 없습니다.</div>`;
+        workLogBody.innerHTML = `<div class="text-center py-10 text-gray-400 dark:text-gray-500 text-sm font-medium">오늘 완료된 업무가 없습니다.</div>`;
         return;
     }
 
@@ -859,61 +849,65 @@ export const renderCompletedWorkLog = (appState) => {
 
     completedRecords.forEach(record => {
         const item = document.createElement('div');
-        item.className = 'bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200/80 dark:border-gray-700 shadow-sm mb-2 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500 hover:-translate-y-[1px] transition-all duration-300 relative group cursor-default';
+        item.className = 'bg-white dark:bg-gray-800 p-3.5 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm mb-2.5 hover:border-blue-300 dark:hover:border-blue-500 transition-colors relative group';
         
         const pauseMin = calcTotalPauseMinutes(record.pauses);
-        const pauseText = pauseMin > 0 ? `<span class="text-[9px] text-gray-400 dark:text-gray-500 ml-1 font-bold">(휴:${formatDuration(pauseMin)})</span>` : '';
+        const pauseText = pauseMin > 0 ? `<span class="text-[10px] text-gray-400 dark:text-gray-500 ml-1 font-normal">(휴:${formatDuration(pauseMin)} 포함)</span>` : '';
         
         item.innerHTML = `
             <div class="flex justify-between items-center mb-1.5">
-                <span class="font-bold text-sm text-gray-800 dark:text-gray-200">${record.task}</span>
-                <span class="text-[11px] font-black text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 px-2 py-0.5 rounded-lg shadow-sm">${formatDuration(record.duration)}</span>
+                <span class="font-extrabold text-sm text-gray-800 dark:text-gray-200">${record.task}</span>
+                <span class="text-[11px] font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 px-2 py-0.5 rounded-md shadow-sm">${formatDuration(record.duration)}</span>
             </div>
-            <div class="flex justify-between items-center text-[11px] text-gray-500 dark:text-gray-400 font-bold">
+            <div class="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 font-medium">
                 <div class="flex items-center gap-1.5">
                     <span class="w-1.5 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full"></span>
                     ${record.member}
                 </div>
                 <div>${formatTimeTo24H(record.startTime)} ~ ${formatTimeTo24H(record.endTime)}${pauseText}</div>
             </div>
-            <div class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm px-1.5 py-1 rounded-md shadow-md border border-gray-100 dark:border-gray-700 flex gap-2">
-                <button data-action="edit" data-record-id="${record.id}" class="text-[10px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-extrabold tracking-wide">수정</button>
+            <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 dark:bg-gray-800/95 backdrop-blur px-1.5 py-1 rounded-md shadow-sm border border-gray-100 dark:border-gray-700 flex gap-3">
+                <button data-action="edit" data-record-id="${record.id}" class="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-bold tracking-wide">수정</button>
                 <div class="w-px bg-gray-200 dark:bg-gray-600"></div>
-                <button data-action="delete" data-record-id="${record.id}" class="text-[10px] text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-extrabold tracking-wide">삭제</button>
+                <button data-action="delete" data-record-id="${record.id}" class="text-[11px] text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-bold tracking-wide">삭제</button>
             </div>
         `;
         workLogBody.appendChild(item);
     });
 };
 
+// 🚀 이지어드민 데이터 수신 리스너 (전용 로컬 변수에 데이터 저장)
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
         const ezData = event.data.data;
         console.log("🎯 [대시보드 탭] 데이터 도착 완료!! :", ezData);
         
+        // 💡 [핵심] 받은 데이터를 이 파일 내의 전용 변수에 저장
         currentEzadminData = ezData; 
 
+        // 화면에 즉시 업데이트 및 반짝임 효과
         const invoiceEl = document.getElementById('ezadmin-invoice-count');
         const deliveryEl = document.getElementById('ezadmin-delivery-count');
         
         if (invoiceEl && ezData.invoice !== undefined) {
             invoiceEl.textContent = ezData.invoice.toLocaleString();
-            invoiceEl.classList.add('scale-110', 'text-orange-500');
-            setTimeout(() => invoiceEl.classList.remove('scale-110', 'text-orange-500'), 500);
+            invoiceEl.classList.add('scale-125', 'text-orange-500');
+            setTimeout(() => invoiceEl.classList.remove('scale-125', 'text-orange-500'), 500);
         }
         if (deliveryEl && ezData.delivery !== undefined) {
             deliveryEl.textContent = ezData.delivery.toLocaleString();
-            deliveryEl.classList.add('scale-110', 'text-purple-500');
-            setTimeout(() => deliveryEl.classList.remove('scale-110', 'text-purple-500'), 500);
+            deliveryEl.classList.add('scale-125', 'text-purple-500');
+            setTimeout(() => deliveryEl.classList.remove('scale-125', 'text-purple-500'), 500);
         }
     }
 });
 
+// 모바일 새로고침 버튼
 const setupMobileRefreshButton = () => {
     if (document.getElementById('mobile-refresh-btn')) return;
     const btn = document.createElement('button');
     btn.id = 'mobile-refresh-btn';
-    btn.className = 'fixed bottom-6 right-6 w-12 h-12 bg-blue-600/90 text-white rounded-full shadow-[0_8px_20px_rgba(37,99,235,0.4)] z-50 md:hidden flex items-center justify-center backdrop-blur-sm transition-transform hover:scale-105 active:scale-95';
+    btn.className = 'fixed bottom-6 right-6 w-12 h-12 bg-blue-600/90 text-white rounded-full shadow-lg z-50 md:hidden flex items-center justify-center';
     btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>`;
     btn.onclick = () => window.location.reload();
     document.body.appendChild(btn);
