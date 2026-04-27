@@ -2,7 +2,7 @@
 
 export const showToast = (message, isError = false) => {
     const container = document.getElementById('toast-container');
-    if (!container) return; // toast-container가 없는 화면에서도 에러 방지
+    if (!container) return; // 안전장치 추가
     const toast = document.createElement('div');
     toast.className = `toast p-3 rounded-lg shadow-xl text-white ${isError ? 'bg-red-500' : 'bg-green-500'}`;
     toast.textContent = message;
@@ -96,6 +96,7 @@ export const getWeekOfYear = (date) => {
     return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
 };
 
+// 💡 [변경됨] 날짜 옆에 시, 분, 초가 표시되도록 수정
 export const displayCurrentDate = () => {
     const now = new Date();
     const year = now.getFullYear();
@@ -103,12 +104,18 @@ export const displayCurrentDate = () => {
     const day = now.getDate().toString().padStart(2, '0');
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
     const dayOfWeek = weekdays[now.getDay()];
-    const dateString = `${year}년 ${month}월 ${day}일 (${dayOfWeek})`;
     
-    // 💡 에러 방지 처리: 해당 요소가 존재하는지 먼저 확인합니다.
-    const dateDisplayElement = document.getElementById('current-date-display');
-    if (dateDisplayElement) {
-        dateDisplayElement.textContent = dateString;
+    // 시간, 분, 초 추출 및 두 자리수 맞춤
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const seconds = now.getSeconds().toString().padStart(2, '0');
+    
+    // 최종 표시될 텍스트 (예: 2024년 05월 12일 (수) 14:30:45)
+    const dateString = `${year}년 ${month}월 ${day}일 (${dayOfWeek}) ${hours}:${minutes}:${seconds}`;
+    
+    const displayElement = document.getElementById('current-date-display');
+    if (displayElement) {
+        displayElement.textContent = dateString;
     }
 };
 
