@@ -236,7 +236,6 @@ function addTeamGroup() {
     if (!container) return;
 
     const groupEl = document.createElement('div');
-    // 💡 모던 카드 UI 및 다크모드 적용
     groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm team-group-card transition-colors';
     groupEl.innerHTML = `
         <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
@@ -260,7 +259,6 @@ function addTaskGroup() {
     if (!container) return;
 
     const groupEl = document.createElement('div');
-    // 💡 모던 카드 UI 적용
     groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm task-group-card transition-colors';
     groupEl.innerHTML = `
          <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
@@ -295,13 +293,11 @@ function handleDynamicClicks(e) {
     }
 
     else if (e.target.classList.contains('add-member-btn')) {
-        // 💡 새 팀원 추가 시 모던 UI 클래스 삽입
         const container = e.target.closest('.team-group-card').querySelector('.members-container');
         const defaultWage = document.getElementById('default-part-timer-wage')?.value || 10000;
         const newMemberEl = document.createElement('div');
         newMemberEl.className = 'flex flex-col gap-3 mb-4 p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30 shadow-sm member-item transition-colors';
         
-        // 오늘 날짜 가져오기 (초기값용)
         const today = new Date().toISOString().split('T')[0];
 
         newMemberEl.innerHTML = `
@@ -312,6 +308,24 @@ function handleDynamicClicks(e) {
                         <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이름</label>
                         <input type="text" value="새 팀원" class="member-name w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white">
                     </div>
+
+                    <div class="flex flex-col">
+                        <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">직급</label>
+                        <select class="member-rank w-20 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white">
+                            <option value="사원" selected>사원</option>
+                            <option value="주임">주임</option>
+                            <option value="대리">대리</option>
+                            <option value="과장">과장</option>
+                            <option value="차장">차장</option>
+                            <option value="부장">부장</option>
+                            <option value="이사">이사</option>
+                            <option value="상무">상무</option>
+                            <option value="전무">전무</option>
+                            <option value="사장">사장</option>
+                            <option value="대표">대표</option>
+                        </select>
+                    </div>
+
                     <div class="flex flex-col">
                         <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">이메일</label>
                         <input type="email" value="" class="member-email w-48 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white" placeholder="example@email.com">
@@ -355,7 +369,6 @@ function handleDynamicClicks(e) {
         container.appendChild(newMemberEl);
     }
     else if (e.target.classList.contains('add-task-btn')) {
-        // 💡 새 업무 추가 시 모던 UI 적용
         const container = e.target.closest('.task-group-card').querySelector('.tasks-container');
         const newTaskEl = document.createElement('div');
         newTaskEl.className = 'flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group shadow-sm';

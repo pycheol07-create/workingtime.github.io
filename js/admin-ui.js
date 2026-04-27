@@ -45,7 +45,8 @@ export function renderAdminUI(config) {
         config.memberWages || {}, 
         config.memberEmails || {}, 
         config.memberRoles || {}, 
-        config.memberLeaveSettings || {}
+        config.memberLeaveSettings || {},
+        config.memberRanks || {} // 💡 직급 추가
     );
     
     renderDashboardItemsConfig(config.dashboardItems || [], config);
@@ -94,7 +95,7 @@ export function renderCostAnalysisConfig(config) {
     }
 }
 
-export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}) {
+export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}) {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
     container.innerHTML = '';
@@ -107,6 +108,7 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
         const membersHtml = group.members.map((member, mIndex) => {
             const memberEmail = memberEmails[member] || '';
             const currentRole = (memberEmail && memberRoles[memberEmail.toLowerCase()]) ? memberRoles[memberEmail.toLowerCase()] : 'user';
+            const currentRank = memberRanks[member] || '사원'; // 💡 직급
             
             const settings = memberLeaveSettings[member] || {};
             const joinDate = settings.joinDate || '';
@@ -123,6 +125,23 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
                         <div class="flex flex-col">
                             <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이름</label>
                             <input type="text" value="${member}" class="member-name w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="이름">
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">직급</label>
+                            <select class="member-rank w-20 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500">
+                                <option value="사원" ${currentRank === '사원' ? 'selected' : ''}>사원</option>
+                                <option value="주임" ${currentRank === '주임' ? 'selected' : ''}>주임</option>
+                                <option value="대리" ${currentRank === '대리' ? 'selected' : ''}>대리</option>
+                                <option value="과장" ${currentRank === '과장' ? 'selected' : ''}>과장</option>
+                                <option value="차장" ${currentRank === '차장' ? 'selected' : ''}>차장</option>
+                                <option value="부장" ${currentRank === '부장' ? 'selected' : ''}>부장</option>
+                                <option value="이사" ${currentRank === '이사' ? 'selected' : ''}>이사</option>
+                                <option value="상무" ${currentRank === '상무' ? 'selected' : ''}>상무</option>
+                                <option value="전무" ${currentRank === '전무' ? 'selected' : ''}>전무</option>
+                                <option value="사장" ${currentRank === '사장' ? 'selected' : ''}>사장</option>
+                                <option value="대표" ${currentRank === '대표' ? 'selected' : ''}>대표</option>
+                            </select>
                         </div>
                         
                         <div class="flex flex-col">

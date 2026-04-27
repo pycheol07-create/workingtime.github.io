@@ -5,9 +5,6 @@ import { getAllDashboardDefinitions } from './admin-ui.js';
 
 /**
  * DOM에서 현재 입력된 모든 설정 데이터를 수집하여 객체로 반환합니다.
- * @param {Object} currentConfig - 현재 로드된 설정 객체 (커스텀 항목 참조용)
- * @returns {Object} newConfig - 수집된 새 설정 객체
- * @throws {Error} 수집 중 중복 데이터 등 치명적 오류 발생 시
  */
 export function collectConfigFromDOM(currentConfig) {
     const newConfig = {
@@ -16,6 +13,7 @@ export function collectConfigFromDOM(currentConfig) {
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
+        memberRanks: {}, // 💡 직급 추가
         memberLeaveSettings: {}, // 연차 설정
         dashboardItems: [],
         dashboardCustomItems: {},
@@ -58,11 +56,10 @@ export function collectConfigFromDOM(currentConfig) {
             const memberEmail = memberItem.querySelector('.member-email').value.trim();
             const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
             const memberRole = memberItem.querySelector('.member-role').value || 'user';
+            const memberRank = memberItem.querySelector('.member-rank')?.value || '사원'; // 💡 직급 수집
 
             const joinDate = memberItem.querySelector('.member-join-date').value;
             const totalLeave = Number(memberItem.querySelector('.member-total-leave').value) || 0;
-            
-            // ✅ [신규] 연차 적용 시작일 및 만료일 수집
             const leaveResetDate = memberItem.querySelector('.member-leave-reset-date').value;
             const expirationDate = memberItem.querySelector('.member-leave-expiration-date').value;
 
@@ -70,13 +67,14 @@ export function collectConfigFromDOM(currentConfig) {
 
             newGroup.members.push(memberName);
             newConfig.memberWages[memberName] = memberWage;
+            newConfig.memberRanks[memberName] = memberRank; // 💡 직급 저장
 
             // 연차 설정 저장
             newConfig.memberLeaveSettings[memberName] = {
                 joinDate: joinDate,
                 totalLeave: totalLeave,
-                leaveResetDate: leaveResetDate, // ✅ 추가
-                expirationDate: expirationDate  // ✅ 추가
+                leaveResetDate: leaveResetDate,
+                expirationDate: expirationDate 
             };
 
             if (memberEmail) {
@@ -178,16 +176,12 @@ export function collectConfigFromDOM(currentConfig) {
 
 /**
  * 수집된 설정 객체의 정합성을 검사합니다.
- * @param {Object} newConfig - 검사할 설정 객체
- * @throws {Error} 유효성 검사 실패 시 에러 메시지 포함
  */
 export function validateConfig(newConfig) {
-    // 모든 등록된 업무 목록 생성 (소문자로 변환하여 비교)
     const allTaskNames = new Set(
         newConfig.taskGroups.flatMap(group => group.tasks).map(t => t.trim().toLowerCase())
     );
 
-    // '주요 업무', '처리량 업무', '원가 계산 업무'가 '업무 관리'에 실제로 존재하는지 확인
     const invalidKeyTasks = newConfig.keyTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
     const invalidQuantityTasks = newConfig.quantityTaskTypes.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
     const invalidCostTasks = newConfig.costCalcTasks.filter(task => !allTaskNames.has(task.trim().toLowerCase()));
@@ -207,5 +201,5 @@ export function validateConfig(newConfig) {
         throw new Error(errorMsg);
     }
 
-    return true; // 유효성 검사 통과
+    return true; 
 }
