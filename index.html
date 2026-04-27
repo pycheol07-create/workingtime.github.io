@@ -26,12 +26,12 @@
 
     <div class="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden w-full transition-colors duration-200">
         
-        <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:flex flex-col z-20 shadow-sm shrink-0 transition-colors duration-200">
+        <aside class="w-60 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:flex flex-col z-20 shadow-sm shrink-0 transition-colors duration-200">
             <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
                 <h1 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">📦 물류팀 시스템</h1>
             </div>
             
-            <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto text-[15px]">
+            <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto text-[14px]">
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-2">메인 업무</div>
                 <button class="w-full flex items-center gap-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-xl font-semibold transition">
                     <span class="text-lg">📊</span> 대시보드
@@ -422,7 +422,6 @@
         import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js';
         import { renderNoticeWidget } from './js/ui-main.js';
 
-        // 💡 메인 화면 켜지자마자 즉시 실시간 데이터 연동 시작
         loadAdminTodos();
 
         document.addEventListener('click', function(e) {
