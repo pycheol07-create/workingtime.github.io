@@ -25,7 +25,7 @@
     <div id="toast-container" class="space-y-2 w-full max-w-xs"></div>
 
     <div id="modals-container-history" class="w-full h-full"></div>
-    <div id="modals-container-download"></div>
+    <div id="modals-container-form"></div> <div id="modals-container-download"></div>
     <div id="modals-container-confirm"></div>
     
     <script>
@@ -42,14 +42,14 @@
         }
 
         async function initHistoryApp() {
-            // 히스토리 모달 내용만 단독으로 불러옴
+            // 💡 누락되었던 modals-form.html(입력창 팝업 모음)을 함께 불러오도록 수정
             await Promise.all([
                 loadComponent('components/modals-history.html', 'modals-container-history'),
-                loadComponent('components/modals-confirm.html', 'modals-container-confirm')
+                loadComponent('components/modals-confirm.html', 'modals-container-confirm'),
+                loadComponent('components/modals-form.html', 'modals-container-form') 
             ]);
 
             try {
-                // 💡 [수정] 모듈 전체를 State라는 이름으로 묶어서 가져옵니다. (Live Binding)
                 const State = await import('./js/state.js');
                 
                 // 기존 대시보드와 똑같이 백그라운드에서 파이어베이스 초기화를 유도합니다.
@@ -59,10 +59,10 @@
                 const { loadAndRenderHistoryList } = await import('./js/app-history-logic.js');
                 const { setupGeneralModalListeners } = await import('./js/listeners-modals.js');
 
-                // 💡 [핵심] 파이어베이스 auth 객체가 준비될 때까지 기다림 (0.1초 간격 체크)
+                // 파이어베이스 auth 객체가 준비될 때까지 기다림
                 let checkCount = 0;
                 const waitForAuth = setInterval(async () => {
-                    // auth 객체와 함수가 모두 완벽히 준비되었을 때만 실행!
+                    // auth 객체와 함수가 모두 완벽히 준비되었을 때만 실행
                     if (State.auth && typeof State.auth.onAuthStateChanged === 'function') {
                         clearInterval(waitForAuth);
                         
@@ -75,7 +75,7 @@
 
                             // 로그인 확인 완료 시 세팅 진행
                             setupHistoryModalListeners();
-                            setupGeneralModalListeners();
+                            setupGeneralModalListeners(); // 💡 불러온 폼 모달들의 이벤트 활성화
                             await loadAndRenderHistoryList();
                             
                             // 새 탭에서는 history-modal의 hidden을 무조건 풀어줘야 화면이 보입니다.
