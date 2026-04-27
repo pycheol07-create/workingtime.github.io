@@ -128,16 +128,16 @@ export const renderDashboardLayout = (appConfig) => {
 
         if (isQuantity) {
             workloadHtml += `
-                <div class="flex justify-between items-center py-2 border-b border-blue-50 dark:border-blue-900/50 last:border-0 hover:bg-blue-50/50 dark:hover:bg-blue-900/30 transition-colors px-2 rounded">
-                    <span class="text-sm font-bold text-blue-600 dark:text-blue-400">${def.title}</span>
-                    <span id="${def.valueId}" class="text-base font-extrabold text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-md shadow-sm border border-blue-100 dark:border-blue-800 transition-all">0</span>
+                <div class="flex justify-between items-center flex-nowrap py-2 border-b border-blue-50 dark:border-blue-900/50 last:border-0 hover:bg-blue-50/50 dark:hover:bg-blue-900/30 transition-colors px-2 rounded">
+                    <span class="text-sm font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap mr-2">${def.title}</span>
+                    <span id="${def.valueId}" class="text-sm font-extrabold text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-md shadow-sm border border-blue-100 dark:border-blue-800 transition-all whitespace-nowrap">0</span>
                 </div>
             `;
         } else {
             personnelHtml += `
-                <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors px-2 rounded">
-                    <span class="text-sm font-medium text-gray-500 dark:text-gray-400">${def.title}</span>
-                    <span id="${def.valueId}" class="text-base font-extrabold text-gray-800 dark:text-gray-200 transition-all">0</span>
+                <div class="flex justify-between items-center flex-nowrap py-2 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors px-2 rounded">
+                    <span class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap mr-2">${def.title}</span>
+                    <span id="${def.valueId}" class="text-sm font-extrabold text-gray-800 dark:text-gray-200 transition-all whitespace-nowrap">0</span>
                 </div>
             `;
         }
