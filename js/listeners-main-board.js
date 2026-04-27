@@ -16,7 +16,7 @@ import {
 } from './app-logic.js';
 
 import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js';
-import { searchTotalInspection } from './total-inspection-logic.js'; // [신규] 전량 검수 초기화용
+import { searchTotalInspection } from './total-inspection-logic.js';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -29,7 +29,12 @@ const openLeaveModal = (memberName) => {
 // 통합 액션 모달 열기 (관리자/본인 공용)
 const openMemberActionModal = (memberName) => {
     State.context.memberToAction = memberName;
-    if (DOM.actionMemberName) DOM.actionMemberName.textContent = memberName;
+    
+    // 💡 직급 정보 가져와서 이름 뒤에 붙여주기
+    const rank = State.appConfig?.memberRanks?.[memberName];
+    const displayName = rank ? `${memberName} ${rank}` : memberName;
+    
+    if (DOM.actionMemberName) DOM.actionMemberName.textContent = displayName;
 
     const ongoingRecord = (State.appState.workRecords || []).find(r => r.member === memberName && r.status === 'ongoing');
     const pausedRecord = (State.appState.workRecords || []).find(r => r.member === memberName && r.status === 'paused');
@@ -108,7 +113,6 @@ const openMemberActionModal = (memberName) => {
 
 export function setupMainBoardListeners() {
 
-    // [수정됨] '업무 시작' 버튼 클릭 시 '샘플검수'와 '전량검수' 분기 처리
     if (DOM.confirmTeamSelectBtn) {
         DOM.confirmTeamSelectBtn.addEventListener('click', () => {
             if (State.context.selectedTaskForStart === '샘플검수') {
@@ -318,7 +322,7 @@ export function setupMainBoardListeners() {
                     if (DOM.taskSelectModal) DOM.taskSelectModal.classList.remove('hidden');
                     return;
                 } else if (groupId && task) {
-                    // [수정됨] 대시보드 카드 클릭 시 '샘플검수'와 '전량검수' 분기 처리
+                    // 대시보드 카드 클릭 시 '샘플검수'와 '전량검수' 분기 처리
                     if (task === '샘플검수') {
                         renderTodayInspectionList();
                         if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
