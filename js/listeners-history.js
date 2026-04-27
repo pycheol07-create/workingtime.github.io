@@ -58,22 +58,20 @@ export function setupHistoryModalListeners() {
         }
     };
     
-    // 💡 [GUI 개선] 메인 탭(업무이력, 근태이력 등) 디자인을 예쁜 버튼 형태로 바꿔주는 함수
+    // 💡 [GUI 개선] 메인 탭 디자인 함수 (유지됨)
     const styleHistoryTabs = (activeTabName) => {
         const tabsContainer = document.getElementById('history-main-tabs');
         if (!tabsContainer) return;
         
-        // 1. 기존 텍스트 탭의 흔적(밑줄 등) 지우기 및 배경 컨테이너 디자인 적용 (Segmented Control 형태)
         tabsContainer.classList.remove('-mb-px');
         tabsContainer.classList.add('p-1.5', 'bg-gray-200/70', 'rounded-xl', 'inline-flex', 'items-center', 'shadow-inner');
         tabsContainer.style.gap = '0.35rem';
         
         if (tabsContainer.parentElement) {
             tabsContainer.parentElement.classList.remove('border-b', 'border-gray-200');
-            tabsContainer.parentElement.classList.add('pb-4', 'pt-1'); // 여백 살짝 넓히기
+            tabsContainer.parentElement.classList.add('pb-4', 'pt-1');
         }
 
-        // 탭별로 어울리는 아이콘 매핑
         const tabIcons = {
             'work': '📋',
             'attendance': '⏰',
@@ -88,21 +86,13 @@ export function setupHistoryModalListeners() {
 
         document.querySelectorAll('.history-main-tab-btn').forEach(btn => {
             const tabKey = btn.dataset.mainTab;
-            
-            // 기존 텍스트에서 특수기호 제거 후 깔끔한 텍스트만 추출
             const pureText = btn.textContent.replace(/[^\w\s가-힣]/gi, '').trim();
-            
-            // 아이콘과 텍스트 조합으로 내용물 변경
             btn.innerHTML = `<span class="text-[15px] mr-1.5 opacity-90 drop-shadow-sm">${tabIcons[tabKey] || '📄'}</span><span>${pureText}</span>`;
-
-            // 기본 클래스 싹 갈아엎기
             btn.className = 'history-main-tab-btn px-4 py-2.5 rounded-lg transition-all duration-200 whitespace-nowrap text-sm flex items-center justify-center';
             
             if (tabKey === activeTabName) {
-                // 활성화된 탭 (흰색 바탕에 파란 글씨, 튀어나온 느낌)
                 btn.classList.add('bg-white', 'text-blue-700', 'font-extrabold', 'shadow-md', 'border', 'border-gray-200/80', 'scale-[1.02]');
             } else {
-                // 비활성화된 탭 (투명한 바탕에 회색 글씨)
                 btn.classList.add('bg-transparent', 'text-gray-500', 'font-medium', 'border', 'border-transparent', 'hover:bg-gray-300/50', 'hover:text-gray-800');
             }
         });
@@ -231,22 +221,31 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    const openHistoryModalLogic = async () => {
+    // 💡 [버그 수정 완료] PC에서는 새 탭으로 여는 로직 다시 추가!
+    const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
             if (DOM.historyModal) DOM.historyModal.classList.add('hidden');
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
             return;
         }
+
+        // 화면 너비가 768px 이상(PC)이면 새 창으로 열기 (복구 완료!)
+        if (window.innerWidth >= 768) {
+            if (e) e.preventDefault();
+            window.open('history.html', '_blank');
+            return;
+        }
+
+        // 모바일 화면이면 기존처럼 모달 팝업으로 열기
         if (DOM.historyModal) {
             DOM.historyModal.classList.remove('hidden');
-            setHistoryMaximized(false);
+            setHistoryMaximized(true); // 모바일에서는 꽉 찬 화면이 기본
             if (DOM.historyStartDateInput) DOM.historyStartDateInput.value = '';
             if (DOM.historyEndDateInput) DOM.historyEndDateInput.value = '';
             State.context.historyStartDate = null;
             State.context.historyEndDate = null;
             
-            // 💡 모달 창이 열릴 때 탭 디자인 즉시 입혀주기
             styleHistoryTabs(State.context.activeMainHistoryTab || 'work');
             
             const periodExcelBtn = document.getElementById('history-download-period-excel-btn');
@@ -265,8 +264,8 @@ export function setupHistoryModalListeners() {
     };
 
     if (DOM.openHistoryBtn) DOM.openHistoryBtn.addEventListener('click', openHistoryModalLogic);
-    if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.addEventListener('click', () => {
-        openHistoryModalLogic();
+    if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.addEventListener('click', (e) => {
+        openHistoryModalLogic(e);
         if (DOM.navContent) DOM.navContent.classList.add('hidden');
     });
     if (DOM.closeHistoryBtn) DOM.closeHistoryBtn.addEventListener('click', () => {
@@ -387,7 +386,6 @@ export function setupHistoryModalListeners() {
                 State.context.activeMainHistoryTab = tabName;
                 State.context.activeFilterDropdown = null; 
                 
-                // 💡 클릭 시 새로워진 GUI 탭 디자인 함수 호출!
                 styleHistoryTabs(tabName);
                 
                 const periodExcelBtn = document.getElementById('history-download-period-excel-btn');
