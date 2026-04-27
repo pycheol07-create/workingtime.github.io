@@ -45,7 +45,7 @@ import { renderTodoList } from './inspection-logic.js';
 // Admin Todo 로직 임포트 (알림 체크용)
 import { checkAdminTodoNotifications } from './admin-todo-logic.js';
 
-// [신규] 주말 근무 리스너 임포트
+// 주말 근무 리스너 임포트
 import { setupWeekendListeners } from './listeners-weekend.js';
 
 
@@ -53,7 +53,7 @@ import { setupWeekendListeners } from './listeners-weekend.js';
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
 
-// 과거 연차 데이터 (이미지 기반)
+// 과거 연차 데이터
 const historicalLeaveData = [
     { member: "박영철", dates: ["2025-01-22", "2025-02-10", "2025-02-17", "2025-02-19", "2025-02-20", "2025-02-21", "2025-03-21", "2025-05-02", "2025-05-07", "2025-05-08", "2025-05-09", "2025-05-12", "2025-05-13", "2025-06-17", "2025-09-01", "2025-09-30", "2025-11-24"] },
     { member: "유아라", dates: ["2025-01-14", "2025-03-20", "2025-03-21", "2025-04-21", "2025-06-23", "2025-07-14", "2025-08-04", "2025-08-22", "2025-08-25", "2025-09-24", "2025-09-25", "2025-09-26", "2025-09-29", "2025-09-30", "2025-10-01", "2025-10-02", "2025-10-29", "2025-11-11", "2025-11-17"] },
@@ -92,7 +92,7 @@ async function applyHistoricalLeaveData() {
                     member: data.member,
                     type: '연차',
                     startDate: date,
-                    endDate: date // 하루 연차
+                    endDate: date 
                 });
                 existingSet.add(key);
                 updatedCount++;
@@ -114,14 +114,11 @@ async function applyHistoricalLeaveData() {
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     
-    // 💡 [추가] 타이머가 돌 때마다 대시보드 메인 시계도 함께 새로고침 합니다. (화면 깜빡임 없음)
     displayCurrentDate();
     
-    // ✅ [수정] 오늘이 평일인지 확인 (주말에는 점심시간 자동정지/재개 적용 안 함)
     const todayDate = getTodayDateString();
     const isTodayWeekday = isWeekday(todayDate);
     
-    // 1. 점심시간 자동 일시정지 (12:30) - 평일(isTodayWeekday)일 때만 실행
     if (isTodayWeekday && now === '12:30' && !State.appState.lunchPauseExecuted) {
         State.appState.lunchPauseExecuted = true;
         if (State.context.autoPauseForLunch) {
@@ -137,7 +134,6 @@ export const updateElapsedTimes = async () => {
         saveStateToFirestore(); 
     }
 
-    // 2. 점심시간 자동 재개 (13:30) - 평일(isTodayWeekday)일 때만 실행
     if (isTodayWeekday && now === '13:30' && !State.appState.lunchResumeExecuted) {
         State.appState.lunchResumeExecuted = true;
         if (State.context.autoResumeFromLunch) {
@@ -252,9 +248,9 @@ async function startAppAfterLogin(user) {
             return acc;
         }, {});
 
-        // 💡 [핵심] 일반 팀원 외에 '시스템 전용 계정'인지도 확인합니다.
+        // 💡 [에러 수정 완료] sysAcc 검색 시 acc가 유효하고 email이 있는지 먼저 확인 (안전장치)
         const systemAccounts = State.appConfig.systemAccounts || [];
-        const sysAcc = systemAccounts.find(acc => acc.email.toLowerCase() === userEmailLower);
+        const sysAcc = systemAccounts.find(acc => acc && acc.email && acc.email.toLowerCase() === userEmailLower);
 
         // 팀원 목록에 있거나, 시스템 계정에 등록되어 있으면 로그인 허용
         const currentUserName = emailToMemberMap[userEmailLower] || (sysAcc ? sysAcc.name : null);
