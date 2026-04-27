@@ -8,6 +8,13 @@ const predictionCharts = {
     delivery: null
 };
 
+// 💡 [추가됨] 장(상품수)을 건수(주문건수)로 변환하여 "건 / 장" 포맷으로 반환하는 헬퍼 함수
+const formatDelivery = (val) => {
+    if (!val || val <= 0) return '0건 / 0장';
+    const cases = Math.round(val / 1.5); // 1.5로 나누어 건수 계산
+    return `${cases.toLocaleString()}건 / ${Math.round(val).toLocaleString()}장`;
+};
+
 export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     const revenueCtx = document.getElementById('chart-prediction-revenue');
     const deliveryCtx = document.getElementById('chart-prediction-delivery');
@@ -34,7 +41,7 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     const allLabels = [...historical.labels, ...prediction.labels];
 
     renderChart('revenue', revenueCtx, allLabels, historical.revenue, prediction.revenue, splitIndex, '매출 (원)', 'rgb(79, 70, 229)'); 
-    renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, splitIndex, '배송량 (건)', 'rgb(16, 185, 129)'); 
+    renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, splitIndex, '배송량 (장)', 'rgb(16, 185, 129)'); 
 
     updateKPICards(prediction, trend, daysToPredict);
 
@@ -85,8 +92,9 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
             elTodayRevBar.style.width = `${revPct}%`;
         }
 
-        if (elTodayEstDel) elTodayEstDel.textContent = today.predictedDel.toLocaleString();
-        if (elTodayActDel) elTodayActDel.textContent = today.actualDel.toLocaleString();
+        // 💡 [수정됨] 예측 및 실제 배송량을 건/장 포맷으로 출력
+        if (elTodayEstDel) elTodayEstDel.textContent = formatDelivery(today.predictedDel);
+        if (elTodayActDel) elTodayActDel.textContent = formatDelivery(today.actualDel);
         if (elTodayDelBar) {
             const delPct = today.predictedDel > 0 ? Math.min(100, (today.actualDel / today.predictedDel) * 100) : 0;
             elTodayDelBar.style.width = `${delPct}%`;
@@ -108,10 +116,12 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
     const avgDel = delivery.reduce((a,b)=>a+b,0) / delivery.length;
 
     if (elTomRev) elTomRev.textContent = tomorrow.revenue > 0 ? tomorrow.revenue.toLocaleString() : '휴무(0)';
-    if (elTomDel) elTomDel.textContent = tomorrow.delivery > 0 ? tomorrow.delivery.toLocaleString() : '휴무(0)';
+    
+    // 💡 [수정됨] 내일 예측 배송량 및 평균 배송량을 건/장 포맷으로 출력
+    if (elTomDel) elTomDel.textContent = tomorrow.delivery > 0 ? formatDelivery(tomorrow.delivery) : '휴무(0)';
     
     if (elPerAvgRev) elPerAvgRev.textContent = Math.round(avgRev).toLocaleString();
-    if (elPerAvgDel) elPerAvgDel.textContent = Math.round(avgDel).toLocaleString();
+    if (elPerAvgDel) elPerAvgDel.textContent = formatDelivery(avgDel);
     if (elPeriodLabel) elPeriodLabel.textContent = `향후 ${daysToPredict}일 기준`;
 
     // 3. 장기 추세 안내 텍스트
@@ -193,7 +203,14 @@ const renderChart = (key, ctx, labels, histData, predData, splitIndex, label, co
                             let label = context.dataset.label || '';
                             if (label) label += ': ';
                             if (context.parsed.y !== null) {
-                                label += Math.round(context.parsed.y).toLocaleString();
+                                const val = Math.round(context.parsed.y);
+                                // 💡 [수정됨] 툴팁에서도 '배송량'일 경우 건수와 장수를 동시 표기
+                                if (key === 'delivery') {
+                                    const cases = Math.round(val / 1.5);
+                                    label += `${cases.toLocaleString()}건 / ${val.toLocaleString()}장`;
+                                } else {
+                                    label += val.toLocaleString();
+                                }
                             }
                             return label;
                         }
