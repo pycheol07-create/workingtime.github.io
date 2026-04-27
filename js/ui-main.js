@@ -83,7 +83,7 @@ const getLeaveDisplayLabel = (member, leaveEntry) => {
     return '연차';
 };
 
-// 💡 중요 알림 위젯 렌더링 로직 (모든 형태의 줄바꿈 지원)
+// 💡 중요 알림 위젯 렌더링 로직
 export const renderNoticeWidget = (appState) => {
     const memoList = document.getElementById('widget-memo-list');
     if (!memoList) return;
@@ -100,7 +100,6 @@ export const renderNoticeWidget = (appState) => {
         const textClass = notice.completed ? 'line-through text-yellow-700/50 dark:text-yellow-500/50' : 'text-yellow-900 dark:text-yellow-200 font-bold';
         const icon = notice.completed ? '✅' : '📌';
         
-        // 💡 \r\n 과 \n 을 모두 <br>로 완벽하게 변환
         const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
         
         html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2 mb-1.5"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words flex-1">${safeText}</span></li>`;
@@ -125,7 +124,6 @@ export const renderDashboardLayout = (appConfig) => {
         if (!def) return;
 
         const isQuantity = def.isQuantity === true;
-        // 💡 공백을 &nbsp;로 치환하여 어떠한 상황에서도 띄어쓰기에서 줄바꿈이 생기지 않도록 차단
         const safeTitle = def.title.replace(/ /g, '&nbsp;'); 
 
         if (isQuantity) {
@@ -144,6 +142,25 @@ export const renderDashboardLayout = (appConfig) => {
             `;
         }
     });
+
+    // 💡 변경점: 업무처리량 박스 맨 밑에 이지어드민 전용 공간을 새롭게 추가합니다!
+    workloadHtml += `
+        <div class="mt-3 pt-3 border-t-2 border-dashed border-blue-200 dark:border-blue-800/50">
+            <div class="text-[10px] font-bold text-blue-400 dark:text-blue-500 mb-2 flex items-center gap-1">
+                <span>🚚</span> 물류 시스템 실시간 연동
+            </div>
+            <div class="flex gap-2">
+                <div class="flex-1 flex justify-between items-center bg-orange-50 dark:bg-orange-900/20 px-2.5 py-2 rounded-lg border border-orange-100 dark:border-orange-800/50 transition-colors shadow-sm">
+                    <span class="text-xs font-extrabold text-orange-600 dark:text-orange-400 break-keep">송장</span>
+                    <span id="ezadmin-invoice-count" class="text-sm font-black text-orange-700 dark:text-orange-300 transition-all duration-300">0</span>
+                </div>
+                <div class="flex-1 flex justify-between items-center bg-purple-50 dark:bg-purple-900/20 px-2.5 py-2 rounded-lg border border-purple-100 dark:border-purple-800/50 transition-colors shadow-sm">
+                    <span class="text-xs font-extrabold text-purple-600 dark:text-purple-400 break-keep">배송</span>
+                    <span id="ezadmin-delivery-count" class="text-sm font-black text-purple-700 dark:text-purple-300 transition-all duration-300">0</span>
+                </div>
+            </div>
+        </div>
+    `;
 
     if (personnelContainer) personnelContainer.innerHTML = personnelHtml;
     if (workloadContainer) workloadContainer.innerHTML = workloadHtml;
@@ -169,12 +186,10 @@ export const updateSummary = (appState, appConfig) => {
     const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
     const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
 
-    // 💡 퇴사자(삭제된 인원)를 휴무 카운트에서 제외하는 로직
     const onLeaveMemberNames = new Set(
         combinedOnLeaveMembers
             .filter(item => {
                 if (item.type === '외출' && item.endTime) return false;
-                // 현재 직원 목록이나 알바 목록에 실존하는 이름만 카운트합니다.
                 return allStaffMembers.has(item.member) || allPartTimers.has(item.member);
             })
             .map(item => item.member)
@@ -839,24 +854,27 @@ export const renderCompletedWorkLog = (appState) => {
     });
 };
 
-// 💡 이지어드민 크롬 확장 프로그램에서 보내는 데이터 수신 대기 (마지막에 추가)
+// 💡 새로고침할 때마다 이지어드민의 송장/배송 데이터가 바로 이 새 박스로 쏙쏙 들어갑니다!
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
         const ezData = event.data.data;
         
-        // 1. 송장(invoice) 숫자를 대시보드의 '국내송장(예상)' 위젯에 업데이트
-        const invoiceElement = document.getElementById('dashboard-value-domestic-invoice'); 
-        if (invoiceElement) {
+        // 1. 송장 숫자 업데이트 (주황색 테마 ID)
+        const invoiceElement = document.getElementById('ezadmin-invoice-count'); 
+        if (invoiceElement && ezData.invoice !== undefined) {
             invoiceElement.textContent = ezData.invoice;
             // 시각적 피드백 효과
-            invoiceElement.classList.add('text-pink-500', 'scale-110');
-            setTimeout(() => invoiceElement.classList.remove('text-pink-500', 'scale-110'), 500);
+            invoiceElement.classList.add('scale-125');
+            setTimeout(() => invoiceElement.classList.remove('scale-125'), 500);
         }
 
-        // 2. 다른 연동 항목(접수 등)이 필요할 경우 동일하게 추가 가능
-        const receiptElement = document.getElementById('dashboard-value-receipt-count'); // ID 예시
-        if (receiptElement) {
-            receiptElement.textContent = ezData.receipt;
+        // 2. 배송 숫자 업데이트 (보라색 테마 ID)
+        const deliveryElement = document.getElementById('ezadmin-delivery-count'); 
+        if (deliveryElement && ezData.delivery !== undefined) {
+            deliveryElement.textContent = ezData.delivery;
+            // 시각적 피드백 효과
+            deliveryElement.classList.add('scale-125');
+            setTimeout(() => deliveryElement.classList.remove('scale-125'), 500);
         }
     }
 });
