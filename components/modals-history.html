@@ -1,15 +1,15 @@
-<div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-    <div id="history-modal-content-box" class="bg-white rounded-2xl shadow-2xl w-[1400px] h-[880px] flex flex-col relative">
+<div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50 p-4 transition-opacity">
+    <div id="history-modal-content-box" class="bg-gray-100/90 dark:bg-gray-900 rounded-2xl shadow-2xl w-[1400px] h-[880px] flex flex-col relative border border-gray-200 dark:border-gray-700 transition-colors">
 
-        <div id="history-modal-header" class="p-6 border-b border-gray-200 flex justify-between items-center cursor-move bg-white rounded-t-2xl">
-            <h2 class="text-xl font-bold text-gray-900">데이터 관리</h2>
+        <div id="history-modal-header" class="p-5 md:p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center cursor-move bg-white dark:bg-gray-800 rounded-t-2xl shrink-0 z-10 transition-colors">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">데이터 관리</h2>
             <div class="flex items-center gap-3">
-                <button id="toggle-history-fullscreen-btn" class="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition" title="전체화면">
+                <button id="toggle-history-fullscreen-btn" class="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition" title="전체화면">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
                     </svg>
                 </button>
-                <button id="close-history-btn" class="p-1 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded transition" title="닫기">
+                <button id="close-history-btn" class="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition" title="닫기">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -17,30 +17,30 @@
             </div>
         </div>
 
-        <div class="px-6 border-b border-gray-200 bg-gray-50 flex flex-wrap justify-between items-end gap-4 pt-2">
+        <div class="px-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-wrap justify-between items-end gap-4 pt-2 shrink-0 transition-colors z-10">
             <div id="history-main-tabs" class="flex gap-4 -mb-px overflow-x-auto no-scrollbar">
-                <button data-main-tab="work" class="history-main-tab-btn py-4 font-semibold text-blue-600 border-b-2 border-blue-600 transition whitespace-nowrap">업무 이력</button>
-                <button data-main-tab="attendance" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition whitespace-nowrap">근태 이력</button>
-                <button data-main-tab="trends" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition whitespace-nowrap">📈 트렌드 분석</button>
-                <button data-main-tab="prediction" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition whitespace-nowrap">🔮 실적 예측</button>
-                <button data-main-tab="report" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition whitespace-nowrap">📊 업무 리포트</button>
-                <button data-main-tab="personal" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition whitespace-nowrap">👤 개인 리포트</button>
-                <button data-main-tab="management" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition whitespace-nowrap">💼 경영 지표</button>
-                <button data-main-tab="inspection" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition whitespace-nowrap">📦 검수 이력</button>
-                <button data-main-tab="leave" class="history-main-tab-btn py-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300 transition whitespace-nowrap">🏖️ 연차 관리</button>
+                <button data-main-tab="work" class="history-main-tab-btn py-4 font-semibold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap">업무 이력</button>
+                <button data-main-tab="attendance" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition whitespace-nowrap">근태 이력</button>
+                <button data-main-tab="trends" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition whitespace-nowrap">📈 트렌드 분석</button>
+                <button data-main-tab="prediction" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition whitespace-nowrap">🔮 실적 예측</button>
+                <button data-main-tab="report" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition whitespace-nowrap">📊 업무 리포트</button>
+                <button data-main-tab="personal" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition whitespace-nowrap">👤 개인 리포트</button>
+                <button data-main-tab="management" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition whitespace-nowrap">💼 경영 지표</button>
+                <button data-main-tab="inspection" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition whitespace-nowrap">📦 검수 이력</button>
+                <button data-main-tab="leave" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition whitespace-nowrap">🏖️ 연차 관리</button>
             </div>
 
             <div id="history-date-range-controls" class="flex items-center gap-3 pb-3">
-                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-md border border-gray-200 shadow-sm">
-                    <label for="history-start-date" class="text-xs font-medium text-gray-600">기간:</label>
-                    <input type="date" id="history-start-date" class="p-1 border border-gray-300 rounded text-xs focus:ring-blue-500 focus:border-blue-500 h-7 text-gray-600">
-                    <span class="text-gray-400 text-xs">~</span>
-                    <input type="date" id="history-end-date" class="p-1 border border-gray-300 rounded text-xs focus:ring-blue-500 focus:border-blue-500 h-7 text-gray-600">
-                    <div class="w-px h-4 bg-gray-300 mx-1"></div>
-                    <button id="history-filter-btn" class="text-blue-600 hover:text-blue-800 font-bold text-xs px-1 transition">조회</button>
-                    <button id="history-clear-filter-btn" class="text-gray-400 hover:text-gray-600 text-xs px-1 transition">초기화</button>
+                <div class="flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 shadow-sm transition-colors">
+                    <label for="history-start-date" class="text-xs font-bold text-gray-600 dark:text-gray-300">기간:</label>
+                    <input type="date" id="history-start-date" class="p-1 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded text-xs focus:ring-blue-500 focus:border-blue-500 h-7 text-gray-700 dark:text-white dark:[color-scheme:dark]">
+                    <span class="text-gray-400 dark:text-gray-500 text-xs">~</span>
+                    <input type="date" id="history-end-date" class="p-1 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded text-xs focus:ring-blue-500 focus:border-blue-500 h-7 text-gray-700 dark:text-white dark:[color-scheme:dark]">
+                    <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                    <button id="history-filter-btn" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-bold text-xs px-1 transition">조회</button>
+                    <button id="history-clear-filter-btn" class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xs px-1 transition">초기화</button>
                 </div>
-                <button id="history-download-period-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-medium py-1.5 px-3 rounded-md text-xs shadow-sm flex items-center gap-1 transition h-[34px]">
+                <button id="history-download-period-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded-md text-xs shadow-sm flex items-center gap-1 transition h-[34px]">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     기간 엑셀
                 </button>
@@ -48,80 +48,80 @@
         </div>
 
         <div class="flex-grow flex overflow-hidden">
-            <div id="history-date-list-container" class="w-[160px] border-r border-gray-200 overflow-y-auto bg-gray-50 flex-shrink-0">
+            <div id="history-date-list-container" class="w-[160px] border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-white dark:bg-gray-800 flex-shrink-0 z-10 transition-colors">
                 <ul id="history-date-list" class="p-2 space-y-1"></ul>
             </div>
             
-            <div class="flex-1 flex flex-col overflow-hidden min-w-0">
+            <div class="flex-1 flex flex-col overflow-hidden min-w-0 bg-gray-100/80 dark:bg-gray-900 transition-colors">
                 
-                <div id="work-history-panel" class="flex flex-col h-full">
-                    <div class="p-4 border-b border-gray-200 flex-shrink-0 flex justify-between items-center bg-white">
+                <div id="work-history-panel" class="flex flex-col h-full p-4 md:p-6 gap-4">
+                    <div class="p-4 border border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-between items-center bg-white dark:bg-gray-800 rounded-2xl depth-panel transition-colors">
                         <div id="history-tabs" class="flex gap-4">
-                            <button data-view="daily" class="history-tab-btn pb-2 font-semibold text-blue-600 border-blue-600 border-b-2">일별 상세</button>
-                            <button data-view="weekly" class="history-tab-btn pb-2 text-gray-500 hover:text-gray-700">주별 요약</button>
-                            <button data-view="monthly" class="history-tab-btn pb-2 text-gray-500 hover:text-gray-700">월별 요약</button>
+                            <button data-view="daily" class="history-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400 border-b-2">일별 상세</button>
+                            <button data-view="weekly" class="history-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">주별 요약</button>
+                            <button data-view="monthly" class="history-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">월별 요약</button>
                         </div>
-                        <button id="history-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-1 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        <button id="history-download-btn" class="bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 transition shadow-sm">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                              엑셀 다운로드
                         </button>
                     </div>
-                    <div id="history-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                    <div id="history-view-container" class="p-6 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl flex-grow depth-panel transition-colors">
                         <div id="history-daily-view" class="hidden"></div>
                         <div id="history-weekly-view" class="hidden space-y-6"></div>
                         <div id="history-monthly-view" class="hidden space-y-6"></div>
                     </div>
                 </div>
 
-                <div id="attendance-history-panel" class="hidden flex flex-col h-full">
-                    <div class="p-4 border-b border-gray-200 flex-shrink-0 flex justify-between items-center bg-white">
+                <div id="attendance-history-panel" class="hidden flex flex-col h-full p-4 md:p-6 gap-4">
+                    <div class="p-4 border border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-between items-center bg-white dark:bg-gray-800 rounded-2xl depth-panel transition-colors">
                         <div id="attendance-history-tabs" class="flex gap-4">
-                            <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2 font-semibold text-blue-600 border-blue-600 border-b-2">일별 상세</button>
-                            <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2 text-gray-500 hover:text-gray-700">주별 요약</button>
-                            <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2 text-gray-500 hover:text-gray-700">월별 요약</button>
+                            <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400 border-b-2">일별 상세</button>
+                            <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">주별 요약</button>
+                            <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">월별 요약</button>
                         </div>
-                        <button id="attendance-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-1 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        <button id="attendance-download-btn" class="bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 transition shadow-sm">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                              엑셀 다운로드
                         </button>
                     </div>
-                    <div id="attendance-history-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                    <div id="attendance-history-view-container" class="p-6 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl flex-grow depth-panel transition-colors">
                         <div id="history-attendance-daily-view" class="hidden space-y-4"></div>
                         <div id="history-attendance-weekly-view" class="hidden space-y-4"></div>
                         <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
                     </div>
                 </div>
 
-                <div id="trend-analysis-panel" class="hidden flex flex-col h-full p-6 overflow-y-auto bg-gray-50 space-y-8">
+                <div id="trend-analysis-panel" class="hidden flex flex-col h-full p-4 md:p-6 overflow-y-auto space-y-6">
                     <div>
-                        <h3 class="text-xl font-bold mb-4 text-gray-800">주요 지표 트렌드 (최근 30일)</h3>
-                        <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-                            <h4 class="text-lg font-semibold text-gray-700 mb-2">📊 분당 평균 처리량 (개/분)</h4>
+                        <h3 class="text-xl font-bold mb-4 text-gray-800 dark:text-white px-2">주요 지표 트렌드 (최근 30일)</h3>
+                        <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 depth-panel mb-6 transition-colors">
+                            <h4 class="text-lg font-bold text-gray-700 dark:text-gray-200 mb-2">📊 분당 평균 처리량 (개/분)</h4>
                             <div class="h-64"><canvas id="kpi-chart-throughput"></canvas></div>
                         </div>
-                        <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-                            <h4 class="text-lg font-semibold text-gray-700 mb-2">💰 개당 평균 처리비용 (원/개)</h4>
+                        <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 depth-panel mb-6 transition-colors">
+                            <h4 class="text-lg font-bold text-gray-700 dark:text-gray-200 mb-2">💰 개당 평균 처리비용 (원/개)</h4>
                             <div class="h-64"><canvas id="kpi-chart-cost"></canvas></div>
                         </div>
-                        <div class="bg-white p-4 rounded-lg shadow-sm">
-                            <h4 class="text-lg font-semibold text-gray-700 mb-2">⏳ 총 비업무시간 (분)</h4>
+                        <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 depth-panel transition-colors">
+                            <h4 class="text-lg font-bold text-gray-700 dark:text-gray-200 mb-2">⏳ 총 비업무시간 (분)</h4>
                             <div class="h-64"><canvas id="kpi-chart-nonwork"></canvas></div>
                         </div>
                     </div>
                 </div>
 
-                <div id="prediction-panel" class="hidden flex flex-col h-full p-6 overflow-y-auto bg-gray-50 space-y-6">
-                    <div class="flex justify-between items-center bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                <div id="prediction-panel" class="hidden flex flex-col h-full p-4 md:p-6 overflow-y-auto space-y-6">
+                    <div class="flex justify-between items-center bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 depth-panel transition-colors">
                         <div>
-                            <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <h3 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
                                 🔮 AI 실적 예측 및 분석
-                                <span class="text-xs font-normal text-white bg-indigo-600 px-2 py-0.5 rounded-full">BETA</span>
+                                <span class="text-xs font-bold text-white bg-indigo-600 px-2 py-0.5 rounded-full shadow-sm">BETA</span>
                             </h3>
-                            <p class="text-sm text-gray-500 mt-1">과거 오차율 누적 학습을 반영하여 정확도가 높아진 예측을 제공합니다.</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">과거 오차율 누적 학습을 반영하여 정확도가 높아진 예측을 제공합니다.</p>
                         </div>
                         <div class="flex items-center gap-3">
-                            <label for="prediction-days-select" class="text-sm font-bold text-gray-600">예측 기간:</label>
-                            <select id="prediction-days-select" class="p-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+                            <label for="prediction-days-select" class="text-sm font-bold text-gray-600 dark:text-gray-300">예측 기간:</label>
+                            <select id="prediction-days-select" class="p-2 border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm font-bold text-gray-800 dark:text-white focus:ring-indigo-500 focus:border-indigo-500 shadow-sm outline-none">
                                 <option value="7">향후 1주 (7일)</option>
                                 <option value="14" selected>향후 2주 (14일)</option>
                                 <option value="30">향후 1개월 (30일)</option>
@@ -130,111 +130,110 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        
-                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-amber-500 flex flex-col justify-between">
+                        <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 border-l-4 border-l-amber-500 depth-panel flex flex-col justify-between transition-colors">
                             <div>
                                 <div class="flex justify-between items-start mb-4">
-                                    <p class="text-sm font-bold text-amber-600 uppercase tracking-wide">오늘 실적 모니터링</p>
-                                    <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-1 rounded font-bold" id="pred-correction-badge">AI 보정중</span>
+                                    <p class="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wide">오늘 실적 모니터링</p>
+                                    <span class="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 px-2 py-1 rounded font-bold">AI 보정중</span>
                                 </div>
                                 <div class="space-y-4">
                                     <div>
                                         <div class="flex justify-between items-end mb-1">
-                                            <span class="text-sm text-gray-500 font-bold">매출 <span class="text-xs text-gray-400 font-normal">(예측 <span id="pred-today-est-rev">-</span>)</span></span>
-                                            <span id="pred-today-act-rev" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
+                                            <span class="text-sm text-gray-500 dark:text-gray-400 font-bold">매출 <span class="text-xs text-gray-400 dark:text-gray-500 font-normal">(예측 <span id="pred-today-est-rev">-</span>)</span></span>
+                                            <span id="pred-today-act-rev" class="text-xl font-extrabold text-gray-900 dark:text-white font-mono">-</span>
                                         </div>
-                                        <div class="w-full bg-gray-100 rounded-full h-1.5">
+                                        <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
                                             <div id="pred-today-rev-bar" class="bg-amber-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
                                         </div>
                                     </div>
                                     <div>
                                         <div class="flex justify-between items-end mb-1">
-                                            <span class="text-sm text-gray-500 font-bold">배송 <span class="text-xs text-gray-400 font-normal">(예측 <span id="pred-today-est-del">-</span>)</span></span>
-                                            <span id="pred-today-act-del" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
+                                            <span class="text-sm text-gray-500 dark:text-gray-400 font-bold">배송 <span class="text-xs text-gray-400 dark:text-gray-500 font-normal">(예측 <span id="pred-today-est-del">-</span>)</span></span>
+                                            <span id="pred-today-act-del" class="text-xl font-extrabold text-gray-900 dark:text-white font-mono">-</span>
                                         </div>
-                                        <div class="w-full bg-gray-100 rounded-full h-1.5">
+                                        <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
                                             <div id="pred-today-del-bar" class="bg-amber-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="mt-4 pt-3 border-t border-gray-100">
-                                <p id="pred-error-rate-text" class="text-[11px] font-medium text-gray-500 leading-tight">오차를 학습하여 계산 중...</p>
+                            <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                <p id="pred-error-rate-text" class="text-[11px] font-medium text-gray-500 dark:text-gray-400 leading-tight">오차를 학습하여 계산 중...</p>
                             </div>
                         </div>
                         
-                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-indigo-500 flex flex-col justify-between">
+                        <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 border-l-4 border-l-indigo-500 depth-panel flex flex-col justify-between transition-colors">
                             <div>
                                 <div class="flex justify-between items-start mb-4">
-                                    <p class="text-sm font-bold text-indigo-600 uppercase tracking-wide">내일 예상 실적</p>
-                                    <span class="text-[10px] bg-indigo-100 text-indigo-800 px-2 py-1 rounded font-bold">대비 1순위</span>
+                                    <p class="text-sm font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">내일 예상 실적</p>
+                                    <span class="text-[10px] bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-400 px-2 py-1 rounded font-bold">대비 1순위</span>
                                 </div>
                                 <div class="mt-2 space-y-4">
-                                    <div class="flex justify-between items-end border-b border-gray-50 pb-2">
-                                        <span class="text-sm text-gray-500 font-bold">매출:</span>
+                                    <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
+                                        <span class="text-sm text-gray-500 dark:text-gray-400 font-bold">매출:</span>
                                         <div class="flex items-baseline gap-1">
-                                            <span id="pred-tomorrow-revenue" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
-                                            <span class="text-sm text-gray-500">원</span>
+                                            <span id="pred-tomorrow-revenue" class="text-xl font-extrabold text-gray-900 dark:text-white font-mono">-</span>
+                                            <span class="text-sm text-gray-500 dark:text-gray-400">원</span>
                                         </div>
                                     </div>
-                                    <div class="flex justify-between items-end border-b border-gray-50 pb-2">
-                                        <span class="text-sm text-gray-500 font-bold">배송:</span>
+                                    <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
+                                        <span class="text-sm text-gray-500 dark:text-gray-400 font-bold">배송:</span>
                                         <div class="flex items-baseline gap-1">
-                                            <span id="pred-tomorrow-delivery" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
-                                            <span class="text-sm text-gray-500">건</span>
+                                            <span id="pred-tomorrow-delivery" class="text-xl font-extrabold text-gray-900 dark:text-white font-mono">-</span>
+                                            <span class="text-sm text-gray-500 dark:text-gray-400">건</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="mt-4 pt-3 border-t border-gray-100">
-                                <p id="pred-revenue-trend" class="text-[11px] font-medium text-gray-400 leading-tight">데이터 분석 중...</p>
+                            <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                <p id="pred-revenue-trend" class="text-[11px] font-medium text-gray-400 dark:text-gray-500 leading-tight">데이터 분석 중...</p>
                             </div>
                         </div>
 
-                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-500 flex flex-col justify-between">
+                        <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 border-l-4 border-l-blue-500 depth-panel flex flex-col justify-between transition-colors">
                             <div>
                                 <div class="flex justify-between items-start mb-4">
                                     <div>
-                                        <p class="text-sm font-bold text-blue-600 uppercase tracking-wide">선택 기간 일평균 예측</p>
-                                        <p class="text-[10px] text-gray-400 mt-0.5" id="pred-period-label">향후 14일 기준</p>
+                                        <p class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide">선택 기간 일평균 예측</p>
+                                        <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5" id="pred-period-label">향후 14일 기준</p>
                                     </div>
-                                    <span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold">목표치</span>
+                                    <span class="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 px-2 py-1 rounded font-bold">목표치</span>
                                 </div>
                                 <div class="mt-2 space-y-4">
-                                    <div class="flex justify-between items-end border-b border-gray-50 pb-2">
-                                        <span class="text-sm text-gray-500 font-bold">매출:</span>
+                                    <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
+                                        <span class="text-sm text-gray-500 dark:text-gray-400 font-bold">매출:</span>
                                         <div class="flex items-baseline gap-1">
-                                            <span id="pred-period-avg-revenue" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
-                                            <span class="text-sm text-gray-500">원/일</span>
+                                            <span id="pred-period-avg-revenue" class="text-xl font-extrabold text-gray-900 dark:text-white font-mono">-</span>
+                                            <span class="text-sm text-gray-500 dark:text-gray-400">원/일</span>
                                         </div>
                                     </div>
-                                    <div class="flex justify-between items-end border-b border-gray-50 pb-2">
-                                        <span class="text-sm text-gray-500 font-bold">배송량:</span>
+                                    <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
+                                        <span class="text-sm text-gray-500 dark:text-gray-400 font-bold">배송량:</span>
                                         <div class="flex items-baseline gap-1">
-                                            <span id="pred-period-avg-delivery" class="text-xl font-extrabold text-gray-900 font-mono">-</span>
-                                            <span class="text-sm text-gray-500">건/일</span>
+                                            <span id="pred-period-avg-delivery" class="text-xl font-extrabold text-gray-900 dark:text-white font-mono">-</span>
+                                            <span class="text-sm text-gray-500 dark:text-gray-400">건/일</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="mt-4 pt-3 border-t border-gray-100">
-                                <p id="pred-delivery-trend" class="text-[11px] font-medium text-gray-400 leading-tight">데이터 분석 중...</p>
+                            <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                <p id="pred-delivery-trend" class="text-[11px] font-medium text-gray-400 dark:text-gray-500 leading-tight">데이터 분석 중...</p>
                             </div>
                         </div>
 
                     </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-grow min-h-[400px]">
-                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-                            <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 depth-panel flex flex-col transition-colors">
+                            <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
                                 💰 매출 추이 및 예측
                             </h4>
                             <div class="flex-grow relative w-full h-full min-h-[300px]">
                                 <canvas id="chart-prediction-revenue"></canvas>
                             </div>
                         </div>
-                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-                            <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 depth-panel flex flex-col transition-colors">
+                            <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
                                 📦 배송량 추이 및 예측 (국내배송)
                             </h4>
                             <div class="flex-grow relative w-full h-full min-h-[300px]">
@@ -244,16 +243,16 @@
                     </div>
                 </div>
                 
-                <div id="report-panel" class="hidden flex flex-col h-full">
-                    <div class="p-4 border-b border-gray-200 flex-shrink-0 bg-white">
+                <div id="report-panel" class="hidden flex flex-col h-full p-4 md:p-6 gap-4">
+                    <div class="p-4 border border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-between items-center bg-white dark:bg-gray-800 rounded-2xl depth-panel transition-colors">
                         <div id="report-tabs" class="flex gap-4">
-                            <button data-view="report-daily" class="report-tab-btn pb-2 font-semibold text-blue-600 border-blue-600 border-b-2">일별 리포트</button>
-                            <button data-view="report-weekly" class="report-tab-btn pb-2 text-gray-500 hover:text-gray-700">주별 리포트</button>
-                            <button data-view="report-monthly" class="report-tab-btn pb-2 text-gray-500 hover:text-gray-700">월별 리포트</button>
-                            <button data-view="report-yearly" class="report-tab-btn pb-2 text-gray-500 hover:text-gray-700">연간 리포트</button>
+                            <button data-view="report-daily" class="report-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400 border-b-2">일별 리포트</button>
+                            <button data-view="report-weekly" class="report-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">주별 리포트</button>
+                            <button data-view="report-monthly" class="report-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">월별 리포트</button>
+                            <button data-view="report-yearly" class="report-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">연간 리포트</button>
                         </div>
                     </div>
-                    <div id="report-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                    <div id="report-view-container" class="p-6 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl flex-grow depth-panel transition-colors">
                         <div id="report-daily-view" class=""></div>
                         <div id="report-weekly-view" class="hidden space-y-6"></div>
                         <div id="report-monthly-view" class="hidden space-y-6"></div>
@@ -261,50 +260,50 @@
                     </div>
                 </div>
 
-                <div id="personal-report-panel" class="hidden flex flex-col h-full">
-                    <div class="p-4 border-b border-gray-200 flex-shrink-0 flex justify-between items-center bg-white">
+                <div id="personal-report-panel" class="hidden flex flex-col h-full p-4 md:p-6 gap-4">
+                    <div class="p-4 border border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-between items-center bg-white dark:bg-gray-800 rounded-2xl depth-panel transition-colors">
                         <div class="flex items-center gap-4">
                             <div class="relative">
                                 <label for="personal-report-member-select" class="sr-only">직원 선택</label>
-                                <select id="personal-report-member-select" class="p-2 pl-3 pr-8 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm font-bold text-gray-700 bg-gray-50 cursor-pointer">
+                                <select id="personal-report-member-select" class="p-2 pl-3 pr-8 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm font-bold text-gray-800 dark:text-white bg-gray-50 dark:bg-gray-700 cursor-pointer outline-none">
                                     <option value="">직원 선택...</option>
                                 </select>
                             </div>
-                            <div class="h-6 w-px bg-gray-300"></div>
+                            <div class="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
                             <div id="personal-report-tabs" class="flex gap-4">
-                                <button data-view="personal-daily" class="personal-report-tab-btn pb-2 font-semibold text-blue-600 border-blue-600 border-b-2">일별</button>
-                                <button data-view="personal-weekly" class="personal-report-tab-btn pb-2 text-gray-500 hover:text-gray-700">주별</button>
-                                <button data-view="personal-monthly" class="personal-report-tab-btn pb-2 text-gray-500 hover:text-gray-700">월별</button>
-                                <button data-view="personal-yearly" class="personal-report-tab-btn pb-2 text-gray-500 hover:text-gray-700">연간</button>
+                                <button data-view="personal-daily" class="personal-report-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400 border-b-2">일별</button>
+                                <button data-view="personal-weekly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">주별</button>
+                                <button data-view="personal-monthly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">월별</button>
+                                <button data-view="personal-yearly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">연간</button>
                             </div>
                         </div>
                     </div>
-                    <div id="personal-report-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
+                    <div id="personal-report-view-container" class="p-6 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl flex-grow depth-panel transition-colors">
                         <div id="personal-report-content" class="space-y-6">
-                            <div class="text-center text-gray-500 py-10">
+                            <div class="text-center text-gray-500 dark:text-gray-400 py-10 font-medium">
                                 직원을 선택하고 날짜를 지정하면 상세 리포트가 표시됩니다.
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div id="management-panel" class="hidden flex flex-col h-full">
-                    <div class="p-4 border-b border-gray-200 flex-shrink-0 flex justify-between items-center bg-white">
+                <div id="management-panel" class="hidden flex flex-col h-full p-4 md:p-6 gap-4">
+                    <div class="p-4 border border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-between items-center bg-white dark:bg-gray-800 rounded-2xl depth-panel transition-colors">
                         <div id="management-tabs" class="flex gap-4">
-                            <button data-view="management-daily" class="management-tab-btn pb-2 font-semibold text-blue-600 border-blue-600 border-b-2">일별 입력/조회</button>
-                            <button data-view="management-weekly" class="management-tab-btn pb-2 text-gray-500 hover:text-gray-700">주별 요약</button>
-                            <button data-view="management-monthly" class="management-tab-btn pb-2 text-gray-500 hover:text-gray-700">월별 요약</button>
-                            <button data-view="management-yearly" class="management-tab-btn pb-2 text-gray-500 hover:text-gray-700">연간 요약</button>
+                            <button data-view="management-daily" class="management-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400 border-b-2">일별 입력/조회</button>
+                            <button data-view="management-weekly" class="management-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">주별 요약</button>
+                            <button data-view="management-monthly" class="management-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">월별 요약</button>
+                            <button data-view="management-yearly" class="management-tab-btn pb-2 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">연간 요약</button>
                         </div>
-                        <button id="management-save-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded-md text-sm shadow-sm transition hidden">
+                        <button id="management-save-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded-lg text-sm shadow-sm transition hidden">
                             저장
                         </button>
                     </div>
-                    <div id="management-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow"></div>
+                    <div id="management-view-container" class="p-6 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl flex-grow depth-panel transition-colors"></div>
                 </div>
 
-                <div id="inspection-history-panel" class="hidden flex flex-col h-full">
-                    <div class="p-4 border-b border-gray-200 flex-shrink-0 flex justify-between items-center bg-white">
+                <div id="inspection-history-panel" class="hidden flex flex-col h-full p-4 md:p-6 gap-4">
+                    <div class="p-4 border border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-between items-center bg-white dark:bg-gray-800 rounded-2xl depth-panel transition-colors">
                         <div class="flex items-center gap-3">
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -313,39 +312,39 @@
                                     </svg>
                                 </span>
                                 <input type="text" id="inspection-history-search" 
-                                       class="pl-9 pr-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 w-64" 
+                                       class="pl-9 pr-3 py-1.5 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 w-64 outline-none transition-colors" 
                                        placeholder="상품명 검색...">
                             </div>
-                            <button id="inspection-history-refresh-btn" class="text-gray-500 hover:text-indigo-600 transition p-1" title="새로고침">
+                            <button id="inspection-history-refresh-btn" class="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition p-1" title="새로고침">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                             </button>
                         </div>
                         
                         <div class="flex items-center gap-3">
-                            <div class="text-sm text-gray-500">
-                                총 <span id="inspection-total-product-count" class="font-bold text-indigo-600">0</span>개 상품
+                            <div class="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                총 <span id="inspection-total-product-count" class="font-bold text-indigo-600 dark:text-indigo-400">0</span>개 상품
                             </div>
-                            <button id="inspection-tab-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-1 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            <button id="inspection-tab-download-btn" class="bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 transition shadow-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                 엑셀 다운로드
                             </button>
                         </div>
                     </div>
                     
-                    <div id="inspection-history-view-container" class="p-6 overflow-y-auto bg-gray-50 flex-grow">
-                        <div class="text-center text-gray-400 py-10">데이터를 불러오는 중...</div>
+                    <div id="inspection-history-view-container" class="p-6 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl flex-grow depth-panel transition-colors">
+                        <div class="text-center text-gray-400 dark:text-gray-500 py-10 font-medium">데이터를 불러오는 중...</div>
                     </div>
                 </div>
 
-                <div id="history-leave-panel" class="hidden flex flex-col h-full p-4 bg-gray-50">
-                    <div class="flex justify-between items-center mb-4 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                <div id="history-leave-panel" class="hidden flex flex-col h-full p-4 md:p-6 gap-4">
+                    <div class="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 depth-panel transition-colors shrink-0">
                         <div class="flex items-center gap-4">
-                            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
                                 <span>🏖️</span> 연차 관리 대장
                             </h3>
-                            <div class="flex items-center text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg">
-                                <span class="mr-2 font-medium">기준 연도:</span>
-                                <select id="leave-year-select" class="bg-transparent font-bold text-blue-600 focus:outline-none cursor-pointer">
+                            <div class="flex items-center text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600">
+                                <span class="mr-2 font-bold">기준 연도:</span>
+                                <select id="leave-year-select" class="bg-transparent font-extrabold text-blue-600 dark:text-blue-400 focus:outline-none cursor-pointer">
                                     <option value="2024">2024년</option>
                                     <option value="2025" selected>2025년</option>
                                     <option value="2026">2026년</option>
@@ -353,52 +352,52 @@
                             </div>
                         </div>
                         <div class="flex gap-2">
-                            <button id="refresh-leave-sheet-btn" class="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium flex items-center gap-1 transition shadow-sm">
+                            <button id="refresh-leave-sheet-btn" class="px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-bold flex items-center gap-1 transition shadow-sm">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                 새로고침
                             </button>
-                            <button id="save-leave-settings-btn" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-1 transition shadow-md">
+                            <button id="save-leave-settings-btn" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-1 transition shadow-md border border-blue-700">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                                 설정 저장 (총연차)
                             </button>
                         </div>
                     </div>
 
-                    <div class="flex-grow overflow-hidden bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
+                    <div class="flex-grow overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex flex-col transition-colors">
                         <div class="overflow-auto flex-grow">
-                            <table class="w-full text-sm text-left text-gray-600">
-                                <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10 border-b border-gray-200">
+                            <table class="w-full text-sm text-left text-gray-600 dark:text-gray-300">
+                                <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-800/80 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
                                     <tr>
-                                        <th scope="col" class="px-6 py-3 w-32 cursor-pointer hover:bg-gray-200 transition select-none group" data-sort-key="member">
+                                        <th scope="col" class="px-6 py-3 w-32 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition select-none group" data-sort-key="member">
                                             <div class="flex items-center gap-1">이름 <span class="sort-icon text-gray-400">↕</span></div>
                                         </th>
-                                        <th scope="col" class="px-6 py-3 w-32 text-center cursor-pointer hover:bg-gray-200 transition select-none group" data-sort-key="total">
+                                        <th scope="col" class="px-6 py-3 w-32 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition select-none group" data-sort-key="total">
                                             <div class="flex items-center justify-center gap-1">총 연차 <span class="sort-icon text-gray-400">↕</span></div>
                                         </th>
-                                        <th scope="col" class="px-6 py-3 w-48 text-center text-gray-500 cursor-pointer hover:bg-gray-200 transition select-none group" data-sort-key="period">
+                                        <th scope="col" class="px-6 py-3 w-48 text-center text-gray-500 dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition select-none group" data-sort-key="period">
                                             <div class="flex items-center justify-center gap-1">사용 기간 <span class="sort-icon text-gray-400">↕</span></div>
                                         </th>
-                                        <th scope="col" class="px-6 py-3 w-32 text-center cursor-pointer hover:bg-gray-200 transition select-none group" data-sort-key="used">
+                                        <th scope="col" class="px-6 py-3 w-32 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition select-none group" data-sort-key="used">
                                             <div class="flex items-center justify-center gap-1">사용일수 <span class="sort-icon text-gray-400">↕</span></div>
                                         </th>
-                                        <th scope="col" class="px-6 py-3 w-32 text-center cursor-pointer hover:bg-gray-200 transition select-none group" data-sort-key="remaining">
+                                        <th scope="col" class="px-6 py-3 w-32 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition select-none group" data-sort-key="remaining">
                                             <div class="flex items-center justify-center gap-1">잔여일수 <span class="sort-icon text-gray-400">↕</span></div>
                                         </th>
-                                        <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-200 transition select-none group" data-sort-key="history">
+                                        <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition select-none group" data-sort-key="history">
                                             <div class="flex items-center gap-1">사용 내역 (날짜) <span class="sort-icon text-gray-400">↕</span></div>
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody id="leave-sheet-body" class="divide-y divide-gray-100">
+                                <tbody id="leave-sheet-body" class="divide-y divide-gray-100 dark:divide-gray-700">
                                     <tr>
-                                        <td colspan="6" class="px-6 py-10 text-center text-gray-400">
+                                        <td colspan="6" class="px-6 py-10 text-center text-gray-400 dark:text-gray-500 font-medium">
                                             데이터를 불러오는 중입니다...
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
-                        <div class="p-3 bg-gray-50 border-t border-gray-200 text-xs text-right text-gray-500">
+                        <div class="p-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700 text-xs text-right text-gray-500 dark:text-gray-400">
                             * '총 연차' 및 '사용 기간'은 관리자 페이지 설정과 연동됩니다. (여기서 수정 시 관리자 설정도 업데이트됨)
                         </div>
                     </div>
@@ -407,38 +406,38 @@
             </div>
         </div>
 
-        <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
-                <button class="modal-close-btn">
+        <div id="delete-history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4 transition-opacity">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm relative depth-panel border border-gray-100 dark:border-gray-700">
+                <button class="modal-close-btn text-gray-400 hover:text-gray-700 dark:hover:text-white">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
                 <div class="p-6 text-center">
                     <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                    <h3 class="mb-5 text-lg font-normal text-gray-700">정말로 이 날짜의 모든 기록을 삭제하시겠습니까?</h3>
-                    <p class="mb-6 text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</p>
-                    <button type="button" id="confirm-history-delete-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">예, 삭제합니다</button>
-                    <button type="button" id="cancel-history-delete-btn" class="text-gray-700 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">아니요, 취소합니다</button>
+                    <h3 class="mb-5 text-lg font-bold text-gray-700 dark:text-gray-200">정말로 이 날짜의 모든 기록을 삭제하시겠습니까?</h3>
+                    <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">이 작업은 되돌릴 수 없습니다.</p>
+                    <button type="button" id="confirm-history-delete-btn" class="text-white bg-red-600 hover:bg-red-700 font-bold rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2 shadow-sm transition">예, 삭제합니다</button>
+                    <button type="button" id="cancel-history-delete-btn" class="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-bold px-5 py-2.5 transition">아니요, 취소합니다</button>
                 </div>
             </div>
         </div>
 
-        <div id="inspection-log-manager-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center hidden z-[70] p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[800px] flex flex-col relative animate-fade-in">
-                <div class="p-5 border-b border-gray-200 flex justify-between items-center bg-indigo-50 rounded-t-2xl">
+        <div id="inspection-log-manager-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center hidden z-[70] p-4 transition-opacity">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-5xl h-[800px] flex flex-col relative animate-fade-in depth-panel border border-gray-100 dark:border-gray-700 transition-colors">
+                <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-indigo-50 dark:bg-indigo-900/30 rounded-t-2xl shrink-0">
                     <div>
-                        <h2 class="text-xl font-bold text-indigo-900 flex items-center gap-2">
+                        <h2 class="text-xl font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
                             📋 검수 기록 관리
                         </h2>
-                        <p id="inspection-log-product-name" class="text-sm text-indigo-600 mt-1 font-bold">상품명</p>
+                        <p id="inspection-log-product-name" class="text-sm text-indigo-600 dark:text-indigo-400 mt-1 font-bold">상품명</p>
                     </div>
-                    <button class="modal-close-btn text-indigo-400 hover:text-indigo-700" onclick="document.getElementById('inspection-log-manager-modal').classList.add('hidden')">
+                    <button class="modal-close-btn text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-200" onclick="document.getElementById('inspection-log-manager-modal').classList.add('hidden')">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
                 
-                <div class="p-0 overflow-y-auto flex-grow bg-gray-50">
-                    <table class="w-full text-sm text-left text-gray-600">
-                        <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10 shadow-sm">
+                <div class="p-0 overflow-y-auto flex-grow bg-gray-50 dark:bg-gray-900/50">
+                    <table class="w-full text-sm text-left text-gray-600 dark:text-gray-300">
+                        <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-100 dark:bg-gray-800/80 sticky top-0 z-10 shadow-sm border-b border-gray-200 dark:border-gray-700">
                             <tr>
                                 <th class="px-6 py-3 w-[12%]">일시</th>
                                 <th class="px-6 py-3 w-[7%]">담당</th>
@@ -453,42 +452,42 @@
                                 <th class="px-6 py-3 w-[10%] text-right">관리</th>
                             </tr>
                         </thead>
-                        <tbody id="inspection-log-table-body" class="divide-y divide-gray-200 bg-white">
+                        <tbody id="inspection-log-table-body" class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
                             </tbody>
                     </table>
                 </div>
-                <div class="p-4 border-t border-gray-200 bg-white rounded-b-2xl flex justify-end">
-                    <button class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold py-2 px-6 rounded-lg transition" onclick="document.getElementById('inspection-log-manager-modal').classList.add('hidden')">닫기</button>
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-b-2xl flex justify-end shrink-0">
+                    <button class="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 font-bold py-2 px-6 rounded-lg transition" onclick="document.getElementById('inspection-log-manager-modal').classList.add('hidden')">닫기</button>
                 </div>
             </div>
         </div>
 
-        <div id="history-records-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col relative">
-                <div class="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+        <div id="history-records-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4 transition-opacity">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col relative depth-panel border border-gray-100 dark:border-gray-700 transition-colors">
+                <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50 rounded-t-2xl shrink-0">
                     <div>
-                        <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
-                            📋 기록 관리 <span id="history-records-date" class="text-blue-600 text-lg font-mono ml-2"></span>
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            📋 기록 관리 <span id="history-records-date" class="text-blue-600 dark:text-blue-400 text-lg font-mono ml-2"></span>
                         </h2>
-                        <p class="text-xs text-gray-500 mt-1">개별 기록을 수정하거나 일괄 변경할 수 있습니다.</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">개별 기록을 수정하거나 일괄 변경할 수 있습니다.</p>
                     </div>
-                    <button class="modal-close-btn text-gray-400 hover:text-gray-700" onclick="document.getElementById('history-records-modal').classList.add('hidden')">
+                    <button class="modal-close-btn text-gray-400 hover:text-gray-700 dark:hover:text-white" onclick="document.getElementById('history-records-modal').classList.add('hidden')">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
 
-                <div class="p-4 border-b border-gray-200 bg-white space-y-3">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-3 shrink-0">
                     <div class="flex flex-wrap gap-4 items-center justify-between">
                         <div class="flex items-center gap-2">
                             <div class="flex flex-col">
-                                <label class="text-[10px] text-gray-500 font-bold uppercase">이름 필터</label>
-                                <select id="history-record-filter-member" class="p-1.5 border border-gray-300 rounded text-sm w-32 focus:ring-blue-500 focus:border-blue-500">
+                                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase">이름 필터</label>
+                                <select id="history-record-filter-member" class="p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm w-32 focus:ring-blue-500 focus:border-blue-500 outline-none">
                                     <option value="">전체</option>
                                 </select>
                             </div>
                             <div class="flex flex-col">
-                                <label class="text-[10px] text-gray-500 font-bold uppercase">업무 필터</label>
-                                <select id="history-record-filter-task" class="p-1.5 border border-gray-300 rounded text-sm w-40 focus:ring-blue-500 focus:border-blue-500">
+                                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase">업무 필터</label>
+                                <select id="history-record-filter-task" class="p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm w-40 focus:ring-blue-500 focus:border-blue-500 outline-none">
                                     <option value="">전체</option>
                                 </select>
                             </div>
@@ -500,15 +499,15 @@
                         </button>
                     </div>
 
-                    <div id="history-record-batch-edit-area" class="hidden items-end gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100 mt-2 animate-fade-in">
-                        <div class="text-xs font-bold text-blue-800 mb-1 mr-2">⚡ 일괄 수정 (선택된 업무 전체)</div>
+                    <div id="history-record-batch-edit-area" class="hidden items-end gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800/50 mt-2 animate-fade-in">
+                        <div class="text-xs font-bold text-blue-800 dark:text-blue-400 mb-1 mr-2">⚡ 일괄 수정 (선택된 업무 전체)</div>
                         <div>
-                            <label class="text-[10px] text-blue-600 block">일괄 시작 시간</label>
-                            <input type="time" id="history-batch-start-time" class="p-1 border border-blue-300 rounded text-sm bg-white">
+                            <label class="text-[10px] text-blue-600 dark:text-blue-400 block font-bold">일괄 시작 시간</label>
+                            <input type="time" id="history-batch-start-time" class="p-1 border border-blue-300 dark:border-blue-700 rounded text-sm bg-white dark:bg-gray-800 dark:text-white dark:[color-scheme:dark]">
                         </div>
                         <div>
-                            <label class="text-[10px] text-blue-600 block">일괄 종료 시간</label>
-                            <input type="time" id="history-batch-end-time" class="p-1 border border-blue-300 rounded text-sm bg-white">
+                            <label class="text-[10px] text-blue-600 dark:text-blue-400 block font-bold">일괄 종료 시간</label>
+                            <input type="time" id="history-batch-end-time" class="p-1 border border-blue-300 dark:border-blue-700 rounded text-sm bg-white dark:bg-gray-800 dark:text-white dark:[color-scheme:dark]">
                         </div>
                         <button id="history-batch-apply-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm transition h-[30px]">
                             적용
@@ -516,10 +515,10 @@
                     </div>
                 </div>
                 
-                <div class="overflow-y-auto flex-grow bg-gray-50 p-4">
-                    <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-                        <table class="w-full text-sm text-left text-gray-600">
-                            <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b">
+                <div class="overflow-y-auto flex-grow bg-gray-100/80 dark:bg-gray-900 p-4">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden depth-panel">
+                        <table class="w-full text-sm text-left text-gray-600 dark:text-gray-300">
+                            <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700">
                                 <tr>
                                     <th class="px-6 py-3 w-[15%]">이름</th>
                                     <th class="px-6 py-3 w-[20%]">업무</th>
@@ -529,173 +528,173 @@
                                     <th class="px-6 py-3 w-[20%] text-right">관리</th>
                                 </tr>
                             </thead>
-                            <tbody id="history-records-table-body" class="divide-y divide-gray-100">
+                            <tbody id="history-records-table-body" class="divide-y divide-gray-100 dark:divide-gray-700">
                                 </tbody>
                         </table>
                     </div>
                 </div>
 
-                <div class="p-4 border-t border-gray-200 bg-white rounded-b-2xl flex justify-end">
-                    <button class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold py-2 px-6 rounded-lg transition" onclick="document.getElementById('history-records-modal').classList.add('hidden')">닫기</button>
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-b-2xl flex justify-end shrink-0">
+                    <button class="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 font-bold py-2 px-6 rounded-lg transition" onclick="document.getElementById('history-records-modal').classList.add('hidden')">닫기</button>
                 </div>
             </div>
         </div>
 
-        <div id="history-add-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center hidden z-[70] p-4">
-            <div class="bg-white rounded-2xl shadow-xl w-full max-w-md relative">
-                <div class="p-5 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg font-bold text-gray-900">새 기록 추가 <span id="history-add-date-display" class="text-blue-600 ml-1 font-mono text-base"></span></h3>
-                    <button class="modal-close-btn" onclick="document.getElementById('history-add-record-modal').classList.add('hidden')">
+        <div id="history-add-record-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center hidden z-[70] p-4 transition-opacity">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md relative depth-panel border border-gray-100 dark:border-gray-700">
+                <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center rounded-t-2xl">
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">새 기록 추가 <span id="history-add-date-display" class="text-blue-600 dark:text-blue-400 ml-1 font-mono text-base"></span></h3>
+                    <button class="modal-close-btn text-gray-400 hover:text-gray-700 dark:hover:text-white" onclick="document.getElementById('history-add-record-modal').classList.add('hidden')">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
                 <div class="p-6 space-y-4">
                     <form id="history-add-record-form" class="space-y-4">
                         <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">이름</label>
-                            <input type="text" id="history-add-member" list="history-add-member-list" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="이름 입력/선택">
+                            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">이름</label>
+                            <input type="text" id="history-add-member" list="history-add-member-list" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="이름 입력/선택">
                             <datalist id="history-add-member-list"></datalist>
                         </div>
                         <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">업무</label>
-                            <input type="text" id="history-add-task" list="history-add-task-list" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="업무 입력/선택">
+                            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">업무</label>
+                            <input type="text" id="history-add-task" list="history-add-task-list" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="업무 입력/선택">
                             <datalist id="history-add-task-list"></datalist>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">시작 시간</label>
-                                <input type="time" id="history-add-start-time" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">시작 시간</label>
+                                <input type="time" id="history-add-start-time" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:[color-scheme:dark]">
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">종료 시간</label>
-                                <input type="time" id="history-add-end-time" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">종료 시간</label>
+                                <input type="time" id="history-add-end-time" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:[color-scheme:dark]">
                             </div>
                         </div>
                     </form>
                 </div>
-                <div class="p-4 bg-gray-50 border-t border-gray-200 rounded-b-2xl flex justify-end gap-3">
-                    <button type="button" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-bold hover:bg-gray-50 transition" onclick="document.getElementById('history-add-record-modal').classList.add('hidden')">취소</button>
-                    <button type="button" id="confirm-history-add-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 shadow-md transition">추가</button>
+                <div class="p-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 rounded-b-2xl flex justify-end gap-3">
+                    <button type="button" class="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 font-bold hover:bg-gray-50 dark:hover:bg-gray-600 transition" onclick="document.getElementById('history-add-record-modal').classList.add('hidden')">취소</button>
+                    <button type="button" id="confirm-history-add-btn" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-md transition border border-green-700">추가</button>
                 </div>
             </div>
         </div>
 
-        <div id="download-format-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[70] p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative">
-                <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-                    <h2 class="text-xl font-bold text-gray-900">다운로드 형식 선택</h2>
-                    <button class="modal-close-btn" data-modal-id="download-format-modal">
+        <div id="download-format-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[70] p-4 transition-opacity">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm relative depth-panel border border-gray-100 dark:border-gray-700">
+                <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center rounded-t-2xl">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">다운로드 형식 선택</h2>
+                    <button class="modal-close-btn text-gray-400 hover:text-gray-700 dark:hover:text-white" data-modal-id="download-format-modal">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
                 <div class="p-6 text-center">
-                    <button class="download-option-btn w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition text-lg shadow-md" data-format="xlsx">
+                    <button class="download-option-btn w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition text-lg shadow-md border border-green-700" data-format="xlsx">
                         Excel (.xlsx) 다운로드
                     </button>
                 </div>
             </div>
         </div>
         
-        <div id="pre-register-inspection-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[80] p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col relative animate-fade-in-up">
+        <div id="pre-register-inspection-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[80] p-4 transition-opacity">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col relative animate-fade-in-up depth-panel border border-gray-100 dark:border-gray-700 transition-colors">
                 
-                <div class="p-5 border-b border-gray-200 bg-indigo-50 flex justify-between items-center rounded-t-2xl shrink-0">
+                <div class="p-5 border-b border-gray-200 dark:border-gray-700 bg-indigo-50 dark:bg-indigo-900/30 flex justify-between items-center rounded-t-2xl shrink-0">
                     <div>
-                        <h2 class="text-xl font-bold text-indigo-900 flex items-center gap-2">
+                        <h2 class="text-xl font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
                             ➕ 수동 검수 상세 등록
                         </h2>
-                        <p class="text-xs text-indigo-700 mt-1">리스트에 없는 상품의 검수 결과를 직접 입력하고 즉시 저장합니다.</p>
+                        <p class="text-xs text-indigo-700 dark:text-indigo-400 mt-1 font-medium">리스트에 없는 상품의 검수 결과를 직접 입력하고 즉시 저장합니다.</p>
                     </div>
-                    <button id="close-pre-insp-modal" class="text-indigo-400 hover:text-indigo-700 transition">
+                    <button id="close-pre-insp-modal" class="text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-200 transition">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
                 
-                <div class="p-6 overflow-y-auto flex-grow space-y-8 bg-gray-50">
+                <div class="p-4 md:p-6 overflow-y-auto flex-grow space-y-6 bg-gray-100/80 dark:bg-gray-900">
                     
-                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                        <h3 class="text-sm font-extrabold text-gray-800 border-b pb-2 flex items-center gap-2">
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4 depth-panel transition-colors">
+                        <h3 class="text-sm font-extrabold text-gray-800 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700 pb-2 flex items-center gap-2">
                             📦 상품 기본 정보
                         </h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">상품명 <span class="text-red-500">*</span></label>
-                                <input type="text" id="manual-insp-product-name" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="정확한 상품명을 입력하세요">
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">상품명 <span class="text-red-500">*</span></label>
+                                <input type="text" id="manual-insp-product-name" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 text-sm outline-none" placeholder="정확한 상품명을 입력하세요">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">공급처</label>
-                                <input type="text" id="manual-insp-supplier" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="공급처명">
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">공급처</label>
+                                <input type="text" id="manual-insp-supplier" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 text-sm outline-none" placeholder="공급처명">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">상품코드</label>
-                                <input type="text" id="manual-insp-code" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="예: CD-123">
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">상품코드</label>
+                                <input type="text" id="manual-insp-code" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 text-sm outline-none" placeholder="예: CD-123">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">옵션</label>
-                                <input type="text" id="manual-insp-option" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="예: 블랙/FREE">
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">옵션</label>
+                                <input type="text" id="manual-insp-option" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 text-sm outline-none" placeholder="예: 블랙/FREE">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">출고일자 (엑셀 기준)</label>
-                                <input type="date" id="manual-insp-packing-date" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm text-gray-600">
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">출고일자 (엑셀 기준)</label>
+                                <input type="date" id="manual-insp-packing-date" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 text-sm outline-none dark:[color-scheme:dark]">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">입고(검수)일자 <span class="text-red-500">*</span></label>
-                                <input type="date" id="manual-insp-inbound-date" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm text-gray-600">
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">입고(검수)일자 <span class="text-red-500">*</span></label>
+                                <input type="date" id="manual-insp-inbound-date" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 text-sm outline-none dark:[color-scheme:dark]">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 mb-1">수량</label>
-                                <input type="number" id="manual-insp-qty" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0">
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">수량</label>
+                                <input type="number" id="manual-insp-qty" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 text-sm outline-none" placeholder="0">
                             </div>
                         </div>
                     </div>
 
-                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                        <h3 class="text-sm font-extrabold text-gray-800 border-b pb-2 flex items-center gap-2">
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4 depth-panel transition-colors">
+                        <h3 class="text-sm font-extrabold text-gray-800 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700 pb-2 flex items-center gap-2">
                             ✅ 품질 체크리스트
                         </h3>
                         
                         <div class="mb-4">
-                            <label class="block text-xs font-bold text-gray-700 mb-1">기준 (두께 등) <span class="text-red-500">*</span></label>
-                            <input type="text" id="manual-insp-check-thickness" class="w-full md:w-1/2 p-2 border border-yellow-400 bg-yellow-50 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm font-bold" placeholder="예: 3">
+                            <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">기준 (두께 등) <span class="text-red-500">*</span></label>
+                            <input type="text" id="manual-insp-check-thickness" class="w-full md:w-1/2 p-2 border border-yellow-400 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 text-sm font-bold outline-none" placeholder="예: 3">
                         </div>
                         
                         <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">원단</label><select id="manual-insp-check-fabric" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
-                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">컬러</label><select id="manual-insp-check-color" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
-                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">뒤틀림</label><select id="manual-insp-check-distortion" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
-                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">올풀림</label><select id="manual-insp-check-unraveling" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
-                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">마감</label><select id="manual-insp-check-finishing" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
-                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">지퍼</label><select id="manual-insp-check-zipper" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="해당없음">해당없음</option><option value="불량">불량</option></select></div>
-                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">단추</label><select id="manual-insp-check-button" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="해당없음">해당없음</option><option value="불량">불량</option></select></div>
-                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">안감</label><select id="manual-insp-check-lining" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="해당없음">해당없음</option><option value="불량">불량</option></select></div>
-                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">보풀</label><select id="manual-insp-check-pilling" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
-                            <div><label class="block text-[11px] font-bold text-gray-600 mb-1">이염</label><select id="manual-insp-check-dye" class="w-full p-1.5 border border-gray-300 rounded text-sm focus:ring-indigo-500"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">원단</label><select id="manual-insp-check-fabric" class="w-full p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm focus:ring-indigo-500 outline-none"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">컬러</label><select id="manual-insp-check-color" class="w-full p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm focus:ring-indigo-500 outline-none"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">뒤틀림</label><select id="manual-insp-check-distortion" class="w-full p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm focus:ring-indigo-500 outline-none"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">올풀림</label><select id="manual-insp-check-unraveling" class="w-full p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm focus:ring-indigo-500 outline-none"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">마감</label><select id="manual-insp-check-finishing" class="w-full p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm focus:ring-indigo-500 outline-none"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">지퍼</label><select id="manual-insp-check-zipper" class="w-full p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm focus:ring-indigo-500 outline-none"><option value="정상">정상</option><option value="해당없음">해당없음</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">단추</label><select id="manual-insp-check-button" class="w-full p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm focus:ring-indigo-500 outline-none"><option value="정상">정상</option><option value="해당없음">해당없음</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">안감</label><select id="manual-insp-check-lining" class="w-full p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm focus:ring-indigo-500 outline-none"><option value="정상">정상</option><option value="해당없음">해당없음</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">보풀</label><select id="manual-insp-check-pilling" class="w-full p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm focus:ring-indigo-500 outline-none"><option value="정상">정상</option><option value="불량">불량</option></select></div>
+                            <div><label class="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">이염</label><select id="manual-insp-check-dye" class="w-full p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded text-sm focus:ring-indigo-500 outline-none"><option value="정상">정상</option><option value="불량">불량</option></select></div>
                         </div>
                     </div>
 
-                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                        <h3 class="text-sm font-extrabold text-gray-800 border-b pb-2 flex items-center gap-2">
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4 depth-panel transition-colors">
+                        <h3 class="text-sm font-extrabold text-gray-800 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700 pb-2 flex items-center gap-2">
                             📝 특이사항 및 사진 첨부
                         </h3>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">특이사항 (메모)</label>
-                            <textarea id="manual-insp-note" rows="2" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="불량 상세 내용이나 주의사항을 입력하세요"></textarea>
+                            <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">특이사항 (메모)</label>
+                            <textarea id="manual-insp-note" rows="2" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:ring-2 focus:ring-indigo-500 text-sm outline-none" placeholder="불량 상세 내용이나 주의사항을 입력하세요"></textarea>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">사진 첨부 (선택사항)</label>
-                            <input type="file" id="manual-insp-image" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition">
+                            <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">사진 첨부 (선택사항)</label>
+                            <input type="file" id="manual-insp-image" accept="image/*" class="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 dark:file:bg-indigo-900/30 file:text-indigo-700 dark:file:text-indigo-400 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-800/50 transition cursor-pointer">
                             <div id="manual-insp-image-preview-container" class="mt-3 hidden relative inline-block">
-                                <img id="manual-insp-image-preview" src="" class="h-32 object-contain border border-gray-300 rounded-lg shadow-sm">
-                                <button type="button" id="manual-insp-image-clear-btn" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-md hover:bg-red-600">&times;</button>
+                                <img id="manual-insp-image-preview" src="" class="h-32 object-contain border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm">
+                                <button type="button" id="manual-insp-image-clear-btn" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-md hover:bg-red-600 transition">&times;</button>
                             </div>
                         </div>
                     </div>
 
                 </div>
                 
-                <div class="p-4 bg-white border-t border-gray-200 flex justify-end gap-3 rounded-b-2xl shrink-0">
-                    <button type="button" id="cancel-pre-insp-btn" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 font-bold py-2.5 px-6 rounded-lg transition text-sm">취소</button>
-                    <button type="button" id="save-pre-insp-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-8 rounded-lg transition shadow-md text-sm flex items-center gap-2">
+                <div class="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 rounded-b-2xl shrink-0 transition-colors">
+                    <button type="button" id="cancel-pre-insp-btn" class="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 font-bold py-2.5 px-6 rounded-lg transition text-sm">취소</button>
+                    <button type="button" id="save-pre-insp-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-8 rounded-lg transition shadow-md text-sm flex items-center gap-2 border border-indigo-700">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
                         검수 완료 및 즉시 저장
                     </button>
