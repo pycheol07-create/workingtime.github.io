@@ -2,10 +2,15 @@
 import * as WeekendCalendar from './weekend-calendar.js';
 
 export function setupWeekendListeners() {
-    // 1. 메인 메뉴에서 '주말 근무' 버튼 클릭 시 모달 열기
+    // DOM 요소 캐싱
+    const modal = document.getElementById('weekend-work-modal');
+    const modalContent = document.getElementById('weekend-modal-content');
+    const modalHeader = document.getElementById('weekend-modal-header');
+    const statsSidebar = document.getElementById('weekend-stats-sidebar');
+    
+    // --- 1. 모달 열기/닫기 관련 ---
     const openBtn = document.getElementById('open-weekend-modal-btn');
     const openBtnMobile = document.getElementById('open-weekend-modal-btn-mobile');
-    const modal = document.getElementById('weekend-work-modal');
     const closeBtn = document.getElementById('close-weekend-modal-btn');
     const closeBtnDesktop = document.getElementById('close-weekend-modal-btn-desktop');
 
@@ -22,17 +27,87 @@ export function setupWeekendListeners() {
     const closeModal = () => {
         if (modal) {
             modal.classList.add('hidden');
+            // 창 닫을 때 위치 초기화
+            if (modalContent) {
+                modalContent.style.transform = ''; 
+            }
+            // 모바일 사이드바 열려있으면 닫기
+            if (statsSidebar && window.innerWidth < 768) {
+                statsSidebar.classList.add('hidden');
+                statsSidebar.classList.remove('flex');
+            }
         }
     };
 
-    if (closeBtn) {
-        closeBtn.addEventListener('click', closeModal);
-    }
-    if (closeBtnDesktop) {
-        closeBtnDesktop.addEventListener('click', closeModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (closeBtnDesktop) closeBtnDesktop.addEventListener('click', closeModal);
+
+    // --- 2. 모바일 통계 사이드바 토글 ---
+    const toggleStatsBtn = document.getElementById('toggle-weekend-stats-btn');
+    const closeStatsMobileBtn = document.getElementById('close-weekend-stats-mobile-btn');
+
+    if (toggleStatsBtn && statsSidebar) {
+        toggleStatsBtn.addEventListener('click', () => {
+            statsSidebar.classList.remove('hidden');
+            statsSidebar.classList.add('flex');
+        });
     }
 
-    // 2. 월 이동 버튼
+    if (closeStatsMobileBtn && statsSidebar) {
+        closeStatsMobileBtn.addEventListener('click', () => {
+            statsSidebar.classList.add('hidden');
+            statsSidebar.classList.remove('flex');
+        });
+    }
+
+    // --- 3. 창 드래그 앤 드롭 기능 (PC 전용) ---
+    if (modalContent && modalHeader) {
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+
+        modalHeader.addEventListener('mousedown', (e) => {
+            // 모바일 화면이거나, 버튼을 클릭했을 경우는 드래그 방지
+            if (window.innerWidth < 768) return; 
+            if (e.target.tagName.toLowerCase() === 'button' || e.target.closest('button')) return;
+            
+            isDragging = true;
+            
+            // 기존 transform이 있을 경우 좌표 추출 (드래그 이어서 하기)
+            const transform = window.getComputedStyle(modalContent).getPropertyValue('transform');
+            let matrixX = 0, matrixY = 0;
+            
+            if (transform !== 'none') {
+                const matrix = transform.split('(')[1].split(')')[0].split(',');
+                matrixX = parseFloat(matrix[4]);
+                matrixY = parseFloat(matrix[5]);
+            }
+
+            startX = e.clientX;
+            startY = e.clientY;
+            initialX = matrixX;
+            initialY = matrixY;
+            
+            modalContent.style.transition = 'none'; // 드래그 중 부드러운 전환 제거
+            document.body.style.userSelect = 'none'; // 드래그 시 텍스트 선택 방지
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            modalContent.style.transform = `translate(${initialX + dx}px, ${initialY + dy}px)`;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                document.body.style.userSelect = '';
+                modalContent.style.transition = 'transform 0.2s ease-out'; // 놓았을 때 탄력 복구
+            }
+        });
+    }
+
+    // --- 4. 월 이동 버튼 ---
     const prevBtn = document.getElementById('prev-month-btn');
     const nextBtn = document.getElementById('next-month-btn');
 
@@ -40,39 +115,25 @@ export function setupWeekendListeners() {
     if (nextBtn) nextBtn.addEventListener('click', () => WeekendCalendar.changeMonth(1));
 
 
-    // 3. [신규] 관리자 날짜 관리 팝업 관련 리스너
+    // --- 5. 관리자 날짜 관리 팝업 관련 리스너 ---
     const adminDatePopup = document.getElementById('weekend-admin-date-popup');
     const adminDateCloseBtn = document.getElementById('admin-date-close-btn');
-    
-    // 정원 설정 엘리먼트
     const adminDateCapacityBtn = document.getElementById('admin-date-capacity-btn');
     const adminDateCapacityInput = document.getElementById('admin-date-capacity');
-
-    // 수동 추가 엘리먼트
     const adminDateAddBtn = document.getElementById('admin-date-add-btn');
     const adminDateAddInput = document.getElementById('admin-date-add-member');
-
-    // 랜덤 뽑기 엘리먼트
     const adminDateRandomBtn = document.getElementById('admin-date-random-btn');
     const adminDateRandomCount = document.getElementById('admin-date-random-count');
-
-    // 마감 토글 엘리먼트
     const adminDateBlockToggle = document.getElementById('admin-date-block-toggle');
 
-
-    // 팝업 닫기 리스너
     if (adminDateCloseBtn && adminDatePopup) {
-        adminDateCloseBtn.addEventListener('click', () => {
-            adminDatePopup.classList.add('hidden');
-        });
+        adminDateCloseBtn.addEventListener('click', () => adminDatePopup.classList.add('hidden'));
     }
 
-    // --- 정원 설정 리스너 ---
     if (adminDateCapacityBtn && adminDateCapacityInput) {
         adminDateCapacityBtn.addEventListener('click', () => {
             WeekendCalendar.setDateCapacity(adminDateCapacityInput.value);
         });
-
         adminDateCapacityInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -81,11 +142,8 @@ export function setupWeekendListeners() {
         });
     }
 
-    // --- 수동 추가 리스너 ---
     if (adminDateAddBtn) {
-        adminDateAddBtn.addEventListener('click', () => {
-            WeekendCalendar.adminAddMemberToDate();
-        });
+        adminDateAddBtn.addEventListener('click', () => WeekendCalendar.adminAddMemberToDate());
     }
 
     if (adminDateAddInput) {
@@ -97,7 +155,6 @@ export function setupWeekendListeners() {
         });
     }
 
-    // --- 랜덤 뽑기 리스너 ---
     if (adminDateRandomBtn && adminDateRandomCount) {
         adminDateRandomBtn.addEventListener('click', () => {
             const count = parseInt(adminDateRandomCount.value, 10);
@@ -105,14 +162,12 @@ export function setupWeekendListeners() {
                 alert("올바른 인원 수를 입력하세요.");
                 return;
             }
-            
             if (confirm(`관리자를 제외한 인원 중 ${count}명을 무작위로 뽑아 '승인 대기' 상태로 등록하시겠습니까?`)) {
                  WeekendCalendar.adminRandomSelectMembers(count);
             }
         });
     }
 
-    // --- 마감 설정 리스너 ---
     if (adminDateBlockToggle) {
         adminDateBlockToggle.addEventListener('change', (e) => {
             WeekendCalendar.toggleBlockDate(e.target.checked);

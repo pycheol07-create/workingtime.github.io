@@ -1,18 +1,23 @@
 <div id="weekend-work-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50 flex items-center justify-center p-4">
-    <div class="relative bg-white rounded-lg shadow-xl w-full max-w-5xl mx-auto flex flex-col md:flex-row gap-0 max-h-[90vh] overflow-hidden">
+    <div id="weekend-modal-content" class="relative bg-white rounded-lg shadow-xl w-full max-w-5xl mx-auto flex flex-col md:flex-row gap-0 max-h-[90vh] overflow-hidden">
         
-        <div class="flex-grow flex flex-col p-3 md:p-4 overflow-hidden">
+        <div class="flex-grow flex flex-col p-3 md:p-4 overflow-hidden relative">
             
-            <div class="flex justify-between items-center mb-2 border-b border-gray-100 pb-2 md:pb-0 md:border-none">
-                <div class="flex flex-col md:flex-row md:items-baseline gap-1 md:gap-3">
-                    <h3 class="text-lg md:text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <div id="weekend-modal-header" class="flex justify-between items-center mb-2 border-b border-gray-100 pb-2 md:pb-0 md:border-none md:cursor-move">
+                <div class="flex flex-col md:flex-row md:items-baseline gap-1 md:gap-3 pointer-events-none">
+                    <h3 class="text-lg md:text-2xl font-bold text-gray-800 flex items-center gap-2 pointer-events-auto">
                         🗓️ 주말 근무 신청
                     </h3>
-                    <span class="text-xs md:text-sm text-gray-500">
+                    <span class="text-xs md:text-sm text-gray-500 pointer-events-auto">
                         근무할 날짜를 <span class="text-blue-600 font-bold">클릭</span>하여 신청/취소하세요.
                     </span>
                 </div>
-                <button id="close-weekend-modal-btn" class="text-gray-400 hover:text-gray-700 text-3xl font-bold md:hidden">&times;</button>
+                <div class="flex items-center gap-2">
+                    <button id="toggle-weekend-stats-btn" class="md:hidden bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-md font-bold text-xs border border-indigo-200 hover:bg-indigo-100 shadow-sm flex items-center gap-1">
+                        📊 현황
+                    </button>
+                    <button id="close-weekend-modal-btn" class="text-gray-400 hover:text-gray-700 text-3xl font-bold md:hidden leading-none">&times;</button>
+                </div>
             </div>
             
             <div class="flex justify-center items-center space-x-4 mb-3 bg-gray-50 p-2 rounded-lg border border-gray-100">
@@ -35,11 +40,12 @@
             </div>
         </div>
 
-        <div id="weekend-stats-sidebar" class="w-full md:w-64 flex-shrink-0 bg-indigo-50/30 border-t md:border-t-0 md:border-l border-indigo-100 p-4 flex flex-col hidden overflow-y-auto max-h-[30vh] md:max-h-full">
+        <div id="weekend-stats-sidebar" class="w-full md:w-64 flex-shrink-0 bg-white md:bg-indigo-50/30 border-t md:border-t-0 md:border-l border-indigo-100 p-4 flex-col hidden md:flex overflow-y-auto max-h-[50vh] md:max-h-full absolute md:relative bottom-0 left-0 right-0 z-50 shadow-[0_-15px_30px_rgba(0,0,0,0.15)] md:shadow-none rounded-t-2xl md:rounded-none">
             <div class="flex justify-between items-center mb-3 border-b border-indigo-200 pb-2">
                 <h4 class="text-md font-bold text-indigo-800 flex items-center gap-2">
                     📊 개인별 신청 현황
                 </h4>
+                <button id="close-weekend-stats-mobile-btn" class="md:hidden text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none">&times;</button>
                 <button id="close-weekend-modal-btn-desktop" class="hidden md:block text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none">&times;</button>
             </div>
             
@@ -47,7 +53,7 @@
                 <span>이름</span>
                 <span>확정 / 대기</span>
             </div>
-            <div id="weekend-stats-list" class="flex flex-col gap-2 overflow-y-auto pr-1"></div>
+            <div id="weekend-stats-list" class="flex flex-col gap-2 overflow-y-auto pr-1 pb-4 md:pb-0"></div>
         </div>
     </div>
 </div>

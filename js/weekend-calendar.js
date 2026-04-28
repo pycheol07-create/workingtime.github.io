@@ -6,14 +6,14 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let currentYear = new Date().getFullYear();
-let currentMonth = new Date().getMonth(); // 0-based index
+let currentMonth = new Date().getMonth(); 
 let myRequestsMap = new Map();
-let blockedDatesSet = new Set(); // 마감된 날짜 저장
-let capacityMap = new Map(); // [신규] 날짜별 정원 저장
-let requestsByDate = {}; // 날짜별 신청자 목록
+let blockedDatesSet = new Set(); 
+let capacityMap = new Map(); 
+let requestsByDate = {}; 
 let unsubscribe = null; 
 
-let currentManageDateStr = null; // 현재 관리 팝업이 열린 날짜
+let currentManageDateStr = null; 
 
 export async function initWeekendCalendar() {
     await loadWeekendRequests(currentYear, currentMonth);
@@ -31,7 +31,6 @@ export function changeMonth(offset) {
     loadWeekendRequests(currentYear, currentMonth);
 }
 
-// 실시간 리스너 연결 및 데이터 분류 (통계 계산 포함)
 async function loadWeekendRequests(year, month) {
     const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
     
@@ -47,12 +46,12 @@ async function loadWeekendRequests(year, month) {
         unsubscribe = onSnapshot(q, (snapshot) => {
             myRequestsMap.clear();
             blockedDatesSet.clear();
-            capacityMap.clear(); // 정원 데이터 초기화
+            capacityMap.clear(); 
             requestsByDate = {};
             
-            // 개인별 통계용 맵 초기화 (관리자 제외 전체 인원 기본값 0 세팅)
             const memberStats = new Map();
-            const excludedMembers = ['박영철', '박호진', '유아라'];
+            // 관리자 및 제외자 명단 (이승운 추가)
+            const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
 
             if (State.appConfig && State.appConfig.teamGroups) {
                 State.appConfig.teamGroups.forEach(group => {
@@ -70,13 +69,10 @@ async function loadWeekendRequests(year, month) {
                 const data = docSnap.data();
                 
                 if (data.type === 'blocked') {
-                    // 마감(비활성화)된 날짜 처리
                     blockedDatesSet.add(data.date);
                 } else if (data.type === 'capacity') {
-                    // [신규] 정원 데이터 처리
                     capacityMap.set(data.date, data.capacity);
                 } else {
-                    // 일반 신청 데이터 처리
                     if (!requestsByDate[data.date]) requestsByDate[data.date] = [];
                     requestsByDate[data.date].push({ id: docSnap.id, ...data });
 
@@ -84,8 +80,6 @@ async function loadWeekendRequests(year, month) {
                         myRequestsMap.set(data.date, docSnap.id);
                     }
 
-                    // 통계 데이터 업데이트
-                    // 관리자가 아닌 일반 유저의 신청 데이터만 통계에 반영
                     if (!excludedMembers.includes(data.member)) {
                         const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
                         if (data.status === 'confirmed') {
@@ -98,7 +92,6 @@ async function loadWeekendRequests(year, month) {
                 }
             });
 
-            // 데이터 수집 후 통계 및 리스트 렌더링
             renderWeekendStats(memberStats);
             renderWeekendList(year, month);
 
@@ -112,24 +105,33 @@ async function loadWeekendRequests(year, month) {
     }
 }
 
-// [신규] 사이드바 통계 렌더링 함수 (전체 인원 표시)
 function renderWeekendStats(memberStats) {
     const sidebar = document.getElementById('weekend-stats-sidebar');
     const list = document.getElementById('weekend-stats-list');
     
     if (!sidebar || !list) return;
 
-    // 제외할 관리자 목록 (이중 체크)
-    const excludedMembers = ['박영철', '박호진', '유아라'];
+    // 관리자 및 제외자 명단 (이승운 추가)
+    const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
     
     const filteredMembers = [...memberStats.entries()].filter(([name, counts]) => {
         return !excludedMembers.includes(name);
     });
 
-    sidebar.classList.remove('hidden');
+    // 데이터가 없으면 토글 버튼과 사이드바 숨김
+    if (filteredMembers.length === 0) {
+        sidebar.classList.add('!hidden');
+        const toggleBtn = document.getElementById('toggle-weekend-stats-btn');
+        if(toggleBtn) toggleBtn.classList.add('!hidden');
+        return;
+    } else {
+        sidebar.classList.remove('!hidden');
+        const toggleBtn = document.getElementById('toggle-weekend-stats-btn');
+        if(toggleBtn) toggleBtn.classList.remove('!hidden');
+    }
+
     list.innerHTML = '';
 
-    // 1순위: 총 신청 횟수(확정+대기)가 많은 순 / 2순위: 이름 가나다순
     filteredMembers.sort((a, b) => {
         const totalA = a[1].confirmed + a[1].requested;
         const totalB = b[1].confirmed + b[1].requested;
@@ -141,7 +143,6 @@ function renderWeekendStats(memberStats) {
 
     filteredMembers.forEach(([name, counts]) => {
         const item = document.createElement('div');
-        // 신청 건수가 0이면 약간 흐리게 표시하여 시각적 구분
         const opacityClass = (counts.confirmed === 0 && counts.requested === 0) ? "opacity-60 hover:opacity-100" : "";
         
         item.className = `bg-white border border-indigo-100 p-2 rounded-md shadow-sm flex justify-between items-center transition-all hover:-translate-y-0.5 ${opacityClass}`;
@@ -155,7 +156,6 @@ function renderWeekendStats(memberStats) {
     });
 }
 
-// 주말 리스트 렌더링
 function renderWeekendList(year, month) {
     const listView = document.getElementById('weekend-list-view');
     const label = document.getElementById('current-month-label');
@@ -180,9 +180,8 @@ function renderWeekendList(year, month) {
             
             const isBlocked = blockedDatesSet.has(dateStr);
             const isAppliedByMe = myRequestsMap.has(dateStr);
-            const capacity = capacityMap.get(dateStr); // [신규] 해당 날짜의 정원
+            const capacity = capacityMap.get(dateStr); 
 
-            // 색상 및 스타일 정의
             let dayColor = dayOfWeek === 0 ? 'text-red-600' : 'text-blue-600';
             let bgColor = dayOfWeek === 0 ? 'bg-red-50' : 'bg-blue-50';
             let rowClass = 'bg-white border-gray-200 hover:shadow-md cursor-pointer group';
@@ -205,21 +204,17 @@ function renderWeekendList(year, month) {
             rowItem.className = `flex flex-col md:flex-row md:items-center justify-between p-3 rounded-lg border shadow-sm transition-all active:scale-[0.99] ${rowClass}`;
             rowItem.id = `row-${dateStr}`;
             
-            // 행 클릭 이벤트 (일반 유저용 신청/취소)
             rowItem.onclick = (e) => {
-                // 관리자 톱니바퀴를 눌렀을 때는 실행하지 않음
                 if(e.target.closest('.admin-manage-btn')) return;
                 handleDateClick(dateStr, isBlocked);
             };
 
-            // 관리자 전용 관리 버튼
             const adminManageHtml = isAdmin 
                 ? `<button class="admin-manage-btn ml-2 p-1.5 rounded-md hover:bg-gray-200 text-gray-500 transition tooltip" title="날짜 관리" data-date="${dateStr}">
                     ⚙️
                    </button>` 
                 : '';
 
-            // [신규] 정원 표시 HTML
             const capacityHtml = capacity 
                 ? `<span class="ml-2 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">정원: ${capacity}명</span>` 
                 : '';
@@ -250,7 +245,6 @@ function renderWeekendList(year, month) {
             rowItem.appendChild(badgesArea);
             listView.appendChild(rowItem);
 
-            // 이 날짜에 신청한 사람 배지 렌더링
             if (requestsByDate[dateStr]) {
                 requestsByDate[dateStr].forEach(req => {
                     addBadgeToCalendar(dateStr, req, isAdmin);
@@ -263,7 +257,6 @@ function renderWeekendList(year, month) {
         listView.innerHTML = `<div class="text-center text-gray-400 py-10">이 달에는 주말이 없습니다.</div>`;
     }
 
-    // 관리자 버튼에 이벤트 연결
     if (isAdmin) {
         document.querySelectorAll('.admin-manage-btn').forEach(btn => {
             btn.onclick = (e) => {
@@ -274,7 +267,6 @@ function renderWeekendList(year, month) {
     }
 }
 
-// 배지 렌더링 함수
 function addBadgeToCalendar(dateStr, data, isAdmin) {
     const container = document.getElementById(`weekend-list-${dateStr}`);
     if (!container) return;
@@ -302,7 +294,6 @@ function addBadgeToCalendar(dateStr, data, isAdmin) {
     container.appendChild(badge);
 }
 
-// 일반 신청/취소 클릭 핸들러 (정원 상관없이 신청 가능)
 async function handleDateClick(dateStr, isBlocked) {
     const member = State.appState.currentUser;
     if (!member) {
@@ -327,7 +318,6 @@ async function handleDateClick(dateStr, isBlocked) {
     }
 }
 
-// 단일 요청 생성 (상태 파라미터 추가)
 async function createRequest(dateStr, member, status = 'requested') {
     const monthStr = dateStr.substring(0, 7);
     const docId = `${dateStr}_${member}`; 
@@ -364,7 +354,6 @@ async function deleteRequest(docId) {
     }
 }
 
-// 배지 클릭 (관리자 개인 승인/반려)
 function handleAdminBadgeClick(docId, data) {
     const popup = document.getElementById('weekend-admin-popup');
     document.getElementById('admin-popup-member').textContent = data.member;
@@ -397,16 +386,12 @@ async function processAdminAction(docId, action) {
     }
 }
 
-// ==========================================
-// [신규] 날짜 관리(추가/마감/정원/뽑기) 팝업 관련 로직
-// ==========================================
 function openAdminDatePopup(dateStr) {
     currentManageDateStr = dateStr;
     const popup = document.getElementById('weekend-admin-date-popup');
     document.getElementById('admin-date-popup-title').textContent = dateStr;
     document.getElementById('admin-date-add-member').value = '';
     
-    // [신규] 정원 Input 초기화
     const capacityInput = document.getElementById('admin-date-capacity');
     if (capacityInput) {
         capacityInput.value = capacityMap.has(dateStr) ? capacityMap.get(dateStr) : '';
@@ -415,14 +400,12 @@ function openAdminDatePopup(dateStr) {
     const randomCountInput = document.getElementById('admin-date-random-count');
     if (randomCountInput) randomCountInput.value = '1';
 
-    // 토글 스위치 상태 설정
     const isBlocked = blockedDatesSet.has(dateStr);
     document.getElementById('admin-date-block-toggle').checked = isBlocked;
 
     popup.classList.remove('hidden');
 }
 
-// [신규] 날짜별 정원 설정 기능
 export async function setDateCapacity(capacityStr) {
     if (!currentManageDateStr) return;
     const capacity = parseInt(capacityStr, 10);
@@ -431,11 +414,9 @@ export async function setDateCapacity(capacityStr) {
 
     try {
         if (isNaN(capacity) || capacity <= 0) {
-            // 빈칸이거나 0이하 입력 시 정원 설정 삭제
             await deleteDoc(docRef);
             showToast(`${currentManageDateStr} 정원 설정이 해제되었습니다.`);
         } else {
-            // 정원 문서 생성 (type: 'capacity')
             await setDoc(docRef, {
                 type: 'capacity',
                 date: currentManageDateStr,
@@ -461,17 +442,14 @@ export async function adminAddMemberToDate() {
         return;
     }
 
-    // 관리자가 수동 추가하면 바로 '확정(confirmed)' 상태로 들어감
     await createRequest(currentManageDateStr, memberName, 'confirmed');
     showToast(`${memberName}님 추가 완료`);
     input.value = '';
 }
 
-// [신규] 랜덤 인원 뽑기 함수 (승인 대기 상태로 등록)
 export async function adminRandomSelectMembers(count) {
     if (!currentManageDateStr) return;
     
-    // 1. 전체 팀원 목록 가져오기 (appConfig.teamGroups 활용)
     let allMembers = [];
     if (State.appConfig && State.appConfig.teamGroups) {
         State.appConfig.teamGroups.forEach(group => {
@@ -481,11 +459,10 @@ export async function adminRandomSelectMembers(count) {
         });
     }
 
-    // 중복 제거
     allMembers = [...new Set(allMembers)];
 
-    // 2. 제외 대상 필터링
-    const excludedMembers = ['박영철', '박호진', '유아라']; // 관리자 제외
+    // 관리자 및 제외자 명단 (이승운 추가)
+    const excludedMembers = ['박영철', '박호진', '유아라', '이승운']; 
     const alreadyApplied = (requestsByDate[currentManageDateStr] || []).map(req => req.member);
     
     const availableMembers = allMembers.filter(member => 
@@ -502,7 +479,6 @@ export async function adminRandomSelectMembers(count) {
         count = availableMembers.length;
     }
 
-    // 3. 랜덤 추첨 (Fisher-Yates Shuffle)
     const shuffled = [...availableMembers];
     for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -511,7 +487,6 @@ export async function adminRandomSelectMembers(count) {
 
     const selectedMembers = shuffled.slice(0, count);
 
-    // 4. 선택된 인원들을 '승인 대기(requested)' 상태로 생성
     let successCount = 0;
     for (const member of selectedMembers) {
         try {
@@ -548,10 +523,8 @@ export async function toggleBlockDate(isBlocked) {
     } catch (e) {
         console.error("Error toggling block status:", e);
         showToast("상태 변경 실패", true);
-        // 실패 시 토글 원복
         document.getElementById('admin-date-block-toggle').checked = !isBlocked;
     }
 }
 
-// 외부에서 팝업 열기/데이터 변수 접근용 (리스너 연동을 위해)
 export { currentManageDateStr };
