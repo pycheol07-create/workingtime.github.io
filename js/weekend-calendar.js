@@ -20,6 +20,10 @@ let currentYearlyStats = new Map();
 let currentMonthStats = new Map();
 let smartCalcCache = null; 
 
+// [신규] 통계 사이드바 정렬/필터 상태
+let statsSort = { key: 'total', dir: 'desc' };
+let statsFilter = '';
+
 export async function initWeekendCalendar() {
     await loadWeekendRequests(currentYear, currentMonth);
 }
@@ -130,13 +134,70 @@ function renderWeekendStats(memberStats, yearlyStatsMap) {
     
     if (!sidebar || !list) return;
 
+    // 헤더를 동적으로 생성하여 정렬 및 필터링 UI 주입
+    let headerDiv = list.previousElementSibling;
+    if (headerDiv && !headerDiv.id) {
+         headerDiv.id = 'weekend-stats-header';
+         headerDiv.className = 'text-xs text-gray-500 mb-2 flex flex-col gap-2 px-2 border-b border-indigo-100 pb-2';
+         headerDiv.innerHTML = `
+            <div class="flex justify-between items-center mb-1 text-[11px] font-bold">
+                <span class="cursor-pointer hover:text-blue-600 flex items-center gap-1 select-none stats-sort-btn" data-sort="name">이름 <span class="sort-icon"></span></span>
+                <div class="flex gap-3">
+                     <span class="cursor-pointer hover:text-blue-600 flex items-center gap-1 select-none stats-sort-btn" data-sort="total">당월 <span class="sort-icon"></span></span>
+                     <span class="cursor-pointer hover:text-blue-600 flex items-center gap-1 select-none stats-sort-btn" data-sort="yearly">누적 <span class="sort-icon"></span></span>
+                </div>
+            </div>
+            <input type="text" id="weekend-stats-filter" placeholder="이름으로 필터링..." class="p-1.5 border border-gray-200 rounded w-full text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-gray-50 transition">
+        `;
+
+        // 정렬 클릭 이벤트
+        headerDiv.querySelectorAll('.stats-sort-btn').forEach(el => {
+            el.onclick = () => {
+                const k = el.dataset.sort;
+                if (statsSort.key === k) {
+                    statsSort.dir = statsSort.dir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    statsSort.key = k;
+                    statsSort.dir = k === 'name' ? 'asc' : 'desc'; // 이름은 오름차순, 숫자는 내림차순 기본
+                }
+                renderWeekendStats(memberStats, yearlyStatsMap);
+            };
+        });
+
+        // 필터 입력 이벤트
+        const filterInput = headerDiv.querySelector('#weekend-stats-filter');
+        if (filterInput) {
+            filterInput.addEventListener('input', (e) => {
+                statsFilter = e.target.value.trim();
+                renderWeekendStats(memberStats, yearlyStatsMap);
+            });
+        }
+    }
+
+    // 아이콘 상태 업데이트
+    if (headerDiv) {
+        headerDiv.querySelectorAll('.stats-sort-btn').forEach(el => {
+            const icon = el.querySelector('.sort-icon');
+            if (el.dataset.sort === statsSort.key) {
+                icon.textContent = statsSort.dir === 'asc' ? '▲' : '▼';
+                icon.className = 'sort-icon text-blue-600';
+            } else {
+                icon.textContent = '↕';
+                icon.className = 'sort-icon text-gray-300';
+            }
+        });
+    }
+
     const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
     
-    const filteredMembers = [...memberStats.entries()].filter(([name, counts]) => {
-        return !excludedMembers.includes(name);
-    });
+    let filteredMembers = [...memberStats.entries()].filter(([name]) => !excludedMembers.includes(name));
 
-    if (filteredMembers.length === 0) {
+    // 이름 필터링 적용
+    if (statsFilter) {
+        filteredMembers = filteredMembers.filter(([name]) => name.includes(statsFilter));
+    }
+
+    if (filteredMembers.length === 0 && !statsFilter) {
         sidebar.classList.add('!hidden');
         const toggleBtn = document.getElementById('toggle-weekend-stats-btn');
         if(toggleBtn) toggleBtn.classList.add('!hidden');
@@ -149,17 +210,35 @@ function renderWeekendStats(memberStats, yearlyStatsMap) {
 
     list.innerHTML = '';
 
+    // 정렬 상태에 따른 데이터 정렬 로직
     filteredMembers.sort((a, b) => {
         const totalA = a[1].confirmed + a[1].requested;
         const totalB = b[1].confirmed + b[1].requested;
-        if (totalB !== totalA) return totalB - totalA; 
-        
         const yearlyA = yearlyStatsMap.get(a[0]) || 0;
         const yearlyB = yearlyStatsMap.get(b[0]) || 0;
-        if (yearlyA !== yearlyB) return yearlyA - yearlyB;
-        
-        return a[0].localeCompare(b[0]);
+
+        let valA, valB;
+        if (statsSort.key === 'total') {
+            if (totalA !== totalB) return statsSort.dir === 'asc' ? totalA - totalB : totalB - totalA;
+            if (yearlyA !== yearlyB) return statsSort.dir === 'asc' ? yearlyA - yearlyB : yearlyB - yearlyA;
+            valA = a[0]; valB = b[0];
+        } else if (statsSort.key === 'yearly') {
+            if (yearlyA !== yearlyB) return statsSort.dir === 'asc' ? yearlyA - yearlyB : yearlyB - yearlyA;
+            if (totalA !== totalB) return statsSort.dir === 'asc' ? totalA - totalB : totalB - totalA;
+            valA = a[0]; valB = b[0];
+        } else {
+            valA = a[0]; valB = b[0];
+        }
+
+        if (valA < valB) return statsSort.dir === 'asc' ? -1 : 1;
+        if (valA > valB) return statsSort.dir === 'asc' ? 1 : -1;
+        return 0;
     });
+
+    if (filteredMembers.length === 0) {
+        list.innerHTML = `<div class="text-xs text-center text-gray-400 py-4">검색 결과가 없습니다.</div>`;
+        return;
+    }
 
     filteredMembers.forEach(([name, counts]) => {
         const item = document.createElement('div');
@@ -171,7 +250,7 @@ function renderWeekendStats(memberStats, yearlyStatsMap) {
         item.innerHTML = `
             <div class="flex items-center">
                 <span class="font-bold text-gray-700 text-sm whitespace-nowrap">${name}</span>
-                <span class="text-[10px] text-gray-400 font-medium ml-1.5 whitespace-nowrap">(연누적 ${yearlyCount}회)</span>
+                <span class="text-[10px] text-gray-400 font-medium ml-1.5 whitespace-nowrap">(누적 ${yearlyCount}회)</span>
             </div>
             <div class="text-xs bg-gray-50 px-2 py-1 rounded border border-gray-200 font-mono tracking-wider ml-2 flex-shrink-0">
                 <span class="text-blue-600 font-bold w-4 inline-block text-center" title="확정됨">${counts.confirmed}</span><span class="text-gray-300">|</span><span class="text-orange-500 font-medium w-4 inline-block text-center" title="승인 대기">${counts.requested}</span>
@@ -425,11 +504,50 @@ async function processAdminAction(docId, action) {
     }
 }
 
+// 💡 [신규] 수동 인원 추가 시 Select 박스에 팀원 목록 세팅
+function populateAdminAddMemberSelect(dateStr) {
+    const select = document.getElementById('admin-date-add-member');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">팀원 선택...</option>';
+
+    // 전체 팀원 목록 생성
+    let allMembers = [];
+    if (State.appConfig && State.appConfig.teamGroups) {
+        State.appConfig.teamGroups.forEach(g => {
+            if (g.members) allMembers = allMembers.concat(g.members);
+        });
+    }
+    if (State.appState && State.appState.partTimers) {
+        State.appState.partTimers.forEach(p => {
+            if (p.name) allMembers.push(p.name);
+        });
+    }
+    allMembers = [...new Set(allMembers)];
+
+    // 이미 신청한 사람 목록
+    const reqs = requestsByDate[dateStr] || [];
+    const alreadyApplied = reqs.map(r => r.member);
+
+    allMembers.forEach(member => {
+        const option = document.createElement('option');
+        option.value = member;
+        option.textContent = member;
+        if (alreadyApplied.includes(member)) {
+            option.disabled = true;
+            option.textContent += ' (이미 신청/확정됨)';
+        }
+        select.appendChild(option);
+    });
+}
+
 function openAdminDatePopup(dateStr) {
     currentManageDateStr = dateStr;
     const popup = document.getElementById('weekend-admin-date-popup');
     document.getElementById('admin-date-popup-title').textContent = dateStr;
-    document.getElementById('admin-date-add-member').value = '';
+    
+    // 💡 [신규] 팝업 열릴 때 팀원 목록 세팅
+    populateAdminAddMemberSelect(dateStr);
     
     const capacityInput = document.getElementById('admin-date-capacity');
     if (capacityInput) {
@@ -452,7 +570,6 @@ function openAdminDatePopup(dateStr) {
     popup.classList.remove('hidden');
 }
 
-// 💡 [수정] 스마트 형평성 배분 로직 강화 (관리자급 포함 및 당월 횟수 가중치 적용)
 export function calculateSmartAllocation() {
     if (!currentManageDateStr) return;
     const capacity = parseInt(capacityMap.get(currentManageDateStr), 10);
@@ -473,19 +590,14 @@ export function calculateSmartAllocation() {
     }
     allMembers = [...new Set(allMembers)];
     
-    // 관리자급 정의
     const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
     const eligibleMembers = allMembers.filter(m => !adminMembers.includes(m));
 
-    // 1. 관리자 신청자 선별 (정원에서 우선 차감)
     const adminApplicants = applicants.filter(m => adminMembers.includes(m));
     const generalApplicants = applicants.filter(m => !adminMembers.includes(m));
 
-    // 실제 일반 팀원 가용 정원 = 설정 정원 - 관리자 신청자 수
     const availableCapacity = Math.max(0, capacity - adminApplicants.length);
 
-    // 2. 점수 계산 로직: 이번 달 신청 횟수가 최우선 반영! (가중치 1000)
-    // 점수가 낮을수록 우선 선발 대상이 됨
     const getScore = (m) => {
         const y = currentYearlyStats.get(m) || 0;
         const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
@@ -493,21 +605,18 @@ export function calculateSmartAllocation() {
         return (monthTotal * 1000) + (y * 10); 
     };
 
-    // 3. 신청자 중 일반 팀원 정렬
     const sortedGeneralApplicants = [...generalApplicants].sort((a, b) => {
         const diff = getScore(a) - getScore(b);
         return diff !== 0 ? diff : a.localeCompare(b);
     });
 
-    // 4. 미신청자 중 추가 가능 인원 정렬
     const nonApplicants = eligibleMembers.filter(m => !applicants.includes(m));
     const sortedNonApplicants = [...nonApplicants].sort((a, b) => {
         const diff = getScore(a) - getScore(b);
         return diff !== 0 ? diff : a.localeCompare(b);
     });
 
-    // 5. 최종 확정안 도출
-    let toConfirm = [...adminApplicants]; // 관리자는 무조건 확정
+    let toConfirm = [...adminApplicants]; 
     let toDecline = []; 
     let toAdd = [];     
 
@@ -522,7 +631,6 @@ export function calculateSmartAllocation() {
         toConfirm = toConfirm.concat(sortedGeneralApplicants);
     }
 
-    // 통계 계산: 이 달의 권장 근무 횟수 (정원 합계 / 인원수)
     let totalMonthlyCapacity = 0;
     capacityMap.forEach(v => totalMonthlyCapacity += v);
     const avgPossibleShifts = (totalMonthlyCapacity / eligibleMembers.length).toFixed(1);
@@ -530,7 +638,6 @@ export function calculateSmartAllocation() {
     renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, applicants.length, adminApplicants.length, avgPossibleShifts);
 }
 
-// 💡 [수정] 결과 표시창에 관리자 정보 및 당월 횟수 가중치 내용 보강
 function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, appCount, adminCount, avgPossible) {
     const area = document.getElementById('smart-calc-result-area');
     area.classList.remove('hidden');
@@ -663,19 +770,22 @@ export async function setDateCapacity(capacityStr) {
     }
 }
 
+// 💡 [수정] 팀원 선택(Select) 요소에서 값을 가져와 추가 처리
 export async function adminAddMemberToDate() {
     if (!currentManageDateStr) return;
-    const input = document.getElementById('admin-date-add-member');
-    const memberName = input.value.trim();
+    const select = document.getElementById('admin-date-add-member');
+    const memberName = select.value.trim();
 
     if (!memberName) {
-        showToast("추가할 이름을 입력하세요.", true);
+        showToast("추가할 팀원을 선택하세요.", true);
         return;
     }
 
     await createRequest(currentManageDateStr, memberName, 'confirmed');
     showToast(`${memberName}님 추가 완료`);
-    input.value = '';
+    
+    // 💡 방금 추가한 인원을 비활성화하기 위해 목록 갱신
+    populateAdminAddMemberSelect(currentManageDateStr);
 }
 
 export async function adminRandomSelectMembers(count) {
