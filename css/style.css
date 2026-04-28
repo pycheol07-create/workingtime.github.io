@@ -1,4 +1,4 @@
-/* === style.css (호버 효과 제거 버전) === */
+/* === style.css (모바일 완벽 대응 + 입체감 버전) === */
 body {
     font-family: 'Inter', 'Noto Sans KR', sans-serif;
 }
@@ -210,13 +210,20 @@ body {
 }
 
 /* =========================================================================
-   대시보드 패널 입체감 (Depth) 스타일 추가 (호버 제거)
+   대시보드 패널 입체감 (Depth) 스타일 추가
    ========================================================================= */
 .depth-panel {
-    /* 부드럽고 깊은 그림자로 입체감만 유지 */
+    /* 부드럽고 깊은 그림자 */
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
     /* 상단 빛 반사 효과로 3D 느낌 부여 */
     border-top: 1px solid rgba(255, 255, 255, 0.8) !important;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+/* 마우스 오버 시 살짝 떠오르는 애니메이션 */
+.depth-panel:hover {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+    transform: translateY(-2px);
 }
 
 /* 다크 모드에서의 그림자와 빛 반사 (더욱 은은하게) */
@@ -224,6 +231,7 @@ html.dark .depth-panel {
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
     border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
+
 
 /* =========================================================================
    모바일 디바이스 최적화 (초강력 버전) - 화면 너비 768px 이하 스마트폰
