@@ -50,8 +50,21 @@ async function loadWeekendRequests(year, month) {
             capacityMap.clear(); // 정원 데이터 초기화
             requestsByDate = {};
             
-            // 개인별 통계용 맵 (이름 -> { confirmed: 0, requested: 0 })
+            // 개인별 통계용 맵 초기화 (관리자 제외 전체 인원 기본값 0 세팅)
             const memberStats = new Map();
+            const excludedMembers = ['박영철', '박호진', '유아라'];
+
+            if (State.appConfig && State.appConfig.teamGroups) {
+                State.appConfig.teamGroups.forEach(group => {
+                    if (group.members && Array.isArray(group.members)) {
+                        group.members.forEach(member => {
+                            if (!excludedMembers.includes(member)) {
+                                memberStats.set(member, { confirmed: 0, requested: 0 });
+                            }
+                        });
+                    }
+                });
+            }
 
             snapshot.forEach(docSnap => {
                 const data = docSnap.data();
@@ -72,13 +85,16 @@ async function loadWeekendRequests(year, month) {
                     }
 
                     // 통계 데이터 업데이트
-                    const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
-                    if (data.status === 'confirmed') {
-                        stat.confirmed++;
-                    } else {
-                        stat.requested++;
+                    // 관리자가 아닌 일반 유저의 신청 데이터만 통계에 반영
+                    if (!excludedMembers.includes(data.member)) {
+                        const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
+                        if (data.status === 'confirmed') {
+                            stat.confirmed++;
+                        } else {
+                            stat.requested++;
+                        }
+                        memberStats.set(data.member, stat);
                     }
-                    memberStats.set(data.member, stat);
                 }
             });
 
@@ -96,37 +112,39 @@ async function loadWeekendRequests(year, month) {
     }
 }
 
-// [신규] 사이드바 통계 렌더링 함수 (관리자 제외)
+// [신규] 사이드바 통계 렌더링 함수 (전체 인원 표시)
 function renderWeekendStats(memberStats) {
     const sidebar = document.getElementById('weekend-stats-sidebar');
     const list = document.getElementById('weekend-stats-list');
     
     if (!sidebar || !list) return;
 
-    // 제외할 관리자 목록
+    // 제외할 관리자 목록 (이중 체크)
     const excludedMembers = ['박영철', '박호진', '유아라'];
     
-    // 관리자 필터링 후 배열로 변환
     const filteredMembers = [...memberStats.entries()].filter(([name, counts]) => {
         return !excludedMembers.includes(name);
     });
 
-    if (filteredMembers.length === 0) {
-        sidebar.classList.add('hidden');
-        return;
-    }
-
     sidebar.classList.remove('hidden');
     list.innerHTML = '';
 
-    // 총 신청 횟수(확정+대기)가 많은 순으로 정렬
-    filteredMembers.sort((a, b) => 
-        (b[1].confirmed + b[1].requested) - (a[1].confirmed + a[1].requested)
-    );
+    // 1순위: 총 신청 횟수(확정+대기)가 많은 순 / 2순위: 이름 가나다순
+    filteredMembers.sort((a, b) => {
+        const totalA = a[1].confirmed + a[1].requested;
+        const totalB = b[1].confirmed + b[1].requested;
+        if (totalB !== totalA) {
+            return totalB - totalA;
+        }
+        return a[0].localeCompare(b[0]);
+    });
 
     filteredMembers.forEach(([name, counts]) => {
         const item = document.createElement('div');
-        item.className = "bg-white border border-indigo-100 p-2 rounded-md shadow-sm flex justify-between items-center transition-transform hover:-translate-y-0.5";
+        // 신청 건수가 0이면 약간 흐리게 표시하여 시각적 구분
+        const opacityClass = (counts.confirmed === 0 && counts.requested === 0) ? "opacity-60 hover:opacity-100" : "";
+        
+        item.className = `bg-white border border-indigo-100 p-2 rounded-md shadow-sm flex justify-between items-center transition-all hover:-translate-y-0.5 ${opacityClass}`;
         item.innerHTML = `
             <span class="font-bold text-gray-700 text-sm">${name}</span>
             <div class="text-xs bg-gray-50 px-2 py-1 rounded border border-gray-200 font-mono tracking-wider">
