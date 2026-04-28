@@ -271,17 +271,15 @@ function renderWeekendList(year, month) {
             listView.appendChild(rowItem);
 
             if (requestsByDate[dateStr]) {
-                // [수정] 관리자급은 무조건 오른쪽(끝)으로 가도록 정렬
                 const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
                 
                 requestsByDate[dateStr].sort((a, b) => {
                     const aIsAdmin = adminMembers.includes(a.member);
                     const bIsAdmin = adminMembers.includes(b.member);
                     
-                    if (aIsAdmin && !bIsAdmin) return 1;  // a가 관리자면 뒤로
-                    if (!aIsAdmin && bIsAdmin) return -1; // b가 관리자면 앞으로
+                    if (aIsAdmin && !bIsAdmin) return 1;  
+                    if (!aIsAdmin && bIsAdmin) return -1; 
                     
-                    // 둘 다 일반 혹은 둘 다 관리자라면 기본 신청 시간순서(오름차순)
                     const timeA = a.createdAt || "";
                     const timeB = b.createdAt || "";
                     return timeA.localeCompare(timeB);
@@ -454,11 +452,12 @@ function openAdminDatePopup(dateStr) {
     popup.classList.remove('hidden');
 }
 
+// 💡 [수정] 스마트 형평성 배분 로직 강화 (관리자급 포함 및 당월 횟수 가중치 적용)
 export function calculateSmartAllocation() {
     if (!currentManageDateStr) return;
-    const capacity = capacityMap.get(currentManageDateStr);
+    const capacity = parseInt(capacityMap.get(currentManageDateStr), 10);
     
-    if (!capacity || capacity <= 0) {
+    if (isNaN(capacity) || capacity <= 0) {
         showToast("먼저 정원(명)을 설정하고 '설정' 버튼을 눌러주세요.", true);
         return;
     }
@@ -473,71 +472,117 @@ export function calculateSmartAllocation() {
         });
     }
     allMembers = [...new Set(allMembers)];
-    const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
-    const eligibleMembers = allMembers.filter(m => !excludedMembers.includes(m));
+    
+    // 관리자급 정의
+    const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
+    const eligibleMembers = allMembers.filter(m => !adminMembers.includes(m));
 
-    const nonApplicants = eligibleMembers.filter(m => !applicants.includes(m));
+    // 1. 관리자 신청자 선별 (정원에서 우선 차감)
+    const adminApplicants = applicants.filter(m => adminMembers.includes(m));
+    const generalApplicants = applicants.filter(m => !adminMembers.includes(m));
 
+    // 실제 일반 팀원 가용 정원 = 설정 정원 - 관리자 신청자 수
+    const availableCapacity = Math.max(0, capacity - adminApplicants.length);
+
+    // 2. 점수 계산 로직: 이번 달 신청 횟수가 최우선 반영! (가중치 1000)
+    // 점수가 낮을수록 우선 선발 대상이 됨
     const getScore = (m) => {
         const y = currentYearlyStats.get(m) || 0;
         const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
-        return (y * 100) + (ms.confirmed * 10) + ms.requested;
+        const monthTotal = ms.confirmed + ms.requested;
+        return (monthTotal * 1000) + (y * 10); 
     };
 
-    const sortedApplicants = [...applicants].sort((a, b) => {
+    // 3. 신청자 중 일반 팀원 정렬
+    const sortedGeneralApplicants = [...generalApplicants].sort((a, b) => {
         const diff = getScore(a) - getScore(b);
         return diff !== 0 ? diff : a.localeCompare(b);
     });
 
+    // 4. 미신청자 중 추가 가능 인원 정렬
+    const nonApplicants = eligibleMembers.filter(m => !applicants.includes(m));
     const sortedNonApplicants = [...nonApplicants].sort((a, b) => {
         const diff = getScore(a) - getScore(b);
         return diff !== 0 ? diff : a.localeCompare(b);
     });
 
-    let toConfirm = []; 
+    // 5. 최종 확정안 도출
+    let toConfirm = [...adminApplicants]; // 관리자는 무조건 확정
     let toDecline = []; 
     let toAdd = [];     
 
-    if (applicants.length > capacity) {
-        toConfirm = sortedApplicants.slice(0, capacity);
-        toDecline = sortedApplicants.slice(capacity);
-    } else if (applicants.length < capacity) {
-        toConfirm = sortedApplicants;
-        const needed = capacity - applicants.length;
+    if (generalApplicants.length > availableCapacity) {
+        toConfirm = toConfirm.concat(sortedGeneralApplicants.slice(0, availableCapacity));
+        toDecline = sortedGeneralApplicants.slice(availableCapacity);
+    } else if (generalApplicants.length < availableCapacity) {
+        toConfirm = toConfirm.concat(sortedGeneralApplicants);
+        const needed = availableCapacity - generalApplicants.length;
         toAdd = sortedNonApplicants.slice(0, needed);
     } else {
-        toConfirm = sortedApplicants;
+        toConfirm = toConfirm.concat(sortedGeneralApplicants);
     }
 
-    renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, applicants.length);
+    // 통계 계산: 이 달의 권장 근무 횟수 (정원 합계 / 인원수)
+    let totalMonthlyCapacity = 0;
+    capacityMap.forEach(v => totalMonthlyCapacity += v);
+    const avgPossibleShifts = (totalMonthlyCapacity / eligibleMembers.length).toFixed(1);
+
+    renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, applicants.length, adminApplicants.length, avgPossibleShifts);
 }
 
-function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, appCount) {
+// 💡 [수정] 결과 표시창에 관리자 정보 및 당월 횟수 가중치 내용 보강
+function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, appCount, adminCount, avgPossible) {
     const area = document.getElementById('smart-calc-result-area');
     area.classList.remove('hidden');
 
     let html = `<div class="text-xs text-gray-700 font-medium space-y-3 mb-4">`;
-    html += `<div class="flex justify-between border-b border-indigo-100 pb-2"><span>설정 정원: <b class="text-emerald-600">${capacity}명</b></span> <span>현재 신청자: <b>${appCount}명</b></span></div>`;
+    html += `<div class="flex flex-col gap-1 border-b border-indigo-100 pb-2">
+                <div class="flex justify-between">
+                    <span>설정 정원: <b class="text-emerald-600">${capacity}명</b> (관리자 ${adminCount}명 포함)</span> 
+                    <span>신청: <b>${appCount}명</b></span>
+                </div>
+                <div class="text-[10px] text-indigo-500 font-normal">* 이 달의 팀원당 권장 근무: 약 ${avgPossible}회</div>
+             </div>`;
     
     const finalConfirmed = [...toConfirm, ...toAdd];
-    html += `<div><span class="text-emerald-700 font-bold">✅ 최종 확정 추천 (${finalConfirmed.length}명)</span><div class="mt-1.5 flex flex-wrap gap-1.5">`;
+    html += `<div><span class="text-emerald-700 font-bold">✅ 최종 확정 추천 (${finalConfirmed.length}명)</span><div class="mt-2 flex flex-wrap gap-1.5">`;
+    
     finalConfirmed.forEach(m => {
         const yCount = currentYearlyStats.get(m) || 0;
+        const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
+        const mTotal = ms.confirmed + ms.requested;
+        
         const isNew = toAdd.includes(m);
-        const badgeClass = isNew ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
-        const icon = isNew ? '➕' : '✔️';
-        html += `<span class="border px-1.5 py-0.5 rounded text-[11px] ${badgeClass}">${icon} ${m} (누적 ${yCount}회)</span>`;
+        const isAdmin = ['박영철', '박호진', '유아라', '이승운'].includes(m);
+        
+        let badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm';
+        let icon = '✔️';
+        let subText = `(당월 ${mTotal}회/누적 ${yCount}회)`;
+        
+        if (isAdmin) {
+            badgeClass = 'bg-gray-100 text-gray-800 border-gray-300 shadow-sm';
+            icon = '👑';
+            subText = '(관리자)';
+        } else if (isNew) {
+            badgeClass = 'bg-blue-50 text-blue-800 border-blue-200 shadow-sm';
+            icon = '➕';
+        }
+
+        html += `<span class="border px-1.5 py-1 rounded-md text-[11px] ${badgeClass}">${icon} ${m} <span class="text-[10px] opacity-70">${subText}</span></span>`;
     });
     html += `</div></div>`;
 
     if (toDecline.length > 0) {
-        html += `<div class="pt-1"><span class="text-red-600 font-bold">➖ 정원 초과로 대기 전환 (${toDecline.length}명)</span><br><span class="text-gray-400 text-[10px]">누적 횟수가 상대적으로 많아 대기 상태가 됩니다.</span><div class="mt-1 flex flex-wrap gap-1.5">`;
-        toDecline.forEach(m => html += `<span class="bg-red-50 text-red-500 border border-red-100 px-1.5 py-0.5 rounded text-[11px] line-through">${m} (누적 ${currentYearlyStats.get(m)||0}회)</span>`);
+        html += `<div class="pt-1"><span class="text-red-600 font-bold">➖ 정원 초과로 대기 전환 (${toDecline.length}명)</span><br><span class="text-gray-400 text-[10px]">당월 신청 횟수가 많아 후순위로 배정되었습니다.</span><div class="mt-2 flex flex-wrap gap-1.5">`;
+        toDecline.forEach(m => {
+            const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
+            html += `<span class="bg-red-50 text-red-500 border border-red-100 px-1.5 py-1 rounded-md text-[11px] line-through shadow-sm">${m} <span class="text-[10px] opacity-70">(당월 ${ms.confirmed+ms.requested}회)</span></span>`;
+        });
         html += `</div></div>`;
     }
 
     if(toAdd.length === 0 && toDecline.length === 0) {
-         html += `<div class="text-blue-600 font-bold py-1">인원이 정원과 일치하여 전원 확정 추천합니다.</div>`;
+         html += `<div class="text-blue-600 font-bold py-1 bg-blue-50 px-2 rounded mt-2">인원이 정원과 일치하여 전원 확정 추천합니다.</div>`;
     }
     
     html += `</div>`;

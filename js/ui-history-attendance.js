@@ -20,7 +20,7 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
     let inputHtml = '';
     if (options.length > 0) {
         const optionsHtml = options.map(opt => 
-            `<option value="${opt}" ${currentFilterValue === opt ? 'selected' : ''}>${opt}</option>`
+            `<option value="${opt}" ${currentFilterValue === String(opt) ? 'selected' : ''}>${opt}</option>`
         ).join('');
         
         inputHtml = `
@@ -59,7 +59,6 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
 
 
 export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
-    // 일별 렌더링 유지 (수정 없음)
     const view = document.getElementById('history-attendance-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">근태 기록 로딩 중...</div>';
@@ -91,7 +90,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
     const allMembers = [...new Set(data.onLeaveMembers.map(e => e.member))].sort();
     let leaveEntries = [...data.onLeaveMembers];
     
-    const filterState = context.attendanceFilterState?.daily || { member: '', type: '' };
+    const filterState = context.attendanceFilterState?.daily || {};
     const sortState = context.attendanceSortState?.daily || { key: 'member', dir: 'asc' };
 
     if (filterState.member) leaveEntries = leaveEntries.filter(e => e.member === filterState.member);
@@ -231,9 +230,9 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
     }
 
     const sortState = context.attendanceSortState?.[mode] || { key: 'member', dir: 'asc' };
-    const filterState = context.attendanceFilterState?.[mode] || { member: '' };
+    const filterState = context.attendanceFilterState?.[mode] || {};
 
-    let summary = [];
+    let summaryAll = [];
     const memberMap = {};
     const allMemberSet = new Set(); 
 
@@ -262,22 +261,37 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
             rec.totalCount += 1;
         }
 
-        // ✅ [수정] data.leaveEntries는 이미 날짜 단위로 나뉘어 들어온 배열이므로 1개 = 1일입니다.
-        // 기존처럼 여기서 또 날짜 차이를 계산하면 연속 연차가 중복으로 곱해지는 버그가 생깁니다.
         if (type === '결근') {
             rec.totalAbsenceDays += 1;
         } else if (type === '연차') {
             rec.totalLeaveDays += 1;
         }
     });
-    summary = Object.values(memberMap);
+    
+    summaryAll = Object.values(memberMap);
+    let summary = [...summaryAll];
 
     const allMembers = [...allMemberSet].sort();
 
-    if (filterState.member) {
-        summary = summary.filter(item => item.member === filterState.member);
-    }
+    // 💡 [신규] 다중 필터 적용 (각 헤더별로 선택된 필터가 있으면 모두 만족하는 행만 남김)
+    Object.keys(filterState).forEach(fKey => {
+        const fVal = filterState[fKey];
+        if (!fVal) return;
 
+        summary = summary.filter(item => {
+            if (fKey === 'member') return item.member === fVal;
+
+            let val = 0;
+            if (['totalCount', 'totalAbsenceDays', 'totalLeaveDays'].includes(fKey)) {
+                val = item[fKey];
+            } else {
+                val = item.counts[fKey] || 0;
+            }
+            return String(val) === String(fVal);
+        });
+    });
+
+    // 정렬 적용
     summary.sort((a, b) => {
         let valA = 0, valB = 0;
         const k = sortState.key;
@@ -290,13 +304,33 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         return 0;
     });
 
-    const th = (key, label, width='') => `
+    // 💡 [신규] th 생성 함수 강화 (숫자 필드도 유니크 값들을 모아 select 옵션으로 제공)
+    const th = (key, label, width='') => {
+        let filterOptions = [];
+        if (key === 'member') {
+            filterOptions = allMembers;
+        } else {
+            const valSet = new Set();
+            summaryAll.forEach(item => {
+                let val = 0;
+                if (['totalCount', 'totalAbsenceDays', 'totalLeaveDays'].includes(key)) {
+                    val = item[key];
+                } else {
+                    val = item.counts[key] || 0;
+                }
+                valSet.add(val);
+            });
+            filterOptions = [...valSet].sort((a, b) => a - b).map(String);
+        }
+
+        return `
         <th scope="col" class="px-4 py-3 border-b cursor-pointer hover:bg-gray-200 select-none group ${width}" data-sort-target="${mode}" data-sort-key="${key}">
             <div class="flex items-center justify-center relative">
-                <span>${label} ${getSortIcon(sortState.key, sortState.dir, key)}</span>
-                ${key === 'member' ? getFilterDropdown(mode, 'member', filterState.member, allMembers) : ''}
+                <span class="flex items-center whitespace-nowrap">${label} ${getSortIcon(sortState.key, sortState.dir, key)}</span>
+                ${getFilterDropdown(mode, key, filterState[key], filterOptions)}
             </div>
         </th>`;
+    };
 
     let html = `
         <div class="bg-white p-4 rounded-lg shadow-sm mb-6 min-h-[400px]">
@@ -313,7 +347,7 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
                     <tbody class="divide-y divide-gray-200">`;
 
     if (summary.length === 0) {
-         html += `<tr><td colspan="11" class="text-center py-4 text-gray-500">데이터 없음</td></tr>`;
+         html += `<tr><td colspan="11" class="text-center py-8 text-gray-500">필터 조건에 맞는 데이터가 없습니다.</td></tr>`;
     } else {
         summary.forEach(item => {
             const cell = (k, color='text-gray-400') => `<td class="px-4 py-3 text-center ${item.counts[k]>0 ? 'text-gray-800 font-medium' : color}">${item.counts[k]||0}</td>`;
