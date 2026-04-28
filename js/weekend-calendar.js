@@ -30,7 +30,7 @@ export function changeMonth(offset) {
     loadWeekendRequests(currentYear, currentMonth);
 }
 
-// 실시간 리스너 연결 및 데이터 분류
+// 실시간 리스너 연결 및 데이터 분류 (통계 계산 포함)
 async function loadWeekendRequests(year, month) {
     const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
     
@@ -47,6 +47,9 @@ async function loadWeekendRequests(year, month) {
             myRequestsMap.clear();
             blockedDatesSet.clear();
             requestsByDate = {};
+            
+            // 개인별 통계용 맵 (이름 -> { confirmed: 0, requested: 0 })
+            const memberStats = new Map();
 
             snapshot.forEach(docSnap => {
                 const data = docSnap.data();
@@ -62,10 +65,20 @@ async function loadWeekendRequests(year, month) {
                     if (data.member === State.appState.currentUser) {
                         myRequestsMap.set(data.date, docSnap.id);
                     }
+
+                    // 통계 데이터 업데이트
+                    const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
+                    if (data.status === 'confirmed') {
+                        stat.confirmed++;
+                    } else {
+                        stat.requested++;
+                    }
+                    memberStats.set(data.member, stat);
                 }
             });
 
-            // 데이터 수집 후 렌더링
+            // 데이터 수집 후 통계 및 리스트 렌더링
+            renderWeekendStats(memberStats);
             renderWeekendList(year, month);
 
         }, (error) => {
@@ -76,6 +89,39 @@ async function loadWeekendRequests(year, month) {
     } catch (e) {
         console.error("Error setting up listener:", e);
     }
+}
+
+// [신규] 상단 통계 렌더링 함수
+function renderWeekendStats(memberStats) {
+    const container = document.getElementById('weekend-stats-container');
+    const list = document.getElementById('weekend-stats-list');
+    
+    if (!container || !list) return;
+
+    if (memberStats.size === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+
+    container.classList.remove('hidden');
+    list.innerHTML = '';
+
+    // 총 신청 횟수(확정+대기)가 많은 순으로 정렬
+    const sortedMembers = [...memberStats.entries()].sort((a, b) => 
+        (b[1].confirmed + b[1].requested) - (a[1].confirmed + a[1].requested)
+    );
+
+    sortedMembers.forEach(([name, counts]) => {
+        const badge = document.createElement('div');
+        badge.className = "bg-white border border-indigo-200 px-2 py-1 rounded-md shadow-sm flex items-center gap-1 transition-transform hover:scale-105";
+        badge.innerHTML = `
+            <span class="font-bold text-gray-700">${name}</span>
+            <span class="text-blue-600 font-bold" title="확정됨">${counts.confirmed}</span>
+            <span class="text-gray-300">/</span>
+            <span class="text-orange-500 font-medium" title="승인 대기">${counts.requested}</span>
+        `;
+        list.appendChild(badge);
+    });
 }
 
 // 주말 리스트 렌더링
@@ -136,7 +182,7 @@ function renderWeekendList(year, month) {
 
             // 관리자 전용 관리 버튼
             const adminManageHtml = isAdmin 
-                ? `<button class="admin-manage-btn ml-2 p-1.5 rounded-md hover:bg-gray-200 text-gray-500 transition tooltip" title="날짜 관리(인원추가/마감)" data-date="${dateStr}">
+                ? `<button class="admin-manage-btn ml-2 p-1.5 rounded-md hover:bg-gray-200 text-gray-500 transition tooltip" title="날짜 관리(인원추가/마감/뽑기)" data-date="${dateStr}">
                     ⚙️
                    </button>` 
                 : '';
@@ -314,13 +360,16 @@ async function processAdminAction(docId, action) {
 }
 
 // ==========================================
-// [신규] 날짜 관리(추가/마감) 팝업 관련 로직
+// [신규] 날짜 관리(추가/마감/뽑기) 팝업 관련 로직
 // ==========================================
 function openAdminDatePopup(dateStr) {
     currentManageDateStr = dateStr;
     const popup = document.getElementById('weekend-admin-date-popup');
     document.getElementById('admin-date-popup-title').textContent = dateStr;
     document.getElementById('admin-date-add-member').value = '';
+    
+    const randomCountInput = document.getElementById('admin-date-random-count');
+    if (randomCountInput) randomCountInput.value = '1';
 
     // 토글 스위치 상태 설정
     const isBlocked = blockedDatesSet.has(dateStr);
@@ -343,6 +392,64 @@ export async function adminAddMemberToDate() {
     await createRequest(currentManageDateStr, memberName, 'confirmed');
     showToast(`${memberName}님 추가 완료`);
     input.value = '';
+}
+
+// [추가] 랜덤 인원 뽑기 함수 (승인 대기 상태로 등록)
+export async function adminRandomSelectMembers(count) {
+    if (!currentManageDateStr) return;
+    
+    // 1. 전체 팀원 목록 가져오기 (appConfig.teamGroups 활용)
+    let allMembers = [];
+    if (State.appConfig && State.appConfig.teamGroups) {
+        State.appConfig.teamGroups.forEach(group => {
+            if (group.members && Array.isArray(group.members)) {
+                allMembers = allMembers.concat(group.members);
+            }
+        });
+    }
+
+    // 중복 제거
+    allMembers = [...new Set(allMembers)];
+
+    // 2. 제외 대상 필터링
+    const excludedMembers = ['박영철', '박호진', '유아라']; // 관리자 제외
+    const alreadyApplied = (requestsByDate[currentManageDateStr] || []).map(req => req.member);
+    
+    const availableMembers = allMembers.filter(member => 
+        !excludedMembers.includes(member) && !alreadyApplied.includes(member)
+    );
+
+    if (availableMembers.length === 0) {
+        showToast("추첨 가능한 인원이 없습니다.", true);
+        return;
+    }
+
+    if (count > availableMembers.length) {
+        showToast(`현재 추첨 가능한 최대 인원은 ${availableMembers.length}명입니다.`, true);
+        count = availableMembers.length;
+    }
+
+    // 3. 랜덤 추첨 (Fisher-Yates Shuffle)
+    const shuffled = [...availableMembers];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    const selectedMembers = shuffled.slice(0, count);
+
+    // 4. 선택된 인원들을 '승인 대기(requested)' 상태로 생성
+    let successCount = 0;
+    for (const member of selectedMembers) {
+        try {
+            await createRequest(currentManageDateStr, member, 'requested');
+            successCount++;
+        } catch(e) {
+            console.error(`Error adding random member ${member}:`, e);
+        }
+    }
+
+    showToast(`랜덤 추첨으로 ${successCount}명 승인 대기 등록 완료`);
 }
 
 export async function toggleBlockDate(isBlocked) {

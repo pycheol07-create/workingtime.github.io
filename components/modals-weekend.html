@@ -8,9 +8,11 @@
             <button id="close-weekend-modal-btn" class="text-gray-400 hover:text-gray-700 text-3xl font-bold">&times;</button>
         </div>
         
-        <p class="text-sm text-gray-500 mb-4 text-center">
-            근무할 날짜의 리스트를 <span class="text-blue-600 font-bold">클릭</span>하여 신청하거나 취소하세요.
-        </p>
+        <div id="weekend-stats-container" class="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100 hidden">
+            <h4 class="text-sm font-bold text-indigo-800 mb-2 flex items-center gap-1">📊 이달의 신청 현황 (승인/대기)</h4>
+            <div id="weekend-stats-list" class="flex flex-wrap gap-2 text-xs">
+                </div>
+        </div>
 
         <div class="flex justify-center items-center space-x-6 mb-6 bg-gray-50 p-3 rounded-lg">
             <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-200 text-gray-600 transition">
@@ -28,8 +30,7 @@
         </div>
 
         <div class="flex-grow overflow-y-auto border-t border-gray-200 mt-2">
-            <div id="weekend-list-view" class="space-y-3 py-2">
-                </div>
+            <div id="weekend-list-view" class="space-y-3 py-2"></div>
         </div>
     </div>
 </div>
@@ -68,14 +69,23 @@
                 </div>
             </div>
 
+            <div class="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                <label class="block text-sm font-bold text-purple-800 mb-2">🎲 랜덤 인원 뽑기 (승인 대기 등록)</label>
+                <div class="flex gap-2 items-center">
+                    <input type="number" id="admin-date-random-count" min="1" max="10" value="1" class="w-16 p-2 border border-purple-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-center">
+                    <span class="text-sm text-purple-700 font-medium">명</span>
+                    <button id="admin-date-random-btn" class="ml-auto bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-bold transition shadow-sm">추첨하기</button>
+                </div>
+                <p class="text-xs text-purple-600 mt-2">* 관리자 제외 및 기신청자 제외 후 뽑습니다.</p>
+            </div>
+
             <div class="bg-red-50 p-4 rounded-lg border border-red-100 flex justify-between items-center">
                 <div>
                     <span class="block text-sm font-bold text-red-800">🚫 이 날짜 신청 마감</span>
-                    <span class="text-xs text-red-600">팀원들이 신청할 수 없게 막습니다.</span>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" id="admin-date-block-toggle" class="sr-only peer">
-                    <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                    <div class="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                 </label>
             </div>
         </div>
