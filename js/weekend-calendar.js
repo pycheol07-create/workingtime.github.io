@@ -31,7 +31,7 @@ export function changeMonth(offset) {
     loadWeekendRequests(currentYear, currentMonth);
 }
 
-// 1년 치 전체 데이터를 실시간으로 가져와 연누적 통계와 월별 현황을 동시에 계산합니다.
+// 1년 치 전체 데이터를 가져와 연누적과 해당 월 현황을 계산
 async function loadWeekendRequests(year, month) {
     const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
     
@@ -45,7 +45,6 @@ async function loadWeekendRequests(year, month) {
         const endOfYear = `${year}-12-31`;
         
         const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
-        // 해당 연도의 전체 데이터를 가져옵니다.
         const q = query(colRef, where("date", ">=", startOfYear), where("date", "<=", endOfYear));
 
         unsubscribe = onSnapshot(q, (snapshot) => {
@@ -65,7 +64,7 @@ async function loadWeekendRequests(year, month) {
                         group.members.forEach(member => {
                             if (!excludedMembers.includes(member)) {
                                 memberStats.set(member, { confirmed: 0, requested: 0 });
-                                yearlyStatsMap.set(member, 0); // 연누적 0으로 초기화
+                                yearlyStatsMap.set(member, 0); 
                             }
                         });
                     }
@@ -80,12 +79,12 @@ async function loadWeekendRequests(year, month) {
                 } else if (data.type === 'capacity') {
                     if (data.month === monthStr) capacityMap.set(data.date, data.capacity);
                 } else {
-                    // 연간 누적 카운트 (확정된 건수만)
+                    // 연간 누적 카운트 (해당 연도의 확정건)
                     if (data.status === 'confirmed' && !excludedMembers.includes(data.member)) {
                         yearlyStatsMap.set(data.member, (yearlyStatsMap.get(data.member) || 0) + 1);
                     }
 
-                    // 이번 달 화면을 위한 데이터 처리
+                    // 이번 달 화면을 위한 처리
                     if (data.month === monthStr) {
                         if (!requestsByDate[data.date]) requestsByDate[data.date] = [];
                         requestsByDate[data.date].push({ id: docSnap.id, ...data });
@@ -145,18 +144,18 @@ function renderWeekendStats(memberStats, yearlyStatsMap) {
 
     list.innerHTML = '';
 
-    // [중요] 연누적이 적은 사람 우선 정렬 (같으면 이번달 신청 많은 순 -> 이름순)
+    // [정렬 수정] 1순위: 이번달 신청 횟수가 많은 사람 / 2순위: 연누적이 적은 사람 / 3순위: 이름순
     filteredMembers.sort((a, b) => {
-        const yearlyA = yearlyStatsMap.get(a[0]) || 0;
-        const yearlyB = yearlyStatsMap.get(b[0]) || 0;
-        if (yearlyA !== yearlyB) {
-            return yearlyA - yearlyB; // 오름차순 (횟수가 적은 사람이 위로!)
-        }
-        
         const totalA = a[1].confirmed + a[1].requested;
         const totalB = b[1].confirmed + b[1].requested;
         if (totalB !== totalA) {
-            return totalB - totalA; // 내림차순
+            return totalB - totalA; 
+        }
+        
+        const yearlyA = yearlyStatsMap.get(a[0]) || 0;
+        const yearlyB = yearlyStatsMap.get(b[0]) || 0;
+        if (yearlyA !== yearlyB) {
+            return yearlyA - yearlyB;
         }
         return a[0].localeCompare(b[0]);
     });
@@ -166,17 +165,16 @@ function renderWeekendStats(memberStats, yearlyStatsMap) {
         const opacityClass = (counts.confirmed === 0 && counts.requested === 0) ? "opacity-60 hover:opacity-100" : "";
         
         const yearlyCount = yearlyStatsMap.get(name) || 0;
-        // 연누적이 적을수록 눈에 띄게 (0회면 붉은색)
-        let yearlyBadgeClass = "bg-indigo-100 text-indigo-700 border border-indigo-200";
-        if (yearlyCount === 0) yearlyBadgeClass = "bg-red-50 text-red-600 border border-red-200";
 
         item.className = `bg-white border border-indigo-100 p-2 rounded-md shadow-sm flex justify-between items-center transition-all hover:-translate-y-0.5 ${opacityClass}`;
+        
+        // [디자인 수정] 누적 횟수를 별도로 튀지 않게 회색빛으로 표시
         item.innerHTML = `
-            <div class="flex items-center gap-1.5">
-                <span class="font-bold text-gray-700 text-sm">${name}</span>
-                <span class="text-[10px] ${yearlyBadgeClass} px-1.5 py-0.5 rounded font-bold">누적 ${yearlyCount}회</span>
+            <div class="flex items-center">
+                <span class="font-bold text-gray-700 text-sm whitespace-nowrap">${name}</span>
+                <span class="text-[10px] text-gray-400 font-medium ml-1.5 whitespace-nowrap">(연누적 ${yearlyCount}회)</span>
             </div>
-            <div class="text-xs bg-gray-50 px-2 py-1 rounded border border-gray-200 font-mono tracking-wider">
+            <div class="text-xs bg-gray-50 px-2 py-1 rounded border border-gray-200 font-mono tracking-wider ml-2 flex-shrink-0">
                 <span class="text-blue-600 font-bold w-4 inline-block text-center" title="확정됨">${counts.confirmed}</span><span class="text-gray-300">|</span><span class="text-orange-500 font-medium w-4 inline-block text-center" title="승인 대기">${counts.requested}</span>
             </div>
         `;

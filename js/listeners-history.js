@@ -17,25 +17,34 @@ import { doc, updateDoc, deleteField, collection, getDocs, query, where } from "
 
 let isHistoryMaximized = false;
 
-// 📅 [신규] 주말 통계 데이터 불러오기 & 렌더링 함수
+// --- [신규] 주말 통계 데이터를 위한 변수 및 함수 ---
+let currentWeekendStatsData = [];
+let currentWeekendTotalCost = 0;
+let currentWeekendTotalCount = 0;
+let currentWeekendMonthStr = "";
+
 async function loadAndRenderWeekendStats() {
     const tbody = document.getElementById('weekend-history-table-body');
-    if (!tbody) return;
+    const monthPicker = document.getElementById('weekend-stats-month-picker');
+    if (!tbody || !monthPicker) return;
     
     tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-blue-500 font-bold">데이터를 불러오는 중입니다...</td></tr>`;
 
-    let startDate = State.context.historyStartDate;
-    let endDate = State.context.historyEndDate;
-
-    // 설정된 기간이 없으면 '이번 달 1일 ~ 말일'을 기본값으로 사용
-    if (!startDate || !endDate) {
+    // 월 선택기에 값이 없으면 '현재 월'로 기본 세팅
+    if (!monthPicker.value) {
         const now = new Date();
         const y = now.getFullYear();
         const m = String(now.getMonth() + 1).padStart(2, '0');
-        const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-        startDate = `${y}-${m}-01`;
-        endDate = `${y}-${m}-${lastDay}`;
+        monthPicker.value = `${y}-${m}`;
     }
+
+    currentWeekendMonthStr = monthPicker.value;
+    const [year, month] = currentWeekendMonthStr.split('-');
+    
+    // 시작일(1일)과 종료일(말일) 계산
+    const startDate = `${currentWeekendMonthStr}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${currentWeekendMonthStr}-${lastDay}`;
 
     try {
         const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
@@ -48,7 +57,6 @@ async function loadAndRenderWeekendStats() {
 
         snap.forEach(doc => {
             const data = doc.data();
-            // 확정된 데이터 중 관리자급 제외
             if (data.status === 'confirmed' && !excludedMembers.includes(data.member)) {
                 if (!stats.has(data.member)) stats.set(data.member, { count: 0, dates: [] });
                 const st = stats.get(data.member);
@@ -58,18 +66,20 @@ async function loadAndRenderWeekendStats() {
             }
         });
 
-        // 횟수가 많은 순으로 정렬 (같으면 이름순)
+        // 횟수가 많은 순서대로 정렬
         const sorted = [...stats.entries()].sort((a, b) => {
             if (b[1].count !== a[1].count) return b[1].count - a[1].count; 
             return a[0].localeCompare(b[0]);
         });
 
+        currentWeekendStatsData = sorted; // 다운로드를 위해 저장
+        
         tbody.innerHTML = '';
         let totalCost = 0;
-        const COST_PER_TIME = 110000; // 1회당 정산 비용 (11만 원)
+        const COST_PER_TIME = 110000;
 
         if (sorted.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-gray-400 font-medium">해당 기간에 확정된 주말 근무 기록이 없습니다.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-gray-400 font-medium">해당 월에 확정된 주말 근무 기록이 없습니다.</td></tr>`;
         } else {
             sorted.forEach(([name, data], idx) => {
                 data.dates.sort();
@@ -89,6 +99,9 @@ async function loadAndRenderWeekendStats() {
             });
         }
 
+        currentWeekendTotalCost = totalCost;
+        currentWeekendTotalCount = totalCount;
+
         // 하단 총계 업데이트
         document.getElementById('weekend-total-count').textContent = totalCount;
         document.getElementById('weekend-total-cost').textContent = totalCost.toLocaleString();
@@ -98,6 +111,8 @@ async function loadAndRenderWeekendStats() {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-red-500 font-bold">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>`;
     }
 }
+// --- 주말 통계 끝 ---
+
 
 export function setupHistoryModalListeners() {
     
@@ -113,7 +128,7 @@ export function setupHistoryModalListeners() {
     const predictionPanel = document.getElementById('prediction-panel');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
     const leavePanel = document.getElementById('history-leave-panel');
-    const weekendPanel = document.getElementById('history-weekend-panel'); // [신규]
+    const weekendPanel = document.getElementById('history-weekend-panel');
 
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
@@ -164,7 +179,7 @@ export function setupHistoryModalListeners() {
             'management': '💼',
             'inspection': '📦',
             'leave': '🏖️',
-            'weekend': '📅' // [신규] 아이콘 추가
+            'weekend': '📅'
         };
 
         document.querySelectorAll('.history-main-tab-btn').forEach(btn => {
@@ -277,7 +292,6 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    // [수정] 조회 버튼에 주말 통계 연동
     if (DOM.historyFilterBtn) {
         DOM.historyFilterBtn.addEventListener('click', () => {
             const startDate = DOM.historyStartDateInput.value;
@@ -289,17 +303,10 @@ export function setupHistoryModalListeners() {
             State.context.historyEndDate = endDate || null;
             State.context.reportSortState = {};
             renderHistoryDateListByMode(getCurrentHistoryListMode());
-            
-            // 주말 통계 탭이 열려있다면 즉시 재조회
-            if (State.context.activeMainHistoryTab === 'weekend') {
-                loadAndRenderWeekendStats();
-            }
-            
             showToast('이력 목록을 필터링했습니다.');
         });
     }
 
-    // [수정] 초기화 버튼에 주말 통계 연동
     if (DOM.historyClearFilterBtn) {
         DOM.historyClearFilterBtn.addEventListener('click', () => {
             DOM.historyStartDateInput.value = '';
@@ -308,20 +315,51 @@ export function setupHistoryModalListeners() {
             State.context.historyEndDate = null;
             State.context.reportSortState = {};
             renderHistoryDateListByMode(getCurrentHistoryListMode());
-            
-            // 주말 통계 탭이 열려있다면 즉시 재조회
-            if (State.context.activeMainHistoryTab === 'weekend') {
-                loadAndRenderWeekendStats();
-            }
-            
             showToast('필터를 초기화했습니다.');
         });
     }
-    
-    // [신규] 주말 통계 패널 내의 새로고침 버튼 리스너
-    const refreshWeekendBtn = document.getElementById('refresh-weekend-stats-btn');
-    if (refreshWeekendBtn) {
-        refreshWeekendBtn.addEventListener('click', loadAndRenderWeekendStats);
+
+    // 주말 통계 월 변경 시 이벤트
+    const monthPicker = document.getElementById('weekend-stats-month-picker');
+    if (monthPicker) {
+        monthPicker.addEventListener('change', loadAndRenderWeekendStats);
+    }
+
+    // 주말 통계 엑셀 다운로드 이벤트
+    const downloadWeekendBtn = document.getElementById('weekend-stats-download-btn');
+    if (downloadWeekendBtn) {
+        downloadWeekendBtn.addEventListener('click', () => {
+            if (currentWeekendStatsData.length === 0) {
+                showToast('다운로드할 데이터가 없습니다.', true);
+                return;
+            }
+            
+            // 엑셀에서 한글이 깨지지 않도록 BOM 추가
+            let csvContent = "\uFEFF"; 
+            csvContent += "순위,이름,확정 횟수,정산 비용(원),근무 일자\n";
+            
+            const COST_PER_TIME = 110000;
+            currentWeekendStatsData.forEach(([name, data], idx) => {
+                const cost = data.count * COST_PER_TIME;
+                // 날짜 리스트에 콤마가 포함되므로 따옴표로 감싸기
+                const datesStr = `"${data.dates.join(', ')}"`;
+                csvContent += `${idx + 1},${name},${data.count},${cost},${datesStr}\n`;
+            });
+            
+            // 하단 총계 라인 추가
+            csvContent += `총계,-,${currentWeekendTotalCount},${currentWeekendTotalCost},-\n`;
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `주말근무_정산통계_${currentWeekendMonthStr}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('엑셀(CSV) 파일이 다운로드되었습니다.');
+        });
     }
 
     const openHistoryModalLogic = async (e) => {
@@ -510,10 +548,9 @@ export function setupHistoryModalListeners() {
                 if (inspectionPanel) inspectionPanel.classList.toggle('hidden', tabName !== 'inspection');
                 if (predictionPanel) predictionPanel.classList.toggle('hidden', tabName !== 'prediction');
                 if (leavePanel) leavePanel.classList.toggle('hidden', tabName !== 'leave');
-                if (weekendPanel) weekendPanel.classList.toggle('hidden', tabName !== 'weekend'); // [신규]
+                if (weekendPanel) weekendPanel.classList.toggle('hidden', tabName !== 'weekend');
                 
                 if (dateListContainer) {
-                    // 주말 통계 탭에서도 좌측 사이드바(날짜 목록) 숨김
                     const hideListTabs = ['trends', 'inspection', 'prediction', 'leave', 'weekend'];
                     dateListContainer.style.display = hideListTabs.includes(tabName) ? 'none' : 'block';
                 }
@@ -566,7 +603,7 @@ export function setupHistoryModalListeners() {
                 } else if (tabName === 'leave') {
                     UILeave.initLeaveManagement();
                 } else if (tabName === 'weekend') {
-                    // [신규] 탭 전환 시 주말 통계 불러오기
+                    // 주말 통계 불러오기
                     loadAndRenderWeekendStats();
                 }
             }

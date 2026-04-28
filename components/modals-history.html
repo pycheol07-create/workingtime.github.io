@@ -148,7 +148,7 @@
                                     <div>
                                         <div class="flex justify-between items-end mb-2">
                                             <span class="text-sm text-gray-500 dark:text-gray-400 font-bold">배송 <span class="text-xs text-gray-400 dark:text-gray-500 font-normal ml-1">(예측 <span id="pred-today-est-del">-</span>)</span></span>
-                                            <span id="pred-today-act-del" class="textxl font-black text-gray-900 dark:text-white font-mono tracking-tight">-</span>
+                                            <span id="pred-today-act-del" class="text-xl font-black text-gray-900 dark:text-white font-mono tracking-tight">-</span>
                                         </div>
                                         <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 shadow-inner">
                                             <div id="pred-today-del-bar" class="bg-amber-500 h-2 rounded-full transition-all duration-700" style="width: 0%"></div>
@@ -408,12 +408,16 @@
                             <h3 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
                                 <span>📅</span> 주말 근무 정산 통계
                             </h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">지정된 기간 내 확정된 주말 근무 횟수와 정산 비용(1회당 110,000원)을 산출합니다.</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">월 단위 확정된 주말 근무 횟수와 정산 비용(1회당 110,000원)을 산출합니다.</p>
                         </div>
-                        <button id="refresh-weekend-stats-btn" class="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-sm transition">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                            새로고침
-                        </button>
+                        <div class="flex gap-3 items-center">
+                            <input type="month" id="weekend-stats-month-picker" class="p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                            
+                            <button id="weekend-stats-download-btn" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-sm transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                엑셀 다운로드
+                            </button>
+                        </div>
                     </div>
 
                     <div class="flex-grow overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex flex-col transition-colors">
@@ -430,7 +434,7 @@
                                 </thead>
                                 <tbody id="weekend-history-table-body" class="divide-y divide-gray-100 dark:divide-gray-700">
                                     <tr>
-                                        <td colspan="5" class="text-center py-12 text-gray-400 dark:text-gray-500 font-medium">상단의 '조회' 버튼을 눌러 기간을 설정하세요.</td>
+                                        <td colspan="5" class="text-center py-12 text-gray-400 dark:text-gray-500 font-medium">데이터를 불러오는 중입니다...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -458,7 +462,7 @@
                 <div class="p-8 text-center">
                     <svg class="mx-auto mb-5 text-red-500 w-14 h-14" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                     <h3 class="mb-4 text-lg font-bold text-gray-900 dark:text-white">정말로 이 날짜의 모든 기록을<br/>삭제하시겠습니까?</h3>
-                    <p class="mb-8 text-sm text-gray-500 dark:text-gray-400 font-medium">이 작업은 되돌릴 수 없습니다.</p>
+                    <p class="mb-8 text-sm text-gray-500 dark:text-gray-400 font-medium">이 작업은 되돌릴 수 무</p>
                     <div class="flex justify-center gap-3">
                         <button type="button" id="confirm-history-delete-btn" class="text-white bg-red-600 hover:bg-red-700 font-bold rounded-xl text-sm px-5 py-2.5 shadow-md transition-colors">예, 삭제합니다</button>
                         <button type="button" id="cancel-history-delete-btn" class="text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-bold px-5 py-2.5 shadow-sm transition-colors">아니요, 취소합니다</button>
