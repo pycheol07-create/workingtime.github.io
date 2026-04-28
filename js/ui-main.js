@@ -200,6 +200,7 @@ export const updateSummary = (appState, appConfig) => {
     const totalStaffCount = allStaffMembers.size;
     const totalPartTimerCount = allPartTimers.size;
 
+    // 💡 휴무자(조퇴, 연차, 외출 미복귀 등) 목록 생성
     const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
     const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
     const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
@@ -214,16 +215,20 @@ export const updateSummary = (appState, appConfig) => {
     );
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
+    // 💡 출근자 중 휴무자를 뺀 실제 가용 인원만 카운트
     const attendanceMap = appState.dailyAttendance || {};
     const currentlyClockedIn = new Set(
-        Object.keys(attendanceMap).filter(member => attendanceMap[member].status === 'active')
+        Object.keys(attendanceMap).filter(member => 
+            attendanceMap[member].status === 'active' && !onLeaveMemberNames.has(member)
+        )
     );
 
     const availableStaffCount = [...currentlyClockedIn].filter(member => allStaffMembers.has(member)).length;
     const availablePartTimerCount = [...currentlyClockedIn].filter(member => allPartTimers.has(member)).length;
 
-    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-    const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
+    // 💡 업무 중인 인원에서도 휴무자는 카운트에서 철저히 제외 (업무 종료를 깜빡한 경우 방지)
+    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' && !onLeaveMemberNames.has(r.member));
+    const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused' && !onLeaveMemberNames.has(r.member));
     
     const ongoingMembers = new Set(ongoingRecords.map(r => r.member));
     const pausedMembers = new Set(pausedRecords.map(r => r.member));
@@ -236,12 +241,13 @@ export const updateSummary = (appState, appConfig) => {
     const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
     const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
 
+    // 대기 인원 = 출근(가용) - 업무 - 정지
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount - pausedStaffCount);
     const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount - pausedPartTimerCount);
     
     const totalIdleCount = idleStaffCount + idlePartTimerCount;
 
-    const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+    const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused') && !onLeaveMemberNames.has(r.member));
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
     if (elements['total-staff']) elements['total-staff'].textContent = `${totalStaffCount}/${totalPartTimerCount}`;
@@ -513,7 +519,6 @@ export const renderAttendanceToggle = (appState) => {
     if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
-// 💡 [수정됨] 실시간 현황 렌더링 함수 - 컨테이너 분리 및 색상 호버 유지
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
     
     const taskToggleBtn = document.getElementById('toggle-all-tasks-mobile');
@@ -528,7 +533,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
     
-    // 💡 업무 현황과 팀원 현황 보드를 각각 지정
     const taskStatusBoard = document.getElementById('task-status-board');
     const memberStatusBoard = document.getElementById('member-status-board');
     if (!taskStatusBoard || !memberStatusBoard) return;
@@ -536,13 +540,24 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     taskStatusBoard.innerHTML = '';
     memberStatusBoard.innerHTML = '';
 
+    // 💡 1. 휴무자 리스트 우선 계산
+    const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
+    const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
+    const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
+    const onLeaveStatusMap = new Map(combinedOnLeaveMembers.filter(item => !(item.type === '외출' && item.endTime)).map(item => [item.member, item]));
+    const onLeaveMemberNames = new Set(onLeaveStatusMap.keys());
+
     const presetTaskContainer = document.createElement('div');
     const presetGrid = document.createElement('div');
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5';
     if (isMobileTaskViewExpanded) presetGrid.classList.add('mobile-expanded');
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
-    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+    
+    // 💡 2. 휴무자는 진행/정지 중인 업무가 있어도 대시보드 작업 카드에서 완전히 제외합니다.
+    const ongoingRecords = (appState.workRecords || []).filter(r => 
+        (r.status === 'ongoing' || r.status === 'paused') && !onLeaveMemberNames.has(r.member)
+    );
     const tasksToRender = [...new Set([...baseTasks, ...ongoingRecords.map(r => r.task)])];
 
     tasksToRender.forEach(task => {
@@ -558,7 +573,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const headerColor = isPaused ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800' : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800';
             const titleColor = isPaused ? 'text-yellow-800 dark:text-yellow-400' : 'text-blue-800 dark:text-blue-400';
             
-            // 💡 hover:shadow-md 효과 유지 (떠오름 방지는 CSS .depth-panel에서 제어)
             card.className = `${mobileVisibilityClass} flex-col min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden transition-all hover:shadow-md cursor-pointer`;
             card.dataset.task = task; 
             card.dataset.groupId = firstRecord.groupId; 
@@ -613,7 +627,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 </div>
             `;
         } else {
-            // 💡 미시작 카드 hover 효과(색상) 유지
             card.className = `${mobileVisibilityClass} flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-400 dark:hover:border-blue-500 transition-all group`;
             card.dataset.action = 'start-task';
             card.dataset.task = task;
@@ -639,24 +652,17 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     presetGrid.appendChild(otherTaskCard);
     presetTaskContainer.appendChild(presetGrid);
     
-    // 💡 업무 현황 보드에 업무 섹션 추가
     taskStatusBoard.appendChild(presetTaskContainer);
 
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container';
     if (isMobileMemberViewExpanded) allMembersContainer.classList.add('mobile-expanded');
     
-    // 💡 타이틀은 이미 HTML에 있으므로 컨테이너 초기화만 수행
     allMembersContainer.innerHTML = ``;
 
     const ongoingMembers = new Set(ongoingRecords.filter(r => r.status === 'ongoing').map(r => r.member));
     const pausedMembers = new Set(ongoingRecords.filter(r => r.status === 'paused').map(r => r.member));
     const workingMembersMap = new Map(ongoingRecords.map(r => [r.member, r.task]));
-    
-    const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
-    const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
-    const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
-    const onLeaveStatusMap = new Map(combinedOnLeaveMembers.filter(item => !(item.type === '외출' && item.endTime)).map(item => [item.member, item]));
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'), teamGroups.find(g => g.name === '공통파트'), teamGroups.find(g => g.name === '담당파트'), teamGroups.find(g => g.name === '제작파트')
@@ -828,7 +834,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         albaContainer.appendChild(albaGrid); allMembersContainer.appendChild(albaContainer);
     }
     
-    // 💡 팀원 현황 보드에 섹션 추가
     memberStatusBoard.appendChild(allMembersContainer);
 
     renderAttendanceToggle(appState);
