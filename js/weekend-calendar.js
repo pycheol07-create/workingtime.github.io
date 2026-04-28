@@ -31,6 +31,7 @@ export function changeMonth(offset) {
     loadWeekendRequests(currentYear, currentMonth);
 }
 
+// 1년 치 전체 데이터를 실시간으로 가져와 연누적 통계와 월별 현황을 동시에 계산합니다.
 async function loadWeekendRequests(year, month) {
     const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
     
@@ -40,8 +41,12 @@ async function loadWeekendRequests(year, month) {
     }
 
     try {
+        const startOfYear = `${year}-01-01`;
+        const endOfYear = `${year}-12-31`;
+        
         const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
-        const q = query(colRef, where("month", "==", monthStr));
+        // 해당 연도의 전체 데이터를 가져옵니다.
+        const q = query(colRef, where("date", ">=", startOfYear), where("date", "<=", endOfYear));
 
         unsubscribe = onSnapshot(q, (snapshot) => {
             myRequestsMap.clear();
@@ -49,8 +54,9 @@ async function loadWeekendRequests(year, month) {
             capacityMap.clear(); 
             requestsByDate = {};
             
-            const memberStats = new Map();
-            // 관리자 및 제외자 명단 (이승운 추가)
+            const memberStats = new Map(); // 이번 달 통계
+            const yearlyStatsMap = new Map(); // 연간 누적 통계
+            
             const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
 
             if (State.appConfig && State.appConfig.teamGroups) {
@@ -59,6 +65,7 @@ async function loadWeekendRequests(year, month) {
                         group.members.forEach(member => {
                             if (!excludedMembers.includes(member)) {
                                 memberStats.set(member, { confirmed: 0, requested: 0 });
+                                yearlyStatsMap.set(member, 0); // 연누적 0으로 초기화
                             }
                         });
                     }
@@ -69,30 +76,38 @@ async function loadWeekendRequests(year, month) {
                 const data = docSnap.data();
                 
                 if (data.type === 'blocked') {
-                    blockedDatesSet.add(data.date);
+                    if (data.month === monthStr) blockedDatesSet.add(data.date);
                 } else if (data.type === 'capacity') {
-                    capacityMap.set(data.date, data.capacity);
+                    if (data.month === monthStr) capacityMap.set(data.date, data.capacity);
                 } else {
-                    if (!requestsByDate[data.date]) requestsByDate[data.date] = [];
-                    requestsByDate[data.date].push({ id: docSnap.id, ...data });
-
-                    if (data.member === State.appState.currentUser) {
-                        myRequestsMap.set(data.date, docSnap.id);
+                    // 연간 누적 카운트 (확정된 건수만)
+                    if (data.status === 'confirmed' && !excludedMembers.includes(data.member)) {
+                        yearlyStatsMap.set(data.member, (yearlyStatsMap.get(data.member) || 0) + 1);
                     }
 
-                    if (!excludedMembers.includes(data.member)) {
-                        const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
-                        if (data.status === 'confirmed') {
-                            stat.confirmed++;
-                        } else {
-                            stat.requested++;
+                    // 이번 달 화면을 위한 데이터 처리
+                    if (data.month === monthStr) {
+                        if (!requestsByDate[data.date]) requestsByDate[data.date] = [];
+                        requestsByDate[data.date].push({ id: docSnap.id, ...data });
+
+                        if (data.member === State.appState.currentUser) {
+                            myRequestsMap.set(data.date, docSnap.id);
                         }
-                        memberStats.set(data.member, stat);
+
+                        if (!excludedMembers.includes(data.member)) {
+                            const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
+                            if (data.status === 'confirmed') {
+                                stat.confirmed++;
+                            } else {
+                                stat.requested++;
+                            }
+                            memberStats.set(data.member, stat);
+                        }
                     }
                 }
             });
 
-            renderWeekendStats(memberStats);
+            renderWeekendStats(memberStats, yearlyStatsMap);
             renderWeekendList(year, month);
 
         }, (error) => {
@@ -105,20 +120,18 @@ async function loadWeekendRequests(year, month) {
     }
 }
 
-function renderWeekendStats(memberStats) {
+function renderWeekendStats(memberStats, yearlyStatsMap) {
     const sidebar = document.getElementById('weekend-stats-sidebar');
     const list = document.getElementById('weekend-stats-list');
     
     if (!sidebar || !list) return;
 
-    // 관리자 및 제외자 명단 (이승운 추가)
     const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
     
     const filteredMembers = [...memberStats.entries()].filter(([name, counts]) => {
         return !excludedMembers.includes(name);
     });
 
-    // 데이터가 없으면 토글 버튼과 사이드바 숨김
     if (filteredMembers.length === 0) {
         sidebar.classList.add('!hidden');
         const toggleBtn = document.getElementById('toggle-weekend-stats-btn');
@@ -132,11 +145,18 @@ function renderWeekendStats(memberStats) {
 
     list.innerHTML = '';
 
+    // [중요] 연누적이 적은 사람 우선 정렬 (같으면 이번달 신청 많은 순 -> 이름순)
     filteredMembers.sort((a, b) => {
+        const yearlyA = yearlyStatsMap.get(a[0]) || 0;
+        const yearlyB = yearlyStatsMap.get(b[0]) || 0;
+        if (yearlyA !== yearlyB) {
+            return yearlyA - yearlyB; // 오름차순 (횟수가 적은 사람이 위로!)
+        }
+        
         const totalA = a[1].confirmed + a[1].requested;
         const totalB = b[1].confirmed + b[1].requested;
         if (totalB !== totalA) {
-            return totalB - totalA;
+            return totalB - totalA; // 내림차순
         }
         return a[0].localeCompare(b[0]);
     });
@@ -145,9 +165,17 @@ function renderWeekendStats(memberStats) {
         const item = document.createElement('div');
         const opacityClass = (counts.confirmed === 0 && counts.requested === 0) ? "opacity-60 hover:opacity-100" : "";
         
+        const yearlyCount = yearlyStatsMap.get(name) || 0;
+        // 연누적이 적을수록 눈에 띄게 (0회면 붉은색)
+        let yearlyBadgeClass = "bg-indigo-100 text-indigo-700 border border-indigo-200";
+        if (yearlyCount === 0) yearlyBadgeClass = "bg-red-50 text-red-600 border border-red-200";
+
         item.className = `bg-white border border-indigo-100 p-2 rounded-md shadow-sm flex justify-between items-center transition-all hover:-translate-y-0.5 ${opacityClass}`;
         item.innerHTML = `
-            <span class="font-bold text-gray-700 text-sm">${name}</span>
+            <div class="flex items-center gap-1.5">
+                <span class="font-bold text-gray-700 text-sm">${name}</span>
+                <span class="text-[10px] ${yearlyBadgeClass} px-1.5 py-0.5 rounded font-bold">누적 ${yearlyCount}회</span>
+            </div>
             <div class="text-xs bg-gray-50 px-2 py-1 rounded border border-gray-200 font-mono tracking-wider">
                 <span class="text-blue-600 font-bold w-4 inline-block text-center" title="확정됨">${counts.confirmed}</span><span class="text-gray-300">|</span><span class="text-orange-500 font-medium w-4 inline-block text-center" title="승인 대기">${counts.requested}</span>
             </div>
@@ -461,7 +489,6 @@ export async function adminRandomSelectMembers(count) {
 
     allMembers = [...new Set(allMembers)];
 
-    // 관리자 및 제외자 명단 (이승운 추가)
     const excludedMembers = ['박영철', '박호진', '유아라', '이승운']; 
     const alreadyApplied = (requestsByDate[currentManageDateStr] || []).map(req => req.member);
     

@@ -26,6 +26,7 @@
                 <button data-main-tab="management" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap">💼 경영 지표</button>
                 <button data-main-tab="inspection" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap">📦 검수 이력</button>
                 <button data-main-tab="leave" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap">🏖️ 연차 관리</button>
+                <button data-main-tab="weekend" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap">📅 주말 통계</button>
             </div>
 
             <div id="history-date-range-controls" class="flex items-center gap-3 pb-3">
@@ -147,7 +148,7 @@
                                     <div>
                                         <div class="flex justify-between items-end mb-2">
                                             <span class="text-sm text-gray-500 dark:text-gray-400 font-bold">배송 <span class="text-xs text-gray-400 dark:text-gray-500 font-normal ml-1">(예측 <span id="pred-today-est-del">-</span>)</span></span>
-                                            <span id="pred-today-act-del" class="text-xl font-black text-gray-900 dark:text-white font-mono tracking-tight">-</span>
+                                            <span id="pred-today-act-del" class="textxl font-black text-gray-900 dark:text-white font-mono tracking-tight">-</span>
                                         </div>
                                         <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 shadow-inner">
                                             <div id="pred-today-del-bar" class="bg-amber-500 h-2 rounded-full transition-all duration-700" style="width: 0%"></div>
@@ -397,6 +398,51 @@
                         </div>
                         <div class="p-4 bg-gray-50 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 text-xs text-right text-gray-500 dark:text-gray-400 font-medium">
                             * '총 연차' 및 '사용 기간'은 관리자 페이지 설정과 연동됩니다. (여기서 수정 시 관리자 설정도 업데이트됨)
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="history-weekend-panel" class="hidden flex flex-col h-full p-6 space-y-6 overflow-y-auto">
+                    <div class="flex justify-between items-center bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel shrink-0 transition-colors">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                <span>📅</span> 주말 근무 정산 통계
+                            </h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">지정된 기간 내 확정된 주말 근무 횟수와 정산 비용(1회당 110,000원)을 산출합니다.</p>
+                        </div>
+                        <button id="refresh-weekend-stats-btn" class="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-sm transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            새로고침
+                        </button>
+                    </div>
+
+                    <div class="flex-grow overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex flex-col transition-colors">
+                        <div class="overflow-auto flex-grow">
+                            <table class="w-full text-sm text-left text-gray-600 dark:text-gray-300">
+                                <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-700/50 sticky top-0 border-b border-gray-200 dark:border-gray-700 z-10">
+                                    <tr>
+                                        <th class="px-6 py-4 font-bold text-center w-20">순위</th>
+                                        <th class="px-6 py-4 font-bold w-40">이름</th>
+                                        <th class="px-6 py-4 font-bold text-center w-32">확정 횟수</th>
+                                        <th class="px-6 py-4 font-bold text-right w-40">정산 비용</th>
+                                        <th class="px-6 py-4 font-bold">근무 일자</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="weekend-history-table-body" class="divide-y divide-gray-100 dark:divide-gray-700">
+                                    <tr>
+                                        <td colspan="5" class="text-center py-12 text-gray-400 dark:text-gray-500 font-medium">상단의 '조회' 버튼을 눌러 기간을 설정하세요.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 text-right text-sm flex justify-end gap-6 items-center shrink-0">
+                            <div class="text-gray-600 dark:text-gray-300 font-medium">
+                                총 근무 횟수: <span id="weekend-total-count" class="text-blue-600 dark:text-blue-400 font-extrabold text-lg ml-1">0</span>회
+                            </div>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
+                            <div class="text-gray-600 dark:text-gray-300 font-medium">
+                                총 정산 비용: <span id="weekend-total-cost" class="text-red-600 dark:text-red-400 font-extrabold text-lg ml-1">0</span>원
+                            </div>
                         </div>
                     </div>
                 </div>
