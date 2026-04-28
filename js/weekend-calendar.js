@@ -15,10 +15,10 @@ let unsubscribe = null;
 
 let currentManageDateStr = null; 
 
-// [신규] 스마트 배분을 위한 전역 데이터 캐시
+// 스마트 배분을 위한 전역 데이터 캐시
 let currentYearlyStats = new Map();
 let currentMonthStats = new Map();
-let smartCalcCache = null; // 스마트 배분 결과 임시 저장
+let smartCalcCache = null; 
 
 export async function initWeekendCalendar() {
     await loadWeekendRequests(currentYear, currentMonth);
@@ -108,7 +108,6 @@ async function loadWeekendRequests(year, month) {
                 }
             });
 
-            // 데이터를 캐시에 저장 (스마트 배분에서 활용)
             currentYearlyStats = new Map(yearlyStatsMap);
             currentMonthStats = new Map(memberStats);
 
@@ -272,6 +271,22 @@ function renderWeekendList(year, month) {
             listView.appendChild(rowItem);
 
             if (requestsByDate[dateStr]) {
+                // [수정] 관리자급은 무조건 오른쪽(끝)으로 가도록 정렬
+                const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
+                
+                requestsByDate[dateStr].sort((a, b) => {
+                    const aIsAdmin = adminMembers.includes(a.member);
+                    const bIsAdmin = adminMembers.includes(b.member);
+                    
+                    if (aIsAdmin && !bIsAdmin) return 1;  // a가 관리자면 뒤로
+                    if (!aIsAdmin && bIsAdmin) return -1; // b가 관리자면 앞으로
+                    
+                    // 둘 다 일반 혹은 둘 다 관리자라면 기본 신청 시간순서(오름차순)
+                    const timeA = a.createdAt || "";
+                    const timeB = b.createdAt || "";
+                    return timeA.localeCompare(timeB);
+                });
+
                 requestsByDate[dateStr].forEach(req => {
                     addBadgeToCalendar(dateStr, req, isAdmin);
                 });
@@ -389,7 +404,6 @@ function handleAdminBadgeClick(docId, data) {
     statusSpan.className = data.status === 'confirmed' ? 'font-bold text-blue-600' : 'font-bold text-orange-500';
 
     document.getElementById('admin-confirm-btn').onclick = () => processAdminAction(docId, 'confirmed');
-    // 승인 거절 시 삭제가 아니라 '대기' 상태로 전환하도록 수정
     document.getElementById('admin-reject-btn').onclick = () => processAdminAction(docId, 'demote');
     document.getElementById('admin-close-popup-btn').onclick = () => popup.classList.add('hidden');
 
@@ -430,7 +444,6 @@ function openAdminDatePopup(dateStr) {
     const isBlocked = blockedDatesSet.has(dateStr);
     document.getElementById('admin-date-block-toggle').checked = isBlocked;
 
-    // 스마트 배분 영역 초기화
     const smartArea = document.getElementById('smart-calc-result-area');
     if (smartArea) {
         smartArea.innerHTML = '';
@@ -440,10 +453,6 @@ function openAdminDatePopup(dateStr) {
 
     popup.classList.remove('hidden');
 }
-
-// ===============================================
-// [신규] 스마트 형평성 배분 (자동 추천 및 일괄 적용)
-// ===============================================
 
 export function calculateSmartAllocation() {
     if (!currentManageDateStr) return;
@@ -455,10 +464,8 @@ export function calculateSmartAllocation() {
     }
 
     const reqs = requestsByDate[currentManageDateStr] || [];
-    // 대기/확정 상관없이 이 날짜에 신청한 모든 사람
     const applicants = reqs.map(r => r.member);
     
-    // 1. 제외자를 뺀 전체 팀원 목록 만들기
     let allMembers = [];
     if (State.appConfig && State.appConfig.teamGroups) {
         State.appConfig.teamGroups.forEach(g => {
@@ -471,15 +478,12 @@ export function calculateSmartAllocation() {
 
     const nonApplicants = eligibleMembers.filter(m => !applicants.includes(m));
 
-    // 점수 계산 (점수가 낮을수록 근무가 필요하므로 우선순위가 높음)
     const getScore = (m) => {
         const y = currentYearlyStats.get(m) || 0;
         const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
-        // 가중치: 연 누적횟수(x100) > 당월 확정(x10) > 당월 대기(x1)
         return (y * 100) + (ms.confirmed * 10) + ms.requested;
     };
 
-    // 정렬 (오름차순 = 점수가 낮을수록 앞쪽으로 옴)
     const sortedApplicants = [...applicants].sort((a, b) => {
         const diff = getScore(a) - getScore(b);
         return diff !== 0 ? diff : a.localeCompare(b);
@@ -490,21 +494,18 @@ export function calculateSmartAllocation() {
         return diff !== 0 ? diff : a.localeCompare(b);
     });
 
-    let toConfirm = []; // 확정 유지/전환 대상
-    let toDecline = []; // 대기로 전환 대상 (정원 초과 시)
-    let toAdd = [];     // 새로 추가되어 확정될 대상 (정원 미달 시)
+    let toConfirm = []; 
+    let toDecline = []; 
+    let toAdd = [];     
 
     if (applicants.length > capacity) {
-        // 신청자가 넘침: 우선순위 높은 사람만 정원만큼 컷
         toConfirm = sortedApplicants.slice(0, capacity);
         toDecline = sortedApplicants.slice(capacity);
     } else if (applicants.length < capacity) {
-        // 신청자가 모자람: 신청자 전원 확정 + 안 한 사람 중 우선순위 높은 사람 픽
         toConfirm = sortedApplicants;
         const needed = capacity - applicants.length;
         toAdd = sortedNonApplicants.slice(0, needed);
     } else {
-        // 딱 맞음
         toConfirm = sortedApplicants;
     }
 
@@ -546,8 +547,6 @@ function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, appCount) 
              </button>`;
 
     area.innerHTML = html;
-    
-    // 일괄 적용을 위해 데이터 캐싱
     smartCalcCache = { toConfirm, toDecline, toAdd };
 }
 
@@ -563,21 +562,18 @@ export async function applySmartAllocation() {
     }
 
     try {
-        // 1. 제외자 처리 (대기로 강등)
         for (const m of toDecline) {
             const req = reqs.find(r => r.member === m);
             if (req && req.status === 'confirmed') {
                 await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id), { status: 'requested', confirmedAt: null });
             }
         }
-        // 2. 확정자 유지/승격
         for (const m of toConfirm) {
             const req = reqs.find(r => r.member === m);
             if (req && req.status !== 'confirmed') {
                 await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id), { status: 'confirmed', confirmedAt: new Date().toISOString() });
             }
         }
-        // 3. 신규 인원 강제 차출 (확정 등록)
         for (const m of toAdd) {
             await createRequest(currentManageDateStr, m, 'confirmed');
         }
@@ -595,8 +591,6 @@ export async function applySmartAllocation() {
         }
     }
 }
-
-// ===============================================
 
 export async function setDateCapacity(capacityStr) {
     if (!currentManageDateStr) return;

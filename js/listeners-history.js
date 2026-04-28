@@ -17,7 +17,6 @@ import { doc, updateDoc, deleteField, collection, getDocs, query, where } from "
 
 let isHistoryMaximized = false;
 
-// --- [신규] 주말 통계 데이터를 위한 변수 및 함수 ---
 let currentWeekendStatsData = [];
 let currentWeekendTotalCost = 0;
 let currentWeekendTotalCount = 0;
@@ -30,7 +29,6 @@ async function loadAndRenderWeekendStats() {
     
     tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-blue-500 font-bold">데이터를 불러오는 중입니다...</td></tr>`;
 
-    // 월 선택기에 값이 없으면 '현재 월'로 기본 세팅
     if (!monthPicker.value) {
         const now = new Date();
         const y = now.getFullYear();
@@ -41,7 +39,6 @@ async function loadAndRenderWeekendStats() {
     currentWeekendMonthStr = monthPicker.value;
     const [year, month] = currentWeekendMonthStr.split('-');
     
-    // 시작일(1일)과 종료일(말일) 계산
     const startDate = `${currentWeekendMonthStr}-01`;
     const lastDay = new Date(year, month, 0).getDate();
     const endDate = `${currentWeekendMonthStr}-${lastDay}`;
@@ -53,11 +50,11 @@ async function loadAndRenderWeekendStats() {
 
         const stats = new Map(); 
         let totalCount = 0;
-        const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
 
         snap.forEach(doc => {
             const data = doc.data();
-            if (data.status === 'confirmed' && !excludedMembers.includes(data.member)) {
+            // [수정] 관리자급을 제외하지 않고, "확정된" 모든 사람의 기록을 포함합니다.
+            if (data.status === 'confirmed') {
                 if (!stats.has(data.member)) stats.set(data.member, { count: 0, dates: [] });
                 const st = stats.get(data.member);
                 st.count++;
@@ -66,13 +63,12 @@ async function loadAndRenderWeekendStats() {
             }
         });
 
-        // 횟수가 많은 순서대로 정렬
         const sorted = [...stats.entries()].sort((a, b) => {
             if (b[1].count !== a[1].count) return b[1].count - a[1].count; 
             return a[0].localeCompare(b[0]);
         });
 
-        currentWeekendStatsData = sorted; // 다운로드를 위해 저장
+        currentWeekendStatsData = sorted; 
         
         tbody.innerHTML = '';
         let totalCost = 0;
@@ -102,7 +98,6 @@ async function loadAndRenderWeekendStats() {
         currentWeekendTotalCost = totalCost;
         currentWeekendTotalCount = totalCount;
 
-        // 하단 총계 업데이트
         document.getElementById('weekend-total-count').textContent = totalCount;
         document.getElementById('weekend-total-cost').textContent = totalCost.toLocaleString();
 
@@ -111,7 +106,6 @@ async function loadAndRenderWeekendStats() {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-red-500 font-bold">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>`;
     }
 }
-// --- 주말 통계 끝 ---
 
 
 export function setupHistoryModalListeners() {
@@ -319,13 +313,11 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 주말 통계 월 변경 시 이벤트
     const monthPicker = document.getElementById('weekend-stats-month-picker');
     if (monthPicker) {
         monthPicker.addEventListener('change', loadAndRenderWeekendStats);
     }
 
-    // 주말 통계 엑셀 다운로드 이벤트
     const downloadWeekendBtn = document.getElementById('weekend-stats-download-btn');
     if (downloadWeekendBtn) {
         downloadWeekendBtn.addEventListener('click', () => {
@@ -334,19 +326,16 @@ export function setupHistoryModalListeners() {
                 return;
             }
             
-            // 엑셀에서 한글이 깨지지 않도록 BOM 추가
             let csvContent = "\uFEFF"; 
             csvContent += "순위,이름,확정 횟수,정산 비용(원),근무 일자\n";
             
             const COST_PER_TIME = 110000;
             currentWeekendStatsData.forEach(([name, data], idx) => {
                 const cost = data.count * COST_PER_TIME;
-                // 날짜 리스트에 콤마가 포함되므로 따옴표로 감싸기
                 const datesStr = `"${data.dates.join(', ')}"`;
                 csvContent += `${idx + 1},${name},${data.count},${cost},${datesStr}\n`;
             });
             
-            // 하단 총계 라인 추가
             csvContent += `총계,-,${currentWeekendTotalCount},${currentWeekendTotalCost},-\n`;
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -603,7 +592,6 @@ export function setupHistoryModalListeners() {
                 } else if (tabName === 'leave') {
                     UILeave.initLeaveManagement();
                 } else if (tabName === 'weekend') {
-                    // 주말 통계 불러오기
                     loadAndRenderWeekendStats();
                 }
             }
