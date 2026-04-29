@@ -164,7 +164,8 @@ function getDefaultConfig() {
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
-        keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'],
+        // ✅ 교환반품과 상.하차를 핵심 업무(시뮬레이션 기본 노출)에 추가
+        keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무', '상.하차', '교환반품'],
         dashboardItems: [
             'total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff',
             'ongoing-tasks', 'total-work-time',
@@ -175,10 +176,12 @@ function getDefaultConfig() {
         quantityToDashboardMap: {},
         taskGroups: [
             { name: '공통', tasks: ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업', '직진배송 사전작업'] },
-            { name: '담당', tasks: ['개인담당업무', '상.하차', '샘플검수', '전량검수', '아이롱', '오류'] }, // ✅ '샘플검수', '전량검수' 적용
+            // ✅ 담당 그룹에 교환반품을 상.하차 바로 아래에 추가
+            { name: '담당', tasks: ['개인담당업무', '상.하차', '교환반품', '샘플검수', '전량검수', '아이롱', '오류'] },
             { name: '기타', tasks: ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무'] }
         ],
-        quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '샘플검수', '전량검수'], // ✅ '샘플검수', '전량검수' 적용
+        // ✅ 시뮬레이션 및 수량 입력 대상에 교환반품을 상.하차 바로 아래에 추가
+        quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '교환반품', '샘플검수', '전량검수'],
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
         defaultPartTimerWage: 10000,
 
