@@ -143,7 +143,9 @@
                 <svg class="w-6 h-6 text-blue-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                 <span id="leave-member-name" class="text-xl text-yellow-300"></span>님의 근태 관리
             </h3>
-            <button class="modal-close-btn text-white/80 hover:text-white transition transform hover:scale-110" data-modal-id="leave-type-modal">&times;</button>
+            <button class="modal-close-btn text-white/80 hover:text-white transition p-1" data-modal-id="leave-type-modal">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
         </div>
 
         <div class="flex bg-gray-50 border-b border-gray-200">
@@ -175,9 +177,14 @@
                 </div>
 
                 <div>
-                    <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1">
-                        📋 상세 사용 내역
-                    </h4>
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-sm font-bold text-gray-700 flex items-center gap-1">
+                            📋 상세 사용 내역
+                        </h4>
+                        <button type="button" id="btn-manual-add-leave-history" class="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold px-2 py-1 rounded shadow-sm transition flex items-center gap-1">
+                            <span class="text-blue-500 font-bold text-sm">+</span> 수동 추가
+                        </button>
+                    </div>
                     <ul id="status-history-list" class="space-y-2 max-h-[35vh] overflow-y-auto pr-2 custom-scrollbar">
                         </ul>
                 </div>
@@ -209,8 +216,9 @@
             </div>
         </div>
 
-        <div class="p-4 border-t border-gray-100 bg-white">
-            <button id="confirm-leave-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all active:scale-[0.98] hidden">
+        <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+            <button type="button" id="cancel-leave-btn" class="modal-close-btn bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2.5 px-4 rounded-xl transition text-sm shadow-sm" data-modal-id="leave-type-modal">닫기</button>
+            <button id="confirm-leave-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition-all active:scale-[0.98] hidden">
                 일정 저장하기
             </button>
         </div>
