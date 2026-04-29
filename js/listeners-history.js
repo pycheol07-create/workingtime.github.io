@@ -110,7 +110,6 @@ async function loadAndRenderWeekendStats() {
         }
     }
 
-    // 💡 [신규] 동적 헤더 생성 (정렬 및 필터 적용)
     thead.innerHTML = `
         <tr>
             <th class="px-6 py-4 w-20 text-center font-bold text-gray-500 bg-gray-50 border-r border-gray-100">순위</th>
@@ -836,8 +835,8 @@ export function setupHistoryModalListeners() {
     setupFilterListeners(DOM.reportViewContainer, 'reportSortState', 'reportFilterState', refreshReportView);
     setupFilterListeners(DOM.personalReportViewContainer, 'personalReportSortState', 'personalReportFilterState', refreshPersonalView);
 
-    // 💡 [신규] 주말 근무 통계 전용 정렬/필터 리스너 (테이블 헤더 클릭 시)
-    const weekendPanel = document.getElementById('history-weekend-panel');
+    // 💡 [수정됨] 주말 근무 통계 전용 정렬/필터 리스너 (테이블 헤더 클릭 시)
+    const weekendPanel = document.getElementById('history-weekend-panel'); // 단 한 번만 선언
     if (weekendPanel) {
         weekendPanel.addEventListener('click', (e) => {
             if (e.target.closest('.filter-dropdown')) { e.stopPropagation(); return; }
