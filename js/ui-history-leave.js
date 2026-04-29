@@ -2,7 +2,7 @@
 import * as State from './state.js';
 import { showToast } from './utils.js';
 import { 
-    doc, getDoc, updateDoc, setDoc 
+    doc, getDoc, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let currentYear = new Date().getFullYear();
@@ -75,16 +75,15 @@ export async function renderLeaveSheet() {
     const tbody = document.getElementById('leave-sheet-body');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 로딩 중...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 복구 및 동기화 중...</td></tr>';
 
     try {
         const members = await fetchAllMembers();
-        await fetchLeaveSettings(); // 설정 데이터 불러오기 (복구)
-        const usageData = await fetchLeaveUsage(currentYear); // 사용 내역 불러오기
+        await fetchLeaveSettings(); 
+        const usageData = await fetchLeaveUsage(currentYear); 
 
         let rowData = members.map(member => {
             const config = fullLeaveConfig[member] || {};
-            // 기존에 설정된 totalLeave가 있으면 가져오고 없으면 기본 15
             const total = config.totalLeave !== undefined ? Number(config.totalLeave) : 15;
             
             const resetDate = config.leaveResetDate || '';
@@ -92,7 +91,6 @@ export async function renderLeaveSheet() {
             let periodText = '-';
             let periodClass = 'text-gray-400';
 
-            // DB에 명시된 기간이 있다면 그대로 표시
             if (resetDate && expireDate) {
                 periodText = `${resetDate} ~ ${expireDate}`;
                 periodClass = 'text-gray-600 font-mono text-xs';
@@ -181,10 +179,8 @@ async function fetchAllMembers() {
     return Array.from(memberSet); 
 }
 
-// 🌟 [핵심 복구 포인트] DB에서 연차 설정(memberLeaveSettings)을 확실하게 불러오도록 수정
 async function fetchLeaveSettings() {
     try {
-        // 기존 시스템에서 관리자 설정이 저장되던 정확한 경로
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
         const snap = await getDoc(docRef);
         
@@ -194,11 +190,7 @@ async function fetchLeaveSettings() {
             const data = snap.data();
             if (data.memberLeaveSettings) {
                  fullLeaveConfig = data.memberLeaveSettings;
-            } else {
-                 console.warn("mainConfig 문서 내에 memberLeaveSettings 필드가 없습니다.");
             }
-        } else {
-             console.warn("mainConfig 문서가 DB에 존재하지 않습니다.");
         }
     } catch (e) {
         console.error("Leave settings fetch error:", e);
@@ -206,19 +198,46 @@ async function fetchLeaveSettings() {
     }
 }
 
+// 🌟 [핵심 개선] 3중 복구 시스템 및 유연한 매칭 적용
 async function fetchLeaveUsage(year) {
-    let allLeaves = [];
+    let allLeavesMap = new Map();
     
+    // 1. 중앙 DB (leaveSchedule)에서 스캔
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
         const snap = await getDoc(docRef);
         if (snap.exists() && snap.data().onLeaveMembers) {
-            allLeaves = snap.data().onLeaveMembers;
+            snap.data().onLeaveMembers.forEach(l => {
+                if (l.id) allLeavesMap.set(l.id, l);
+            });
         }
     } catch (e) {
         console.error("Leave schedule fetch error", e);
     }
 
+    // 2. 누락 방지: 일일 업무 기록 (allHistoryData)에서 직접 발굴 (영혼까지 끌어오기)
+    if (State.allHistoryData && Array.isArray(State.allHistoryData)) {
+        State.allHistoryData.forEach(day => {
+            if (day.onLeaveMembers && Array.isArray(day.onLeaveMembers)) {
+                day.onLeaveMembers.forEach(l => {
+                    if (l.id && !allLeavesMap.has(l.id)) {
+                        allLeavesMap.set(l.id, l);
+                    }
+                });
+            }
+        });
+    }
+
+    // 3. 현재 메모리 상태 반영
+    if (State.persistentLeaveSchedule && Array.isArray(State.persistentLeaveSchedule.onLeaveMembers)) {
+        State.persistentLeaveSchedule.onLeaveMembers.forEach(l => {
+            if (l.id && !allLeavesMap.has(l.id)) {
+                allLeavesMap.set(l.id, l);
+            }
+        });
+    }
+
+    const allLeaves = Array.from(allLeavesMap.values());
     const usage = {}; 
 
     allLeaves.forEach(record => {
@@ -231,16 +250,11 @@ async function fetchLeaveUsage(year) {
 
             let isMatch = false;
 
-            // 명시적 기간이 있다면 해당 기간 내의 데이터만 집계
-            if (resetDate && expireDate) {
-                if (record.startDate >= resetDate && record.startDate <= expireDate) {
-                    isMatch = true;
-                }
-            } else {
-                // 명시적 기간이 없으면 현재 선택된 탭(year)에 해당하는 데이터 집계
-                if (record.startDate && record.startDate.startsWith(String(year))) {
-                    isMatch = true;
-                }
+            // 🌟 기간이 설정되어 있어도, 선택한 '연도'와 일치하면 무조건 보이도록 유연성 확보
+            if (resetDate && expireDate && record.startDate >= resetDate && record.startDate <= expireDate) {
+                isMatch = true; // 설정된 기간 안에 포함될 때
+            } else if (record.startDate && typeof record.startDate === 'string' && record.startDate.startsWith(String(year))) {
+                isMatch = true; // 기간을 벗어났더라도 드롭다운 연도와 일치할 때 (과거 기록 조회)
             }
 
             if (!isMatch) return; 
@@ -257,8 +271,16 @@ async function fetchLeaveUsage(year) {
                 if (record.endDate && record.endDate !== record.startDate) {
                     const start = new Date(record.startDate);
                     const end = new Date(record.endDate);
-                    const diffTime = Math.abs(end - start);
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                    
+                    // 🚀 [보너스 개선] 여러 날 연속 연차 시, 주말(토,일)은 자동차감 (평일만 계산)
+                    let diffDays = 0;
+                    for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
+                        const dayOfWeek = dt.getDay();
+                        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 0: 일요일, 6: 토요일
+                            diffDays++; 
+                        }
+                    }
+                    if (diffDays === 0) diffDays = 1; // 최소 방어 로직
                     
                     days = diffDays;
                     label = `${record.startDate.substring(5)}~${record.endDate.substring(5)}`;
@@ -280,12 +302,10 @@ async function fetchLeaveUsage(year) {
     return usage;
 }
 
-// 🌟 수정한 설정이 날아가지 않도록 안전한 저장 로직 강화
 async function saveLeaveSettings() {
     const inputs = document.querySelectorAll('.total-leave-input');
     let hasChange = false;
     
-    // 깊은 복사로 기존 설정 보호
     const updates = JSON.parse(JSON.stringify(fullLeaveConfig));
 
     inputs.forEach(input => {
@@ -314,7 +334,6 @@ async function saveLeaveSettings() {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
         
-        // setDoc({merge:true})를 사용하여 문서가 없으면 생성하고, 있으면 특정 필드만 병합
         await setDoc(docRef, {
             memberLeaveSettings: updates
         }, { merge: true });
