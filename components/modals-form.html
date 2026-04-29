@@ -186,7 +186,7 @@
                         </button>
                     </div>
                     <ul id="status-history-list" class="space-y-2 max-h-[35vh] overflow-y-auto pr-2 custom-scrollbar">
-                        </ul>
+                    </ul>
                 </div>
             </div>
 
@@ -197,7 +197,7 @@
                         </div>
                 </div>
 
-                <div id="leave-date-inputs" class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                <div id="leave-date-inputs" class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4 hidden">
                     <div class="flex gap-4">
                         <div class="flex-1">
                             <label for="leave-start-date-input" class="block text-xs font-bold text-gray-500 mb-1">시작일</label>
@@ -208,11 +208,25 @@
                             <input type="date" id="leave-end-date-input" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                         </div>
                     </div>
-                    
                     <div class="bg-indigo-50 text-indigo-700 text-sm font-semibold p-3 rounded-xl text-center border border-indigo-100 min-h-[44px] flex items-center justify-center transition-all" id="leave-count-preview">
                         날짜를 선택하면 적용 일수가 계산됩니다.
                     </div>
                 </div>
+
+                <div id="leave-time-inputs" class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4 hidden">
+                    <div class="flex gap-4">
+                        <div class="flex-1">
+                            <label for="leave-start-time-input" class="block text-xs font-bold text-gray-500 mb-1">시작 시간</label>
+                            <input type="time" id="leave-start-time-input" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </div>
+                        <div class="flex-1">
+                            <label for="leave-end-time-input" class="block text-xs font-bold text-gray-500 mb-1">종료 시간</label>
+                            <input type="time" id="leave-end-time-input" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-500 text-center">* 오늘 날짜 기준으로 시간이 적용됩니다.</div>
+                </div>
+
             </div>
         </div>
 
