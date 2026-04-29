@@ -5,6 +5,15 @@ import { appConfig } from './state.js';
 
 // ================== [ 1. 헬퍼 함수 ] ==================
 
+// ✅ [추가] 데이터를 안전하게 배열로 변환하는 공통 헬퍼 함수
+// DB에서 배열이 객체(Object) 형태로 넘어오는 이슈를 방지합니다.
+export const getAsArray = (data) => {
+    if (!data) return []; 
+    if (Array.isArray(data)) return data; 
+    if (typeof data === 'object') return Object.values(data); 
+    return [data]; 
+};
+
 export const getDiffHtmlForMetric = (metric, current, previous) => {
     const currValue = Number(current) || 0;
 
@@ -140,10 +149,11 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
         };
     }
 
-    const records = data.workRecords || [];
+    // ✅ [수정] getAsArray를 사용하여 안전하게 데이터 할당
+    const records = getAsArray(data.workRecords);
     const quantities = data.taskQuantities || {};
-    const onLeaveMemberEntries = data.onLeaveMembers || [];
-    const partTimersFromHistory = data.partTimers || [];
+    const onLeaveMemberEntries = getAsArray(data.onLeaveMembers);
+    const partTimersFromHistory = getAsArray(data.partTimers);
     const qualityCostTasks = new Set(appConfig.qualityCostTasks || []);
 
     let totalDuration = 0;
@@ -169,6 +179,8 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
 
     const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
     const systemAccounts = new Set(appConfig.systemAccounts || []);
+    
+    // 이 부분에서 에러가 났었습니다! 이제는 onLeaveMemberEntries가 무조건 배열임이 보장됩니다.
     const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
 
     const activeRegularMembers = [...allRegularMembers].filter(name => !onLeaveMemberNames.includes(name) && !systemAccounts.has(name)).length;
@@ -192,7 +204,8 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
 };
 
 export const calculateReportAggregations = (data, appConfig, wageMap, memberToPartMap) => {
-    const records = data?.workRecords || [];
+    // ✅ [수정] 안전 처리
+    const records = getAsArray(data?.workRecords);
     const quantities = data?.taskQuantities || {};
 
     const partSummary = {};
@@ -266,22 +279,12 @@ export const aggregateDaysToSingleData = (daysData, id) => {
 
     const partTimerNames = new Set();
 
-    // ✅ [추가] 데이터를 안전하게 배열로 변환하는 헬퍼 함수
-    // DB에서 배열이 객체(Object) 형태로 넘어오는 이슈를 방지합니다.
-    const getAsArray = (data) => {
-        if (!data) return []; // 데이터가 없으면 빈 배열 반환
-        if (Array.isArray(data)) return data; // 정상적인 배열이면 그대로 반환
-        if (typeof data === 'object') return Object.values(data); // 객체인 경우 값들만 추출하여 배열로 반환
-        return [data]; // 그 외의 경우 요소를 가진 배열로 감싸서 반환
-    };
-
     daysData.forEach(day => {
         // ✅ [수정] getAsArray 헬퍼 함수를 사용하여 안전하게 forEach 실행
         getAsArray(day.workRecords).forEach(r => {
             aggregated.workRecords.push({ ...r, date: day.id });
         });
         
-        // 에러가 발생했던 부분 안전하게 수정
         getAsArray(day.onLeaveMembers).forEach(o => aggregated.onLeaveMembers.push(o));
 
         getAsArray(day.partTimers).forEach(p => {
@@ -305,7 +308,6 @@ export const aggregateDaysToSingleData = (daysData, id) => {
     return aggregated;
 };
 
-// ✅ [수정] 시뮬레이션 및 벤치마크용 표준 속도 산출 (상위 20개 데이터의 평균)
 export const calculateStandardThroughputs = (allHistoryData) => {
     const todayKey = getTodayDateString();
     
@@ -315,7 +317,8 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     sortedHistory.forEach(day => {
         if (day.id === todayKey) return;
 
-        const records = day.workRecords || [];
+        // ✅ [수정] 안전 처리
+        const records = getAsArray(day.workRecords);
         const quantities = day.taskQuantities || {};
         const dailyTaskStats = {};
 
@@ -336,7 +339,6 @@ export const calculateStandardThroughputs = (allHistoryData) => {
         });
 
         Object.entries(dailyTaskStats).forEach(([task, stats]) => {
-            // duration이 10분 이상일 때만 유효한 속도로 인정 (기존 로직 유지)
             if (stats.duration >= 10 && stats.quantity > 0) {
                 const speed = stats.quantity / stats.duration;
                 if (!taskDailySpeeds[task]) taskDailySpeeds[task] = [];
@@ -349,7 +351,6 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     Object.keys(taskDailySpeeds).forEach(task => {
         const speeds = taskDailySpeeds[task];
         
-        // 🌟 내림차순 정렬 후 상위 20개 데이터 추출
         speeds.sort((a, b) => b - a);
         const top20 = speeds.slice(0, 20);
         
@@ -363,12 +364,12 @@ export const calculateStandardThroughputs = (allHistoryData) => {
     return standards;
 };
 
-// ✅ [추가] 업무 리포트 통계용 표준 속도 산출 (선택된 기간의 평균값 산출)
 export const calculatePeriodThroughputs = (daysData) => {
     const taskDailySpeeds = {};
 
     daysData.forEach(day => {
-        const records = day.workRecords || [];
+        // ✅ [수정] 안전 처리
+        const records = getAsArray(day.workRecords);
         const quantities = day.taskQuantities || {};
         const dailyTaskStats = {};
 
@@ -389,7 +390,6 @@ export const calculatePeriodThroughputs = (daysData) => {
         });
 
         Object.entries(dailyTaskStats).forEach(([task, stats]) => {
-            // 리포트용이므로 조건 제약을 최소화하거나 동일하게 적용
             if (stats.duration > 0 && stats.quantity > 0) {
                 const speed = stats.quantity / stats.duration;
                 if (!taskDailySpeeds[task]) taskDailySpeeds[task] = [];
@@ -402,7 +402,6 @@ export const calculatePeriodThroughputs = (daysData) => {
     Object.keys(taskDailySpeeds).forEach(task => {
         const speeds = taskDailySpeeds[task];
         if (speeds.length > 0) {
-            // 🌟 해당 기간 내의 모든 속도 데이터를 기반으로 평균 산출
             const avgPeriod = speeds.reduce((a, b) => a + b, 0) / speeds.length;
             periodStandards[task] = avgPeriod;
         } else {
@@ -417,7 +416,8 @@ export const calculateAverageStaffing = (allHistoryData) => {
     const taskDailyStaff = {};
 
     allHistoryData.forEach(day => {
-        (day.workRecords || []).forEach(r => {
+        // ✅ [수정] 안전 처리
+        getAsArray(day.workRecords).forEach(r => {
             if (r.task && r.member) {
                 if (!taskDailyStaff[r.task]) taskDailyStaff[r.task] = {};
                 if (!taskDailyStaff[r.task][day.id]) {
@@ -451,7 +451,8 @@ export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
 
     recentData.forEach(day => {
         const wageMap = { ...(appConfig.memberWages || {}) };
-        (day.partTimers || []).forEach(pt => { if (pt && pt.name && !wageMap[pt.name]) wageMap[pt.name] = pt.wage || 0; });
+        // ✅ [수정] 안전 처리
+        getAsArray(day.partTimers).forEach(pt => { if (pt && pt.name && !wageMap[pt.name]) wageMap[pt.name] = pt.wage || 0; });
         const dayAggr = calculateReportAggregations(day, appConfig, wageMap, new Map());
         const productivity = calculateAdvancedProductivity([day], dayAggr, standardThroughputs, appConfig, wageMap);
         if (productivity.oee > 0) {
@@ -511,7 +512,8 @@ export const analyzeUnitCost = (data, appConfig, wageMap, totalRevenue = 0) => {
     let targetLaborCost = 0;
     let maxTaskQuantity = 0;
     
-    const records = data.workRecords || [];
+    // ✅ [수정] 안전 처리
+    const records = getAsArray(data.workRecords);
     const quantities = data.taskQuantities || {};
 
     records.forEach(r => {
@@ -589,7 +591,9 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
     const qualityLossTasks = [];
 
     daysData.forEach(day => {
-        if (day.workRecords && day.workRecords.length > 0) {
+        // ✅ [수정] 안전 처리하여 length 접근 오류 차단
+        const workRecords = getAsArray(day.workRecords);
+        if (workRecords.length > 0) {
             workingDaysCount++;
             const kpis = calculateReportKPIs(day, appConfig, wageMap);
             const activeStaff = kpis.activeMembersCount;
@@ -741,7 +745,7 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
     if (qualityRatio < 95) comments.push(`재작업 등으로 인한 <strong>품질 손실이 약 ${(100 - qualityRatio).toFixed(1)}%</strong> 발생했습니다. 오류 감소를 위한 노력이 필요합니다.`);
 
     if (oee >= 85) comments.push(`종합적으로 <strong>매우 우수한 생산성(OEE ${oee.toFixed(0)}%)</strong>을 기록했습니다. 👏`);
-    else if (oee <= 60) comments.push(`전반적인 생산성 지표가 낮습니다. <strong>가장 큰 손실 요인(${utilizationRate < 80 ? '대기시간' : (efficiencyRatio < 90 ? '속도저하' : '품질이슈')})</strong>부터 개선하는 가장 좋습니다.`);
+    else if (oee <= 60) comments.push(`전반적인 생산성 지표가 낮습니다. <strong>가장 큰 손실 요인(${utilizationRate < 80 ? '대기시간' : (efficiencyRatio < 90 ? '속도저하' : '품질이슈')})</strong>부터 개선하는 것이 좋습니다.`);
 
     if (benchmarkOEE !== null && benchmarkOEE > 0) {
         const diff = oee - benchmarkOEE;
