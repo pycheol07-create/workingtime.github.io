@@ -106,7 +106,7 @@ export function setupFormAttendanceListeners() {
             const startDate = document.getElementById('leave-start-date-input').value || today;
             const endDate = document.getElementById('leave-end-date-input').value || startDate;
 
-            if (type === '연차' || type === '출장' || type === '결근' || type === '매장근무') {
+            if (['연차', '출장', '결근', '매장근무', '재택근무', '휴직', '외근'].includes(type)) {
                 if (startDate > endDate) {
                     showToast('종료 날짜는 시작 날짜보다 빠를 수 없습니다.', true);
                     return;

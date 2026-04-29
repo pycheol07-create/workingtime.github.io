@@ -522,7 +522,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             const selectedType = e.target.value;
             
             // 날짜 선택형 항목들
-            const dateTypes = ['연차', '출장', '매장근무', '재택근무', '휴직', '결근'];
+            const dateTypes = ['연차', '출장', '매장근무', '재택근무', '휴직', '결근', '외근'];
             // 시간 선택형 항목들
             const timeTypes = ['외출', '지각', '조퇴'];
 
