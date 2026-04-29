@@ -22,7 +22,7 @@ let currentWeekendTotalCost = 0;
 let currentWeekendTotalCount = 0;
 let currentWeekendMonthStr = "";
 
-// 💡 [신규] 주말 통계 정렬 및 필터 상태 관리
+// 💡 주말 통계 정렬 및 필터 상태 관리
 let weekendSortState = { key: 'count', dir: 'desc' };
 let weekendFilterState = { name: '' };
 
@@ -201,6 +201,8 @@ export function setupHistoryModalListeners() {
     const predictionPanel = document.getElementById('prediction-panel');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
     const leavePanel = document.getElementById('history-leave-panel');
+    
+    // 💡 여기서 단 한 번만 선언합니다.
     const weekendPanel = document.getElementById('history-weekend-panel');
 
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
@@ -835,8 +837,7 @@ export function setupHistoryModalListeners() {
     setupFilterListeners(DOM.reportViewContainer, 'reportSortState', 'reportFilterState', refreshReportView);
     setupFilterListeners(DOM.personalReportViewContainer, 'personalReportSortState', 'personalReportFilterState', refreshPersonalView);
 
-    // 💡 [수정됨] 주말 근무 통계 전용 정렬/필터 리스너 (테이블 헤더 클릭 시)
-    const weekendPanel = document.getElementById('history-weekend-panel'); // 단 한 번만 선언
+    // 💡 주말 근무 통계 전용 정렬/필터 리스너 (테이블 헤더 클릭 시)
     if (weekendPanel) {
         weekendPanel.addEventListener('click', (e) => {
             if (e.target.closest('.filter-dropdown')) { e.stopPropagation(); return; }
