@@ -15,30 +15,13 @@ let unsubscribe = null;
 
 let currentManageDateStr = null; 
 
+// [신규] 스마트 배분을 위한 전역 데이터 캐시
 let currentYearlyStats = new Map();
 let currentMonthStats = new Map();
-let smartCalcCache = null; 
-let recommendOffset = 0; 
+let smartCalcCache = null; // 스마트 배분 결과 임시 저장
 
 export async function initWeekendCalendar() {
     await loadWeekendRequests(currentYear, currentMonth);
-
-    const selectAllCb = document.getElementById('select-all-dates-checkbox');
-    if (selectAllCb) {
-        selectAllCb.addEventListener('change', (e) => {
-            const isChecked = e.target.checked;
-            document.querySelectorAll('.date-select-checkbox').forEach(cb => cb.checked = isChecked);
-        });
-    }
-
-    const bulkConfirmBtn = document.getElementById('bulk-confirm-btn');
-    if (bulkConfirmBtn) bulkConfirmBtn.onclick = () => processSelectedDatesBulkAction('confirmed');
-    
-    const bulkCancelBtn = document.getElementById('bulk-cancel-btn');
-    if (bulkCancelBtn) bulkCancelBtn.onclick = () => processSelectedDatesBulkAction('canceled');
-    
-    const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
-    if (bulkDeleteBtn) bulkDeleteBtn.onclick = () => processSelectedDatesBulkAction('delete');
 }
 
 export function changeMonth(offset) {
@@ -116,7 +99,7 @@ async function loadWeekendRequests(year, month) {
                             const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
                             if (data.status === 'confirmed') {
                                 stat.confirmed++;
-                            } else if (data.status === 'requested') {
+                            } else {
                                 stat.requested++;
                             }
                             memberStats.set(data.member, stat);
@@ -125,6 +108,7 @@ async function loadWeekendRequests(year, month) {
                 }
             });
 
+            // 데이터를 캐시에 저장 (스마트 배분에서 활용)
             currentYearlyStats = new Map(yearlyStatsMap);
             currentMonthStats = new Map(memberStats);
 
@@ -211,19 +195,6 @@ function renderWeekendList(year, month) {
     let hasWeekend = false;
     const isAdmin = (State.appState.currentUserRole === 'admin');
 
-    const bulkBar = document.getElementById('admin-bulk-action-bar');
-    if (bulkBar) {
-        if (isAdmin) {
-            bulkBar.classList.remove('hidden');
-            bulkBar.classList.add('flex');
-            const selAllCb = document.getElementById('select-all-dates-checkbox');
-            if (selAllCb) selAllCb.checked = false;
-        } else {
-            bulkBar.classList.add('hidden');
-            bulkBar.classList.remove('flex');
-        }
-    }
-
     for (let d = 1; d <= lastDate; d++) {
         const dateObj = new Date(year, month, d);
         const dayOfWeek = dateObj.getDay();
@@ -239,87 +210,68 @@ function renderWeekendList(year, month) {
 
             let dayColor = dayOfWeek === 0 ? 'text-red-600' : 'text-blue-600';
             let bgColor = dayOfWeek === 0 ? 'bg-red-50' : 'bg-blue-50';
+            let rowClass = 'bg-white border-gray-200 hover:shadow-md cursor-pointer group';
+            let hintText = '터치하여 신청/취소';
+            let hintClass = 'text-gray-400 group-hover:text-blue-500';
+
+            if (isBlocked) {
+                dayColor = 'text-gray-400';
+                bgColor = 'bg-gray-100';
+                rowClass = 'bg-gray-50 border-gray-200 opacity-80 cursor-not-allowed';
+                hintText = '🚫 신청 마감됨';
+                hintClass = 'text-red-500 font-bold';
+            } else if (isAppliedByMe) {
+                rowClass = 'bg-indigo-50 border-indigo-300 ring-1 ring-indigo-300 cursor-pointer group';
+                hintText = '✅ 신청됨 (터치하여 취소)';
+                hintClass = 'text-indigo-600 font-medium';
+            }
 
             const rowItem = document.createElement('div');
-            rowItem.className = 'flex flex-row items-stretch gap-2 p-1.5 rounded-lg border shadow-sm bg-white hover:shadow-md transition-all mb-2';
+            rowItem.className = `flex flex-col md:flex-row md:items-center justify-between p-3 rounded-lg border shadow-sm transition-all active:scale-[0.99] ${rowClass}`;
             rowItem.id = `row-${dateStr}`;
-
-            // 💡 1. 체크박스 영역 (관리자 전용, 가장 왼쪽으로 분리)
-            if (isAdmin) {
-                const chkWrapper = document.createElement('div');
-                chkWrapper.className = 'flex items-center justify-center pl-2 pr-1';
-                chkWrapper.onclick = (e) => e.stopPropagation();
-                chkWrapper.innerHTML = `<input type="checkbox" class="date-select-checkbox w-4 h-4 cursor-pointer text-blue-600 border-gray-300 rounded" data-date="${dateStr}">`;
-                rowItem.appendChild(chkWrapper);
-            }
-
-            // 💡 2. 날짜 영역 (클릭 시 팝업 열림, 24.토 형식)
-            const dateArea = document.createElement('div');
-            dateArea.className = `w-[64px] md:w-[76px] flex-shrink-0 flex flex-col items-center justify-center rounded-md border ${bgColor} ${dayColor} overflow-hidden select-none`;
             
-            if (isAdmin) {
-                dateArea.classList.add('cursor-pointer', 'hover:opacity-80', 'hover:ring-2', 'hover:ring-indigo-300', 'transition-all');
-                dateArea.title = "설정 변경";
-                dateArea.onclick = () => openAdminDatePopup(dateStr);
-            }
-            
-            dateArea.innerHTML = `
-                <span class="text-[17px] md:text-xl font-black tracking-tight mt-1 md:mt-2">${d}.${dayName}</span>
-                ${capacity ? `<span class="mt-1 mb-1 md:mb-2 text-[9px] md:text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">정원 ${capacity}</span>` : '<span class="h-1 md:h-2"></span>'}
+            rowItem.onclick = (e) => {
+                if(e.target.closest('.admin-manage-btn')) return;
+                handleDateClick(dateStr, isBlocked);
+            };
+
+            const adminManageHtml = isAdmin 
+                ? `<button class="admin-manage-btn ml-2 p-1.5 rounded-md hover:bg-gray-200 text-gray-500 transition tooltip" title="날짜 관리" data-date="${dateStr}">
+                    ⚙️
+                   </button>` 
+                : '';
+
+            const capacityHtml = capacity 
+                ? `<span class="ml-2 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">정원: ${capacity}명</span>` 
+                : '';
+
+            const dateInfo = document.createElement('div');
+            dateInfo.className = "flex items-center gap-3 mb-2 md:mb-0";
+            dateInfo.innerHTML = `
+                <div class="w-12 h-12 flex flex-col items-center justify-center rounded-lg ${bgColor} ${dayColor} font-bold border border-gray-100">
+                    <span class="text-xs opacity-70">${month + 1}월</span>
+                    <span class="text-lg leading-none">${d}</span>
+                </div>
+                <div class="flex flex-col">
+                    <div class="flex items-center">
+                        <span class="font-bold text-gray-800 text-lg whitespace-nowrap">${dayName}요일 근무</span>
+                        ${capacityHtml}
+                        ${adminManageHtml}
+                    </div>
+                    <span class="text-xs transition-colors ${hintClass}">${hintText}</span>
+                </div>
             `;
-
-            // 💡 3. 우측 영역 (배지 및 신청 버튼)
-            const rightArea = document.createElement('div');
-            rightArea.className = 'flex-1 flex flex-col justify-center rounded-md border p-2 cursor-pointer transition-colors relative';
-            
-            if (isBlocked) {
-                rightArea.classList.add('bg-gray-50', 'border-gray-300', 'opacity-70', 'cursor-not-allowed');
-            } else if (isAppliedByMe) {
-                rightArea.classList.add('bg-indigo-50', 'border-indigo-300', 'border-dashed');
-            } else {
-                rightArea.classList.add('bg-white', 'border-gray-200', 'border-dashed', 'hover:bg-gray-50');
-            }
-
-            rightArea.onclick = () => handleDateClick(dateStr, isBlocked);
-
-            const rightHeader = document.createElement('div');
-            rightHeader.className = "flex justify-between items-center text-[10px] md:text-xs mb-1.5";
-            rightHeader.innerHTML = `
-                <span class="text-gray-400 font-medium">영역을 터치하여 신청/취소</span>
-                ${isBlocked ? '<span class="text-red-500 font-bold bg-red-50 px-1.5 rounded">🚫 마감됨</span>' : isAppliedByMe ? '<span class="text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded">✅ 신청됨</span>' : ''}
-            `;
+            rowItem.appendChild(dateInfo);
 
             const badgesArea = document.createElement('div');
-            // 💡 이름 배지를 오른쪽으로 정렬 (justify-end)
-            badgesArea.className = "flex flex-wrap gap-1.5 items-center justify-end";
+            badgesArea.className = "flex flex-wrap gap-2 justify-end items-center flex-grow pl-0 md:pl-4";
             badgesArea.id = `weekend-list-${dateStr}`; 
-            badgesArea.style.minHeight = "28px";
-
-            rightArea.appendChild(rightHeader);
-            rightArea.appendChild(badgesArea);
-
-            rowItem.appendChild(dateArea);
-            rowItem.appendChild(rightArea);
+            badgesArea.style.minHeight = "28px"; 
+            
+            rowItem.appendChild(badgesArea);
             listView.appendChild(rowItem);
 
             if (requestsByDate[dateStr]) {
-                const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
-                
-                requestsByDate[dateStr].sort((a, b) => {
-                    if (a.status === 'canceled' && b.status !== 'canceled') return 1;
-                    if (a.status !== 'canceled' && b.status === 'canceled') return -1;
-                    
-                    const aIsAdmin = adminMembers.includes(a.member);
-                    const bIsAdmin = adminMembers.includes(b.member);
-                    
-                    if (aIsAdmin && !bIsAdmin) return 1;  
-                    if (!aIsAdmin && bIsAdmin) return -1; 
-                    
-                    const timeA = a.createdAt || "";
-                    const timeB = b.createdAt || "";
-                    return timeA.localeCompare(timeB);
-                });
-
                 requestsByDate[dateStr].forEach(req => {
                     addBadgeToCalendar(dateStr, req, isAdmin);
                 });
@@ -330,6 +282,15 @@ function renderWeekendList(year, month) {
     if (!hasWeekend) {
         listView.innerHTML = `<div class="text-center text-gray-400 py-10">이 달에는 주말이 없습니다.</div>`;
     }
+
+    if (isAdmin) {
+        document.querySelectorAll('.admin-manage-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                openAdminDatePopup(btn.dataset.date);
+            };
+        });
+    }
 }
 
 function addBadgeToCalendar(dateStr, data, isAdmin) {
@@ -337,23 +298,14 @@ function addBadgeToCalendar(dateStr, data, isAdmin) {
     if (!container) return;
 
     const badge = document.createElement('div');
+    const colorClass = data.status === 'confirmed' 
+        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+        : 'bg-white text-orange-600 border-orange-300 border shadow-sm'; 
     
-    let colorClass = '';
-    let icon = '';
-
-    if (data.status === 'confirmed') {
-        colorClass = 'bg-blue-600 text-white border-blue-600 shadow-sm';
-        icon = '👌';
-    } else if (data.status === 'canceled') {
-        colorClass = 'bg-yellow-100 text-yellow-700 border-yellow-400 shadow-sm opacity-80 line-through';
-        icon = '❌';
-    } else {
-        colorClass = 'bg-white text-orange-600 border-orange-300 border shadow-sm';
-        icon = '⏳';
-    }
+    badge.className = `px-3 py-1 rounded-full text-sm font-medium border flex items-center gap-1 transition-transform hover:scale-105 ${colorClass}`;
     
-    badge.className = `px-2.5 md:px-3 py-0.5 md:py-1 rounded-full text-[11px] md:text-sm font-medium border flex items-center gap-1 transition-transform hover:scale-105 ${colorClass}`;
-    badge.innerHTML = `<span class="text-[10px] md:text-xs">${icon}</span> ${data.member}`;
+    const icon = data.status === 'confirmed' ? '👌' : '⏳';
+    badge.innerHTML = `<span class="text-xs">${icon}</span> ${data.member}`;
 
     if (isAdmin) {
         badge.style.cursor = 'pointer';
@@ -381,7 +333,7 @@ async function handleDateClick(dateStr, isBlocked) {
     }
 
     if (myRequestsMap.has(dateStr)) {
-        if (confirm(`${dateStr} 근무 신청 내역을 완전히 삭제하시겠습니까?`)) {
+        if (confirm(`${dateStr} 근무 신청을 취소하시겠습니까?`)) {
             const docId = myRequestsMap.get(dateStr);
             await deleteRequest(docId);
         }
@@ -421,10 +373,10 @@ async function deleteRequest(docId) {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
         await deleteDoc(docRef);
-        showToast("신청 기록이 완전히 삭제되었습니다.");
+        showToast("취소되었습니다.");
     } catch (e) {
         console.error("Error deleting request:", e);
-        showToast("삭제 실패", true);
+        showToast("취소 실패", true);
     }
 }
 
@@ -433,61 +385,26 @@ function handleAdminBadgeClick(docId, data) {
     document.getElementById('admin-popup-member').textContent = data.member;
     
     const statusSpan = document.getElementById('admin-popup-status');
-    
-    if (data.status === 'confirmed') {
-        statusSpan.textContent = '승인됨';
-        statusSpan.className = 'font-bold text-blue-600';
-    } else if (data.status === 'canceled') {
-        statusSpan.textContent = '취소됨';
-        statusSpan.className = 'font-bold text-yellow-600';
-    } else {
-        statusSpan.textContent = '대기 중';
-        statusSpan.className = 'font-bold text-orange-500';
-    }
+    statusSpan.textContent = data.status === 'confirmed' ? '승인됨' : '대기 중';
+    statusSpan.className = data.status === 'confirmed' ? 'font-bold text-blue-600' : 'font-bold text-orange-500';
 
-    document.getElementById('admin-confirm-btn').onclick = () => processAdminAction(docId, 'confirmed', data);
-    document.getElementById('admin-reject-btn').onclick = () => processAdminAction(docId, 'demote', data);
-    
-    const cancelBtn = document.getElementById('admin-cancel-btn');
-    if (cancelBtn) cancelBtn.onclick = () => processAdminAction(docId, 'canceled', data);
-    
+    document.getElementById('admin-confirm-btn').onclick = () => processAdminAction(docId, 'confirmed');
+    // 승인 거절 시 삭제가 아니라 '대기' 상태로 전환하도록 수정
+    document.getElementById('admin-reject-btn').onclick = () => processAdminAction(docId, 'demote');
     document.getElementById('admin-close-popup-btn').onclick = () => popup.classList.add('hidden');
 
     popup.classList.remove('hidden');
 }
 
-async function processAdminAction(docId, action, data) {
+async function processAdminAction(docId, action) {
     const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
     try {
         if (action === 'demote') {
             await updateDoc(docRef, { status: 'requested', confirmedAt: null });
             showToast("대기 상태로 변경되었습니다.");
-        } 
-        else if (action === 'confirmed') {
+        } else if (action === 'confirmed') {
             await updateDoc(docRef, { status: 'confirmed', confirmedAt: new Date().toISOString() });
             showToast("승인 완료");
-            
-            const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
-            await setDoc(notiRef, {
-                targetMember: data.member,
-                type: 'weekend_confirmed',
-                message: `${data.date} 주말 근무 신청이 확정(승인)되었습니다.`,
-                createdAt: new Date().toISOString(),
-                isRead: false
-            });
-        } 
-        else if (action === 'canceled') {
-            await updateDoc(docRef, { status: 'canceled', confirmedAt: null });
-            showToast("취소 처리되었습니다.");
-            
-            const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
-            await setDoc(notiRef, {
-                targetMember: data.member,
-                type: 'weekend_canceled',
-                message: `${data.date} 주말 근무 신청이 관리자에 의해 취소(반려)되었습니다.`,
-                createdAt: new Date().toISOString(),
-                isRead: false
-            });
         }
         document.getElementById('weekend-admin-popup').classList.add('hidden');
     } catch (e) {
@@ -496,99 +413,11 @@ async function processAdminAction(docId, action, data) {
     }
 }
 
-export async function processSelectedDatesBulkAction(action) {
-    const checkboxes = document.querySelectorAll('.date-select-checkbox:checked');
-    if (checkboxes.length === 0) {
-        showToast("선택된 날짜가 없습니다.", true);
-        return;
-    }
-
-    const actionText = action === 'confirmed' ? '승인' : action === 'canceled' ? '취소' : '삭제';
-    if (!confirm(`선택한 ${checkboxes.length}개 날짜의 모든 신청 건을 일괄 ${actionText} 하시겠습니까?`)) return;
-
-    let count = 0;
-    try {
-        for (const cb of checkboxes) {
-            const dateStr = cb.dataset.date;
-            const reqs = requestsByDate[dateStr] || [];
-            
-            for (const req of reqs) {
-                const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id);
-                if (action === 'delete') {
-                    await deleteDoc(docRef);
-                } else {
-                    if (req.status !== action) {
-                        await updateDoc(docRef, { status: action, confirmedAt: action === 'confirmed' ? new Date().toISOString() : null });
-                        
-                        const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
-                        const msg = action === 'confirmed' 
-                            ? `${dateStr} 주말 근무 배정이 확정(승인)되었습니다.` 
-                            : `${dateStr} 주말 근무 신청이 관리자에 의해 일괄 취소(반려)되었습니다.`;
-                        await setDoc(notiRef, {
-                            targetMember: req.member,
-                            type: action === 'confirmed' ? 'weekend_confirmed' : 'weekend_canceled',
-                            message: msg,
-                            createdAt: new Date().toISOString(),
-                            isRead: false
-                        });
-                    }
-                }
-                count++;
-            }
-        }
-        showToast(`선택 날짜의 총 ${count}건 일괄 ${actionText} 완료 및 알림 전송됨.`);
-        
-        document.getElementById('select-all-dates-checkbox').checked = false;
-        checkboxes.forEach(cb => cb.checked = false);
-
-    } catch (e) {
-        console.error("Bulk action error:", e);
-        showToast("일괄 처리 중 오류 발생", true);
-    }
-}
-
-function populateAdminAddMemberSelect(dateStr) {
-    const select = document.getElementById('admin-date-add-member');
-    if (!select) return;
-
-    select.innerHTML = '<option value="">팀원 선택...</option>';
-
-    let allMembers = [];
-    if (State.appConfig && State.appConfig.teamGroups) {
-        State.appConfig.teamGroups.forEach(g => {
-            if (g.members) allMembers = allMembers.concat(g.members);
-        });
-    }
-    if (State.appState && State.appState.partTimers) {
-        State.appState.partTimers.forEach(p => {
-            if (p.name) allMembers.push(p.name);
-        });
-    }
-    allMembers = [...new Set(allMembers)];
-
-    const reqs = requestsByDate[dateStr] || [];
-    const alreadyApplied = reqs.map(r => r.member);
-
-    allMembers.forEach(member => {
-        const option = document.createElement('option');
-        option.value = member;
-        option.textContent = member;
-        if (alreadyApplied.includes(member)) {
-            option.disabled = true;
-            option.textContent += ' (이미 신청/확정됨)';
-        }
-        select.appendChild(option);
-    });
-}
-
 function openAdminDatePopup(dateStr) {
     currentManageDateStr = dateStr;
-    recommendOffset = 0; 
-    
     const popup = document.getElementById('weekend-admin-date-popup');
     document.getElementById('admin-date-popup-title').textContent = dateStr;
-    
-    populateAdminAddMemberSelect(dateStr);
+    document.getElementById('admin-date-add-member').value = '';
     
     const capacityInput = document.getElementById('admin-date-capacity');
     if (capacityInput) {
@@ -601,6 +430,7 @@ function openAdminDatePopup(dateStr) {
     const isBlocked = blockedDatesSet.has(dateStr);
     document.getElementById('admin-date-block-toggle').checked = isBlocked;
 
+    // 스마트 배분 영역 초기화
     const smartArea = document.getElementById('smart-calc-result-area');
     if (smartArea) {
         smartArea.innerHTML = '';
@@ -611,21 +441,24 @@ function openAdminDatePopup(dateStr) {
     popup.classList.remove('hidden');
 }
 
+// ===============================================
+// [신규] 스마트 형평성 배분 (자동 추천 및 일괄 적용)
+// ===============================================
+
 export function calculateSmartAllocation() {
     if (!currentManageDateStr) return;
-    const capacityStr = capacityMap.get(currentManageDateStr);
-    const capacity = parseInt(capacityStr, 10);
+    const capacity = capacityMap.get(currentManageDateStr);
     
-    if (isNaN(capacity) || capacity <= 0) {
+    if (!capacity || capacity <= 0) {
         showToast("먼저 정원(명)을 설정하고 '설정' 버튼을 눌러주세요.", true);
         return;
     }
 
     const reqs = requestsByDate[currentManageDateStr] || [];
+    // 대기/확정 상관없이 이 날짜에 신청한 모든 사람
+    const applicants = reqs.map(r => r.member);
     
-    const activeReqs = reqs.filter(r => r.status !== 'canceled');
-    const applicants = activeReqs.map(r => r.member);
-    
+    // 1. 제외자를 뺀 전체 팀원 목록 만들기
     let allMembers = [];
     if (State.appConfig && State.appConfig.teamGroups) {
         State.appConfig.teamGroups.forEach(g => {
@@ -633,123 +466,77 @@ export function calculateSmartAllocation() {
         });
     }
     allMembers = [...new Set(allMembers)];
-    
-    const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
-    const eligibleMembers = allMembers.filter(m => !adminMembers.includes(m));
+    const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
+    const eligibleMembers = allMembers.filter(m => !excludedMembers.includes(m));
 
-    const adminApplicants = applicants.filter(m => adminMembers.includes(m));
-    const generalApplicants = applicants.filter(m => !adminMembers.includes(m));
+    const nonApplicants = eligibleMembers.filter(m => !applicants.includes(m));
 
-    const availableCapacity = Math.max(0, capacity - adminApplicants.length);
-
+    // 점수 계산 (점수가 낮을수록 근무가 필요하므로 우선순위가 높음)
     const getScore = (m) => {
         const y = currentYearlyStats.get(m) || 0;
         const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
-        const monthTotal = ms.confirmed + ms.requested;
-        return (monthTotal * 1000) + (y * 10); 
+        // 가중치: 연 누적횟수(x100) > 당월 확정(x10) > 당월 대기(x1)
+        return (y * 100) + (ms.confirmed * 10) + ms.requested;
     };
 
-    const sortedGeneralApplicants = [...generalApplicants].sort((a, b) => {
+    // 정렬 (오름차순 = 점수가 낮을수록 앞쪽으로 옴)
+    const sortedApplicants = [...applicants].sort((a, b) => {
         const diff = getScore(a) - getScore(b);
         return diff !== 0 ? diff : a.localeCompare(b);
     });
 
-    const nonApplicants = eligibleMembers.filter(m => !applicants.includes(m));
     const sortedNonApplicants = [...nonApplicants].sort((a, b) => {
         const diff = getScore(a) - getScore(b);
         return diff !== 0 ? diff : a.localeCompare(b);
     });
 
-    let toConfirm = [...adminApplicants]; 
-    let toDecline = []; 
-    let toAdd = [];     
+    let toConfirm = []; // 확정 유지/전환 대상
+    let toDecline = []; // 대기로 전환 대상 (정원 초과 시)
+    let toAdd = [];     // 새로 추가되어 확정될 대상 (정원 미달 시)
 
-    if (generalApplicants.length > availableCapacity) {
-        toConfirm = toConfirm.concat(sortedGeneralApplicants.slice(0, availableCapacity));
-        toDecline = sortedGeneralApplicants.slice(availableCapacity);
-        recommendOffset = 0; 
-    } else if (generalApplicants.length < availableCapacity) {
-        toConfirm = toConfirm.concat(sortedGeneralApplicants);
-        const needed = availableCapacity - generalApplicants.length;
-        
-        if (sortedNonApplicants.length > 0) {
-            if (recommendOffset >= sortedNonApplicants.length) {
-                recommendOffset = 0; 
-                showToast("모든 후보를 순회하여 다시 1순위부터 추천합니다.");
-            }
-            
-            for (let i = 0; i < needed; i++) {
-                const index = (recommendOffset + i) % sortedNonApplicants.length;
-                if (!toAdd.includes(sortedNonApplicants[index])) {
-                    toAdd.push(sortedNonApplicants[index]);
-                }
-            }
-            recommendOffset += needed;
-        }
+    if (applicants.length > capacity) {
+        // 신청자가 넘침: 우선순위 높은 사람만 정원만큼 컷
+        toConfirm = sortedApplicants.slice(0, capacity);
+        toDecline = sortedApplicants.slice(capacity);
+    } else if (applicants.length < capacity) {
+        // 신청자가 모자람: 신청자 전원 확정 + 안 한 사람 중 우선순위 높은 사람 픽
+        toConfirm = sortedApplicants;
+        const needed = capacity - applicants.length;
+        toAdd = sortedNonApplicants.slice(0, needed);
     } else {
-        toConfirm = toConfirm.concat(sortedGeneralApplicants);
-        recommendOffset = 0;
+        // 딱 맞음
+        toConfirm = sortedApplicants;
     }
 
-    let totalMonthlyCapacity = 0;
-    capacityMap.forEach(v => totalMonthlyCapacity += parseInt(v, 10) || 0);
-    const avgPossibleShifts = (totalMonthlyCapacity / eligibleMembers.length).toFixed(1);
-
-    renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, applicants.length, adminApplicants.length, avgPossibleShifts);
+    renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, applicants.length);
 }
 
-function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, appCount, adminCount, avgPossible) {
+function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, appCount) {
     const area = document.getElementById('smart-calc-result-area');
     area.classList.remove('hidden');
 
     let html = `<div class="text-xs text-gray-700 font-medium space-y-3 mb-4">`;
-    html += `<div class="flex flex-col gap-1 border-b border-indigo-100 pb-2">
-                <div class="flex justify-between">
-                    <span>설정 정원: <b class="text-emerald-600">${capacity}명</b> (관리자 ${adminCount}명 포함)</span> 
-                    <span>신청: <b>${appCount}명</b></span>
-                </div>
-                <div class="text-[10px] text-indigo-500 font-normal">* 이 달의 팀원당 권장 근무: 약 ${avgPossible}회</div>
-             </div>`;
+    html += `<div class="flex justify-between border-b border-indigo-100 pb-2"><span>설정 정원: <b class="text-emerald-600">${capacity}명</b></span> <span>현재 신청자: <b>${appCount}명</b></span></div>`;
     
     const finalConfirmed = [...toConfirm, ...toAdd];
-    html += `<div><span class="text-emerald-700 font-bold">✅ 최종 확정 추천 (${finalConfirmed.length}명)</span><div class="mt-2 flex flex-wrap gap-1.5">`;
-    
+    html += `<div><span class="text-emerald-700 font-bold">✅ 최종 확정 추천 (${finalConfirmed.length}명)</span><div class="mt-1.5 flex flex-wrap gap-1.5">`;
     finalConfirmed.forEach(m => {
         const yCount = currentYearlyStats.get(m) || 0;
-        const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
-        const mTotal = ms.confirmed + ms.requested;
-        
         const isNew = toAdd.includes(m);
-        const isAdmin = ['박영철', '박호진', '유아라', '이승운'].includes(m);
-        
-        let badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm';
-        let icon = '✔️';
-        let subText = `(당월 ${mTotal}회/누적 ${yCount}회)`;
-        
-        if (isAdmin) {
-            badgeClass = 'bg-gray-100 text-gray-800 border-gray-300 shadow-sm';
-            icon = '👑';
-            subText = '(관리자)';
-        } else if (isNew) {
-            badgeClass = 'bg-blue-50 text-blue-800 border-blue-200 shadow-sm';
-            icon = '➕';
-        }
-
-        html += `<span class="border px-1.5 py-1 rounded-md text-[11px] ${badgeClass}">${icon} ${m} <span class="text-[10px] opacity-70">${subText}</span></span>`;
+        const badgeClass = isNew ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        const icon = isNew ? '➕' : '✔️';
+        html += `<span class="border px-1.5 py-0.5 rounded text-[11px] ${badgeClass}">${icon} ${m} (누적 ${yCount}회)</span>`;
     });
     html += `</div></div>`;
 
     if (toDecline.length > 0) {
-        html += `<div class="pt-1"><span class="text-red-600 font-bold">➖ 정원 초과로 자동 취소 (${toDecline.length}명)</span><br><span class="text-gray-400 text-[10px]">당월 신청 횟수가 많아 배정에서 제외되며, 취소(노란색) 상태로 변경됩니다.</span><div class="mt-2 flex flex-wrap gap-1.5">`;
-        toDecline.forEach(m => {
-            const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
-            html += `<span class="bg-yellow-100 text-yellow-700 border border-yellow-400 px-1.5 py-1 rounded-md text-[11px] line-through shadow-sm">❌ ${m} <span class="text-[10px] opacity-70">(당월 ${ms.confirmed+ms.requested}회)</span></span>`;
-        });
+        html += `<div class="pt-1"><span class="text-red-600 font-bold">➖ 정원 초과로 대기 전환 (${toDecline.length}명)</span><br><span class="text-gray-400 text-[10px]">누적 횟수가 상대적으로 많아 대기 상태가 됩니다.</span><div class="mt-1 flex flex-wrap gap-1.5">`;
+        toDecline.forEach(m => html += `<span class="bg-red-50 text-red-500 border border-red-100 px-1.5 py-0.5 rounded text-[11px] line-through">${m} (누적 ${currentYearlyStats.get(m)||0}회)</span>`);
         html += `</div></div>`;
     }
 
     if(toAdd.length === 0 && toDecline.length === 0) {
-         html += `<div class="text-blue-600 font-bold py-1 bg-blue-50 px-2 rounded mt-2">인원이 정원과 일치하여 전원 확정 추천합니다.</div>`;
+         html += `<div class="text-blue-600 font-bold py-1">인원이 정원과 일치하여 전원 확정 추천합니다.</div>`;
     }
     
     html += `</div>`;
@@ -759,6 +546,8 @@ function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, appCount, 
              </button>`;
 
     area.innerHTML = html;
+    
+    // 일괄 적용을 위해 데이터 캐싱
     smartCalcCache = { toConfirm, toDecline, toAdd };
 }
 
@@ -774,59 +563,28 @@ export async function applySmartAllocation() {
     }
 
     try {
+        // 1. 제외자 처리 (대기로 강등)
         for (const m of toDecline) {
             const req = reqs.find(r => r.member === m);
-            if (req && req.status !== 'canceled') { 
-                await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id), { 
-                    status: 'canceled', 
-                    confirmedAt: null 
-                });
-                
-                const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
-                await setDoc(notiRef, {
-                    targetMember: m,
-                    type: 'weekend_canceled',
-                    message: `${currentManageDateStr} 주말 근무 신청이 정원 초과로 인해 취소(반려)되었습니다.`,
-                    createdAt: new Date().toISOString(),
-                    isRead: false
-                });
+            if (req && req.status === 'confirmed') {
+                await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id), { status: 'requested', confirmedAt: null });
             }
         }
-        
+        // 2. 확정자 유지/승격
         for (const m of toConfirm) {
             const req = reqs.find(r => r.member === m);
             if (req && req.status !== 'confirmed') {
                 await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id), { status: 'confirmed', confirmedAt: new Date().toISOString() });
-                
-                const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
-                await setDoc(notiRef, {
-                    targetMember: m,
-                    type: 'weekend_confirmed',
-                    message: `${currentManageDateStr} 주말 근무 배정이 확정되었습니다.`,
-                    createdAt: new Date().toISOString(),
-                    isRead: false
-                });
             }
         }
-        
+        // 3. 신규 인원 강제 차출 (확정 등록)
         for (const m of toAdd) {
             await createRequest(currentManageDateStr, m, 'confirmed');
-            
-            const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
-            await setDoc(notiRef, {
-                targetMember: m,
-                type: 'weekend_confirmed',
-                message: `${currentManageDateStr} 주말 근무가 배정(확정)되었습니다.`,
-                createdAt: new Date().toISOString(),
-                isRead: false
-            });
         }
 
-        showToast("스마트 배분이 성공적으로 적용되었으며, 알림이 발송되었습니다.");
+        showToast("스마트 배분이 성공적으로 적용되었습니다.");
         document.getElementById('smart-calc-result-area').classList.add('hidden');
         smartCalcCache = null;
-        
-        recommendOffset = 0; 
     } catch (e) {
         console.error("Smart Allocation Error:", e);
         showToast("적용 중 오류가 발생했습니다.", true);
@@ -837,6 +595,8 @@ export async function applySmartAllocation() {
         }
     }
 }
+
+// ===============================================
 
 export async function setDateCapacity(capacityStr) {
     if (!currentManageDateStr) return;
@@ -866,28 +626,17 @@ export async function setDateCapacity(capacityStr) {
 
 export async function adminAddMemberToDate() {
     if (!currentManageDateStr) return;
-    const select = document.getElementById('admin-date-add-member');
-    const memberName = select.value.trim();
+    const input = document.getElementById('admin-date-add-member');
+    const memberName = input.value.trim();
 
     if (!memberName) {
-        showToast("추가할 팀원을 선택하세요.", true);
+        showToast("추가할 이름을 입력하세요.", true);
         return;
     }
 
     await createRequest(currentManageDateStr, memberName, 'confirmed');
-    
-    const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
-    await setDoc(notiRef, {
-        targetMember: memberName,
-        type: 'weekend_confirmed',
-        message: `${currentManageDateStr} 주말 근무가 배정(확정)되었습니다.`,
-        createdAt: new Date().toISOString(),
-        isRead: false
-    });
-
-    showToast(`${memberName}님 확정 및 알림 발송 완료`);
-    
-    populateAdminAddMemberSelect(currentManageDateStr);
+    showToast(`${memberName}님 추가 완료`);
+    input.value = '';
 }
 
 export async function adminRandomSelectMembers(count) {
