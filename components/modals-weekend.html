@@ -13,6 +13,8 @@
                     </span>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button id="weekend-admin-all-manage-btn" class="hidden text-xs bg-red-50 text-red-600 border border-red-200 px-2 py-1.5 rounded-md font-bold hover:bg-red-100 transition shadow-sm ml-2">전체 관리</button>
+                    
                     <button id="toggle-weekend-stats-btn" class="md:hidden bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-md font-bold text-xs border border-indigo-200 hover:bg-indigo-100 shadow-sm flex items-center gap-1">
                         📊 현황
                     </button>
@@ -104,7 +106,6 @@
                     <input type="number" id="admin-date-capacity" min="1" class="w-20 p-2 border border-emerald-300 rounded focus:ring-2 focus:ring-emerald-500 outline-none text-center" placeholder="명">
                     <button id="admin-date-capacity-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded font-bold transition shadow-sm">설정</button>
                 </div>
-                <p class="text-xs text-emerald-600 mt-2">* 스마트 배분 및 확정의 기준이 됩니다.</p>
             </div>
 
             <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
@@ -135,6 +136,29 @@
                     <div class="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                 </label>
             </div>
+
+            <div class="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-2">
+                <label class="block text-sm font-bold text-gray-800 mb-2">⚡ 이 날짜 모든 인원 일괄 처리</label>
+                <div class="flex gap-1.5">
+                    <button id="admin-date-all-confirm-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-2 py-2 rounded text-xs font-bold transition shadow-sm">일괄 승인</button>
+                    <button id="admin-date-all-cancel-btn" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-2 rounded text-xs font-bold transition shadow-sm">일괄 취소</button>
+                    <button id="admin-date-all-delete-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white px-2 py-2 rounded text-xs font-bold transition shadow-sm">일괄 삭제</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="weekend-admin-all-popup" class="fixed inset-0 bg-black bg-opacity-40 hidden z-[80] flex items-center justify-center px-4">
+    <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm border-2 border-red-200">
+        <div class="flex justify-between items-center mb-4 border-b pb-2">
+            <h4 class="text-lg font-bold text-red-600 flex items-center gap-2">⚠️ 이번 달 전체 관리</h4>
+            <button id="admin-all-close-btn" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+        <p class="text-[13px] text-gray-600 mb-4 leading-relaxed font-medium">현재 캘린더에 표시된 월의 <b>모든 날짜, 모든 인원의 신청건</b>을 일괄 처리합니다. 이 작업은 되돌릴 수 없습니다.</p>
+        <div class="space-y-3">
+            <button id="admin-all-confirm-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-lg transition text-sm shadow-md">✅ 전체 일괄 승인</button>
+            <button id="admin-all-delete-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition text-sm shadow-md">🗑️ 전체 일괄 삭제</button>
         </div>
     </div>
 </div>
