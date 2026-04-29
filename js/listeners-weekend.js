@@ -27,9 +27,11 @@ export function setupWeekendListeners() {
     const closeModal = () => {
         if (modal) {
             modal.classList.add('hidden');
+            // 창 닫을 때 위치 초기화
             if (modalContent) {
                 modalContent.style.transform = ''; 
             }
+            // 모바일 사이드바 열려있으면 닫기
             if (statsSidebar && window.innerWidth < 768) {
                 statsSidebar.classList.add('hidden');
                 statsSidebar.classList.remove('flex');
@@ -64,11 +66,13 @@ export function setupWeekendListeners() {
         let startX, startY, initialX, initialY;
 
         modalHeader.addEventListener('mousedown', (e) => {
+            // 모바일 화면이거나, 버튼을 클릭했을 경우는 드래그 방지
             if (window.innerWidth < 768) return; 
             if (e.target.tagName.toLowerCase() === 'button' || e.target.closest('button')) return;
             
             isDragging = true;
             
+            // 기존 transform이 있을 경우 좌표 추출 (드래그 이어서 하기)
             const transform = window.getComputedStyle(modalContent).getPropertyValue('transform');
             let matrixX = 0, matrixY = 0;
             
@@ -83,8 +87,8 @@ export function setupWeekendListeners() {
             initialX = matrixX;
             initialY = matrixY;
             
-            modalContent.style.transition = 'none'; 
-            document.body.style.userSelect = 'none'; 
+            modalContent.style.transition = 'none'; // 드래그 중 부드러운 전환 제거
+            document.body.style.userSelect = 'none'; // 드래그 시 텍스트 선택 방지
         });
 
         document.addEventListener('mousemove', (e) => {
@@ -98,7 +102,7 @@ export function setupWeekendListeners() {
             if (isDragging) {
                 isDragging = false;
                 document.body.style.userSelect = '';
-                modalContent.style.transition = 'transform 0.2s ease-out';
+                modalContent.style.transition = 'transform 0.2s ease-out'; // 놓았을 때 탄력 복구
             }
         });
     }
@@ -121,7 +125,6 @@ export function setupWeekendListeners() {
     const adminDateRandomBtn = document.getElementById('admin-date-random-btn');
     const adminDateRandomCount = document.getElementById('admin-date-random-count');
     const adminDateBlockToggle = document.getElementById('admin-date-block-toggle');
-    const smartCalcBtn = document.getElementById('admin-date-smart-calc-btn');
 
     if (adminDateCloseBtn && adminDatePopup) {
         adminDateCloseBtn.addEventListener('click', () => adminDatePopup.classList.add('hidden'));
@@ -170,18 +173,4 @@ export function setupWeekendListeners() {
             WeekendCalendar.toggleBlockDate(e.target.checked);
         });
     }
-
-    // [신규] 스마트 형평성 배분 이벤트
-    if (smartCalcBtn) {
-        smartCalcBtn.addEventListener('click', () => {
-            WeekendCalendar.calculateSmartAllocation();
-        });
-    }
-
-    // [신규] 동적으로 렌더링된 "일괄 적용" 버튼에 대한 이벤트 위임
-    document.addEventListener('click', (e) => {
-        if (e.target && e.target.id === 'apply-smart-calc-btn') {
-            WeekendCalendar.applySmartAllocation();
-        }
-    });
 }
