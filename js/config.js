@@ -61,19 +61,37 @@ export const loadAppConfig = async (dbInstance) => {
             }
             mergedConfig.quantityTaskTypes = loadedQtyTasks;
 
+            // 🚀 [추가 마이그레이션: 교환반품 강제 추가] DB에 교환반품이 없으면 상.하차 뒤에 추가
+            if (!mergedConfig.keyTasks.includes('교환반품')) {
+                const idx = mergedConfig.keyTasks.indexOf('상.하차');
+                if (idx !== -1) mergedConfig.keyTasks.splice(idx + 1, 0, '교환반품');
+                else mergedConfig.keyTasks.push('교환반품');
+            }
+            if (!mergedConfig.quantityTaskTypes.includes('교환반품')) {
+                const idx = mergedConfig.quantityTaskTypes.indexOf('상.하차');
+                if (idx !== -1) mergedConfig.quantityTaskTypes.splice(idx + 1, 0, '교환반품');
+                else mergedConfig.quantityTaskTypes.push('교환반품');
+            }
+
             mergedConfig.qualityCostTasks = loadedData.qualityCostTasks || defaultData.qualityCostTasks;
             mergedConfig.systemAccounts = loadedData.systemAccounts || defaultData.systemAccounts;
             
             // 표준 일일 근무시간 안전 병합
             mergedConfig.standardDailyWorkHours = { ...defaultData.standardDailyWorkHours, ...(loadedData.standardDailyWorkHours || {}) };
 
-            // ✅ [자동 마이그레이션 2] 업무 그룹(taskGroups) 내의 '검수'를 '샘플검수', '전량검수'로 분리
+            // ✅ [자동 마이그레이션 2] 업무 그룹(taskGroups) 내의 '검수'를 분리하고 '교환반품' 추가
             if (Array.isArray(loadedData.taskGroups)) {
                 mergedConfig.taskGroups = loadedData.taskGroups.map(group => {
                     if (group.tasks && group.tasks.includes('검수')) {
                         group.tasks = group.tasks.filter(t => t !== '검수');
                         if (!group.tasks.includes('샘플검수')) group.tasks.push('샘플검수');
                         if (!group.tasks.includes('전량검수')) group.tasks.push('전량검수');
+                    }
+                    // '담당' 파트에 교환반품이 없다면 상.하차 뒤에 추가
+                    if (group.name === '담당' && !group.tasks.includes('교환반품')) {
+                        const idx = group.tasks.indexOf('상.하차');
+                        if (idx !== -1) group.tasks.splice(idx + 1, 0, '교환반품');
+                        else group.tasks.push('교환반품');
                     }
                     return group;
                 });
@@ -84,6 +102,11 @@ export const loadAppConfig = async (dbInstance) => {
                         parsedTasks = parsedTasks.filter(t => t !== '검수');
                         if (!parsedTasks.includes('샘플검수')) parsedTasks.push('샘플검수');
                         if (!parsedTasks.includes('전량검수')) parsedTasks.push('전량검수');
+                    }
+                    if (groupName === '담당' && !parsedTasks.includes('교환반품')) {
+                        const idx = parsedTasks.indexOf('상.하차');
+                        if (idx !== -1) parsedTasks.splice(idx + 1, 0, '교환반품');
+                        else parsedTasks.push('교환반품');
                     }
                     return { name: groupName, tasks: parsedTasks };
                 });
@@ -164,7 +187,6 @@ function getDefaultConfig() {
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
-        // ✅ 교환반품과 상.하차를 핵심 업무(시뮬레이션 기본 노출)에 추가
         keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무', '상.하차', '교환반품'],
         dashboardItems: [
             'total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff',
@@ -176,11 +198,9 @@ function getDefaultConfig() {
         quantityToDashboardMap: {},
         taskGroups: [
             { name: '공통', tasks: ['국내배송', '중국제작', '직진배송', '티니', '택배포장', '해외배송', '재고조사', '앵글정리', '상품재작업', '직진배송 사전작업'] },
-            // ✅ 담당 그룹에 교환반품을 상.하차 바로 아래에 추가
             { name: '담당', tasks: ['개인담당업무', '상.하차', '교환반품', '샘플검수', '전량검수', '아이롱', '오류'] },
             { name: '기타', tasks: ['채우기', '강성', '2층업무', '재고찾는시간', '매장근무'] }
         ],
-        // ✅ 시뮬레이션 및 수량 입력 대상에 교환반품을 상.하차 바로 아래에 추가
         quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '교환반품', '샘플검수', '전량검수'],
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
         defaultPartTimerWage: 10000,
