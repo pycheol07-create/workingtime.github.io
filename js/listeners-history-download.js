@@ -19,14 +19,29 @@ const getSelectedDateKey = () => {
     return btn ? btn.dataset.key : null;
 };
 
+// 🌟 [추가 1] 중복 다운로드 방지를 위한 락(Lock) 변수
+let isDownloading = false;
+
 // 💡 UX 개선: 여러 형식을 선택할 필요 없이, 엑셀 형식('xlsx')으로 즉시 다운로드를 실행합니다.
 export const openDownloadFormatModal = (targetType, contextData = {}) => {
+    // 🌟 락이 걸려있다면(이미 실행 중이라면) 추가 실행을 무시합니다.
+    if (isDownloading) return; 
+    isDownloading = true;
+
     State.context.downloadContext = { targetType, ...contextData };
     showToast('엑셀 파일 변환 및 다운로드를 준비 중입니다...', false);
     
     // 약간의 딜레이를 주어 토스트 메시지가 렌더링될 시간을 확보
-    setTimeout(() => {
-        executeDownload('xlsx');
+    setTimeout(async () => {
+        try {
+            await executeDownload('xlsx');
+        } catch (error) {
+            console.error("다운로드 에러:", error);
+            showToast('다운로드 중 오류가 발생했습니다.', true);
+        } finally {
+            // 🌟 엑셀 생성이 끝나면 1초(1000ms) 후에 락을 해제합니다. (더블클릭 완벽 방어)
+            setTimeout(() => { isDownloading = false; }, 1000);
+        }
     }, 100);
 };
 
@@ -76,7 +91,14 @@ const executeDownload = async (format) => {
     if (modal) modal.classList.add('hidden');
 };
 
+// 🌟 [추가 2] 리스너 중복 등록 방지 플래그
+let isDownloadListenersSetup = false;
+
 export function setupHistoryDownloadListeners() {
+    // 이미 리스너가 등록되어 있다면 다시 등록하지 않고 빠져나갑니다.
+    if (isDownloadListenersSetup) return;
+    isDownloadListenersSetup = true;
+
     // 1. 업무 이력 탭 다운로드
     const historyDownloadBtn = document.getElementById('history-download-btn');
     if (historyDownloadBtn) {
