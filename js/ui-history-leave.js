@@ -8,15 +8,17 @@ import {
 let currentYear = new Date().getFullYear();
 let fullLeaveConfig = {}; 
 
-// 정렬 상태 관리 (key: 정렬할 필드명, dir: 'asc' | 'desc')
-let sortState = { key: null, dir: 'asc' }; 
+// 정렬 상태 관리 (기본값을 입사일 'joinDate'로 설정)
+let sortState = { key: 'joinDate', dir: 'asc' }; 
 
 export async function initLeaveManagement() {
     const yearSelect = document.getElementById('leave-year-select');
     
+    // 항상 현재 연도로 초기 세팅
+    currentYear = new Date().getFullYear(); 
+    
     if (yearSelect) {
-        if (!yearSelect.value) yearSelect.value = currentYear;
-        currentYear = parseInt(yearSelect.value);
+        yearSelect.value = currentYear; // select box 현재 년도로 강제 고정
         
         yearSelect.addEventListener('change', (e) => {
             currentYear = parseInt(e.target.value);
@@ -86,6 +88,9 @@ export async function renderLeaveSheet() {
             const config = fullLeaveConfig[member] || {};
             const total = config.totalLeave !== undefined ? Number(config.totalLeave) : 15;
             
+            // 입사일 정보 추가 (없으면 맨 뒤로 밀리도록 처리)
+            const joinDate = config.joinDate || '9999-12-31';
+
             const resetDate = config.leaveResetDate || '';
             const expireDate = config.expirationDate || '';
             let periodText = '-';
@@ -100,14 +105,19 @@ export async function renderLeaveSheet() {
             const remaining = total - used;
             const history = usageData[member] ? usageData[member].dates.join(', ') : '-';
 
-            return { member, total, periodText, used, remaining, history, periodClass, config };
+            return { member, total, periodText, used, remaining, history, periodClass, config, joinDate };
         });
 
-        // 정렬 적용
+        // 정렬 적용 (입사일 등)
         if (sortState.key) {
             rowData.sort((a, b) => {
                 let valA = a[sortState.key];
                 let valB = b[sortState.key];
+
+                if (sortState.key === 'joinDate') {
+                    if (!valA) valA = '9999-12-31';
+                    if (!valB) valB = '9999-12-31';
+                }
 
                 if (typeof valA === 'number' && typeof valB === 'number') {
                     return sortState.dir === 'asc' ? valA - valB : valB - valA;
@@ -148,17 +158,254 @@ export async function renderLeaveSheet() {
                 </td>
                 <td class="px-6 py-3 text-center font-medium border-b border-gray-100">${row.used}</td>
                 <td class="px-6 py-3 text-center ${remainColor} border-b border-gray-100">${row.remaining}</td>
-                <td class="px-6 py-3 text-xs text-gray-500 break-words max-w-md leading-relaxed border-b border-gray-100">
-                    ${row.history}
+                <td class="px-6 py-3 text-xs text-gray-500 border-b border-gray-100">
+                    <div class="flex justify-between items-center w-full min-h-[2rem]">
+                        <span class="break-words max-w-[85%] leading-relaxed">${row.history}</span>
+                        <button class="px-2 py-1.5 bg-white hover:bg-gray-100 text-gray-700 text-xs font-bold rounded border border-gray-300 manage-leave-btn flex-shrink-0 shadow-sm transition-colors" data-member="${row.member}">관리</button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(tr);
+        });
+
+        // 관리 버튼 이벤트 바인딩
+        tbody.querySelectorAll('.manage-leave-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const member = e.currentTarget.dataset.member;
+                openLeaveManager(member);
+            });
         });
 
     } catch (e) {
         console.error("Error rendering leave sheet:", e);
         tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>';
     }
+}
+
+// 💡 [신규] 연차 관리 (등록/수정/삭제) 팝업 모달 띄우기
+async function openLeaveManager(member) {
+    let allLeaves = [];
+    const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
+    
+    try {
+        const snap = await getDoc(docRef);
+        if (snap.exists() && snap.data().onLeaveMembers) {
+            allLeaves = snap.data().onLeaveMembers;
+        }
+    } catch(e) {
+        console.error("연차 데이터 로드 오류", e);
+        showToast('데이터를 불러오지 못했습니다.', true);
+        return;
+    }
+
+    // 대상자의 연차 내역만 필터링 및 고유 ID 부여
+    let memberLeaves = allLeaves.filter(l => l.member === member && (l.type?.includes('연차') || l.type?.includes('반차')));
+    memberLeaves.forEach(l => {
+        if (!l.id) l.id = `leave-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    });
+    
+    // 최신순 정렬
+    memberLeaves.sort((a,b) => {
+        const dA = a.startDate || a.date || (a.startTime ? a.startTime.substring(0,10) : '');
+        const dB = b.startDate || b.date || (b.startTime ? b.startTime.substring(0,10) : '');
+        return dB.localeCompare(dA); 
+    });
+
+    const modalId = 'leave-manager-modal';
+    if (document.getElementById(modalId)) document.getElementById(modalId).remove();
+
+    const modalHtml = `
+    <div id="${modalId}" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
+            <div class="px-5 py-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
+                <h3 class="text-lg font-bold text-gray-900">${member} 님의 연차 관리</h3>
+                <button id="lm-close-btn" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            
+            <div class="p-5 overflow-y-auto flex-1 bg-white">
+                <div class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
+                    <h4 class="font-bold mb-3 text-sm text-gray-800" id="lm-form-title">신규 등록</h4>
+                    <input type="hidden" id="lm-edit-id" value="">
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">유형</label>
+                            <select id="lm-type" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="연차">연차 (종일)</option>
+                                <option value="오전반차">오전 반차</option>
+                                <option value="오후반차">오후 반차</option>
+                            </select>
+                        </div>
+                        <div id="lm-end-date-wrapper">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">종료일 (연속 시)</label>
+                            <input type="date" id="lm-end-date" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">시작일 (또는 해당일)</label>
+                        <input type="date" id="lm-start-date" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <button id="lm-cancel-edit-btn" class="hidden px-3 py-1.5 text-sm font-medium text-gray-700 bg-white rounded hover:bg-gray-100 border border-gray-300 shadow-sm">취소</button>
+                        <button id="lm-save-btn" class="px-4 py-1.5 text-sm font-bold text-white bg-blue-600 rounded hover:bg-blue-700 shadow-sm">등록</button>
+                    </div>
+                </div>
+
+                <h4 class="font-bold mb-2 text-sm text-gray-800 px-1">사용 내역</h4>
+                <div id="lm-list-container" class="space-y-2"></div>
+            </div>
+        </div>
+    </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const modalEl = document.getElementById(modalId);
+    
+    // 모달 닫기
+    document.getElementById('lm-close-btn').onclick = () => modalEl.remove();
+
+    // 유형 변경 시 반차면 종료일 숨김 처리
+    document.getElementById('lm-type').onchange = (e) => {
+        document.getElementById('lm-end-date-wrapper').style.display = e.target.value.includes('반차') ? 'none' : 'block';
+    };
+
+    // 내역 리스트 렌더링 함수
+    const renderList = () => {
+        const container = document.getElementById('lm-list-container');
+        container.innerHTML = '';
+        if(memberLeaves.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500 text-center py-6 border border-gray-200 border-dashed rounded bg-gray-50">등록된 내역이 없습니다.</p>';
+            return;
+        }
+        memberLeaves.forEach(l => {
+            const targetDate = l.startDate || l.date || (l.startTime ? l.startTime.substring(0, 10) : '');
+            let label = targetDate;
+            if (l.type === '연차' && l.endDate && l.endDate !== targetDate) {
+                label += ` ~ ${l.endDate}`;
+            }
+            
+            const div = document.createElement('div');
+            div.className = "flex justify-between items-center p-3 bg-white border border-gray-200 rounded text-sm shadow-sm";
+            div.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-bold">${l.type}</span>
+                    <span class="text-gray-700 font-medium">${label}</span>
+                </div>
+                <div class="flex gap-2">
+                    <button class="text-gray-500 hover:text-blue-600 font-medium px-2 py-1 bg-gray-50 rounded border border-gray-200" data-action="edit" data-id="${l.id}">수정</button>
+                    <button class="text-red-500 hover:text-red-700 font-medium px-2 py-1 bg-red-50 rounded border border-red-100" data-action="delete" data-id="${l.id}">삭제</button>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    };
+
+    renderList();
+
+    // 이벤트 위임으로 수정/삭제 처리
+    document.getElementById('lm-list-container').addEventListener('click', (e) => {
+        const btn = e.target;
+        const action = btn.dataset.action;
+        const id = btn.dataset.id;
+        if(!action || !id) return;
+
+        if(action === 'edit') {
+            const l = memberLeaves.find(x => x.id === id);
+            if(l) {
+                document.getElementById('lm-edit-id').value = l.id;
+                document.getElementById('lm-type').value = l.type || '연차';
+                document.getElementById('lm-start-date').value = l.startDate || l.date || (l.startTime ? l.startTime.substring(0, 10) : '');
+                document.getElementById('lm-end-date').value = l.endDate || '';
+                
+                document.getElementById('lm-form-title').textContent = '내역 수정';
+                document.getElementById('lm-save-btn').textContent = '수정 완료';
+                document.getElementById('lm-cancel-edit-btn').classList.remove('hidden');
+                document.getElementById('lm-type').dispatchEvent(new Event('change'));
+            }
+        } else if(action === 'delete') {
+            if(confirm('이 연차 내역을 삭제하시겠습니까?')) {
+                const idx = memberLeaves.findIndex(x => x.id === id);
+                if(idx > -1) {
+                    memberLeaves.splice(idx, 1);
+                    saveChanges();
+                }
+            }
+        }
+    });
+
+    // 수정 폼 취소 버튼
+    document.getElementById('lm-cancel-edit-btn').onclick = () => {
+        document.getElementById('lm-edit-id').value = '';
+        document.getElementById('lm-type').value = '연차';
+        document.getElementById('lm-start-date').value = '';
+        document.getElementById('lm-end-date').value = '';
+        document.getElementById('lm-form-title').textContent = '신규 등록';
+        document.getElementById('lm-save-btn').textContent = '등록';
+        document.getElementById('lm-cancel-edit-btn').classList.add('hidden');
+        document.getElementById('lm-type').dispatchEvent(new Event('change'));
+    };
+
+    // 저장(등록/수정) 로직
+    document.getElementById('lm-save-btn').onclick = () => {
+        const id = document.getElementById('lm-edit-id').value;
+        const type = document.getElementById('lm-type').value;
+        const startDate = document.getElementById('lm-start-date').value;
+        const endDate = document.getElementById('lm-end-date').value;
+
+        if(!startDate) { alert('시작일을 선택하세요.'); return; }
+
+        const record = {
+            id: id || `leave-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            member: member,
+            type: type,
+            startDate: startDate,
+            date: startDate,
+            endDate: type.includes('반차') ? startDate : (endDate || startDate)
+        };
+
+        if(id) {
+            const idx = memberLeaves.findIndex(x => x.id === id);
+            if(idx > -1) memberLeaves[idx] = record;
+        } else {
+            memberLeaves.unshift(record); // 새 등록은 리스트 맨 앞에 추가
+        }
+
+        saveChanges();
+    };
+
+    // Firestore에 최종 적용하는 함수
+    const saveChanges = async () => {
+        try {
+            const snap = await getDoc(docRef);
+            let currentAll = snap.exists() && snap.data().onLeaveMembers ? snap.data().onLeaveMembers : [];
+
+            // 기존에 있던 이 사람의 연차/반차 내역을 모두 지운 뒤
+            currentAll = currentAll.filter(l => !(l.member === member && (l.type?.includes('연차') || l.type?.includes('반차'))));
+            // 수정된 리스트를 통째로 다시 밀어넣음
+            currentAll.push(...memberLeaves);
+
+            await setDoc(docRef, { onLeaveMembers: currentAll }, { merge: true });
+            
+            if(State.persistentLeaveSchedule) {
+                State.persistentLeaveSchedule.onLeaveMembers = currentAll;
+            }
+
+            showToast('연차 정보가 저장되었습니다.');
+            
+            // 데이터 재정렬 후 렌더링
+            memberLeaves.sort((a,b) => {
+                const dA = a.startDate || a.date || (a.startTime ? a.startTime.substring(0,10) : '');
+                const dB = b.startDate || b.date || (b.startTime ? b.startTime.substring(0,10) : '');
+                return dB.localeCompare(dA); 
+            });
+            renderList();
+            
+            document.getElementById('lm-cancel-edit-btn').click(); // 폼 초기화
+            renderLeaveSheet(); // 대장화면 새로고침
+        } catch(e) {
+            console.error(e);
+            alert('저장 중 오류가 발생했습니다.');
+        }
+    };
 }
 
 async function fetchAllMembers() {
@@ -198,11 +445,9 @@ async function fetchLeaveSettings() {
     }
 }
 
-// 🌟 [최종 복구 로직] ID가 없는 옛날 데이터도 놓치지 않고 전부 긁어옵니다.
 async function fetchLeaveUsage(year) {
     let allLeavesMap = new Map();
     
-    // [수정 포인트 1] 과거 기록을 위해 startDate 뿐만 아니라 date, startTime도 확인하여 키를 생성합니다.
     const generateKey = (l) => {
         const targetDate = l.startDate || l.date || (l.startTime ? l.startTime.substring(0, 10) : 'nodate');
         return l.id ? l.id : `${l.member}_${l.type}_${targetDate}_${l.endDate||''}`;
@@ -214,14 +459,14 @@ async function fetchLeaveUsage(year) {
         const snap = await getDoc(docRef);
         if (snap.exists() && snap.data().onLeaveMembers) {
             snap.data().onLeaveMembers.forEach(l => {
-                allLeavesMap.set(generateKey(l), l); // ID 검사 없이 무조건 저장
+                allLeavesMap.set(generateKey(l), l); 
             });
         }
     } catch (e) {
         console.error("Leave schedule fetch error", e);
     }
 
-    // 2. 과거 일일 업무 기록에서 긁어오기 (이중 백업)
+    // 2. 과거 일일 업무 기록에서 긁어오기
     if (State.allHistoryData && Array.isArray(State.allHistoryData)) {
         State.allHistoryData.forEach(day => {
             if (day.onLeaveMembers && Array.isArray(day.onLeaveMembers)) {
@@ -232,7 +477,7 @@ async function fetchLeaveUsage(year) {
         });
     }
 
-    // 3. 현재 메모리(오늘 작성 중인 내역) 반영
+    // 3. 현재 메모리 반영
     if (State.persistentLeaveSchedule && Array.isArray(State.persistentLeaveSchedule.onLeaveMembers)) {
         State.persistentLeaveSchedule.onLeaveMembers.forEach(l => {
             allLeavesMap.set(generateKey(l), l);
@@ -252,18 +497,14 @@ async function fetchLeaveUsage(year) {
 
             let isMatch = false;
 
-            // [수정 포인트 2] 과거 데이터의 다양한 날짜 포맷을 안전하게 가져옵니다.
             const recordDate = record.startDate || record.date || (record.startTime ? record.startTime.substring(0, 10) : '');
 
-            // [조건 1] 드롭다운에서 선택한 연도와 일치하면 무조건 노출
             if (recordDate && recordDate.startsWith(String(year))) {
                 isMatch = true;
             }
             
-            // [조건 2] 드롭다운 연도와 다르더라도, 개별 설정된 기간(resetDate~expireDate) 안에 포함되는 연차라면 노출
             if (!isMatch && resetDate && expireDate) {
                 if (recordDate >= resetDate && recordDate <= expireDate) {
-                    // 단, 그 지정 기간이 현재 드롭다운의 연도와 관련이 있을 때만 표시
                     if (resetDate.startsWith(String(year)) || expireDate.startsWith(String(year))) {
                         isMatch = true;
                     }
@@ -279,27 +520,26 @@ async function fetchLeaveUsage(year) {
 
             if (record.type.includes('반차')) {
                 days = 0.5;
-                label = `${recordDate.substring(5)} (반)`; // recordDate로 변경
+                label = `${recordDate.substring(5)} (반)`;
             } else {
                 if (record.endDate && record.endDate !== recordDate) {
-                    const start = new Date(recordDate); // recordDate로 변경
+                    const start = new Date(recordDate); 
                     const end = new Date(record.endDate);
                     
-                    // 🚀 연속 연차 시, 주말(토,일) 자동 제외 계산 로직 추가
                     let diffDays = 0;
                     for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
                         const dayOfWeek = dt.getDay();
-                        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 0:일, 6:토 제외
+                        if (dayOfWeek !== 0 && dayOfWeek !== 6) { 
                             diffDays++; 
                         }
                     }
-                    if (diffDays === 0) diffDays = 1; // 최소 방어 로직
+                    if (diffDays === 0) diffDays = 1; 
                     
                     days = diffDays;
-                    label = `${recordDate.substring(5)}~${record.endDate.substring(5)}`; // recordDate로 변경
+                    label = `${recordDate.substring(5)}~${record.endDate.substring(5)}`; 
                 } else {
-                    days = 1; // 하루 연차
-                    label = recordDate.substring(5); // recordDate로 변경
+                    days = 1; 
+                    label = recordDate.substring(5); 
                 }
             }
 
@@ -308,7 +548,6 @@ async function fetchLeaveUsage(year) {
         }
     });
 
-    // 날짜순 정렬
     Object.keys(usage).forEach(key => {
         usage[key].dates.sort();
     });
@@ -320,7 +559,6 @@ async function saveLeaveSettings() {
     const inputs = document.querySelectorAll('.total-leave-input');
     let hasChange = false;
     
-    // 깊은 복사로 기존 설정 보호
     const updates = JSON.parse(JSON.stringify(fullLeaveConfig));
 
     inputs.forEach(input => {
