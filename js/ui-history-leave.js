@@ -182,7 +182,6 @@ export async function renderLeaveSheet() {
     }
 }
 
-// 💡 [신규] 연차 관리 (등록/수정/삭제) 팝업 모달 띄우기
 async function openLeaveManager(member) {
     let allLeaves = [];
     const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
@@ -445,6 +444,11 @@ async function fetchLeaveSettings() {
     }
 }
 
+/**
+ * ✅ [수정됨] 연차 사용 내역 집계 로직
+ * - 연도 표시(YY.MM.DD) 추가
+ * - 실제 날짜 기준 정렬 로직 강화
+ */
 async function fetchLeaveUsage(year) {
     let allLeavesMap = new Map();
     
@@ -518,9 +522,13 @@ async function fetchLeaveUsage(year) {
             let days = 0;
             let label = "";
 
+            // ✅ 연도 포함 표시 형식 (YYYY-MM-DD -> YY.MM.DD)
+            const displayDate = recordDate.substring(2).replace(/-/g, '.');
+            const displayEndDate = record.endDate ? record.endDate.substring(2).replace(/-/g, '.') : '';
+
             if (record.type.includes('반차')) {
                 days = 0.5;
-                label = `${recordDate.substring(5)} (반)`;
+                label = `${displayDate}(반)`;
             } else {
                 if (record.endDate && record.endDate !== recordDate) {
                     const start = new Date(recordDate); 
@@ -536,20 +544,25 @@ async function fetchLeaveUsage(year) {
                     if (diffDays === 0) diffDays = 1; 
                     
                     days = diffDays;
-                    label = `${recordDate.substring(5)}~${record.endDate.substring(5)}`; 
+                    label = `${displayDate}~${displayEndDate}`; 
                 } else {
                     days = 1; 
-                    label = recordDate.substring(5); 
+                    label = displayDate; 
                 }
             }
 
             usage[name].count += days;
-            usage[name].dates.push(label);
+            // ✅ 정렬을 위해 원본 날짜를 객체 형태로 저장
+            usage[name].dates.push({ fullDate: recordDate, label: label });
         }
     });
 
+    // ✅ 결과 정렬 및 라벨 추출
     Object.keys(usage).forEach(key => {
-        usage[key].dates.sort();
+        // 원본 날짜(fullDate) 기준 오름차순 정렬
+        usage[key].dates.sort((a, b) => a.fullDate.localeCompare(b.fullDate));
+        // 표시용 라벨 문자열로 변환
+        usage[key].dates = usage[key].dates.map(item => item.label);
     });
 
     return usage;
