@@ -41,7 +41,6 @@ function setupSortListeners() {
         th.addEventListener('click', () => {
             const key = th.dataset.sortKey;
             
-            // 같은 키를 누르면 정렬 방향 토글, 다른 키면 오름차순 초기화
             if (sortState.key === key) {
                 sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
             } else {
@@ -50,7 +49,7 @@ function setupSortListeners() {
             }
             
             updateSortIcons();
-            renderLeaveSheet(); // 재렌더링
+            renderLeaveSheet(); 
         });
     });
 }
@@ -95,17 +94,9 @@ export async function renderLeaveSheet() {
             let periodText = '-';
             let periodClass = 'text-gray-400';
 
-            // 🌟 [수정됨] 화면에 표시되는 기간(텍스트)도 조회 중인 연도(currentYear)에 맞춰 자동 변경
+            // 🌟 [복구됨] 시스템이 임의로 연도를 바꾸지 않고, DB에 저장된 지정 날짜를 그대로 보여줍니다.
             if (resetDate && expireDate) {
-                const rMD = resetDate.slice(-5);
-                const eMD = expireDate.slice(-5);
-                let y1 = currentYear;
-                let y2 = currentYear;
-                
-                // 해를 넘기는 설정인 경우 (예: 05-01 ~ 04-30)
-                if (rMD > eMD) y2 = currentYear + 1;
-                
-                periodText = `${y1}-${rMD} ~ ${y2}-${eMD}`;
+                periodText = `${resetDate} ~ ${expireDate}`;
                 periodClass = 'text-gray-600 font-mono text-xs';
             }
 
@@ -234,20 +225,9 @@ async function fetchLeaveUsage(year) {
 
             let isMatch = false;
 
-            // 🌟 [수정됨] 과거 연도로 하드코딩된 설정을 무시하고, '선택된 연도(year)' 기준으로 날짜를 동적 매칭
+            // 🌟 [복구됨] 명시적 기간이 있다면 선택된 연도와 무관하게 무조건 해당 설정 기간의 데이터만 정확히 집계합니다.
             if (resetDate && expireDate) {
-                const rMD = resetDate.slice(-5); // "MM-DD"
-                const eMD = expireDate.slice(-5);
-                
-                let targetReset = `${year}-${rMD}`;
-                let targetExpire = `${year}-${eMD}`;
-
-                // 해를 넘기는 설정 (예: 05-01 ~ 04-30)인 경우 연도 보정
-                if (rMD > eMD) {
-                    targetExpire = `${year + 1}-${eMD}`;
-                }
-
-                if (record.startDate >= targetReset && record.startDate <= targetExpire) {
+                if (record.startDate >= resetDate && record.startDate <= expireDate) {
                     isMatch = true;
                 }
             } else {
