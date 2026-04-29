@@ -5,8 +5,9 @@ import * as DOM from './dom-elements.js';
 import { appState, appConfig, allHistoryData } from './state.js';
 import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js';
 import { runAdvancedSimulation } from './analysis-logic.js'; 
-import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js';
-import { fetchAllHistoryData } from './history-data-manager.js'; // ✅ 데이터 로딩을 위해 추가
+// 🌟 [수정] 2개월치 평균을 내는 calculateSimulationThroughputs 함수로 가져옵니다.
+import { calculateAverageStaffing, calculateSimulationThroughputs } from './ui-history-reports-logic.js';
+import { fetchAllHistoryData } from './history-data-manager.js';
 
 const CUSTOM_TASK_ORDER = ['채우기', '국내배송', '해외배송', '상.하차', '중국제작', '직진배송', '티니'];
 const DEFAULT_CONCURRENT_TASKS = ['해외배송', '상.하차'];
@@ -42,7 +43,6 @@ const updateFirstRowCheckbox = () => {
     });
 };
 
-// ✅ [수정] manualStartTime 파라미터 추가
 const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false, standardSpeed = 0, manualStartTime = '') => {
     const row = document.createElement('tr');
     row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
@@ -294,11 +294,9 @@ export function setupSimulationModalListeners() {
     const simStartTimeInput = document.getElementById('sim-start-time-input');
     const simEndTimeInput = document.getElementById('sim-end-time-input');
 
-    // ✅ [수정] async 추가 및 이력 데이터 강제 로딩 로직 추가
     const openSimulationModalLogic = async () => {
         if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
         
-        // 🌟 [추가] 이력 데이터가 없는 경우를 대비하여 강제 패치
         if (!allHistoryData || allHistoryData.length === 0) {
             await fetchAllHistoryData();
         }
@@ -313,7 +311,9 @@ export function setupSimulationModalListeners() {
             simTaskTableBody.innerHTML = '';
 
             const avgStaffMap = calculateAverageStaffing(allHistoryData);
-            const standards = calculateStandardThroughputs(allHistoryData);
+            
+            // 🌟 [적용됨] 2개월간의 평균 속도를 계산합니다.
+            const standards = calculateSimulationThroughputs(allHistoryData);
             
             const quantityTaskSet = new Set(appConfig.quantityTaskTypes || []);
             const quantities = appState.taskQuantities || {};
@@ -330,7 +330,6 @@ export function setupSimulationModalListeners() {
                     const qty = Number(quantities[taskName]) || 0;
                     let avgStaff = avgStaffMap[taskName] || 0;
                     
-                    // 🌟 [개선] 이력이 없을 경우 현재 인원 또는 최소 1명으로 보정
                     if (avgStaff <= 0) {
                         avgStaff = currentActiveCount > 0 ? 1 : 0;
                     } else if (currentActiveCount > 0) {
@@ -341,7 +340,6 @@ export function setupSimulationModalListeners() {
                     const isConcurrent = DEFAULT_CONCURRENT_TASKS.includes(taskName);
                     const speed = standards[taskName] || 0;
                     
-                    // 🌟 [추가] 첫 번째 업무는 전체 시작 시각을 기본으로 세팅
                     const rowStartTime = idx === 0 ? commonStartTime : '';
                     
                     renderSimulationTaskRow(simTaskTableBody, taskName, qty, avgStaff, isConcurrent, speed, rowStartTime);
@@ -430,8 +428,8 @@ export function setupSimulationModalListeners() {
                 const startInput = row.querySelector('.sim-row-manual-start');
 
                 if (taskName) {
-                     // 1. 속도 자동 입력
-                     const standards = calculateStandardThroughputs(allHistoryData);
+                     // 1. 속도 자동 입력 (2개월 평균 적용)
+                     const standards = calculateSimulationThroughputs(allHistoryData);
                      const speed = standards[taskName] || 0;
                      if (speedInput) speedInput.value = speed > 0 ? speed.toFixed(2) : '';
                      
@@ -524,7 +522,7 @@ export function setupSimulationModalListeners() {
                         task, 
                         targetQty: qty, 
                         manualSpeed, 
-                        manualStart: manualStart || null, // ✅ 시작 지정 값 전달
+                        manualStart: manualStart || null,
                         isConcurrent: (index > 0 && isConcurrent) 
                     });
                 }

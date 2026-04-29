@@ -763,3 +763,67 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
         commentHtml: comments.join('<br>')
     };
 };
+
+// ✅ [추가] 시뮬레이션용: 어제 기준 지난 2개월간의 평균 속도 산출
+export const calculateSimulationThroughputs = (allHistoryData) => {
+    const todayKey = getTodayDateString();
+    const todayDate = new Date(todayKey + 'T00:00:00');
+    
+    // 어제 날짜 구하기
+    const yesterdayDate = new Date(todayDate);
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterdayKey = yesterdayDate.toISOString().slice(0, 10);
+    
+    // 2개월 전 날짜 구하기
+    const twoMonthsAgoDate = new Date(yesterdayDate);
+    twoMonthsAgoDate.setMonth(twoMonthsAgoDate.getMonth() - 2);
+    const twoMonthsAgoKey = twoMonthsAgoDate.toISOString().slice(0, 10);
+
+    // 어제부터 과거 2개월치 데이터만 필터링
+    const pastTwoMonthsData = allHistoryData.filter(d => d.id >= twoMonthsAgoKey && d.id <= yesterdayKey);
+
+    const taskDailySpeeds = {};
+
+    pastTwoMonthsData.forEach(day => {
+        const records = getAsArray(day.workRecords);
+        const quantities = day.taskQuantities || {};
+        const dailyTaskStats = {};
+
+        records.forEach(r => {
+            const duration = Number(r.duration) || 0;
+            if (r.task && duration > 0) {
+                if (!dailyTaskStats[r.task]) dailyTaskStats[r.task] = { duration: 0, quantity: 0 };
+                dailyTaskStats[r.task].duration += duration;
+            }
+        });
+
+        Object.entries(quantities).forEach(([task, qty]) => {
+            const q = Number(qty) || 0;
+            if (q > 0) {
+                if (!dailyTaskStats[task]) dailyTaskStats[task] = { duration: 0, quantity: 0 };
+                dailyTaskStats[task].quantity += q;
+            }
+        });
+
+        Object.entries(dailyTaskStats).forEach(([task, stats]) => {
+            if (stats.duration >= 10 && stats.quantity > 0) { // 10분 이상만 유효 데이터로 취급
+                const speed = stats.quantity / stats.duration;
+                if (!taskDailySpeeds[task]) taskDailySpeeds[task] = [];
+                taskDailySpeeds[task].push(speed);
+            }
+        });
+    });
+
+    const standards = {};
+    Object.keys(taskDailySpeeds).forEach(task => {
+        const speeds = taskDailySpeeds[task];
+        if (speeds.length > 0) {
+            // 기간 내 전체 속도의 평균
+            const avg = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+            standards[task] = avg;
+        } else {
+            standards[task] = 0;
+        }
+    });
+    return standards;
+};
