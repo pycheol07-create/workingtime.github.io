@@ -23,7 +23,6 @@ let recommendOffset = 0;
 export async function initWeekendCalendar() {
     await loadWeekendRequests(currentYear, currentMonth);
 
-    // 💡 선택 날짜 일괄 처리 이벤트 바인딩
     const selectAllCb = document.getElementById('select-all-dates-checkbox');
     if (selectAllCb) {
         selectAllCb.addEventListener('change', (e) => {
@@ -212,13 +211,11 @@ function renderWeekendList(year, month) {
     let hasWeekend = false;
     const isAdmin = (State.appState.currentUserRole === 'admin');
 
-    // 💡 관리자용 일괄 처리 바 노출 여부
     const bulkBar = document.getElementById('admin-bulk-action-bar');
     if (bulkBar) {
         if (isAdmin) {
             bulkBar.classList.remove('hidden');
             bulkBar.classList.add('flex');
-            // 전체 선택 초기화
             const selAllCb = document.getElementById('select-all-dates-checkbox');
             if (selAllCb) selAllCb.checked = false;
         } else {
@@ -243,35 +240,37 @@ function renderWeekendList(year, month) {
             let dayColor = dayOfWeek === 0 ? 'text-red-600' : 'text-blue-600';
             let bgColor = dayOfWeek === 0 ? 'bg-red-50' : 'bg-blue-50';
 
-            // 💡 신규 레이아웃: Row 컨테이너
             const rowItem = document.createElement('div');
             rowItem.className = 'flex flex-row items-stretch gap-2 p-1.5 rounded-lg border shadow-sm bg-white hover:shadow-md transition-all mb-2';
             rowItem.id = `row-${dateStr}`;
 
-            // 💡 1. 좌측 영역 (날짜 및 관리자 설정/체크박스)
-            const leftArea = document.createElement('div');
-            leftArea.className = `relative w-[72px] md:w-24 flex-shrink-0 flex flex-col items-center justify-center rounded-md border ${bgColor} ${dayColor} overflow-hidden select-none`;
-            
-            let adminHtml = '';
+            // 💡 1. 체크박스 영역 (관리자 전용, 가장 왼쪽으로 분리)
             if (isAdmin) {
-                leftArea.classList.add('cursor-pointer', 'hover:opacity-80', 'hover:ring-2', 'hover:ring-indigo-300', 'transition-all');
-                adminHtml = `
-                    <div class="absolute top-[5px] left-[5px] z-10" onclick="event.stopPropagation()">
-                        <input type="checkbox" class="date-select-checkbox w-3.5 h-3.5 md:w-4 md:h-4 cursor-pointer text-blue-600 border-gray-300 rounded" data-date="${dateStr}">
-                    </div>
-                `;
-                leftArea.onclick = () => openAdminDatePopup(dateStr);
+                const chkWrapper = document.createElement('div');
+                chkWrapper.className = 'flex items-center justify-center pl-2 pr-1';
+                chkWrapper.onclick = (e) => e.stopPropagation();
+                chkWrapper.innerHTML = `<input type="checkbox" class="date-select-checkbox w-4 h-4 cursor-pointer text-blue-600 border-gray-300 rounded" data-date="${dateStr}">`;
+                rowItem.appendChild(chkWrapper);
+            }
+
+            // 💡 2. 날짜 영역 (클릭 시 팝업 열림, 24.토 형식)
+            const dateArea = document.createElement('div');
+            dateArea.className = `w-[64px] md:w-[76px] flex-shrink-0 flex flex-col items-center justify-center rounded-md border ${bgColor} ${dayColor} overflow-hidden select-none`;
+            
+            if (isAdmin) {
+                dateArea.classList.add('cursor-pointer', 'hover:opacity-80', 'hover:ring-2', 'hover:ring-indigo-300', 'transition-all');
+                dateArea.title = "설정 변경";
+                dateArea.onclick = () => openAdminDatePopup(dateStr);
             }
             
-            leftArea.innerHTML = `
-                ${adminHtml}
-                <span class="text-xl md:text-2xl font-black tracking-tight mt-1 md:mt-2">${d}.${dayName}</span>
+            dateArea.innerHTML = `
+                <span class="text-[17px] md:text-xl font-black tracking-tight mt-1 md:mt-2">${d}.${dayName}</span>
                 ${capacity ? `<span class="mt-1 mb-1 md:mb-2 text-[9px] md:text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">정원 ${capacity}</span>` : '<span class="h-1 md:h-2"></span>'}
             `;
 
-            // 💡 2. 우측 영역 (배지 및 신청 버튼)
+            // 💡 3. 우측 영역 (배지 및 신청 버튼)
             const rightArea = document.createElement('div');
-            rightArea.className = 'flex-1 flex flex-col justify-center rounded-md border p-2 cursor-pointer transition-colors';
+            rightArea.className = 'flex-1 flex flex-col justify-center rounded-md border p-2 cursor-pointer transition-colors relative';
             
             if (isBlocked) {
                 rightArea.classList.add('bg-gray-50', 'border-gray-300', 'opacity-70', 'cursor-not-allowed');
@@ -291,18 +290,18 @@ function renderWeekendList(year, month) {
             `;
 
             const badgesArea = document.createElement('div');
-            badgesArea.className = "flex flex-wrap gap-1.5 items-center";
+            // 💡 이름 배지를 오른쪽으로 정렬 (justify-end)
+            badgesArea.className = "flex flex-wrap gap-1.5 items-center justify-end";
             badgesArea.id = `weekend-list-${dateStr}`; 
             badgesArea.style.minHeight = "28px";
 
             rightArea.appendChild(rightHeader);
             rightArea.appendChild(badgesArea);
 
-            rowItem.appendChild(leftArea);
+            rowItem.appendChild(dateArea);
             rowItem.appendChild(rightArea);
             listView.appendChild(rowItem);
 
-            // 배지 추가
             if (requestsByDate[dateStr]) {
                 const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
                 
@@ -497,7 +496,6 @@ async function processAdminAction(docId, action, data) {
     }
 }
 
-// 💡 신규: 체크박스로 선택된 날짜들에 대한 일괄 처리
 export async function processSelectedDatesBulkAction(action) {
     const checkboxes = document.querySelectorAll('.date-select-checkbox:checked');
     if (checkboxes.length === 0) {
@@ -540,7 +538,6 @@ export async function processSelectedDatesBulkAction(action) {
         }
         showToast(`선택 날짜의 총 ${count}건 일괄 ${actionText} 완료 및 알림 전송됨.`);
         
-        // 처리 완료 후 체크 해제
         document.getElementById('select-all-dates-checkbox').checked = false;
         checkboxes.forEach(cb => cb.checked = false);
 
