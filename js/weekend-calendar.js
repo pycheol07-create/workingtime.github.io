@@ -20,7 +20,7 @@ let currentYearlyStats = new Map();
 let currentMonthStats = new Map();
 let smartCalcCache = null; 
 
-// 💡 추천 인원 순회(사이클)를 위한 오프셋 변수
+// 추천 인원 순회(사이클)를 위한 오프셋 변수
 let recommendOffset = 0; 
 
 export async function initWeekendCalendar() {
@@ -102,7 +102,7 @@ async function loadWeekendRequests(year, month) {
                             const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
                             if (data.status === 'confirmed') {
                                 stat.confirmed++;
-                            } else {
+                            } else if (data.status === 'requested') { // 💡 취소(canceled) 상태는 통계에 카운트하지 않음
                                 stat.requested++;
                             }
                             memberStats.set(data.member, stat);
@@ -114,7 +114,6 @@ async function loadWeekendRequests(year, month) {
             currentYearlyStats = new Map(yearlyStatsMap);
             currentMonthStats = new Map(memberStats);
 
-            // 사이드바 렌더링 호출
             renderWeekendStats(memberStats, yearlyStatsMap);
             renderWeekendList(year, month);
 
@@ -133,8 +132,6 @@ function renderWeekendStats(memberStats, yearlyStatsMap) {
     const list = document.getElementById('weekend-stats-list');
     
     if (!sidebar || !list) return;
-
-    // 💡 동적 헤더 및 필터/정렬 관련 코드 모두 제거됨
 
     const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
     
@@ -155,7 +152,6 @@ function renderWeekendStats(memberStats, yearlyStatsMap) {
 
     list.innerHTML = '';
 
-    // 💡 기본 정렬 로직 복구 (당월 신청 총합 순 -> 연간 누적 순 -> 이름 순)
     filteredMembers.sort((a, b) => {
         const totalA = a[1].confirmed + a[1].requested;
         const totalB = b[1].confirmed + b[1].requested;
@@ -278,10 +274,13 @@ function renderWeekendList(year, month) {
             listView.appendChild(rowItem);
 
             if (requestsByDate[dateStr]) {
-                // 관리자급은 무조건 오른쪽(끝)으로 가도록 정렬
                 const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
                 
                 requestsByDate[dateStr].sort((a, b) => {
+                    // 💡 취소 상태의 뱃지는 무조건 제일 오른쪽(끝)으로 정렬
+                    if (a.status === 'canceled' && b.status !== 'canceled') return 1;
+                    if (a.status !== 'canceled' && b.status === 'canceled') return -1;
+                    
                     const aIsAdmin = adminMembers.includes(a.member);
                     const bIsAdmin = adminMembers.includes(b.member);
                     
@@ -319,13 +318,23 @@ function addBadgeToCalendar(dateStr, data, isAdmin) {
     if (!container) return;
 
     const badge = document.createElement('div');
-    const colorClass = data.status === 'confirmed' 
-        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-        : 'bg-white text-orange-600 border-orange-300 border shadow-sm'; 
+    
+    // 💡 상태별 디자인 (취소 상태 추가)
+    let colorClass = '';
+    let icon = '';
+
+    if (data.status === 'confirmed') {
+        colorClass = 'bg-blue-600 text-white border-blue-600 shadow-sm';
+        icon = '👌';
+    } else if (data.status === 'canceled') {
+        colorClass = 'bg-yellow-100 text-yellow-700 border-yellow-400 shadow-sm opacity-80 line-through';
+        icon = '❌';
+    } else {
+        colorClass = 'bg-white text-orange-600 border-orange-300 border shadow-sm';
+        icon = '⏳';
+    }
     
     badge.className = `px-3 py-1 rounded-full text-sm font-medium border flex items-center gap-1 transition-transform hover:scale-105 ${colorClass}`;
-    
-    const icon = data.status === 'confirmed' ? '👌' : '⏳';
     badge.innerHTML = `<span class="text-xs">${icon}</span> ${data.member}`;
 
     if (isAdmin) {
@@ -354,7 +363,7 @@ async function handleDateClick(dateStr, isBlocked) {
     }
 
     if (myRequestsMap.has(dateStr)) {
-        if (confirm(`${dateStr} 근무 신청을 취소하시겠습니까?`)) {
+        if (confirm(`${dateStr} 근무 신청 내역을 완전히 삭제하시겠습니까?`)) {
             const docId = myRequestsMap.get(dateStr);
             await deleteRequest(docId);
         }
@@ -394,10 +403,10 @@ async function deleteRequest(docId) {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
         await deleteDoc(docRef);
-        showToast("취소되었습니다.");
+        showToast("신청 기록이 완전히 삭제되었습니다.");
     } catch (e) {
         console.error("Error deleting request:", e);
-        showToast("취소 실패", true);
+        showToast("삭제 실패", true);
     }
 }
 
@@ -406,8 +415,18 @@ function handleAdminBadgeClick(docId, data) {
     document.getElementById('admin-popup-member').textContent = data.member;
     
     const statusSpan = document.getElementById('admin-popup-status');
-    statusSpan.textContent = data.status === 'confirmed' ? '승인됨' : '대기 중';
-    statusSpan.className = data.status === 'confirmed' ? 'font-bold text-blue-600' : 'font-bold text-orange-500';
+    
+    // 💡 관리자 팝업에도 취소 상태 반영
+    if (data.status === 'confirmed') {
+        statusSpan.textContent = '승인됨';
+        statusSpan.className = 'font-bold text-blue-600';
+    } else if (data.status === 'canceled') {
+        statusSpan.textContent = '취소됨';
+        statusSpan.className = 'font-bold text-yellow-600';
+    } else {
+        statusSpan.textContent = '대기 중';
+        statusSpan.className = 'font-bold text-orange-500';
+    }
 
     document.getElementById('admin-confirm-btn').onclick = () => processAdminAction(docId, 'confirmed');
     document.getElementById('admin-reject-btn').onclick = () => processAdminAction(docId, 'demote');
@@ -470,7 +489,7 @@ function populateAdminAddMemberSelect(dateStr) {
 
 function openAdminDatePopup(dateStr) {
     currentManageDateStr = dateStr;
-    recommendOffset = 0; // 💡 팝업 열 때 추천 사이클 순서 초기화
+    recommendOffset = 0; 
     
     const popup = document.getElementById('weekend-admin-date-popup');
     document.getElementById('admin-date-popup-title').textContent = dateStr;
@@ -510,7 +529,10 @@ export function calculateSmartAllocation() {
     }
 
     const reqs = requestsByDate[currentManageDateStr] || [];
-    const applicants = reqs.map(r => r.member);
+    
+    // 💡 이미 취소된 사람은 신청자 모수에서 제외시킵니다
+    const activeReqs = reqs.filter(r => r.status !== 'canceled');
+    const applicants = activeReqs.map(r => r.member);
     
     let allMembers = [];
     if (State.appConfig && State.appConfig.teamGroups) {
@@ -630,10 +652,11 @@ function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, appCount, 
     html += `</div></div>`;
 
     if (toDecline.length > 0) {
-        html += `<div class="pt-1"><span class="text-red-600 font-bold">➖ 정원 초과로 대기 전환 (${toDecline.length}명)</span><br><span class="text-gray-400 text-[10px]">당월 신청 횟수가 많아 후순위로 배정되었습니다.</span><div class="mt-2 flex flex-wrap gap-1.5">`;
+        // 💡 "자동 취소" 텍스트와 함께 노란색 상태로 표시된다고 안내
+        html += `<div class="pt-1"><span class="text-red-600 font-bold">➖ 정원 초과로 자동 취소 (${toDecline.length}명)</span><br><span class="text-gray-400 text-[10px]">당월 신청 횟수가 많아 배정에서 제외되며, 취소(노란색) 상태로 변경됩니다.</span><div class="mt-2 flex flex-wrap gap-1.5">`;
         toDecline.forEach(m => {
             const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
-            html += `<span class="bg-red-50 text-red-500 border border-red-100 px-1.5 py-1 rounded-md text-[11px] line-through shadow-sm">${m} <span class="text-[10px] opacity-70">(당월 ${ms.confirmed+ms.requested}회)</span></span>`;
+            html += `<span class="bg-yellow-100 text-yellow-700 border border-yellow-400 px-1.5 py-1 rounded-md text-[11px] line-through shadow-sm">❌ ${m} <span class="text-[10px] opacity-70">(당월 ${ms.confirmed+ms.requested}회)</span></span>`;
         });
         html += `</div></div>`;
     }
@@ -664,27 +687,44 @@ export async function applySmartAllocation() {
     }
 
     try {
+        // 1. 탈락자를 삭제하지 않고 'canceled'(취소) 상태로 변경 및 알림 전송
         for (const m of toDecline) {
             const req = reqs.find(r => r.member === m);
-            if (req && req.status === 'confirmed') {
-                await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id), { status: 'requested', confirmedAt: null });
+            if (req && req.status !== 'canceled') { // 이미 취소된 상태가 아니라면
+                await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id), { 
+                    status: 'canceled', 
+                    confirmedAt: null 
+                });
+                
+                // 알림 생성
+                const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
+                await setDoc(notiRef, {
+                    targetMember: m,
+                    type: 'weekend_rejected',
+                    message: `${currentManageDateStr} 주말 근무 신청이 정원 초과로 인해 취소(반려)되었습니다.`,
+                    createdAt: new Date().toISOString(),
+                    isRead: false
+                });
             }
         }
+        
+        // 2. 확정자 승인 처리
         for (const m of toConfirm) {
             const req = reqs.find(r => r.member === m);
             if (req && req.status !== 'confirmed') {
                 await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id), { status: 'confirmed', confirmedAt: new Date().toISOString() });
             }
         }
+        
+        // 3. 신규 인원 추가
         for (const m of toAdd) {
             await createRequest(currentManageDateStr, m, 'confirmed');
         }
 
-        showToast("스마트 배분이 성공적으로 적용되었습니다.");
+        showToast("스마트 배분이 성공적으로 적용되었으며, 탈락자에게 알림이 발송되었습니다.");
         document.getElementById('smart-calc-result-area').classList.add('hidden');
         smartCalcCache = null;
         
-        // 적용을 완료하면 추천 오프셋을 초기화
         recommendOffset = 0; 
     } catch (e) {
         console.error("Smart Allocation Error:", e);
@@ -736,7 +776,6 @@ export async function adminAddMemberToDate() {
     await createRequest(currentManageDateStr, memberName, 'confirmed');
     showToast(`${memberName}님 추가 완료`);
     
-    // 추가 후 셀렉트 박스 갱신
     populateAdminAddMemberSelect(currentManageDateStr);
 }
 
