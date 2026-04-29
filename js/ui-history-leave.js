@@ -9,7 +9,7 @@ let currentYear = new Date().getFullYear();
 let leaveSettings = {}; 
 let fullLeaveConfig = {}; 
 
-// [신규] 정렬 상태 관리 (key: 정렬할 필드명, dir: 'asc' | 'desc')
+// 정렬 상태 관리 (key: 정렬할 필드명, dir: 'asc' | 'desc')
 let sortState = { key: null, dir: 'asc' }; 
 
 export async function initLeaveManagement() {
@@ -31,9 +31,7 @@ export async function initLeaveManagement() {
     const refreshBtn = document.getElementById('refresh-leave-sheet-btn');
     if (refreshBtn) refreshBtn.onclick = renderLeaveSheet;
 
-    // [신규] 테이블 헤더 정렬 리스너 연결
     setupSortListeners();
-
     await renderLeaveSheet();
 }
 
@@ -52,7 +50,7 @@ function setupSortListeners() {
             }
             
             updateSortIcons();
-            renderLeaveSheet(); // 재렌더링 (데이터 페칭 없이 정렬만 다시 함)
+            renderLeaveSheet(); // 재렌더링
         });
     });
 }
@@ -79,22 +77,15 @@ export async function renderLeaveSheet() {
     const tbody = document.getElementById('leave-sheet-body');
     if (!tbody) return;
 
-    // 첫 로딩 시에만 로딩 표시 (정렬 시에는 깜빡임 방지를 위해 생략 가능하나 일단 유지)
     if (!leaveSettings || Object.keys(leaveSettings).length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 동기화 중...</td></tr>';
     }
 
     try {
-        // 1. 직원 목록 (기본 정렬: 관리자 페이지 설정 순서)
         const members = await fetchAllMembers();
-        
-        // 2. 관리자 설정 로드 (총 연차 + 적용 기간)
         await fetchLeaveSettings();
-
-        // 3. 사용 내역 집계
         const usageData = await fetchLeaveUsage(currentYear);
 
-        // 4. 데이터 객체 배열로 변환 (정렬 및 렌더링을 위해)
         let rowData = members.map(member => {
             const config = fullLeaveConfig[member] || {};
             const total = config.totalLeave !== undefined ? Number(config.totalLeave) : 15;
@@ -104,8 +95,17 @@ export async function renderLeaveSheet() {
             let periodText = '-';
             let periodClass = 'text-gray-400';
 
+            // 🌟 [수정됨] 화면에 표시되는 기간(텍스트)도 조회 중인 연도(currentYear)에 맞춰 자동 변경
             if (resetDate && expireDate) {
-                periodText = `${resetDate} ~ ${expireDate}`;
+                const rMD = resetDate.slice(-5);
+                const eMD = expireDate.slice(-5);
+                let y1 = currentYear;
+                let y2 = currentYear;
+                
+                // 해를 넘기는 설정인 경우 (예: 05-01 ~ 04-30)
+                if (rMD > eMD) y2 = currentYear + 1;
+                
+                periodText = `${y1}-${rMD} ~ ${y2}-${eMD}`;
                 periodClass = 'text-gray-600 font-mono text-xs';
             }
 
@@ -113,30 +113,19 @@ export async function renderLeaveSheet() {
             const remaining = total - used;
             const history = usageData[member] ? usageData[member].dates.join(', ') : '-';
 
-            return {
-                member,
-                total,
-                periodText,
-                used,
-                remaining,
-                history,
-                periodClass,
-                config // 원본 설정 저장용
-            };
+            return { member, total, periodText, used, remaining, history, periodClass, config };
         });
 
-        // 5. 정렬 적용 (사용자가 헤더를 클릭했을 때만)
+        // 정렬 적용
         if (sortState.key) {
             rowData.sort((a, b) => {
                 let valA = a[sortState.key];
                 let valB = b[sortState.key];
 
-                // 숫자형 데이터 처리
                 if (typeof valA === 'number' && typeof valB === 'number') {
                     return sortState.dir === 'asc' ? valA - valB : valB - valA;
                 }
                 
-                // 문자열 처리
                 valA = String(valA).toLowerCase();
                 valB = String(valB).toLowerCase();
                 if (valA < valB) return sortState.dir === 'asc' ? -1 : 1;
@@ -145,7 +134,6 @@ export async function renderLeaveSheet() {
             });
         }
 
-        // 6. 테이블 그리기
         tbody.innerHTML = '';
         
         if (rowData.length === 0) {
@@ -186,11 +174,9 @@ export async function renderLeaveSheet() {
     }
 }
 
-// [수정] 직원 목록 가져오기 (가나다 정렬 제거 -> 기본 설정 순서 유지)
 async function fetchAllMembers() {
     const memberSet = new Set();
     
-    // 1. 팀 그룹 순서대로 멤버 추가 (관리자 페이지 순서 반영)
     if (State.appConfig.teamGroups) {
         State.appConfig.teamGroups.forEach(group => {
             if (group.members && Array.isArray(group.members)) {
@@ -199,12 +185,10 @@ async function fetchAllMembers() {
         });
     }
 
-    // 2. 파트타이머 추가
     if (State.appState.partTimers) {
         State.appState.partTimers.forEach(p => memberSet.add(p.name));
     }
 
-    // sort() 제거하여 삽입된 순서 유지
     return Array.from(memberSet); 
 }
 
@@ -250,8 +234,20 @@ async function fetchLeaveUsage(year) {
 
             let isMatch = false;
 
+            // 🌟 [수정됨] 과거 연도로 하드코딩된 설정을 무시하고, '선택된 연도(year)' 기준으로 날짜를 동적 매칭
             if (resetDate && expireDate) {
-                if (record.startDate >= resetDate && record.startDate <= expireDate) {
+                const rMD = resetDate.slice(-5); // "MM-DD"
+                const eMD = expireDate.slice(-5);
+                
+                let targetReset = `${year}-${rMD}`;
+                let targetExpire = `${year}-${eMD}`;
+
+                // 해를 넘기는 설정 (예: 05-01 ~ 04-30)인 경우 연도 보정
+                if (rMD > eMD) {
+                    targetExpire = `${year + 1}-${eMD}`;
+                }
+
+                if (record.startDate >= targetReset && record.startDate <= targetExpire) {
                     isMatch = true;
                 }
             } else {
