@@ -22,89 +22,169 @@ let currentWeekendTotalCost = 0;
 let currentWeekendTotalCount = 0;
 let currentWeekendMonthStr = "";
 
+// 💡 [신규] 주말 통계 정렬 및 필터 상태 관리
+let weekendSortState = { key: 'count', dir: 'desc' };
+let weekendFilterState = { name: '' };
+
+const getSortIcon = (currentKey, currentDir, targetKey) => {
+    if (currentKey !== targetKey) return '<span class="text-gray-300 text-[10px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
+    return currentDir === 'asc' 
+        ? '<span class="text-blue-600 text-[10px] ml-1">▲</span>' 
+        : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
+};
+
+const getFilterDropdown = (key, currentFilterValue) => {
+    const dropdownId = `weekend-filter-${key}`; 
+    const isActive = State.context.activeFilterDropdown === dropdownId;
+    const hasValue = currentFilterValue && currentFilterValue !== '';
+    const iconColorClass = hasValue ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:bg-gray-200';
+
+    return `
+        <div class="relative inline-block ml-1 filter-container">
+            <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
+                </svg>
+            </button>
+            <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left cursor-default font-normal text-gray-800">
+                <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
+                    <span>이름 검색</span>
+                    ${hasValue ? `<button type="button" class="text-[10px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
+                </div>
+                <input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                       placeholder="이름 입력..." value="${currentFilterValue || ''}" data-filter-key="${key}" autocomplete="off">
+            </div>
+        </div>
+    `;
+};
+
+
 async function loadAndRenderWeekendStats() {
     const tbody = document.getElementById('weekend-history-table-body');
+    const thead = tbody?.previousElementSibling;
     const monthPicker = document.getElementById('weekend-stats-month-picker');
-    if (!tbody || !monthPicker) return;
-    
-    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-blue-500 font-bold">데이터를 불러오는 중입니다...</td></tr>`;
+    if (!tbody || !monthPicker || !thead) return;
 
-    if (!monthPicker.value) {
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        monthPicker.value = `${y}-${m}`;
-    }
+    if (!currentWeekendStatsData.length || currentWeekendMonthStr !== monthPicker.value) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-blue-500 font-bold">데이터를 불러오는 중입니다...</td></tr>`;
 
-    currentWeekendMonthStr = monthPicker.value;
-    const [year, month] = currentWeekendMonthStr.split('-');
-    
-    const startDate = `${currentWeekendMonthStr}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const endDate = `${currentWeekendMonthStr}-${lastDay}`;
-
-    try {
-        const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
-        const q = query(colRef, where("date", ">=", startDate), where("date", "<=", endDate));
-        const snap = await getDocs(q);
-
-        const stats = new Map(); 
-        let totalCount = 0;
-
-        snap.forEach(doc => {
-            const data = doc.data();
-            // [수정] 관리자급을 제외하지 않고, "확정된" 모든 사람의 기록을 포함합니다.
-            if (data.status === 'confirmed') {
-                if (!stats.has(data.member)) stats.set(data.member, { count: 0, dates: [] });
-                const st = stats.get(data.member);
-                st.count++;
-                st.dates.push(data.date);
-                totalCount++;
-            }
-        });
-
-        const sorted = [...stats.entries()].sort((a, b) => {
-            if (b[1].count !== a[1].count) return b[1].count - a[1].count; 
-            return a[0].localeCompare(b[0]);
-        });
-
-        currentWeekendStatsData = sorted; 
-        
-        tbody.innerHTML = '';
-        let totalCost = 0;
-        const COST_PER_TIME = 110000;
-
-        if (sorted.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-gray-400 font-medium">해당 월에 확정된 주말 근무 기록이 없습니다.</td></tr>`;
-        } else {
-            sorted.forEach(([name, data], idx) => {
-                data.dates.sort();
-                const cost = data.count * COST_PER_TIME;
-                totalCost += cost;
-                
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-blue-50/50 transition-colors";
-                tr.innerHTML = `
-                    <td class="px-6 py-4 text-center font-bold text-gray-400">${idx + 1}</td>
-                    <td class="px-6 py-4 font-extrabold text-gray-800 dark:text-gray-200">${name}</td>
-                    <td class="px-6 py-4 text-center font-bold text-blue-600 dark:text-blue-400">${data.count}회</td>
-                    <td class="px-6 py-4 text-right font-black text-gray-800 dark:text-gray-200">${cost.toLocaleString()} 원</td>
-                    <td class="px-6 py-4 text-xs font-medium text-gray-500 leading-relaxed">${data.dates.join(', ')}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+        if (!monthPicker.value) {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            monthPicker.value = `${y}-${m}`;
         }
 
-        currentWeekendTotalCost = totalCost;
-        currentWeekendTotalCount = totalCount;
+        currentWeekendMonthStr = monthPicker.value;
+        const [year, month] = currentWeekendMonthStr.split('-');
+        const startDate = `${currentWeekendMonthStr}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const endDate = `${currentWeekendMonthStr}-${lastDay}`;
 
-        document.getElementById('weekend-total-count').textContent = totalCount;
-        document.getElementById('weekend-total-cost').textContent = totalCost.toLocaleString();
+        try {
+            const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
+            const q = query(colRef, where("date", ">=", startDate), where("date", "<=", endDate));
+            const snap = await getDocs(q);
 
-    } catch (e) {
-        console.error("주말 통계 불러오기 오류:", e);
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-red-500 font-bold">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>`;
+            const stats = new Map(); 
+            let totalCount = 0;
+
+            snap.forEach(doc => {
+                const data = doc.data();
+                if (data.status === 'confirmed') {
+                    if (!stats.has(data.member)) stats.set(data.member, { count: 0, dates: [] });
+                    const st = stats.get(data.member);
+                    st.count++;
+                    st.dates.push(data.date);
+                    totalCount++;
+                }
+            });
+
+            currentWeekendStatsData = [...stats.entries()];
+            currentWeekendTotalCount = totalCount;
+
+        } catch (e) {
+            console.error("주말 통계 불러오기 오류:", e);
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-red-500 font-bold">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>`;
+            return;
+        }
     }
+
+    // 💡 [신규] 동적 헤더 생성 (정렬 및 필터 적용)
+    thead.innerHTML = `
+        <tr>
+            <th class="px-6 py-4 w-20 text-center font-bold text-gray-500 bg-gray-50 border-r border-gray-100">순위</th>
+            <th class="px-6 py-4 w-40 cursor-pointer hover:bg-gray-100 transition select-none group" data-sort-key="name">
+                <div class="flex items-center justify-between font-bold">
+                    <span class="flex items-center">이름 ${getSortIcon(weekendSortState.key, weekendSortState.dir, 'name')}</span>
+                    ${getFilterDropdown('name', weekendFilterState.name)}
+                </div>
+            </th>
+            <th class="px-6 py-4 w-32 cursor-pointer hover:bg-gray-100 transition select-none group" data-sort-key="count">
+                <div class="flex items-center justify-center font-bold">
+                    횟수 ${getSortIcon(weekendSortState.key, weekendSortState.dir, 'count')}
+                </div>
+            </th>
+            <th class="px-6 py-4 w-40 cursor-pointer hover:bg-gray-100 transition select-none group" data-sort-key="cost">
+                <div class="flex items-center justify-end font-bold">
+                    정산 비용 ${getSortIcon(weekendSortState.key, weekendSortState.dir, 'cost')}
+                </div>
+            </th>
+            <th class="px-6 py-4 font-bold text-gray-500 bg-gray-50">근무 일자</th>
+        </tr>
+    `;
+
+    let filteredData = [...currentWeekendStatsData];
+    
+    // 필터 적용
+    if (weekendFilterState.name) {
+        filteredData = filteredData.filter(([name]) => name.includes(weekendFilterState.name));
+    }
+
+    // 정렬 적용
+    filteredData.sort((a, b) => {
+        let valA, valB;
+        if (weekendSortState.key === 'name') {
+            valA = a[0]; valB = b[0];
+        } else { // count, cost
+            valA = a[1].count; valB = b[1].count; 
+        }
+
+        if (valA < valB) return weekendSortState.dir === 'asc' ? -1 : 1;
+        if (valA > valB) return weekendSortState.dir === 'asc' ? 1 : -1;
+        
+        // 정렬 값이 같을 때 이름순
+        return a[0].localeCompare(b[0]);
+    });
+
+    tbody.innerHTML = '';
+    let totalCost = 0;
+    const COST_PER_TIME = 110000;
+
+    if (filteredData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-gray-400 font-medium">검색 결과가 없습니다.</td></tr>`;
+    } else {
+        filteredData.forEach(([name, data], idx) => {
+            data.dates.sort();
+            const cost = data.count * COST_PER_TIME;
+            totalCost += cost;
+            
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-blue-50/50 transition-colors bg-white";
+            tr.innerHTML = `
+                <td class="px-6 py-4 text-center font-bold text-gray-400 border-r border-gray-50">${idx + 1}</td>
+                <td class="px-6 py-4 font-extrabold text-gray-800">${name}</td>
+                <td class="px-6 py-4 text-center font-bold text-blue-600 bg-blue-50/30">${data.count}회</td>
+                <td class="px-6 py-4 text-right font-black text-gray-800">${cost.toLocaleString()} 원</td>
+                <td class="px-6 py-4 text-xs font-medium text-gray-500 leading-relaxed">${data.dates.join(', ')}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    currentWeekendTotalCost = totalCost;
+    document.getElementById('weekend-total-count').textContent = currentWeekendTotalCount;
+    document.getElementById('weekend-total-cost').textContent = currentWeekendTotalCost.toLocaleString();
 }
 
 
@@ -315,7 +395,10 @@ export function setupHistoryModalListeners() {
 
     const monthPicker = document.getElementById('weekend-stats-month-picker');
     if (monthPicker) {
-        monthPicker.addEventListener('change', loadAndRenderWeekendStats);
+        monthPicker.addEventListener('change', () => {
+            currentWeekendStatsData = []; 
+            loadAndRenderWeekendStats();
+        });
     }
 
     const downloadWeekendBtn = document.getElementById('weekend-stats-download-btn');
@@ -753,6 +836,59 @@ export function setupHistoryModalListeners() {
     setupFilterListeners(DOM.reportViewContainer, 'reportSortState', 'reportFilterState', refreshReportView);
     setupFilterListeners(DOM.personalReportViewContainer, 'personalReportSortState', 'personalReportFilterState', refreshPersonalView);
 
+    // 💡 [신규] 주말 근무 통계 전용 정렬/필터 리스너 (테이블 헤더 클릭 시)
+    const weekendPanel = document.getElementById('history-weekend-panel');
+    if (weekendPanel) {
+        weekendPanel.addEventListener('click', (e) => {
+            if (e.target.closest('.filter-dropdown')) { e.stopPropagation(); return; }
+            
+            const filterIconBtn = e.target.closest('.filter-icon-btn');
+            if (filterIconBtn) {
+                e.stopPropagation();
+                const dropdownId = filterIconBtn.dataset.dropdownId;
+                State.context.activeFilterDropdown = (State.context.activeFilterDropdown === dropdownId) ? null : dropdownId;
+                loadAndRenderWeekendStats();
+                return;
+            }
+
+            const sortTh = e.target.closest('th[data-sort-key]');
+            if (sortTh) {
+                const key = sortTh.dataset.sortKey;
+                if (!key) return;
+                
+                if (weekendSortState.key === key) {
+                    weekendSortState.dir = weekendSortState.dir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    weekendSortState.key = key;
+                    weekendSortState.dir = 'asc';
+                }
+                loadAndRenderWeekendStats();
+            }
+        });
+
+        weekendPanel.addEventListener('input', (e) => {
+            const filterInput = e.target.closest('[data-filter-key]');
+            if (filterInput) {
+                const key = filterInput.dataset.filterKey;
+                if (key === 'name') {
+                    weekendFilterState.name = filterInput.value;
+                    loadAndRenderWeekendStats();
+                    
+                    // 포커스 유지 처리
+                    setTimeout(() => {
+                        const newInput = weekendPanel.querySelector(`input[data-filter-key="name"]`);
+                        if (newInput) {
+                            newInput.focus();
+                            const val = newInput.value;
+                            newInput.value = '';
+                            newInput.value = val;
+                        }
+                    }, 0);
+                }
+            }
+        });
+    }
+
     document.addEventListener('click', (e) => {
         if (State.context.activeFilterDropdown) {
             if (!e.target.closest('.filter-dropdown') && !e.target.closest('.filter-icon-btn')) {
@@ -760,6 +896,7 @@ export function setupHistoryModalListeners() {
                 if (State.context.activeMainHistoryTab === 'attendance') refreshAttendanceView();
                 else if (State.context.activeMainHistoryTab === 'report') refreshReportView();
                 else if (State.context.activeMainHistoryTab === 'personal') refreshPersonalView();
+                else if (State.context.activeMainHistoryTab === 'weekend') loadAndRenderWeekendStats();
             }
         }
     });
