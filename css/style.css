@@ -220,10 +220,10 @@ body {
     transition: box-shadow 0.3s ease, transform 0.3s ease;
 }
 
-/* 마우스 오버 시 떠오르는 효과는 제거, 그림자 강조만 유지 */
+/* 마우스 오버 시 살짝 떠오르는 애니메이션 */
 .depth-panel:hover {
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
-    /* transform: translateY(-2px); <-- 떠오르는 효과 제거 */
+    transform: translateY(-2px);
 }
 
 /* 다크 모드에서의 그림자와 빛 반사 (더욱 은은하게) */
@@ -260,6 +260,7 @@ html.dark .depth-panel {
     }
 
     /* 3. [핵심] 데이터 관리 창 좌우 분할 구조를 상하 구조로 강제 변경 */
+    /* 좌측(날짜목록)과 우측(데이터)이 나란히 있는 것을 위아래로 쌓습니다 */
     #history-modal-content-box > .flex-grow.flex.overflow-hidden {
         flex-direction: column !important; 
     }
@@ -291,7 +292,7 @@ html.dark .depth-panel {
     }
     #history-date-list li {
         width: auto !important;
-        flex-shrink: 0 !important; 
+        flex-shrink: 0 !important; /* 글자 찌그러짐 방지 */
     }
     #history-date-list button {
         width: auto !important;

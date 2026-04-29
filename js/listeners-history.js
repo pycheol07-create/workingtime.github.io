@@ -13,106 +13,9 @@ import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, rende
 import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderPredictionTab } from './ui-history.js';
 import * as UILeave from './ui-history-leave.js';
 import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
-import { doc, updateDoc, deleteField, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isHistoryMaximized = false;
-
-// --- [신규] 주말 통계 데이터를 위한 변수 및 함수 ---
-let currentWeekendStatsData = [];
-let currentWeekendTotalCost = 0;
-let currentWeekendTotalCount = 0;
-let currentWeekendMonthStr = "";
-
-async function loadAndRenderWeekendStats() {
-    const tbody = document.getElementById('weekend-history-table-body');
-    const monthPicker = document.getElementById('weekend-stats-month-picker');
-    if (!tbody || !monthPicker) return;
-    
-    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-blue-500 font-bold">데이터를 불러오는 중입니다...</td></tr>`;
-
-    // 월 선택기에 값이 없으면 '현재 월'로 기본 세팅
-    if (!monthPicker.value) {
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        monthPicker.value = `${y}-${m}`;
-    }
-
-    currentWeekendMonthStr = monthPicker.value;
-    const [year, month] = currentWeekendMonthStr.split('-');
-    
-    // 시작일(1일)과 종료일(말일) 계산
-    const startDate = `${currentWeekendMonthStr}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const endDate = `${currentWeekendMonthStr}-${lastDay}`;
-
-    try {
-        const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
-        const q = query(colRef, where("date", ">=", startDate), where("date", "<=", endDate));
-        const snap = await getDocs(q);
-
-        const stats = new Map(); 
-        let totalCount = 0;
-        const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
-
-        snap.forEach(doc => {
-            const data = doc.data();
-            if (data.status === 'confirmed' && !excludedMembers.includes(data.member)) {
-                if (!stats.has(data.member)) stats.set(data.member, { count: 0, dates: [] });
-                const st = stats.get(data.member);
-                st.count++;
-                st.dates.push(data.date);
-                totalCount++;
-            }
-        });
-
-        // 횟수가 많은 순서대로 정렬
-        const sorted = [...stats.entries()].sort((a, b) => {
-            if (b[1].count !== a[1].count) return b[1].count - a[1].count; 
-            return a[0].localeCompare(b[0]);
-        });
-
-        currentWeekendStatsData = sorted; // 다운로드를 위해 저장
-        
-        tbody.innerHTML = '';
-        let totalCost = 0;
-        const COST_PER_TIME = 110000;
-
-        if (sorted.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-gray-400 font-medium">해당 월에 확정된 주말 근무 기록이 없습니다.</td></tr>`;
-        } else {
-            sorted.forEach(([name, data], idx) => {
-                data.dates.sort();
-                const cost = data.count * COST_PER_TIME;
-                totalCost += cost;
-                
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-blue-50/50 transition-colors";
-                tr.innerHTML = `
-                    <td class="px-6 py-4 text-center font-bold text-gray-400">${idx + 1}</td>
-                    <td class="px-6 py-4 font-extrabold text-gray-800 dark:text-gray-200">${name}</td>
-                    <td class="px-6 py-4 text-center font-bold text-blue-600 dark:text-blue-400">${data.count}회</td>
-                    <td class="px-6 py-4 text-right font-black text-gray-800 dark:text-gray-200">${cost.toLocaleString()} 원</td>
-                    <td class="px-6 py-4 text-xs font-medium text-gray-500 leading-relaxed">${data.dates.join(', ')}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        currentWeekendTotalCost = totalCost;
-        currentWeekendTotalCount = totalCount;
-
-        // 하단 총계 업데이트
-        document.getElementById('weekend-total-count').textContent = totalCount;
-        document.getElementById('weekend-total-cost').textContent = totalCost.toLocaleString();
-
-    } catch (e) {
-        console.error("주말 통계 불러오기 오류:", e);
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-red-500 font-bold">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>`;
-    }
-}
-// --- 주말 통계 끝 ---
-
 
 export function setupHistoryModalListeners() {
     
@@ -128,7 +31,6 @@ export function setupHistoryModalListeners() {
     const predictionPanel = document.getElementById('prediction-panel');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
     const leavePanel = document.getElementById('history-leave-panel');
-    const weekendPanel = document.getElementById('history-weekend-panel');
 
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
@@ -156,6 +58,7 @@ export function setupHistoryModalListeners() {
         }
     };
     
+    // 💡 [GUI 개선] 메인 탭 디자인 함수 (유지됨)
     const styleHistoryTabs = (activeTabName) => {
         const tabsContainer = document.getElementById('history-main-tabs');
         if (!tabsContainer) return;
@@ -178,8 +81,7 @@ export function setupHistoryModalListeners() {
             'personal': '👤',
             'management': '💼',
             'inspection': '📦',
-            'leave': '🏖️',
-            'weekend': '📅'
+            'leave': '🏖️'
         };
 
         document.querySelectorAll('.history-main-tab-btn').forEach(btn => {
@@ -319,49 +221,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 주말 통계 월 변경 시 이벤트
-    const monthPicker = document.getElementById('weekend-stats-month-picker');
-    if (monthPicker) {
-        monthPicker.addEventListener('change', loadAndRenderWeekendStats);
-    }
-
-    // 주말 통계 엑셀 다운로드 이벤트
-    const downloadWeekendBtn = document.getElementById('weekend-stats-download-btn');
-    if (downloadWeekendBtn) {
-        downloadWeekendBtn.addEventListener('click', () => {
-            if (currentWeekendStatsData.length === 0) {
-                showToast('다운로드할 데이터가 없습니다.', true);
-                return;
-            }
-            
-            // 엑셀에서 한글이 깨지지 않도록 BOM 추가
-            let csvContent = "\uFEFF"; 
-            csvContent += "순위,이름,확정 횟수,정산 비용(원),근무 일자\n";
-            
-            const COST_PER_TIME = 110000;
-            currentWeekendStatsData.forEach(([name, data], idx) => {
-                const cost = data.count * COST_PER_TIME;
-                // 날짜 리스트에 콤마가 포함되므로 따옴표로 감싸기
-                const datesStr = `"${data.dates.join(', ')}"`;
-                csvContent += `${idx + 1},${name},${data.count},${cost},${datesStr}\n`;
-            });
-            
-            // 하단 총계 라인 추가
-            csvContent += `총계,-,${currentWeekendTotalCount},${currentWeekendTotalCost},-\n`;
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", `주말근무_정산통계_${currentWeekendMonthStr}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            showToast('엑셀(CSV) 파일이 다운로드되었습니다.');
-        });
-    }
-
+    // 💡 [버그 수정 완료] PC에서는 새 탭으로 여는 로직 다시 추가!
     const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
@@ -370,15 +230,17 @@ export function setupHistoryModalListeners() {
             return;
         }
 
+        // 화면 너비가 768px 이상(PC)이면 새 창으로 열기 (복구 완료!)
         if (window.innerWidth >= 768) {
             if (e) e.preventDefault();
             window.open('history.html', '_blank');
             return;
         }
 
+        // 모바일 화면이면 기존처럼 모달 팝업으로 열기
         if (DOM.historyModal) {
             DOM.historyModal.classList.remove('hidden');
-            setHistoryMaximized(true); 
+            setHistoryMaximized(true); // 모바일에서는 꽉 찬 화면이 기본
             if (DOM.historyStartDateInput) DOM.historyStartDateInput.value = '';
             if (DOM.historyEndDateInput) DOM.historyEndDateInput.value = '';
             State.context.historyStartDate = null;
@@ -548,10 +410,9 @@ export function setupHistoryModalListeners() {
                 if (inspectionPanel) inspectionPanel.classList.toggle('hidden', tabName !== 'inspection');
                 if (predictionPanel) predictionPanel.classList.toggle('hidden', tabName !== 'prediction');
                 if (leavePanel) leavePanel.classList.toggle('hidden', tabName !== 'leave');
-                if (weekendPanel) weekendPanel.classList.toggle('hidden', tabName !== 'weekend');
                 
                 if (dateListContainer) {
-                    const hideListTabs = ['trends', 'inspection', 'prediction', 'leave', 'weekend'];
+                    const hideListTabs = ['trends', 'inspection', 'prediction', 'leave'];
                     dateListContainer.style.display = hideListTabs.includes(tabName) ? 'none' : 'block';
                 }
 
@@ -602,9 +463,6 @@ export function setupHistoryModalListeners() {
                     fetchAndRenderInspectionHistory();
                 } else if (tabName === 'leave') {
                     UILeave.initLeaveManagement();
-                } else if (tabName === 'weekend') {
-                    // 주말 통계 불러오기
-                    loadAndRenderWeekendStats();
                 }
             }
         });

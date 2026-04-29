@@ -4,6 +4,7 @@ import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, is
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 import * as State from './state.js';
 
+// 💡 [핵심 수정] 모듈 객체(State)를 직접 수정하지 않고, 이 파일 안에서만 안전하게 쓸 변수를 만듭니다.
 let currentEzadminData = null;
 
 const getLeaveDisplayLabel = (member, leaveEntry) => {
@@ -108,6 +109,7 @@ export const renderNoticeWidget = (appState) => {
     memoList.innerHTML = html;
 };
 
+// 💡 전용 변수에서 데이터를 가져와 업데이트합니다.
 export const updateEzadminDisplay = () => {
     const ezData = currentEzadminData;
     if (!ezData) return;
@@ -159,6 +161,7 @@ export const renderDashboardLayout = (appConfig) => {
         }
     });
 
+    // 💡 전용 변수에서 데이터를 꺼내 옵니다.
     const ezInvoice = (currentEzadminData && currentEzadminData.invoice) || 0;
     const ezDelivery = (currentEzadminData && currentEzadminData.delivery) || 0;
 
@@ -513,7 +516,6 @@ export const renderAttendanceToggle = (appState) => {
     if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
-// 💡 [수정됨] 실시간 현황 렌더링 함수 - 컨테이너 분리 및 색상 호버 유지
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
     
     const taskToggleBtn = document.getElementById('toggle-all-tasks-mobile');
@@ -527,16 +529,12 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
-    
-    // 💡 업무 현황과 팀원 현황 보드를 각각 지정
-    const taskStatusBoard = document.getElementById('task-status-board');
-    const memberStatusBoard = document.getElementById('member-status-board');
-    if (!taskStatusBoard || !memberStatusBoard) return;
-    
-    taskStatusBoard.innerHTML = '';
-    memberStatusBoard.innerHTML = '';
+    const teamStatusBoard = document.getElementById('team-status-board');
+    if (!teamStatusBoard) return;
+    teamStatusBoard.innerHTML = '';
 
     const presetTaskContainer = document.createElement('div');
+    presetTaskContainer.className = 'mb-6';
     const presetGrid = document.createElement('div');
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5';
     if (isMobileTaskViewExpanded) presetGrid.classList.add('mobile-expanded');
@@ -558,7 +556,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const headerColor = isPaused ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800' : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800';
             const titleColor = isPaused ? 'text-yellow-800 dark:text-yellow-400' : 'text-blue-800 dark:text-blue-400';
             
-            // 💡 hover:shadow-md 효과 유지 (떠오름 방지는 CSS .depth-panel에서 제어)
             card.className = `${mobileVisibilityClass} flex-col min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden transition-all hover:shadow-md cursor-pointer`;
             card.dataset.task = task; 
             card.dataset.groupId = firstRecord.groupId; 
@@ -613,12 +610,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 </div>
             `;
         } else {
-            // 💡 미시작 카드 hover 효과(색상) 유지
             card.className = `${mobileVisibilityClass} flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-400 dark:hover:border-blue-500 transition-all group`;
             card.dataset.action = 'start-task';
             card.dataset.task = task;
             card.innerHTML = `
-                <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 group-hover:border-blue-200 dark:group-hover:border-blue-800 transition-all mb-4 text-2xl font-light">+</div>
+                <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 group-hover:border-blue-200 dark:group-hover:border-blue-800 group-hover:scale-110 transition-all mb-4 text-2xl font-light">+</div>
                 <h3 class="font-bold text-lg text-gray-600 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">${task} 시작</h3>
                 <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 font-medium">클릭하여 인원 선택</p>
             `;
@@ -630,7 +626,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     otherTaskCard.className = `flex flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all group`;
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
-        <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 transition-all mb-4 text-xl">
+        <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 group-hover:scale-110 transition-all mb-4 text-xl">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         </div>
         <h3 class="font-bold text-lg text-gray-600 dark:text-gray-300">기타 업무</h3>
@@ -638,16 +634,20 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     `;
     presetGrid.appendChild(otherTaskCard);
     presetTaskContainer.appendChild(presetGrid);
-    
-    // 💡 업무 현황 보드에 업무 섹션 추가
-    taskStatusBoard.appendChild(presetTaskContainer);
+    teamStatusBoard.appendChild(presetTaskContainer);
 
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container';
     if (isMobileMemberViewExpanded) allMembersContainer.classList.add('mobile-expanded');
     
-    // 💡 타이틀은 이미 HTML에 있으므로 컨테이너 초기화만 수행
-    allMembersContainer.innerHTML = ``;
+    allMembersContainer.innerHTML = `
+        <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-3 mb-6 mt-10">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <span class="text-xl">🧑‍🤝‍🧑</span> 전체 팀원 현황
+                <span class="text-xs font-normal text-gray-400 dark:text-gray-500 hidden md:inline ml-2">(클릭하여 근태 설정/수정)</span>
+            </h3>
+            <button id="toggle-all-members-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">${isMobileMemberViewExpanded ? '간략히' : '전체보기'}</button>
+        </div>`;
 
     const ongoingMembers = new Set(ongoingRecords.filter(r => r.status === 'ongoing').map(r => r.member));
     const pausedMembers = new Set(ongoingRecords.filter(r => r.status === 'paused').map(r => r.member));
@@ -827,9 +827,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         });
         albaContainer.appendChild(albaGrid); allMembersContainer.appendChild(albaContainer);
     }
-    
-    // 💡 팀원 현황 보드에 섹션 추가
-    memberStatusBoard.appendChild(allMembersContainer);
+    teamStatusBoard.appendChild(allMembersContainer);
 
     renderAttendanceToggle(appState);
 };
@@ -878,13 +876,16 @@ export const renderCompletedWorkLog = (appState) => {
     });
 };
 
+// 🚀 이지어드민 데이터 수신 리스너 (전용 로컬 변수에 데이터 저장)
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
         const ezData = event.data.data;
         console.log("🎯 [대시보드 탭] 데이터 도착 완료!! :", ezData);
         
+        // 💡 [핵심] 받은 데이터를 이 파일 내의 전용 변수에 저장
         currentEzadminData = ezData; 
 
+        // 화면에 즉시 업데이트 및 반짝임 효과
         const invoiceEl = document.getElementById('ezadmin-invoice-count');
         const deliveryEl = document.getElementById('ezadmin-delivery-count');
         
@@ -901,6 +902,7 @@ window.addEventListener('message', (event) => {
     }
 });
 
+// 모바일 새로고침 버튼
 const setupMobileRefreshButton = () => {
     if (document.getElementById('mobile-refresh-btn')) return;
     const btn = document.createElement('button');

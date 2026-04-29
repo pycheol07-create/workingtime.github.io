@@ -6,14 +6,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let currentYear = new Date().getFullYear();
-let currentMonth = new Date().getMonth(); 
+let currentMonth = new Date().getMonth(); // 0-based index
 let myRequestsMap = new Map();
-let blockedDatesSet = new Set(); 
-let capacityMap = new Map(); 
-let requestsByDate = {}; 
+let blockedDatesSet = new Set(); // 마감된 날짜 저장
+let requestsByDate = {}; // 날짜별 신청자 목록
 let unsubscribe = null; 
 
-let currentManageDateStr = null; 
+let currentManageDateStr = null; // 현재 관리 팝업이 열린 날짜
 
 export async function initWeekendCalendar() {
     await loadWeekendRequests(currentYear, currentMonth);
@@ -31,7 +30,7 @@ export function changeMonth(offset) {
     loadWeekendRequests(currentYear, currentMonth);
 }
 
-// 1년 치 전체 데이터를 가져와 연누적과 해당 월 현황을 계산
+// 실시간 리스너 연결 및 데이터 분류
 async function loadWeekendRequests(year, month) {
     const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
     
@@ -41,72 +40,32 @@ async function loadWeekendRequests(year, month) {
     }
 
     try {
-        const startOfYear = `${year}-01-01`;
-        const endOfYear = `${year}-12-31`;
-        
         const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
-        const q = query(colRef, where("date", ">=", startOfYear), where("date", "<=", endOfYear));
+        const q = query(colRef, where("month", "==", monthStr));
 
         unsubscribe = onSnapshot(q, (snapshot) => {
             myRequestsMap.clear();
             blockedDatesSet.clear();
-            capacityMap.clear(); 
             requestsByDate = {};
-            
-            const memberStats = new Map(); // 이번 달 통계
-            const yearlyStatsMap = new Map(); // 연간 누적 통계
-            
-            const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
-
-            if (State.appConfig && State.appConfig.teamGroups) {
-                State.appConfig.teamGroups.forEach(group => {
-                    if (group.members && Array.isArray(group.members)) {
-                        group.members.forEach(member => {
-                            if (!excludedMembers.includes(member)) {
-                                memberStats.set(member, { confirmed: 0, requested: 0 });
-                                yearlyStatsMap.set(member, 0); 
-                            }
-                        });
-                    }
-                });
-            }
 
             snapshot.forEach(docSnap => {
                 const data = docSnap.data();
                 
                 if (data.type === 'blocked') {
-                    if (data.month === monthStr) blockedDatesSet.add(data.date);
-                } else if (data.type === 'capacity') {
-                    if (data.month === monthStr) capacityMap.set(data.date, data.capacity);
+                    // 마감(비활성화)된 날짜 처리
+                    blockedDatesSet.add(data.date);
                 } else {
-                    // 연간 누적 카운트 (해당 연도의 확정건)
-                    if (data.status === 'confirmed' && !excludedMembers.includes(data.member)) {
-                        yearlyStatsMap.set(data.member, (yearlyStatsMap.get(data.member) || 0) + 1);
-                    }
+                    // 일반 신청 데이터 처리
+                    if (!requestsByDate[data.date]) requestsByDate[data.date] = [];
+                    requestsByDate[data.date].push({ id: docSnap.id, ...data });
 
-                    // 이번 달 화면을 위한 처리
-                    if (data.month === monthStr) {
-                        if (!requestsByDate[data.date]) requestsByDate[data.date] = [];
-                        requestsByDate[data.date].push({ id: docSnap.id, ...data });
-
-                        if (data.member === State.appState.currentUser) {
-                            myRequestsMap.set(data.date, docSnap.id);
-                        }
-
-                        if (!excludedMembers.includes(data.member)) {
-                            const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
-                            if (data.status === 'confirmed') {
-                                stat.confirmed++;
-                            } else {
-                                stat.requested++;
-                            }
-                            memberStats.set(data.member, stat);
-                        }
+                    if (data.member === State.appState.currentUser) {
+                        myRequestsMap.set(data.date, docSnap.id);
                     }
                 }
             });
 
-            renderWeekendStats(memberStats, yearlyStatsMap);
+            // 데이터 수집 후 렌더링
             renderWeekendList(year, month);
 
         }, (error) => {
@@ -119,69 +78,7 @@ async function loadWeekendRequests(year, month) {
     }
 }
 
-function renderWeekendStats(memberStats, yearlyStatsMap) {
-    const sidebar = document.getElementById('weekend-stats-sidebar');
-    const list = document.getElementById('weekend-stats-list');
-    
-    if (!sidebar || !list) return;
-
-    const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
-    
-    const filteredMembers = [...memberStats.entries()].filter(([name, counts]) => {
-        return !excludedMembers.includes(name);
-    });
-
-    if (filteredMembers.length === 0) {
-        sidebar.classList.add('!hidden');
-        const toggleBtn = document.getElementById('toggle-weekend-stats-btn');
-        if(toggleBtn) toggleBtn.classList.add('!hidden');
-        return;
-    } else {
-        sidebar.classList.remove('!hidden');
-        const toggleBtn = document.getElementById('toggle-weekend-stats-btn');
-        if(toggleBtn) toggleBtn.classList.remove('!hidden');
-    }
-
-    list.innerHTML = '';
-
-    // [정렬 수정] 1순위: 이번달 신청 횟수가 많은 사람 / 2순위: 연누적이 적은 사람 / 3순위: 이름순
-    filteredMembers.sort((a, b) => {
-        const totalA = a[1].confirmed + a[1].requested;
-        const totalB = b[1].confirmed + b[1].requested;
-        if (totalB !== totalA) {
-            return totalB - totalA; 
-        }
-        
-        const yearlyA = yearlyStatsMap.get(a[0]) || 0;
-        const yearlyB = yearlyStatsMap.get(b[0]) || 0;
-        if (yearlyA !== yearlyB) {
-            return yearlyA - yearlyB;
-        }
-        return a[0].localeCompare(b[0]);
-    });
-
-    filteredMembers.forEach(([name, counts]) => {
-        const item = document.createElement('div');
-        const opacityClass = (counts.confirmed === 0 && counts.requested === 0) ? "opacity-60 hover:opacity-100" : "";
-        
-        const yearlyCount = yearlyStatsMap.get(name) || 0;
-
-        item.className = `bg-white border border-indigo-100 p-2 rounded-md shadow-sm flex justify-between items-center transition-all hover:-translate-y-0.5 ${opacityClass}`;
-        
-        // [디자인 수정] 누적 횟수를 별도로 튀지 않게 회색빛으로 표시
-        item.innerHTML = `
-            <div class="flex items-center">
-                <span class="font-bold text-gray-700 text-sm whitespace-nowrap">${name}</span>
-                <span class="text-[10px] text-gray-400 font-medium ml-1.5 whitespace-nowrap">(연누적 ${yearlyCount}회)</span>
-            </div>
-            <div class="text-xs bg-gray-50 px-2 py-1 rounded border border-gray-200 font-mono tracking-wider ml-2 flex-shrink-0">
-                <span class="text-blue-600 font-bold w-4 inline-block text-center" title="확정됨">${counts.confirmed}</span><span class="text-gray-300">|</span><span class="text-orange-500 font-medium w-4 inline-block text-center" title="승인 대기">${counts.requested}</span>
-            </div>
-        `;
-        list.appendChild(item);
-    });
-}
-
+// 주말 리스트 렌더링
 function renderWeekendList(year, month) {
     const listView = document.getElementById('weekend-list-view');
     const label = document.getElementById('current-month-label');
@@ -206,8 +103,8 @@ function renderWeekendList(year, month) {
             
             const isBlocked = blockedDatesSet.has(dateStr);
             const isAppliedByMe = myRequestsMap.has(dateStr);
-            const capacity = capacityMap.get(dateStr); 
 
+            // 색상 및 스타일 정의
             let dayColor = dayOfWeek === 0 ? 'text-red-600' : 'text-blue-600';
             let bgColor = dayOfWeek === 0 ? 'bg-red-50' : 'bg-blue-50';
             let rowClass = 'bg-white border-gray-200 hover:shadow-md cursor-pointer group';
@@ -230,19 +127,18 @@ function renderWeekendList(year, month) {
             rowItem.className = `flex flex-col md:flex-row md:items-center justify-between p-3 rounded-lg border shadow-sm transition-all active:scale-[0.99] ${rowClass}`;
             rowItem.id = `row-${dateStr}`;
             
+            // 행 클릭 이벤트 (일반 유저용 신청/취소)
             rowItem.onclick = (e) => {
+                // 관리자 톱니바퀴를 눌렀을 때는 실행하지 않음
                 if(e.target.closest('.admin-manage-btn')) return;
                 handleDateClick(dateStr, isBlocked);
             };
 
+            // 관리자 전용 관리 버튼
             const adminManageHtml = isAdmin 
-                ? `<button class="admin-manage-btn ml-2 p-1.5 rounded-md hover:bg-gray-200 text-gray-500 transition tooltip" title="날짜 관리" data-date="${dateStr}">
+                ? `<button class="admin-manage-btn ml-2 p-1.5 rounded-md hover:bg-gray-200 text-gray-500 transition tooltip" title="날짜 관리(인원추가/마감)" data-date="${dateStr}">
                     ⚙️
                    </button>` 
-                : '';
-
-            const capacityHtml = capacity 
-                ? `<span class="ml-2 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">정원: ${capacity}명</span>` 
                 : '';
 
             const dateInfo = document.createElement('div');
@@ -254,8 +150,7 @@ function renderWeekendList(year, month) {
                 </div>
                 <div class="flex flex-col">
                     <div class="flex items-center">
-                        <span class="font-bold text-gray-800 text-lg whitespace-nowrap">${dayName}요일 근무</span>
-                        ${capacityHtml}
+                        <span class="font-bold text-gray-800 text-lg">${dayName}요일 근무</span>
                         ${adminManageHtml}
                     </div>
                     <span class="text-xs transition-colors ${hintClass}">${hintText}</span>
@@ -271,6 +166,7 @@ function renderWeekendList(year, month) {
             rowItem.appendChild(badgesArea);
             listView.appendChild(rowItem);
 
+            // 이 날짜에 신청한 사람 배지 렌더링
             if (requestsByDate[dateStr]) {
                 requestsByDate[dateStr].forEach(req => {
                     addBadgeToCalendar(dateStr, req, isAdmin);
@@ -283,6 +179,7 @@ function renderWeekendList(year, month) {
         listView.innerHTML = `<div class="text-center text-gray-400 py-10">이 달에는 주말이 없습니다.</div>`;
     }
 
+    // 관리자 버튼에 이벤트 연결
     if (isAdmin) {
         document.querySelectorAll('.admin-manage-btn').forEach(btn => {
             btn.onclick = (e) => {
@@ -293,6 +190,7 @@ function renderWeekendList(year, month) {
     }
 }
 
+// 배지 렌더링 함수
 function addBadgeToCalendar(dateStr, data, isAdmin) {
     const container = document.getElementById(`weekend-list-${dateStr}`);
     if (!container) return;
@@ -320,6 +218,7 @@ function addBadgeToCalendar(dateStr, data, isAdmin) {
     container.appendChild(badge);
 }
 
+// 일반 신청/취소 클릭 핸들러
 async function handleDateClick(dateStr, isBlocked) {
     const member = State.appState.currentUser;
     if (!member) {
@@ -344,6 +243,7 @@ async function handleDateClick(dateStr, isBlocked) {
     }
 }
 
+// 단일 요청 생성 (상태 파라미터 추가)
 async function createRequest(dateStr, member, status = 'requested') {
     const monthStr = dateStr.substring(0, 7);
     const docId = `${dateStr}_${member}`; 
@@ -380,6 +280,7 @@ async function deleteRequest(docId) {
     }
 }
 
+// 배지 클릭 (관리자 개인 승인/반려)
 function handleAdminBadgeClick(docId, data) {
     const popup = document.getElementById('weekend-admin-popup');
     document.getElementById('admin-popup-member').textContent = data.member;
@@ -412,50 +313,20 @@ async function processAdminAction(docId, action) {
     }
 }
 
+// ==========================================
+// [신규] 날짜 관리(추가/마감) 팝업 관련 로직
+// ==========================================
 function openAdminDatePopup(dateStr) {
     currentManageDateStr = dateStr;
     const popup = document.getElementById('weekend-admin-date-popup');
     document.getElementById('admin-date-popup-title').textContent = dateStr;
     document.getElementById('admin-date-add-member').value = '';
-    
-    const capacityInput = document.getElementById('admin-date-capacity');
-    if (capacityInput) {
-        capacityInput.value = capacityMap.has(dateStr) ? capacityMap.get(dateStr) : '';
-    }
 
-    const randomCountInput = document.getElementById('admin-date-random-count');
-    if (randomCountInput) randomCountInput.value = '1';
-
+    // 토글 스위치 상태 설정
     const isBlocked = blockedDatesSet.has(dateStr);
     document.getElementById('admin-date-block-toggle').checked = isBlocked;
 
     popup.classList.remove('hidden');
-}
-
-export async function setDateCapacity(capacityStr) {
-    if (!currentManageDateStr) return;
-    const capacity = parseInt(capacityStr, 10);
-    const docId = `CAPACITY_${currentManageDateStr}`;
-    const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
-
-    try {
-        if (isNaN(capacity) || capacity <= 0) {
-            await deleteDoc(docRef);
-            showToast(`${currentManageDateStr} 정원 설정이 해제되었습니다.`);
-        } else {
-            await setDoc(docRef, {
-                type: 'capacity',
-                date: currentManageDateStr,
-                month: currentManageDateStr.substring(0, 7),
-                capacity: capacity,
-                updatedAt: new Date().toISOString()
-            });
-            showToast(`${currentManageDateStr} 정원이 ${capacity}명으로 설정되었습니다.`);
-        }
-    } catch (e) {
-        console.error("Error setting capacity:", e);
-        showToast("정원 설정 실패", true);
-    }
 }
 
 export async function adminAddMemberToDate() {
@@ -468,61 +339,10 @@ export async function adminAddMemberToDate() {
         return;
     }
 
+    // 관리자가 수동 추가하면 바로 '확정(confirmed)' 상태로 들어감
     await createRequest(currentManageDateStr, memberName, 'confirmed');
     showToast(`${memberName}님 추가 완료`);
     input.value = '';
-}
-
-export async function adminRandomSelectMembers(count) {
-    if (!currentManageDateStr) return;
-    
-    let allMembers = [];
-    if (State.appConfig && State.appConfig.teamGroups) {
-        State.appConfig.teamGroups.forEach(group => {
-            if (group.members && Array.isArray(group.members)) {
-                allMembers = allMembers.concat(group.members);
-            }
-        });
-    }
-
-    allMembers = [...new Set(allMembers)];
-
-    const excludedMembers = ['박영철', '박호진', '유아라', '이승운']; 
-    const alreadyApplied = (requestsByDate[currentManageDateStr] || []).map(req => req.member);
-    
-    const availableMembers = allMembers.filter(member => 
-        !excludedMembers.includes(member) && !alreadyApplied.includes(member)
-    );
-
-    if (availableMembers.length === 0) {
-        showToast("추첨 가능한 인원이 없습니다.", true);
-        return;
-    }
-
-    if (count > availableMembers.length) {
-        showToast(`현재 추첨 가능한 최대 인원은 ${availableMembers.length}명입니다.`, true);
-        count = availableMembers.length;
-    }
-
-    const shuffled = [...availableMembers];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    const selectedMembers = shuffled.slice(0, count);
-
-    let successCount = 0;
-    for (const member of selectedMembers) {
-        try {
-            await createRequest(currentManageDateStr, member, 'requested');
-            successCount++;
-        } catch(e) {
-            console.error(`Error adding random member ${member}:`, e);
-        }
-    }
-
-    showToast(`랜덤 추첨으로 ${successCount}명 승인 대기 등록 완료`);
 }
 
 export async function toggleBlockDate(isBlocked) {
@@ -548,8 +368,10 @@ export async function toggleBlockDate(isBlocked) {
     } catch (e) {
         console.error("Error toggling block status:", e);
         showToast("상태 변경 실패", true);
+        // 실패 시 토글 원복
         document.getElementById('admin-date-block-toggle').checked = !isBlocked;
     }
 }
 
+// 외부에서 팝업 열기/데이터 변수 접근용 (리스너 연동을 위해)
 export { currentManageDateStr };
