@@ -102,7 +102,7 @@ async function loadWeekendRequests(year, month) {
                             const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
                             if (data.status === 'confirmed') {
                                 stat.confirmed++;
-                            } else if (data.status === 'requested') { // 💡 취소(canceled) 상태는 통계에 카운트하지 않음
+                            } else if (data.status === 'requested') { // 💡 취소 상태는 통계에 반영 안함
                                 stat.requested++;
                             }
                             memberStats.set(data.member, stat);
@@ -277,7 +277,7 @@ function renderWeekendList(year, month) {
                 const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
                 
                 requestsByDate[dateStr].sort((a, b) => {
-                    // 💡 취소 상태의 뱃지는 무조건 제일 오른쪽(끝)으로 정렬
+                    // 취소 상태의 뱃지는 무조건 제일 오른쪽(끝)으로 정렬
                     if (a.status === 'canceled' && b.status !== 'canceled') return 1;
                     if (a.status !== 'canceled' && b.status === 'canceled') return -1;
                     
@@ -416,7 +416,7 @@ function handleAdminBadgeClick(docId, data) {
     
     const statusSpan = document.getElementById('admin-popup-status');
     
-    // 💡 관리자 팝업에도 취소 상태 반영
+    // 관리자 팝업에 취소 상태 반영
     if (data.status === 'confirmed') {
         statusSpan.textContent = '승인됨';
         statusSpan.className = 'font-bold text-blue-600';
@@ -428,22 +428,55 @@ function handleAdminBadgeClick(docId, data) {
         statusSpan.className = 'font-bold text-orange-500';
     }
 
-    document.getElementById('admin-confirm-btn').onclick = () => processAdminAction(docId, 'confirmed');
-    document.getElementById('admin-reject-btn').onclick = () => processAdminAction(docId, 'demote');
+    // 💡 이벤트 바인딩 시 action과 함께 data 객체를 통째로 넘겨줍니다 (멤버, 날짜 정보 활용)
+    document.getElementById('admin-confirm-btn').onclick = () => processAdminAction(docId, 'confirmed', data);
+    document.getElementById('admin-reject-btn').onclick = () => processAdminAction(docId, 'demote', data);
+    
+    const cancelBtn = document.getElementById('admin-cancel-btn');
+    if (cancelBtn) {
+        cancelBtn.onclick = () => processAdminAction(docId, 'canceled', data);
+    }
+    
     document.getElementById('admin-close-popup-btn').onclick = () => popup.classList.add('hidden');
 
     popup.classList.remove('hidden');
 }
 
-async function processAdminAction(docId, action) {
+// 💡 관리자가 수동으로 버튼을 눌렀을 때 알림을 보내는 로직
+async function processAdminAction(docId, action, data) {
     const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
     try {
         if (action === 'demote') {
             await updateDoc(docRef, { status: 'requested', confirmedAt: null });
             showToast("대기 상태로 변경되었습니다.");
-        } else if (action === 'confirmed') {
+        } 
+        else if (action === 'confirmed') {
             await updateDoc(docRef, { status: 'confirmed', confirmedAt: new Date().toISOString() });
             showToast("승인 완료");
+            
+            // 💡 [알림 전송] 확정 알림
+            const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
+            await setDoc(notiRef, {
+                targetMember: data.member,
+                type: 'weekend_confirmed',
+                message: `${data.date} 주말 근무 신청이 확정(승인)되었습니다.`,
+                createdAt: new Date().toISOString(),
+                isRead: false
+            });
+        } 
+        else if (action === 'canceled') {
+            await updateDoc(docRef, { status: 'canceled', confirmedAt: null });
+            showToast("취소 처리되었습니다.");
+            
+            // 💡 [알림 전송] 취소 알림
+            const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
+            await setDoc(notiRef, {
+                targetMember: data.member,
+                type: 'weekend_canceled',
+                message: `${data.date} 주말 근무 신청이 관리자에 의해 취소(반려)되었습니다.`,
+                createdAt: new Date().toISOString(),
+                isRead: false
+            });
         }
         document.getElementById('weekend-admin-popup').classList.add('hidden');
     } catch (e) {
@@ -530,7 +563,7 @@ export function calculateSmartAllocation() {
 
     const reqs = requestsByDate[currentManageDateStr] || [];
     
-    // 💡 이미 취소된 사람은 신청자 모수에서 제외시킵니다
+    // 이미 취소된 사람은 신청자 모수에서 제외시킵니다
     const activeReqs = reqs.filter(r => r.status !== 'canceled');
     const applicants = activeReqs.map(r => r.member);
     
@@ -652,7 +685,6 @@ function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, appCount, 
     html += `</div></div>`;
 
     if (toDecline.length > 0) {
-        // 💡 "자동 취소" 텍스트와 함께 노란색 상태로 표시된다고 안내
         html += `<div class="pt-1"><span class="text-red-600 font-bold">➖ 정원 초과로 자동 취소 (${toDecline.length}명)</span><br><span class="text-gray-400 text-[10px]">당월 신청 횟수가 많아 배정에서 제외되며, 취소(노란색) 상태로 변경됩니다.</span><div class="mt-2 flex flex-wrap gap-1.5">`;
         toDecline.forEach(m => {
             const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
@@ -687,20 +719,19 @@ export async function applySmartAllocation() {
     }
 
     try {
-        // 1. 탈락자를 삭제하지 않고 'canceled'(취소) 상태로 변경 및 알림 전송
+        // 1. 탈락자를 'canceled'(취소) 상태로 변경 및 알림 전송
         for (const m of toDecline) {
             const req = reqs.find(r => r.member === m);
-            if (req && req.status !== 'canceled') { // 이미 취소된 상태가 아니라면
+            if (req && req.status !== 'canceled') { 
                 await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id), { 
                     status: 'canceled', 
                     confirmedAt: null 
                 });
                 
-                // 알림 생성
                 const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
                 await setDoc(notiRef, {
                     targetMember: m,
-                    type: 'weekend_rejected',
+                    type: 'weekend_canceled',
                     message: `${currentManageDateStr} 주말 근무 신청이 정원 초과로 인해 취소(반려)되었습니다.`,
                     createdAt: new Date().toISOString(),
                     isRead: false
@@ -708,20 +739,38 @@ export async function applySmartAllocation() {
             }
         }
         
-        // 2. 확정자 승인 처리
+        // 2. 확정자 승인 처리 및 알림 전송
         for (const m of toConfirm) {
             const req = reqs.find(r => r.member === m);
             if (req && req.status !== 'confirmed') {
                 await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id), { status: 'confirmed', confirmedAt: new Date().toISOString() });
+                
+                const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
+                await setDoc(notiRef, {
+                    targetMember: m,
+                    type: 'weekend_confirmed',
+                    message: `${currentManageDateStr} 주말 근무 배정이 확정되었습니다.`,
+                    createdAt: new Date().toISOString(),
+                    isRead: false
+                });
             }
         }
         
-        // 3. 신규 인원 추가
+        // 3. 신규 인원 추가 및 알림 전송
         for (const m of toAdd) {
             await createRequest(currentManageDateStr, m, 'confirmed');
+            
+            const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
+            await setDoc(notiRef, {
+                targetMember: m,
+                type: 'weekend_confirmed',
+                message: `${currentManageDateStr} 주말 근무가 배정(확정)되었습니다.`,
+                createdAt: new Date().toISOString(),
+                isRead: false
+            });
         }
 
-        showToast("스마트 배분이 성공적으로 적용되었으며, 탈락자에게 알림이 발송되었습니다.");
+        showToast("스마트 배분이 성공적으로 적용되었으며, 알림이 발송되었습니다.");
         document.getElementById('smart-calc-result-area').classList.add('hidden');
         smartCalcCache = null;
         
@@ -774,7 +823,18 @@ export async function adminAddMemberToDate() {
     }
 
     await createRequest(currentManageDateStr, memberName, 'confirmed');
-    showToast(`${memberName}님 추가 완료`);
+    
+    // 💡 수동 추가 시에도 알림 전송
+    const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
+    await setDoc(notiRef, {
+        targetMember: memberName,
+        type: 'weekend_confirmed',
+        message: `${currentManageDateStr} 주말 근무가 배정(확정)되었습니다.`,
+        createdAt: new Date().toISOString(),
+        isRead: false
+    });
+
+    showToast(`${memberName}님 확정 및 알림 발송 완료`);
     
     populateAdminAddMemberSelect(currentManageDateStr);
 }
