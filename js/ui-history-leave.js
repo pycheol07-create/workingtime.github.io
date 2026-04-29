@@ -487,14 +487,29 @@ async function fetchLeaveUsage(year) {
     const allLeaves = Array.from(allLeavesMap.values());
     const usage = {}; 
 
-    async function fetchLeaveUsage(year) {
-    // ... 상단 로직 생략 ...
-
     allLeaves.forEach(record => {
         if (record.type && (record.type.includes('연차') || record.type.includes('반차'))) {
             const name = record.member;
             
-            // ... 생략 (memberConfig, resetDate, isMatch 판별 로직) ...
+            const memberConfig = fullLeaveConfig[name] || {};
+            const resetDate = memberConfig.leaveResetDate || '';
+            const expireDate = memberConfig.expirationDate || '';
+
+            let isMatch = false;
+
+            const recordDate = record.startDate || record.date || (record.startTime ? record.startTime.substring(0, 10) : '');
+
+            if (recordDate && recordDate.startsWith(String(year))) {
+                isMatch = true;
+            }
+            
+            if (!isMatch && resetDate && expireDate) {
+                if (recordDate >= resetDate && recordDate <= expireDate) {
+                    if (resetDate.startsWith(String(year)) || expireDate.startsWith(String(year))) {
+                        isMatch = true;
+                    }
+                }
+            }
 
             if (!isMatch) return; 
 
@@ -503,15 +518,9 @@ async function fetchLeaveUsage(year) {
             let days = 0;
             let label = "";
 
-            const recordDate = record.startDate || record.date || (record.startTime ? record.startTime.substring(0, 10) : '');
-            
-            // ✅ [수정] 연도를 포함하도록 표시 형식 변경 (예: 24.05.12)
-            const displayDate = recordDate.substring(2).replace(/-/g, '.');
-            const displayEndDate = record.endDate ? record.endDate.substring(2).replace(/-/g, '.') : '';
-
             if (record.type.includes('반차')) {
                 days = 0.5;
-                label = `${displayDate}(반)`;
+                label = `${recordDate.substring(5)} (반)`;
             } else {
                 if (record.endDate && record.endDate !== recordDate) {
                     const start = new Date(recordDate); 
@@ -527,26 +536,20 @@ async function fetchLeaveUsage(year) {
                     if (diffDays === 0) diffDays = 1; 
                     
                     days = diffDays;
-                    // ✅ [수정] 연도 포함된 범위 표시
-                    label = `${displayDate}~${displayEndDate}`; 
+                    label = `${recordDate.substring(5)}~${record.endDate.substring(5)}`; 
                 } else {
                     days = 1; 
-                    label = displayDate; 
+                    label = recordDate.substring(5); 
                 }
             }
 
             usage[name].count += days;
-            // ✅ [수정] 정렬을 위해 원본 날짜(fullDate)와 라벨을 함께 저장
-            usage[name].dates.push({ fullDate: recordDate, label: label });
+            usage[name].dates.push(label);
         }
     });
 
-    // ✅ [수정] 정렬 로직 변경
     Object.keys(usage).forEach(key => {
-        // 원본 날짜(YYYY-MM-DD) 기준으로 오름차순 정렬하여 연도/월/일 순서를 정확히 맞춤
-        usage[key].dates.sort((a, b) => a.fullDate.localeCompare(b.fullDate));
-        // 정렬 완료 후 표시용 라벨만 추출하여 문자열 배열로 변환
-        usage[key].dates = usage[key].dates.map(item => item.label);
+        usage[key].dates.sort();
     });
 
     return usage;
