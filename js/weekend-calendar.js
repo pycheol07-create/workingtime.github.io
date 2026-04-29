@@ -23,15 +23,23 @@ let recommendOffset = 0;
 export async function initWeekendCalendar() {
     await loadWeekendRequests(currentYear, currentMonth);
 
-    // 💡 전체 관리 팝업 바인딩
-    const adminAllCloseBtn = document.getElementById('admin-all-close-btn');
-    if (adminAllCloseBtn) adminAllCloseBtn.onclick = () => document.getElementById('weekend-admin-all-popup').classList.add('hidden');
+    // 💡 선택 날짜 일괄 처리 이벤트 바인딩
+    const selectAllCb = document.getElementById('select-all-dates-checkbox');
+    if (selectAllCb) {
+        selectAllCb.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            document.querySelectorAll('.date-select-checkbox').forEach(cb => cb.checked = isChecked);
+        });
+    }
+
+    const bulkConfirmBtn = document.getElementById('bulk-confirm-btn');
+    if (bulkConfirmBtn) bulkConfirmBtn.onclick = () => processSelectedDatesBulkAction('confirmed');
     
-    const adminAllConfirmBtn = document.getElementById('admin-all-confirm-btn');
-    if (adminAllConfirmBtn) adminAllConfirmBtn.onclick = () => processMonthBulkAction('confirmed');
+    const bulkCancelBtn = document.getElementById('bulk-cancel-btn');
+    if (bulkCancelBtn) bulkCancelBtn.onclick = () => processSelectedDatesBulkAction('canceled');
     
-    const adminAllDeleteBtn = document.getElementById('admin-all-delete-btn');
-    if (adminAllDeleteBtn) adminAllDeleteBtn.onclick = () => processMonthBulkAction('delete');
+    const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+    if (bulkDeleteBtn) bulkDeleteBtn.onclick = () => processSelectedDatesBulkAction('delete');
 }
 
 export function changeMonth(offset) {
@@ -204,14 +212,18 @@ function renderWeekendList(year, month) {
     let hasWeekend = false;
     const isAdmin = (State.appState.currentUserRole === 'admin');
 
-    // 💡 전체 관리 버튼 토글
-    const adminAllBtn = document.getElementById('weekend-admin-all-manage-btn');
-    if (adminAllBtn) {
+    // 💡 관리자용 일괄 처리 바 노출 여부
+    const bulkBar = document.getElementById('admin-bulk-action-bar');
+    if (bulkBar) {
         if (isAdmin) {
-            adminAllBtn.classList.remove('hidden');
-            adminAllBtn.onclick = () => document.getElementById('weekend-admin-all-popup').classList.remove('hidden');
+            bulkBar.classList.remove('hidden');
+            bulkBar.classList.add('flex');
+            // 전체 선택 초기화
+            const selAllCb = document.getElementById('select-all-dates-checkbox');
+            if (selAllCb) selAllCb.checked = false;
         } else {
-            adminAllBtn.classList.add('hidden');
+            bulkBar.classList.add('hidden');
+            bulkBar.classList.remove('flex');
         }
     }
 
@@ -230,67 +242,67 @@ function renderWeekendList(year, month) {
 
             let dayColor = dayOfWeek === 0 ? 'text-red-600' : 'text-blue-600';
             let bgColor = dayOfWeek === 0 ? 'bg-red-50' : 'bg-blue-50';
-            let rowClass = 'bg-white border-gray-200 hover:shadow-md cursor-pointer group';
-            let hintText = '터치하여 신청/취소';
-            let hintClass = 'text-gray-400 group-hover:text-blue-500';
 
+            // 💡 신규 레이아웃: Row 컨테이너
+            const rowItem = document.createElement('div');
+            rowItem.className = 'flex flex-row items-stretch gap-2 p-1.5 rounded-lg border shadow-sm bg-white hover:shadow-md transition-all mb-2';
+            rowItem.id = `row-${dateStr}`;
+
+            // 💡 1. 좌측 영역 (날짜 및 관리자 설정/체크박스)
+            const leftArea = document.createElement('div');
+            leftArea.className = `relative w-[72px] md:w-24 flex-shrink-0 flex flex-col items-center justify-center rounded-md border ${bgColor} ${dayColor} overflow-hidden select-none`;
+            
+            let adminHtml = '';
+            if (isAdmin) {
+                leftArea.classList.add('cursor-pointer', 'hover:opacity-80', 'hover:ring-2', 'hover:ring-indigo-300', 'transition-all');
+                adminHtml = `
+                    <div class="absolute top-[5px] left-[5px] z-10" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="date-select-checkbox w-3.5 h-3.5 md:w-4 md:h-4 cursor-pointer text-blue-600 border-gray-300 rounded" data-date="${dateStr}">
+                    </div>
+                `;
+                leftArea.onclick = () => openAdminDatePopup(dateStr);
+            }
+            
+            leftArea.innerHTML = `
+                ${adminHtml}
+                <span class="text-xl md:text-2xl font-black tracking-tight mt-1 md:mt-2">${d}.${dayName}</span>
+                ${capacity ? `<span class="mt-1 mb-1 md:mb-2 text-[9px] md:text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">정원 ${capacity}</span>` : '<span class="h-1 md:h-2"></span>'}
+            `;
+
+            // 💡 2. 우측 영역 (배지 및 신청 버튼)
+            const rightArea = document.createElement('div');
+            rightArea.className = 'flex-1 flex flex-col justify-center rounded-md border p-2 cursor-pointer transition-colors';
+            
             if (isBlocked) {
-                dayColor = 'text-gray-400';
-                bgColor = 'bg-gray-100';
-                rowClass = 'bg-gray-50 border-gray-200 opacity-80 cursor-not-allowed';
-                hintText = '🚫 신청 마감됨';
-                hintClass = 'text-red-500 font-bold';
+                rightArea.classList.add('bg-gray-50', 'border-gray-300', 'opacity-70', 'cursor-not-allowed');
             } else if (isAppliedByMe) {
-                rowClass = 'bg-indigo-50 border-indigo-300 ring-1 ring-indigo-300 cursor-pointer group';
-                hintText = '✅ 신청됨 (터치하여 취소)';
-                hintClass = 'text-indigo-600 font-medium';
+                rightArea.classList.add('bg-indigo-50', 'border-indigo-300', 'border-dashed');
+            } else {
+                rightArea.classList.add('bg-white', 'border-gray-200', 'border-dashed', 'hover:bg-gray-50');
             }
 
-            const rowItem = document.createElement('div');
-            rowItem.className = `flex flex-col md:flex-row md:items-center justify-between p-3 rounded-lg border shadow-sm transition-all active:scale-[0.99] ${rowClass}`;
-            rowItem.id = `row-${dateStr}`;
-            
-            rowItem.onclick = (e) => {
-                if(e.target.closest('.admin-manage-btn')) return;
-                handleDateClick(dateStr, isBlocked);
-            };
+            rightArea.onclick = () => handleDateClick(dateStr, isBlocked);
 
-            const adminManageHtml = isAdmin 
-                ? `<button class="admin-manage-btn ml-2 p-1.5 rounded-md hover:bg-gray-200 text-gray-500 transition tooltip" title="날짜 관리" data-date="${dateStr}">
-                    ⚙️
-                   </button>` 
-                : '';
-
-            const capacityHtml = capacity 
-                ? `<span class="ml-2 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">정원: ${capacity}명</span>` 
-                : '';
-
-            const dateInfo = document.createElement('div');
-            dateInfo.className = "flex items-center gap-3 mb-2 md:mb-0";
-            dateInfo.innerHTML = `
-                <div class="w-12 h-12 flex flex-col items-center justify-center rounded-lg ${bgColor} ${dayColor} font-bold border border-gray-100">
-                    <span class="text-xs opacity-70">${month + 1}월</span>
-                    <span class="text-lg leading-none">${d}</span>
-                </div>
-                <div class="flex flex-col">
-                    <div class="flex items-center">
-                        <span class="font-bold text-gray-800 text-lg whitespace-nowrap">${dayName}요일 근무</span>
-                        ${capacityHtml}
-                        ${adminManageHtml}
-                    </div>
-                    <span class="text-xs transition-colors ${hintClass}">${hintText}</span>
-                </div>
+            const rightHeader = document.createElement('div');
+            rightHeader.className = "flex justify-between items-center text-[10px] md:text-xs mb-1.5";
+            rightHeader.innerHTML = `
+                <span class="text-gray-400 font-medium">영역을 터치하여 신청/취소</span>
+                ${isBlocked ? '<span class="text-red-500 font-bold bg-red-50 px-1.5 rounded">🚫 마감됨</span>' : isAppliedByMe ? '<span class="text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded">✅ 신청됨</span>' : ''}
             `;
-            rowItem.appendChild(dateInfo);
 
             const badgesArea = document.createElement('div');
-            badgesArea.className = "flex flex-wrap gap-2 justify-end items-center flex-grow pl-0 md:pl-4";
+            badgesArea.className = "flex flex-wrap gap-1.5 items-center";
             badgesArea.id = `weekend-list-${dateStr}`; 
-            badgesArea.style.minHeight = "28px"; 
-            
-            rowItem.appendChild(badgesArea);
+            badgesArea.style.minHeight = "28px";
+
+            rightArea.appendChild(rightHeader);
+            rightArea.appendChild(badgesArea);
+
+            rowItem.appendChild(leftArea);
+            rowItem.appendChild(rightArea);
             listView.appendChild(rowItem);
 
+            // 배지 추가
             if (requestsByDate[dateStr]) {
                 const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
                 
@@ -319,15 +331,6 @@ function renderWeekendList(year, month) {
     if (!hasWeekend) {
         listView.innerHTML = `<div class="text-center text-gray-400 py-10">이 달에는 주말이 없습니다.</div>`;
     }
-
-    if (isAdmin) {
-        document.querySelectorAll('.admin-manage-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                e.stopPropagation();
-                openAdminDatePopup(btn.dataset.date);
-            };
-        });
-    }
 }
 
 function addBadgeToCalendar(dateStr, data, isAdmin) {
@@ -350,8 +353,8 @@ function addBadgeToCalendar(dateStr, data, isAdmin) {
         icon = '⏳';
     }
     
-    badge.className = `px-3 py-1 rounded-full text-sm font-medium border flex items-center gap-1 transition-transform hover:scale-105 ${colorClass}`;
-    badge.innerHTML = `<span class="text-xs">${icon}</span> ${data.member}`;
+    badge.className = `px-2.5 md:px-3 py-0.5 md:py-1 rounded-full text-[11px] md:text-sm font-medium border flex items-center gap-1 transition-transform hover:scale-105 ${colorClass}`;
+    badge.innerHTML = `<span class="text-[10px] md:text-xs">${icon}</span> ${data.member}`;
 
     if (isAdmin) {
         badge.style.cursor = 'pointer';
@@ -494,91 +497,56 @@ async function processAdminAction(docId, action, data) {
     }
 }
 
-// 💡 날짜별 일괄 처리 
-export async function processDateBulkAction(action) {
-    if (!currentManageDateStr) return;
-    const reqs = requestsByDate[currentManageDateStr] || [];
-    if (reqs.length === 0) {
-        showToast("처리할 신청 내역이 없습니다.", true);
+// 💡 신규: 체크박스로 선택된 날짜들에 대한 일괄 처리
+export async function processSelectedDatesBulkAction(action) {
+    const checkboxes = document.querySelectorAll('.date-select-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showToast("선택된 날짜가 없습니다.", true);
         return;
     }
 
     const actionText = action === 'confirmed' ? '승인' : action === 'canceled' ? '취소' : '삭제';
-    if (!confirm(`${currentManageDateStr}의 모든 신청 건을 일괄 ${actionText} 하시겠습니까?`)) return;
+    if (!confirm(`선택한 ${checkboxes.length}개 날짜의 모든 신청 건을 일괄 ${actionText} 하시겠습니까?`)) return;
 
+    let count = 0;
     try {
-        let count = 0;
-        for (const req of reqs) {
-            const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id);
-            if (action === 'delete') {
-                await deleteDoc(docRef);
-            } else {
-                if (req.status !== action) {
-                    await updateDoc(docRef, { status: action, confirmedAt: action === 'confirmed' ? new Date().toISOString() : null });
-                    
-                    const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
-                    const msg = action === 'confirmed' 
-                        ? `${currentManageDateStr} 주말 근무 배정이 확정(승인)되었습니다.` 
-                        : `${currentManageDateStr} 주말 근무 신청이 일괄 취소(반려)되었습니다.`;
-                    await setDoc(notiRef, {
-                        targetMember: req.member,
-                        type: action === 'confirmed' ? 'weekend_confirmed' : 'weekend_canceled',
-                        message: msg,
-                        createdAt: new Date().toISOString(),
-                        isRead: false
-                    });
+        for (const cb of checkboxes) {
+            const dateStr = cb.dataset.date;
+            const reqs = requestsByDate[dateStr] || [];
+            
+            for (const req of reqs) {
+                const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id);
+                if (action === 'delete') {
+                    await deleteDoc(docRef);
+                } else {
+                    if (req.status !== action) {
+                        await updateDoc(docRef, { status: action, confirmedAt: action === 'confirmed' ? new Date().toISOString() : null });
+                        
+                        const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
+                        const msg = action === 'confirmed' 
+                            ? `${dateStr} 주말 근무 배정이 확정(승인)되었습니다.` 
+                            : `${dateStr} 주말 근무 신청이 관리자에 의해 일괄 취소(반려)되었습니다.`;
+                        await setDoc(notiRef, {
+                            targetMember: req.member,
+                            type: action === 'confirmed' ? 'weekend_confirmed' : 'weekend_canceled',
+                            message: msg,
+                            createdAt: new Date().toISOString(),
+                            isRead: false
+                        });
+                    }
                 }
+                count++;
             }
-            count++;
         }
-        showToast(`총 ${count}건 일괄 ${actionText} 완료 및 알림 발송됨.`);
-        if (action === 'delete') {
-            document.getElementById('weekend-admin-date-popup').classList.add('hidden');
-        }
+        showToast(`선택 날짜의 총 ${count}건 일괄 ${actionText} 완료 및 알림 전송됨.`);
+        
+        // 처리 완료 후 체크 해제
+        document.getElementById('select-all-dates-checkbox').checked = false;
+        checkboxes.forEach(cb => cb.checked = false);
+
     } catch (e) {
         console.error("Bulk action error:", e);
         showToast("일괄 처리 중 오류 발생", true);
-    }
-}
-
-// 💡 전체(월) 일괄 처리 
-export async function processMonthBulkAction(action) {
-    const allReqs = Object.values(requestsByDate).flat();
-    if (allReqs.length === 0) {
-        showToast("처리할 신청 내역이 없습니다.", true);
-        return;
-    }
-    
-    const actionText = action === 'confirmed' ? '승인' : '삭제';
-    if (!confirm(`현재 월의 모든 날짜, 모든 인원의 신청(${allReqs.length}건)을 일괄 ${actionText} 하시겠습니까?\n주의: 이 작업은 되돌릴 수 없습니다.`)) return;
-
-    try {
-        let count = 0;
-        for (const req of allReqs) {
-            const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id);
-            if (action === 'delete') {
-                await deleteDoc(docRef);
-            } else if (action === 'confirmed') {
-                if (req.status !== 'confirmed') {
-                    await updateDoc(docRef, { status: 'confirmed', confirmedAt: new Date().toISOString() });
-                    
-                    const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
-                    await setDoc(notiRef, {
-                        targetMember: req.member,
-                        type: 'weekend_confirmed',
-                        message: `${req.date} 주말 근무 배정이 일괄 확정(승인)되었습니다.`,
-                        createdAt: new Date().toISOString(),
-                        isRead: false
-                    });
-                }
-            }
-            count++;
-        }
-        showToast(`총 ${count}건 전체 일괄 ${actionText} 완료`);
-        document.getElementById('weekend-admin-all-popup').classList.add('hidden');
-    } catch (e) {
-        console.error("Month bulk action error:", e);
-        showToast("전체 일괄 처리 중 오류 발생", true);
     }
 }
 
@@ -642,11 +610,6 @@ function openAdminDatePopup(dateStr) {
         smartArea.classList.add('hidden');
     }
     smartCalcCache = null;
-
-    // 💡 날짜별 일괄 처리 이벤트 바인딩
-    document.getElementById('admin-date-all-confirm-btn').onclick = () => processDateBulkAction('confirmed');
-    document.getElementById('admin-date-all-cancel-btn').onclick = () => processDateBulkAction('canceled');
-    document.getElementById('admin-date-all-delete-btn').onclick = () => processDateBulkAction('delete');
 
     popup.classList.remove('hidden');
 }
