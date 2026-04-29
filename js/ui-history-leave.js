@@ -202,8 +202,11 @@ async function fetchLeaveSettings() {
 async function fetchLeaveUsage(year) {
     let allLeavesMap = new Map();
     
-    // 고유 식별자가 없는 옛날 기록들을 위한 안전한 키 생성기
-    const generateKey = (l) => l.id ? l.id : `${l.member}_${l.type}_${l.startDate}_${l.endDate||''}`;
+    // [수정 포인트 1] 과거 기록을 위해 startDate 뿐만 아니라 date, startTime도 확인하여 키를 생성합니다.
+    const generateKey = (l) => {
+        const targetDate = l.startDate || l.date || (l.startTime ? l.startTime.substring(0, 10) : 'nodate');
+        return l.id ? l.id : `${l.member}_${l.type}_${targetDate}_${l.endDate||''}`;
+    };
 
     // 1. 중앙 DB에서 불러오기
     try {
@@ -249,14 +252,17 @@ async function fetchLeaveUsage(year) {
 
             let isMatch = false;
 
+            // [수정 포인트 2] 과거 데이터의 다양한 날짜 포맷을 안전하게 가져옵니다.
+            const recordDate = record.startDate || record.date || (record.startTime ? record.startTime.substring(0, 10) : '');
+
             // [조건 1] 드롭다운에서 선택한 연도와 일치하면 무조건 노출
-            if (record.startDate && record.startDate.startsWith(String(year))) {
+            if (recordDate && recordDate.startsWith(String(year))) {
                 isMatch = true;
             }
             
             // [조건 2] 드롭다운 연도와 다르더라도, 개별 설정된 기간(resetDate~expireDate) 안에 포함되는 연차라면 노출
             if (!isMatch && resetDate && expireDate) {
-                if (record.startDate >= resetDate && record.startDate <= expireDate) {
+                if (recordDate >= resetDate && recordDate <= expireDate) {
                     // 단, 그 지정 기간이 현재 드롭다운의 연도와 관련이 있을 때만 표시
                     if (resetDate.startsWith(String(year)) || expireDate.startsWith(String(year))) {
                         isMatch = true;
@@ -273,10 +279,10 @@ async function fetchLeaveUsage(year) {
 
             if (record.type.includes('반차')) {
                 days = 0.5;
-                label = `${record.startDate.substring(5)} (반)`;
+                label = `${recordDate.substring(5)} (반)`; // recordDate로 변경
             } else {
-                if (record.endDate && record.endDate !== record.startDate) {
-                    const start = new Date(record.startDate);
+                if (record.endDate && record.endDate !== recordDate) {
+                    const start = new Date(recordDate); // recordDate로 변경
                     const end = new Date(record.endDate);
                     
                     // 🚀 연속 연차 시, 주말(토,일) 자동 제외 계산 로직 추가
@@ -290,10 +296,10 @@ async function fetchLeaveUsage(year) {
                     if (diffDays === 0) diffDays = 1; // 최소 방어 로직
                     
                     days = diffDays;
-                    label = `${record.startDate.substring(5)}~${record.endDate.substring(5)}`;
+                    label = `${recordDate.substring(5)}~${record.endDate.substring(5)}`; // recordDate로 변경
                 } else {
                     days = 1; // 하루 연차
-                    label = record.startDate.substring(5);
+                    label = recordDate.substring(5); // recordDate로 변경
                 }
             }
 
