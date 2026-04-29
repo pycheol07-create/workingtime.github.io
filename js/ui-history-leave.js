@@ -2,11 +2,10 @@
 import * as State from './state.js';
 import { showToast } from './utils.js';
 import { 
-    doc, getDoc, updateDoc 
+    doc, getDoc, updateDoc, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let currentYear = new Date().getFullYear();
-let leaveSettings = {}; 
 let fullLeaveConfig = {}; 
 
 // 정렬 상태 관리 (key: 정렬할 필드명, dir: 'asc' | 'desc')
@@ -76,17 +75,16 @@ export async function renderLeaveSheet() {
     const tbody = document.getElementById('leave-sheet-body');
     if (!tbody) return;
 
-    if (!leaveSettings || Object.keys(leaveSettings).length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 동기화 중...</td></tr>';
-    }
+    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 로딩 중...</td></tr>';
 
     try {
         const members = await fetchAllMembers();
-        await fetchLeaveSettings();
-        const usageData = await fetchLeaveUsage(currentYear);
+        await fetchLeaveSettings(); // 설정 데이터 불러오기 (복구)
+        const usageData = await fetchLeaveUsage(currentYear); // 사용 내역 불러오기
 
         let rowData = members.map(member => {
             const config = fullLeaveConfig[member] || {};
+            // 기존에 설정된 totalLeave가 있으면 가져오고 없으면 기본 15
             const total = config.totalLeave !== undefined ? Number(config.totalLeave) : 15;
             
             const resetDate = config.leaveResetDate || '';
@@ -94,7 +92,7 @@ export async function renderLeaveSheet() {
             let periodText = '-';
             let periodClass = 'text-gray-400';
 
-            // 🌟 [복구됨] 시스템이 임의로 연도를 바꾸지 않고, DB에 저장된 지정 날짜를 그대로 보여줍니다.
+            // DB에 명시된 기간이 있다면 그대로 표시
             if (resetDate && expireDate) {
                 periodText = `${resetDate} ~ ${expireDate}`;
                 periodClass = 'text-gray-600 font-mono text-xs';
@@ -183,8 +181,10 @@ async function fetchAllMembers() {
     return Array.from(memberSet); 
 }
 
+// 🌟 [핵심 복구 포인트] DB에서 연차 설정(memberLeaveSettings)을 확실하게 불러오도록 수정
 async function fetchLeaveSettings() {
     try {
+        // 기존 시스템에서 관리자 설정이 저장되던 정확한 경로
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
         const snap = await getDoc(docRef);
         
@@ -192,10 +192,16 @@ async function fetchLeaveSettings() {
 
         if (snap.exists()) {
             const data = snap.data();
-            fullLeaveConfig = data.memberLeaveSettings || {};
+            if (data.memberLeaveSettings) {
+                 fullLeaveConfig = data.memberLeaveSettings;
+            } else {
+                 console.warn("mainConfig 문서 내에 memberLeaveSettings 필드가 없습니다.");
+            }
+        } else {
+             console.warn("mainConfig 문서가 DB에 존재하지 않습니다.");
         }
     } catch (e) {
-        console.warn("Leave settings load failed:", e);
+        console.error("Leave settings fetch error:", e);
         fullLeaveConfig = {};
     }
 }
@@ -206,8 +212,8 @@ async function fetchLeaveUsage(year) {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
         const snap = await getDoc(docRef);
-        if (snap.exists()) {
-            allLeaves = snap.data().onLeaveMembers || [];
+        if (snap.exists() && snap.data().onLeaveMembers) {
+            allLeaves = snap.data().onLeaveMembers;
         }
     } catch (e) {
         console.error("Leave schedule fetch error", e);
@@ -225,12 +231,13 @@ async function fetchLeaveUsage(year) {
 
             let isMatch = false;
 
-            // 🌟 [복구됨] 명시적 기간이 있다면 선택된 연도와 무관하게 무조건 해당 설정 기간의 데이터만 정확히 집계합니다.
+            // 명시적 기간이 있다면 해당 기간 내의 데이터만 집계
             if (resetDate && expireDate) {
                 if (record.startDate >= resetDate && record.startDate <= expireDate) {
                     isMatch = true;
                 }
             } else {
+                // 명시적 기간이 없으면 현재 선택된 탭(year)에 해당하는 데이터 집계
                 if (record.startDate && record.startDate.startsWith(String(year))) {
                     isMatch = true;
                 }
@@ -273,11 +280,13 @@ async function fetchLeaveUsage(year) {
     return usage;
 }
 
+// 🌟 수정한 설정이 날아가지 않도록 안전한 저장 로직 강화
 async function saveLeaveSettings() {
     const inputs = document.querySelectorAll('.total-leave-input');
     let hasChange = false;
     
-    const updates = { ...fullLeaveConfig };
+    // 깊은 복사로 기존 설정 보호
+    const updates = JSON.parse(JSON.stringify(fullLeaveConfig));
 
     inputs.forEach(input => {
         const member = input.dataset.member;
@@ -305,9 +314,10 @@ async function saveLeaveSettings() {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
         
-        await updateDoc(docRef, {
+        // setDoc({merge:true})를 사용하여 문서가 없으면 생성하고, 있으면 특정 필드만 병합
+        await setDoc(docRef, {
             memberLeaveSettings: updates
-        });
+        }, { merge: true });
         
         fullLeaveConfig = updates;
         showToast("총 연차 설정이 저장되었습니다.");
