@@ -136,14 +136,14 @@
 </div>
 
 <div id="leave-type-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center hidden z-[100] backdrop-blur-sm p-4 transition-opacity">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden flex flex-col max-h-[90vh]">
         
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-5 text-white flex justify-between items-center shadow-sm z-10">
             <h3 class="text-lg font-bold flex items-center gap-2">
                 <svg class="w-6 h-6 text-blue-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                 <span id="leave-member-name" class="text-xl text-yellow-300"></span>님의 근태 관리
             </h3>
-            <button class="modal-close-btn text-white/80 hover:text-white transition p-1" data-modal-id="leave-type-modal">
+            <button class="modal-close-btn static text-white/80 hover:text-white transition p-1" data-modal-id="leave-type-modal">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
         </div>
@@ -217,7 +217,7 @@
         </div>
 
         <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
-            <button type="button" id="cancel-leave-btn" class="modal-close-btn bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2.5 px-4 rounded-xl transition text-sm shadow-sm" data-modal-id="leave-type-modal">닫기</button>
+            <button type="button" id="cancel-leave-btn" class="modal-close-btn static bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2.5 px-4 rounded-xl transition text-sm shadow-sm" data-modal-id="leave-type-modal">닫기</button>
             <button id="confirm-leave-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition-all active:scale-[0.98] hidden">
                 일정 저장하기
             </button>
