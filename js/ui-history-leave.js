@@ -75,7 +75,7 @@ export async function renderLeaveSheet() {
     const tbody = document.getElementById('leave-sheet-body');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 복구 및 동기화 중...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 복구 및 집계 중...</td></tr>';
 
     try {
         const members = await fetchAllMembers();
@@ -198,42 +198,41 @@ async function fetchLeaveSettings() {
     }
 }
 
-// 🌟 [핵심 개선] 3중 복구 시스템 및 유연한 매칭 적용
+// 🌟 [최종 복구 로직] ID가 없는 옛날 데이터도 놓치지 않고 전부 긁어옵니다.
 async function fetchLeaveUsage(year) {
     let allLeavesMap = new Map();
     
-    // 1. 중앙 DB (leaveSchedule)에서 스캔
+    // 고유 식별자가 없는 옛날 기록들을 위한 안전한 키 생성기
+    const generateKey = (l) => l.id ? l.id : `${l.member}_${l.type}_${l.startDate}_${l.endDate||''}`;
+
+    // 1. 중앙 DB에서 불러오기
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
         const snap = await getDoc(docRef);
         if (snap.exists() && snap.data().onLeaveMembers) {
             snap.data().onLeaveMembers.forEach(l => {
-                if (l.id) allLeavesMap.set(l.id, l);
+                allLeavesMap.set(generateKey(l), l); // ID 검사 없이 무조건 저장
             });
         }
     } catch (e) {
         console.error("Leave schedule fetch error", e);
     }
 
-    // 2. 누락 방지: 일일 업무 기록 (allHistoryData)에서 직접 발굴 (영혼까지 끌어오기)
+    // 2. 과거 일일 업무 기록에서 긁어오기 (이중 백업)
     if (State.allHistoryData && Array.isArray(State.allHistoryData)) {
         State.allHistoryData.forEach(day => {
             if (day.onLeaveMembers && Array.isArray(day.onLeaveMembers)) {
                 day.onLeaveMembers.forEach(l => {
-                    if (l.id && !allLeavesMap.has(l.id)) {
-                        allLeavesMap.set(l.id, l);
-                    }
+                    allLeavesMap.set(generateKey(l), l);
                 });
             }
         });
     }
 
-    // 3. 현재 메모리 상태 반영
+    // 3. 현재 메모리(오늘 작성 중인 내역) 반영
     if (State.persistentLeaveSchedule && Array.isArray(State.persistentLeaveSchedule.onLeaveMembers)) {
         State.persistentLeaveSchedule.onLeaveMembers.forEach(l => {
-            if (l.id && !allLeavesMap.has(l.id)) {
-                allLeavesMap.set(l.id, l);
-            }
+            allLeavesMap.set(generateKey(l), l);
         });
     }
 
@@ -245,16 +244,24 @@ async function fetchLeaveUsage(year) {
             const name = record.member;
             
             const memberConfig = fullLeaveConfig[name] || {};
-            const resetDate = memberConfig.leaveResetDate;
-            const expireDate = memberConfig.expirationDate;
+            const resetDate = memberConfig.leaveResetDate || '';
+            const expireDate = memberConfig.expirationDate || '';
 
             let isMatch = false;
 
-            // 🌟 기간이 설정되어 있어도, 선택한 '연도'와 일치하면 무조건 보이도록 유연성 확보
-            if (resetDate && expireDate && record.startDate >= resetDate && record.startDate <= expireDate) {
-                isMatch = true; // 설정된 기간 안에 포함될 때
-            } else if (record.startDate && typeof record.startDate === 'string' && record.startDate.startsWith(String(year))) {
-                isMatch = true; // 기간을 벗어났더라도 드롭다운 연도와 일치할 때 (과거 기록 조회)
+            // [조건 1] 드롭다운에서 선택한 연도와 일치하면 무조건 노출
+            if (record.startDate && record.startDate.startsWith(String(year))) {
+                isMatch = true;
+            }
+            
+            // [조건 2] 드롭다운 연도와 다르더라도, 개별 설정된 기간(resetDate~expireDate) 안에 포함되는 연차라면 노출
+            if (!isMatch && resetDate && expireDate) {
+                if (record.startDate >= resetDate && record.startDate <= expireDate) {
+                    // 단, 그 지정 기간이 현재 드롭다운의 연도와 관련이 있을 때만 표시
+                    if (resetDate.startsWith(String(year)) || expireDate.startsWith(String(year))) {
+                        isMatch = true;
+                    }
+                }
             }
 
             if (!isMatch) return; 
@@ -272,11 +279,11 @@ async function fetchLeaveUsage(year) {
                     const start = new Date(record.startDate);
                     const end = new Date(record.endDate);
                     
-                    // 🚀 [보너스 개선] 여러 날 연속 연차 시, 주말(토,일)은 자동차감 (평일만 계산)
+                    // 🚀 연속 연차 시, 주말(토,일) 자동 제외 계산 로직 추가
                     let diffDays = 0;
                     for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
                         const dayOfWeek = dt.getDay();
-                        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 0: 일요일, 6: 토요일
+                        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 0:일, 6:토 제외
                             diffDays++; 
                         }
                     }
@@ -285,7 +292,7 @@ async function fetchLeaveUsage(year) {
                     days = diffDays;
                     label = `${record.startDate.substring(5)}~${record.endDate.substring(5)}`;
                 } else {
-                    days = 1;
+                    days = 1; // 하루 연차
                     label = record.startDate.substring(5);
                 }
             }
@@ -295,6 +302,7 @@ async function fetchLeaveUsage(year) {
         }
     });
 
+    // 날짜순 정렬
     Object.keys(usage).forEach(key => {
         usage[key].dates.sort();
     });
@@ -306,6 +314,7 @@ async function saveLeaveSettings() {
     const inputs = document.querySelectorAll('.total-leave-input');
     let hasChange = false;
     
+    // 깊은 복사로 기존 설정 보호
     const updates = JSON.parse(JSON.stringify(fullLeaveConfig));
 
     inputs.forEach(input => {
