@@ -43,8 +43,8 @@ export const setPersistentLeaveSchedule = (val) => { persistentLeaveSchedule = v
 
 // --- Constants ---
 export const AUTO_SAVE_INTERVAL = 1 * 60 * 1000;
-// ✅ '매장근무' 항목 추가
-export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장', '지각', '매장근무'];
+// ✅ '재택근무', '휴직' 항목 추가
+export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장', '지각', '매장근무', '재택근무', '휴직'];
 
 // --- State Objects ---
 export const context = {

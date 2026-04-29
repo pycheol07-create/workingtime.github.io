@@ -1,7 +1,8 @@
 // === js/ui-modals.js ===
 
 import { appState, appConfig, persistentLeaveSchedule } from './state.js';
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays } from './utils.js';
+// ✅ getCurrentTime 유틸 함수 추가 임포트
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime } from './utils.js';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -119,7 +120,6 @@ const calculateLeaveUsage = (memberName) => {
     let cumulativeDays = 0;
 
     const finalHistory = mergedHistory.map((item) => {
-        // ✅ [수정] 차감 일수를 평일(주말 제외)로 계산하도록 수정!
         const days = calculateWorkingDays(item.startDate, item.endDate);
         realUsedCount += days;
         
@@ -377,6 +377,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
 export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setting') => {
     const container = document.getElementById('leave-type-options');
     const dateInputsDiv = document.getElementById('leave-date-inputs');
+    const timeInputsDiv = document.getElementById('leave-time-inputs'); // ✅ 추가된 영역
     const confirmBtn = document.getElementById('confirm-leave-btn');
     
     const tabSetting = document.getElementById('tab-leave-setting');
@@ -385,7 +386,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
     const panelStatus = document.getElementById('panel-leave-status');
     const memberNameEl = document.getElementById('leave-member-name');
     
-    if (!container || !dateInputsDiv) return;
+    if (!container) return;
 
     const memberName = memberNameEl ? memberNameEl.textContent : '';
 
@@ -472,15 +473,28 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             tabStatus.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
             panelSetting.classList.remove('hidden');
             panelStatus.classList.add('hidden');
+            
+            // ✅ [추가 로직] 설정 탭으로 올 때 값 초기화 및 기본값 설정
             if(confirmBtn) {
                 confirmBtn.classList.remove('hidden');
                 confirmBtn.textContent = '설정 저장';
                 delete confirmBtn.dataset.editingId;
+                
                 const sInput = document.getElementById('leave-start-date-input');
                 const eInput = document.getElementById('leave-end-date-input');
-                if(sInput) sInput.value = '';
+                const stInput = document.getElementById('leave-start-time-input');
+                const etInput = document.getElementById('leave-end-time-input');
+                
+                if(sInput) sInput.value = getTodayDateString(); // 기본값: 오늘 날짜
                 if(eInput) eInput.value = '';
+                if(stInput) stInput.value = getCurrentTime(); // 기본값: 현재 시간
+                if(etInput) etInput.value = '';
+                
                 document.querySelectorAll('input[name="leave-type"]').forEach((r,i) => r.checked = i===0);
+
+                // 첫 라디오 버튼 선택 후 체인지 이벤트 발생시켜 화면 갱신
+                const firstRadio = container.querySelector('input[type="radio"]');
+                if(firstRadio) firstRadio.dispatchEvent(new Event('change', { bubbles: true }));
             }
         }
     };
@@ -490,43 +504,61 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
 
     activateTab(initialTab);
 
+    // 라디오 버튼 생성
     container.innerHTML = '';
     leaveTypes.forEach((type, index) => {
         const div = document.createElement('div');
-        div.className = 'flex items-center';
+        div.className = 'flex items-center p-3 border border-gray-200 rounded-xl bg-white hover:bg-blue-50 hover:border-blue-200 transition cursor-pointer shadow-sm';
         div.innerHTML = `
-            <input id="leave-type-${index}" name="leave-type" type="radio" value="${type}" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500 leave-type-radio">
-            <label for="leave-type-${index}" class="ml-2 block text-sm font-medium text-gray-700">${type}</label>
+            <input id="leave-type-${index}" name="leave-type" type="radio" value="${type}" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 focus:ring-2 cursor-pointer leave-type-radio">
+            <label for="leave-type-${index}" class="w-full ml-2 text-sm font-bold text-gray-700 cursor-pointer select-none">${type}</label>
         `;
         container.appendChild(div);
     });
 
+    // ✅ [추가 로직] 클릭한 종류에 따라 날짜 입력창 vs 시간 입력창 노출 분기 처리
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
-            if (selectedType === '연차' || selectedType === '출장' || selectedType === '결근' || selectedType === '매장근무') {
-                dateInputsDiv.classList.remove('hidden');
+            
+            // 날짜 선택형 항목들
+            const dateTypes = ['연차', '출장', '매장근무', '재택근무', '휴직', '결근'];
+            // 시간 선택형 항목들
+            const timeTypes = ['외출', '지각', '조퇴'];
+
+            if (dateTypes.includes(selectedType)) {
+                if(dateInputsDiv) dateInputsDiv.classList.remove('hidden');
+                if(timeInputsDiv) timeInputsDiv.classList.add('hidden');
+                
+                const sInput = document.getElementById('leave-start-date-input');
+                if(sInput && !sInput.value) sInput.value = getTodayDateString();
+
+            } else if (timeTypes.includes(selectedType)) {
+                if(dateInputsDiv) dateInputsDiv.classList.add('hidden');
+                if(timeInputsDiv) timeInputsDiv.classList.remove('hidden');
+                
+                const stInput = document.getElementById('leave-start-time-input');
+                if(stInput && !stInput.value) stInput.value = getCurrentTime();
+                
             } else {
-                dateInputsDiv.classList.add('hidden');
+                if(dateInputsDiv) dateInputsDiv.classList.add('hidden');
+                if(timeInputsDiv) timeInputsDiv.classList.add('hidden');
             }
         }
     });
 
+    // 렌더링 직후 첫 번째 옵션 기본 트리거
     const firstRadio = container.querySelector('input[type="radio"]');
     if (firstRadio) {
         firstRadio.checked = true;
-        if (firstRadio.value === '연차' || firstRadio.value === '출장' || firstRadio.value === '결근' || firstRadio.value === '매장근무') {
-            dateInputsDiv.classList.remove('hidden');
-        } else {
-            dateInputsDiv.classList.add('hidden');
-        }
+        firstRadio.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     const sInput = document.getElementById('leave-start-date-input');
     const eInput = document.getElementById('leave-end-date-input');
     const preview = document.getElementById('leave-count-preview');
     
-    // ✅ [수정] 모달 안의 실시간 N일 미리보기를 평일 기준으로 계산
+    // 미리보기 업데이트 
     const updatePreview = () => {
         if (!preview) return;
         const sVal = sInput ? sInput.value : '';
@@ -547,7 +579,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
 };
 
 export const renderManualAddModalDatalists = (appState, appConfig) => {
-    // 기존 로직 유지
     const memberDatalist = document.getElementById('manual-add-member-list');
     const taskDatalist = document.getElementById('manual-add-task-list');
 
