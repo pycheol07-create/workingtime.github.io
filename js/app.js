@@ -49,8 +49,11 @@ import { checkAdminTodoNotifications } from './admin-todo-logic.js';
 import { setupWeekendListeners } from './listeners-weekend.js';
 
 
-// --- 3. 헬퍼 함수 ---
+// --- 3. 헬퍼 함수 및 변수 ---
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
+
+// 💡 [신규] 개인 알림 실시간 감지를 위한 구독 해제 변수
+let unsubscribeNotifications = null;
 
 
 // 과거 연차 데이터
@@ -248,7 +251,6 @@ async function startAppAfterLogin(user) {
             return acc;
         }, {});
 
-        // 💡 [에러 수정 완료] sysAcc 검색 시 acc가 유효하고 email이 있는지 먼저 확인 (안전장치)
         const systemAccounts = State.appConfig.systemAccounts || [];
         const sysAcc = systemAccounts.find(acc => acc && acc.email && acc.email.toLowerCase() === userEmailLower);
 
@@ -275,7 +277,7 @@ async function startAppAfterLogin(user) {
         if (DOM.logoutBtn) DOM.logoutBtn.classList.remove('hidden');
         if (DOM.logoutBtnMobile) DOM.logoutBtnMobile.classList.remove('hidden');
 
-        // 시스템 전용 계정은 대시보드 인원에 카운트 안 되므로 출퇴근 토글 버튼을 숨김 처리
+        // 시스템 전용 계정 처리
         if (!sysAcc) {
             const pcAttendanceToggle = document.getElementById('personal-attendance-toggle-pc');
             const pcAttendanceLabel = document.getElementById('pc-attendance-label');
@@ -290,13 +292,11 @@ async function startAppAfterLogin(user) {
                  mobileAttendanceToggle.classList.add('flex');
             }
         } else {
-             // 시스템 계정은 출퇴근 UI를 강제로 숨깁니다.
              document.getElementById('personal-attendance-toggle-pc')?.classList.add('hidden');
              document.getElementById('personal-attendance-toggle-mobile')?.classList.add('hidden');
         }
 
         const adminLinkBtn = document.getElementById('admin-link-btn');
-        
         const adminTodoBtn = document.getElementById('open-admin-todo-btn');
         const adminTodoBtnMobile = document.getElementById('open-admin-todo-btn-mobile');
 
@@ -527,6 +527,33 @@ async function startAppAfterLogin(user) {
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '연결 오류 (업무)';
         if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500';
     }));
+
+    // 💡 [신규] 개인 알림(Notification) 실시간 감지
+    if (State.appState.currentUser) {
+        const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
+        const notiQuery = query(notiColRef, where("targetMember", "==", State.appState.currentUser), where("isRead", "==", false));
+        
+        if (unsubscribeNotifications) unsubscribeNotifications();
+        
+        unsubscribeNotifications = onSnapshot(notiQuery, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    const data = change.doc.data();
+                    
+                    // 화면에 토스트 알림 띄우기
+                    showToast(`🔔 알림: ${data.message}`, false);
+                    
+                    // 알림을 '읽음' 처리하여 다음 로그인 시 다시 뜨지 않도록 업데이트
+                    updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'notifications', change.doc.id), {
+                        isRead: true,
+                        readAt: new Date().toISOString()
+                    }).catch(err => console.error("알림 상태 업데이트 실패:", err));
+                }
+            });
+        }, (error) => {
+            console.error("알림 수신 에러:", error);
+        });
+    }
 }
 
 async function main() {
@@ -562,6 +589,7 @@ async function main() {
             if (State.elapsedTimeTimer) { clearInterval(State.elapsedTimeTimer); State.setElapsedTimeTimer(null); }
             if (State.periodicRefreshTimer) { clearInterval(State.periodicRefreshTimer); State.setPeriodicRefreshTimer(null); }
             if (State.unsubscribeWorkRecords) { State.unsubscribeWorkRecords(); State.setUnsubscribeWorkRecords(null); }
+            if (unsubscribeNotifications) { unsubscribeNotifications(); unsubscribeNotifications = null; } // 💡 로그아웃 시 알림 리스너 해제
 
             State.appState.workRecords = [];
             State.appState.taskQuantities = {};
