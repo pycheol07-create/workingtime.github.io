@@ -10,6 +10,10 @@ import { checkMissingQuantities } from './analysis-logic.js';
 import { renderQuantityModalInputs } from './ui.js';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// 🌟 [추가] 렌더링 중복 실행 방지를 위한 Lock 상태 변수
+let isRenderingList = false;
+let renderListQueue = null;
+
 /**
  * 이력 데이터를 로드하고 초기 화면을 렌더링합니다.
  */
@@ -82,94 +86,112 @@ export const loadAndRenderHistoryList = async () => {
 
 /**
  * 모드(일/주/월/년)에 따라 좌측 리스트를 렌더링합니다.
- * ✅ [수정] selectedKey 파라미터 추가 (특정 날짜 선택 유지 기능)
  */
 export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = null) => {
     if (!DOM.historyDateList) return;
-    
-    // 기존에 이곳에 있던 DOM.historyDateList.innerHTML = ''; 를 제거하고 아래로 이동시킵니다.
 
-    await syncTodayToHistory(); 
-    augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
-
-    const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
-        ? State.allHistoryData.filter(d => {
-            const date = d.id;
-            const start = State.context.historyStartDate;
-            const end = State.context.historyEndDate;
-            if (start && end) return date >= start && date <= end;
-            if (start) return date >= start;
-            if (end) return date <= end;
-            return true;
-        })
-        : State.allHistoryData;
-
-    let keys = [];
-
-    if (mode === 'day') {
-        keys = filteredData.map(d => d.id);
-    } else if (mode === 'week') {
-        const weekSet = new Set(filteredData.map(d => getWeekOfYear(new Date(d.id + "T00:00:00"))));
-        keys = Array.from(weekSet).sort((a, b) => b.localeCompare(a));
-    } else if (mode === 'month') {
-        const monthSet = new Set(filteredData.map(d => d.id.substring(0, 7)));
-        keys = Array.from(monthSet).sort((a, b) => b.localeCompare(a));
-    } else if (mode === 'year') {
-        const yearSet = new Set(filteredData.map(d => d.id.substring(0, 4)));
-        keys = Array.from(yearSet).sort((a, b) => b.localeCompare(a));
-    }
-
-    // 🌟 [핵심 수정] 비동기 데이터 대기(await)가 완전히 끝난 직후에 목록 초기화 수행
-    // 여러 탭 전환 요청이 동시에 들어오더라도 중복해서 그려지는 현상을 원천 차단합니다.
-    DOM.historyDateList.innerHTML = '';
-
-    if (keys.length === 0) {
-        DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
+    // 🌟 [강력한 방어 로직 1] 렌더링이 진행 중일 때는 중복 실행을 막고 대기열에 등록합니다.
+    if (isRenderingList) {
+        renderListQueue = { mode, selectedKey };
         return;
     }
+    isRenderingList = true;
 
-    keys.forEach(key => {
-        const li = document.createElement('li');
-        let hasWarning = false;
-        let titleAttr = '';
+    try {
+        await syncTodayToHistory(); 
+        augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
+
+        const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
+            ? State.allHistoryData.filter(d => {
+                const date = d.id;
+                const start = State.context.historyStartDate;
+                const end = State.context.historyEndDate;
+                if (start && end) return date >= start && date <= end;
+                if (start) return date >= start;
+                if (end) return date <= end;
+                return true;
+            })
+            : State.allHistoryData;
+
+        let keys = [];
 
         if (mode === 'day') {
-            const dayData = filteredData.find(d => d.id === key);
-            if (dayData) {
-                const missingTasksList = checkMissingQuantities(dayData);
-                hasWarning = missingTasksList.length > 0;
-                if (hasWarning) {
-                    titleAttr = ` title="처리량 누락: ${missingTasksList.join(', ')}"`;
+            keys = filteredData.map(d => d.id);
+        } else if (mode === 'week') {
+            const weekSet = new Set(filteredData.map(d => getWeekOfYear(new Date(d.id + "T00:00:00"))));
+            keys = Array.from(weekSet).sort((a, b) => b.localeCompare(a));
+        } else if (mode === 'month') {
+            const monthSet = new Set(filteredData.map(d => d.id.substring(0, 7)));
+            keys = Array.from(monthSet).sort((a, b) => b.localeCompare(a));
+        } else if (mode === 'year') {
+            const yearSet = new Set(filteredData.map(d => d.id.substring(0, 4)));
+            keys = Array.from(yearSet).sort((a, b) => b.localeCompare(a));
+        }
+
+        // 🌟 [강력한 방어 로직 2] 혹시 모를 배열 내 중복 값을 강제로 한 번 더 제거합니다.
+        keys = [...new Set(keys)];
+
+        if (keys.length === 0) {
+            DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
+        } else {
+            // 🌟 [강력한 방어 로직 3] appendChild 대신 문자열로 HTML을 완성한 뒤 단 한 번만 DOM에 덮어씌웁니다.
+            let htmlContent = '';
+            
+            keys.forEach(key => {
+                let hasWarning = false;
+                let titleAttr = '';
+
+                if (mode === 'day') {
+                    const dayData = filteredData.find(d => d.id === key);
+                    if (dayData) {
+                        const missingTasksList = checkMissingQuantities(dayData);
+                        hasWarning = missingTasksList.length > 0;
+                        if (hasWarning) {
+                            titleAttr = ` title="처리량 누락: ${missingTasksList.join(', ')}"`;
+                        }
+                    }
                 }
+                
+                // HTML을 문자열로만 합칩니다.
+                htmlContent += `<li><button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300 ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>${key}</button></li>`;
+            });
+
+            // 조립된 완벽한 리스트를 단 한 번에 덮어씌웁니다.
+            DOM.historyDateList.innerHTML = htmlContent;
+        }
+
+        let targetBtn = null;
+        if (selectedKey) {
+            targetBtn = DOM.historyDateList.querySelector(`button[data-key="${selectedKey}"]`);
+        }
+        
+        if (!targetBtn) {
+            targetBtn = DOM.historyDateList.firstChild?.querySelector('button');
+        }
+
+        if (targetBtn) {
+            targetBtn.click();
+            // 선택된 항목으로 스크롤 이동
+            if (selectedKey) {
+                targetBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
             }
         }
 
-        li.innerHTML = `<button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300 ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>${key}</button>`;
-        DOM.historyDateList.appendChild(li);
-    });
-
-    // ✅ [수정] 지정된 키가 있으면 해당 버튼 클릭, 없으면 첫 번째 버튼 클릭
-    let targetBtn = null;
-    if (selectedKey) {
-        targetBtn = DOM.historyDateList.querySelector(`button[data-key="${selectedKey}"]`);
-    }
-    
-    if (!targetBtn) {
-        targetBtn = DOM.historyDateList.firstChild?.querySelector('button');
-    }
-
-    if (targetBtn) {
-        targetBtn.click();
-        // 선택된 항목으로 스크롤 이동 (사용자 편의)
-        if (selectedKey) {
-            targetBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } finally {
+        // 렌더링 락 해제
+        isRenderingList = false;
+        
+        // 렌더링 중에 밀려있던 탭 전환 요청이 있다면 실행
+        if (renderListQueue) {
+            const nextJob = renderListQueue;
+            renderListQueue = null;
+            renderHistoryDateListByMode(nextJob.mode, nextJob.selectedKey);
         }
     }
 };
 
 /**
  * 이력 보기 내의 뷰(일/주/월 리포트 등) 전환을 처리합니다.
- * ✅ [수정] preserveKey 파라미터 추가
  */
 export const switchHistoryView = async (view, preserveKey = null) => {
     const allViews = [
@@ -261,7 +283,6 @@ export const switchHistoryView = async (view, preserveKey = null) => {
             break;
     }
 
-    // ✅ [수정] 리스트 렌더링 시 보존할 키 전달
     await renderHistoryDateListByMode(listMode, preserveKey);
 
     if (viewToShow) viewToShow.classList.remove('hidden');
@@ -328,12 +349,10 @@ export const openHistoryQuantityModal = (dateKey) => {
             }
 
             if (DOM.historyModal && !DOM.historyModal.classList.contains('hidden')) {
-                // 현재 보고 있는 뷰 갱신
                 const activeSubTabBtn = document.querySelector('#history-tabs button.font-semibold')
                                      || document.querySelector('#report-tabs button.font-semibold');
                 const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
                 
-                // ✅ [수정] 수정 후에도 현재 날짜 선택 유지
                 await switchHistoryView(currentView, dateKey);
             }
 
@@ -351,7 +370,7 @@ export const openHistoryQuantityModal = (dateKey) => {
 };
 
 /**
- * 이력 삭제 요청을 처리합니다. (실제 삭제는 Confirmation 모달에서 수행)
+ * 이력 삭제 요청을 처리합니다.
  */
 export const requestHistoryDeletion = (dateKey) => {
     State.context.historyKeyToDelete = dateKey;
