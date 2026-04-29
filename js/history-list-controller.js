@@ -86,7 +86,8 @@ export const loadAndRenderHistoryList = async () => {
  */
 export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = null) => {
     if (!DOM.historyDateList) return;
-    DOM.historyDateList.innerHTML = '';
+    
+    // 기존에 이곳에 있던 DOM.historyDateList.innerHTML = ''; 를 제거하고 아래로 이동시킵니다.
 
     await syncTodayToHistory(); 
     augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
@@ -117,6 +118,10 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
         const yearSet = new Set(filteredData.map(d => d.id.substring(0, 4)));
         keys = Array.from(yearSet).sort((a, b) => b.localeCompare(a));
     }
+
+    // 🌟 [핵심 수정] 비동기 데이터 대기(await)가 완전히 끝난 직후에 목록 초기화 수행
+    // 여러 탭 전환 요청이 동시에 들어오더라도 중복해서 그려지는 현상을 원천 차단합니다.
+    DOM.historyDateList.innerHTML = '';
 
     if (keys.length === 0) {
         DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
@@ -349,12 +354,6 @@ export const openHistoryQuantityModal = (dateKey) => {
  * 이력 삭제 요청을 처리합니다. (실제 삭제는 Confirmation 모달에서 수행)
  */
 export const requestHistoryDeletion = (dateKey) => {
-    // ... (이전과 동일, 삭제 대상 안내 메시지 로직) ...
-    // (listeners-history.js 파일 내부에 로직이 있으므로 여기서는 모달 호출만 담당)
-    // 하지만 실제 로직은 listeners-history.js에서 처리하고, 여기 있는 함수는 
-    // 다른 곳에서 호출하기 위한 껍데기 역할을 하거나, 중복될 수 있음.
-    // 현재 listeners-history.js가 메인이므로 여기서는 DOM 제어만 수행.
-    
     State.context.historyKeyToDelete = dateKey;
     const activeTab = State.context.activeMainHistoryTab || 'work';
     let targetName = '모든';
