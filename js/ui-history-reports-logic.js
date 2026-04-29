@@ -266,14 +266,25 @@ export const aggregateDaysToSingleData = (daysData, id) => {
 
     const partTimerNames = new Set();
 
+    // ✅ [추가] 데이터를 안전하게 배열로 변환하는 헬퍼 함수
+    // DB에서 배열이 객체(Object) 형태로 넘어오는 이슈를 방지합니다.
+    const getAsArray = (data) => {
+        if (!data) return []; // 데이터가 없으면 빈 배열 반환
+        if (Array.isArray(data)) return data; // 정상적인 배열이면 그대로 반환
+        if (typeof data === 'object') return Object.values(data); // 객체인 경우 값들만 추출하여 배열로 반환
+        return [data]; // 그 외의 경우 요소를 가진 배열로 감싸서 반환
+    };
+
     daysData.forEach(day => {
-        (day.workRecords || []).forEach(r => {
+        // ✅ [수정] getAsArray 헬퍼 함수를 사용하여 안전하게 forEach 실행
+        getAsArray(day.workRecords).forEach(r => {
             aggregated.workRecords.push({ ...r, date: day.id });
         });
         
-        (day.onLeaveMembers || []).forEach(o => aggregated.onLeaveMembers.push(o));
+        // 에러가 발생했던 부분 안전하게 수정
+        getAsArray(day.onLeaveMembers).forEach(o => aggregated.onLeaveMembers.push(o));
 
-        (day.partTimers || []).forEach(p => {
+        getAsArray(day.partTimers).forEach(p => {
             if (p && p.name && !partTimerNames.has(p.name)) {
                 aggregated.partTimers.push(p);
                 partTimerNames.add(p.name);
@@ -730,7 +741,7 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
     if (qualityRatio < 95) comments.push(`재작업 등으로 인한 <strong>품질 손실이 약 ${(100 - qualityRatio).toFixed(1)}%</strong> 발생했습니다. 오류 감소를 위한 노력이 필요합니다.`);
 
     if (oee >= 85) comments.push(`종합적으로 <strong>매우 우수한 생산성(OEE ${oee.toFixed(0)}%)</strong>을 기록했습니다. 👏`);
-    else if (oee <= 60) comments.push(`전반적인 생산성 지표가 낮습니다. <strong>가장 큰 손실 요인(${utilizationRate < 80 ? '대기시간' : (efficiencyRatio < 90 ? '속도저하' : '품질이슈')})</strong>부터 개선하는 것이 좋습니다.`);
+    else if (oee <= 60) comments.push(`전반적인 생산성 지표가 낮습니다. <strong>가장 큰 손실 요인(${utilizationRate < 80 ? '대기시간' : (efficiencyRatio < 90 ? '속도저하' : '품질이슈')})</strong>부터 개선하는 가장 좋습니다.`);
 
     if (benchmarkOEE !== null && benchmarkOEE > 0) {
         const diff = oee - benchmarkOEE;
