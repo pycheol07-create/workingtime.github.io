@@ -827,3 +827,27 @@ export const calculateSimulationThroughputs = (allHistoryData) => {
     });
     return standards;
 };
+
+// ✅ [추가] 시뮬레이션용: 특정 업무에 대한 숙련도(누적 경험) 기준 추천 작업자 추출
+export const getTopExperiencedWorkers = (taskName, requiredCount, allHistoryData) => {
+    if (!requiredCount || requiredCount <= 0) return [];
+    const memberDuration = {};
+    
+    allHistoryData.forEach(day => {
+        const records = getAsArray(day.workRecords);
+        records.forEach(r => {
+            if (r.task === taskName && r.member) {
+                // 해당 업무를 수행한 누적 시간을 계산
+                memberDuration[r.member] = (memberDuration[r.member] || 0) + (Number(r.duration) || 0);
+            }
+        });
+    });
+
+    // 누적 시간이 가장 많은 순(내림차순)으로 정렬하여 이름만 추출
+    const sortedMembers = Object.entries(memberDuration)
+        .sort((a, b) => b[1] - a[1])
+        .map(entry => entry[0]);
+
+    // 필요한 인원수만큼 잘라서 반환
+    return sortedMembers.slice(0, requiredCount);
+};

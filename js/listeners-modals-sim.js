@@ -5,8 +5,8 @@ import * as DOM from './dom-elements.js';
 import { appState, appConfig, allHistoryData } from './state.js';
 import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js';
 import { runAdvancedSimulation } from './analysis-logic.js'; 
-// 🌟 [수정] 2개월치 평균을 내는 calculateSimulationThroughputs 함수로 가져옵니다.
-import { calculateAverageStaffing, calculateSimulationThroughputs } from './ui-history-reports-logic.js';
+// ✅ [추가] 숙련자 추천 함수(getTopExperiencedWorkers) Import
+import { calculateAverageStaffing, calculateSimulationThroughputs, getTopExperiencedWorkers } from './ui-history-reports-logic.js';
 import { fetchAllHistoryData } from './history-data-manager.js';
 
 const CUSTOM_TASK_ORDER = ['채우기', '국내배송', '해외배송', '상.하차', '중국제작', '직진배송', '티니'];
@@ -154,7 +154,7 @@ const renderSimulationResults = (data) => {
     
     if (contentBox) contentBox.style.height = 'auto';
 
-    const { results, totalDuration, finalEndTimeStr, totalCost, totalWorkersForTarget } = data;
+    const { results, totalDuration, finalEndTimeStr, totalCost } = data;
     
     const simSummaryLabel1 = document.getElementById('sim-summary-label-1');
     const simSummaryValue1 = document.getElementById('sim-summary-value-1');
@@ -165,18 +165,22 @@ const renderSimulationResults = (data) => {
 
     if (simSummaryLabel1) simSummaryLabel1.textContent = '총 예상 소요 시간';
     if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration); 
-    if (simSummaryLabel2) simSummaryLabel2.textContent = '예상 종료 시각 / 총 필요 인원';
-    if (simSummaryValue2) simSummaryValue2.innerHTML = `<span class="text-indigo-600">${finalEndTimeStr}</span> <span class="text-gray-400 mx-1">|</span> <span class="text-orange-600">${Math.ceil(totalWorkersForTarget)}명</span>`;
+    
+    // ✅ [수정] 상단 요약에서도 총 필요 인원 숨기고 종료 시각만 강조
+    if (simSummaryLabel2) simSummaryLabel2.textContent = '최종 예상 종료 시각';
+    if (simSummaryValue2) simSummaryValue2.innerHTML = `<span class="text-indigo-600 font-bold">${finalEndTimeStr}</span>`;
+    
     if (simSummaryLabel3) simSummaryLabel3.textContent = '예상 총 인건비';
     if (simSummaryValue3) simSummaryValue3.textContent = `${Math.round(totalCost).toLocaleString()}원`;
 
+    // ✅ [수정] 필요 인원 열 삭제 및 추천 인원 열 추가
     if (simResultThead) {
         simResultThead.innerHTML = `
             <tr>
                 <th class="px-4 py-2">업무</th>
                 <th class="px-4 py-2 text-right">표준 속도</th>
                 <th class="px-4 py-2 text-right">예상 소요 시간</th>
-                <th class="px-4 py-2 text-right">필요 인원<br><span class="text-[10px] text-gray-400 font-normal">(목표 시각 기준)</span></th>
+                <th class="px-4 py-2 text-left">추천 투입 인원<br><span class="text-[10px] text-gray-400 font-normal">(업무 경험순)</span></th>
                 <th class="px-4 py-2 text-right">예상 종료 시각</th>
             </tr>
         `;
@@ -192,6 +196,11 @@ const renderSimulationResults = (data) => {
             }
             const concurrentIcon = res.isConcurrent ? `<span class="text-indigo-500 ml-1" title="동시 진행">🔗</span>` : '';
 
+            // ✅ [추가] 추천 인원 뱃지 HTML 생성
+            const recommendedHtml = res.recommendedWorkers.length > 0 
+                ? res.recommendedWorkers.map(w => `<span class="inline-block bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded mr-1 mb-1 text-[11px] font-bold border border-indigo-100">${w}</span>`).join('') 
+                : '<span class="text-gray-400 text-[11px]">기록 없음</span>';
+
             return `
             <tr class="bg-white hover:bg-gray-50 transition">
                 <td class="px-4 py-3 font-medium text-gray-900">
@@ -206,8 +215,10 @@ const renderSimulationResults = (data) => {
                     ${formatDuration(res.durationMinutes)}
                     ${res.includesLunch ? '<span class="text-xs text-orange-500 block">(점심포함)</span>' : ''}
                 </td>
-                <td class="px-4 py-3 text-right text-orange-600 font-bold">
-                    ${res.requiredWorkers} 명
+                <td class="px-4 py-3 text-left">
+                    <div class="flex flex-wrap max-w-[180px]">
+                        ${recommendedHtml}
+                    </div>
                 </td>
                 <td class="px-4 py-3 text-right font-bold text-gray-700">${res.expectedEndTime}</td>
             </tr>
@@ -311,8 +322,6 @@ export function setupSimulationModalListeners() {
             simTaskTableBody.innerHTML = '';
 
             const avgStaffMap = calculateAverageStaffing(allHistoryData);
-            
-            // 🌟 [적용됨] 2개월간의 평균 속도를 계산합니다.
             const standards = calculateSimulationThroughputs(allHistoryData);
             
             const quantityTaskSet = new Set(appConfig.quantityTaskTypes || []);
@@ -323,7 +332,8 @@ export function setupSimulationModalListeners() {
             });
 
             let tasksWereAdded = false;
-            let commonStartTime = simStartTimeInput ? simStartTimeInput.value : "09:00";
+            // ✅ [수정] 기본 시작 시간 08:30 적용
+            let commonStartTime = simStartTimeInput ? simStartTimeInput.value : "08:30";
 
             Array.from(tasksToShow).sort(sortTasksCustom).forEach((taskName, idx) => {
                 if (quantityTaskSet.has(taskName)) { 
@@ -370,7 +380,8 @@ export function setupSimulationModalListeners() {
             const container = document.getElementById('sim-bottleneck-container');
             if (container) container.classList.add('hidden'); 
 
-            if (simStartTimeInput && !simStartTimeInput.value) simStartTimeInput.value = "09:00"; 
+            // ✅ [수정] 모달 첫 오픈 시 기본 시작 시간 08:30 세팅
+            if (simStartTimeInput && !simStartTimeInput.value) simStartTimeInput.value = "08:30"; 
             if (simEndTimeInput && !simEndTimeInput.value) simEndTimeInput.value = "17:30"; 
         }
 
@@ -428,18 +439,15 @@ export function setupSimulationModalListeners() {
                 const startInput = row.querySelector('.sim-row-manual-start');
 
                 if (taskName) {
-                     // 1. 속도 자동 입력 (2개월 평균 적용)
                      const standards = calculateSimulationThroughputs(allHistoryData);
                      const speed = standards[taskName] || 0;
                      if (speedInput) speedInput.value = speed > 0 ? speed.toFixed(2) : '';
                      
-                     // 2. 당일 목표 수량 자동 입력
                      const quantities = appState.taskQuantities || {};
                      if (qtyInput && quantities[taskName]) {
                          qtyInput.value = quantities[taskName];
                      }
                      
-                     // 3. 투입 인원 자동 입력
                      const avgStaffMap = calculateAverageStaffing(allHistoryData);
                      const attendanceMap = appState.dailyAttendance || {};
                      const currentActiveCount = Object.values(attendanceMap).filter(a => a.status === 'active').length;
@@ -450,14 +458,13 @@ export function setupSimulationModalListeners() {
                          workerInput.value = Math.round(avgStaff) || '';
                      }
 
-                     // 4. 동시 진행 여부 자동 체크
                      if (concurrentCheck && DEFAULT_CONCURRENT_TASKS.includes(taskName)) {
                          concurrentCheck.checked = true;
                      }
 
-                     // 5. 시작 시각 (첫 줄인 경우 자동 채움)
+                     // ✅ [수정] 항목 추가 시 기본 시작 시간 08:30 세팅
                      if (startInput && !startInput.value && row.previousElementSibling === null) {
-                         startInput.value = simStartTimeInput ? simStartTimeInput.value : "09:00";
+                         startInput.value = simStartTimeInput ? simStartTimeInput.value : "08:30";
                      }
                 }
             }
@@ -500,7 +507,8 @@ export function setupSimulationModalListeners() {
 
     if (DOM.simCalculateBtn) {
         DOM.simCalculateBtn.addEventListener('click', () => {
-            const currentStartTimeStr = simStartTimeInput ? simStartTimeInput.value : "09:00";
+            // ✅ [수정] 계산 시 기본 시작 시간 08:30 세팅
+            const currentStartTimeStr = simStartTimeInput ? simStartTimeInput.value : "08:30";
             const currentEndTimeStr = simEndTimeInput ? simEndTimeInput.value : "17:30";
             const includeLinkedTasks = document.getElementById('sim-include-linked-tasks-checkbox')?.checked || false;
 
@@ -523,7 +531,8 @@ export function setupSimulationModalListeners() {
                         targetQty: qty, 
                         manualSpeed, 
                         manualStart: manualStart || null,
-                        isConcurrent: (index > 0 && isConcurrent) 
+                        isConcurrent: (index > 0 && isConcurrent),
+                        inputWorkers: workerInput // ✅ [추가] 사용자가 입력한 인원수 저장 (추천자 목록에 활용)
                     });
                 }
             });
@@ -536,17 +545,19 @@ export function setupSimulationModalListeners() {
             if (maxInputWorkers <= 0) maxInputWorkers = 1;
 
             const timeSimulation = runAdvancedSimulation('fixed-workers', taskList, maxInputWorkers, currentStartTimeStr, includeLinkedTasks);
-            const targetSimulation = runAdvancedSimulation('target-time', taskList, currentEndTimeStr, currentStartTimeStr, includeLinkedTasks);
 
             if (timeSimulation.error) {
                 showToast(timeSimulation.error, true);
                 return;
             }
 
-            const results = timeSimulation.results.map((tRes) => {
+            // ✅ [수정] 필요 인원 지우고, 사용자가 입력한 인원수만큼 추천 작업자를 생성하여 매핑
+            const results = timeSimulation.results.map((tRes, idx) => {
+                const inputWorkers = taskList[idx]?.inputWorkers || 1;
+                const recommendedWorkers = getTopExperiencedWorkers(tRes.task, inputWorkers, allHistoryData);
                 return {
                     ...tRes,
-                    requiredWorkers: targetSimulation.error ? '-' : targetSimulation.totalWorkers 
+                    recommendedWorkers: recommendedWorkers
                 };
             });
 
@@ -555,7 +566,6 @@ export function setupSimulationModalListeners() {
                 totalDuration: timeSimulation.totalDuration,
                 finalEndTimeStr: timeSimulation.finalEndTimeStr,
                 totalCost: timeSimulation.totalCost,
-                totalWorkersForTarget: targetSimulation.error ? 0 : targetSimulation.totalWorkers,
                 startTime: currentStartTimeStr,
                 endTime: currentEndTimeStr,
                 globalStartTimeMs: timeSimulation.globalStartTimeMs,
