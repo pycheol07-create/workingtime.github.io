@@ -22,7 +22,7 @@ let currentWeekendTotalCost = 0;
 let currentWeekendTotalCount = 0;
 let currentWeekendMonthStr = "";
 
-// 💡 주말 통계 정렬 및 필터 상태 관리
+// 💡 주말 통계 전용 정렬 및 필터 상태 관리
 let weekendSortState = { key: 'count', dir: 'desc' };
 let weekendFilterState = { name: '' };
 
@@ -34,6 +34,7 @@ const getSortIcon = (currentKey, currentDir, targetKey) => {
 };
 
 const getFilterDropdown = (key, currentFilterValue) => {
+    if (!State.context) State.context = {};
     const dropdownId = `weekend-filter-${key}`; 
     const isActive = State.context.activeFilterDropdown === dropdownId;
     const hasValue = currentFilterValue && currentFilterValue !== '';
@@ -58,12 +59,17 @@ const getFilterDropdown = (key, currentFilterValue) => {
     `;
 };
 
-
 async function loadAndRenderWeekendStats() {
     const tbody = document.getElementById('weekend-history-table-body');
-    const thead = tbody?.previousElementSibling;
     const monthPicker = document.getElementById('weekend-stats-month-picker');
-    if (!tbody || !monthPicker || !thead) return;
+    if (!tbody || !monthPicker) return;
+
+    const table = tbody.closest('table');
+    let thead = table.querySelector('thead');
+    if (!thead) {
+        thead = document.createElement('thead');
+        table.insertBefore(thead, tbody);
+    }
 
     if (!currentWeekendStatsData.length || currentWeekendMonthStr !== monthPicker.value) {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-blue-500 font-bold">데이터를 불러오는 중입니다...</td></tr>`;
@@ -110,37 +116,36 @@ async function loadAndRenderWeekendStats() {
         }
     }
 
+    // 💡 엑셀 스타일의 정렬/필터 헤더 렌더링
     thead.innerHTML = `
-        <tr>
-            <th class="px-6 py-4 w-20 text-center font-bold text-gray-500 bg-gray-50 border-r border-gray-100">순위</th>
-            <th class="px-6 py-4 w-40 cursor-pointer hover:bg-gray-100 transition select-none group" data-sort-key="name">
+        <tr class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+            <th class="px-6 py-4 w-20 text-center font-bold text-gray-500 border-r border-gray-100 select-none">순위</th>
+            <th class="px-6 py-4 w-40 cursor-pointer hover:bg-gray-200 transition select-none group relative" data-sort-key="name">
                 <div class="flex items-center justify-between font-bold">
                     <span class="flex items-center">이름 ${getSortIcon(weekendSortState.key, weekendSortState.dir, 'name')}</span>
                     ${getFilterDropdown('name', weekendFilterState.name)}
                 </div>
             </th>
-            <th class="px-6 py-4 w-32 cursor-pointer hover:bg-gray-100 transition select-none group" data-sort-key="count">
+            <th class="px-6 py-4 w-32 cursor-pointer hover:bg-gray-200 transition select-none group relative" data-sort-key="count">
                 <div class="flex items-center justify-center font-bold">
-                    횟수 ${getSortIcon(weekendSortState.key, weekendSortState.dir, 'count')}
+                    확정 횟수 ${getSortIcon(weekendSortState.key, weekendSortState.dir, 'count')}
                 </div>
             </th>
-            <th class="px-6 py-4 w-40 cursor-pointer hover:bg-gray-100 transition select-none group" data-sort-key="cost">
+            <th class="px-6 py-4 w-40 cursor-pointer hover:bg-gray-200 transition select-none group relative" data-sort-key="cost">
                 <div class="flex items-center justify-end font-bold">
                     정산 비용 ${getSortIcon(weekendSortState.key, weekendSortState.dir, 'cost')}
                 </div>
             </th>
-            <th class="px-6 py-4 font-bold text-gray-500 bg-gray-50">근무 일자</th>
+            <th class="px-6 py-4 font-bold text-gray-500 text-center select-none">근무 일자</th>
         </tr>
     `;
 
     let filteredData = [...currentWeekendStatsData];
     
-    // 필터 적용
     if (weekendFilterState.name) {
         filteredData = filteredData.filter(([name]) => name.includes(weekendFilterState.name));
     }
 
-    // 정렬 적용
     filteredData.sort((a, b) => {
         let valA, valB;
         if (weekendSortState.key === 'name') {
@@ -152,7 +157,6 @@ async function loadAndRenderWeekendStats() {
         if (valA < valB) return weekendSortState.dir === 'asc' ? -1 : 1;
         if (valA > valB) return weekendSortState.dir === 'asc' ? 1 : -1;
         
-        // 정렬 값이 같을 때 이름순
         return a[0].localeCompare(b[0]);
     });
 
@@ -182,10 +186,11 @@ async function loadAndRenderWeekendStats() {
     }
 
     currentWeekendTotalCost = totalCost;
-    document.getElementById('weekend-total-count').textContent = currentWeekendTotalCount;
-    document.getElementById('weekend-total-cost').textContent = currentWeekendTotalCost.toLocaleString();
+    const countEl = document.getElementById('weekend-total-count');
+    const costEl = document.getElementById('weekend-total-cost');
+    if (countEl) countEl.textContent = currentWeekendTotalCount;
+    if (costEl) costEl.textContent = currentWeekendTotalCost.toLocaleString();
 }
-
 
 export function setupHistoryModalListeners() {
     
@@ -201,8 +206,6 @@ export function setupHistoryModalListeners() {
     const predictionPanel = document.getElementById('prediction-panel');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
     const leavePanel = document.getElementById('history-leave-panel');
-    
-    // 💡 여기서 단 한 번만 선언합니다.
     const weekendPanel = document.getElementById('history-weekend-panel');
 
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
@@ -837,60 +840,8 @@ export function setupHistoryModalListeners() {
     setupFilterListeners(DOM.reportViewContainer, 'reportSortState', 'reportFilterState', refreshReportView);
     setupFilterListeners(DOM.personalReportViewContainer, 'personalReportSortState', 'personalReportFilterState', refreshPersonalView);
 
-    // 💡 주말 근무 통계 전용 정렬/필터 리스너 (테이블 헤더 클릭 시)
-    if (weekendPanel) {
-        weekendPanel.addEventListener('click', (e) => {
-            if (e.target.closest('.filter-dropdown')) { e.stopPropagation(); return; }
-            
-            const filterIconBtn = e.target.closest('.filter-icon-btn');
-            if (filterIconBtn) {
-                e.stopPropagation();
-                const dropdownId = filterIconBtn.dataset.dropdownId;
-                State.context.activeFilterDropdown = (State.context.activeFilterDropdown === dropdownId) ? null : dropdownId;
-                loadAndRenderWeekendStats();
-                return;
-            }
-
-            const sortTh = e.target.closest('th[data-sort-key]');
-            if (sortTh) {
-                const key = sortTh.dataset.sortKey;
-                if (!key) return;
-                
-                if (weekendSortState.key === key) {
-                    weekendSortState.dir = weekendSortState.dir === 'asc' ? 'desc' : 'asc';
-                } else {
-                    weekendSortState.key = key;
-                    weekendSortState.dir = 'asc';
-                }
-                loadAndRenderWeekendStats();
-            }
-        });
-
-        weekendPanel.addEventListener('input', (e) => {
-            const filterInput = e.target.closest('[data-filter-key]');
-            if (filterInput) {
-                const key = filterInput.dataset.filterKey;
-                if (key === 'name') {
-                    weekendFilterState.name = filterInput.value;
-                    loadAndRenderWeekendStats();
-                    
-                    // 포커스 유지 처리
-                    setTimeout(() => {
-                        const newInput = weekendPanel.querySelector(`input[data-filter-key="name"]`);
-                        if (newInput) {
-                            newInput.focus();
-                            const val = newInput.value;
-                            newInput.value = '';
-                            newInput.value = val;
-                        }
-                    }, 0);
-                }
-            }
-        });
-    }
-
     document.addEventListener('click', (e) => {
-        if (State.context.activeFilterDropdown) {
+        if (State.context && State.context.activeFilterDropdown) {
             if (!e.target.closest('.filter-dropdown') && !e.target.closest('.filter-icon-btn')) {
                 State.context.activeFilterDropdown = null;
                 if (State.context.activeMainHistoryTab === 'attendance') refreshAttendanceView();
@@ -930,6 +881,64 @@ export function setupHistoryModalListeners() {
         });
     }
 }
+
+// 💡 엑셀 스타일 이벤트 위임 (전역 위임으로 이벤트 누락 방지)
+document.addEventListener('click', (e) => {
+    const isWeekendPanel = e.target.closest('#history-weekend-panel') || e.target.closest('table:has(#weekend-history-table-body)');
+    if (!isWeekendPanel) return;
+
+    if (e.target.closest('.filter-dropdown')) return;
+    
+    const filterIconBtn = e.target.closest('.filter-icon-btn');
+    if (filterIconBtn) {
+        e.stopPropagation();
+        if (!State.context) State.context = {};
+        const dropdownId = filterIconBtn.dataset.dropdownId;
+        State.context.activeFilterDropdown = (State.context.activeFilterDropdown === dropdownId) ? null : dropdownId;
+        loadAndRenderWeekendStats();
+        return;
+    }
+
+    const sortTh = e.target.closest('th[data-sort-key]');
+    if (sortTh) {
+        const key = sortTh.dataset.sortKey;
+        if (!key) return;
+        
+        if (weekendSortState.key === key) {
+            weekendSortState.dir = weekendSortState.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            weekendSortState.key = key;
+            weekendSortState.dir = 'asc';
+        }
+        loadAndRenderWeekendStats();
+    }
+});
+
+document.addEventListener('input', (e) => {
+    const isWeekendPanel = e.target.closest('#history-weekend-panel') || e.target.closest('table:has(#weekend-history-table-body)');
+    if (!isWeekendPanel) return;
+
+    const filterInput = e.target.closest('input[data-filter-key]');
+    if (filterInput) {
+        const key = filterInput.dataset.filterKey;
+        if (key === 'name') {
+            weekendFilterState.name = filterInput.value;
+            loadAndRenderWeekendStats();
+            
+            setTimeout(() => {
+                const newInputs = document.querySelectorAll(`input[data-filter-key="name"]`);
+                newInputs.forEach(newInput => {
+                    if (newInput.closest('#history-weekend-panel') || newInput.closest('table:has(#weekend-history-table-body)')) {
+                        newInput.focus();
+                        const val = newInput.value;
+                        newInput.value = '';
+                        newInput.value = val;
+                    }
+                });
+            }, 0);
+        }
+    }
+});
 
 export const requestHistoryDeletion = (dateKey) => {
     State.context.historyKeyToDelete = dateKey;
