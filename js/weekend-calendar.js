@@ -15,16 +15,23 @@ let unsubscribe = null;
 
 let currentManageDateStr = null; 
 
-// 스마트 배분을 위한 전역 데이터 캐시
 let currentYearlyStats = new Map();
 let currentMonthStats = new Map();
 let smartCalcCache = null; 
-
-// 추천 인원 순회(사이클)를 위한 오프셋 변수
 let recommendOffset = 0; 
 
 export async function initWeekendCalendar() {
     await loadWeekendRequests(currentYear, currentMonth);
+
+    // 💡 전체 관리 팝업 바인딩
+    const adminAllCloseBtn = document.getElementById('admin-all-close-btn');
+    if (adminAllCloseBtn) adminAllCloseBtn.onclick = () => document.getElementById('weekend-admin-all-popup').classList.add('hidden');
+    
+    const adminAllConfirmBtn = document.getElementById('admin-all-confirm-btn');
+    if (adminAllConfirmBtn) adminAllConfirmBtn.onclick = () => processMonthBulkAction('confirmed');
+    
+    const adminAllDeleteBtn = document.getElementById('admin-all-delete-btn');
+    if (adminAllDeleteBtn) adminAllDeleteBtn.onclick = () => processMonthBulkAction('delete');
 }
 
 export function changeMonth(offset) {
@@ -102,7 +109,7 @@ async function loadWeekendRequests(year, month) {
                             const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
                             if (data.status === 'confirmed') {
                                 stat.confirmed++;
-                            } else if (data.status === 'requested') { // 💡 취소 상태는 통계에 반영 안함
+                            } else if (data.status === 'requested') {
                                 stat.requested++;
                             }
                             memberStats.set(data.member, stat);
@@ -197,6 +204,17 @@ function renderWeekendList(year, month) {
     let hasWeekend = false;
     const isAdmin = (State.appState.currentUserRole === 'admin');
 
+    // 💡 전체 관리 버튼 토글
+    const adminAllBtn = document.getElementById('weekend-admin-all-manage-btn');
+    if (adminAllBtn) {
+        if (isAdmin) {
+            adminAllBtn.classList.remove('hidden');
+            adminAllBtn.onclick = () => document.getElementById('weekend-admin-all-popup').classList.remove('hidden');
+        } else {
+            adminAllBtn.classList.add('hidden');
+        }
+    }
+
     for (let d = 1; d <= lastDate; d++) {
         const dateObj = new Date(year, month, d);
         const dayOfWeek = dateObj.getDay();
@@ -277,7 +295,6 @@ function renderWeekendList(year, month) {
                 const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
                 
                 requestsByDate[dateStr].sort((a, b) => {
-                    // 취소 상태의 뱃지는 무조건 제일 오른쪽(끝)으로 정렬
                     if (a.status === 'canceled' && b.status !== 'canceled') return 1;
                     if (a.status !== 'canceled' && b.status === 'canceled') return -1;
                     
@@ -319,7 +336,6 @@ function addBadgeToCalendar(dateStr, data, isAdmin) {
 
     const badge = document.createElement('div');
     
-    // 💡 상태별 디자인 (취소 상태 추가)
     let colorClass = '';
     let icon = '';
 
@@ -416,7 +432,6 @@ function handleAdminBadgeClick(docId, data) {
     
     const statusSpan = document.getElementById('admin-popup-status');
     
-    // 관리자 팝업에 취소 상태 반영
     if (data.status === 'confirmed') {
         statusSpan.textContent = '승인됨';
         statusSpan.className = 'font-bold text-blue-600';
@@ -428,21 +443,17 @@ function handleAdminBadgeClick(docId, data) {
         statusSpan.className = 'font-bold text-orange-500';
     }
 
-    // 💡 이벤트 바인딩 시 action과 함께 data 객체를 통째로 넘겨줍니다 (멤버, 날짜 정보 활용)
     document.getElementById('admin-confirm-btn').onclick = () => processAdminAction(docId, 'confirmed', data);
     document.getElementById('admin-reject-btn').onclick = () => processAdminAction(docId, 'demote', data);
     
     const cancelBtn = document.getElementById('admin-cancel-btn');
-    if (cancelBtn) {
-        cancelBtn.onclick = () => processAdminAction(docId, 'canceled', data);
-    }
+    if (cancelBtn) cancelBtn.onclick = () => processAdminAction(docId, 'canceled', data);
     
     document.getElementById('admin-close-popup-btn').onclick = () => popup.classList.add('hidden');
 
     popup.classList.remove('hidden');
 }
 
-// 💡 관리자가 수동으로 버튼을 눌렀을 때 알림을 보내는 로직
 async function processAdminAction(docId, action, data) {
     const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
     try {
@@ -454,7 +465,6 @@ async function processAdminAction(docId, action, data) {
             await updateDoc(docRef, { status: 'confirmed', confirmedAt: new Date().toISOString() });
             showToast("승인 완료");
             
-            // 💡 [알림 전송] 확정 알림
             const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
             await setDoc(notiRef, {
                 targetMember: data.member,
@@ -468,7 +478,6 @@ async function processAdminAction(docId, action, data) {
             await updateDoc(docRef, { status: 'canceled', confirmedAt: null });
             showToast("취소 처리되었습니다.");
             
-            // 💡 [알림 전송] 취소 알림
             const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
             await setDoc(notiRef, {
                 targetMember: data.member,
@@ -485,7 +494,94 @@ async function processAdminAction(docId, action, data) {
     }
 }
 
-// Select 박스에 팀원 목록 세팅
+// 💡 날짜별 일괄 처리 
+export async function processDateBulkAction(action) {
+    if (!currentManageDateStr) return;
+    const reqs = requestsByDate[currentManageDateStr] || [];
+    if (reqs.length === 0) {
+        showToast("처리할 신청 내역이 없습니다.", true);
+        return;
+    }
+
+    const actionText = action === 'confirmed' ? '승인' : action === 'canceled' ? '취소' : '삭제';
+    if (!confirm(`${currentManageDateStr}의 모든 신청 건을 일괄 ${actionText} 하시겠습니까?`)) return;
+
+    try {
+        let count = 0;
+        for (const req of reqs) {
+            const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id);
+            if (action === 'delete') {
+                await deleteDoc(docRef);
+            } else {
+                if (req.status !== action) {
+                    await updateDoc(docRef, { status: action, confirmedAt: action === 'confirmed' ? new Date().toISOString() : null });
+                    
+                    const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
+                    const msg = action === 'confirmed' 
+                        ? `${currentManageDateStr} 주말 근무 배정이 확정(승인)되었습니다.` 
+                        : `${currentManageDateStr} 주말 근무 신청이 일괄 취소(반려)되었습니다.`;
+                    await setDoc(notiRef, {
+                        targetMember: req.member,
+                        type: action === 'confirmed' ? 'weekend_confirmed' : 'weekend_canceled',
+                        message: msg,
+                        createdAt: new Date().toISOString(),
+                        isRead: false
+                    });
+                }
+            }
+            count++;
+        }
+        showToast(`총 ${count}건 일괄 ${actionText} 완료 및 알림 발송됨.`);
+        if (action === 'delete') {
+            document.getElementById('weekend-admin-date-popup').classList.add('hidden');
+        }
+    } catch (e) {
+        console.error("Bulk action error:", e);
+        showToast("일괄 처리 중 오류 발생", true);
+    }
+}
+
+// 💡 전체(월) 일괄 처리 
+export async function processMonthBulkAction(action) {
+    const allReqs = Object.values(requestsByDate).flat();
+    if (allReqs.length === 0) {
+        showToast("처리할 신청 내역이 없습니다.", true);
+        return;
+    }
+    
+    const actionText = action === 'confirmed' ? '승인' : '삭제';
+    if (!confirm(`현재 월의 모든 날짜, 모든 인원의 신청(${allReqs.length}건)을 일괄 ${actionText} 하시겠습니까?\n주의: 이 작업은 되돌릴 수 없습니다.`)) return;
+
+    try {
+        let count = 0;
+        for (const req of allReqs) {
+            const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', req.id);
+            if (action === 'delete') {
+                await deleteDoc(docRef);
+            } else if (action === 'confirmed') {
+                if (req.status !== 'confirmed') {
+                    await updateDoc(docRef, { status: 'confirmed', confirmedAt: new Date().toISOString() });
+                    
+                    const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
+                    await setDoc(notiRef, {
+                        targetMember: req.member,
+                        type: 'weekend_confirmed',
+                        message: `${req.date} 주말 근무 배정이 일괄 확정(승인)되었습니다.`,
+                        createdAt: new Date().toISOString(),
+                        isRead: false
+                    });
+                }
+            }
+            count++;
+        }
+        showToast(`총 ${count}건 전체 일괄 ${actionText} 완료`);
+        document.getElementById('weekend-admin-all-popup').classList.add('hidden');
+    } catch (e) {
+        console.error("Month bulk action error:", e);
+        showToast("전체 일괄 처리 중 오류 발생", true);
+    }
+}
+
 function populateAdminAddMemberSelect(dateStr) {
     const select = document.getElementById('admin-date-add-member');
     if (!select) return;
@@ -547,10 +643,14 @@ function openAdminDatePopup(dateStr) {
     }
     smartCalcCache = null;
 
+    // 💡 날짜별 일괄 처리 이벤트 바인딩
+    document.getElementById('admin-date-all-confirm-btn').onclick = () => processDateBulkAction('confirmed');
+    document.getElementById('admin-date-all-cancel-btn').onclick = () => processDateBulkAction('canceled');
+    document.getElementById('admin-date-all-delete-btn').onclick = () => processDateBulkAction('delete');
+
     popup.classList.remove('hidden');
 }
 
-// 스마트 형평성 배분 통합 로직
 export function calculateSmartAllocation() {
     if (!currentManageDateStr) return;
     const capacityStr = capacityMap.get(currentManageDateStr);
@@ -563,7 +663,6 @@ export function calculateSmartAllocation() {
 
     const reqs = requestsByDate[currentManageDateStr] || [];
     
-    // 이미 취소된 사람은 신청자 모수에서 제외시킵니다
     const activeReqs = reqs.filter(r => r.status !== 'canceled');
     const applicants = activeReqs.map(r => r.member);
     
@@ -583,7 +682,6 @@ export function calculateSmartAllocation() {
 
     const availableCapacity = Math.max(0, capacity - adminApplicants.length);
 
-    // 당월 점수 최우선 가중치
     const getScore = (m) => {
         const y = currentYearlyStats.get(m) || 0;
         const ms = currentMonthStats.get(m) || {confirmed: 0, requested: 0};
@@ -609,26 +707,23 @@ export function calculateSmartAllocation() {
     if (generalApplicants.length > availableCapacity) {
         toConfirm = toConfirm.concat(sortedGeneralApplicants.slice(0, availableCapacity));
         toDecline = sortedGeneralApplicants.slice(availableCapacity);
-        recommendOffset = 0; // 정원 초과 시 초기화
+        recommendOffset = 0; 
     } else if (generalApplicants.length < availableCapacity) {
         toConfirm = toConfirm.concat(sortedGeneralApplicants);
         const needed = availableCapacity - generalApplicants.length;
         
         if (sortedNonApplicants.length > 0) {
-            // 오프셋이 전체 후보자 수를 넘어가면 처음(1순위)으로 되돌림
             if (recommendOffset >= sortedNonApplicants.length) {
                 recommendOffset = 0; 
                 showToast("모든 후보를 순회하여 다시 1순위부터 추천합니다.");
             }
             
-            // 필요한 인원수만큼 사이클링하여 추출
             for (let i = 0; i < needed; i++) {
                 const index = (recommendOffset + i) % sortedNonApplicants.length;
                 if (!toAdd.includes(sortedNonApplicants[index])) {
                     toAdd.push(sortedNonApplicants[index]);
                 }
             }
-            // 다음 번 클릭 시 그 다음 사람부터 추천하도록 오프셋 증가
             recommendOffset += needed;
         }
     } else {
@@ -719,7 +814,6 @@ export async function applySmartAllocation() {
     }
 
     try {
-        // 1. 탈락자를 'canceled'(취소) 상태로 변경 및 알림 전송
         for (const m of toDecline) {
             const req = reqs.find(r => r.member === m);
             if (req && req.status !== 'canceled') { 
@@ -739,7 +833,6 @@ export async function applySmartAllocation() {
             }
         }
         
-        // 2. 확정자 승인 처리 및 알림 전송
         for (const m of toConfirm) {
             const req = reqs.find(r => r.member === m);
             if (req && req.status !== 'confirmed') {
@@ -756,7 +849,6 @@ export async function applySmartAllocation() {
             }
         }
         
-        // 3. 신규 인원 추가 및 알림 전송
         for (const m of toAdd) {
             await createRequest(currentManageDateStr, m, 'confirmed');
             
@@ -824,7 +916,6 @@ export async function adminAddMemberToDate() {
 
     await createRequest(currentManageDateStr, memberName, 'confirmed');
     
-    // 💡 수동 추가 시에도 알림 전송
     const notiRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications'));
     await setDoc(notiRef, {
         targetMember: memberName,
