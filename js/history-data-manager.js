@@ -289,7 +289,17 @@ export async function saveDayDataToHistory(shouldReset) {
         
         State.appState.workRecords = []; 
         showToast('오늘의 업무 기록을 초기화했습니다.');
-        await syncTodayToHistory();
+
+        // ✨ [수정됨] 마감 후에는 당일 빈 라이브 데이터가 아닌, 저장된 히스토리 데이터를 화면에 고정
+        const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', getTodayDateString());
+        const historySnap = await getDoc(historyDocRef);
+        if(historySnap.exists()) {
+            const hData = historySnap.data();
+            const idx = State.allHistoryData.findIndex(d => d.id === getTodayDateString());
+            if(idx > -1) {
+                 State.allHistoryData[idx] = { id: getTodayDateString(), ...hData };
+            }
+        }
     }
 }
 
