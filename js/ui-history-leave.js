@@ -4,7 +4,6 @@ import { showToast } from './utils.js';
 import { 
     doc, getDoc, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { saveLeaveSchedule } from './config.js'; // 연차 저장 함수 임포트
 
 let currentYear = new Date().getFullYear();
 let fullLeaveConfig = {}; 
@@ -12,18 +11,11 @@ let fullLeaveConfig = {};
 // 정렬 상태 관리 (key: 정렬할 필드명, dir: 'asc' | 'desc')
 let sortState = { key: null, dir: 'asc' }; 
 
-/**
- * 연차 관리 초기화
- */
 export async function initLeaveManagement() {
     const yearSelect = document.getElementById('leave-year-select');
     
     if (yearSelect) {
-        // [수정] 기준 연도가 25년으로 고정되는 현상 해결: 시스템의 현재 연도를 기본값으로 강제 설정
-        const systemYear = new Date().getFullYear();
-        if (!yearSelect.value || yearSelect.value == "2025") {
-            yearSelect.value = systemYear;
-        }
+        if (!yearSelect.value) yearSelect.value = currentYear;
         currentYear = parseInt(yearSelect.value);
         
         yearSelect.addEventListener('change', (e) => {
@@ -39,87 +31,7 @@ export async function initLeaveManagement() {
     if (refreshBtn) refreshBtn.onclick = renderLeaveSheet;
 
     setupSortListeners();
-    setupTableActionListeners(); // [신규] 테이블 내 수정/삭제 액션 리스너 등록
     await renderLeaveSheet();
-}
-
-/**
- * [신규] 테이블 내 직접 관리(등록/삭제)를 위한 이벤트 위임
- */
-function setupTableActionListeners() {
-    const tbody = document.getElementById('leave-sheet-body');
-    if (!tbody) return;
-
-    tbody.addEventListener('click', async (e) => {
-        // 1. 직접 등록 (추가 버튼 클릭)
-        const addBtn = e.target.closest('.btn-row-add-leave');
-        if (addBtn) {
-            const memberName = addBtn.dataset.member;
-            openDirectLeaveModal(memberName);
-            return;
-        }
-
-        // 2. 직접 삭제 (날짜 배지 클릭)
-        const deleteBadge = e.target.closest('.leave-history-badge');
-        if (deleteBadge) {
-            const leaveId = deleteBadge.dataset.id;
-            const dateText = deleteBadge.textContent.trim();
-            if (confirm(`[${dateText}] 연차 기록을 정말 삭제하시겠습니까?`)) {
-                await deleteLeaveRecordDirectly(leaveId);
-            }
-        }
-    });
-}
-
-/**
- * 연차 기록 직접 삭제 로직
- */
-async function deleteLeaveRecordDirectly(id) {
-    try {
-        // 1. 상태 데이터에서 제거
-        State.persistentLeaveSchedule.onLeaveMembers = State.persistentLeaveSchedule.onLeaveMembers.filter(l => l.id !== id);
-        
-        // 2. DB 저장
-        await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
-        
-        // 3. 로컬 히스토리 캐시 동기화
-        State.allHistoryData.forEach(day => {
-            if (day.onLeaveMembers) {
-                day.onLeaveMembers = day.onLeaveMembers.filter(l => l.id !== id);
-            }
-        });
-
-        showToast('연차 기록이 삭제되었습니다.');
-        renderLeaveSheet(); // 즉시 재렌더링
-    } catch (err) {
-        console.error("삭제 실패:", err);
-        showToast('삭제 중 오류가 발생했습니다.', true);
-    }
-}
-
-/**
- * 해당 직원의 연차 등록 모달 즉시 열기
- */
-function openDirectLeaveModal(memberName) {
-    State.context.memberToSetLeave = memberName;
-    
-    // 근태 설정 모달 열기
-    const leaveModal = document.getElementById('leave-type-modal');
-    if (leaveModal) {
-        leaveModal.classList.remove('hidden');
-        // '연차 설정' 탭 강제 클릭
-        const tabBtn = document.getElementById('tab-leave-setting');
-        if (tabBtn) tabBtn.click();
-        
-        // 연차 라디오 버튼 자동 선택
-        const annualRadio = document.querySelector('input[name="leave-type"][value="연차"]');
-        if (annualRadio) {
-            annualRadio.checked = true;
-            annualRadio.dispatchEvent(new Event('change'));
-        }
-        
-        showToast(`${memberName}님의 연차 등록 모달을 열었습니다.`);
-    }
 }
 
 function setupSortListeners() {
@@ -127,12 +39,14 @@ function setupSortListeners() {
     headers.forEach(th => {
         th.addEventListener('click', () => {
             const key = th.dataset.sortKey;
+            
             if (sortState.key === key) {
                 sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
             } else {
                 sortState.key = key;
                 sortState.dir = 'asc';
             }
+            
             updateSortIcons();
             renderLeaveSheet(); 
         });
@@ -144,6 +58,7 @@ function updateSortIcons() {
     headers.forEach(th => {
         const icon = th.querySelector('.sort-icon');
         if (!icon) return;
+        
         if (th.dataset.sortKey === sortState.key) {
             icon.textContent = sortState.dir === 'asc' ? '▲' : '▼';
             icon.classList.remove('text-gray-400');
@@ -160,7 +75,7 @@ export async function renderLeaveSheet() {
     const tbody = document.getElementById('leave-sheet-body');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 복구 및 집계 중...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 복구 및 집계 중...</td></tr>';
 
     try {
         const members = await fetchAllMembers();
@@ -170,6 +85,7 @@ export async function renderLeaveSheet() {
         let rowData = members.map(member => {
             const config = fullLeaveConfig[member] || {};
             const total = config.totalLeave !== undefined ? Number(config.totalLeave) : 15;
+            
             const resetDate = config.leaveResetDate || '';
             const expireDate = config.expirationDate || '';
             let periodText = '-';
@@ -182,26 +98,33 @@ export async function renderLeaveSheet() {
 
             const used = usageData[member] ? usageData[member].count : 0;
             const remaining = total - used;
-            const historyItems = usageData[member] ? usageData[member].items : [];
+            const history = usageData[member] ? usageData[member].dates.join(', ') : '-';
 
-            return { member, total, periodText, used, remaining, historyItems, periodClass, config };
+            return { member, total, periodText, used, remaining, history, periodClass, config };
         });
 
-        // 정렬 로직 (동일)
+        // 정렬 적용
         if (sortState.key) {
             rowData.sort((a, b) => {
                 let valA = a[sortState.key];
                 let valB = b[sortState.key];
-                if (typeof valA === 'number' && typeof valB === 'number') return sortState.dir === 'asc' ? valA - valB : valB - valA;
+
+                if (typeof valA === 'number' && typeof valB === 'number') {
+                    return sortState.dir === 'asc' ? valA - valB : valB - valA;
+                }
+                
                 valA = String(valA).toLowerCase();
                 valB = String(valB).toLowerCase();
-                return sortState.dir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                if (valA < valB) return sortState.dir === 'asc' ? -1 : 1;
+                if (valA > valB) return sortState.dir === 'asc' ? 1 : -1;
+                return 0;
             });
         }
 
         tbody.innerHTML = '';
+        
         if (rowData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">등록된 직원이 없습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">등록된 직원이 없습니다.</td></tr>';
             return;
         }
 
@@ -209,39 +132,50 @@ export async function renderLeaveSheet() {
             const tr = document.createElement('tr');
             tr.className = "hover:bg-gray-50 transition-colors";
             
-            let remainColor = row.remaining < 0 ? 'text-red-600 font-bold' : (row.remaining <= 3 ? 'text-orange-500 font-bold' : 'text-green-600 font-bold');
-
-            // [수정] 사용 내역을 클릭 가능한 배지 형태로 생성
-            const historyHtml = row.historyItems.length > 0 
-                ? row.historyItems.map(item => `<span class="leave-history-badge inline-block bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 mr-1 mb-1 cursor-pointer hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all text-[11px]" title="클릭 시 삭제" data-id="${item.id}">${item.label}</span>`).join('')
-                : '<span class="text-gray-300">-</span>';
+            let remainColor = 'text-gray-700';
+            if (row.remaining < 0) remainColor = 'text-red-600 font-bold';
+            else if (row.remaining <= 3) remainColor = 'text-orange-500 font-bold';
+            else remainColor = 'text-green-600 font-bold';
 
             tr.innerHTML = `
                 <td class="px-6 py-3 font-medium text-gray-900 border-b border-gray-100">${row.member}</td>
                 <td class="px-6 py-3 text-center border-b border-gray-100">
-                    <input type="number" class="w-16 text-center border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none total-leave-input font-bold text-blue-600 text-sm" 
+                    <input type="number" class="w-20 text-center border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none total-leave-input font-bold text-blue-600" 
                            data-member="${row.member}" value="${row.total}" min="0" step="0.5">
                 </td>
-                <td class="px-6 py-3 text-center border-b border-gray-100 ${row.periodClass}">${row.periodText}</td>
+                <td class="px-6 py-3 text-center border-b border-gray-100 ${row.periodClass}">
+                    ${row.periodText}
+                </td>
                 <td class="px-6 py-3 text-center font-medium border-b border-gray-100">${row.used}</td>
                 <td class="px-6 py-3 text-center ${remainColor} border-b border-gray-100">${row.remaining}</td>
-                <td class="px-6 py-3 border-b border-gray-100 max-w-xs">${historyHtml}</td>
-                <td class="px-6 py-3 text-center border-b border-gray-100">
-                    <button class="btn-row-add-leave bg-indigo-500 hover:bg-indigo-600 text-white px-2 py-1 rounded text-[11px] font-bold shadow-sm" data-member="${row.member}">추가</button>
+                <td class="px-6 py-3 text-xs text-gray-500 break-words max-w-md leading-relaxed border-b border-gray-100">
+                    ${row.history}
                 </td>
             `;
             tbody.appendChild(tr);
         });
+
     } catch (e) {
-        console.error("렌더링 오류:", e);
-        tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>';
+        console.error("Error rendering leave sheet:", e);
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>';
     }
 }
 
 async function fetchAllMembers() {
     const memberSet = new Set();
-    if (State.appConfig.teamGroups) State.appConfig.teamGroups.forEach(group => group.members?.forEach(m => memberSet.add(m)));
-    if (State.appState.partTimers) State.appState.partTimers.forEach(p => memberSet.add(p.name));
+    
+    if (State.appConfig.teamGroups) {
+        State.appConfig.teamGroups.forEach(group => {
+            if (group.members && Array.isArray(group.members)) {
+                group.members.forEach(m => memberSet.add(m));
+            }
+        });
+    }
+
+    if (State.appState.partTimers) {
+        State.appState.partTimers.forEach(p => memberSet.add(p.name));
+    }
+
     return Array.from(memberSet); 
 }
 
@@ -249,85 +183,179 @@ async function fetchLeaveSettings() {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
         const snap = await getDoc(docRef);
-        fullLeaveConfig = snap.exists() ? (snap.data().memberLeaveSettings || {}) : {};
-    } catch (e) { fullLeaveConfig = {}; }
+        
+        fullLeaveConfig = {}; 
+
+        if (snap.exists()) {
+            const data = snap.data();
+            if (data.memberLeaveSettings) {
+                 fullLeaveConfig = data.memberLeaveSettings;
+            }
+        }
+    } catch (e) {
+        console.error("Leave settings fetch error:", e);
+        fullLeaveConfig = {};
+    }
 }
 
-/**
- * [수정] 사용 내역을 ID와 함께 가져와 클릭 삭제가 가능하도록 함
- */
+// 🌟 [최종 복구 로직] ID가 없는 옛날 데이터도 놓치지 않고 전부 긁어옵니다.
 async function fetchLeaveUsage(year) {
     let allLeavesMap = new Map();
-    const generateKey = (l) => l.id || `${l.member}_${l.type}_${l.startDate}_${l.endDate||''}`;
+    
+    // 고유 식별자가 없는 옛날 기록들을 위한 안전한 키 생성기
+    const generateKey = (l) => l.id ? l.id : `${l.member}_${l.type}_${l.startDate}_${l.endDate||''}`;
 
+    // 1. 중앙 DB에서 불러오기
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
         const snap = await getDoc(docRef);
-        snap.exists() && snap.data().onLeaveMembers?.forEach(l => allLeavesMap.set(generateKey(l), l));
-    } catch (e) {}
-
-    if (State.allHistoryData) State.allHistoryData.forEach(day => day.onLeaveMembers?.forEach(l => allLeavesMap.set(generateKey(l), l)));
-    if (State.persistentLeaveSchedule?.onLeaveMembers) State.persistentLeaveSchedule.onLeaveMembers.forEach(l => allLeavesMap.set(generateKey(l), l));
-
-    const usage = {}; 
-    allLeavesMap.forEach(record => {
-        if (!record.type || (!record.type.includes('연차') && !record.type.includes('반차'))) return;
-        
-        const name = record.member;
-        const config = fullLeaveConfig[name] || {};
-        const resetDate = config.leaveResetDate || '';
-        const expireDate = config.expirationDate || '';
-
-        // 필터링: 연도 일치 또는 설정 기간 내 포함
-        let isMatch = record.startDate?.startsWith(String(year)) || 
-                     (resetDate && expireDate && record.startDate >= resetDate && record.startDate <= expireDate && (resetDate.startsWith(String(year)) || expireDate.startsWith(String(year))));
-
-        if (!isMatch) return; 
-        if (!usage[name]) usage[name] = { count: 0, items: [] };
-
-        let days = 0, label = "";
-        if (record.type.includes('반차')) {
-            days = 0.5;
-            label = `${record.startDate.substring(5)} (반)`;
-        } else {
-            const start = new Date(record.startDate), end = new Date(record.endDate || record.startDate);
-            let diffDays = 0;
-            for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
-                if (dt.getDay() !== 0 && dt.getDay() !== 6) diffDays++;
-            }
-            days = diffDays || 1;
-            label = record.endDate && record.endDate !== record.startDate ? `${record.startDate.substring(5)}~${record.endDate.substring(5)}` : record.startDate.substring(5);
+        if (snap.exists() && snap.data().onLeaveMembers) {
+            snap.data().onLeaveMembers.forEach(l => {
+                allLeavesMap.set(generateKey(l), l); // ID 검사 없이 무조건 저장
+            });
         }
-        usage[name].count += days;
-        usage[name].items.push({ label, id: record.id });
+    } catch (e) {
+        console.error("Leave schedule fetch error", e);
+    }
+
+    // 2. 과거 일일 업무 기록에서 긁어오기 (이중 백업)
+    if (State.allHistoryData && Array.isArray(State.allHistoryData)) {
+        State.allHistoryData.forEach(day => {
+            if (day.onLeaveMembers && Array.isArray(day.onLeaveMembers)) {
+                day.onLeaveMembers.forEach(l => {
+                    allLeavesMap.set(generateKey(l), l);
+                });
+            }
+        });
+    }
+
+    // 3. 현재 메모리(오늘 작성 중인 내역) 반영
+    if (State.persistentLeaveSchedule && Array.isArray(State.persistentLeaveSchedule.onLeaveMembers)) {
+        State.persistentLeaveSchedule.onLeaveMembers.forEach(l => {
+            allLeavesMap.set(generateKey(l), l);
+        });
+    }
+
+    const allLeaves = Array.from(allLeavesMap.values());
+    const usage = {}; 
+
+    allLeaves.forEach(record => {
+        if (record.type && (record.type.includes('연차') || record.type.includes('반차'))) {
+            const name = record.member;
+            
+            const memberConfig = fullLeaveConfig[name] || {};
+            const resetDate = memberConfig.leaveResetDate || '';
+            const expireDate = memberConfig.expirationDate || '';
+
+            let isMatch = false;
+
+            // [조건 1] 드롭다운에서 선택한 연도와 일치하면 무조건 노출
+            if (record.startDate && record.startDate.startsWith(String(year))) {
+                isMatch = true;
+            }
+            
+            // [조건 2] 드롭다운 연도와 다르더라도, 개별 설정된 기간(resetDate~expireDate) 안에 포함되는 연차라면 노출
+            if (!isMatch && resetDate && expireDate) {
+                if (record.startDate >= resetDate && record.startDate <= expireDate) {
+                    // 단, 그 지정 기간이 현재 드롭다운의 연도와 관련이 있을 때만 표시
+                    if (resetDate.startsWith(String(year)) || expireDate.startsWith(String(year))) {
+                        isMatch = true;
+                    }
+                }
+            }
+
+            if (!isMatch) return; 
+
+            if (!usage[name]) usage[name] = { count: 0, dates: [] };
+
+            let days = 0;
+            let label = "";
+
+            if (record.type.includes('반차')) {
+                days = 0.5;
+                label = `${record.startDate.substring(5)} (반)`;
+            } else {
+                if (record.endDate && record.endDate !== record.startDate) {
+                    const start = new Date(record.startDate);
+                    const end = new Date(record.endDate);
+                    
+                    // 🚀 연속 연차 시, 주말(토,일) 자동 제외 계산 로직 추가
+                    let diffDays = 0;
+                    for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
+                        const dayOfWeek = dt.getDay();
+                        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 0:일, 6:토 제외
+                            diffDays++; 
+                        }
+                    }
+                    if (diffDays === 0) diffDays = 1; // 최소 방어 로직
+                    
+                    days = diffDays;
+                    label = `${record.startDate.substring(5)}~${record.endDate.substring(5)}`;
+                } else {
+                    days = 1; // 하루 연차
+                    label = record.startDate.substring(5);
+                }
+            }
+
+            usage[name].count += days;
+            usage[name].dates.push(label);
+        }
     });
 
-    Object.keys(usage).forEach(key => usage[key].items.sort((a,b) => a.label.localeCompare(b.label)));
+    // 날짜순 정렬
+    Object.keys(usage).forEach(key => {
+        usage[key].dates.sort();
+    });
+
     return usage;
 }
 
 async function saveLeaveSettings() {
     const inputs = document.querySelectorAll('.total-leave-input');
-    const updates = JSON.parse(JSON.stringify(fullLeaveConfig));
     let hasChange = false;
+    
+    // 깊은 복사로 기존 설정 보호
+    const updates = JSON.parse(JSON.stringify(fullLeaveConfig));
 
     inputs.forEach(input => {
-        const member = input.dataset.member, val = parseFloat(input.value);
-        if (member && !isNaN(val) && (updates[member]?.totalLeave !== val)) {
+        const member = input.dataset.member;
+        const val = parseFloat(input.value);
+        if (member && !isNaN(val)) {
             if (!updates[member]) updates[member] = {};
-            updates[member].totalLeave = val;
-            hasChange = true;
+            
+            if (updates[member].totalLeave !== val) {
+                updates[member].totalLeave = val;
+                hasChange = true;
+            }
         }
     });
 
-    if (!hasChange) return showToast("변경 사항이 없습니다.");
+    if (!hasChange) {
+        showToast("변경 사항이 없습니다.");
+        return;
+    }
 
     const btn = document.getElementById('save-leave-settings-btn');
+    const originalText = btn.innerHTML;
     btn.disabled = true;
+    btn.innerHTML = '저장 중...';
+
     try {
-        await setDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig'), { memberLeaveSettings: updates }, { merge: true });
+        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
+        
+        await setDoc(docRef, {
+            memberLeaveSettings: updates
+        }, { merge: true });
+        
         fullLeaveConfig = updates;
         showToast("총 연차 설정이 저장되었습니다.");
-        renderLeaveSheet(); 
-    } catch (e) { showToast("저장 실패", true); } finally { btn.disabled = false; }
+        
+        await renderLeaveSheet(); 
+    } catch (e) {
+        console.error("Save settings error:", e);
+        showToast("설정 저장 실패: " + e.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
 }
