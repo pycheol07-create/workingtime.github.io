@@ -4,7 +4,7 @@
 import * as DOM from './dom-elements.js';
 import { appState, appConfig, allHistoryData } from './state.js';
 import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js';
-import { runAdvancedSimulation } from './analysis-logic.js'; // [수정됨] 고도화된 엔진 임포트
+import { runAdvancedSimulation } from './analysis-logic.js'; 
 import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js';
 
 const CUSTOM_TASK_ORDER = ['채우기', '국내배송', '해외배송', '상.하차', '중국제작', '직진배송', '티니'];
@@ -52,7 +52,9 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
     const checkboxClass = isFirstRow ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer';
 
     let taskOptions = '<option value="">선택</option>';
-    const quantityTaskTypes = (appConfig && appConfig.quantityTaskTypes) ? appConfig.quantityTaskTypes : [];
+    
+    // 원본 배열이 변형되지 않도록 복사 후 정렬 (안전성 강화)
+    const quantityTaskTypes = [...((appConfig && appConfig.quantityTaskTypes) || [])];
     
     quantityTaskTypes.sort(sortTasksCustom).forEach(taskName => {
         const selected = (taskName === task) ? 'selected' : '';
@@ -78,7 +80,7 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
             </select>
         </td>
         <td class="px-2 py-2">
-            <input type="time" class="sim-row-manual-start w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-indigo-600 font-semibold" title="이 입력은 고도화 엔진에서 자동 처리되어 무시됩니다.">
+            <input type="time" class="sim-row-manual-start w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-indigo-600 font-semibold" title="수동 시작 시각 지정">
         </td>
         <td class="px-2 py-2">
             <input type="number" class="sim-row-speed w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right bg-blue-50/30" placeholder="자동" step="0.01" value="${speedVal}">
@@ -217,10 +219,15 @@ const renderSimulationResults = (data) => {
     if (DOM.simInputArea) DOM.simInputArea.classList.remove('hidden');
 };
 
-// [추가됨] 시각화를 위한 타임라인 차트 렌더링 함수
 const renderTimelineChart = (data) => {
     const container = document.getElementById('sim-bottleneck-container');
     if (!container || !data || !data.results) return;
+    
+    // 이전 버전의 데이터(globalStartTimeMs 없음)와 호환되지 않을 경우 에러를 막고 차트만 숨김
+    if (!data.globalStartTimeMs || !data.globalEndTimeMs) {
+        container.classList.add('hidden');
+        return;
+    }
     
     container.innerHTML = `<h4 class="text-md font-bold text-gray-800 mb-3 mt-6">📅 시뮬레이션 타임라인 시각화</h4>`;
     
@@ -233,12 +240,11 @@ const renderTimelineChart = (data) => {
         const row = document.createElement('div');
         row.className = "flex items-center gap-3";
         
-        // 날짜 보정 로직 (시작 시간이 자정 전, 종료가 다음날일 경우 대비)
         const [startH, startM] = res.startTime.split(':').map(Number);
         const startMsDate = new Date(data.globalStartTimeMs);
         startMsDate.setHours(startH, startM, 0, 0);
         let offsetMs = startMsDate.getTime() - data.globalStartTimeMs;
-        if (offsetMs < -43200000) offsetMs += 86400000; // 음수이면 다음날로 보정
+        if (offsetMs < -43200000) offsetMs += 86400000; 
         
         let leftPercent = totalMs > 0 ? (offsetMs / totalMs) * 100 : 0;
         let widthPercent = totalMs > 0 ? ((res.durationMinutes * 60000) / totalMs) * 100 : 100;
@@ -262,14 +268,13 @@ const renderTimelineChart = (data) => {
         chartWrapper.appendChild(row);
     });
     
-    // 점심시간 표시용 세로 눈금선 가이드 추가
     const now = new Date(data.globalStartTimeMs);
     const lunchStartMsDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
     const lunchStartOffset = lunchStartMsDate.getTime() - data.globalStartTimeMs;
     
     if (lunchStartOffset > 0 && lunchStartOffset < totalMs) {
         const lunchLeft = (lunchStartOffset / totalMs) * 100;
-        const lunchWidth = ((60 * 60000) / totalMs) * 100; // 60분
+        const lunchWidth = ((60 * 60000) / totalMs) * 100; 
         
         const lunchMarker = document.createElement('div');
         lunchMarker.className = "absolute top-0 bottom-0 bg-orange-100 bg-opacity-40 border-x border-orange-300 border-dashed pointer-events-none";
@@ -334,20 +339,26 @@ export function setupSimulationModalListeners() {
             if (!tasksWereAdded) {
                 renderSimulationTaskRow(simTaskTableBody);
             }
+            updateFirstRowCheckbox(); // UI 확실히 초기화
         }
         
+        // 데이터 안전성을 확보한 상태에서 입력 및 렌더링 진행
         if (appState.simulationResults) {
-            renderSimulationResults(appState.simulationResults);
-            renderTimelineChart(appState.simulationResults); // 차트 재렌더링
-            
             const savedStartTime = appState.simulationResults.startTime;
             const savedEndTime = appState.simulationResults.endTime; 
             if (savedStartTime && simStartTimeInput) simStartTimeInput.value = savedStartTime;
             if (savedEndTime && simEndTimeInput) simEndTimeInput.value = savedEndTime;
+
+            renderSimulationResults(appState.simulationResults);
+            try {
+                renderTimelineChart(appState.simulationResults);
+            } catch (err) {
+                console.error("차트 렌더링 중 오류 발생(이전 버전 데이터 호환):", err);
+            }
         } else {
             renderSimulationResults(null); 
             const container = document.getElementById('sim-bottleneck-container');
-            if (container) container.classList.add('hidden'); // 차트 숨김
+            if (container) container.classList.add('hidden'); 
 
             if (simStartTimeInput) simStartTimeInput.value = "08:30"; 
             if (simEndTimeInput) simEndTimeInput.value = "17:30"; 
@@ -393,15 +404,43 @@ export function setupSimulationModalListeners() {
             }
         });
 
+        // 🌟 [강력한 업데이트] 드롭다운에서 업무 선택 시 속도뿐만 아니라 '수량', '투입인원', '동시진행여부'까지 모두 자동 세팅!
         simTaskTableBody.addEventListener('change', (e) => {
             if (e.target.classList.contains('sim-row-task')) {
                 const taskName = e.target.value;
                 const row = e.target.closest('tr');
+                
                 const speedInput = row.querySelector('.sim-row-speed');
-                if (taskName && speedInput) {
+                const qtyInput = row.querySelector('.sim-row-qty');
+                const workerInput = row.querySelector('.sim-row-worker-or-time');
+                const concurrentCheck = row.querySelector('.sim-row-concurrent');
+
+                if (taskName) {
+                     // 1. 속도 자동 입력
                      const standards = calculateStandardThroughputs(allHistoryData);
                      const speed = standards[taskName] || 0;
-                     speedInput.value = speed > 0 ? speed.toFixed(2) : '';
+                     if (speedInput) speedInput.value = speed > 0 ? speed.toFixed(2) : '';
+                     
+                     // 2. 당일 목표 수량 자동 입력
+                     const quantities = appState.taskQuantities || {};
+                     if (qtyInput && quantities[taskName]) {
+                         qtyInput.value = quantities[taskName];
+                     }
+                     
+                     // 3. 투입 인원 자동 입력 (현재 출근자 수 반영)
+                     const avgStaffMap = calculateAverageStaffing(allHistoryData);
+                     if (workerInput && avgStaffMap[taskName]) {
+                         const attendanceMap = appState.dailyAttendance || {};
+                         const currentActiveCount = Object.values(attendanceMap).filter(a => a.status === 'active').length;
+                         let avgStaff = avgStaffMap[taskName];
+                         if (currentActiveCount > 0 && avgStaff > 0) avgStaff = Math.min(avgStaff, currentActiveCount);
+                         workerInput.value = Math.round(avgStaff) || '';
+                     }
+
+                     // 4. 동시 진행 여부 자동 체크
+                     if (concurrentCheck && DEFAULT_CONCURRENT_TASKS.includes(taskName)) {
+                         concurrentCheck.checked = true;
+                     }
                 }
             }
         });
@@ -441,7 +480,6 @@ export function setupSimulationModalListeners() {
         });
     }
 
-    // 🚀 [수정됨] 고도화 엔진과 연결된 시뮬레이션 계산 로직
     if (DOM.simCalculateBtn) {
         DOM.simCalculateBtn.addEventListener('click', () => {
             const currentStartTimeStr = simStartTimeInput ? simStartTimeInput.value : "09:00";
@@ -450,7 +488,7 @@ export function setupSimulationModalListeners() {
 
             const rows = document.querySelectorAll('.sim-task-row');
             const taskList = [];
-            let maxInputWorkers = 0; // 작업들 중 가장 높게 설정된 투입 인원을 팀 전체 인원으로 간주
+            let maxInputWorkers = 0; 
 
             rows.forEach((row, index) => {
                 const task = row.querySelector('.sim-row-task').value;
@@ -477,10 +515,7 @@ export function setupSimulationModalListeners() {
 
             if (maxInputWorkers <= 0) maxInputWorkers = 1;
 
-            // 1. 소요 시간 및 타임라인 예측 (fixed-workers 모드)
             const timeSimulation = runAdvancedSimulation('fixed-workers', taskList, maxInputWorkers, currentStartTimeStr, includeLinkedTasks);
-            
-            // 2. 목표 시간에 맞추기 위한 필요 인원 예측 (target-time 모드)
             const targetSimulation = runAdvancedSimulation('target-time', taskList, currentEndTimeStr, currentStartTimeStr, includeLinkedTasks);
 
             if (timeSimulation.error) {
@@ -488,11 +523,9 @@ export function setupSimulationModalListeners() {
                 return;
             }
 
-            // 두 시뮬레이션 결과를 병합
             const results = timeSimulation.results.map((tRes, idx) => {
                 return {
                     ...tRes,
-                    // 목표 시간 기준 필요 인원은 targetSimulation의 결과에서 도출된 총 가용 인원을 표시
                     requiredWorkers: targetSimulation.error ? '-' : targetSimulation.totalWorkers 
                 };
             });
@@ -511,10 +544,7 @@ export function setupSimulationModalListeners() {
             
             appState.simulationResults = simulationData;
             
-            // 1) 수치적 텍스트/표 결과 렌더링
             renderSimulationResults(simulationData);
-            
-            // 2) 신규 시각화 차트 렌더링
             renderTimelineChart(simulationData);
         });
     }
