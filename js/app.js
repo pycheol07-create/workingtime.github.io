@@ -1,11 +1,9 @@
 // === js/app.js ===
 
-// --- 1. Firebase 및 라이브러리 임포트 ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, getDoc, runTransaction, query, where, writeBatch, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// --- 2. 모듈 임포트 ---
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
 import { showToast, getTodayDateString, displayCurrentDate, getCurrentTime, formatDuration, formatTimeTo24H, getWeekOfYear, isWeekday, calcElapsedMinutes, debounce } from './utils.js';
 import {
@@ -39,24 +37,14 @@ import {
     debouncedSaveState
 } from './app-data.js';
 
-// 검수 리스트 렌더링 함수 임포트
 import { renderTodoList } from './inspection-logic.js';
-
-// Admin Todo 로직 임포트 (알림 체크용)
 import { checkAdminTodoNotifications } from './admin-todo-logic.js';
-
-// 주말 근무 리스너 임포트
 import { setupWeekendListeners } from './listeners-weekend.js';
 
-
-// --- 3. 헬퍼 함수 및 변수 ---
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
-// 💡 [신규] 개인 알림 실시간 감지를 위한 구독 해제 변수
 let unsubscribeNotifications = null;
 
-
-// 과거 연차 데이터
 const historicalLeaveData = [
     { member: "박영철", dates: ["2025-01-22", "2025-02-10", "2025-02-17", "2025-02-19", "2025-02-20", "2025-02-21", "2025-03-21", "2025-05-02", "2025-05-07", "2025-05-08", "2025-05-09", "2025-05-12", "2025-05-13", "2025-06-17", "2025-09-01", "2025-09-30", "2025-11-24"] },
     { member: "유아라", dates: ["2025-01-14", "2025-03-20", "2025-03-21", "2025-04-21", "2025-06-23", "2025-07-14", "2025-08-04", "2025-08-22", "2025-08-25", "2025-09-24", "2025-09-25", "2025-09-26", "2025-09-29", "2025-09-30", "2025-10-01", "2025-10-02", "2025-10-29", "2025-11-11", "2025-11-17"] },
@@ -75,7 +63,6 @@ const historicalLeaveData = [
     { member: "황호석", dates: ["2025-03-17", "2025-04-02", "2025-04-23", "2025-05-16", "2025-06-13", "2025-07-11", "2025-07-21", "2025-08-25", "2025-09-15", "2025-10-17", "2025-11-10"] }
 ];
 
-// 데이터 일괄 적용 함수
 async function applyHistoricalLeaveData() {
     if (!State.persistentLeaveSchedule || !State.persistentLeaveSchedule.onLeaveMembers) {
         State.persistentLeaveSchedule = { onLeaveMembers: [] };
@@ -107,13 +94,9 @@ async function applyHistoricalLeaveData() {
         console.log(`총 ${updatedCount}건의 과거 연차 데이터를 새로 등록합니다.`);
         await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
         showToast(`${updatedCount}건의 과거 연차 데이터가 적용되었습니다.`);
-    } else {
-        console.log("새로 적용할 연차 데이터가 없습니다 (이미 최신).");
     }
 }
 
-
-// --- 4. 핵심 코어 함수 ---
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     
@@ -174,7 +157,7 @@ export const updateElapsedTimes = async () => {
                 const dur = calcElapsedMinutes(startTime, now, currentPauses);
                 el.textContent = `(진행: ${formatDuration(dur)})`;
             }
-        } catch (e) { /* noop */ }
+        } catch (e) { }
     });
 
     const completedRecords = (State.appState.workRecords || []).filter(r => r.status === 'completed');
@@ -213,7 +196,43 @@ export const autoSaveProgress = () => {
     }
 };
 
-// --- 5. 앱 초기화 및 인증 로직 ---
+
+// 💡 알림 리스트 렌더링 함수
+export function renderNotificationList() {
+    const list = document.getElementById('notification-list');
+    if (!list) return;
+    const notis = State.appState.notifications || [];
+    if (notis.length === 0) {
+        list.innerHTML = '<li class="text-center text-gray-400 dark:text-gray-500 py-8 text-sm">알림이 없습니다.</li>';
+        return;
+    }
+    
+    list.innerHTML = notis.map(n => `
+        <li class="p-3 rounded-lg border ${n.isRead ? 'bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600 text-gray-500 dark:text-gray-400' : 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800 text-gray-800 dark:text-gray-200'} shadow-sm relative pr-8">
+            <div class="text-[10px] font-bold mb-1 opacity-70">${new Date(n.createdAt).toLocaleString('ko-KR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</div>
+            <div class="text-sm font-medium leading-snug">${n.message}</div>
+            <button class="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-bold text-lg delete-single-noti-btn transition" data-id="${n.id}">&times;</button>
+        </li>
+    `).join('');
+}
+
+// 💡 알림 모두 읽음 처리 함수
+export async function markAllNotificationsAsRead() {
+    const unreadNotis = (State.appState.notifications || []).filter(n => !n.isRead);
+    if(unreadNotis.length === 0) return;
+    
+    try {
+        const batch = writeBatch(State.db);
+        unreadNotis.forEach(n => {
+            const ref = doc(State.db, 'artifacts', 'team-work-logger-v2', 'notifications', n.id);
+            batch.update(ref, { isRead: true, readAt: new Date().toISOString() });
+        });
+        await batch.commit();
+    } catch(e) {
+        console.error("일괄 읽음 처리 실패:", e);
+    }
+}
+
 
 async function startAppAfterLogin(user) {
     if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; 
@@ -254,7 +273,6 @@ async function startAppAfterLogin(user) {
         const systemAccounts = State.appConfig.systemAccounts || [];
         const sysAcc = systemAccounts.find(acc => acc && acc.email && acc.email.toLowerCase() === userEmailLower);
 
-        // 팀원 목록에 있거나, 시스템 계정에 등록되어 있으면 로그인 허용
         const currentUserName = emailToMemberMap[userEmailLower] || (sysAcc ? sysAcc.name : null);
         const currentUserRole = memberRoles[userEmailLower] || (sysAcc ? sysAcc.role : 'user');
 
@@ -277,7 +295,6 @@ async function startAppAfterLogin(user) {
         if (DOM.logoutBtn) DOM.logoutBtn.classList.remove('hidden');
         if (DOM.logoutBtnMobile) DOM.logoutBtnMobile.classList.remove('hidden');
 
-        // 시스템 전용 계정 처리
         if (!sysAcc) {
             const pcAttendanceToggle = document.getElementById('personal-attendance-toggle-pc');
             const pcAttendanceLabel = document.getElementById('pc-attendance-label');
@@ -364,7 +381,6 @@ async function startAppAfterLogin(user) {
     if (State.autoSaveTimer) clearInterval(State.autoSaveTimer);
     State.setAutoSaveTimer(setInterval(autoSaveProgress, State.AUTO_SAVE_INTERVAL));
 
-    // --- 실시간 리스너 설정 ---
     const leaveScheduleDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
     if (State.unsubscribeLeaveSchedule) State.unsubscribeLeaveSchedule();
     
@@ -528,28 +544,41 @@ async function startAppAfterLogin(user) {
         if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-500';
     }));
 
-    // 💡 [신규] 개인 알림(Notification) 실시간 감지
+    // 💡 개인 알림(Notification) 실시간 감지 로직
     if (State.appState.currentUser) {
         const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
-        const notiQuery = query(notiColRef, where("targetMember", "==", State.appState.currentUser), where("isRead", "==", false));
+        const notiQuery = query(notiColRef, where("targetMember", "==", State.appState.currentUser));
         
         if (unsubscribeNotifications) unsubscribeNotifications();
         
         unsubscribeNotifications = onSnapshot(notiQuery, (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === "added") {
-                    const data = change.doc.data();
-                    
-                    // 화면에 토스트 알림 띄우기
-                    showToast(`🔔 알림: ${data.message}`, false);
-                    
-                    // 알림을 '읽음' 처리하여 다음 로그인 시 다시 뜨지 않도록 업데이트
-                    updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'notifications', change.doc.id), {
-                        isRead: true,
-                        readAt: new Date().toISOString()
-                    }).catch(err => console.error("알림 상태 업데이트 실패:", err));
+            const notifications = [];
+            let unreadCount = 0;
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                data.id = docSnap.id;
+                notifications.push(data);
+                if (!data.isRead) unreadCount++;
+            });
+            
+            // 시간순 정렬 (최신이 위로)
+            notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            State.appState.notifications = notifications;
+            
+            // 💡 뱃지 업데이트
+            document.querySelectorAll('.notification-badge').forEach(badge => {
+                if (unreadCount > 0) {
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
                 }
             });
+            
+            // 팝업이 열려있는 상태라면 내용 즉시 갱신
+            const modal = document.getElementById('notification-modal');
+            if (modal && !modal.classList.contains('hidden')) {
+                renderNotificationList();
+            }
         }, (error) => {
             console.error("알림 수신 에러:", error);
         });
@@ -574,6 +603,52 @@ async function main() {
         return;
     }
 
+    // 💡 알림 모달 이벤트 바인딩
+    const notiModal = document.getElementById('notification-modal');
+    const bellPc = document.getElementById('notification-bell-btn');
+    const bellMobile = document.getElementById('notification-bell-btn-mobile');
+    const closeNoti = document.getElementById('close-notification-modal-btn');
+    
+    function toggleNotiModal() {
+        if (!notiModal) return;
+        notiModal.classList.toggle('hidden');
+        if (!notiModal.classList.contains('hidden')) {
+            renderNotificationList();
+        }
+    }
+    
+    bellPc?.addEventListener('click', toggleNotiModal);
+    bellMobile?.addEventListener('click', toggleNotiModal);
+    closeNoti?.addEventListener('click', () => notiModal?.classList.add('hidden'));
+    
+    document.getElementById('read-all-noti-btn')?.addEventListener('click', markAllNotificationsAsRead);
+    
+    document.getElementById('clear-all-noti-btn')?.addEventListener('click', async () => {
+        if (!State.appState.notifications || State.appState.notifications.length === 0) return;
+        if (!confirm('모든 알림을 삭제하시겠습니까?')) return;
+        
+        try {
+            const batch = writeBatch(State.db);
+            State.appState.notifications.forEach(n => {
+                batch.delete(doc(State.db, 'artifacts', 'team-work-logger-v2', 'notifications', n.id));
+            });
+            await batch.commit();
+        } catch(e) {
+            console.error('알림 전체 삭제 실패:', e);
+        }
+    });
+
+    document.getElementById('notification-list')?.addEventListener('click', async (e) => {
+        if(e.target.classList.contains('delete-single-noti-btn')) {
+            const id = e.target.dataset.id;
+            try {
+                await deleteDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'notifications', id));
+            } catch(err) {
+                console.error("개별 알림 삭제 실패:", err);
+            }
+        }
+    });
+
     onAuthStateChanged(State.auth, async user => {
         if (user) {
             if (DOM.loginModal) DOM.loginModal.classList.add('hidden');
@@ -589,7 +664,10 @@ async function main() {
             if (State.elapsedTimeTimer) { clearInterval(State.elapsedTimeTimer); State.setElapsedTimeTimer(null); }
             if (State.periodicRefreshTimer) { clearInterval(State.periodicRefreshTimer); State.setPeriodicRefreshTimer(null); }
             if (State.unsubscribeWorkRecords) { State.unsubscribeWorkRecords(); State.setUnsubscribeWorkRecords(null); }
-            if (unsubscribeNotifications) { unsubscribeNotifications(); unsubscribeNotifications = null; } // 💡 로그아웃 시 알림 리스너 해제
+            
+            // 💡 로그아웃 시 알림 리스너 해제 및 데이터 초기화
+            if (unsubscribeNotifications) { unsubscribeNotifications(); unsubscribeNotifications = null; } 
+            State.appState.notifications = [];
 
             State.appState.workRecords = [];
             State.appState.taskQuantities = {};
