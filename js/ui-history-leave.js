@@ -2,14 +2,13 @@
 import * as State from './state.js';
 import { showToast } from './utils.js';
 import { 
-    doc, getDoc, updateDoc 
+    doc, getDoc, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let currentYear = new Date().getFullYear();
-let leaveSettings = {}; 
 let fullLeaveConfig = {}; 
 
-// [신규] 정렬 상태 관리 (key: 정렬할 필드명, dir: 'asc' | 'desc')
+// 정렬 상태 관리 (key: 정렬할 필드명, dir: 'asc' | 'desc')
 let sortState = { key: null, dir: 'asc' }; 
 
 export async function initLeaveManagement() {
@@ -31,9 +30,7 @@ export async function initLeaveManagement() {
     const refreshBtn = document.getElementById('refresh-leave-sheet-btn');
     if (refreshBtn) refreshBtn.onclick = renderLeaveSheet;
 
-    // [신규] 테이블 헤더 정렬 리스너 연결
     setupSortListeners();
-
     await renderLeaveSheet();
 }
 
@@ -43,7 +40,6 @@ function setupSortListeners() {
         th.addEventListener('click', () => {
             const key = th.dataset.sortKey;
             
-            // 같은 키를 누르면 정렬 방향 토글, 다른 키면 오름차순 초기화
             if (sortState.key === key) {
                 sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
             } else {
@@ -52,7 +48,7 @@ function setupSortListeners() {
             }
             
             updateSortIcons();
-            renderLeaveSheet(); // 재렌더링 (데이터 페칭 없이 정렬만 다시 함)
+            renderLeaveSheet(); 
         });
     });
 }
@@ -79,22 +75,13 @@ export async function renderLeaveSheet() {
     const tbody = document.getElementById('leave-sheet-body');
     if (!tbody) return;
 
-    // 첫 로딩 시에만 로딩 표시 (정렬 시에는 깜빡임 방지를 위해 생략 가능하나 일단 유지)
-    if (!leaveSettings || Object.keys(leaveSettings).length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 동기화 중...</td></tr>';
-    }
+    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center"><div class="animate-spin inline-block w-6 h-6 border-2 border-blue-500 rounded-full border-t-transparent"></div> 데이터 복구 및 집계 중...</td></tr>';
 
     try {
-        // 1. 직원 목록 (기본 정렬: 관리자 페이지 설정 순서)
         const members = await fetchAllMembers();
-        
-        // 2. 관리자 설정 로드 (총 연차 + 적용 기간)
-        await fetchLeaveSettings();
+        await fetchLeaveSettings(); 
+        const usageData = await fetchLeaveUsage(currentYear); 
 
-        // 3. 사용 내역 집계
-        const usageData = await fetchLeaveUsage(currentYear);
-
-        // 4. 데이터 객체 배열로 변환 (정렬 및 렌더링을 위해)
         let rowData = members.map(member => {
             const config = fullLeaveConfig[member] || {};
             const total = config.totalLeave !== undefined ? Number(config.totalLeave) : 15;
@@ -113,30 +100,19 @@ export async function renderLeaveSheet() {
             const remaining = total - used;
             const history = usageData[member] ? usageData[member].dates.join(', ') : '-';
 
-            return {
-                member,
-                total,
-                periodText,
-                used,
-                remaining,
-                history,
-                periodClass,
-                config // 원본 설정 저장용
-            };
+            return { member, total, periodText, used, remaining, history, periodClass, config };
         });
 
-        // 5. 정렬 적용 (사용자가 헤더를 클릭했을 때만)
+        // 정렬 적용
         if (sortState.key) {
             rowData.sort((a, b) => {
                 let valA = a[sortState.key];
                 let valB = b[sortState.key];
 
-                // 숫자형 데이터 처리
                 if (typeof valA === 'number' && typeof valB === 'number') {
                     return sortState.dir === 'asc' ? valA - valB : valB - valA;
                 }
                 
-                // 문자열 처리
                 valA = String(valA).toLowerCase();
                 valB = String(valB).toLowerCase();
                 if (valA < valB) return sortState.dir === 'asc' ? -1 : 1;
@@ -145,7 +121,6 @@ export async function renderLeaveSheet() {
             });
         }
 
-        // 6. 테이블 그리기
         tbody.innerHTML = '';
         
         if (rowData.length === 0) {
@@ -186,11 +161,9 @@ export async function renderLeaveSheet() {
     }
 }
 
-// [수정] 직원 목록 가져오기 (가나다 정렬 제거 -> 기본 설정 순서 유지)
 async function fetchAllMembers() {
     const memberSet = new Set();
     
-    // 1. 팀 그룹 순서대로 멤버 추가 (관리자 페이지 순서 반영)
     if (State.appConfig.teamGroups) {
         State.appConfig.teamGroups.forEach(group => {
             if (group.members && Array.isArray(group.members)) {
@@ -199,12 +172,10 @@ async function fetchAllMembers() {
         });
     }
 
-    // 2. 파트타이머 추가
     if (State.appState.partTimers) {
         State.appState.partTimers.forEach(p => memberSet.add(p.name));
     }
 
-    // sort() 제거하여 삽입된 순서 유지
     return Array.from(memberSet); 
 }
 
@@ -217,27 +188,55 @@ async function fetchLeaveSettings() {
 
         if (snap.exists()) {
             const data = snap.data();
-            fullLeaveConfig = data.memberLeaveSettings || {};
+            if (data.memberLeaveSettings) {
+                 fullLeaveConfig = data.memberLeaveSettings;
+            }
         }
     } catch (e) {
-        console.warn("Leave settings load failed:", e);
+        console.error("Leave settings fetch error:", e);
         fullLeaveConfig = {};
     }
 }
 
+// 🌟 [최종 복구 로직] ID가 없는 옛날 데이터도 놓치지 않고 전부 긁어옵니다.
 async function fetchLeaveUsage(year) {
-    let allLeaves = [];
+    let allLeavesMap = new Map();
     
+    // 고유 식별자가 없는 옛날 기록들을 위한 안전한 키 생성기
+    const generateKey = (l) => l.id ? l.id : `${l.member}_${l.type}_${l.startDate}_${l.endDate||''}`;
+
+    // 1. 중앙 DB에서 불러오기
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
         const snap = await getDoc(docRef);
-        if (snap.exists()) {
-            allLeaves = snap.data().onLeaveMembers || [];
+        if (snap.exists() && snap.data().onLeaveMembers) {
+            snap.data().onLeaveMembers.forEach(l => {
+                allLeavesMap.set(generateKey(l), l); // ID 검사 없이 무조건 저장
+            });
         }
     } catch (e) {
         console.error("Leave schedule fetch error", e);
     }
 
+    // 2. 과거 일일 업무 기록에서 긁어오기 (이중 백업)
+    if (State.allHistoryData && Array.isArray(State.allHistoryData)) {
+        State.allHistoryData.forEach(day => {
+            if (day.onLeaveMembers && Array.isArray(day.onLeaveMembers)) {
+                day.onLeaveMembers.forEach(l => {
+                    allLeavesMap.set(generateKey(l), l);
+                });
+            }
+        });
+    }
+
+    // 3. 현재 메모리(오늘 작성 중인 내역) 반영
+    if (State.persistentLeaveSchedule && Array.isArray(State.persistentLeaveSchedule.onLeaveMembers)) {
+        State.persistentLeaveSchedule.onLeaveMembers.forEach(l => {
+            allLeavesMap.set(generateKey(l), l);
+        });
+    }
+
+    const allLeaves = Array.from(allLeavesMap.values());
     const usage = {}; 
 
     allLeaves.forEach(record => {
@@ -245,18 +244,23 @@ async function fetchLeaveUsage(year) {
             const name = record.member;
             
             const memberConfig = fullLeaveConfig[name] || {};
-            const resetDate = memberConfig.leaveResetDate;
-            const expireDate = memberConfig.expirationDate;
+            const resetDate = memberConfig.leaveResetDate || '';
+            const expireDate = memberConfig.expirationDate || '';
 
             let isMatch = false;
 
-            if (resetDate && expireDate) {
+            // [조건 1] 드롭다운에서 선택한 연도와 일치하면 무조건 노출
+            if (record.startDate && record.startDate.startsWith(String(year))) {
+                isMatch = true;
+            }
+            
+            // [조건 2] 드롭다운 연도와 다르더라도, 개별 설정된 기간(resetDate~expireDate) 안에 포함되는 연차라면 노출
+            if (!isMatch && resetDate && expireDate) {
                 if (record.startDate >= resetDate && record.startDate <= expireDate) {
-                    isMatch = true;
-                }
-            } else {
-                if (record.startDate && record.startDate.startsWith(String(year))) {
-                    isMatch = true;
+                    // 단, 그 지정 기간이 현재 드롭다운의 연도와 관련이 있을 때만 표시
+                    if (resetDate.startsWith(String(year)) || expireDate.startsWith(String(year))) {
+                        isMatch = true;
+                    }
                 }
             }
 
@@ -274,13 +278,21 @@ async function fetchLeaveUsage(year) {
                 if (record.endDate && record.endDate !== record.startDate) {
                     const start = new Date(record.startDate);
                     const end = new Date(record.endDate);
-                    const diffTime = Math.abs(end - start);
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                    
+                    // 🚀 연속 연차 시, 주말(토,일) 자동 제외 계산 로직 추가
+                    let diffDays = 0;
+                    for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
+                        const dayOfWeek = dt.getDay();
+                        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 0:일, 6:토 제외
+                            diffDays++; 
+                        }
+                    }
+                    if (diffDays === 0) diffDays = 1; // 최소 방어 로직
                     
                     days = diffDays;
                     label = `${record.startDate.substring(5)}~${record.endDate.substring(5)}`;
                 } else {
-                    days = 1;
+                    days = 1; // 하루 연차
                     label = record.startDate.substring(5);
                 }
             }
@@ -290,6 +302,7 @@ async function fetchLeaveUsage(year) {
         }
     });
 
+    // 날짜순 정렬
     Object.keys(usage).forEach(key => {
         usage[key].dates.sort();
     });
@@ -301,7 +314,8 @@ async function saveLeaveSettings() {
     const inputs = document.querySelectorAll('.total-leave-input');
     let hasChange = false;
     
-    const updates = { ...fullLeaveConfig };
+    // 깊은 복사로 기존 설정 보호
+    const updates = JSON.parse(JSON.stringify(fullLeaveConfig));
 
     inputs.forEach(input => {
         const member = input.dataset.member;
@@ -329,9 +343,9 @@ async function saveLeaveSettings() {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
         
-        await updateDoc(docRef, {
+        await setDoc(docRef, {
             memberLeaveSettings: updates
-        });
+        }, { merge: true });
         
         fullLeaveConfig = updates;
         showToast("총 연차 설정이 저장되었습니다.");

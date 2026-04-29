@@ -90,7 +90,11 @@
             
             <div class="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex justify-between items-center z-30 shadow-sm shrink-0 transition-colors">
                 <h1 class="text-lg font-bold text-gray-900 dark:text-white">📦 물류팀 시스템</h1>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1">
+                    <button id="notification-bell-btn-mobile" class="relative p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                        <span class="notification-badge hidden absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-gray-800"></span>
+                    </button>
                     <button id="theme-toggle-mobile" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm p-2">
                         <svg id="theme-toggle-dark-icon-mobile" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
                         <svg id="theme-toggle-light-icon-mobile" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
@@ -138,9 +142,14 @@
                         <span id="connection-status" class="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-md">접속됨</span>
                     </div>
                 </div>
-                <div class="flex items-center gap-4">
-                    <div id="current-date-display" class="text-sm font-bold text-gray-500 dark:text-gray-400">로딩중...</div>
+                <div class="flex items-center gap-3">
+                    <div id="current-date-display" class="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">로딩중...</div>
                     
+                    <button id="notification-bell-btn" class="relative p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                        <span class="notification-badge hidden absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-gray-800"></span>
+                    </button>
+
                     <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm p-2 transition-colors">
                         <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
                         <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
@@ -197,15 +206,29 @@
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-start mt-8">
                     
-                    <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 md:p-6 depth-panel transition-colors">
-                        <div class="flex justify-between items-center mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
-                            <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                                <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
-                                업무 현황
-                            </h3>
-                            <button id="toggle-all-tasks-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">전체보기</button>
+                    <div class="lg:col-span-2 space-y-8">
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 md:p-6 depth-panel transition-colors">
+                            <div class="flex justify-between items-center mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+                                <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+                                    업무 현황
+                                </h3>
+                                <button id="toggle-all-tasks-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">전체보기</button>
+                            </div>
+                            <div id="task-status-board">
+                                </div>
                         </div>
-                        <div id="team-status-board" class="space-y-6">
+
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 md:p-6 depth-panel transition-colors">
+                            <div class="flex justify-between items-center mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+                                <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                    <span class="text-xl">🧑‍🤝‍🧑</span> 전체 팀원 현황
+                                    <span class="text-xs font-normal text-gray-400 dark:text-gray-500 hidden md:inline ml-2">(클릭하여 근태 설정/수정)</span>
+                                </h3>
+                                <button id="toggle-all-members-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">전체보기</button>
+                            </div>
+                            <div id="member-status-board">
+                                </div>
                         </div>
                     </div>
 
@@ -290,6 +313,24 @@
             <div class="flex-1 overflow-y-auto p-5">
                 <ul id="notice-management-list" class="space-y-3">
                     </ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification-modal" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center hidden z-[250] p-4 transition-opacity">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm relative border border-gray-100 dark:border-gray-700 flex flex-col max-h-[80vh]">
+            <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center shrink-0">
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🔔</span> 알림 센터</h2>
+                <button class="text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors text-2xl leading-none" id="close-notification-modal-btn">&times;</button>
+            </div>
+            <div class="p-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 shrink-0 flex justify-end gap-2 px-4">
+                <button id="read-all-noti-btn" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">모두 읽음 처리</button>
+                <button id="clear-all-noti-btn" class="text-xs font-bold text-red-500 dark:text-red-400 hover:underline ml-3">전체 삭제</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4">
+                <ul id="notification-list" class="space-y-3">
+                    <li class="text-center text-gray-400 py-4 text-sm">알림이 없습니다.</li>
+                </ul>
             </div>
         </div>
     </div>

@@ -8,10 +8,10 @@ const predictionCharts = {
     delivery: null
 };
 
-// 💡 [추가됨] 장(상품수)을 건수(주문건수)로 변환하여 "건 / 장" 포맷으로 반환하는 헬퍼 함수
+// 💡 [수정됨] 장(상품수)을 건수(주문건수)로 변환하여 "건 / 장" 포맷으로 반환하는 헬퍼 함수 (1.2 기준)
 const formatDelivery = (val) => {
     if (!val || val <= 0) return '0건 / 0장';
-    const cases = Math.round(val / 1.5); // 1.5로 나누어 건수 계산
+    const cases = Math.round(val / 1.2); // 1.2로 나누어 건수 계산
     return `${cases.toLocaleString()}건 / ${Math.round(val).toLocaleString()}장`;
 };
 
@@ -92,7 +92,7 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
             elTodayRevBar.style.width = `${revPct}%`;
         }
 
-        // 💡 [수정됨] 예측 및 실제 배송량을 건/장 포맷으로 출력
+        // 예측 및 실제 배송량을 건/장 포맷으로 출력
         if (elTodayEstDel) elTodayEstDel.textContent = formatDelivery(today.predictedDel);
         if (elTodayActDel) elTodayActDel.textContent = formatDelivery(today.actualDel);
         if (elTodayDelBar) {
@@ -117,7 +117,7 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
 
     if (elTomRev) elTomRev.textContent = tomorrow.revenue > 0 ? tomorrow.revenue.toLocaleString() : '휴무(0)';
     
-    // 💡 [수정됨] 내일 예측 배송량 및 평균 배송량을 건/장 포맷으로 출력
+    // 내일 예측 배송량 및 평균 배송량을 건/장 포맷으로 출력
     if (elTomDel) elTomDel.textContent = tomorrow.delivery > 0 ? formatDelivery(tomorrow.delivery) : '휴무(0)';
     
     if (elPerAvgRev) elPerAvgRev.textContent = Math.round(avgRev).toLocaleString();
@@ -204,9 +204,9 @@ const renderChart = (key, ctx, labels, histData, predData, splitIndex, label, co
                             if (label) label += ': ';
                             if (context.parsed.y !== null) {
                                 const val = Math.round(context.parsed.y);
-                                // 💡 [수정됨] 툴팁에서도 '배송량'일 경우 건수와 장수를 동시 표기
+                                // 💡 [수정됨] 툴팁에서도 '배송량'일 경우 건수(1.2기준)와 장수를 동시 표기
                                 if (key === 'delivery') {
-                                    const cases = Math.round(val / 1.5);
+                                    const cases = Math.round(val / 1.2);
                                     label += `${cases.toLocaleString()}건 / ${val.toLocaleString()}장`;
                                 } else {
                                     label += val.toLocaleString();

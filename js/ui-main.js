@@ -4,7 +4,6 @@ import { formatTimeTo24H, formatDuration, calcElapsedMinutes, getCurrentTime, is
 import { getAllDashboardDefinitions, taskCardStyles, taskTitleColors } from './ui.js';
 import * as State from './state.js';
 
-// 💡 [핵심 수정] 모듈 객체(State)를 직접 수정하지 않고, 이 파일 안에서만 안전하게 쓸 변수를 만듭니다.
 let currentEzadminData = null;
 
 const getLeaveDisplayLabel = (member, leaveEntry) => {
@@ -109,7 +108,6 @@ export const renderNoticeWidget = (appState) => {
     memoList.innerHTML = html;
 };
 
-// 💡 전용 변수에서 데이터를 가져와 업데이트합니다.
 export const updateEzadminDisplay = () => {
     const ezData = currentEzadminData;
     if (!ezData) return;
@@ -161,7 +159,6 @@ export const renderDashboardLayout = (appConfig) => {
         }
     });
 
-    // 💡 전용 변수에서 데이터를 꺼내 옵니다.
     const ezInvoice = (currentEzadminData && currentEzadminData.invoice) || 0;
     const ezDelivery = (currentEzadminData && currentEzadminData.delivery) || 0;
 
@@ -203,6 +200,7 @@ export const updateSummary = (appState, appConfig) => {
     const totalStaffCount = allStaffMembers.size;
     const totalPartTimerCount = allPartTimers.size;
 
+    // 💡 휴무자(조퇴, 연차, 외출 미복귀 등) 목록 생성
     const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
     const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
     const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
@@ -217,16 +215,20 @@ export const updateSummary = (appState, appConfig) => {
     );
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
+    // 💡 출근자 중 휴무자를 뺀 실제 가용 인원만 카운트
     const attendanceMap = appState.dailyAttendance || {};
     const currentlyClockedIn = new Set(
-        Object.keys(attendanceMap).filter(member => attendanceMap[member].status === 'active')
+        Object.keys(attendanceMap).filter(member => 
+            attendanceMap[member].status === 'active' && !onLeaveMemberNames.has(member)
+        )
     );
 
     const availableStaffCount = [...currentlyClockedIn].filter(member => allStaffMembers.has(member)).length;
     const availablePartTimerCount = [...currentlyClockedIn].filter(member => allPartTimers.has(member)).length;
 
-    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
-    const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
+    // 💡 업무 중인 인원에서도 휴무자는 카운트에서 철저히 제외 (업무 종료를 깜빡한 경우 방지)
+    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' && !onLeaveMemberNames.has(r.member));
+    const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused' && !onLeaveMemberNames.has(r.member));
     
     const ongoingMembers = new Set(ongoingRecords.map(r => r.member));
     const pausedMembers = new Set(pausedRecords.map(r => r.member));
@@ -239,12 +241,13 @@ export const updateSummary = (appState, appConfig) => {
     const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
     const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
 
+    // 대기 인원 = 출근(가용) - 업무 - 정지
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount - pausedStaffCount);
     const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount - pausedPartTimerCount);
     
     const totalIdleCount = idleStaffCount + idlePartTimerCount;
 
-    const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+    const ongoingOrPausedRecords = (appState.workRecords || []).filter(r => (r.status === 'ongoing' || r.status === 'paused') && !onLeaveMemberNames.has(r.member));
     const ongoingTaskCount = new Set(ongoingOrPausedRecords.map(r => r.task)).size;
 
     if (elements['total-staff']) elements['total-staff'].textContent = `${totalStaffCount}/${totalPartTimerCount}`;
@@ -529,18 +532,32 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
     const currentUserRole = appState.currentUserRole || 'user';
     const currentUserName = appState.currentUser || null;
-    const teamStatusBoard = document.getElementById('team-status-board');
-    if (!teamStatusBoard) return;
-    teamStatusBoard.innerHTML = '';
+    
+    const taskStatusBoard = document.getElementById('task-status-board');
+    const memberStatusBoard = document.getElementById('member-status-board');
+    if (!taskStatusBoard || !memberStatusBoard) return;
+    
+    taskStatusBoard.innerHTML = '';
+    memberStatusBoard.innerHTML = '';
+
+    // 💡 1. 휴무자 리스트 우선 계산
+    const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
+    const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
+    const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
+    const onLeaveStatusMap = new Map(combinedOnLeaveMembers.filter(item => !(item.type === '외출' && item.endTime)).map(item => [item.member, item]));
+    const onLeaveMemberNames = new Set(onLeaveStatusMap.keys());
 
     const presetTaskContainer = document.createElement('div');
-    presetTaskContainer.className = 'mb-6';
     const presetGrid = document.createElement('div');
     presetGrid.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5';
     if (isMobileTaskViewExpanded) presetGrid.classList.add('mobile-expanded');
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
-    const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
+    
+    // 💡 2. 휴무자는 진행/정지 중인 업무가 있어도 대시보드 작업 카드에서 완전히 제외합니다.
+    const ongoingRecords = (appState.workRecords || []).filter(r => 
+        (r.status === 'ongoing' || r.status === 'paused') && !onLeaveMemberNames.has(r.member)
+    );
     const tasksToRender = [...new Set([...baseTasks, ...ongoingRecords.map(r => r.task)])];
 
     tasksToRender.forEach(task => {
@@ -614,7 +631,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             card.dataset.action = 'start-task';
             card.dataset.task = task;
             card.innerHTML = `
-                <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 group-hover:border-blue-200 dark:group-hover:border-blue-800 group-hover:scale-110 transition-all mb-4 text-2xl font-light">+</div>
+                <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 group-hover:border-blue-200 dark:group-hover:border-blue-800 transition-all mb-4 text-2xl font-light">+</div>
                 <h3 class="font-bold text-lg text-gray-600 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">${task} 시작</h3>
                 <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 font-medium">클릭하여 인원 선택</p>
             `;
@@ -626,7 +643,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     otherTaskCard.className = `flex flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all group`;
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
-        <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 group-hover:scale-110 transition-all mb-4 text-xl">
+        <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 transition-all mb-4 text-xl">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         </div>
         <h3 class="font-bold text-lg text-gray-600 dark:text-gray-300">기타 업무</h3>
@@ -634,29 +651,18 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     `;
     presetGrid.appendChild(otherTaskCard);
     presetTaskContainer.appendChild(presetGrid);
-    teamStatusBoard.appendChild(presetTaskContainer);
+    
+    taskStatusBoard.appendChild(presetTaskContainer);
 
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container';
     if (isMobileMemberViewExpanded) allMembersContainer.classList.add('mobile-expanded');
     
-    allMembersContainer.innerHTML = `
-        <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-3 mb-6 mt-10">
-            <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span class="text-xl">🧑‍🤝‍🧑</span> 전체 팀원 현황
-                <span class="text-xs font-normal text-gray-400 dark:text-gray-500 hidden md:inline ml-2">(클릭하여 근태 설정/수정)</span>
-            </h3>
-            <button id="toggle-all-members-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">${isMobileMemberViewExpanded ? '간략히' : '전체보기'}</button>
-        </div>`;
+    allMembersContainer.innerHTML = ``;
 
     const ongoingMembers = new Set(ongoingRecords.filter(r => r.status === 'ongoing').map(r => r.member));
     const pausedMembers = new Set(ongoingRecords.filter(r => r.status === 'paused').map(r => r.member));
     const workingMembersMap = new Map(ongoingRecords.map(r => [r.member, r.task]));
-    
-    const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
-    const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
-    const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
-    const onLeaveStatusMap = new Map(combinedOnLeaveMembers.filter(item => !(item.type === '외출' && item.endTime)).map(item => [item.member, item]));
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'), teamGroups.find(g => g.name === '공통파트'), teamGroups.find(g => g.name === '담당파트'), teamGroups.find(g => g.name === '제작파트')
@@ -827,7 +833,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         });
         albaContainer.appendChild(albaGrid); allMembersContainer.appendChild(albaContainer);
     }
-    teamStatusBoard.appendChild(allMembersContainer);
+    
+    memberStatusBoard.appendChild(allMembersContainer);
 
     renderAttendanceToggle(appState);
 };
@@ -876,16 +883,13 @@ export const renderCompletedWorkLog = (appState) => {
     });
 };
 
-// 🚀 이지어드민 데이터 수신 리스너 (전용 로컬 변수에 데이터 저장)
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
         const ezData = event.data.data;
         console.log("🎯 [대시보드 탭] 데이터 도착 완료!! :", ezData);
         
-        // 💡 [핵심] 받은 데이터를 이 파일 내의 전용 변수에 저장
         currentEzadminData = ezData; 
 
-        // 화면에 즉시 업데이트 및 반짝임 효과
         const invoiceEl = document.getElementById('ezadmin-invoice-count');
         const deliveryEl = document.getElementById('ezadmin-delivery-count');
         
@@ -902,7 +906,6 @@ window.addEventListener('message', (event) => {
     }
 });
 
-// 모바일 새로고침 버튼
 const setupMobileRefreshButton = () => {
     if (document.getElementById('mobile-refresh-btn')) return;
     const btn = document.createElement('button');
