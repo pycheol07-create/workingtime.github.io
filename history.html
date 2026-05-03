@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <title>물류팀 데이터 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // 💡 해결포인트 1: 다크모드 및 기본 테마 설정 추가 (화면 깨짐 및 UI 딜레이 방지)
+        tailwind.config = { darkMode: 'class', }
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
@@ -17,11 +26,11 @@
         #history-modal { position: static !important; display: flex !important; background: none !important; width: 100%; height: 100%; padding: 0 !important; }
         #history-modal-content-box { width: 100% !important; height: 100% !important; border-radius: 0 !important; box-shadow: none !important; }
         
-        /* 전체화면/닫기 버튼 숨기기 (새 탭이니까 브라우저 탭 자체를 닫으면 됨) */
+        /* 전체화면/닫기 버튼 숨기기 */
         #toggle-history-fullscreen-btn, #close-history-btn, #history-modal-header { display: none !important; }
     </style>
 </head>
-<body class="text-gray-800 font-['Inter']">
+<body class="text-gray-800 font-['Inter'] transition-colors duration-200">
     <div id="toast-container" class="space-y-2 w-full max-w-xs"></div>
 
     <div id="modals-container-history" class="w-full h-full"></div>
@@ -29,7 +38,7 @@
     <div id="modals-container-confirm"></div>
     
     <script>
-        // 공통 컴포넌트 로드 (모달 UI 파일들)
+        // 공통 컴포넌트 로드
         async function loadComponent(url, containerId) {
             try {
                 const response = await fetch(url);
@@ -42,7 +51,6 @@
         }
 
         async function initHistoryApp() {
-            // 💡 누락되었던 modals-form.html(입력창 팝업 모음)을 함께 불러오도록 세팅
             await Promise.all([
                 loadComponent('components/modals-history.html', 'modals-container-history'),
                 loadComponent('components/modals-confirm.html', 'modals-container-confirm'),
@@ -51,16 +59,11 @@
 
             try {
                 const State = await import('./js/state.js');
-                
-                // 기존 대시보드와 똑같이 백그라운드에서 파이어베이스 초기화를 유도합니다.
                 try { await import('./js/app.js'); } catch(e) {} 
-
                 const { loadAndRenderHistoryList } = await import('./js/app-history-logic.js');
 
-                // 파이어베이스 auth 객체가 준비될 때까지 기다림
                 let checkCount = 0;
                 const waitForAuth = setInterval(async () => {
-                    // auth 객체와 함수가 모두 완벽히 준비되었을 때만 실행
                     if (State.auth && typeof State.auth.onAuthStateChanged === 'function') {
                         clearInterval(waitForAuth);
                         
@@ -71,23 +74,30 @@
                                 return;
                             }
 
-                            // 💡 appConfig 데이터가 완벽하게 불러와질 때까지 대기
                             const waitForData = setInterval(async () => {
                                 if (State.appConfig && Object.keys(State.appConfig).length > 0) {
                                     clearInterval(waitForData);
                                     
-                                    // 로그인 및 데이터 확인 완료 시 렌더링 진행
                                     await loadAndRenderHistoryList();
                                     
-                                    // 새 탭에서는 history-modal의 hidden을 무조건 풀어줘야 화면이 보입니다.
                                     const modal = document.getElementById('history-modal');
                                     if (modal) modal.classList.remove('hidden');
+
+                                    // 💡 해결포인트 2: 로딩 직후 강제로 첫 번째 날짜나 탭을 클릭시켜 UI를 즉시 그려냅니다.
+                                    setTimeout(() => {
+                                        const firstDateItem = document.querySelector('#history-date-list li');
+                                        if (firstDateItem) {
+                                            firstDateItem.click();
+                                        } else {
+                                            const activeTab = document.querySelector('.history-tab-btn.active') || document.querySelector('.history-tab-btn');
+                                            if (activeTab) activeTab.click();
+                                        }
+                                    }, 150); // DOM이 완전히 자리잡을 수 있도록 0.15초의 짧은 여유를 줍니다.
                                 }
                             }, 100);
                         });
                     }
                     
-                    // 3초가 지나도 auth를 못 찾으면 (안전장치)
                     if (checkCount > 30) {
                         clearInterval(waitForAuth);
                         if (!State.appState || !State.appState.currentUser) {
@@ -96,13 +106,17 @@
                              return;
                         }
                         
-                        // 수동 fallback 실행 시에도 데이터 확인 후 렌더링
                         const fallbackWaitForData = setInterval(async () => {
                             if (State.appConfig && Object.keys(State.appConfig).length > 0) {
                                 clearInterval(fallbackWaitForData);
                                 await loadAndRenderHistoryList();
                                 const modal = document.getElementById('history-modal');
                                 if (modal) modal.classList.remove('hidden');
+                                
+                                setTimeout(() => {
+                                    const firstDateItem = document.querySelector('#history-date-list li');
+                                    if (firstDateItem) firstDateItem.click();
+                                }, 150);
                             }
                         }, 100);
                     }
