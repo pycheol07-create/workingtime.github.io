@@ -5,7 +5,6 @@
     <title>물류팀 데이터 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // 💡 해결포인트 1: 다크모드 및 기본 테마 설정 추가 (화면 깨짐 및 UI 딜레이 방지)
         tailwind.config = { darkMode: 'class', }
         if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
@@ -60,7 +59,9 @@
             try {
                 const State = await import('./js/state.js');
                 try { await import('./js/app.js'); } catch(e) {} 
-                const { loadAndRenderHistoryList } = await import('./js/app-history-logic.js');
+                
+                // 💡 해결 포인트 1: 탭 전환 함수(switchHistoryView)를 추가로 불러옵니다.
+                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js');
 
                 let checkCount = 0;
                 const waitForAuth = setInterval(async () => {
@@ -83,21 +84,28 @@
                                     const modal = document.getElementById('history-modal');
                                     if (modal) modal.classList.remove('hidden');
 
-                                    // 💡 해결포인트 2: 로딩 직후 강제로 첫 번째 날짜나 탭을 클릭시켜 UI를 즉시 그려냅니다.
+                                    // 💡 해결 포인트 2: UI와 데이터가 DOM에 그려질 시간을 아주 잠깐(0.2초) 준 뒤, 강제로 상태를 초기화합니다.
                                     setTimeout(() => {
+                                        // 1. 상단 탭 UI 강제 초기화 (일별 상세 탭)
+                                        if (typeof switchHistoryView === 'function') {
+                                            switchHistoryView('daily');
+                                        } else {
+                                            const defaultTabBtn = document.querySelector('#history-main-tabs button');
+                                            if (defaultTabBtn) defaultTabBtn.click();
+                                        }
+
+                                        // 2. 우측 상세 내용 표시를 위해 가장 최신 날짜(첫 번째 리스트) 강제 클릭
                                         const firstDateItem = document.querySelector('#history-date-list li');
                                         if (firstDateItem) {
                                             firstDateItem.click();
-                                        } else {
-                                            const activeTab = document.querySelector('.history-tab-btn.active') || document.querySelector('.history-tab-btn');
-                                            if (activeTab) activeTab.click();
                                         }
-                                    }, 150); // DOM이 완전히 자리잡을 수 있도록 0.15초의 짧은 여유를 줍니다.
+                                    }, 200); 
                                 }
                             }, 100);
                         });
                     }
                     
+                    // 폴백(Fallback) 안전장치
                     if (checkCount > 30) {
                         clearInterval(waitForAuth);
                         if (!State.appState || !State.appState.currentUser) {
@@ -114,9 +122,10 @@
                                 if (modal) modal.classList.remove('hidden');
                                 
                                 setTimeout(() => {
+                                    if (typeof switchHistoryView === 'function') switchHistoryView('daily');
                                     const firstDateItem = document.querySelector('#history-date-list li');
                                     if (firstDateItem) firstDateItem.click();
-                                }, 150);
+                                }, 200);
                             }
                         }, 100);
                     }
