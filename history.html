@@ -62,6 +62,38 @@
                 
                 const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js');
 
+                // 💡 UI 강제 초기화 트리거 함수 (화면에 버튼이 생길 때까지 추적)
+                const triggerInitialUI = () => {
+                    let uiAttempts = 0;
+                    const triggerInterval = setInterval(() => {
+                        uiAttempts++;
+                        // DOM에서 탭 버튼과 날짜 리스트 항목을 찾습니다.
+                        const tabButtons = Array.from(document.querySelectorAll('.history-tab-btn, button'));
+                        const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.trim().includes('일별 상세'));
+                        const firstDateItem = document.querySelector('#history-date-list li');
+
+                        // 두 요소가 모두 렌더링되어 찾았을 때!
+                        if (dailyTabBtn && firstDateItem) {
+                            clearInterval(triggerInterval); // 감시 중지
+                            
+                            // 1. 탭 클릭 처리
+                            dailyTabBtn.click();
+                            try { 
+                                if (typeof switchHistoryView === 'function') switchHistoryView('daily'); 
+                            } catch(e) {}
+
+                            // 2. 탭 전환 후 약간의 틈(0.1초)을 주고 첫 번째 날짜 데이터 클릭
+                            setTimeout(() => {
+                                firstDateItem.click();
+                            }, 100);
+                            
+                        } else if (uiAttempts > 50) {
+                            // 5초 이상 지나도 안 나오면 무한 루프 방지를 위해 종료
+                            clearInterval(triggerInterval);
+                        }
+                    }, 100); // 0.1초마다 감시
+                };
+
                 let checkCount = 0;
                 const waitForAuth = setInterval(async () => {
                     if (State.auth && typeof State.auth.onAuthStateChanged === 'function') {
@@ -78,35 +110,20 @@
                                 if (State.appConfig && Object.keys(State.appConfig).length > 0) {
                                     clearInterval(waitForData);
                                     
+                                    // 데이터 로드 후 화면 그리기
                                     await loadAndRenderHistoryList();
                                     
                                     const modal = document.getElementById('history-modal');
                                     if (modal) modal.classList.remove('hidden');
 
-                                    // 💡 최종 해결 포인트: DOM 이벤트 바인딩이 완벽히 끝날 때까지 0.3초 대기 후 정확한 버튼을 찾아 강제 클릭
-                                    setTimeout(() => {
-                                        // 1. 상단 메뉴 탭 초기화 (명확하게 '일별 상세' 버튼을 찾아 클릭)
-                                        const tabButtons = Array.from(document.querySelectorAll('button, .history-tab-btn'));
-                                        const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.includes('일별 상세'));
-                                        
-                                        if (dailyTabBtn) {
-                                            dailyTabBtn.click();
-                                        } else if (typeof switchHistoryView === 'function') {
-                                            switchHistoryView('daily');
-                                        }
-
-                                        // 2. 좌측 리스트의 첫 번째 날짜 항목 클릭
-                                        const firstDateItem = document.querySelector('#history-date-list li');
-                                        if (firstDateItem) {
-                                            firstDateItem.click();
-                                        }
-                                    }, 300); // 300ms 딜레이 부여
+                                    // 💡 추적 및 강제 클릭 실행
+                                    triggerInitialUI();
                                 }
                             }, 100);
                         });
                     }
                     
-                    // 폴백(Fallback) 안전장치
+                    // 인증 객체를 못 찾는 경우 (Fallback)
                     if (checkCount > 30) {
                         clearInterval(waitForAuth);
                         if (!State.appState || !State.appState.currentUser) {
@@ -122,15 +139,8 @@
                                 const modal = document.getElementById('history-modal');
                                 if (modal) modal.classList.remove('hidden');
                                 
-                                setTimeout(() => {
-                                    const tabButtons = Array.from(document.querySelectorAll('button, .history-tab-btn'));
-                                    const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.includes('일별 상세'));
-                                    if (dailyTabBtn) dailyTabBtn.click();
-                                    else if (typeof switchHistoryView === 'function') switchHistoryView('daily');
-
-                                    const firstDateItem = document.querySelector('#history-date-list li');
-                                    if (firstDateItem) firstDateItem.click();
-                                }, 300);
+                                // 💡 추적 및 강제 클릭 실행
+                                triggerInitialUI();
                             }
                         }, 100);
                     }
