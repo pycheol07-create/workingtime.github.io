@@ -2,6 +2,8 @@
 
 import { formatDuration, isWeekday, getWeekOfYear, getTodayDateString } from './utils.js';
 import { appConfig } from './state.js';
+// 예측 엔진 로직 임포트 추가
+import { predictFutureTrends } from './analysis-logic.js'; 
 
 // ================== [ 1. 헬퍼 함수 ] ==================
 
@@ -764,22 +766,18 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
     };
 };
 
-// ✅ [추가] 시뮬레이션용: 어제 기준 지난 2개월간의 평균 속도 산출
 export const calculateSimulationThroughputs = (allHistoryData) => {
     const todayKey = getTodayDateString();
     const todayDate = new Date(todayKey + 'T00:00:00');
     
-    // 어제 날짜 구하기
     const yesterdayDate = new Date(todayDate);
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
     const yesterdayKey = yesterdayDate.toISOString().slice(0, 10);
     
-    // 2개월 전 날짜 구하기
     const twoMonthsAgoDate = new Date(yesterdayDate);
     twoMonthsAgoDate.setMonth(twoMonthsAgoDate.getMonth() - 2);
     const twoMonthsAgoKey = twoMonthsAgoDate.toISOString().slice(0, 10);
 
-    // 어제부터 과거 2개월치 데이터만 필터링
     const pastTwoMonthsData = allHistoryData.filter(d => d.id >= twoMonthsAgoKey && d.id <= yesterdayKey);
 
     const taskDailySpeeds = {};
@@ -806,7 +804,7 @@ export const calculateSimulationThroughputs = (allHistoryData) => {
         });
 
         Object.entries(dailyTaskStats).forEach(([task, stats]) => {
-            if (stats.duration >= 10 && stats.quantity > 0) { // 10분 이상만 유효 데이터로 취급
+            if (stats.duration >= 10 && stats.quantity > 0) { 
                 const speed = stats.quantity / stats.duration;
                 if (!taskDailySpeeds[task]) taskDailySpeeds[task] = [];
                 taskDailySpeeds[task].push(speed);
@@ -818,7 +816,6 @@ export const calculateSimulationThroughputs = (allHistoryData) => {
     Object.keys(taskDailySpeeds).forEach(task => {
         const speeds = taskDailySpeeds[task];
         if (speeds.length > 0) {
-            // 기간 내 전체 속도의 평균
             const avg = speeds.reduce((a, b) => a + b, 0) / speeds.length;
             standards[task] = avg;
         } else {
@@ -828,3 +825,138 @@ export const calculateSimulationThroughputs = (allHistoryData) => {
     return standards;
 };
 
+
+// ================== [ 3. 새로운 기능: 트렌드 차트 및 예측 요약 렌더링 ] ==================
+
+let trendChartInstance = null; // 차트 중복 생성 방지용
+
+/**
+ * 트렌드 분석 패널을 렌더링하는 함수 (예측 데이터 및 신뢰 구간 시각화)
+ * 이 함수를 ui.js 등에서 호출하여 화면을 구성합니다.
+ */
+export const renderTrendReport = (historyData) => {
+    const container = document.getElementById('trend-analysis-panel');
+    if (!container) return;
+
+    // 예측 엔진을 호출해 미래 14일의 데이터를 가져옴
+    const trendData = predictFutureTrends(historyData, 14);
+
+    if (!trendData || !trendData.prediction) {
+        container.innerHTML = '<div class="text-center text-gray-500 py-10">예측을 위한 과거 데이터가 부족합니다. (최소 7일 필요)</div>';
+        return;
+    }
+
+    // 예측 데이터 요약 위젯 HTML 생성 (IQR, EMA가 반영된 결과)
+    container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-2">📦 내일 예상 물량 (국내배송)</h3>
+                <div class="text-3xl font-extrabold text-blue-600 dark:text-blue-400 mb-2">
+                    ${trendData.prediction.tomorrow.delivery.toLocaleString()}건
+                </div>
+                <div class="text-sm text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-gray-700 p-2 rounded">
+                    안전 범위: <span class="font-semibold text-red-500">최소 ${trendData.prediction.rangeDelivery[0].min.toLocaleString()}건</span> ~ 
+                    <span class="font-semibold text-green-500">최대 ${trendData.prediction.rangeDelivery[0].max.toLocaleString()}건</span>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-2">💰 내일 예상 매출</h3>
+                <div class="text-3xl font-extrabold text-green-600 dark:text-green-400 mb-2">
+                    ${trendData.prediction.tomorrow.revenue.toLocaleString()}원
+                </div>
+                <div class="text-sm text-gray-600 dark:text-gray-300 bg-green-50 dark:bg-gray-700 p-2 rounded">
+                    안전 범위: <span class="font-semibold text-red-500">최소 ${trendData.prediction.rangeRevenue[0].min.toLocaleString()}원</span> ~ 
+                    <span class="font-semibold text-green-500">최대 ${trendData.prediction.rangeRevenue[0].max.toLocaleString()}원</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 꺾은선 차트 영역 -->
+        <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">📈 물량 추이 및 14일 예측 차트</h3>
+            <div class="relative h-80 w-full">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    `;
+
+    drawTrendChart(trendData);
+};
+
+const drawTrendChart = (trendData) => {
+    const ctx = document.getElementById('trendChart');
+    if (!ctx) return;
+
+    if (trendChartInstance) {
+        trendChartInstance.destroy(); 
+    }
+
+    const labels = [...trendData.historical.labels, ...trendData.prediction.labels];
+    const histLen = trendData.historical.delivery.length;
+    const padding = Array(histLen - 1).fill(null);
+    const lastHistorical = trendData.historical.delivery[histLen - 1];
+
+    const historicalDelivery = [...trendData.historical.delivery, ...Array(trendData.prediction.delivery.length).fill(null)];
+    const predictedDelivery = [...padding, lastHistorical, ...trendData.prediction.delivery];
+    
+    // 신뢰 구간 데이터
+    const minDelivery = [...padding, lastHistorical, ...trendData.prediction.rangeDelivery.map(r => r.min)];
+    const maxDelivery = [...padding, lastHistorical, ...trendData.prediction.rangeDelivery.map(r => r.max)];
+
+    trendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '과거 실제 물량',
+                    data: historicalDelivery,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: '예측 물량 (EMA 반영)',
+                    data: predictedDelivery,
+                    borderColor: '#f59e0b',
+                    borderDash: [5, 5],
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: false
+                },
+                {
+                    label: '최대 신뢰 구간',
+                    data: maxDelivery,
+                    borderColor: 'rgba(16, 185, 129, 0)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    fill: '+1', // 신뢰구간 영역 시각화
+                    pointRadius: 0
+                },
+                {
+                    label: '최소 신뢰 구간',
+                    data: minDelivery,
+                    borderColor: 'rgba(16, 185, 129, 0)',
+                    fill: false,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { 
+                    position: 'top',
+                    labels: { filter: (item) => !item.text.includes('신뢰 구간') } 
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, suggestedMin: 0 }
+            }
+        }
+    });
+};

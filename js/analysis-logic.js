@@ -272,8 +272,8 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
             labels: futureLabels,
             revenue: predictedRevenue,
             delivery: predictedDelivery,
-            rangeRevenue: rangeRevenue,   // UI에서 활용할 수 있는 최소/최대 매출 범위
-            rangeDelivery: rangeDelivery, // UI에서 활용할 수 있는 최소/최대 배송 범위
+            rangeRevenue: rangeRevenue,
+            rangeDelivery: rangeDelivery,
             today: {
                 predictedRev: todayPredRev,
                 predictedDel: todayPredDel,
@@ -298,6 +298,7 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
  * 🚀 고도화된 타임라인 기반 시뮬레이터 (피로도 및 정밀 역산 적용)
  */
 export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr = "09:00", includeLinkedTasks = true) => {
+    // (기존 runAdvancedSimulation 로직 유지)
     if (!taskList || taskList.length === 0 || !inputValue) {
         return { error: "업무 목록과 입력값을 올바르게 설정해주세요." };
     }
