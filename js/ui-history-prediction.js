@@ -8,7 +8,7 @@ const predictionCharts = {
     delivery: null
 };
 
-// 💡 [수정됨] 장(상품수)을 건수(주문건수)로 변환하여 "건 / 장" 포맷으로 반환하는 헬퍼 함수 (1.2 기준)
+// 💡 장(상품수)을 건수(주문건수)로 변환하여 "건 / 장" 포맷으로 반환하는 헬퍼 함수 (1.2 기준)
 const formatDelivery = (val) => {
     if (!val || val <= 0) return '0건 / 0장';
     const cases = Math.round(val / 1.2); // 1.2로 나누어 건수 계산
@@ -40,8 +40,9 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     const splitIndex = historical.labels.length;
     const allLabels = [...historical.labels, ...prediction.labels];
 
-    renderChart('revenue', revenueCtx, allLabels, historical.revenue, prediction.revenue, splitIndex, '매출 (원)', 'rgb(79, 70, 229)'); 
-    renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, splitIndex, '배송량 (장)', 'rgb(16, 185, 129)'); 
+    // ✨ 범위(range) 데이터를 함께 넘겨주어 신뢰 구간을 그리도록 수정
+    renderChart('revenue', revenueCtx, allLabels, historical.revenue, prediction.revenue, prediction.rangeRevenue, splitIndex, '매출 (원)', 'rgb(79, 70, 229)'); 
+    renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, prediction.rangeDelivery, splitIndex, '배송량 (장)', 'rgb(16, 185, 129)'); 
 
     updateKPICards(prediction, trend, daysToPredict);
 
@@ -92,7 +93,6 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
             elTodayRevBar.style.width = `${revPct}%`;
         }
 
-        // 예측 및 실제 배송량을 건/장 포맷으로 출력
         if (elTodayEstDel) elTodayEstDel.textContent = formatDelivery(today.predictedDel);
         if (elTodayActDel) elTodayActDel.textContent = formatDelivery(today.actualDel);
         if (elTodayDelBar) {
@@ -100,7 +100,6 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
             elTodayDelBar.style.width = `${delPct}%`;
         }
 
-        // 오차 보정률 텍스트 출력
         if (elErrorText) {
             const revFactorPct = ((today.errorFactorRev - 1) * 100).toFixed(1);
             const delFactorPct = ((today.errorFactorDel - 1) * 100).toFixed(1);
@@ -111,14 +110,31 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
         }
     }
 
-    // 2. 내일 예측 및 기간 평균 업데이트
+    // 2. 내일 예측 및 기간 평균 업데이트 (✨ 범위 텍스트 추가됨)
     const avgRev = revenue.reduce((a,b)=>a+b,0) / revenue.length;
     const avgDel = delivery.reduce((a,b)=>a+b,0) / delivery.length;
 
-    if (elTomRev) elTomRev.textContent = tomorrow.revenue > 0 ? tomorrow.revenue.toLocaleString() : '휴무(0)';
+    if (elTomRev) {
+        if (tomorrow.revenue > 0) {
+            const minRev = prediction.rangeRevenue[0].min;
+            const maxRev = prediction.rangeRevenue[0].max;
+            elTomRev.innerHTML = `${tomorrow.revenue.toLocaleString()} <span class="text-[11px] text-gray-500 font-normal ml-1">(최소 ${minRev.toLocaleString()} ~ 최대 ${maxRev.toLocaleString()})</span>`;
+        } else {
+            elTomRev.textContent = '휴무(0)';
+        }
+    }
     
-    // 내일 예측 배송량 및 평균 배송량을 건/장 포맷으로 출력
-    if (elTomDel) elTomDel.textContent = tomorrow.delivery > 0 ? formatDelivery(tomorrow.delivery) : '휴무(0)';
+    if (elTomDel) {
+        if (tomorrow.delivery > 0) {
+            const minDel = prediction.rangeDelivery[0].min;
+            const maxDel = prediction.rangeDelivery[0].max;
+            const minCases = Math.round(minDel / 1.2);
+            const maxCases = Math.round(maxDel / 1.2);
+            elTomDel.innerHTML = `${formatDelivery(tomorrow.delivery)} <span class="text-[11px] text-gray-500 font-normal ml-1 mt-1 block md:inline">(최소 ${minCases.toLocaleString()}건 ~ 최대 ${maxCases.toLocaleString()}건)</span>`;
+        } else {
+            elTomDel.textContent = '휴무(0)';
+        }
+    }
     
     if (elPerAvgRev) elPerAvgRev.textContent = Math.round(avgRev).toLocaleString();
     if (elPerAvgDel) elPerAvgDel.textContent = formatDelivery(avgDel);
@@ -142,17 +158,33 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
     }
 };
 
-const renderChart = (key, ctx, labels, histData, predData, splitIndex, label, color) => {
+// ✨ 신뢰 구간 범위를 포함하여 렌더링하도록 수정
+const renderChart = (key, ctx, labels, histData, predData, predRangeData, splitIndex, label, color) => {
     if (predictionCharts[key]) {
         predictionCharts[key].destroy();
     }
 
+    // 1. 과거 실적 데이터
     const historicalDataset = histData.map((v, i) => i < splitIndex ? v : null);
     
-    // 선이 이어지도록 예측 데이터의 시작점에 과거 마지막 데이터를 넣음
+    // 2. 예측 평균 데이터 (선이 이어지도록 스플릿 인덱스 처리)
     const predictionDataset = labels.map((_, i) => {
         if (i === splitIndex - 1) return histData[splitIndex - 1]; 
         if (i >= splitIndex) return predData[i - splitIndex];
+        return null;
+    });
+
+    // 3. 예측 최대치 데이터 (신뢰 구간의 상단)
+    const predictionMaxDataset = labels.map((_, i) => {
+        if (i === splitIndex - 1) return histData[splitIndex - 1]; 
+        if (i >= splitIndex) return predRangeData[i - splitIndex]?.max || predData[i - splitIndex];
+        return null;
+    });
+
+    // 4. 예측 최소치 데이터 (신뢰 구간의 하단)
+    const predictionMinDataset = labels.map((_, i) => {
+        if (i === splitIndex - 1) return histData[splitIndex - 1]; 
+        if (i >= splitIndex) return predRangeData[i - splitIndex]?.min || predData[i - splitIndex];
         return null;
     });
 
@@ -172,7 +204,29 @@ const renderChart = (key, ctx, labels, histData, predData, splitIndex, label, co
                     fill: true
                 },
                 {
-                    label: '예측 (AI)',
+                    label: '예측 최대치',
+                    data: predictionMaxDataset,
+                    borderColor: 'transparent',
+                    backgroundColor: color.replace(')', ', 0.15)').replace('rgb', 'rgba'), // 옅은 색상 영역
+                    borderWidth: 0,
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    tension: 0.3,
+                    fill: '+1' // 🔥 하단(최소치) 라인까지 영역을 색칠함 (신뢰 구간 형성)
+                },
+                {
+                    label: '예측 최소치',
+                    data: predictionMinDataset,
+                    borderColor: 'transparent',
+                    backgroundColor: 'transparent',
+                    borderWidth: 0,
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    tension: 0.3,
+                    fill: false
+                },
+                {
+                    label: '예측 평균 (AI)',
                     data: predictionDataset,
                     borderColor: '#f59e0b', 
                     borderWidth: 2,
@@ -195,7 +249,14 @@ const renderChart = (key, ctx, labels, histData, predData, splitIndex, label, co
                 legend: {
                     position: 'top',
                     align: 'end',
-                    labels: { boxWidth: 12, usePointStyle: true }
+                    labels: { 
+                        boxWidth: 12, 
+                        usePointStyle: true,
+                        // ✨ 범례가 지저분해지지 않도록 최대치/최소치 항목은 숨김
+                        filter: function(item) {
+                            return !item.text.includes('최대치') && !item.text.includes('최소치');
+                        }
+                    }
                 },
                 tooltip: {
                     callbacks: {
@@ -204,7 +265,6 @@ const renderChart = (key, ctx, labels, histData, predData, splitIndex, label, co
                             if (label) label += ': ';
                             if (context.parsed.y !== null) {
                                 const val = Math.round(context.parsed.y);
-                                // 💡 [수정됨] 툴팁에서도 '배송량'일 경우 건수(1.2기준)와 장수를 동시 표기
                                 if (key === 'delivery') {
                                     const cases = Math.round(val / 1.2);
                                     label += `${cases.toLocaleString()}건 / ${val.toLocaleString()}장`;
