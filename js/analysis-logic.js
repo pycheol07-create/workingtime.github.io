@@ -280,9 +280,8 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
 };
 
 /**
- * 🚀 [개선된 엔진] 고도화된 타임라인 기반 시뮬레이터 
- * 시간, 점심시간, 인원 배분(동시진행)을 분(minute) 단위로 정교하게 시뮬레이션 합니다.
- * mode: 'fixed-workers' (인원 고정 -> 소요 시간 산출) | 'target-time' (시간 고정 -> 필요 인원 산출)
+ * 🚀 [개선된 엔진] 고도화된 타임라인 기반 시뮬레이터 (피로도 및 정밀 역산 적용)
+ * mode: 'fixed-workers' (인원 고정 -> 소요 시간 산출) | 'target-time' (시간 고정 -> 정밀 필요 인원 산출)
  */
 export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr = "09:00", includeLinkedTasks = true) => {
     if (!taskList || taskList.length === 0 || !inputValue) {
@@ -294,151 +293,159 @@ export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr =
     const avgWagePerMin = (currentAppConfig.defaultPartTimerWage || 10000) / 60;
     const linkedAvgDurations = calculateLinkedTaskAverageDuration(State.allHistoryData, currentAppConfig);
 
-    // 1. 데이터 준비 및 무결성 확보 (Fallback Speed 부여)
-    const tasks = taskList.map(t => {
-        const speed = (t.manualSpeed !== null && t.manualSpeed > 0) ? t.manualSpeed : (standards[t.task] || 0.1); 
-        const linkedTaskAvgDuration = includeLinkedTasks ? (linkedAvgDurations[t.task] || 0) : 0;
-        
-        let relatedTaskInfo = null;
-        if (includeLinkedTasks && currentAppConfig.simulationTaskLinks && currentAppConfig.simulationTaskLinks[t.task]) {
-            relatedTaskInfo = { name: currentAppConfig.simulationTaskLinks[t.task], time: linkedTaskAvgDuration };
-        }
-
-        return {
-            ...t,
-            speedPerMin: speed,
-            remainingQty: t.targetQty,
-            totalManMinutes: t.targetQty / speed,
-            linkedTaskDuration: linkedTaskAvgDuration,
-            relatedTaskInfo: relatedTaskInfo,
-            startTime: null,
-            endTime: null,
-            isCompleted: false,
-            finalDuration: 0
-        };
-    });
+    // ✨ 개선점 1: 현장 현실을 반영한 환경 변수 설정
+    const FATIGUE_RATE = 0.95; // 장시간 근무에 따른 피로도 (기본 속도의 95% 효율로 계산)
+    const PREP_TIME_MINS = 5;  // 업무 시작 전 자재 준비 등 세팅 시간 (5분)
 
     const now = new Date();
     const safeStartTimeStr = String(startTimeStr || "09:00");
     const [startH, startM] = safeStartTimeStr.split(':').map(Number);
-    
-    // 타임라인 기준점 설정
-    let currentTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
-    const globalStart = new Date(currentTime.getTime());
-    
+    const globalStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM);
     const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
     const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 13, 30);
 
-    // 2. 인원 결정 로직
-    let totalWorkers = 0;
-    if (mode === 'target-time') {
-        const [endH, endM] = String(inputValue).split(':').map(Number);
-        const targetEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM);
-        let availMin = (targetEnd.getTime() - globalStart.getTime()) / 60000;
-        
-        if (globalStart < lunchEnd && targetEnd > lunchStart) {
-            availMin -= 60; // 목표 시간 내에 점심시간이 끼어있으면 실제 가용 시간에서 차감
-        }
-        
-        if (availMin <= 0) return { error: "목표 시간이 너무 짧습니다." };
+    // 내부 시뮬레이션 실행기: 특정 인원(workerCount)이 투입되었을 때의 결과를 계산하는 핵심 엔진
+    const executeSimulationForWorkers = (workerCount) => {
+        // 매 시뮬레이션마다 작업 데이터를 초기화합니다.
+        const tasks = taskList.map(t => {
+            // 피로도가 반영된 실제 분당 처리 속도
+            const baseSpeed = (t.manualSpeed !== null && t.manualSpeed > 0) ? t.manualSpeed : (standards[t.task] || 0.1);
+            const realisticSpeed = baseSpeed * FATIGUE_RATE; 
 
-        // 모든 작업을 처리하는 데 필요한 순수 총 맨아워(Man-Minutes) 계산 (사전 작업 시간 포함)
-        const totalManMinutes = tasks.reduce((sum, t) => sum + t.totalManMinutes + t.linkedTaskDuration, 0);
-        totalWorkers = Math.ceil(totalManMinutes / availMin);
-        
-        if (totalWorkers <= 0) totalWorkers = 1;
-    } else {
-        totalWorkers = Number(inputValue);
-        if (totalWorkers <= 0) return { error: "투입 인원은 1명 이상이어야 합니다." };
-    }
-
-    // 3. 분 단위(Minute-by-minute) 타임라인 시뮬레이션
-    let activeTasks = [];
-    let completedCount = 0;
-    let minuteCounter = 0;
-    const maxMinutes = 1440 * 2; // 최대 48시간 루프 보호
-
-    while (completedCount < tasks.length && minuteCounter < maxMinutes) {
-        // [점심시간 예외 처리] 해당 분(minute)이 점심시간이면 시간만 흐르고 작업은 중단
-        if (currentTime >= lunchStart && currentTime < lunchEnd) {
-            currentTime.setMinutes(currentTime.getMinutes() + 1);
-            minuteCounter++;
-            continue;
-        }
-
-        // [작업 투입 판별]
-        tasks.forEach((t, idx) => {
-            if (!t.isCompleted && !activeTasks.includes(t)) {
-                const prevTask = tasks[idx - 1];
-                // 첫 작업이거나, 연관 선행 작업이 끝났거나, 명시적으로 동시 진행이 체크된 경우 시작
-                const canStart = idx === 0 || 
-                                (t.isConcurrent && prevTask && prevTask.startTime !== null) || 
-                                (!t.isConcurrent && prevTask && prevTask.isCompleted);
-
-                if (canStart) {
-                    t.startTime = new Date(currentTime.getTime());
-                    activeTasks.push(t);
-                }
+            const linkedTaskAvgDuration = includeLinkedTasks ? (linkedAvgDurations[t.task] || 0) : 0;
+            
+            let relatedTaskInfo = null;
+            if (includeLinkedTasks && currentAppConfig.simulationTaskLinks && currentAppConfig.simulationTaskLinks[t.task]) {
+                relatedTaskInfo = { name: currentAppConfig.simulationTaskLinks[t.task], time: linkedTaskAvgDuration };
             }
+
+            return {
+                ...t,
+                speedPerMin: realisticSpeed,
+                remainingQty: t.targetQty,
+                // 준비 시간(PREP_TIME_MINS)과 연관 작업 시간을 함께 더합니다.
+                linkedTaskDuration: linkedTaskAvgDuration + PREP_TIME_MINS,
+                relatedTaskInfo: relatedTaskInfo,
+                startTime: null,
+                endTime: null,
+                isCompleted: false,
+                finalDuration: 0
+            };
         });
 
-        // [처리량 할당 및 차감] 동시 진행 중인 작업 수에 맞춰 인원을 N분의 1로 분산 투입
-        const currentActiveCount = activeTasks.length;
-        if (currentActiveCount > 0) {
-            const workerShare = totalWorkers / currentActiveCount;
+        let currentTime = new Date(globalStart.getTime());
+        let activeTasks = [];
+        let completedCount = 0;
+        let minuteCounter = 0;
+        const maxMinutes = 1440 * 2; // 최대 48시간 루프 보호
 
-            activeTasks.forEach(t => {
-                // 사전 작업이 남아있다면 먼저 차감
-                if (t.linkedTaskDuration > 0) {
-                    t.linkedTaskDuration -= 1; // 1분 경과
-                } else {
-                    // 본 작업 차감
-                    t.remainingQty -= (t.speedPerMin * workerShare);
-                }
+        while (completedCount < tasks.length && minuteCounter < maxMinutes) {
+            // 점심시간 패스
+            if (currentTime >= lunchStart && currentTime < lunchEnd) {
+                currentTime.setMinutes(currentTime.getMinutes() + 1);
+                minuteCounter++;
+                continue;
+            }
 
-                // 완료 체크
-                if (t.remainingQty <= 0 && t.linkedTaskDuration <= 0) {
-                    t.endTime = new Date(currentTime.getTime());
-                    t.endTime.setMinutes(t.endTime.getMinutes() + 1); // 1분을 꽉 채워 종료
-                    t.isCompleted = true;
-                    t.finalDuration = (t.endTime.getTime() - t.startTime.getTime()) / 60000;
-                    completedCount++;
+            // 작업 투입 판별
+            tasks.forEach((t, idx) => {
+                if (!t.isCompleted && !activeTasks.includes(t)) {
+                    const prevTask = tasks[idx - 1];
+                    const canStart = idx === 0 || 
+                                    (t.isConcurrent && prevTask && prevTask.startTime !== null) || 
+                                    (!t.isConcurrent && prevTask && prevTask.isCompleted);
+
+                    if (canStart) {
+                        t.startTime = new Date(currentTime.getTime());
+                        activeTasks.push(t);
+                    }
                 }
             });
 
-            activeTasks = activeTasks.filter(t => !t.isCompleted);
+            // 처리량 할당 및 차감
+            const currentActiveCount = activeTasks.length;
+            if (currentActiveCount > 0) {
+                const workerShare = workerCount / currentActiveCount;
+
+                activeTasks.forEach(t => {
+                    if (t.linkedTaskDuration > 0) {
+                        t.linkedTaskDuration -= 1; // 사전 작업 및 준비 시간 1분 차감
+                    } else {
+                        t.remainingQty -= (t.speedPerMin * workerShare); // 수량 차감
+                    }
+
+                    // 완료 체크
+                    if (t.remainingQty <= 0 && t.linkedTaskDuration <= 0) {
+                        t.endTime = new Date(currentTime.getTime());
+                        t.endTime.setMinutes(t.endTime.getMinutes() + 1);
+                        t.isCompleted = true;
+                        t.finalDuration = (t.endTime.getTime() - t.startTime.getTime()) / 60000;
+                        completedCount++;
+                    }
+                });
+                activeTasks = activeTasks.filter(t => !t.isCompleted);
+            }
+
+            currentTime.setMinutes(currentTime.getMinutes() + 1);
+            minuteCounter++;
         }
 
-        // 1분 경과
-        currentTime.setMinutes(currentTime.getMinutes() + 1);
-        minuteCounter++;
+        let maxEndTime = globalStart;
+        tasks.forEach(t => { if (t.endTime && t.endTime > maxEndTime) maxEndTime = t.endTime; });
+        return { tasks, maxEndTime, minuteCounter, maxMinutes };
+    };
+
+    let optimalWorkers = 0;
+    let finalSimResult = null;
+
+    // ✨ 개선점 2: 정밀 역산 알고리즘 (가상 시뮬레이션 반복 탐색)
+    if (mode === 'target-time') {
+        const [endH, endM] = String(inputValue).split(':').map(Number);
+        const targetEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM);
+        
+        // 1명부터 순차적으로 투입하며 시뮬레이션을 돌려 목표 시간을 맞추는 최소 인원을 찾습니다.
+        let testWorkers = 1;
+        while (testWorkers <= 50) { // 최대 50명 한계 설정
+            const simResult = executeSimulationForWorkers(testWorkers);
+            
+            // 시뮬레이션 완료 시간이 목표 시간보다 같거나 빠르면 탐색 성공!
+            if (simResult.maxEndTime <= targetEnd || simResult.minuteCounter >= simResult.maxMinutes) {
+                optimalWorkers = testWorkers;
+                finalSimResult = simResult;
+                break;
+            }
+            testWorkers++;
+        }
+        if (optimalWorkers === 0) {
+            optimalWorkers = 50; // 50명으로도 부족한 경우
+            finalSimResult = executeSimulationForWorkers(50);
+        }
+    } else {
+        // 일반 모드 (지정된 인원으로 1회 시뮬레이션)
+        optimalWorkers = Number(inputValue);
+        if (optimalWorkers <= 0) return { error: "투입 인원은 1명 이상이어야 합니다." };
+        finalSimResult = executeSimulationForWorkers(optimalWorkers);
     }
 
-    if (minuteCounter >= maxMinutes) {
+    if (finalSimResult.minuteCounter >= finalSimResult.maxMinutes) {
         return { error: "시뮬레이션 처리 한도(48시간)를 초과했습니다. 수량이나 속도를 다시 확인해주세요." };
     }
 
-    // 최종 종료 시간 및 총 소요 시간 집계
-    let maxEndTime = globalStart;
-    tasks.forEach(t => {
-        if (t.endTime && t.endTime > maxEndTime) maxEndTime = t.endTime;
-    });
-
-    const totalDuration = (maxEndTime.getTime() - globalStart.getTime()) / 60000;
+    const totalDuration = (finalSimResult.maxEndTime.getTime() - globalStart.getTime()) / 60000;
     const formatTimeStr = (date) => `${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}`;
 
+    // 최종 결과 반환
     return {
         mode,
-        totalWorkers,
+        totalWorkers: optimalWorkers,
         totalDuration,
-        finalEndTimeStr: formatTimeStr(maxEndTime),
-        totalCost: (totalDuration * totalWorkers) * avgWagePerMin,
+        finalEndTimeStr: formatTimeStr(finalSimResult.maxEndTime),
+        totalCost: (totalDuration * optimalWorkers) * avgWagePerMin,
         globalStartTimeMs: globalStart.getTime(),
-        globalEndTimeMs: maxEndTime.getTime(),
+        globalEndTimeMs: finalSimResult.maxEndTime.getTime(),
         startTime: startTimeStr,
-        results: tasks.map(t => {
+        results: finalSimResult.tasks.map(t => {
             let includesLunch = false;
-            // 해당 작업 진행 시간 중 점심시간이 1분이라도 끼어있으면 표시
             if (t.startTime < lunchEnd && t.endTime > lunchStart) {
                 includesLunch = true;
             }
@@ -449,7 +456,7 @@ export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr =
                 expectedEndTime: formatTimeStr(t.endTime),
                 durationMinutes: t.finalDuration,
                 isConcurrent: t.isConcurrent,
-                requiredWorkers: totalWorkers,
+                requiredWorkers: optimalWorkers,
                 includesLunch: includesLunch,
                 relatedTaskInfo: t.relatedTaskInfo
             };
