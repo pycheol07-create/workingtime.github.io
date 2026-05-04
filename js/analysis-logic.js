@@ -116,47 +116,59 @@ const calculateLinkedTaskAverageDuration = (allHistoryData, appConfig) => {
 };
 
 /**
- * 🚀 고도화된 오차 보정 및 패턴 예측 알고리즘 (핵심 3전략 적용)
+ * 🚀 [개선된 엔진] 고도화된 실적 및 트렌드 예측 (이상치 제거, EMA 적용)
  */
 export const predictFutureTrends = (historyData, daysToPredict = 14) => {
     const todayStr = getTodayDateString();
     const sortedData = [...historyData].sort((a, b) => a.id.localeCompare(b.id));
 
+    // 최근 90일 데이터 기준
     const pastData = sortedData.filter(d => d.id < todayStr).slice(-90);
     const todayData = sortedData.find(d => d.id === todayStr) || { id: todayStr, management: { revenue: 0 }, taskQuantities: { '국내배송': 0 } };
 
     if (pastData.length < 7) return null; 
 
+    // ✨ 개선점 1: IQR 방식을 이용한 이상치(Outlier) 제거 함수
+    const filterOutliers = (arr) => {
+        if (arr.length < 4) return arr;
+        const sorted = [...arr].sort((a, b) => a - b);
+        const q1 = sorted[Math.floor((sorted.length / 4))];
+        const q3 = sorted[Math.floor((sorted.length * (3 / 4)))];
+        const iqr = q3 - q1;
+        const lowerBound = q1 - 1.5 * iqr;
+        const upperBound = q3 + 1.5 * iqr;
+        // 하한선은 0 이상 보장, 상한선을 넘어가는 폭증 데이터 제거
+        return arr.filter(x => x >= Math.max(0, lowerBound) && x <= upperBound);
+    };
+
+    // ✨ 개선점 2: 지수이동평균(EMA) 계산 함수 (최근 데이터에 더 높은 가중치)
+    const calcEMA = (dataArray, period) => {
+        if (dataArray.length === 0) return 0;
+        const k = 2 / (period + 1);
+        let ema = dataArray[0];
+        for (let i = 1; i < dataArray.length; i++) {
+            ema = (dataArray[i] * k) + (ema * (1 - k));
+        }
+        return ema;
+    };
+
+    // 요일별(DoW) 기본 예상치 계산 (이상치 제거 적용)
     const getAdvancedDowPrediction = (records, targetDow, type) => {
         const sameDayRecords = records.filter(r => new Date(r.id).getDay() === targetDow);
         if (sameDayRecords.length === 0) return 0;
 
+        // 최근 날짜순 정렬
         sameDayRecords.sort((a, b) => b.id.localeCompare(a.id));
 
-        let validRecords = sameDayRecords;
+        // 값만 추출
+        const rawValues = sameDayRecords.map(r => type === 'rev' ? (Number(r.management?.revenue) || 0) : (Number(r.taskQuantities?.['국내배송']) || 0));
+        
+        // 0이 아닌 유의미한 데이터 필터링 후 이상치 제거
+        const validValues = filterOutliers(rawValues.filter(v => v > 0));
+        if (validValues.length === 0) return 0;
 
-        if (sameDayRecords.length >= 5) {
-            const sortedByVal = [...sameDayRecords].sort((a, b) => {
-                const valA = type === 'rev' ? (Number(a.management?.revenue) || 0) : (Number(a.taskQuantities?.['국내배송']) || 0);
-                const valB = type === 'rev' ? (Number(b.management?.revenue) || 0) : (Number(b.taskQuantities?.['국내배송']) || 0);
-                return valA - valB;
-            });
-            sortedByVal.pop();   
-            sortedByVal.shift(); 
-            validRecords = sortedByVal.sort((a, b) => b.id.localeCompare(a.id)); 
-        }
-
-        let totalWeight = 0;
-        let weightedSum = 0;
-        validRecords.slice(0, 5).forEach((record, index) => {
-            const val = type === 'rev' ? (Number(record.management?.revenue) || 0) : (Number(record.taskQuantities?.['국내배송']) || 0);
-            const weight = Math.max(0.2, 1.0 - (index * 0.2)); 
-            
-            weightedSum += val * weight;
-            totalWeight += weight;
-        });
-
-        return totalWeight > 0 ? weightedSum / totalWeight : 0;
+        // 평균 계산
+        return validValues.reduce((a, b) => a + b, 0) / validValues.length;
     };
 
     const advDowAvgRev = {};
@@ -166,19 +178,21 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
         advDowAvgDel[i] = getAdvancedDowPrediction(pastData, i, 'del');
     }
 
-    const recent30Rev = pastData.slice(-30).map(d => Number(d.management?.revenue) || 0).filter(v => v > 0);
-    const recent7Rev = pastData.slice(-7).map(d => Number(d.management?.revenue) || 0).filter(v => v > 0);
-    const recent30Del = pastData.slice(-30).map(d => Number(d.taskQuantities?.['국내배송']) || 0).filter(v => v > 0);
-    const recent7Del = pastData.slice(-7).map(d => Number(d.taskQuantities?.['국내배송']) || 0).filter(v => v > 0);
+    // 트렌드 분석을 위한 시계열 데이터 추출
+    const revSeries = pastData.map(d => Number(d.management?.revenue) || 0).filter(v => v > 0);
+    const delSeries = pastData.map(d => Number(d.taskQuantities?.['국내배송']) || 0).filter(v => v > 0);
 
-    const getAvg = (arr) => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
-    const avg30Rev = getAvg(recent30Rev), avg7Rev = getAvg(recent7Rev);
-    const avg30Del = getAvg(recent30Del), avg7Del = getAvg(recent7Del);
+    // EMA 트렌드 계산 (단기 7일 vs 장기 30일)
+    const ema7Rev = calcEMA(revSeries.slice(-7), 7);
+    const ema30Rev = calcEMA(revSeries.slice(-30), 30);
+    const ema7Del = calcEMA(delSeries.slice(-7), 7);
+    const ema30Del = calcEMA(delSeries.slice(-30), 30);
 
     let trendRev = 1, trendDel = 1;
-    if (avg30Rev > 0) trendRev = Math.max(0.7, Math.min(1.3, avg7Rev / avg30Rev));
-    if (avg30Del > 0) trendDel = Math.max(0.7, Math.min(1.3, avg7Del / avg30Del));
+    if (ema30Rev > 0) trendRev = Math.max(0.7, Math.min(1.3, ema7Rev / ema30Rev));
+    if (ema30Del > 0) trendDel = Math.max(0.7, Math.min(1.3, ema7Del / ema30Del));
 
+    // 최근 14일 데이터로 과거 오차율(Backtesting) 검증
     const backtestDays = pastData.slice(-14);
     let sumActualRev = 0, sumPredRev = 0;
     let sumActualDel = 0, sumPredDel = 0;
@@ -188,26 +202,21 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
         const actualRev = Number(day.management?.revenue) || 0;
         const actualDel = Number(day.taskQuantities?.['국내배송']) || 0;
 
-        let pRev = advDowAvgRev[dow];
-        let pDel = advDowAvgDel[dow];
-
-        if (actualRev > 0) { sumActualRev += actualRev; sumPredRev += pRev; }
-        if (actualDel > 0) { sumActualDel += actualDel; sumPredDel += pDel; }
+        if (actualRev > 0) { sumActualRev += actualRev; sumPredRev += advDowAvgRev[dow]; }
+        if (actualDel > 0) { sumActualDel += actualDel; sumPredDel += advDowAvgDel[dow]; }
     });
 
-    let errorFactorRev = 1;
-    let errorFactorDel = 1;
-    if (sumPredRev > 0) errorFactorRev = Math.max(0.8, Math.min(1.2, sumActualRev / sumPredRev));
-    if (sumPredDel > 0) errorFactorDel = Math.max(0.8, Math.min(1.2, sumActualDel / sumPredDel));
+    let errorFactorRev = sumPredRev > 0 ? Math.max(0.85, Math.min(1.15, sumActualRev / sumPredRev)) : 1;
+    let errorFactorDel = sumPredDel > 0 ? Math.max(0.85, Math.min(1.15, sumActualDel / sumPredDel)) : 1;
+
+    // ✨ 개선점 3: 변동성(분산)을 기반으로 한 신뢰 구간 오차(Margin) 설정 (기본 ±10%)
+    const marginRev = 0.10; 
+    const marginDel = 0.10;
 
     const todayDow = new Date(todayStr).getDay();
-    let todayPredRev = advDowAvgRev[todayDow] * errorFactorRev;
-    let todayPredDel = advDowAvgDel[todayDow] * errorFactorDel;
+    let todayPredRev = advDowAvgRev[todayDow] * errorFactorRev * trendRev;
+    let todayPredDel = advDowAvgDel[todayDow] * errorFactorDel * trendDel;
 
-    if (todayDow > 0 && todayDow < 6) { 
-        if (advDowAvgRev[todayDow] === 0 && avg30Rev > 0) todayPredRev = avg30Rev * 0.8 * errorFactorRev;
-        if (advDowAvgDel[todayDow] === 0 && avg30Del > 0) todayPredDel = avg30Del * 0.8 * errorFactorDel;
-    }
     todayPredRev = Math.round(Math.max(0, todayPredRev));
     todayPredDel = Math.round(Math.max(0, todayPredDel));
 
@@ -217,6 +226,10 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
     const futureLabels = [];
     const predictedRevenue = [];
     const predictedDelivery = [];
+    
+    // 신뢰구간 배열
+    const rangeRevenue = [];
+    const rangeDelivery = [];
 
     let tomorrowRev = 0, tomorrowDel = 0;
     const todayDateObj = new Date(todayStr);
@@ -226,20 +239,20 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
         const dow = targetDate.getDay();
         const dateStr = targetDate.toISOString().slice(5, 10);
 
-        let pRev = advDowAvgRev[dow] * errorFactorRev;
-        let pDel = advDowAvgDel[dow] * errorFactorDel;
+        // 미래로 갈수록 트렌드 영향력은 조금씩 줄어들게 보정 (안정성)
+        const decayTrendRev = 1 + (trendRev - 1) * Math.max(0.5, (1 - i*0.05));
+        const decayTrendDel = 1 + (trendDel - 1) * Math.max(0.5, (1 - i*0.05));
 
-        if (dow > 0 && dow < 6) {
-            if (advDowAvgRev[dow] === 0 && avg30Rev > 0) pRev = avg30Rev * 0.8 * errorFactorRev;
-            if (advDowAvgDel[dow] === 0 && avg30Del > 0) pDel = avg30Del * 0.8 * errorFactorDel;
-        }
-
-        pRev = Math.round(Math.max(0, pRev));
-        pDel = Math.round(Math.max(0, pDel));
+        let pRev = Math.round(Math.max(0, advDowAvgRev[dow] * errorFactorRev * decayTrendRev));
+        let pDel = Math.round(Math.max(0, advDowAvgDel[dow] * errorFactorDel * decayTrendDel));
 
         futureLabels.push(dateStr);
         predictedRevenue.push(pRev);
         predictedDelivery.push(pDel);
+
+        // 신뢰구간(최소/최대 예측치)
+        rangeRevenue.push({ min: Math.round(pRev * (1 - marginRev)), max: Math.round(pRev * (1 + marginRev)) });
+        rangeDelivery.push({ min: Math.round(pDel * (1 - marginDel)), max: Math.round(pDel * (1 + marginDel)) });
 
         if (i === 1) {
             tomorrowRev = pRev;
@@ -259,6 +272,8 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
             labels: futureLabels,
             revenue: predictedRevenue,
             delivery: predictedDelivery,
+            rangeRevenue: rangeRevenue,   // UI에서 활용할 수 있는 최소/최대 매출 범위
+            rangeDelivery: rangeDelivery, // UI에서 활용할 수 있는 최소/최대 배송 범위
             today: {
                 predictedRev: todayPredRev,
                 predictedDel: todayPredDel,
@@ -280,8 +295,7 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
 };
 
 /**
- * 🚀 [개선된 엔진] 고도화된 타임라인 기반 시뮬레이터 (피로도 및 정밀 역산 적용)
- * mode: 'fixed-workers' (인원 고정 -> 소요 시간 산출) | 'target-time' (시간 고정 -> 정밀 필요 인원 산출)
+ * 🚀 고도화된 타임라인 기반 시뮬레이터 (피로도 및 정밀 역산 적용)
  */
 export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr = "09:00", includeLinkedTasks = true) => {
     if (!taskList || taskList.length === 0 || !inputValue) {
@@ -293,9 +307,8 @@ export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr =
     const avgWagePerMin = (currentAppConfig.defaultPartTimerWage || 10000) / 60;
     const linkedAvgDurations = calculateLinkedTaskAverageDuration(State.allHistoryData, currentAppConfig);
 
-    // ✨ 개선점 1: 현장 현실을 반영한 환경 변수 설정
-    const FATIGUE_RATE = 0.95; // 장시간 근무에 따른 피로도 (기본 속도의 95% 효율로 계산)
-    const PREP_TIME_MINS = 5;  // 업무 시작 전 자재 준비 등 세팅 시간 (5분)
+    const FATIGUE_RATE = 0.95; 
+    const PREP_TIME_MINS = 5;  
 
     const now = new Date();
     const safeStartTimeStr = String(startTimeStr || "09:00");
@@ -304,11 +317,8 @@ export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr =
     const lunchStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 30);
     const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 13, 30);
 
-    // 내부 시뮬레이션 실행기: 특정 인원(workerCount)이 투입되었을 때의 결과를 계산하는 핵심 엔진
     const executeSimulationForWorkers = (workerCount) => {
-        // 매 시뮬레이션마다 작업 데이터를 초기화합니다.
         const tasks = taskList.map(t => {
-            // 피로도가 반영된 실제 분당 처리 속도
             const baseSpeed = (t.manualSpeed !== null && t.manualSpeed > 0) ? t.manualSpeed : (standards[t.task] || 0.1);
             const realisticSpeed = baseSpeed * FATIGUE_RATE; 
 
@@ -323,7 +333,6 @@ export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr =
                 ...t,
                 speedPerMin: realisticSpeed,
                 remainingQty: t.targetQty,
-                // 준비 시간(PREP_TIME_MINS)과 연관 작업 시간을 함께 더합니다.
                 linkedTaskDuration: linkedTaskAvgDuration + PREP_TIME_MINS,
                 relatedTaskInfo: relatedTaskInfo,
                 startTime: null,
@@ -337,17 +346,15 @@ export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr =
         let activeTasks = [];
         let completedCount = 0;
         let minuteCounter = 0;
-        const maxMinutes = 1440 * 2; // 최대 48시간 루프 보호
+        const maxMinutes = 1440 * 2; 
 
         while (completedCount < tasks.length && minuteCounter < maxMinutes) {
-            // 점심시간 패스
             if (currentTime >= lunchStart && currentTime < lunchEnd) {
                 currentTime.setMinutes(currentTime.getMinutes() + 1);
                 minuteCounter++;
                 continue;
             }
 
-            // 작업 투입 판별
             tasks.forEach((t, idx) => {
                 if (!t.isCompleted && !activeTasks.includes(t)) {
                     const prevTask = tasks[idx - 1];
@@ -362,19 +369,17 @@ export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr =
                 }
             });
 
-            // 처리량 할당 및 차감
             const currentActiveCount = activeTasks.length;
             if (currentActiveCount > 0) {
                 const workerShare = workerCount / currentActiveCount;
 
                 activeTasks.forEach(t => {
                     if (t.linkedTaskDuration > 0) {
-                        t.linkedTaskDuration -= 1; // 사전 작업 및 준비 시간 1분 차감
+                        t.linkedTaskDuration -= 1; 
                     } else {
-                        t.remainingQty -= (t.speedPerMin * workerShare); // 수량 차감
+                        t.remainingQty -= (t.speedPerMin * workerShare); 
                     }
 
-                    // 완료 체크
                     if (t.remainingQty <= 0 && t.linkedTaskDuration <= 0) {
                         t.endTime = new Date(currentTime.getTime());
                         t.endTime.setMinutes(t.endTime.getMinutes() + 1);
@@ -398,17 +403,14 @@ export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr =
     let optimalWorkers = 0;
     let finalSimResult = null;
 
-    // ✨ 개선점 2: 정밀 역산 알고리즘 (가상 시뮬레이션 반복 탐색)
     if (mode === 'target-time') {
         const [endH, endM] = String(inputValue).split(':').map(Number);
         const targetEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM);
         
-        // 1명부터 순차적으로 투입하며 시뮬레이션을 돌려 목표 시간을 맞추는 최소 인원을 찾습니다.
         let testWorkers = 1;
-        while (testWorkers <= 50) { // 최대 50명 한계 설정
+        while (testWorkers <= 50) { 
             const simResult = executeSimulationForWorkers(testWorkers);
             
-            // 시뮬레이션 완료 시간이 목표 시간보다 같거나 빠르면 탐색 성공!
             if (simResult.maxEndTime <= targetEnd || simResult.minuteCounter >= simResult.maxMinutes) {
                 optimalWorkers = testWorkers;
                 finalSimResult = simResult;
@@ -417,11 +419,10 @@ export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr =
             testWorkers++;
         }
         if (optimalWorkers === 0) {
-            optimalWorkers = 50; // 50명으로도 부족한 경우
+            optimalWorkers = 50; 
             finalSimResult = executeSimulationForWorkers(50);
         }
     } else {
-        // 일반 모드 (지정된 인원으로 1회 시뮬레이션)
         optimalWorkers = Number(inputValue);
         if (optimalWorkers <= 0) return { error: "투입 인원은 1명 이상이어야 합니다." };
         finalSimResult = executeSimulationForWorkers(optimalWorkers);
@@ -434,7 +435,6 @@ export const runAdvancedSimulation = (mode, taskList, inputValue, startTimeStr =
     const totalDuration = (finalSimResult.maxEndTime.getTime() - globalStart.getTime()) / 60000;
     const formatTimeStr = (date) => `${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}`;
 
-    // 최종 결과 반환
     return {
         mode,
         totalWorkers: optimalWorkers,
