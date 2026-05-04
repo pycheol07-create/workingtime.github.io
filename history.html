@@ -60,7 +60,6 @@
                 const State = await import('./js/state.js');
                 try { await import('./js/app.js'); } catch(e) {} 
                 
-                // 💡 해결 포인트 1: 탭 전환 함수(switchHistoryView)를 추가로 불러옵니다.
                 const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js');
 
                 let checkCount = 0;
@@ -84,22 +83,24 @@
                                     const modal = document.getElementById('history-modal');
                                     if (modal) modal.classList.remove('hidden');
 
-                                    // 💡 해결 포인트 2: UI와 데이터가 DOM에 그려질 시간을 아주 잠깐(0.2초) 준 뒤, 강제로 상태를 초기화합니다.
+                                    // 💡 최종 해결 포인트: DOM 이벤트 바인딩이 완벽히 끝날 때까지 0.3초 대기 후 정확한 버튼을 찾아 강제 클릭
                                     setTimeout(() => {
-                                        // 1. 상단 탭 UI 강제 초기화 (일별 상세 탭)
-                                        if (typeof switchHistoryView === 'function') {
+                                        // 1. 상단 메뉴 탭 초기화 (명확하게 '일별 상세' 버튼을 찾아 클릭)
+                                        const tabButtons = Array.from(document.querySelectorAll('button, .history-tab-btn'));
+                                        const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.includes('일별 상세'));
+                                        
+                                        if (dailyTabBtn) {
+                                            dailyTabBtn.click();
+                                        } else if (typeof switchHistoryView === 'function') {
                                             switchHistoryView('daily');
-                                        } else {
-                                            const defaultTabBtn = document.querySelector('#history-main-tabs button');
-                                            if (defaultTabBtn) defaultTabBtn.click();
                                         }
 
-                                        // 2. 우측 상세 내용 표시를 위해 가장 최신 날짜(첫 번째 리스트) 강제 클릭
+                                        // 2. 좌측 리스트의 첫 번째 날짜 항목 클릭
                                         const firstDateItem = document.querySelector('#history-date-list li');
                                         if (firstDateItem) {
                                             firstDateItem.click();
                                         }
-                                    }, 200); 
+                                    }, 300); // 300ms 딜레이 부여
                                 }
                             }, 100);
                         });
@@ -122,10 +123,14 @@
                                 if (modal) modal.classList.remove('hidden');
                                 
                                 setTimeout(() => {
-                                    if (typeof switchHistoryView === 'function') switchHistoryView('daily');
+                                    const tabButtons = Array.from(document.querySelectorAll('button, .history-tab-btn'));
+                                    const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.includes('일별 상세'));
+                                    if (dailyTabBtn) dailyTabBtn.click();
+                                    else if (typeof switchHistoryView === 'function') switchHistoryView('daily');
+
                                     const firstDateItem = document.querySelector('#history-date-list li');
                                     if (firstDateItem) firstDateItem.click();
-                                }, 200);
+                                }, 300);
                             }
                         }, 100);
                     }
