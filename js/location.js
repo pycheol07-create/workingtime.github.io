@@ -1625,13 +1625,15 @@ function setupFilterPopups() {
     
     const isReservedOnly = filters.reserved.includes('only');
     const isPreassignedOnly = filters.preassigned.includes('only');
+    const isDesignatedOnly = filters.code.includes('designated-only');
     const isEmpty = filters.code.includes('empty');
     const isNotEmpty = filters.code.includes('not-empty');
-    const codeAll = filters.code.length === 0 && !isReservedOnly && !isPreassignedOnly;
+    const codeAll = filters.code.length === 0 && !isReservedOnly && !isPreassignedOnly && !isDesignatedOnly;
     let codeHtml = window.getFilterSearchHtml('pop-code') + getSortButtonsHtml('code') +
        `<div class="filter-option ${codeAll ? 'selected' : ''}" onclick="setCodeTagFilter('all')">${codeAll ? '✔️ ' : ''}🔄 전체선택/해제</div>` +
         `<div class="filter-option ${isEmpty ? 'selected' : ''}" onclick="setCodeTagFilter('empty')">${isEmpty ? '✔️ ' : ''}빈칸</div>` +
         `<div class="filter-option ${isNotEmpty ? 'selected' : ''}" onclick="setCodeTagFilter('not-empty')">${isNotEmpty ? '✔️ ' : ''}내용있음</div>` +
+        `<div class="filter-option ${isDesignatedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('designated-only')">${isDesignatedOnly ? '✔️ ' : ''}📝 지정값만 보기</div>` +
         `<div class="filter-divider"></div>` +
         `<div class="filter-option ${isReservedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('당일지정')">${isReservedOnly ? '✔️ ' : ''}📌 당일지정</div>` +
         `<div class="filter-option ${isPreassignedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('선지정')">${isPreassignedOnly ? '✔️ ' : ''}📦 선지정</div>`;
@@ -2051,22 +2053,30 @@ window.getFilterSearchHtml = function(popId) {
 };
 
 window.setCodeTagFilter = (mode) => {
-    // mode: 'all', 'empty', 'not-empty', '당일지정', '선지정'
+    // mode: 'all', 'empty', 'not-empty', 'designated-only', '당일지정', '선지정'
     if (mode === 'all') {
         filters.code = []; filters.reserved = []; filters.preassigned = [];
     } else if (mode === 'empty') {
-        // empty ↔ not-empty 상호 배제
-        filters.code = filters.code.filter(v => v !== 'not-empty');
+        // empty ↔ not-empty ↔ designated-only 상호 배제
+        filters.code = filters.code.filter(v => v !== 'not-empty' && v !== 'designated-only');
         if (filters.code.includes('empty')) filters.code = filters.code.filter(v => v !== 'empty');
         else filters.code.push('empty');
     } else if (mode === 'not-empty') {
-        filters.code = filters.code.filter(v => v !== 'empty');
+        filters.code = filters.code.filter(v => v !== 'empty' && v !== 'designated-only');
         if (filters.code.includes('not-empty')) filters.code = filters.code.filter(v => v !== 'not-empty');
         else filters.code.push('not-empty');
+    } else if (mode === 'designated-only') {
+        // 지정값만 보기는 empty/not-empty/당일지정/선지정과 상호 배제
+        filters.code = filters.code.filter(v => v !== 'empty' && v !== 'not-empty');
+        filters.reserved = []; filters.preassigned = [];
+        if (filters.code.includes('designated-only')) filters.code = filters.code.filter(v => v !== 'designated-only');
+        else filters.code.push('designated-only');
     } else if (mode === '당일지정') {
+        filters.code = filters.code.filter(v => v !== 'designated-only');
         if (filters.reserved.includes('only')) filters.reserved = [];
         else filters.reserved = ['only'];
     } else if (mode === '선지정') {
+        filters.code = filters.code.filter(v => v !== 'designated-only');
         if (filters.preassigned.includes('only')) filters.preassigned = [];
         else filters.preassigned = ['only'];
     }
@@ -2081,6 +2091,32 @@ window.showFilterResetBtn = function() {
     if (btn) btn.style.display = 'none';
 };
 
+// ★ v3.94: 모든 필터를 한 번에 해제
+window.clearAllFilters = function(e) {
+    if (e) e.stopPropagation();
+    
+    // 기본 필터 키 모두 빈 배열로 초기화
+    filters = { loc: [], code: [], stock: [], stock2f: [], dong: [], pos: [], reserved: [], preassigned: [] };
+    
+    // 동적으로 추가된 커스텀 헤더 필터(cus_*)도 모두 제거
+    Object.keys(filters).forEach(key => {
+        if (key.startsWith('cus_')) delete filters[key];
+    });
+    
+    // 검색 쿼리도 초기화
+    if (window._filterSearchQuery) window._filterSearchQuery = {};
+    
+    // 팝업/메뉴 모두 닫기
+    if (typeof window.closeAllPopups === 'function') window.closeAllPopups();
+    
+    // 필터 UI 갱신 + 테이블 재렌더링
+    setupFilterPopups();
+    applyFiltersAndSort();
+    
+    // 사용자에게 알림
+    showToast("✅ 모든 필터가 해제되었습니다.");
+};
+
 function applyFiltersAndSort() {
     let filtered = originalData.filter(item => {
         // ★ v3.57: 모든 필터 배열 기반 (OR 조건)
@@ -2088,12 +2124,13 @@ function applyFiltersAndSort() {
         if (filters.dong.length > 0 && !filters.dong.includes((item.dong || '').toString())) return false;
         if (filters.pos.length > 0 && !filters.pos.includes((item.pos || '').toString())) return false;
         
-        // code: 'empty'/'not-empty' 특수값 배열
+        // code: 'empty'/'not-empty'/'designated-only' 특수값 배열
         if (filters.code.length > 0) {
             const hasCode = (item.code && item.code !== item.id && item.code.trim() !== "") || (item.name && item.name.trim() !== "");
             const matchEmpty = filters.code.includes('empty') && !hasCode;
             const matchNotEmpty = filters.code.includes('not-empty') && hasCode;
-            if (!matchEmpty && !matchNotEmpty) return false;
+            const matchDesignatedOnly = filters.code.includes('designated-only') && hasCode && item.codeTag !== '당일지정' && item.codeTag !== '선지정';
+            if (!matchEmpty && !matchNotEmpty && !matchDesignatedOnly) return false;
         }
         
         if (filters.stock.length > 0 && !filters.stock.includes((item.stock || '0').toString())) return false;
@@ -2186,7 +2223,27 @@ window.handleRowClick = async function(event, locId) {
         } catch(e) { console.error(e); alert("선지정 저장 오류"); }
         return;
     }
-    openEditModal(locId);
+    
+    // v3.90: 모달 대신 선지정 해제 로직으로 대체
+    const targetData = originalData.find(d => d.id === locId);
+    if (!targetData) return;
+
+    if (targetData.preAssigned === true) {
+        if (confirm(`[${locId}] 선지정을 해제하시겠습니까?`)) {
+            try {
+                const zoneDocId = getZoneDocId(locId);
+                setDoc(doc(db, LOC_COLLECTION, zoneDocId), { 
+                    [locId]: { 
+                        preAssigned: false, preAssignedCode: '', preAssignedName: '', preAssignedQty: '', preAssignedAt: 0, 
+                        codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', updatedAt: new Date() 
+                    } 
+                }, { merge: true });
+                showToast("선지정이 해제되었습니다.");
+            } catch(e) { 
+                console.error(e); 
+            }
+        }
+    }
 };
 
 // ★ 가상 스크롤 전역 상태
@@ -2829,46 +2886,6 @@ window.deleteSelectedLocations = async () => {
     } catch (error) { console.error(error); }
 };
 
-window.openEditModal = (id) => {
-    const targetData = originalData.find(d => d.id === id);
-    if (!targetData) return;
-    document.getElementById('modal-id').value = targetData.id;
-    document.getElementById('modal-dong').value = targetData.dong || '';
-    document.getElementById('modal-pos').value = targetData.pos || '';
-    document.getElementById('modal-code').value = targetData.code || '';
-    document.getElementById('modal-name').value = targetData.name || '';
-    document.getElementById('modal-option').value = targetData.option || '';
-    document.getElementById('modal-stock').value = targetData.stock || '0';
-    const unassignBtn = document.getElementById('btn-modal-unassign');
-    unassignBtn.style.display = targetData.preAssigned ? 'inline-block' : 'none';
-    document.getElementById('edit-modal').style.display = 'flex';
-};
-
-window.saveManualEdit = async () => {
-    const id = document.getElementById('modal-id').value;
-    const updateData = {
-        dong: document.getElementById('modal-dong').value.trim(), pos: document.getElementById('modal-pos').value.trim(), code: document.getElementById('modal-code').value.trim(),
-        name: document.getElementById('modal-name').value.trim(), option: document.getElementById('modal-option').value.trim(), stock: document.getElementById('modal-stock').value.trim(),
-        reserved: false, reservedAt: 0, reservedBy: '', updatedAt: new Date()
-    };
-    try { 
-        const zoneDocId = getZoneDocId(id);
-        await setDoc(doc(db, LOC_COLLECTION, zoneDocId), { [id]: updateData }, { merge: true }); 
-        document.getElementById('edit-modal').style.display = 'none'; 
-    } catch (error) { console.error(error); }
-};
-
-window.cancelPreAssignment = async () => {
-    const id = document.getElementById('modal-id').value;
-    if(!confirm(`[${id}] 선지정을 취소하시겠습니까?`)) return;
-    try {
-        const zoneDocId = getZoneDocId(id);
-        await setDoc(doc(db, LOC_COLLECTION, zoneDocId), { [id]: { preAssigned: false, preAssignedCode: '', preAssignedName: '', preAssignedQty: '', preAssignedAt: 0, codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', updatedAt: new Date() } }, { merge: true });
-        document.getElementById('edit-modal').style.display = 'none';
-        showToast("취소되었습니다.");
-    } catch (error) { console.error(error); }
-};
-
 window.renderIncomingQueue = function() {
     const container = document.getElementById('incoming-list');
     if(!container) return;
@@ -3278,33 +3295,49 @@ function _ttScheduleHide() {
     }, 300);
 }
 
-// 이벤트 바인딩
-document.addEventListener('mouseover', function(e) {
+// 이벤트 바인딩 (v3.80 클릭 토글 방식)
+document.addEventListener('click', function(e) {
     const tip = e.target.closest('.info-tip[data-tip-key]');
-    if (tip) {
+    const content = e.target.closest('.info-tip-content');
+
+    // 1. ℹ️ 아이콘(또는 툴팁 트리거) 클릭 시 (단, 툴팁 본문 내부 클릭은 제외)
+    if (tip && !content) {
+        e.stopPropagation(); e.preventDefault(); // 외부 클릭 닫기 방지 + label 등 부모 기본동작 차단
+        
+        // 초기화 로직 (기존 유지)
         if (!tip.querySelector('.tt-tabs')) {
             const key = tip.getAttribute('data-tip-key');
             if (!_ttDefaults[key]) {
-                const content = tip.querySelector('.info-tip-content');
-                if (content) _ttDefaults[key] = content.innerHTML;
+                const innerContent = tip.querySelector('.info-tip-content');
+                if (innerContent) _ttDefaults[key] = innerContent.innerHTML;
             }
             _ttRenderTabs(tip, key);
         }
-        _ttOpenTip(tip);
+
+        // 토글 동작
+        if (tip.classList.contains('tip-open')) {
+            if (!_ttEditingLock) { // 편집 중이 아닐 때만 닫기
+                tip.classList.remove('tip-open');
+                _ttResetTab(tip);
+                _ttCurrentTip = null;
+            }
+        } else {
+            _ttOpenTip(tip); // 이 함수가 다른 열린 툴팁을 자동으로 닫음
+        }
         return;
     }
-    const content = e.target.closest('.info-tip-content');
-    if (content && _ttHideTimer) { clearTimeout(_ttHideTimer); _ttHideTimer = null; }
-}, true);
 
-document.addEventListener('mouseout', function(e) {
-    if (_ttEditingLock) return; // 편집 중 무시
-    const tip = e.target.closest('.info-tip[data-tip-key]');
-    const content = e.target.closest('.info-tip-content');
-    if (!tip && !content) return;
-    const rt = e.relatedTarget;
-    if (rt && (rt.closest && (rt.closest('.info-tip[data-tip-key]') || rt.closest('.info-tip-content')))) return;
-    _ttScheduleHide();
+    // 2. 툴팁 본문 내부 클릭 시 (편집 등 동작을 위해 아무것도 안 함)
+    if (content) return;
+
+    // 3. 그 외 외부 빈 공간 클릭 시 (열려있는 툴팁 닫기)
+    document.querySelectorAll('.info-tip.tip-open').forEach(openTip => {
+        if (!openTip.classList.contains('tt-editing')) { // 편집 중인 경우 제외
+            openTip.classList.remove('tip-open');
+            _ttResetTab(openTip);
+        }
+    });
+    _ttCurrentTip = null;
 }, true);
 
 // =============================
