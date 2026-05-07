@@ -6,7 +6,6 @@ import { getWeekOfYear } from './utils.js';
 // 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
 
-// ⭐ [복구 완료] 정렬 상태 변경 함수 내보내기
 export const setSortState = (key) => {
     if (sortState.key === key) {
         sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
@@ -20,7 +19,7 @@ export const setSortState = (key) => {
 export let currentInspTypeFilter = 'all';
 export const setInspTypeFilter = (val) => { currentInspTypeFilter = val; };
 
-// ⭐ [복구 완료] 빈 함수 내보내기 (이전 에러 해결용)
+// 빈 함수 내보내기 (이전 에러 해결용)
 export const renderInspectionLogTable = (logs, productName) => {};
 
 const getSortIcon = (key) => {
@@ -371,9 +370,15 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
 
         displayLogs = displayLogs.filter(log => {
             if (pVal && log.date) {
+                // ⭐ [신규] 연간, 월간, 주간 필터링 모두 지원
+                const logYear = log.date.substring(0, 4);
                 const logMonth = log.date.substring(0, 7);
                 const logWeek = getWeekOfYear(new Date(log.date));
-                const isMatch = (pType === 'month' && logMonth === pVal) || (pType === 'week' && logWeek === pVal);
+                
+                const isMatch = (pType === 'year' && logYear === pVal) ||
+                                (pType === 'month' && logMonth === pVal) || 
+                                (pType === 'week' && logWeek === pVal);
+                                
                 if (!isMatch) return false; 
             }
 
@@ -547,6 +552,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
 
     const weeks = new Set();
     const months = new Set();
+    const years = new Set(); // ⭐ [신규] 연간 세트 추가
     
     historyData.forEach(product => {
         if (product.logs && Array.isArray(product.logs)) {
@@ -555,6 +561,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                 if (currentInspTypeFilter !== 'all' && type !== currentInspTypeFilter) return;
 
                 if (log.date) {
+                    years.add(log.date.substring(0, 4)); // ⭐ [신규] 연도 추출
                     months.add(log.date.substring(0, 7)); 
                     weeks.add(getWeekOfYear(new Date(log.date))); 
                 }
@@ -562,11 +569,14 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         }
     });
 
+    const yearOptions = Array.from(years).sort().reverse(); // ⭐ [신규] 연도 정렬
     const monthOptions = Array.from(months).sort().reverse();
     const weekOptions = Array.from(weeks).sort().reverse();
 
     if (!selectedPeriod) {
-        selectedPeriod = periodType === 'month' ? monthOptions[0] : weekOptions[0];
+        if (periodType === 'year') selectedPeriod = yearOptions[0];
+        else if (periodType === 'month') selectedPeriod = monthOptions[0];
+        else selectedPeriod = weekOptions[0];
     }
 
     let totalInspectedQty = 0;
@@ -586,10 +596,13 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                 const type = log.inspectionType === 'total' ? 'total' : 'sample';
                 if (currentInspTypeFilter !== 'all' && type !== currentInspTypeFilter) return;
 
+                const logYear = log.date.substring(0, 4); // ⭐ [신규]
                 const logMonth = log.date.substring(0, 7);
                 const logWeek = getWeekOfYear(new Date(log.date));
 
-                const isMatch = (periodType === 'month' && logMonth === selectedPeriod) || 
+                // ⭐ [신규] 연간 조건 매칭 포함
+                const isMatch = (periodType === 'year' && logYear === selectedPeriod) || 
+                                (periodType === 'month' && logMonth === selectedPeriod) || 
                                 (periodType === 'week' && logWeek === selectedPeriod);
 
                 if (isMatch) {
@@ -675,16 +688,18 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">통계 기준</label>
                     <select id="qc-period-type" class="border border-gray-300 rounded p-1.5 text-sm focus:ring-indigo-500">
-                        <option value="month" ${periodType === 'month' ? 'selected' : ''}>월간 (Monthly)</option>
+                        <option value="year" ${periodType === 'year' ? 'selected' : ''}>연간 (Yearly)</option> <option value="month" ${periodType === 'month' ? 'selected' : ''}>월간 (Monthly)</option>
                         <option value="week" ${periodType === 'week' ? 'selected' : ''}>주간 (Weekly)</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">조회 기간</label>
                     <select id="qc-period-value" class="border border-gray-300 rounded p-1.5 text-sm focus:ring-indigo-500 min-w-[120px]">
-                        ${periodType === 'month' 
-                            ? monthOptions.map(m => `<option value="${m}" ${selectedPeriod === m ? 'selected' : ''}>${m}</option>`).join('')
-                            : weekOptions.map(w => `<option value="${w}" ${selectedPeriod === w ? 'selected' : ''}>${w}</option>`).join('')
+                        ${periodType === 'year'
+                            ? yearOptions.map(y => `<option value="${y}" ${selectedPeriod === y ? 'selected' : ''}>${y}년</option>`).join('')
+                            : periodType === 'month' 
+                                ? monthOptions.map(m => `<option value="${m}" ${selectedPeriod === m ? 'selected' : ''}>${m}</option>`).join('')
+                                : weekOptions.map(w => `<option value="${w}" ${selectedPeriod === w ? 'selected' : ''}>${w}</option>`).join('')
                         }
                     </select>
                 </div>
