@@ -9,7 +9,12 @@ import {
     renderInspectionListMode
 } from './ui-history.js'; 
 
-import { setSortState, renderQCStatsMode } from './ui-history-inspection.js';
+import { 
+    setSortState, 
+    renderQCStatsMode, 
+    currentInspTypeFilter, 
+    setInspTypeFilter 
+} from './ui-history-inspection.js';
 
 import {
     loadInspectionLogs,
@@ -38,7 +43,6 @@ export const fetchAndRenderInspectionHistory = async () => {
 
     const viewMode = State.context.inspectionViewMode || 'product';
 
-    // ★ 상품별 보기 또는 QC 통계 모드일 때 전체 상세 DB 데이터를 불러옵니다.
     if (viewMode === 'product' || viewMode === 'qc') {
         try {
             const colRef = collection(State.db, 'product_history');
@@ -52,7 +56,6 @@ export const fetchAndRenderInspectionHistory = async () => {
             if (viewMode === 'product') {
                 renderInspectionHistoryTable(cachedInspectionData);
             } else if (viewMode === 'qc') {
-                // QC 통계 모드일 때 원본 데이터를 넘겨줍니다.
                 renderQCStatsMode(cachedInspectionData, 'month', '');
             }
         } catch (e) {
@@ -118,10 +121,16 @@ export function setupHistoryInspectionListeners() {
 
     if (DOM.inspectionHistoryViewContainer) {
         
-        // ★ QC 조회 기간 조건 변경 이벤트 (캐시된 상세 데이터 활용)
         DOM.inspectionHistoryViewContainer.addEventListener('change', (e) => {
+            // ⭐ [신규] 상단 검수 유형 필터 (전체/샘플/전량) 선택 시 다시 렌더링
+            if (e.target.id === 'insp-type-filter') {
+                setInspTypeFilter(e.target.value);
+                fetchAndRenderInspectionHistory();
+                return;
+            }
             if (e.target.id === 'qc-period-type') {
                 renderQCStatsMode(cachedInspectionData, e.target.value, '');
+                return;
             }
         });
 
@@ -134,6 +143,7 @@ export function setupHistoryInspectionListeners() {
                     modal.classList.remove('hidden');
                     
                     const getEl = (id) => document.getElementById(id);
+                    if (getEl('manual-insp-type')) getEl('manual-insp-type').value = 'sample'; // 기본값 세팅
                     if (getEl('manual-insp-product-name')) getEl('manual-insp-product-name').value = '';
                     if (getEl('manual-insp-code')) getEl('manual-insp-code').value = '';
                     if (getEl('manual-insp-option')) getEl('manual-insp-option').value = '';
@@ -145,7 +155,7 @@ export function setupHistoryInspectionListeners() {
                     
                     if (getEl('manual-insp-inbound-date')) getEl('manual-insp-inbound-date').value = getTodayDateString();
                     
-                    const selects = modal.querySelectorAll('select');
+                    const selects = modal.querySelectorAll('select:not(#manual-insp-type)'); // 유형 셀렉트 제외 초기화
                     selects.forEach(sel => sel.value = "정상"); 
                     
                     clearManualImageState();
@@ -153,7 +163,6 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
 
-            // ★ QC 통계 리포트 조회 버튼 (캐시된 상세 데이터 활용)
             const refreshQcBtn = e.target.closest('#btn-refresh-qc');
             if (refreshQcBtn) {
                 const typeSelect = document.getElementById('qc-period-type');

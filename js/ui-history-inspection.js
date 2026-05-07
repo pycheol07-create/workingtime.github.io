@@ -6,6 +6,10 @@ import { getWeekOfYear } from './utils.js';
 // 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
 
+// ⭐ [신규] 검수 유형 필터 상태 (all / sample / total)
+export let currentInspTypeFilter = 'all';
+export const setInspTypeFilter = (val) => { currentInspTypeFilter = val; };
+
 const getSortIcon = (key) => {
     if (sortState.key !== key) return '<span class="text-gray-300 text-[10px] ml-1 opacity-50">↕</span>';
     return sortState.dir === 'asc' 
@@ -42,7 +46,13 @@ export const renderInspectionLayout = (container) => {
                         📊 QC 통계 리포트
                     </button>
                 </div>
-                <div class="pb-1 pr-1 flex gap-2">
+                <div class="pb-1 pr-1 flex gap-2 items-center">
+                    <select id="insp-type-filter" class="text-xs border border-gray-300 rounded p-1.5 focus:ring-indigo-500 bg-white font-bold text-gray-700 outline-none cursor-pointer shadow-sm">
+                        <option value="all" ${currentInspTypeFilter === 'all' ? 'selected' : ''}>전체 (샘플+전량)</option>
+                        <option value="sample" ${currentInspTypeFilter === 'sample' ? 'selected' : ''}>샘플 검수만</option>
+                        <option value="total" ${currentInspTypeFilter === 'total' ? 'selected' : ''}>전량 검수만</option>
+                    </select>
+                    
                     <button id="btn-add-pre-inspection" class="text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
                         수동 상품 추가
@@ -62,13 +72,35 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
 
-    const selectedDate = context.selectedInspectionDate;
+    // ⭐ [신규] 유형 필터에 맞춰 전체 dateList와 내부 데이터 필터링
+    let filteredDateList = [];
+    dateList.forEach(d => {
+        const fList = d.data.filter(item => {
+            const type = item.inspectionType === 'total' ? 'total' : 'sample';
+            return currentInspTypeFilter === 'all' || type === currentInspTypeFilter;
+        });
+        if (fList.length > 0) {
+            filteredDateList.push({
+                date: d.date,
+                count: fList.length,
+                data: fList
+            });
+        }
+    });
+
+    let selectedDate = context.selectedInspectionDate;
+    if (!filteredDateList.find(d => d.date === selectedDate) && filteredDateList.length > 0) {
+        selectedDate = filteredDateList[0].date;
+        context.selectedInspectionDate = selectedDate;
+    }
+
+    const filteredSelectedData = filteredDateList.find(d => d.date === selectedDate)?.data || [];
 
     let dateListHtml = '';
-    if (!dateList || dateList.length === 0) {
-        dateListHtml = `<div class="p-4 text-center text-sm text-gray-400">업로드된 리스트가 없습니다.</div>`;
+    if (!filteredDateList || filteredDateList.length === 0) {
+        dateListHtml = `<div class="p-4 text-center text-sm text-gray-400">조건에 맞는 리스트가 없습니다.</div>`;
     } else {
-        dateList.forEach(d => {
+        filteredDateList.forEach(d => {
             const isSelected = d.date === selectedDate;
             const activeClass = isSelected ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-transparent hover:bg-gray-50 text-gray-600';
             
@@ -86,9 +118,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
     let detailHtml = '';
     if (!selectedDate) {
         detailHtml = `<div class="flex h-full items-center justify-center text-gray-400 text-sm">좌측에서 날짜를 선택해주세요.</div>`;
-    } else if (!selectedDateData) {
-        detailHtml = `<div class="flex h-full items-center justify-center text-gray-400 text-sm">데이터를 불러올 수 없습니다.</div>`;
-    } else if (selectedDateData.length === 0) {
+    } else if (!filteredSelectedData || filteredSelectedData.length === 0) {
         detailHtml = `
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
@@ -97,16 +127,21 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                         <span class="text-xs text-gray-500">0건</span>
                     </div>
                 </div>
-                <div class="flex h-full items-center justify-center text-gray-400 text-sm">해당 날짜의 리스트 데이터가 없습니다.</div>
+                <div class="flex h-full items-center justify-center text-gray-400 text-sm">해당 날짜의 필터링된 데이터가 없습니다.</div>
             </div>
         `;
     } else {
-        const rows = selectedDateData.map((item, idx) => {
+        const rows = filteredSelectedData.map((item, idx) => {
             const isCompleted = item.status === '완료';
             const statusBadge = isCompleted 
                 ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">완료</span>`
                 : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
             
+            // ⭐ [신규] 리스트 뷰에서의 검수 유형 배지
+            const typeBadge = item.inspectionType === 'total' 
+                ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
+                : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
+
             return `
                 <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail" 
                     data-product-name="${item.name}" 
@@ -114,6 +149,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                     data-product-code="${item.code || '-'}" 
                     data-target-date="${selectedDate}"
                     title="클릭하여 상세 이력 펼치기">
+                    <td class="px-4 py-3 text-center">${typeBadge}</td>
                     <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.code || '-'}</td>
                     <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.name}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${item.option || '-'}</td>
@@ -141,6 +177,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                     <table class="w-full text-left border-collapse">
                         <thead class="bg-white text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm outline outline-1 outline-gray-200">
                             <tr>
+                                <th class="px-4 py-2 font-semibold bg-gray-50 text-center">유형</th>
                                 <th class="px-4 py-2 font-semibold bg-gray-50">코드</th>
                                 <th class="px-4 py-2 font-semibold bg-gray-50">상품명</th>
                                 <th class="px-4 py-2 font-semibold bg-gray-50">옵션</th>
@@ -179,19 +216,30 @@ export const renderInspectionHistoryTable = (historyData) => {
     const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
 
     let filteredData = historyData.filter(item => {
+        // 검색어 필터 로직
         const matchId = item.id.toLowerCase().includes(searchTerm);
-        if (matchId) return true;
-        
+        let matchLog = false;
         const matchSupplierName = item.lastSupplierName && item.lastSupplierName.toLowerCase().includes(searchTerm);
-        if (matchSupplierName) return true;
-
+        
         if (item.logs && item.logs.length > 0) {
             const lastLog = item.logs[item.logs.length - 1];
-            if (lastLog.code && lastLog.code.toLowerCase().includes(searchTerm)) return true;
-            if (lastLog.option && lastLog.option.toLowerCase().includes(searchTerm)) return true;
-            if (lastLog.supplierName && lastLog.supplierName.toLowerCase().includes(searchTerm)) return true;
+            if (lastLog.code && lastLog.code.toLowerCase().includes(searchTerm)) matchLog = true;
+            if (lastLog.option && lastLog.option.toLowerCase().includes(searchTerm)) matchLog = true;
+            if (lastLog.supplierName && lastLog.supplierName.toLowerCase().includes(searchTerm)) matchLog = true;
         }
-        return false;
+
+        if (!matchId && !matchSupplierName && !matchLog) return false;
+
+        // ⭐ [신규] 검수 유형 필터 적용 (해당 유형의 로그가 하나라도 있는지 검사)
+        if (currentInspTypeFilter !== 'all') {
+            const hasMatchingLog = item.logs && item.logs.some(log => {
+                const type = log.inspectionType === 'total' ? 'total' : 'sample';
+                return type === currentInspTypeFilter;
+            });
+            if (!hasMatchingLog) return false;
+        }
+
+        return true;
     });
 
     if (DOM.inspectionTotalProductCount) {
@@ -233,7 +281,7 @@ export const renderInspectionHistoryTable = (historyData) => {
 
     if (filteredData.length === 0) {
         html += `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400">
-            ${searchTerm ? `'${searchTerm}'에 대한 검색 결과가 없습니다.` : '저장된 검수 이력이 없습니다.'}
+            ${searchTerm ? `'${searchTerm}'에 대한 검색 결과가 없습니다.` : '선택한 유형에 해당하는 저장된 검수 이력이 없습니다.'}
         </td></tr>`;
     } else {
         filteredData.forEach(item => {
@@ -280,9 +328,6 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
-// ui-history.js 에서의 import 에러 방지용
-export const renderInspectionLogTable = (logs, productName) => {};
-
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const table = targetTr.closest('table');
     if (table) {
@@ -290,11 +335,13 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     }
 
     const colspan = targetTr.children.length; 
-    
-    // ★ 클릭된 행(tr)에 심어둔 QC 리포트 명찰 확인!
     const isQcReport = targetTr.dataset.isQcReport === 'true';
 
-    let displayLogs = logs;
+    // ⭐ [신규] 공통적으로 검수 유형 필터링 먼저 적용
+    let displayLogs = logs.filter(log => {
+        const type = log.inspectionType === 'total' ? 'total' : 'sample';
+        return currentInspTypeFilter === 'all' || type === currentInspTypeFilter;
+    });
     
     if (context.inspectionViewMode === 'list') {
         const targetOption = targetTr.dataset.productOption;
@@ -302,7 +349,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
         const targetDate = targetTr.dataset.targetDate;
 
         if (targetOption !== undefined) {
-            displayLogs = logs.filter(log => {
+            displayLogs = displayLogs.filter(log => {
                 const logOption = log.option || '-';
                 const logCode = log.code || '-';
                 const logDate = log.date || '-';
@@ -310,13 +357,11 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             });
         }
     } 
-    // ★ QC 통계 모드일 때 (명찰 기반으로 확실히 필터링)
     else if (isQcReport) {
         const pType = targetTr.dataset.qcPeriodType || 'month';
         const pVal = targetTr.dataset.qcPeriodValue || '';
 
-        displayLogs = logs.filter(log => {
-            // 1. 기간 체크
+        displayLogs = displayLogs.filter(log => {
             if (pVal && log.date) {
                 const logMonth = log.date.substring(0, 7);
                 const logWeek = getWeekOfYear(new Date(log.date));
@@ -324,9 +369,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 if (!isMatch) return false; 
             }
 
-            // 2. 불량 여부 체크 (공백까지 제거하여 깐깐하게 검사)
             let isDefect = false;
-            // 가능한 모든 '정상' 범주의 텍스트를 나열
             const normalValues = ['정상', '양호', '동일', '없음', '해당없음', '통과', '-', ''];
 
             if (log.status === '불량') isDefect = true;
@@ -335,7 +378,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             if (log.checklist) {
                 Object.entries(log.checklist).forEach(([key, val]) => {
                     if (key !== 'thickness' && val) {
-                        // 공백 제거 후 비교
                         const cleanVal = String(val).trim();
                         if (cleanVal && !normalValues.includes(cleanVal)) {
                             isDefect = true;
@@ -352,12 +394,11 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     
     let logsHtml = '';
     if (!displayLogs || displayLogs.length === 0) {
-        logsHtml = '<div class="p-6 text-center text-gray-500">해당 조건(불량/특정기간)에 해당하는 상세 검수 기록이 없습니다.</div>';
+        logsHtml = '<div class="p-6 text-center text-gray-500">해당 조건에 부합하는 상세 검수 기록이 없습니다.</div>';
     } else {
         const groupedLogs = {};
         displayLogs.forEach((log, idx) => {
             const originalIdx = log.originalIndex !== undefined ? log.originalIndex : idx;
-
             const code = log.code || '-';
             const option = log.option || '-';
             const groupKey = `${code} / ${option}`;
@@ -381,7 +422,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
 
             rowsHtml += `
                 <tr class="bg-indigo-100/70 border-y border-indigo-200">
-                    <td colspan="8" class="px-4 py-2 text-xs font-bold text-indigo-900">
+                    <td colspan="9" class="px-4 py-2 text-xs font-bold text-indigo-900">
                         🏷️ 분류 (코드 / 옵션) : <span class="text-indigo-700">${groupKey}</span> 
                         <span class="text-gray-500 font-normal ml-2">(${group.length}건)</span>
                     </td>
@@ -413,6 +454,11 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                     : item.status === '사전메모' ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-800">사전메모</span>`
                     : `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800">불량</span>`;
 
+                // ⭐ [신규] 상세 펼침뷰에서의 검수 유형 배지 추가
+                const typeBadge = item.inspectionType === 'total' 
+                    ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
+                    : `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
+
                 let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>` : '';
                 let noteText = item.note || '';
                 let fullNote = (defectText + noteText) || '<span class="text-gray-400">-</span>';
@@ -428,6 +474,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
 
                 return `
                     <tr class="border-b border-indigo-100/50 hover:bg-white transition bg-white/40">
+                        <td class="px-4 py-3 text-center">${typeBadge}</td>
                         <td class="px-4 py-3 text-[11px] font-mono text-gray-500 whitespace-nowrap">${item.date}<br>${item.time}</td>
                         <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.inboundDate || '-'}</td>
                         <td class="px-4 py-3 text-xs font-bold text-gray-700 text-center">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
@@ -443,9 +490,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             }).join('');
         });
 
-        const headerTitle = isQcReport 
-            ? `🔍 상세 불량 내역 (해당 기간)` 
-            : `🔍 상세 검수 이력`;
+        const headerTitle = isQcReport ? `🔍 상세 불량 내역 (해당 기간)` : `🔍 상세 검수 이력`;
 
         logsHtml = `
             <div class="p-4 bg-indigo-50/50 border-y border-indigo-200">
@@ -460,6 +505,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                     <table class="w-full text-left relative z-0">
                         <thead class="bg-indigo-100 text-[11px] text-indigo-800 uppercase sticky top-0 z-10 shadow-sm outline outline-1 outline-indigo-200">
                             <tr>
+                                <th class="px-4 py-2 font-bold whitespace-nowrap w-[6%] bg-indigo-100 text-center">유형</th>
                                 <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">입고(검수)일시</th>
                                 <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">출고일자</th>
                                 <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[5%] bg-indigo-100">수량</th>
@@ -483,15 +529,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     targetTr.after(tr); 
 };
 
-export const setSortState = (key) => {
-    if (sortState.key === key) {
-        sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
-    } else {
-        sortState.key = key;
-        sortState.dir = 'desc';
-    }
-};
-
 export const renderQCStatsMode = (historyData, periodType = 'month', selectedPeriod = '') => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -504,9 +541,13 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
     const weeks = new Set();
     const months = new Set();
     
+    // ⭐ [신규] 필터링 조건에 부합하는 로그가 있는 기간만 추출
     historyData.forEach(product => {
         if (product.logs && Array.isArray(product.logs)) {
             product.logs.forEach(log => {
+                const type = log.inspectionType === 'total' ? 'total' : 'sample';
+                if (currentInspTypeFilter !== 'all' && type !== currentInspTypeFilter) return;
+
                 if (log.date) {
                     months.add(log.date.substring(0, 7)); 
                     weeks.add(getWeekOfYear(new Date(log.date))); 
@@ -536,6 +577,10 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
             product.logs.forEach(log => {
                 if (!log.date) return;
                 
+                // ⭐ [신규] 유형 필터 적용
+                const type = log.inspectionType === 'total' ? 'total' : 'sample';
+                if (currentInspTypeFilter !== 'all' && type !== currentInspTypeFilter) return;
+
                 const logMonth = log.date.substring(0, 7);
                 const logWeek = getWeekOfYear(new Date(log.date));
 
@@ -643,7 +688,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                 </button>
             </div>
 
-            ${!selectedPeriod ? `<div class="text-center text-gray-500 py-10">해당 기간에 검수 데이터가 없습니다.</div>` : `
+            ${!selectedPeriod ? `<div class="text-center text-gray-500 py-10">해당 유형/기간에 검수 데이터가 없습니다.</div>` : `
             
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 shrink-0">
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500">
