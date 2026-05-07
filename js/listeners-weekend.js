@@ -171,17 +171,46 @@ export function setupWeekendListeners() {
         });
     }
 
-    // [신규] 스마트 형평성 배분 이벤트
     if (smartCalcBtn) {
         smartCalcBtn.addEventListener('click', () => {
             WeekendCalendar.calculateSmartAllocation();
         });
     }
 
-    // [신규] 동적으로 렌더링된 "일괄 적용" 버튼에 대한 이벤트 위임
+
+    // ⭐ [신규] 과거 날짜 편집 팝업 관련 리스너
+    const pastDatePopup = document.getElementById('past-date-edit-popup');
+    const pastDateCloseBtn = document.getElementById('past-date-close-btn');
+    const pastDateAddBtn = document.getElementById('past-date-add-btn');
+
+    if (pastDateCloseBtn && pastDatePopup) {
+        pastDateCloseBtn.addEventListener('click', () => pastDatePopup.classList.add('hidden'));
+    }
+
+    if (pastDateAddBtn) {
+        pastDateAddBtn.addEventListener('click', () => WeekendCalendar.pastDateAddMember());
+    }
+
+    // 동적으로 생성되는 버튼들에 대한 이벤트 위임 (스마트 배분 적용 및 과거 날짜 확정/삭제)
     document.addEventListener('click', (e) => {
+        // 스마트 배분
         if (e.target && e.target.id === 'apply-smart-calc-btn') {
             WeekendCalendar.applySmartAllocation();
+        }
+        
+        // 과거 주차 인원 상태 변경 (대기 -> 확정)
+        if (e.target.classList.contains('past-date-confirm-btn')) {
+            const id = e.target.getAttribute('data-id');
+            WeekendCalendar.pastDateChangeStatus(id, 'confirmed');
+        }
+
+        // 과거 주차 인원 완전 삭제
+        if (e.target.classList.contains('past-date-delete-btn')) {
+            const id = e.target.getAttribute('data-id');
+            const member = e.target.getAttribute('data-member');
+            if (confirm(`${member}님의 기록을 완전히 삭제하시겠습니까? (삭제된 내역은 복구할 수 없으며 실적에서 제외됩니다.)`)) {
+                WeekendCalendar.pastDateDeleteMember(id);
+            }
         }
     });
 }

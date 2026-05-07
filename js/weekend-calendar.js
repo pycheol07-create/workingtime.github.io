@@ -130,6 +130,13 @@ async function loadWeekendRequests(year, month) {
 
             renderWeekendStats(memberStats, yearlyStatsMap);
             renderWeekendList(year, month);
+            
+            // ⭐ [신규] 실시간 업데이트 시 과거 날짜 모달이 열려있다면 새로고침
+            const pastPopup = document.getElementById('past-date-edit-popup');
+            if (pastPopup && !pastPopup.classList.contains('hidden') && currentManageDateStr) {
+                populatePastDateAddSelect(currentManageDateStr);
+                renderPastDateMembers(currentManageDateStr);
+            }
 
         }, (error) => {
             console.error("Error in weekend listener:", error);
@@ -224,6 +231,10 @@ function renderWeekendList(year, month) {
         }
     }
 
+    // ⭐ [신규] 오늘 날짜 구하기 (과거 여부 판별용)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     for (let d = 1; d <= lastDate; d++) {
         const dateObj = new Date(year, month, d);
         const dayOfWeek = dateObj.getDay();
@@ -236,15 +247,21 @@ function renderWeekendList(year, month) {
             const isBlocked = blockedDatesSet.has(dateStr);
             const isAppliedByMe = myRequestsMap.has(dateStr);
             const capacity = capacityMap.get(dateStr); 
+            
+            // ⭐ [신규] 이 주차가 과거인지 판별
+            const isPast = dateObj < today;
 
             let dayColor = dayOfWeek === 0 ? 'text-red-600' : 'text-blue-600';
             let bgColor = dayOfWeek === 0 ? 'bg-red-50' : 'bg-blue-50';
 
             const rowItem = document.createElement('div');
-            rowItem.className = 'flex flex-row items-stretch gap-2 p-1.5 rounded-lg border shadow-sm bg-white hover:shadow-md transition-all mb-2';
+            rowItem.className = 'flex flex-row items-stretch gap-2 p-1.5 rounded-lg border shadow-sm hover:shadow-md transition-all mb-2';
+            // 과거 날짜는 컨테이너 자체도 약간 투명하게
+            if (isPast) rowItem.classList.add('bg-gray-50', 'opacity-80');
+            else rowItem.classList.add('bg-white');
+
             rowItem.id = `row-${dateStr}`;
 
-            // 💡 1. 체크박스 영역 (관리자 전용, 가장 왼쪽으로 분리)
             if (isAdmin) {
                 const chkWrapper = document.createElement('div');
                 chkWrapper.className = 'flex items-center justify-center pl-2 pr-1';
@@ -253,11 +270,17 @@ function renderWeekendList(year, month) {
                 rowItem.appendChild(chkWrapper);
             }
 
-            // 💡 2. 날짜 영역 (클릭 시 팝업 열림, 24.토 형식)
             const dateArea = document.createElement('div');
-            dateArea.className = `w-[64px] md:w-[76px] flex-shrink-0 flex flex-col items-center justify-center rounded-md border ${bgColor} ${dayColor} overflow-hidden select-none`;
+            dateArea.className = `w-[64px] md:w-[76px] flex-shrink-0 flex flex-col items-center justify-center rounded-md border overflow-hidden select-none`;
             
-            if (isAdmin) {
+            // 과거 날짜는 색상 죽이기 (흑백 처리)
+            if (isPast) {
+                dateArea.classList.add('bg-gray-200', 'text-gray-500', 'border-gray-300');
+            } else {
+                dateArea.classList.add(bgColor, dayColor);
+            }
+
+            if (isAdmin && !isPast) {
                 dateArea.classList.add('cursor-pointer', 'hover:opacity-80', 'hover:ring-2', 'hover:ring-indigo-300', 'transition-all');
                 dateArea.title = "설정 변경";
                 dateArea.onclick = () => openAdminDatePopup(dateStr);
@@ -265,32 +288,52 @@ function renderWeekendList(year, month) {
             
             dateArea.innerHTML = `
                 <span class="text-[17px] md:text-xl font-black tracking-tight mt-1 md:mt-2">${d}.${dayName}</span>
-                ${capacity ? `<span class="mt-1 mb-1 md:mb-2 text-[9px] md:text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">정원 ${capacity}</span>` : '<span class="h-1 md:h-2"></span>'}
+                ${capacity ? `<span class="mt-1 mb-1 md:mb-2 text-[9px] md:text-[10px] font-bold ${isPast ? 'bg-gray-300 text-gray-600 border-gray-400' : 'bg-emerald-100 text-emerald-700 border-emerald-200'} px-1.5 py-0.5 rounded border">정원 ${capacity}</span>` : '<span class="h-1 md:h-2"></span>'}
             `;
 
-            // 💡 3. 우측 영역 (배지 및 신청 버튼)
             const rightArea = document.createElement('div');
-            rightArea.className = 'flex-1 flex flex-col justify-center rounded-md border p-2 cursor-pointer transition-colors relative';
-            
-            if (isBlocked) {
-                rightArea.classList.add('bg-gray-50', 'border-gray-300', 'opacity-70', 'cursor-not-allowed');
-            } else if (isAppliedByMe) {
-                rightArea.classList.add('bg-indigo-50', 'border-indigo-300', 'border-dashed');
-            } else {
-                rightArea.classList.add('bg-white', 'border-gray-200', 'border-dashed', 'hover:bg-gray-50');
-            }
-
-            rightArea.onclick = () => handleDateClick(dateStr, isBlocked);
-
+            rightArea.className = 'flex-1 flex flex-col justify-center rounded-md border p-2 transition-colors relative';
             const rightHeader = document.createElement('div');
             rightHeader.className = "flex justify-between items-center text-[10px] md:text-xs mb-1.5";
-            rightHeader.innerHTML = `
-                <span class="text-gray-400 font-medium">영역을 터치하여 신청/취소</span>
-                ${isBlocked ? '<span class="text-red-500 font-bold bg-red-50 px-1.5 rounded">🚫 마감됨</span>' : isAppliedByMe ? '<span class="text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded">✅ 신청됨</span>' : ''}
-            `;
+
+            // ⭐ [신규] 과거 주차 분기 처리
+            if (isPast) {
+                rightArea.classList.add('bg-gray-100', 'border-gray-300', 'grayscale');
+                
+                if (isAdmin) {
+                    rightArea.classList.add('cursor-pointer', 'hover:bg-gray-200');
+                    rightArea.onclick = () => openPastDateEditPopup(dateStr);
+                    rightHeader.innerHTML = `
+                        <span class="text-blue-600 font-bold">🛠️ 터치하여 인원 편집 (관리자)</span>
+                        <span class="text-gray-600 font-bold bg-gray-200 px-1.5 rounded border border-gray-300">마감됨</span>
+                    `;
+                } else {
+                    rightArea.classList.add('cursor-not-allowed');
+                    rightArea.onclick = () => showToast("지나간 주차는 관리자만 편집할 수 있습니다.", true);
+                    rightHeader.innerHTML = `
+                        <span class="text-gray-500 font-bold">마감된 주차입니다.</span>
+                        <span class="text-gray-500 font-bold bg-gray-200 px-1.5 rounded border border-gray-300">완료됨</span>
+                    `;
+                }
+            } else {
+                // 기존 미래/오늘 로직
+                if (isBlocked) {
+                    rightArea.classList.add('bg-gray-50', 'border-gray-300', 'opacity-70', 'cursor-not-allowed');
+                } else if (isAppliedByMe) {
+                    rightArea.classList.add('bg-indigo-50', 'border-indigo-300', 'border-dashed', 'cursor-pointer');
+                } else {
+                    rightArea.classList.add('bg-white', 'border-gray-200', 'border-dashed', 'hover:bg-gray-50', 'cursor-pointer');
+                }
+
+                rightArea.onclick = () => handleDateClick(dateStr, isBlocked);
+
+                rightHeader.innerHTML = `
+                    <span class="text-gray-400 font-medium">영역을 터치하여 신청/취소</span>
+                    ${isBlocked ? '<span class="text-red-500 font-bold bg-red-50 px-1.5 rounded">🚫 마감됨</span>' : isAppliedByMe ? '<span class="text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded">✅ 신청됨</span>' : ''}
+                `;
+            }
 
             const badgesArea = document.createElement('div');
-            // 💡 이름 배지를 오른쪽으로 정렬 (justify-end)
             badgesArea.className = "flex flex-wrap gap-1.5 items-center justify-end";
             badgesArea.id = `weekend-list-${dateStr}`; 
             badgesArea.style.minHeight = "28px";
@@ -321,7 +364,7 @@ function renderWeekendList(year, month) {
                 });
 
                 requestsByDate[dateStr].forEach(req => {
-                    addBadgeToCalendar(dateStr, req, isAdmin);
+                    addBadgeToCalendar(dateStr, req, isAdmin && !isPast); // 과거면 일반 뱃지 팝업 안띄움
                 });
             }
         }
@@ -332,7 +375,7 @@ function renderWeekendList(year, month) {
     }
 }
 
-function addBadgeToCalendar(dateStr, data, isAdmin) {
+function addBadgeToCalendar(dateStr, data, isClickableAdmin) {
     const container = document.getElementById(`weekend-list-${dateStr}`);
     if (!container) return;
 
@@ -355,7 +398,7 @@ function addBadgeToCalendar(dateStr, data, isAdmin) {
     badge.className = `px-2.5 md:px-3 py-0.5 md:py-1 rounded-full text-[11px] md:text-sm font-medium border flex items-center gap-1 transition-transform hover:scale-105 ${colorClass}`;
     badge.innerHTML = `<span class="text-[10px] md:text-xs">${icon}</span> ${data.member}`;
 
-    if (isAdmin) {
+    if (isClickableAdmin) {
         badge.style.cursor = 'pointer';
         badge.onclick = (e) => {
             e.stopPropagation(); 
@@ -421,7 +464,7 @@ async function deleteRequest(docId) {
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
         await deleteDoc(docRef);
-        showToast("신청 기록이 완전히 삭제되었습니다.");
+        showToast("신청 기록이 삭제되었습니다.");
     } catch (e) {
         console.error("Error deleting request:", e);
         showToast("삭제 실패", true);
@@ -547,6 +590,40 @@ export async function processSelectedDatesBulkAction(action) {
     }
 }
 
+// ⭐ [신규/수정] 과거/미래 공용 셀렉트 박스 세팅
+function populatePastDateAddSelect(dateStr) {
+    const select = document.getElementById('past-date-add-member');
+    if (!select) return;
+    select.innerHTML = '<option value="">팀원 선택...</option>';
+
+    let allMembers = [];
+    if (State.appConfig && State.appConfig.teamGroups) {
+        State.appConfig.teamGroups.forEach(g => {
+            if (g.members) allMembers = allMembers.concat(g.members);
+        });
+    }
+    if (State.appState && State.appState.partTimers) {
+        State.appState.partTimers.forEach(p => {
+            if (p.name) allMembers.push(p.name);
+        });
+    }
+    allMembers = [...new Set(allMembers)];
+
+    const reqs = requestsByDate[dateStr] || [];
+    const alreadyApplied = reqs.map(r => r.member);
+
+    allMembers.forEach(member => {
+        const option = document.createElement('option');
+        option.value = member;
+        option.textContent = member;
+        if (alreadyApplied.includes(member)) {
+            option.disabled = true;
+            option.textContent += ' (이미 등록됨)';
+        }
+        select.appendChild(option);
+    });
+}
+
 function populateAdminAddMemberSelect(dateStr) {
     const select = document.getElementById('admin-date-add-member');
     if (!select) return;
@@ -610,6 +687,93 @@ function openAdminDatePopup(dateStr) {
 
     popup.classList.remove('hidden');
 }
+
+// ⭐ [신규] 과거 날짜 전용 인원 편집 모달 열기
+export function openPastDateEditPopup(dateStr) {
+    currentManageDateStr = dateStr;
+    const popup = document.getElementById('past-date-edit-popup');
+    if (!popup) return;
+    
+    document.getElementById('past-date-popup-title').textContent = dateStr;
+    
+    populatePastDateAddSelect(dateStr);
+    renderPastDateMembers(dateStr);
+    
+    popup.classList.remove('hidden');
+}
+
+// ⭐ [신규] 과거 날짜 인원 리스트 렌더링
+export function renderPastDateMembers(dateStr) {
+    const listContainer = document.getElementById('past-date-member-list');
+    if(!listContainer) return;
+    listContainer.innerHTML = '';
+    
+    const reqs = requestsByDate[dateStr] || [];
+    if (reqs.length === 0) {
+        listContainer.innerHTML = '<div class="text-gray-400 text-sm text-center py-4">등록된 인원이 없습니다.</div>';
+        return;
+    }
+
+    reqs.forEach(req => {
+        const item = document.createElement('div');
+        item.className = "flex justify-between items-center p-2 border border-gray-200 bg-white shadow-sm rounded mb-1";
+        
+        let statusText = req.status === 'confirmed' ? '확정' : req.status === 'canceled' ? '취소됨' : '대기';
+        let statusColor = req.status === 'confirmed' ? 'text-blue-600' : req.status === 'canceled' ? 'text-red-500' : 'text-orange-500';
+        
+        item.innerHTML = `
+            <div>
+                <span class="font-bold text-gray-800">${req.member}</span> 
+                <span class="text-xs font-bold ml-2 ${statusColor}">${statusText}</span>
+            </div>
+            <div class="flex gap-1.5">
+                ${req.status !== 'confirmed' ? `<button class="past-date-confirm-btn px-2.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded text-xs font-bold transition" data-id="${req.id}" data-member="${req.member}">확정으로 변경</button>` : ''}
+                <button class="past-date-delete-btn px-2.5 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded text-xs font-bold transition" data-id="${req.id}" data-member="${req.member}">완전 삭제</button>
+            </div>
+        `;
+        listContainer.appendChild(item);
+    });
+}
+
+// ⭐ [신규] 과거 날짜 상태 변경 로직
+export async function pastDateChangeStatus(docId, status) {
+    try {
+        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
+        await updateDoc(docRef, { status: status, confirmedAt: status === 'confirmed' ? new Date().toISOString() : null });
+        showToast("상태가 변경되었습니다.");
+        // UI 자동 갱신은 onSnapshot에서 처리됨
+    } catch (e) {
+        console.error("Error updating status:", e);
+        showToast("상태 변경 중 오류 발생", true);
+    }
+}
+
+// ⭐ [신규] 과거 날짜 인원 완전 삭제 로직
+export async function pastDateDeleteMember(docId) {
+    try {
+        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests', docId);
+        await deleteDoc(docRef);
+        showToast("인원이 삭제되었습니다.");
+    } catch (e) {
+        console.error("Error deleting member:", e);
+        showToast("삭제 중 오류 발생", true);
+    }
+}
+
+// ⭐ [신규] 과거 날짜 인원 수동 추가 로직
+export async function pastDateAddMember() {
+    if (!currentManageDateStr) return;
+    const select = document.getElementById('past-date-add-member');
+    const memberName = select.value.trim();
+    if (!memberName) {
+        showToast("팀원을 선택하세요.", true);
+        return;
+    }
+    // 과거 날짜는 무조건 '확정(confirmed)'으로 등록
+    await createRequest(currentManageDateStr, memberName, 'confirmed');
+    showToast(`${memberName}님 추가 완료`);
+}
+
 
 export function calculateSmartAllocation() {
     if (!currentManageDateStr) return;
