@@ -200,7 +200,6 @@ export const updateSummary = (appState, appConfig) => {
     const totalStaffCount = allStaffMembers.size;
     const totalPartTimerCount = allPartTimers.size;
 
-    // 💡 휴무자(조퇴, 연차, 외출 미복귀 등) 목록 생성
     const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
     const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
     const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
@@ -215,7 +214,6 @@ export const updateSummary = (appState, appConfig) => {
     );
     const onLeaveTotalCount = onLeaveMemberNames.size;
 
-    // 💡 출근자 중 휴무자를 뺀 실제 가용 인원만 카운트
     const attendanceMap = appState.dailyAttendance || {};
     const currentlyClockedIn = new Set(
         Object.keys(attendanceMap).filter(member => 
@@ -226,7 +224,6 @@ export const updateSummary = (appState, appConfig) => {
     const availableStaffCount = [...currentlyClockedIn].filter(member => allStaffMembers.has(member)).length;
     const availablePartTimerCount = [...currentlyClockedIn].filter(member => allPartTimers.has(member)).length;
 
-    // 💡 업무 중인 인원에서도 휴무자는 카운트에서 철저히 제외 (업무 종료를 깜빡한 경우 방지)
     const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing' && !onLeaveMemberNames.has(r.member));
     const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused' && !onLeaveMemberNames.has(r.member));
     
@@ -241,7 +238,6 @@ export const updateSummary = (appState, appConfig) => {
     const workingStaffCount = [...ongoingMembers].filter(member => allStaffMembers.has(member)).length;
     const workingPartTimerCount = [...ongoingMembers].filter(member => allPartTimers.has(member)).length;
 
-    // 대기 인원 = 출근(가용) - 업무 - 정지
     const idleStaffCount = Math.max(0, availableStaffCount - workingStaffCount - pausedStaffCount);
     const idlePartTimerCount = Math.max(0, availablePartTimerCount - workingPartTimerCount - pausedPartTimerCount);
     
@@ -540,7 +536,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     taskStatusBoard.innerHTML = '';
     memberStatusBoard.innerHTML = '';
 
-    // 💡 1. 휴무자 리스트 우선 계산
     const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
     const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
     const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
@@ -554,7 +549,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
     
-    // 💡 2. 휴무자는 진행/정지 중인 업무가 있어도 대시보드 작업 카드에서 완전히 제외합니다.
     const ongoingRecords = (appState.workRecords || []).filter(r => 
         (r.status === 'ongoing' || r.status === 'paused') && !onLeaveMemberNames.has(r.member)
     );
@@ -612,6 +606,28 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const totalPauseMinutes = calcTotalPauseMinutes(representativeRecord.pauses);
             const pauseDisplay = totalPauseMinutes > 0 ? `<span class="text-[10px] text-gray-500 font-normal ml-1">(전체휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
 
+            // 💡 [신규] 샘플검수 / 전량검수 전용 매니저 열기 버튼 추가
+            let specialButtonHtml = '';
+            if (task === '샘플검수') {
+                specialButtonHtml = `
+                    <div class="px-3 pt-3 pb-1 bg-gray-50/50 dark:bg-gray-900/50 shrink-0 border-b border-gray-100 dark:border-gray-800">
+                        <button data-action="open-inspection" class="w-full py-2.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-800/60 font-extrabold text-sm rounded-xl transition flex justify-center items-center gap-1 shadow-sm border border-purple-200 dark:border-purple-800">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+                            정밀검수 매니저 열기
+                        </button>
+                    </div>
+                `;
+            } else if (task === '전량검수') {
+                specialButtonHtml = `
+                    <div class="px-3 pt-3 pb-1 bg-gray-50/50 dark:bg-gray-900/50 shrink-0 border-b border-gray-100 dark:border-gray-800">
+                        <button data-action="open-total-inspection" class="w-full py-2.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 font-extrabold text-sm rounded-xl transition flex justify-center items-center gap-1 shadow-sm border border-indigo-200 dark:border-indigo-800">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+                            전량검수 창 열기
+                        </button>
+                    </div>
+                `;
+            }
+
             card.innerHTML = `
                 <div class="px-4 py-3 ${headerColor} border-b flex justify-between items-start shrink-0">
                     <div>
@@ -624,6 +640,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                     </div>
                     <span class="px-2 py-1 ${isPaused ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'} text-xs font-bold rounded-full shadow-sm">${groupRecords.length}명 참여</span>
                 </div>
+                ${specialButtonHtml}
                 ${membersHtml}
                 <div class="p-3 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex gap-2 shrink-0 card-actions">
                     <button data-task="${task}" class="${isPaused ? 'resume-work-group-btn bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800/60' : 'pause-work-group-btn bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-800/60'} flex-1 py-2 font-bold text-sm rounded-xl transition flex justify-center items-center gap-1 shadow-sm">${isPaused ? '▶ 전체재개' : '⏸ 전체정지'}</button>

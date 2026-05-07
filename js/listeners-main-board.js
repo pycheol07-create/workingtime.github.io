@@ -110,7 +110,6 @@ const openMemberActionModal = (memberName) => {
     if (DOM.memberActionModal) DOM.memberActionModal.classList.remove('hidden');
 };
 
-
 export function setupMainBoardListeners() {
 
     if (DOM.confirmTeamSelectBtn) {
@@ -207,7 +206,26 @@ export function setupMainBoardListeners() {
             if (DOM.editStartTimeModal) DOM.editStartTimeModal.classList.remove('hidden');
             return;
         }
-        
+
+        // 💡 [신규 추가] '정밀검수 매니저 열기' 버튼 클릭 처리
+        const openInspectionBtn = e.target.closest('button[data-action="open-inspection"]');
+        if (openInspectionBtn) {
+            e.stopPropagation(); // 카드 클릭이 중복 발생하지 않도록 차단
+            renderTodayInspectionList();
+            if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
+            if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
+            return;
+        }
+
+        // 💡 [신규 추가] '전량검수 창 열기' 버튼 클릭 처리
+        const openTotalInspectionBtn = e.target.closest('button[data-action="open-total-inspection"]');
+        if (openTotalInspectionBtn) {
+            e.stopPropagation();
+            if (DOM.totalInspModal) DOM.totalInspModal.classList.remove('hidden');
+            if (DOM.totalInspProductName) DOM.totalInspProductName.focus();
+            return;
+        }
+
         // --- 근태 기록 수정 (리스트 카드 내 수정) ---
         const editLeaveCard = e.target.closest('[data-action="edit-leave-record"]');
         if (editLeaveCard) {
@@ -305,16 +323,7 @@ export function setupMainBoardListeners() {
                 if (DOM.taskSelectModal) DOM.taskSelectModal.classList.remove('hidden');
                 return;
             } else if (groupId && task) {
-                if (task === '샘플검수') {
-                    renderTodayInspectionList();
-                    if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
-                    if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
-                    return;
-                } else if (task === '전량검수') {
-                    if (DOM.totalInspModal) DOM.totalInspModal.classList.remove('hidden');
-                    if (DOM.totalInspProductName) DOM.totalInspProductName.focus();
-                    return;
-                }
+                // 💡 [수정됨] 예외 규칙을 삭제하여 모든 업무 카드의 여백 클릭 시 '인원 추가'가 열리도록 통일했습니다.
                 State.context.selectedTaskForStart = task;
                 State.context.selectedGroupForAdd = groupId;
                 State.context.tempSelectedMembers = [];
