@@ -581,16 +581,20 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 const isRecPaused = rec.status === 'paused';
                 const pauseMin = calcTotalPauseMinutes(rec.pauses);
-                const memberPauseText = pauseMin > 0 ? `<span class="text-[10px] text-gray-400 ml-1">(휴:${formatDuration(pauseMin)})</span>` : '';
+                const memberPauseText = pauseMin > 0 ? `<span class="text-[10px] text-gray-400 dark:text-gray-500 ml-1">(휴:${formatDuration(pauseMin)})</span>` : '';
 
                 membersHtml += `
                     <div class="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-gray-800 border ${isRecPaused ? 'border-yellow-200 dark:border-yellow-700' : 'border-gray-100 dark:border-gray-700'} shadow-sm hover:border-blue-300 dark:hover:border-blue-500 transition-colors member-row">
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <div class="w-2 h-2 shrink-0 rounded-full ${isRecPaused ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}"></div>
-                            <span class="font-bold text-gray-800 dark:text-gray-200 text-sm truncate" title="${rec.member}">${rec.member}</span>
-                            <span class="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">(${formatTimeTo24H(rec.startTime)})${memberPauseText}</span>
+                        <div class="flex items-start gap-2 overflow-hidden flex-1">
+                            <div class="w-2 h-2 shrink-0 rounded-full ${isRecPaused ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'} mt-1.5"></div>
+                            <div class="flex flex-col min-w-0">
+                                <span class="font-bold text-gray-800 dark:text-gray-200 text-sm truncate" title="${rec.member}">${rec.member}</span>
+                                <span class="text-[10px] text-gray-400 dark:text-gray-500 truncate">
+                                    (${formatTimeTo24H(rec.startTime)})${memberPauseText}
+                                </span>
+                            </div>
                         </div>
-                        <div class="flex gap-1 shrink-0 member-actions">
+                        <div class="flex gap-1 shrink-0 member-actions ml-2">
                             ${isRecPaused 
                                 ? `<button data-action="resume-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-md bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-800/50 transition" title="재개"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg></button>`
                                 : `<button data-action="pause-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-md bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-800/50 transition" title="정지"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg></button>`
