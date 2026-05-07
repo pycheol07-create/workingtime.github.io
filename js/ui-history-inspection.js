@@ -6,9 +6,12 @@ import { getWeekOfYear } from './utils.js';
 // 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
 
-// ⭐ [신규] 검수 유형 필터 상태 (all / sample / total)
+// 검수 유형 필터 상태 (all / sample / total)
 export let currentInspTypeFilter = 'all';
 export const setInspTypeFilter = (val) => { currentInspTypeFilter = val; };
+
+// ⭐ [에러 해결!] ui-history.js 에서의 import 에러 방지용 빈 함수 복구
+export const renderInspectionLogTable = (logs, productName) => {};
 
 const getSortIcon = (key) => {
     if (sortState.key !== key) return '<span class="text-gray-300 text-[10px] ml-1 opacity-50">↕</span>';
@@ -72,7 +75,6 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
 
-    // ⭐ [신규] 유형 필터에 맞춰 전체 dateList와 내부 데이터 필터링
     let filteredDateList = [];
     dateList.forEach(d => {
         const fList = d.data.filter(item => {
@@ -137,7 +139,6 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                 ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">완료</span>`
                 : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
             
-            // ⭐ [신규] 리스트 뷰에서의 검수 유형 배지
             const typeBadge = item.inspectionType === 'total' 
                 ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
                 : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
@@ -216,7 +217,6 @@ export const renderInspectionHistoryTable = (historyData) => {
     const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
 
     let filteredData = historyData.filter(item => {
-        // 검색어 필터 로직
         const matchId = item.id.toLowerCase().includes(searchTerm);
         let matchLog = false;
         const matchSupplierName = item.lastSupplierName && item.lastSupplierName.toLowerCase().includes(searchTerm);
@@ -230,7 +230,6 @@ export const renderInspectionHistoryTable = (historyData) => {
 
         if (!matchId && !matchSupplierName && !matchLog) return false;
 
-        // ⭐ [신규] 검수 유형 필터 적용 (해당 유형의 로그가 하나라도 있는지 검사)
         if (currentInspTypeFilter !== 'all') {
             const hasMatchingLog = item.logs && item.logs.some(log => {
                 const type = log.inspectionType === 'total' ? 'total' : 'sample';
@@ -337,7 +336,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const colspan = targetTr.children.length; 
     const isQcReport = targetTr.dataset.isQcReport === 'true';
 
-    // ⭐ [신규] 공통적으로 검수 유형 필터링 먼저 적용
     let displayLogs = logs.filter(log => {
         const type = log.inspectionType === 'total' ? 'total' : 'sample';
         return currentInspTypeFilter === 'all' || type === currentInspTypeFilter;
@@ -454,7 +452,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                     : item.status === '사전메모' ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-800">사전메모</span>`
                     : `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800">불량</span>`;
 
-                // ⭐ [신규] 상세 펼침뷰에서의 검수 유형 배지 추가
                 const typeBadge = item.inspectionType === 'total' 
                     ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
                     : `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
@@ -541,7 +538,6 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
     const weeks = new Set();
     const months = new Set();
     
-    // ⭐ [신규] 필터링 조건에 부합하는 로그가 있는 기간만 추출
     historyData.forEach(product => {
         if (product.logs && Array.isArray(product.logs)) {
             product.logs.forEach(log => {
@@ -577,7 +573,6 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
             product.logs.forEach(log => {
                 if (!log.date) return;
                 
-                // ⭐ [신규] 유형 필터 적용
                 const type = log.inspectionType === 'total' ? 'total' : 'sample';
                 if (currentInspTypeFilter !== 'all' && type !== currentInspTypeFilter) return;
 
