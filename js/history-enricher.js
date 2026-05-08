@@ -14,8 +14,9 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
         return historyData;
     }
 
+    // 🟢 1. '외근', '재택근무' 등 누락된 근태 항목을 모두 통과하도록 조건 완화
     const persistentLeaves = leaves.filter(
-        entry => entry.type === '연차' || entry.type === '출장' || entry.type === '결근' || entry.type === '매장근무'
+        entry => entry.startDate || ['연차', '출장', '결근', '매장근무', '외근', '재택근무', '휴직', '공가'].includes(entry.type)
     );
 
     if (persistentLeaves.length === 0) return historyData;
@@ -29,7 +30,7 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
             : (day.onLeaveMembers ? Object.values(day.onLeaveMembers) : []);
 
         dayLeaves.forEach(entry => {
-            if (entry.startDate || entry.type === '연차' || entry.type === '출장' || entry.type === '결근' || entry.type === '매장근무') {
+            if (entry.startDate || ['연차', '출장', '결근', '매장근무', '외근', '재택근무', '휴직'].includes(entry.type)) {
                 entries.add(`${entry.member}::${entry.type}`);
             }
         });
@@ -47,12 +48,20 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
         const endDate = new Date(Date.UTC(eY, eM - 1, eD));
 
         for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
-            // ✅ [신규] 병합 과정에서도 주말(0:일요일, 6:토요일)은 완전히 무시
+            // 주말(일요일, 토요일)은 무시
             const dayOfWeek = d.getUTCDay();
             if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
             const dateKey = d.toISOString().slice(0, 10);
-            const dayData = historyData.find(day => day.id === dateKey);
+            let dayData = historyData.find(day => day.id === dateKey);
+            
+            // 🟢 2. 업무 기록(dayData)이 없는 날이더라도, 연차/매장근무 기록을 띄우기 위해 빈 날짜 객체를 강제 생성
+            if (!dayData) {
+                dayData = { id: dateKey, onLeaveMembers: [] };
+                historyData.push(dayData);
+                existingEntriesMap.set(dateKey, new Set());
+            }
+
             const existingEntries = existingEntriesMap.get(dateKey);
 
             if (dayData && existingEntries) {
@@ -62,7 +71,7 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
                         dayData.onLeaveMembers = [];
                     }
                     if (!Array.isArray(dayData.onLeaveMembers)) {
-                        dayData.onLeaveMembers = dayData.onLeaveMembers ? Object.values(dayData.onLeaveMembers) : [];
+                        dayData.onLeaveMembers = Object.values(dayData.onLeaveMembers);
                     }
                     
                     dayData.onLeaveMembers.push({ ...pLeave });
@@ -71,6 +80,9 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
             }
         }
     });
+
+    // 🟢 3. 새롭게 추가된 날짜들이 달력이나 리스트에서 꼬이지 않도록 날짜 최신순으로 다시 정렬
+    historyData.sort((a, b) => b.id.localeCompare(a.id));
 
     return historyData;
 }
