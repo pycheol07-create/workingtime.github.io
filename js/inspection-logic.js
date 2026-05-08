@@ -5,9 +5,7 @@ import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { updateDailyData } from './app-data.js'; 
 import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
-import { 
-    doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, increment, serverTimestamp, collection, getDocs 
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, increment, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ UI 렌더러 함수 임포트
 import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js';
@@ -19,13 +17,10 @@ let currentImageBase64 = null;
 let currentProductLogs = []; 
 let currentTodoIndex = -1;
 let editingLogIndex = -1; 
-let manualImageBase64 = null; // 수동 등록용 이미지 상태 변수 추가
+let manualImageBase64 = null;
 
-// 고유 입고(검수)일자 계산 헬퍼 함수 (사전등록 제외) - 검수일(date) 기준
 const getUniqueInboundCount = (logsArray) => {
-    const validDates = logsArray
-        .map(l => l.date) 
-        .filter(d => d && !d.includes('사전등록'));
+    const validDates = logsArray.map(l => l.date).filter(d => d && !d.includes('사전등록'));
     return new Set(validDates).size;
 };
 
@@ -50,16 +45,19 @@ export const initializeInspectionSession = async () => {
     if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
     const qtyInput = document.getElementById('insp-inbound-qty');
     if (qtyInput) qtyInput.value = '';
+    
+    // 🟢 샘플 검수 수량 초기화 (기본값 1)
+    const sampleQtyInput = document.getElementById('insp-sample-qty');
+    if (sampleQtyInput) sampleQtyInput.value = '1';
+
     const notesInput = document.getElementById('insp-notes');
     if (notesInput) notesInput.value = '';
     const thickInput = document.getElementById('insp-check-thickness');
     if (thickInput) thickInput.value = '';
     
-    // 출고 일자 초기화
     const packingDateInput = document.getElementById('insp-packing-date');
     if (packingDateInput) packingDateInput.value = '';
 
-    // 입고 일자 초기화 (기본 오늘 날짜 세팅)
     const inboundDateInput = document.getElementById('insp-inbound-date');
     if (inboundDateInput) {
         inboundDateInput.value = getTodayDateString();
@@ -115,6 +113,9 @@ export const deleteInspectionList = async () => {
         if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
         const qtyInput = document.getElementById('insp-inbound-qty');
         if (qtyInput) qtyInput.value = '';
+        const sampleQtyInput = document.getElementById('insp-sample-qty');
+        if (sampleQtyInput) sampleQtyInput.value = '1';
+
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
         if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -'; 
@@ -429,11 +430,9 @@ export const selectTodoItem = async (index) => {
     } else {
         resetEditingState();
         
-        // 출고 일자 셋팅
         const packingDateInput = document.getElementById('insp-packing-date');
         if (packingDateInput) packingDateInput.value = item.packingDate || '';
 
-        // 입고 일자 셋팅 (기본은 오늘 날짜, 또는 수동 입력 유지)
         const inboundDateInput = document.getElementById('insp-inbound-date');
         if (inboundDateInput) {
             inboundDateInput.value = item.inboundDate || getTodayDateString(); 
@@ -441,6 +440,11 @@ export const selectTodoItem = async (index) => {
 
         const qtyInput = document.getElementById('insp-inbound-qty');
         if (qtyInput) qtyInput.value = item.qty > 0 ? item.qty : '';
+        
+        // 🟢 샘플 수량 초기화
+        const sampleQtyInput = document.getElementById('insp-sample-qty');
+        if (sampleQtyInput) sampleQtyInput.value = '1';
+
         const notesInput = document.getElementById('insp-notes');
         if (notesInput) notesInput.value = '';
     }
@@ -468,11 +472,16 @@ const loadCompletedInspectionData = async (item) => {
 
                 const qtyInput = document.getElementById('insp-inbound-qty');
                 if (qtyInput) qtyInput.value = log.inboundQty || 0;
+                
+                // 🟢 샘플 수량 불러오기
+                const sampleQtyInput = document.getElementById('insp-sample-qty');
+                if (sampleQtyInput) sampleQtyInput.value = log.sampleQty || 1;
+
                 const notesInput = document.getElementById('insp-notes');
                 if (notesInput) notesInput.value = log.note || '';
 
                 const packingDateInput = document.getElementById('insp-packing-date');
-                if (packingDateInput) packingDateInput.value = log.packingDate || log.inboundDate || ''; // 하위 호환성 위해 inboundDate 백업
+                if (packingDateInput) packingDateInput.value = log.packingDate || log.inboundDate || ''; 
 
                 const inboundDateInput = document.getElementById('insp-inbound-date');
                 if (inboundDateInput) inboundDateInput.value = log.inboundDate || ''; 
@@ -600,7 +609,6 @@ export const clearImageState = () => {
     if (DOM.inspImageInput) DOM.inspImageInput.value = '';
 };
 
-// 수동 추가 모달용 이미지 처리
 export const handleManualImageSelect = (file) => {
     if (!file) return;
     const reader = new FileReader();
@@ -775,7 +783,6 @@ export const searchProductHistory = async () => {
 };
 
 export const saveInspectionAndNext = async () => {
-    // DOM 요소를 직접 찾아 안전하게 값 추출
     const getVal = (id) => {
         const el = document.getElementById(id);
         return el ? el.value : '';
@@ -810,6 +817,10 @@ export const saveInspectionAndNext = async () => {
     const inboundDate = getVal('insp-inbound-date') || getTodayDateString();
     const packingDate = getVal('insp-packing-date') || '-';
     const inboundQty = getVal('insp-inbound-qty');
+    
+    // 🟢 샘플 수량 추출
+    const sampleQty = getVal('insp-sample-qty') || 1;
+    
     const note = getVal('insp-notes');
 
     let currentItem = null;
@@ -838,12 +849,13 @@ export const saveInspectionAndNext = async () => {
     const nowTime = getCurrentTime();
 
     const inspectionRecord = {
-        date: today, // 검수일
+        date: today, 
         time: nowTime,
         inspector: State.appState.currentUser || 'Unknown',
-        inboundDate: inboundDate, // 직접 입력한 입고일
-        packingDate: packingDate, // 엑셀 출고일
+        inboundDate: inboundDate, 
+        packingDate: packingDate, 
         inboundQty: Number(inboundQty) || 0,
+        sampleQty: Number(sampleQty) || 1, // 🟢 샘플 수량 저장
         option: currentItem ? currentItem.option : '-',
         code: currentItem ? currentItem.code : '-',
         supplierName: currentItem ? currentItem.supplierName : '-', 
@@ -911,7 +923,7 @@ export const saveInspectionAndNext = async () => {
             
             todayInspectionList.unshift({
                 productName,
-                inboundDate: packingDate !== '-' ? packingDate : inboundDate, // 화면 표시용 백업
+                inboundDate: packingDate !== '-' ? packingDate : inboundDate, 
                 status,
                 defects: defectsFound,
                 note,
@@ -976,6 +988,10 @@ const resetInspectionForm = (clearProductName = false) => {
     
     const qtyInput = document.getElementById('insp-inbound-qty');
     if (qtyInput) qtyInput.value = '';
+    
+    // 🟢 폼 초기화 시 샘플 수량도 초기화
+    const sampleQtyInput = document.getElementById('insp-sample-qty');
+    if (sampleQtyInput) sampleQtyInput.value = '1';
     
     const notesInput = document.getElementById('insp-notes');
     if (notesInput) notesInput.value = '';
@@ -1109,6 +1125,10 @@ export const prepareEditInspectionLog = (productName, index) => {
     if (getEl('edit-insp-packing-no')) getEl('edit-insp-packing-no').value = log.packingDate || '';
     if (getEl('edit-insp-inbound-date')) getEl('edit-insp-inbound-date').value = log.inboundDate || '';
     if (getEl('edit-insp-inbound-qty')) getEl('edit-insp-inbound-qty').value = log.inboundQty || 0;
+    
+    // 🟢 수정 모달에 샘플 수량 세팅
+    if (getEl('edit-insp-sample-qty')) getEl('edit-insp-sample-qty').value = log.sampleQty || 1;
+
     if (getEl('edit-insp-notes')) getEl('edit-insp-notes').value = log.note || '';
     if (getEl('edit-insp-log-index')) getEl('edit-insp-log-index').value = index;
     if (getEl('edit-insp-supplier-name')) getEl('edit-insp-supplier-name').value = log.supplierName || '';
@@ -1179,6 +1199,7 @@ export const updateInspectionLog = async () => {
         packingDate: getEditVal('edit-insp-packing-no'), 
         inboundDate: getEditVal('edit-insp-inbound-date'), 
         inboundQty: Number(getEditVal('edit-insp-inbound-qty')) || 0,
+        sampleQty: Number(getEditVal('edit-insp-sample-qty')) || 1, // 🟢 업데이트에 샘플 수량 포함
         supplierName: getEditVal('edit-insp-supplier-name'), 
         checklist: checklist,
         defects: defectsFound,
@@ -1286,7 +1307,6 @@ export const deleteProductHistory = async (productName) => {
     }
 };
 
-// 완전히 변경된 수동 검수 상세 등록 및 즉시 저장 함수
 export const savePreInspectionNote = async () => {
     const getVal = (id) => {
         const el = document.getElementById(id);
@@ -1299,7 +1319,6 @@ export const savePreInspectionNote = async () => {
         return false;
     }
     
-    // 파일명 등에서 에러 유발 가능성 있는 슬래시 처리
     productName = productName.replace(/\//g, '-'); 
 
     const checklist = {
@@ -1349,7 +1368,6 @@ export const savePreInspectionNote = async () => {
     const status = defectsFound.length > 0 ? '불량' : '정상';
     const nowTime = getCurrentTime();
 
-    // 완료된 검수 기록 객체 생성
     const inspectionRecord = {
         date: today,
         time: nowTime,
@@ -1357,6 +1375,7 @@ export const savePreInspectionNote = async () => {
         inboundDate: inboundDate,
         packingDate: packingDate,
         inboundQty: Number(inboundQty) || 0,
+        sampleQty: 1, // 수동 등록의 경우 기본값 1 적용
         option: option,
         code: code,
         supplierName: supplierName, 
@@ -1397,10 +1416,8 @@ export const savePreInspectionNote = async () => {
             updates.defectSummary = arrayUnion(defectSummaryStr);
         }
 
-        // 데이터베이스에 검수 완료 이력으로 즉시 병합 저장
         await setDoc(docRef, updates, { merge: true });
         
-        // 폼 초기화
         const getEl = (id) => document.getElementById(id);
         if (getEl('manual-insp-product-name')) getEl('manual-insp-product-name').value = '';
         if (getEl('manual-insp-code')) getEl('manual-insp-code').value = '';
@@ -1416,7 +1433,6 @@ export const savePreInspectionNote = async () => {
 
         clearManualImageState();
 
-        // 모달 닫기
         const preModal = document.getElementById('pre-register-inspection-modal');
         if (preModal) preModal.classList.add('hidden');
         

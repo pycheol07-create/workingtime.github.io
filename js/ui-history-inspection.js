@@ -275,7 +275,7 @@ export const renderInspectionHistoryTable = (historyData) => {
                         </th>
                         <th scope="col" class="px-6 py-3 bg-gray-100">공급처 상품명</th>
                         <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none bg-gray-100" data-sort-key="totalInbound">
-                            <div class="flex items-center justify-center">총 입고(검수) ${getSortIcon('totalInbound')}</div>
+                            <div class="flex items-center justify-center">총 입고(검수) 횟수 ${getSortIcon('totalInbound')}</div>
                         </th>
                         <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none bg-gray-100" data-sort-key="lastInspectionDate">
                             <div class="flex items-center justify-center">최근 검수일 ${getSortIcon('lastInspectionDate')}</div>
@@ -370,7 +370,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
 
         displayLogs = displayLogs.filter(log => {
             if (pVal && log.date) {
-                // ⭐ [신규] 연간, 월간, 주간 필터링 모두 지원
                 const logYear = log.date.substring(0, 4);
                 const logMonth = log.date.substring(0, 7);
                 const logWeek = getWeekOfYear(new Date(log.date));
@@ -484,12 +483,19 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                         </div>`;
                 }
 
+                // 🟢 상세 로그 창에서 입고 수량과 샘플 수량을 나눠서 표기
+                const inboundQtyDisplay = item.inboundQty ? item.inboundQty.toLocaleString() + '개' : '-';
+                const sampleQtyDisplay = item.sampleQty || 1;
+
                 return `
                     <tr class="border-b border-indigo-100/50 hover:bg-white transition bg-white/40">
                         <td class="px-4 py-3 text-center">${typeBadge}</td>
                         <td class="px-4 py-3 text-[11px] font-mono text-gray-500 whitespace-nowrap">${item.date}<br>${item.time}</td>
                         <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.inboundDate || '-'}</td>
-                        <td class="px-4 py-3 text-xs font-bold text-gray-700 text-center">${item.inboundQty ? item.inboundQty.toLocaleString() : '-'}</td>
+                        <td class="px-4 py-3 text-center">
+                            <div class="text-xs font-bold text-gray-700">${inboundQtyDisplay}</div>
+                            <div class="text-[10px] text-blue-600 font-bold">(샘플: ${sampleQtyDisplay}개)</div>
+                        </td>
                         <td class="px-4 py-3 text-center">${statusBadge}</td>
                         <td class="px-4 py-3 max-w-[300px] leading-tight">${checklistStr.join('') || '-'}</td>
                         <td class="px-4 py-3 text-xs text-gray-700 break-words max-w-[250px]">${fullNote}</td>
@@ -520,7 +526,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                                 <th class="px-4 py-2 font-bold whitespace-nowrap w-[6%] bg-indigo-100 text-center">유형</th>
                                 <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">입고(검수)일시</th>
                                 <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">출고일자</th>
-                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[5%] bg-indigo-100">수량</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%] bg-indigo-100">수량(입고/샘플)</th>
                                 <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%] bg-indigo-100">상태</th>
                                 <th class="px-4 py-2 font-bold w-[30%] bg-indigo-100">검수항목 (체크리스트)</th>
                                 <th class="px-4 py-2 font-bold w-[20%] bg-indigo-100">특이사항/메모</th>
@@ -552,7 +558,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
 
     const weeks = new Set();
     const months = new Set();
-    const years = new Set(); // ⭐ [신규] 연간 세트 추가
+    const years = new Set(); 
     
     historyData.forEach(product => {
         if (product.logs && Array.isArray(product.logs)) {
@@ -561,7 +567,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                 if (currentInspTypeFilter !== 'all' && type !== currentInspTypeFilter) return;
 
                 if (log.date) {
-                    years.add(log.date.substring(0, 4)); // ⭐ [신규] 연도 추출
+                    years.add(log.date.substring(0, 4)); 
                     months.add(log.date.substring(0, 7)); 
                     weeks.add(getWeekOfYear(new Date(log.date))); 
                 }
@@ -569,7 +575,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         }
     });
 
-    const yearOptions = Array.from(years).sort().reverse(); // ⭐ [신규] 연도 정렬
+    const yearOptions = Array.from(years).sort().reverse(); 
     const monthOptions = Array.from(months).sort().reverse();
     const weekOptions = Array.from(weeks).sort().reverse();
 
@@ -579,7 +585,8 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         else selectedPeriod = weekOptions[0];
     }
 
-    let totalInspectedQty = 0;
+    let totalInspectedQty = 0; // 🟢 총 입고 수량 누적용
+    let totalSampledQty = 0;   // 🟢 총 샘플 검수 수량 누적용
     let totalDefectQty = 0;
     let totalInspectionCount = 0;
     let totalDefectCount = 0;
@@ -596,11 +603,10 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                 const type = log.inspectionType === 'total' ? 'total' : 'sample';
                 if (currentInspTypeFilter !== 'all' && type !== currentInspTypeFilter) return;
 
-                const logYear = log.date.substring(0, 4); // ⭐ [신규]
+                const logYear = log.date.substring(0, 4); 
                 const logMonth = log.date.substring(0, 7);
                 const logWeek = getWeekOfYear(new Date(log.date));
 
-                // ⭐ [신규] 연간 조건 매칭 포함
                 const isMatch = (periodType === 'year' && logYear === selectedPeriod) || 
                                 (periodType === 'month' && logMonth === selectedPeriod) || 
                                 (periodType === 'week' && logWeek === selectedPeriod);
@@ -609,16 +615,20 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                     inspectedProducts.add(pName);
                     
                     if (!productStats[pName]) {
-                        productStats[pName] = { totalQty: 0, defectQty: 0, inspCount: 0, defectCount: 0, defectsList: [] };
+                        productStats[pName] = { totalQty: 0, sampleQty: 0, defectQty: 0, inspCount: 0, defectCount: 0, defectsList: [] };
                     }
 
-                    const qty = Number(log.inboundQty) || Number(log.qty) || 1; 
+                    // 🟢 입고 수량과 샘플 수량 별도 추출
+                    const qty = Number(log.inboundQty) || Number(log.qty) || 0; 
+                    const sampleQty = Number(log.sampleQty) || 1;
                     
                     productStats[pName].inspCount += 1;
                     totalInspectionCount += 1;
                     
                     productStats[pName].totalQty += qty;
+                    productStats[pName].sampleQty += sampleQty;
                     totalInspectedQty += qty;
+                    totalSampledQty += sampleQty;
 
                     let isDefect = false;
                     const defectReasons = [];
@@ -648,7 +658,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                         productStats[pName].defectCount += 1;
                         totalDefectCount += 1;
                         
-                        productStats[pName].defectQty += qty;
+                        productStats[pName].defectQty += qty; // 불량은 해당 입고건(qty) 전체를 기준으로 잡습니다. 필요시 sampleQty로 변경 가능.
                         totalDefectQty += qty;
 
                         if (defectReasons.length > 0) {
@@ -670,6 +680,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         .map(([name, stats]) => ({
             name,
             totalQty: stats.totalQty,
+            sampleQty: stats.sampleQty, // 🟢 샘플 수량 전달
             defectQty: stats.defectQty,
             qtyRate: stats.totalQty > 0 ? ((stats.defectQty / stats.totalQty) * 100).toFixed(1) : 0,
             inspCount: stats.inspCount,
@@ -688,7 +699,8 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">통계 기준</label>
                     <select id="qc-period-type" class="border border-gray-300 rounded p-1.5 text-sm focus:ring-indigo-500">
-                        <option value="year" ${periodType === 'year' ? 'selected' : ''}>연간 (Yearly)</option> <option value="month" ${periodType === 'month' ? 'selected' : ''}>월간 (Monthly)</option>
+                        <option value="year" ${periodType === 'year' ? 'selected' : ''}>연간 (Yearly)</option> 
+                        <option value="month" ${periodType === 'month' ? 'selected' : ''}>월간 (Monthly)</option>
                         <option value="week" ${periodType === 'week' ? 'selected' : ''}>주간 (Weekly)</option>
                     </select>
                 </div>
@@ -712,8 +724,10 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
             
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 shrink-0">
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500">
-                    <div class="text-xs text-gray-500 mb-1">총 검수 진행 횟수</div>
-                    <div class="text-2xl font-bold text-gray-800">${totalInspectionCount.toLocaleString()} <span class="text-sm font-normal text-gray-500">회</span></div>
+                    <div class="text-xs text-gray-500 mb-1">총 검수 대상(입고) / 실제(샘플)</div>
+                    <div class="text-xl font-bold text-gray-800">
+                        ${totalInspectedQty.toLocaleString()}<span class="text-sm font-normal text-gray-500">개</span> <span class="text-gray-300 mx-1">/</span> <span class="text-blue-600">${totalSampledQty.toLocaleString()}</span><span class="text-sm font-normal text-gray-500">개</span>
+                    </div>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
                     <div class="text-xs text-gray-500 mb-1">검수 상품 종류</div>
@@ -749,7 +763,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                                 <th class="px-2 py-2 text-center border-b border-l bg-gray-100/50">총 횟수</th>
                                 <th class="px-2 py-2 text-center border-b bg-gray-100/50">불량 횟수</th>
                                 <th class="px-2 py-2 text-center border-b bg-gray-100/50">횟수 불량률</th>
-                                <th class="px-2 py-2 text-center border-b border-l">총 수량</th>
+                                <th class="px-2 py-2 text-center border-b border-l">입고 / 샘플 수량</th>
                                 <th class="px-2 py-2 text-center border-b">불량 수량</th>
                                 <th class="px-2 py-2 text-center border-b">수량 불량률</th>
                                 <th class="px-4 py-2 border-b border-l"></th>
@@ -778,7 +792,10 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                                         </span>
                                     </td>
 
-                                    <td class="px-2 py-3 text-center text-gray-500 border-l group-hover:bg-transparent">${p.totalQty}개</td>
+                                    <td class="px-2 py-3 text-center text-gray-500 border-l group-hover:bg-transparent">
+                                        <div class="text-xs font-bold text-gray-700">${p.totalQty.toLocaleString()}개</div>
+                                        <div class="text-[10px] text-blue-600 font-bold">(샘플: ${p.sampleQty.toLocaleString()}개)</div>
+                                    </td>
                                     <td class="px-2 py-3 text-center text-orange-600 group-hover:bg-transparent">${p.defectQty}개</td>
                                     <td class="px-2 py-3 text-center group-hover:bg-transparent">
                                         <span class="text-[11px] text-gray-500">${p.qtyRate}%</span>
