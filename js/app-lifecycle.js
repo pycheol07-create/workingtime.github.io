@@ -1,7 +1,7 @@
 // === js/app-lifecycle.js ===
 import * as State from './state.js';
 import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js';
-import { saveProgress, saveLeaveSchedule } from './history-data-manager.js';
+import { saveProgress } from './history-data-manager.js';
 import { saveStateToFirestore } from './app-data.js';
 
 export const updateElapsedTimes = async () => {
