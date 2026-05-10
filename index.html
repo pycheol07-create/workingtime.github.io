@@ -291,7 +291,14 @@
     <div id="modals-container-simulation"></div>
     <div id="modals-container-confirm"></div>
     <div id="modals-container-history"></div>
-    <div id="modals-container-form"></div>
+    
+    <div id="modals-container-form-attendance"></div>
+    <div id="modals-container-form-record"></div>
+    <div id="modals-container-form-quantity"></div>
+    <div id="modals-container-form-team"></div>
+    <div id="modals-container-form-inspection"></div>
+    <div id="modals-container-form-total-inspection"></div>
+
     <div id="modals-container-admin-todo"></div>
     <div id="modals-container-admin-todo-alert"></div>
     <div id="modals-container-weekend"></div>
@@ -353,7 +360,15 @@
                 loadComponent('components/modals-simulation.html', 'modals-container-simulation'),
                 loadComponent('components/modals-confirm.html', 'modals-container-confirm'),
                 loadComponent('components/modals-history.html', 'modals-container-history'),
-                loadComponent('components/modals-form.html', 'modals-container-form'),
+                
+                // 분리된 모달 파일들 로드
+                loadComponent('components/modals-form-attendance.html', 'modals-container-form-attendance'),
+                loadComponent('components/modals-form-record.html', 'modals-container-form-record'),
+                loadComponent('components/modals-form-quantity.html', 'modals-container-form-quantity'),
+                loadComponent('components/modals-form-team.html', 'modals-container-form-team'),
+                loadComponent('components/modals-form-inspection.html', 'modals-container-form-inspection'),
+                loadComponent('components/modals-form-total-inspection.html', 'modals-container-form-total-inspection'),
+                
                 loadComponent('components/modals-admin-todo.html', 'modals-container-admin-todo'),
                 loadComponent('components/modals-admin-todo-alert.html', 'modals-container-admin-todo-alert'),
                 loadComponent('components/modals-weekend.html', 'modals-container-weekend')

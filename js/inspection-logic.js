@@ -1,30 +1,24 @@
 // === js/inspection-logic.js ===
-// 설명: 검수 이력 조회, 저장, 리스트 관리, 수정/삭제(상세/전체), 스캔, 엑셀, 이미지 처리 등 핵심 로직
-
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { updateDailyData } from './app-data.js'; 
 import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, increment, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ UI 렌더러 함수 임포트
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js';
+// 분리된 모듈 가져오기
+import { currentImageBase64, clearImageState, setCurrentImageBase64 } from './inspection-media.js';
 
-// 로컬 상태 변수
-let todayInspectionList = [];
-let html5QrCode = null;
-let currentImageBase64 = null;
-let currentProductLogs = []; 
-let currentTodoIndex = -1;
-let editingLogIndex = -1; 
-let manualImageBase64 = null;
+// 상태 변수
+export let todayInspectionList = [];
+export let currentTodoIndex = -1;
+export let editingLogIndex = -1;
 
-const getUniqueInboundCount = (logsArray) => {
+export const getUniqueInboundCount = (logsArray) => {
     const validDates = logsArray.map(l => l.date).filter(d => d && !d.includes('사전등록'));
     return new Set(validDates).size;
 };
 
-const resetEditingState = () => {
+export const resetEditingState = () => {
     editingLogIndex = -1;
     const btn = document.getElementById('insp-save-next-btn');
     if (btn) {
@@ -38,15 +32,13 @@ const resetEditingState = () => {
 export const initializeInspectionSession = async () => {
     todayInspectionList = [];
     currentTodoIndex = -1;
-    currentImageBase64 = null;
-    manualImageBase64 = null;
+    setCurrentImageBase64(null);
     resetEditingState(); 
     
     if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
     const qtyInput = document.getElementById('insp-inbound-qty');
     if (qtyInput) qtyInput.value = '';
     
-    // 🟢 샘플 검수 수량 초기화 (기본값 1)
     const sampleQtyInput = document.getElementById('insp-sample-qty');
     if (sampleQtyInput) sampleQtyInput.value = '1';
 
@@ -156,130 +148,6 @@ export const deleteHistoryInspectionList = async (dateKey) => {
         showToast("리스트 삭제 중 오류가 발생했습니다.", true);
         return false;
     }
-};
-
-export const handleExcelUpload = (file) => {
-    let packingDate = getTodayDateString();
-    const parentMatch = file.name.match(/\((\d{6})\)/);
-    const fullDateMatch = file.name.match(/20(\d{2})(\d{2})(\d{2})/);
-    const shortDateMatch = file.name.match(/(\d{2})(\d{2})(\d{2})/);
-
-    if (parentMatch) {
-        const y = parentMatch[1].substring(0, 2);
-        const m = parentMatch[1].substring(2, 4);
-        const d = parentMatch[1].substring(4, 6);
-        packingDate = `20${y}-${m}-${d}`;
-    } else if (fullDateMatch) {
-        packingDate = `20${fullDateMatch[1]}-${fullDateMatch[2]}-${fullDateMatch[3]}`;
-    } else if (shortDateMatch) {
-        packingDate = `20${shortDateMatch[1]}-${shortDateMatch[2]}-${shortDateMatch[3]}`;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            
-            const getCleanKey = (name, option) => {
-                const cleanName = String(name || '').replace(/\(매칭금지-제작샘플\)/g, '').replace(/\s/g, '').trim().toLowerCase();
-                const cleanOption = String(option || '').replace(/촬샘-/g, '').replace(/\s/g, '').trim().toLowerCase();
-                return cleanName + cleanOption;
-            };
-
-            const sampleMap = new Map();
-            if (workbook.SheetNames.length > 1) {
-                const sheet2Name = workbook.SheetNames[1];
-                const sheet2 = workbook.Sheets[sheet2Name];
-                const json2 = XLSX.utils.sheet_to_json(sheet2, { header: 1 });
-                for (let i = 1; i < json2.length; i++) {
-                    const row = json2[i];
-                    if (row) {
-                        const name = row[1]; 
-                        const option = row[2];
-                        const location = String(row[6] || '').trim();
-                        if (name && location) {
-                            const key = getCleanKey(name, option);
-                            sampleMap.set(key, location);
-                        }
-                    }
-                }
-            }
-
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-            const processedList = [];
-            const uniqueKeyMap = new Map(); 
-
-            if (jsonData.length > 1) {
-                for (let i = 1; i < jsonData.length; i++) {
-                    const row = jsonData[i];
-                    if (row && row.length > 1) { 
-                        const code = String(row[0] || '').trim();
-                        const name = String(row[1] || '').trim();
-                        const option = String(row[2] || '').trim(); 
-                        const qty = Number(row[3]) || 0;
-                        const thickness = String(row[4] || '');
-                        const supplierName = String(row[5] || '').trim();
-                        const location = String(row[6] || '').trim();
-                        
-                        if (code || name) {
-                            let color = option.replace(/\[|\]/g, '').split('-')[0].trim();
-                            if (!color) color = 'N/A';
-                            const keyColor = color.replace(/\s/g, '').toLowerCase();
-                            const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase();
-                            const uniqueKey = `${keySupplierName}::${keyColor}`; 
-
-                            let sampleLocation = null;
-                            const matchKey = getCleanKey(name, option);
-                            if (sampleMap.has(matchKey)) {
-                                sampleLocation = sampleMap.get(matchKey);
-                            }
-
-                            if (!uniqueKeyMap.has(uniqueKey)) {
-                                uniqueKeyMap.set(uniqueKey, true); 
-                                processedList.push({
-                                    code, name, option, qty, thickness, supplierName, location,
-                                    sampleLocation: sampleLocation,
-                                    status: '대기',
-                                    packingDate: packingDate 
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (processedList.length > 0) {
-                const existingList = State.appState.inspectionList || [];
-                const mergedList = [...existingList];
-                let addedCount = 0;
-
-                processedList.forEach(newItem => {
-                    const isDuplicate = existingList.some(ex => ex.name === newItem.name && ex.option === newItem.option);
-                    if (!isDuplicate) {
-                        mergedList.push(newItem);
-                        addedCount++;
-                    }
-                });
-
-                await updateDailyData({ inspectionList: mergedList });
-                State.appState.inspectionList = mergedList;
-                
-                showToast(`기존 리스트에 ${addedCount}개의 새 항목이 추가되었습니다. (총 ${mergedList.length}개)`);
-                renderTodoList(); 
-                openInspectionListWindow();
-            } else {
-                showToast("유효한 데이터가 엑셀에 없습니다.", true);
-            }
-        } catch (err) {
-            console.error("Excel parse error:", err);
-            showToast("엑셀 파일 처리 중 오류가 발생했습니다.", true);
-        }
-    };
-    reader.readAsArrayBuffer(file);
 };
 
 export const openInspectionListWindow = () => {
@@ -441,7 +309,6 @@ export const selectTodoItem = async (index) => {
         const qtyInput = document.getElementById('insp-inbound-qty');
         if (qtyInput) qtyInput.value = item.qty > 0 ? item.qty : '';
         
-        // 🟢 샘플 수량 초기화
         const sampleQtyInput = document.getElementById('insp-sample-qty');
         if (sampleQtyInput) sampleQtyInput.value = '1';
 
@@ -450,7 +317,6 @@ export const selectTodoItem = async (index) => {
     }
     showToast(`'${item.name}' 선택됨`);
 };
-
 window.selectInspectionTodoItem = selectTodoItem;
 
 const loadCompletedInspectionData = async (item) => {
@@ -473,7 +339,6 @@ const loadCompletedInspectionData = async (item) => {
                 const qtyInput = document.getElementById('insp-inbound-qty');
                 if (qtyInput) qtyInput.value = log.inboundQty || 0;
                 
-                // 🟢 샘플 수량 불러오기
                 const sampleQtyInput = document.getElementById('insp-sample-qty');
                 if (sampleQtyInput) sampleQtyInput.value = log.sampleQty || 1;
 
@@ -507,7 +372,7 @@ const loadCompletedInspectionData = async (item) => {
                 setSelect('insp-check-dye', cl.dye);
 
                 if (log.image) {
-                    currentImageBase64 = log.image;
+                    setCurrentImageBase64(log.image);
                     if (DOM.inspImagePreviewBox) {
                         DOM.inspImagePreviewBox.classList.remove('hidden');
                         if (DOM.inspImagePreviewImg) DOM.inspImagePreviewImg.src = log.image;
@@ -535,125 +400,10 @@ const loadCompletedInspectionData = async (item) => {
     }
 };
 
-export const toggleScanner = () => {
-    if (DOM.inspScannerContainer.classList.contains('hidden')) {
-        DOM.inspScannerContainer.classList.remove('hidden');
-        startScanner();
-    } else {
-        stopScanner();
-        DOM.inspScannerContainer.classList.add('hidden');
-    }
-};
-
-const startScanner = () => {
-    if (html5QrCode) return; 
-    html5QrCode = new Html5Qrcode("reader");
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-    html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-    .catch(err => {
-        console.error("Error starting scanner", err);
-        showToast("카메라를 시작할 수 없습니다.", true);
-        if(DOM.inspScannerContainer) DOM.inspScannerContainer.classList.add('hidden');
-    });
-};
-
-const stopScanner = () => {
-    if (html5QrCode) {
-        html5QrCode.stop().then(() => {
-            html5QrCode.clear();
-            html5QrCode = null;
-        }).catch(err => console.error("Failed to stop scanner", err));
-    }
-};
-
-const onScanSuccess = (decodedText, decodedResult) => {
-    showToast(`바코드 인식: ${decodedText}`);
-    stopScanner(); 
-    if(DOM.inspScannerContainer) DOM.inspScannerContainer.classList.add('hidden');
-    if(DOM.inspProductNameInput) DOM.inspProductNameInput.value = decodedText;
-    searchProductHistory();
-};
-
-export const handleImageSelect = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 800;
-            let width = img.width;
-            let height = img.height;
-            if (width > MAX_WIDTH) {
-                height *= MAX_WIDTH / width;
-                width = MAX_WIDTH;
-            }
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            currentImageBase64 = canvas.toDataURL('image/jpeg', 0.7); 
-            if (DOM.inspImagePreviewBox) {
-                DOM.inspImagePreviewBox.classList.remove('hidden');
-                if (DOM.inspImagePreviewImg) DOM.inspImagePreviewImg.src = currentImageBase64;
-            }
-        };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-};
-
-export const clearImageState = () => {
-    currentImageBase64 = null;
-    if (DOM.inspImagePreviewBox) DOM.inspImagePreviewBox.classList.add('hidden');
-    if (DOM.inspImageInput) DOM.inspImageInput.value = '';
-};
-
-export const handleManualImageSelect = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 800;
-            let width = img.width;
-            let height = img.height;
-            if (width > MAX_WIDTH) {
-                height *= MAX_WIDTH / width;
-                width = MAX_WIDTH;
-            }
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            manualImageBase64 = canvas.toDataURL('image/jpeg', 0.7); 
-            
-            const previewContainer = document.getElementById('manual-insp-image-preview-container');
-            const previewImg = document.getElementById('manual-insp-image-preview');
-            if (previewContainer && previewImg) {
-                previewContainer.classList.remove('hidden');
-                previewImg.src = manualImageBase64;
-            }
-        };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-};
-
-export const clearManualImageState = () => {
-    manualImageBase64 = null;
-    const previewContainer = document.getElementById('manual-insp-image-preview-container');
-    const input = document.getElementById('manual-insp-image');
-    if (previewContainer) previewContainer.classList.add('hidden');
-    if (input) input.value = '';
-};
-
-
 export const searchProductHistory = async () => {
     let searchTerm = DOM.inspProductNameInput ? DOM.inspProductNameInput.value.trim() : document.getElementById('insp-product-name').value.trim();
     if (!searchTerm) {
-        showToast('상품명 또는 상품코드를 입력해주세요.', true);
+        showToast('상품명 또는 상품코문을 입력해주세요.', true);
         return;
     }
 
@@ -689,14 +439,10 @@ export const searchProductHistory = async () => {
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = `기준: ${matchedItem.thickness || '-'}`;
         
         const packingDateInput = document.getElementById('insp-packing-date');
-        if (packingDateInput) {
-            packingDateInput.value = matchedItem.packingDate || '';
-        }
+        if (packingDateInput) packingDateInput.value = matchedItem.packingDate || '';
 
         const inboundDateInput = document.getElementById('insp-inbound-date');
-        if (inboundDateInput) {
-            inboundDateInput.value = matchedItem.inboundDate || getTodayDateString();
-        }
+        if (inboundDateInput) inboundDateInput.value = matchedItem.inboundDate || getTodayDateString();
         
         const qtyInput = document.getElementById('insp-inbound-qty');
         if (matchedItem.status !== '완료' && qtyInput) {
@@ -817,10 +563,7 @@ export const saveInspectionAndNext = async () => {
     const inboundDate = getVal('insp-inbound-date') || getTodayDateString();
     const packingDate = getVal('insp-packing-date') || '-';
     const inboundQty = getVal('insp-inbound-qty');
-    
-    // 🟢 샘플 수량 추출
     const sampleQty = getVal('insp-sample-qty') || 1;
-    
     const note = getVal('insp-notes');
 
     let currentItem = null;
@@ -855,7 +598,7 @@ export const saveInspectionAndNext = async () => {
         inboundDate: inboundDate, 
         packingDate: packingDate, 
         inboundQty: Number(inboundQty) || 0,
-        sampleQty: Number(sampleQty) || 1, // 🟢 샘플 수량 저장
+        sampleQty: Number(sampleQty) || 1,
         option: currentItem ? currentItem.option : '-',
         code: currentItem ? currentItem.code : '-',
         supplierName: currentItem ? currentItem.supplierName : '-', 
@@ -989,7 +732,6 @@ const resetInspectionForm = (clearProductName = false) => {
     const qtyInput = document.getElementById('insp-inbound-qty');
     if (qtyInput) qtyInput.value = '';
     
-    // 🟢 폼 초기화 시 샘플 수량도 초기화
     const sampleQtyInput = document.getElementById('insp-sample-qty');
     if (sampleQtyInput) sampleQtyInput.value = '1';
     
@@ -1055,398 +797,10 @@ export const clearTodayList = () => {
     renderTodayInspectionList();
 };
 
-export const loadAllInspectionHistory = async () => {
-    const container = document.getElementById('inspection-history-view-container');
-    if (!container) return;
-    
-    container.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>검수 이력을 불러오는 중입니다...</div>';
-
-    try {
-        const colRef = collection(State.db, 'product_history');
-        const snapshot = await getDocs(colRef);
-        
-        const historyData = [];
-        snapshot.forEach(doc => {
-            historyData.push({ id: doc.id, ...doc.data() });
-        });
-
-        renderInspectionHistoryTable(historyData);
-    } catch (e) {
-        console.error("Error loading all inspection history:", e);
-        container.innerHTML = '<div class="text-center text-red-500 py-10">데이터를 불러오는 중 오류가 발생했습니다.</div>';
-        showToast("검수 이력 로딩 실패", true);
-    }
-};
-
-export const loadInspectionLogs = async (productName, targetTr = null) => {
-    if (!productName) return;
-    
-    const managerModal = document.getElementById('inspection-log-manager-modal');
-    if (!targetTr && managerModal) {
-         managerModal.classList.remove('hidden');
-         const title = document.getElementById('inspection-log-product-name');
-         if (title) title.textContent = productName;
-         const tbody = document.getElementById('inspection-log-table-body');
-         if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-gray-500">로딩 중...</td></tr>';
-    }
-
-    try {
-        const safeProductName = productName.replace(/\//g, '-');
-        const docRef = doc(State.db, 'product_history', safeProductName);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            currentProductLogs = data.logs || [];
-        } else {
-            currentProductLogs = [];
-        }
-
-        if (targetTr) {
-            renderExpandedInspectionLog(targetTr, currentProductLogs, productName);
-        } else {
-            renderInspectionLogTable(currentProductLogs, productName);
-        }
-
-    } catch (e) {
-        console.error("Error loading inspection logs:", e);
-        showToast("상세 이력을 불러오는 중 오류가 발생했습니다.", true);
-    }
-};
-
-export const prepareEditInspectionLog = (productName, index) => {
-    const log = currentProductLogs[index];
-    if (!log) return;
-
-    const getEl = (id) => document.getElementById(id);
-    
-    if (getEl('edit-insp-product-name')) getEl('edit-insp-product-name').value = productName;
-    if (getEl('edit-insp-date-time')) getEl('edit-insp-date-time').value = `${log.date} ${log.time}`;
-    if (getEl('edit-insp-packing-no')) getEl('edit-insp-packing-no').value = log.packingDate || '';
-    if (getEl('edit-insp-inbound-date')) getEl('edit-insp-inbound-date').value = log.inboundDate || '';
-    if (getEl('edit-insp-inbound-qty')) getEl('edit-insp-inbound-qty').value = log.inboundQty || 0;
-    
-    // 🟢 수정 모달에 샘플 수량 세팅
-    if (getEl('edit-insp-sample-qty')) getEl('edit-insp-sample-qty').value = log.sampleQty || 1;
-
-    if (getEl('edit-insp-notes')) getEl('edit-insp-notes').value = log.note || '';
-    if (getEl('edit-insp-log-index')) getEl('edit-insp-log-index').value = index;
-    if (getEl('edit-insp-supplier-name')) getEl('edit-insp-supplier-name').value = log.supplierName || '';
-
-    const checklist = log.checklist || {};
-    const setEditSelect = (id, val) => { 
-        const el = getEl(id);
-        if (el) el.value = val || (el.options && el.options.length > 0 ? el.options[0].value : ''); 
-    };
-    
-    if (getEl('edit-insp-check-thickness')) getEl('edit-insp-check-thickness').value = checklist.thickness || ''; 
-    setEditSelect('edit-insp-check-fabric', checklist.fabric);
-    setEditSelect('edit-insp-check-color', checklist.color);
-    setEditSelect('edit-insp-check-distortion', checklist.distortion);
-    setEditSelect('edit-insp-check-unraveling', checklist.unraveling);
-    setEditSelect('edit-insp-check-finishing', checklist.finishing);
-    setEditSelect('edit-insp-check-zipper', checklist.zipper);
-    setEditSelect('edit-insp-check-button', checklist.button);
-    setEditSelect('edit-insp-check-lining', checklist.lining);
-    setEditSelect('edit-insp-check-pilling', checklist.pilling);
-    setEditSelect('edit-insp-check-dye', checklist.dye);
-
-    const editModal = document.getElementById('inspection-log-editor-modal');
-    if (editModal) editModal.classList.remove('hidden');
-};
-
-export const updateInspectionLog = async () => {
-    const getEditVal = (id) => {
-        const el = document.getElementById(id);
-        return el ? el.value : '';
-    };
-
-    const productName = getEditVal('edit-insp-product-name');
-    const index = parseInt(getEditVal('edit-insp-log-index'), 10);
-    
-    if (!productName || isNaN(index) || !currentProductLogs[index]) return;
-
-    const checklist = {
-        thickness: getEditVal('edit-insp-check-thickness'),
-        fabric: getEditVal('edit-insp-check-fabric'),
-        color: getEditVal('edit-insp-check-color'),
-        distortion: getEditVal('edit-insp-check-distortion'),
-        unraveling: getEditVal('edit-insp-check-unraveling'),
-        finishing: getEditVal('edit-insp-check-finishing'),
-        zipper: getEditVal('edit-insp-check-zipper'),
-        button: getEditVal('edit-insp-check-button'),
-        lining: getEditVal('edit-insp-check-lining'),
-        pilling: getEditVal('edit-insp-check-pilling'),
-        dye: getEditVal('edit-insp-check-dye')
-    };
-
-    const defectsFound = [];
-    const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
-    const labelMap = {
-        fabric: '원단', color: '컬러', distortion: '뒤틀림',
-        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-        lining: '안감', pilling: '보풀', dye: '이염'
-    };
-    Object.entries(checklist).forEach(([key, value]) => {
-        if (key === 'thickness') return;
-        if (!NORMAL_VALUES.includes(value)) {
-            defectsFound.push(`${labelMap[key] || key}(${value})`);
-        }
-    });
-
-    const updatedLog = {
-        ...currentProductLogs[index], 
-        packingDate: getEditVal('edit-insp-packing-no'), 
-        inboundDate: getEditVal('edit-insp-inbound-date'), 
-        inboundQty: Number(getEditVal('edit-insp-inbound-qty')) || 0,
-        sampleQty: Number(getEditVal('edit-insp-sample-qty')) || 1, // 🟢 업데이트에 샘플 수량 포함
-        supplierName: getEditVal('edit-insp-supplier-name'), 
-        checklist: checklist,
-        defects: defectsFound,
-        note: getEditVal('edit-insp-notes'),
-        status: defectsFound.length > 0 ? '불량' : '정상'
-    };
-
-    currentProductLogs[index] = updatedLog;
-
-    try {
-        const safeProductName = productName.replace(/\//g, '-');
-        const docRef = doc(State.db, 'product_history', safeProductName);
-        const newDefectSummary = currentProductLogs
-            .filter(l => l.defects && l.defects.length > 0)
-            .map(l => `${l.date}: ${l.defects.join(', ')}`);
-
-        const updates = {
-            logs: currentProductLogs,
-            defectSummary: newDefectSummary,
-            totalInbound: getUniqueInboundCount(currentProductLogs)
-        };
-        
-        if (index === currentProductLogs.length - 1) {
-            updates.lastSupplierName = updatedLog.supplierName;
-            updates.lastCode = updatedLog.code;
-            updates.lastOption = updatedLog.option;
-        }
-        
-        await updateDoc(docRef, updates);
-
-        showToast("기록이 수정되었습니다.");
-        const editModal = document.getElementById('inspection-log-editor-modal');
-        if (editModal) editModal.classList.add('hidden');
-        renderInspectionLogTable(currentProductLogs, productName);
-
-    } catch (e) {
-        console.error("Error updating log:", e);
-        showToast("수정 중 오류가 발생했습니다.", true);
-    }
-};
-
-export const deleteInspectionLog = async () => {
-    const pNameEl = document.getElementById('edit-insp-product-name');
-    const idxEl = document.getElementById('edit-insp-log-index');
-    const productName = pNameEl ? pNameEl.value : '';
-    const index = idxEl ? parseInt(idxEl.value, 10) : NaN;
-
-    if (!productName || isNaN(index)) return;
-    if (!confirm("정말 이 상세 기록을 삭제하시겠습니까?")) return;
-
-    currentProductLogs.splice(index, 1);
-
-    try {
-        const safeProductName = productName.replace(/\//g, '-');
-        const docRef = doc(State.db, 'product_history', safeProductName);
-        const newDefectSummary = currentProductLogs
-            .filter(l => l.defects && l.defects.length > 0)
-            .map(l => `${l.date}: ${l.defects.join(', ')}`);
-        
-        const updates = {
-            logs: currentProductLogs,
-            defectSummary: newDefectSummary,
-            totalInbound: getUniqueInboundCount(currentProductLogs) 
-        };
-        
-        if (currentProductLogs.length > 0) {
-            const lastLog = currentProductLogs[currentProductLogs.length - 1];
-            updates.lastSupplierName = lastLog.supplierName || '-'; 
-            updates.lastCode = lastLog.code || '-';
-            updates.lastOption = lastLog.option || '-';
-        } else {
-            updates.lastSupplierName = '-';
-            updates.lastCode = '-';
-            updates.lastOption = '-';
-            updates.totalInbound = 0; 
-        }
-
-        await updateDoc(docRef, updates);
-
-        showToast("기록이 삭제되었습니다.");
-        const editModal = document.getElementById('inspection-log-editor-modal');
-        if (editModal) editModal.classList.add('hidden');
-        renderInspectionLogTable(currentProductLogs, productName);
-
-    } catch (e) {
-        console.error("Error deleting log:", e);
-        showToast("삭제 중 오류가 발생했습니다.", true);
-    }
-};
-
-export const deleteProductHistory = async (productName) => {
-    if (!productName) return false;
-    if (!confirm(`정말 '${productName}' 상품의 모든 검수 이력을 삭제하시겠습니까?\n(이 작업은 복구할 수 없습니다)`)) return false;
-
-    try {
-        const safeProductName = productName.replace(/\//g, '-');
-        const docRef = doc(State.db, 'product_history', safeProductName);
-        await deleteDoc(docRef);
-        showToast(`'${productName}' 상품 및 이력이 모두 삭제되었습니다.`);
-        return true; 
-    } catch (e) {
-        console.error("Error deleting product:", e);
-        showToast("상품 삭제 중 오류가 발생했습니다.", true);
-        return false;
-    }
-};
-
-export const savePreInspectionNote = async () => {
-    const getVal = (id) => {
-        const el = document.getElementById(id);
-        return el ? el.value : '';
-    };
-
-    let productName = getVal('manual-insp-product-name').trim();
-    if (!productName) {
-        showToast("상품명은 필수 입력 항목입니다.", true);
-        return false;
-    }
-    
-    productName = productName.replace(/\//g, '-'); 
-
-    const checklist = {
-        thickness: getVal('manual-insp-check-thickness'),
-        fabric: getVal('manual-insp-check-fabric'),
-        color: getVal('manual-insp-check-color'),
-        distortion: getVal('manual-insp-check-distortion'),
-        unraveling: getVal('manual-insp-check-unraveling'),
-        finishing: getVal('manual-insp-check-finishing'),
-        zipper: getVal('manual-insp-check-zipper'),
-        button: getVal('manual-insp-check-button'),
-        lining: getVal('manual-insp-check-lining'),
-        pilling: getVal('manual-insp-check-pilling'),
-        dye: getVal('manual-insp-check-dye')
-    };
-
-    if (!checklist.thickness || Object.values(checklist).some(v => v === "" || v === null)) {
-        alert("⚠️ 두께 기준을 포함한 모든 품질 체크리스트 항목을 확인해주세요.");
-        return false;
-    }
-
-    const today = getTodayDateString();
-    const inboundDate = getVal('manual-insp-inbound-date') || today;
-    const packingDate = getVal('manual-insp-packing-date') || '-';
-    const inboundQty = getVal('manual-insp-qty');
-    const note = getVal('manual-insp-note');
-    const code = getVal('manual-insp-code') || '-';
-    const option = getVal('manual-insp-option') || '-';
-    const supplierName = getVal('manual-insp-supplier') || '-';
-
-    const defectsFound = [];
-    const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
-    
-    const labelMap = {
-        fabric: '원단', color: '컬러', distortion: '뒤틀림',
-        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-        lining: '안감', pilling: '보풀', dye: '이염'
-    };
-
-    Object.entries(checklist).forEach(([key, value]) => {
-        if (key === 'thickness') return;
-        if (!NORMAL_VALUES.includes(value)) {
-            defectsFound.push(`${labelMap[key] || key}(${value})`);
-        }
-    });
-
-    const status = defectsFound.length > 0 ? '불량' : '정상';
-    const nowTime = getCurrentTime();
-
-    const inspectionRecord = {
-        date: today,
-        time: nowTime,
-        inspector: State.appState.currentUser || 'Unknown',
-        inboundDate: inboundDate,
-        packingDate: packingDate,
-        inboundQty: Number(inboundQty) || 0,
-        sampleQty: 1, // 수동 등록의 경우 기본값 1 적용
-        option: option,
-        code: code,
-        supplierName: supplierName, 
-        location: '수동등록',
-        checklist,
-        defects: defectsFound,
-        note,
-        status,
-        image: manualImageBase64 || null
-    };
-
-    const btn = document.getElementById('save-pre-insp-btn');
-    if(btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
-
-    try {
-        const docRef = doc(State.db, 'product_history', productName);
-        const docSnap = await getDoc(docRef);
-        let existingLogs = [];
-        
-        if (docSnap.exists()) {
-            existingLogs = docSnap.data().logs || [];
-        }
-        
-        const tempLogs = [...existingLogs, inspectionRecord];
-            
-        const updates = {
-            lastInspectionDate: today,
-            totalInbound: getUniqueInboundCount(tempLogs),
-            logs: arrayUnion(inspectionRecord),
-            updatedAt: serverTimestamp(),
-            lastCode: code,
-            lastOption: option,
-            lastSupplierName: supplierName
-        };
-
-        if (defectsFound.length > 0) {
-            const defectSummaryStr = `${today}: ${defectsFound.join(', ')}`;
-            updates.defectSummary = arrayUnion(defectSummaryStr);
-        }
-
-        await setDoc(docRef, updates, { merge: true });
-        
-        const getEl = (id) => document.getElementById(id);
-        if (getEl('manual-insp-product-name')) getEl('manual-insp-product-name').value = '';
-        if (getEl('manual-insp-code')) getEl('manual-insp-code').value = '';
-        if (getEl('manual-insp-option')) getEl('manual-insp-option').value = '';
-        if (getEl('manual-insp-qty')) getEl('manual-insp-qty').value = '';
-        if (getEl('manual-insp-thickness')) getEl('manual-insp-check-thickness').value = '';
-        if (getEl('manual-insp-supplier')) getEl('manual-insp-supplier').value = '';
-        if (getEl('manual-insp-note')) getEl('manual-insp-note').value = '';
-        if (getEl('manual-insp-packing-date')) getEl('manual-insp-packing-date').value = '';
-        
-        const selects = document.querySelectorAll('#pre-register-inspection-modal select');
-        selects.forEach(sel => sel.value = "정상"); 
-
-        clearManualImageState();
-
-        const preModal = document.getElementById('pre-register-inspection-modal');
-        if (preModal) preModal.classList.add('hidden');
-        
-        showToast(`'${productName}' 수동 검수 저장 완료!`);
-        return true;
-
-    } catch (e) {
-        console.error("Error saving manual inspection:", e);
-        showToast("수동 등록 저장 중 오류가 발생했습니다.", true);
-        return false;
-    } finally {
-        if(btn) { 
-            btn.disabled = false; 
-            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg> 검수 완료 및 즉시 저장`; 
-        }
-    }
-};
+// ==========================================
+// 🚀 외부 파일들을 위한 Re-Exports (중요)
+// 이 덕분에 기존 리스너 파일들은 수정할 필요가 없습니다.
+// ==========================================
+export { handleExcelUpload } from './inspection-excel.js';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js';
