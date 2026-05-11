@@ -36,7 +36,6 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
             const loadedConfig = docSnap.data();
             const mergedConfig = { ...State.appConfig, ...loadedConfig };
             
-            // 기존 병합 로직 유지 (배열/객체 체크 등)
             if (Array.isArray(loadedConfig.taskGroups)) mergedConfig.taskGroups = loadedConfig.taskGroups;
             State.setAppConfig(mergedConfig); 
 
@@ -56,6 +55,9 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         State.appState.dailyAttendance = data.dailyAttendance || {};
         State.appState.lunchPauseExecuted = data.lunchPauseExecuted ?? false;
         State.appState.lunchResumeExecuted = data.lunchResumeExecuted ?? false;
+        
+        // 🔥 누락되었던 검수 리스트 불러오기 로직 추가
+        State.appState.inspectionList = data.inspectionList || []; 
 
         State.setIsDataDirty(false); 
         renderCallback();
