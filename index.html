@@ -39,8 +39,8 @@
                 <button id="open-quantity-modal-today" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
                     <span class="text-lg">📈</span> 오늘 처리량 입력
                 </button>
-                <button id="open-history-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
-                    <span class="text-lg">📜</span> 데이터 관리
+                <button id="end-shift-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
+                    <span class="text-lg">🏁</span> 업무 마감
                 </button>
 
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 mt-6 px-2">관리 및 조회</div>
@@ -53,22 +53,22 @@
                 <button id="open-cost-simulation-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
                     <span class="text-lg">💰</span> 운영 시뮬레이션
                 </button>
-                <a href="location.html" id="location-link-btn" target="location_window" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
-                    <span class="text-lg">📍</span> 로케이션 관리
-                </a>
                 
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 mt-6 px-2">관리자 메뉴</div>
+                <button id="open-history-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
+                    <span class="text-lg">📜</span> 데이터 관리
+                </button>
                 <button id="open-admin-todo-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
                     <span class="text-lg">📅</span> 관리자 일정/투두
                 </button>
+                <a href="location.html" id="location-link-btn" target="location_window" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
+                    <span class="text-lg">📍</span> 로케이션 관리
+                </a>
                 <a href="admin.html" id="admin-link-btn" target="admin_window" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
                     <span class="text-lg">⚙️</span> 관리자 페이지
                 </a>
                 <button id="reset-app-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
                     <span class="text-lg">🔄</span> 데이터 초기화
-                </button>
-                <button id="end-shift-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
-                    <span class="text-lg">🏁</span> 업무 마감
                 </button>
             </nav>
 
@@ -119,18 +119,17 @@
                     </div>
                 </div>
                 <button id="open-quantity-modal-today-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📊</span> 오늘 처리량 입력</button>
-                <button id="open-history-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📜</span> 데이터 관리</button>
-                
                 <button id="open-weekend-modal-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🗓️</span> 주말 근무 신청</button>
                 <button id="open-my-leave-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🏖️</span> 내 연차관리</button>
                 <button id="open-cost-simulation-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">💰</span> 운영 시뮬레이션</button>
-                <a href="location.html" id="location-link-btn-mobile" target="location_window" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📍</span> 로케이션 관리</a>
-
+                <button id="end-shift-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2"><span class="text-lg">🏁</span> 업무 마감</button>
+                
                 <div class="px-5 py-2 mt-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">관리자 메뉴</div>
+                <button id="open-history-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📜</span> 데이터 관리</button>
                 <button id="open-admin-todo-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📅</span> 관리자 일정/투두</button>
+                <a href="location.html" id="location-link-btn-mobile" target="location_window" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📍</span> 로케이션 관리</a>
                 <a href="admin.html" id="admin-link-btn-mobile" target="admin_window" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">⚙️</span> 관리자 페이지</a>
                 <button id="reset-app-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">🔄</span> 데이터 초기화</button>
-                <button id="end-shift-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-bold text-gray-600 dark:text-gray-400 flex items-center gap-2"><span class="text-lg">🏁</span> 업무 마감</button>
                 <button id="logout-btn-mobile" class="hidden text-left px-5 py-4 text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2 bg-red-50 dark:bg-red-900/20"><span class="text-lg">🚪</span> 로그아웃</button>
             </div>
 
@@ -313,7 +312,7 @@
             
             <div class="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 shrink-0">
                 <div class="flex gap-2">
-                    <textarea id="new-notice-input" placeholder="새 알림 내용을 입력하세요 (Shift + Enter로 줄바꿈)" class="flex-1 p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-sm dark:text-white outline-none focus:border-yellow-500 resize-none" rows="2"></textarea>
+                    <textarea id="new-notice-input" placeholder="새 알림 내용을 입력하세요 (@이름 으로 멘션 알림 가능)" class="flex-1 p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-sm dark:text-white outline-none focus:border-yellow-500 resize-none" rows="2"></textarea>
                     <button id="add-notice-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold px-5 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap shadow-sm h-fit self-end">등록</button>
                 </div>
             </div>
@@ -331,14 +330,41 @@
                 <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🔔</span> 알림 센터</h2>
                 <button class="text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors text-2xl leading-none" id="close-notification-modal-btn">&times;</button>
             </div>
-            <div class="p-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 shrink-0 flex justify-end gap-2 px-4">
-                <button id="read-all-noti-btn" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">모두 읽음 처리</button>
-                <button id="clear-all-noti-btn" class="text-xs font-bold text-red-500 dark:text-red-400 hover:underline ml-3">전체 삭제</button>
+            <div class="p-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 shrink-0 flex justify-between items-center px-4">
+                <button id="open-send-msg-btn" class="text-xs bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 font-bold px-3 py-1.5 rounded-md transition shadow-sm flex items-center gap-1">✉️ 쪽지 보내기</button>
+                <div class="flex gap-3">
+                    <button id="read-all-noti-btn" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">모두 읽음 처리</button>
+                    <button id="clear-all-noti-btn" class="text-xs font-bold text-red-500 dark:text-red-400 hover:underline">전체 삭제</button>
+                </div>
             </div>
             <div class="flex-1 overflow-y-auto p-4">
                 <ul id="notification-list" class="space-y-3">
                     <li class="text-center text-gray-400 py-4 text-sm">알림이 없습니다.</li>
                 </ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="send-message-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center hidden z-[300] p-4 transition-opacity">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm relative border border-gray-100 dark:border-gray-700 flex flex-col">
+            <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">✉️ 쪽지 보내기</h2>
+                <button class="text-gray-400 hover:text-gray-700 dark:hover:text-white text-2xl leading-none" id="close-send-msg-btn">&times;</button>
+            </div>
+            <div class="p-4 space-y-4 flex-1">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">받는 사람</label>
+                    <select id="msg-target-select" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm outline-none focus:border-blue-500 dark:text-white">
+                        <option value="">대상을 선택하세요...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">메시지 내용</label>
+                    <textarea id="msg-content-input" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm outline-none focus:border-blue-500 resize-none h-24 dark:text-white" placeholder="내용을 입력하세요..."></textarea>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end">
+                <button id="send-msg-submit-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors shadow-sm">보내기</button>
             </div>
         </div>
     </div>
@@ -526,6 +552,9 @@
 
             list.innerHTML = sorted.map(notice => {
                 const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
+                // 🔥 멘션 하이라이트 효과 (옵션)
+                const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, '<span class="text-blue-500 font-bold">@$1</span>');
+
                 return `
                 <li class="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm transition-colors">
                     <div class="flex items-start gap-3 flex-1 overflow-hidden mt-0.5">
@@ -533,7 +562,7 @@
                             ${notice.completed ? '✅' : '⬜'}
                         </button>
                         <span class="notice-text-span flex-1 text-sm break-words ${notice.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200 font-bold'}">
-                            ${safeText}
+                            ${highlightedText}
                         </span>
                     </div>
                     <div class="flex items-center gap-2 shrink-0 ml-3 mt-1">
