@@ -60,7 +60,7 @@ const appendTotalRow = (ws, data, headers) => {
 };
 
 // =================================================================
-// ✅ [신규] 입고 리스트별 검수 이력 다운로드 (로컬 데이터 기반)
+// ✅ 입고 리스트별 검수 이력 다운로드 (로컬 데이터 기반)
 // =================================================================
 const downloadListInspectionHistory = (format = 'xlsx') => {
     showToast('입고 리스트 데이터를 준비 중입니다...');
@@ -117,7 +117,7 @@ const downloadListInspectionHistory = (format = 'xlsx') => {
 };
 
 // =================================================================
-// ✅ [수정] 상품별 검수 이력 엑셀 다운로드 함수 (Firestore 기반)
+// ✅ 상품별 검수 이력 엑셀 다운로드 함수 (Firestore 기반)
 // =================================================================
 const downloadProductInspectionHistory = async (format = 'xlsx') => {
     showToast('검수 이력(상품별) 데이터를 불러오는 중...');
@@ -366,12 +366,15 @@ export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
     }
 };
 
+// =================================================================
+// 🌟 기간별 엑셀 1: 업무 이력 상세
+// =================================================================
 export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFileName = null, format = 'xlsx') => {
     if (!startDate || !endDate) return showToast('기간을 선택해주세요.', true);
 
     try {
         const filteredData = allHistoryData.filter(d => d.id >= startDate && d.id <= endDate);
-        if (filteredData.length === 0) return showToast('선택한 기간에 데이터가 없습니다.', true);
+        if (filteredData.length === 0) return showToast('선택한 기간에 업무 데이터가 없습니다.', true);
 
         const workbook = XLSX.utils.book_new();
         const historyWageMap = { ...(appConfig.memberWages || {}) };
@@ -407,6 +410,109 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFil
     }
 };
 
+// =================================================================
+// 🌟 기간별 엑셀 2: 근태 이력 요약
+// =================================================================
+export const downloadPeriodAttendanceAsExcel = (startDate, endDate, format = 'xlsx') => {
+    if (!startDate || !endDate) return showToast('기간을 선택해주세요.', true);
+    const dataList = allHistoryData.filter(d => d.id >= startDate && d.id <= endDate);
+    if (dataList.length === 0) return showToast('선택한 기간에 근태 데이터가 없습니다.', true);
+
+    const summary = {};
+    dataList.forEach(day => {
+        (day.onLeaveMembers || []).forEach(entry => {
+            if (!summary[entry.member]) {
+                summary[entry.member] = { '이름': entry.member, '지각':0, '외출':0, '조퇴':0, '결근':0, '연차':0, '출장':0, '총 횟수':0, '총 결근일수':0, '총 연차일수':0 };
+            }
+            const rec = summary[entry.member];
+            if (rec.hasOwnProperty(entry.type)) rec[entry.type]++;
+            if (entry.type !== '연차') rec['총 횟수']++;
+            if (entry.type === '결근') rec['총 결근일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            if (entry.type === '연차') rec['총 연차일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+        });
+    });
+
+    const sheetData = Object.values(summary).sort((a, b) => a['이름'].localeCompare(b['이름']));
+    if (sheetData.length === 0) return showToast('해당 기간에 근태 기록이 없습니다.', true);
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(sheetData);
+    fitToColumn(worksheet);
+    XLSX.utils.book_append_sheet(workbook, worksheet, '기간 근태 요약');
+    XLSX.writeFile(workbook, `근태기록_기간_${startDate}_${endDate}.${format}`);
+    showToast('기간별 근태기록 다운로드 완료');
+};
+
+// =================================================================
+// 🌟 기간별 엑셀 3: 검수 이력 리스트
+// =================================================================
+export const downloadPeriodInspectionAsExcel = (startDate, endDate, format = 'xlsx') => {
+    if (!startDate || !endDate) return showToast('기간을 선택해주세요.', true);
+    const allLists = [];
+    allHistoryData.filter(d => d.id >= startDate && d.id <= endDate).forEach(day => {
+        if (day.inspectionList && day.inspectionList.length > 0) {
+            day.inspectionList.forEach(item => {
+                allLists.push({ date: day.id, ...item });
+            });
+        }
+    });
+
+    if (allLists.length === 0) return showToast('선택한 기간에 검수 리스트 데이터가 없습니다.', true);
+
+    const workbook = XLSX.utils.book_new();
+    const headers = ['날짜', '코드', '상품명', '옵션', '공급처', '수량', '기준 두께', '상태'];
+    allLists.sort((a, b) => b.date.localeCompare(a.date));
+    const sheetData = allLists.map(item => ({
+        '날짜': item.date, '코드': item.code || '-', '상품명': item.name, '옵션': item.option || '-',
+        '공급처': item.supplierName || '-', '수량': item.qty || 0, '기준 두께': item.thickness || '-', '상태': item.status || '대기'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: headers });
+    fitToColumn(worksheet);
+    XLSX.utils.book_append_sheet(workbook, worksheet, '입고_리스트_내역');
+    XLSX.writeFile(workbook, `검수이력_리스트_기간_${startDate}_${endDate}.${format}`);
+    showToast('기간별 검수이력 다운로드 완료');
+};
+
+// =================================================================
+// 🌟 기간별 엑셀 4: 주말 통계 기록
+// =================================================================
+export const downloadPeriodWeekendAsExcel = (startDate, endDate, format = 'xlsx') => {
+    if (!startDate || !endDate) return showToast('기간을 선택해주세요.', true);
+    const dataList = allHistoryData.filter(d => {
+        if (d.id < startDate || d.id > endDate) return false;
+        const dayOfWeek = new Date(d.id + "T00:00:00").getDay();
+        return dayOfWeek === 0 || dayOfWeek === 6; 
+    });
+
+    if (dataList.length === 0) return showToast('선택한 기간에 주말 근무 데이터가 없습니다.', true);
+
+    const workbook = XLSX.utils.book_new();
+    const historyWageMap = { ...(appConfig.memberWages || {}) };
+
+    const sheet1Headers = ['날짜', '팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)', '인건비(원)'];
+    const sheet1Data = dataList.flatMap(day => 
+        (day.workRecords || []).map(r => {
+            const duration = Number(r.duration) || 0;
+            const wage = historyWageMap[r.member] || (appConfig.defaultPartTimerWage || 10000);
+            return {
+                '날짜': day.id, '팀원': r.member || '', '업무 종류': r.task || '',
+                '시작 시간': formatTimeTo24H(r.startTime), '종료 시간': formatTimeTo24H(r.endTime),
+                '소요 시간(분)': Math.round(duration), '인건비(원)': Math.round((duration / 60) * wage)
+            };
+        })
+    ).sort((a,b) => a['날짜'].localeCompare(b['날짜']));
+
+    if (sheet1Data.length === 0) return showToast('해당 기간 주말에 상세 업무 기록이 없습니다.', true);
+
+    const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
+    appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
+    fitToColumn(worksheet1);
+    XLSX.utils.book_append_sheet(workbook, worksheet1, `주말 상세 기록`);
+    XLSX.writeFile(workbook, `주말업무기록_기간_${startDate}_${endDate}.${format}`);
+    showToast('기간별 주말기록 다운로드 완료');
+};
+
 export const downloadWeeklyHistoryAsExcel = async (weekKey, format = 'xlsx') => {
     if (!weekKey) return showToast('주간 정보가 없습니다.', true);
     const weekData = allHistoryData.filter(d => getWeekOfYear(new Date(d.id + "T00:00:00")) === weekKey);
@@ -423,9 +529,6 @@ export const downloadMonthlyHistoryAsExcel = async (monthKey, format = 'xlsx') =
      await downloadPeriodHistoryAsExcel(monthData[0].id, monthData[monthData.length - 1].id, `월간업무요약_${monthKey}.${format}`, format);
 };
 
-// =================================================================
-// ✅ [수정] 일별 모드일 때 상세 내역으로 출력되도록 변경됨
-// =================================================================
 export const downloadAttendanceExcel = (viewMode, key, format = 'xlsx') => {
     let dataList = [];
     let fileName = '';
@@ -642,6 +745,38 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
     }
 };
 
+// =================================================================
+// ✅ 연차관리대장 엑셀 다운로드 함수
+// =================================================================
+export const downloadLeaveLedgerExcel = (year, data) => {
+    try {
+        const headers = ["이름", "총 연차", "기간 (리셋~만료)", "사용 개수", "잔여 연차", "사용 내역"];
+        const rows = data.map(row => [
+            row.member,
+            row.total,
+            row.periodText,
+            row.used,
+            row.remaining,
+            row.history
+        ]);
+
+        const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `${year}년 연차관리대장`);
+
+        worksheet['!cols'] = [
+            { wch: 10 }, { wch: 10 }, { wch: 25 }, { wch: 10 }, { wch: 10 }, { wch: 60 } 
+        ];
+
+        XLSX.writeFile(workbook, `${year}년_연차관리대장_${new Date().toISOString().slice(0,10)}.xlsx`);
+        showToast('연차관리대장 엑셀 다운로드 완료');
+        
+    } catch (e) {
+        console.error("Excel download error:", e);
+        showToast("엑셀 다운로드 중 오류가 발생했습니다.", true);
+    }
+};
+
 export const downloadContentAsPdf = (elementId, title) => {
     const originalElement = document.getElementById(elementId);
     if (!originalElement) return showToast('출력할 내용을 찾을 수 없습니다.', true);
@@ -754,47 +889,4 @@ export const downloadContentAsPdf = (elementId, title) => {
         .finally(() => {
             document.body.removeChild(tempContainer);
         });
-};
-
-// =================================================================
-// ✅ [신규] 연차관리대장 엑셀 다운로드 함수
-// =================================================================
-export const downloadLeaveLedgerExcel = (year, data) => {
-    try {
-        // 1. 헤더 정의
-        const headers = ["이름", "총 연차", "기간 (리셋~만료)", "사용 개수", "잔여 연차", "사용 내역"];
-        
-        // 2. 데이터 행 생성
-        const rows = data.map(row => [
-            row.member,
-            row.total,
-            row.periodText,
-            row.used,
-            row.remaining,
-            row.history
-        ]);
-
-        // 3. 워크시트 생성
-        const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, `${year}년 연차관리대장`);
-
-        // 4. 열 너비 설정
-        worksheet['!cols'] = [
-            { wch: 10 }, // 이름
-            { wch: 10 }, // 총 연차
-            { wch: 25 }, // 기간
-            { wch: 10 }, // 사용 개수
-            { wch: 10 }, // 잔여 연차
-            { wch: 60 }  // 사용 내역
-        ];
-
-        // 5. 파일 다운로드
-        XLSX.writeFile(workbook, `${year}년_연차관리대장_${new Date().toISOString().slice(0,10)}.xlsx`);
-        showToast('연차관리대장 엑셀 다운로드 완료');
-        
-    } catch (e) {
-        console.error("Excel download error:", e);
-        showToast("엑셀 다운로드 중 오류가 발생했습니다.", true);
-    }
 };

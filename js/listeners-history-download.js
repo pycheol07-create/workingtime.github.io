@@ -9,6 +9,9 @@ import {
     downloadWeeklyHistoryAsExcel, 
     downloadMonthlyHistoryAsExcel, 
     downloadAttendanceExcel,
+    downloadPeriodAttendanceAsExcel, // ✅ 신규 추가: 기간별 근태
+    downloadPeriodInspectionAsExcel, // ✅ 신규 추가: 기간별 검수
+    downloadPeriodWeekendAsExcel,    // ✅ 신규 추가: 기간별 주말
     downloadReportExcel,
     downloadPersonalReportExcel,
     downloadInspectionHistory
@@ -19,19 +22,17 @@ const getSelectedDateKey = () => {
     return btn ? btn.dataset.key : null;
 };
 
-// 🌟 [추가 1] 중복 다운로드 방지를 위한 락(Lock) 변수
+// 중복 다운로드 방지를 위한 락(Lock) 변수
 let isDownloading = false;
 
-// 💡 UX 개선: 여러 형식을 선택할 필요 없이, 엑셀 형식('xlsx')으로 즉시 다운로드를 실행합니다.
+// UX 개선: 여러 형식을 선택할 필요 없이, 엑셀 형식('xlsx')으로 즉시 다운로드를 실행합니다.
 export const openDownloadFormatModal = (targetType, contextData = {}) => {
-    // 🌟 락이 걸려있다면(이미 실행 중이라면) 추가 실행을 무시합니다.
     if (isDownloading) return; 
     isDownloading = true;
 
     State.context.downloadContext = { targetType, ...contextData };
     showToast('엑셀 파일 변환 및 다운로드를 준비 중입니다...', false);
     
-    // 약간의 딜레이를 주어 토스트 메시지가 렌더링될 시간을 확보
     setTimeout(async () => {
         try {
             await executeDownload('xlsx');
@@ -39,7 +40,6 @@ export const openDownloadFormatModal = (targetType, contextData = {}) => {
             console.error("다운로드 에러:", error);
             showToast('다운로드 중 오류가 발생했습니다.', true);
         } finally {
-            // 🌟 엑셀 생성이 끝나면 1초(1000ms) 후에 락을 해제합니다. (더블클릭 완벽 방어)
             setTimeout(() => { isDownloading = false; }, 1000);
         }
     }, 100);
@@ -86,20 +86,18 @@ const executeDownload = async (format) => {
          await downloadInspectionHistory(format, viewMode);
     }
 
-    // 모달이 열려있다면 닫기 (HTML 상에는 유지되지만 사용되지 않음)
+    // 모달 닫기
     const modal = document.getElementById('download-format-modal');
     if (modal) modal.classList.add('hidden');
 };
 
-// 🌟 [추가 2] 리스너 중복 등록 방지 플래그
 let isDownloadListenersSetup = false;
 
 export function setupHistoryDownloadListeners() {
-    // 이미 리스너가 등록되어 있다면 다시 등록하지 않고 빠져나갑니다.
     if (isDownloadListenersSetup) return;
     isDownloadListenersSetup = true;
 
-    // 1. 업무 이력 탭 다운로드
+    // 1. 업무 이력 탭 다운로드 (좌측 개별)
     const historyDownloadBtn = document.getElementById('history-download-btn');
     if (historyDownloadBtn) {
         historyDownloadBtn.addEventListener('click', () => {
@@ -109,7 +107,7 @@ export function setupHistoryDownloadListeners() {
         });
     }
 
-    // 2. 기간 엑셀 다운로드 (상단)
+    // 🔥 [수정/확장] 2. 기간 엑셀 다운로드 통합 라우터 (상단)
     if (DOM.historyDownloadPeriodExcelBtn) {
         DOM.historyDownloadPeriodExcelBtn.addEventListener('click', () => {
             const startDate = State.context.historyStartDate;
@@ -119,11 +117,50 @@ export function setupHistoryDownloadListeners() {
                 showToast('엑셀 다운로드를 위해 시작일과 종료일을 모두 설정(조회)해주세요.', true);
                 return;
             }
-            downloadPeriodHistoryAsExcel(startDate, endDate);
+
+            // 활성화된 패널 확인 헬퍼 함수
+            const isVisible = (id) => {
+                const el = document.getElementById(id);
+                return el && !el.classList.contains('hidden');
+            };
+
+            // 현재 화면(탭)에 따라 다운로드 함수 분기
+            if (isVisible('history-work-panel')) {
+                downloadPeriodHistoryAsExcel(startDate, endDate);
+            } 
+            else if (isVisible('history-attendance-panel')) {
+                downloadPeriodAttendanceAsExcel(startDate, endDate);
+            } 
+            else if (isVisible('history-inspection-panel')) {
+                downloadPeriodInspectionAsExcel(startDate, endDate);
+            } 
+            else if (isVisible('history-weekend-panel') || isVisible('weekend-history-panel') || isVisible('weekend-panel')) {
+                downloadPeriodWeekendAsExcel(startDate, endDate);
+            } 
+            else if (isVisible('history-comprehensive-panel') || isVisible('history-report-panel')) {
+                const reportData = State.context.lastReportData;
+                if (reportData && reportData.type !== 'personal') {
+                    downloadReportExcel(reportData, 'xlsx');
+                } else {
+                    showToast('조회(생성)된 종합 리포트 데이터가 없습니다.', true);
+                }
+            } 
+            else if (isVisible('history-personal-panel')) {
+                const reportData = State.context.lastReportData;
+                if (reportData && reportData.type === 'personal') {
+                    downloadPersonalReportExcel(reportData, 'xlsx');
+                } else {
+                    showToast('조회(생성)된 개인 리포트 데이터가 없습니다.', true);
+                }
+            } 
+            else {
+                // 예외 상황 시 기본값으로 업무이력 다운로드 수행
+                downloadPeriodHistoryAsExcel(startDate, endDate);
+            }
         });
     }
 
-    // 3. 근태 이력 탭 다운로드
+    // 3. 근태 이력 탭 다운로드 (좌측 개별)
     const attendanceDownloadBtn = document.getElementById('attendance-download-btn');
     if (attendanceDownloadBtn) {
         attendanceDownloadBtn.addEventListener('click', () => {
@@ -133,7 +170,7 @@ export function setupHistoryDownloadListeners() {
         });
     }
 
-    // 4. 업무 리포트 탭 다운로드
+    // 4. 업무 리포트 탭 다운로드 (버튼 자체 처리)
     if (DOM.reportViewContainer) {
         DOM.reportViewContainer.addEventListener('click', (e) => {
             if (e.target.closest('#report-download-btn')) {
@@ -146,7 +183,7 @@ export function setupHistoryDownloadListeners() {
         });
     }
 
-    // 5. 개인 리포트 탭 다운로드
+    // 5. 개인 리포트 탭 다운로드 (버튼 자체 처리)
     if (DOM.personalReportViewContainer) {
         DOM.personalReportViewContainer.addEventListener('click', (e) => {
              if (e.target.closest('#personal-download-btn')) {
@@ -159,7 +196,7 @@ export function setupHistoryDownloadListeners() {
         });
     }
     
-    // 6. 검수 이력 탭 다운로드
+    // 6. 검수 이력 탭 다운로드 (좌측 개별)
     const historyModalContentBox = document.getElementById('history-modal-content-box');
     if (historyModalContentBox) {
         historyModalContentBox.addEventListener('click', (e) => {
