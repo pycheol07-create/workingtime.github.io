@@ -4,9 +4,9 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getTodayDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js';
-import { saveStateToFirestore, debouncedSaveState } from './app-data.js';
+import { saveStateToFirestore } from './app-data.js';
+import { saveLeaveSchedule } from './config.js';
 import { renderLeaveTypeModalOptions } from './ui-modals.js';
-// ✅ 파이어베이스 함수 직접 불러오기 (서버 데이터 우선 조회를 위해 추가됨)
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 헬퍼: 로컬 이력(allHistoryData)에서 특정 연차 ID 제거/업데이트
@@ -16,7 +16,6 @@ const updateLocalHistoryForLeave = (leaveEntry, action = 'add') => {
 
     for(let dt = new Date(startDt); dt <= endDt; dt.setDate(dt.getDate() + 1)) {
         const dateKey = dt.toISOString().slice(0, 10);
-        
         if (!isWeekday(dateKey)) continue; 
 
         let dayData = State.allHistoryData.find(d => d.id === dateKey);
@@ -42,7 +41,6 @@ const updateLocalHistoryForLeave = (leaveEntry, action = 'add') => {
 
 export function setupFormAttendanceListeners() {
 
-    // 1. 근태 삭제 로직 (안전 장치 추가)
     if (DOM.leaveTypeModal) {
         DOM.leaveTypeModal.addEventListener('click', async (e) => {
             const delBtn = e.target.closest('.btn-delete-leave-history');
@@ -52,7 +50,6 @@ export function setupFormAttendanceListeners() {
                 const idsString = delBtn.dataset.ids || '';
                 const idsToDelete = idsString.split(',').filter(Boolean);
                 
-                // 🔥 [핵심 수정] 서버 데이터를 먼저 불러와서 삭제 처리 후 안전하게 덮어쓰기
                 try {
                     const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
                     const snap = await getDoc(docRef);
@@ -60,26 +57,24 @@ export function setupFormAttendanceListeners() {
                     
                     currentLeaves = currentLeaves.filter(l => !idsToDelete.includes(l.id));
                     await setDoc(docRef, { onLeaveMembers: currentLeaves }, { merge: true });
-                    
-                    State.persistentLeaveSchedule.onLeaveMembers = currentLeaves; // 로컬 동기화
+                    State.persistentLeaveSchedule.onLeaveMembers = currentLeaves;
+
+                    idsToDelete.forEach(id => {
+                        State.allHistoryData.forEach(dayData => {
+                            if (dayData.onLeaveMembers) {
+                                dayData.onLeaveMembers = dayData.onLeaveMembers.filter(l => l.id !== id);
+                            }
+                        });
+                    });
+
+                    State.appState.dateBasedOnLeaveMembers = State.appState.dateBasedOnLeaveMembers.filter(l => !idsToDelete.includes(l.id));
+
+                    renderLeaveTypeModalOptions(State.LEAVE_TYPES, 'status');
+                    showToast('삭제되었습니다.');
                 } catch(err) {
                     console.error("삭제 실패:", err);
                     showToast('삭제 중 오류가 발생했습니다.', true);
-                    return;
                 }
-
-                idsToDelete.forEach(id => {
-                     State.allHistoryData.forEach(dayData => {
-                        if (dayData.onLeaveMembers) {
-                            dayData.onLeaveMembers = dayData.onLeaveMembers.filter(l => l.id !== id);
-                        }
-                    });
-                });
-
-                State.appState.dateBasedOnLeaveMembers = State.appState.dateBasedOnLeaveMembers.filter(l => !idsToDelete.includes(l.id));
-
-                renderLeaveTypeModalOptions(State.LEAVE_TYPES, 'status');
-                showToast('삭제되었습니다.');
                 return;
             }
 
@@ -104,7 +99,6 @@ export function setupFormAttendanceListeners() {
         });
     }
 
-    // 2. 근태 신규 추가 및 폼 수정 (안전 장치 추가)
     if (DOM.confirmLeaveBtn) {
         DOM.confirmLeaveBtn.addEventListener('click', async () => {
             const memberName = State.context.memberToSetLeave;
@@ -119,14 +113,20 @@ export function setupFormAttendanceListeners() {
             const startDate = document.getElementById('leave-start-date-input').value || today;
             const endDate = document.getElementById('leave-end-date-input').value || startDate;
 
+            // 중복 클릭 방지
+            const originalBtnText = DOM.confirmLeaveBtn.textContent;
+            DOM.confirmLeaveBtn.disabled = true;
+            DOM.confirmLeaveBtn.textContent = '저장 중...';
+
             if (['연차', '출장', '결근', '매장근무', '재택근무', '휴직', '외근'].includes(type)) {
                 if (startDate > endDate) {
                     showToast('종료 날짜는 시작 날짜보다 빠를 수 없습니다.', true);
+                    DOM.confirmLeaveBtn.disabled = false;
+                    DOM.confirmLeaveBtn.textContent = originalBtnText;
                     return;
                 }
 
                 const editingId = DOM.confirmLeaveBtn.dataset.editingId;
-
                 let isDuplicate = false;
                 const startDt = new Date(startDate + 'T00:00:00');
                 const endDt = new Date(endDate + 'T00:00:00');
@@ -150,10 +150,11 @@ export function setupFormAttendanceListeners() {
 
                 if (isDuplicate) {
                     showToast('이미 해당 기간 평일에 동일한 기록이 존재합니다.', true);
+                    DOM.confirmLeaveBtn.disabled = false;
+                    DOM.confirmLeaveBtn.textContent = originalBtnText;
                     return;
                 }
 
-                // 🔥 [핵심 수정] 무작정 덮어쓰기 방지: 서버 데이터를 먼저 불러와서 병합
                 try {
                     const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
                     const snap = await getDoc(docRef);
@@ -165,14 +166,12 @@ export function setupFormAttendanceListeners() {
                     if (editingId) {
                         const idx = currentLeaves.findIndex(l => l.id === editingId);
                         if (idx > -1) {
-                            leaveEntry = currentLeaves[idx]; 
-                            updateLocalHistoryForLeave(leaveEntry, 'remove'); 
-                            
+                            leaveEntry = currentLeaves[idx];
+                            updateLocalHistoryForLeave(leaveEntry, 'remove');
                             leaveEntry.type = type;
                             leaveEntry.startDate = startDate;
                             leaveEntry.endDate = endDate;
                             isEdit = true;
-                            
                             delete DOM.confirmLeaveBtn.dataset.editingId;
                             DOM.confirmLeaveBtn.textContent = '설정 저장';
                         }
@@ -187,10 +186,8 @@ export function setupFormAttendanceListeners() {
                         currentLeaves.push(leaveEntry);
                     }
 
-                    // 병합된 완전한 데이터를 서버에 안전하게 저장
                     await setDoc(docRef, { onLeaveMembers: currentLeaves }, { merge: true });
-                    State.persistentLeaveSchedule.onLeaveMembers = currentLeaves; 
-                    
+                    State.persistentLeaveSchedule.onLeaveMembers = currentLeaves;
                     updateLocalHistoryForLeave(leaveEntry, 'add');
 
                     const todayLeaves = currentLeaves.filter(entry => {
@@ -214,24 +211,48 @@ export function setupFormAttendanceListeners() {
                 } catch(err) {
                     console.error("연차 설정 저장 실패:", err);
                     showToast("저장 중 오류가 발생했습니다.", true);
-                    return;
                 }
 
             } else {
-                const newDailyEntry = {
-                    member: memberName,
-                    type: type,
-                    startTime: (type === '외출' || type === '조퇴' || type === '지각') ? getCurrentTime() : null,
-                    endTime: null
-                };
-                State.appState.dailyOnLeaveMembers.push(newDailyEntry);
-                debouncedSaveState();
-                showToast(`${memberName}님 ${type} 처리 완료.`);
+                // 🔥 당일 근태(지각, 조퇴, 외출)도 즉각 전송 및 서버 병합
+                try {
+                    const todayDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
+                    const snap = await getDoc(todayDocRef);
+                    let currentDailyLeaves = snap.exists() && snap.data().onLeaveMembers ? snap.data().onLeaveMembers : [];
+
+                    const newDailyEntry = {
+                        id: `daily-${Date.now()}`,
+                        member: memberName,
+                        type: type,
+                        startTime: (type === '외출' || type === '조퇴' || type === '지각') ? getCurrentTime() : null,
+                        endTime: null
+                    };
+                    
+                    currentDailyLeaves.push(newDailyEntry);
+                    
+                    // 1. 서버에 안전하게 병합 저장 (await로 1초 딜레이 제거)
+                    await setDoc(todayDocRef, { onLeaveMembers: currentDailyLeaves }, { merge: true });
+                    State.appState.dailyOnLeaveMembers = currentDailyLeaves;
+
+                    // 2. 이력(데이터 관리) 화면에 새로고침 없이 즉각 표시되도록 메모리 반영
+                    let dayData = State.allHistoryData.find(d => d.id === today);
+                    if (dayData) {
+                        if (!dayData.onLeaveMembers) dayData.onLeaveMembers = [];
+                        dayData.onLeaveMembers.push(newDailyEntry);
+                    }
+
+                    showToast(`${memberName}님 ${type} 처리 완료.`);
+                } catch(err) {
+                    console.error("일일 근태 설정 저장 실패:", err);
+                    showToast("저장 중 오류가 발생했습니다.", true);
+                }
             }
+
+            DOM.confirmLeaveBtn.disabled = false;
+            if (DOM.confirmLeaveBtn.textContent === '저장 중...') DOM.confirmLeaveBtn.textContent = originalBtnText;
         });
     }
 
-    // 3. 기록 수정 모달에서의 근태 관리 로직 (안전 장치 추가)
     const editLeaveModal = DOM.editLeaveModal || document.getElementById('edit-leave-record-modal');
 
     if (editLeaveModal) {
@@ -282,24 +303,21 @@ export function setupFormAttendanceListeners() {
                 let dailyChanged = false;
                 let persistentChanged = false;
                 let foundAndRemoved = false;
-                
-                // 🔥 [핵심 수정] 수정 시에도 무작정 로컬을 덮어쓰지 않고 서버 최신 데이터 기준으로 수정
-                const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
-                let currentLeaves = [];
+
+                const today = getTodayDateString();
+                let currentDailyLeaves = [...State.appState.dailyOnLeaveMembers];
+                let currentLeaves = [...State.persistentLeaveSchedule.onLeaveMembers];
 
                 if (originalType === 'daily') {
-                    const index = State.appState.dailyOnLeaveMembers.findIndex(
+                    const index = currentDailyLeaves.findIndex(
                         r => r.member === memberName && (r.startTime || '') === originalStart
                     );
                     if (index > -1) {
-                        State.appState.dailyOnLeaveMembers.splice(index, 1);
+                        currentDailyLeaves.splice(index, 1);
                         dailyChanged = true;
                         foundAndRemoved = true;
                     }
                 } else { 
-                    const snap = await getDoc(docRef);
-                    currentLeaves = snap.exists() && snap.data().onLeaveMembers ? snap.data().onLeaveMembers : [];
-                    
                     const index = currentLeaves.findIndex(
                         r => r.member === memberName && (r.startDate || '') === originalStart
                     );
@@ -320,7 +338,8 @@ export function setupFormAttendanceListeners() {
                         showToast('시간 기반 근태는 시작 시간이 필수입니다.', true);
                         return;
                     }
-                    State.appState.dailyOnLeaveMembers.push({
+                    currentDailyLeaves.push({
+                        id: `daily-${Date.now()}`,
                         member: memberName,
                         type: newType,
                         startTime: newStartTime,
@@ -344,10 +363,13 @@ export function setupFormAttendanceListeners() {
 
                 try {
                     if (dailyChanged) {
-                        await saveStateToFirestore();
+                        const todayDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
+                        await setDoc(todayDocRef, { onLeaveMembers: currentDailyLeaves }, { merge: true });
+                        State.appState.dailyOnLeaveMembers = currentDailyLeaves;
                     }
                     if (persistentChanged) {
-                        await setDoc(docRef, { onLeaveMembers: currentLeaves }, { merge: true });
+                        const persistDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
+                        await setDoc(persistDocRef, { onLeaveMembers: currentLeaves }, { merge: true });
                         State.persistentLeaveSchedule.onLeaveMembers = currentLeaves;
                     }
                     showToast('근태 기록이 수정되었습니다.');
@@ -358,7 +380,7 @@ export function setupFormAttendanceListeners() {
                 }
             });
         }
-
+        
         const editLeaveTypeSelect = document.getElementById('edit-leave-type');
         if (editLeaveTypeSelect) {
             editLeaveTypeSelect.addEventListener('change', (e) => {
