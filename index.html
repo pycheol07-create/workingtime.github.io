@@ -39,8 +39,8 @@
                 <button id="open-quantity-modal-today" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
                     <span class="text-lg">📈</span> 오늘 처리량 입력
                 </button>
-                <button id="end-shift-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
-                    <span class="text-lg">🏁</span> 업무 마감
+                <button id="open-history-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
+                    <span class="text-lg">📜</span> 데이터 관리
                 </button>
 
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 mt-6 px-2">관리 및 조회</div>
@@ -53,22 +53,22 @@
                 <button id="open-cost-simulation-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
                     <span class="text-lg">💰</span> 운영 시뮬레이션
                 </button>
-                
-                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 mt-6 px-2">관리자 메뉴</div>
-                <button id="open-history-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
-                    <span class="text-lg">📜</span> 데이터 관리
-                </button>
-                <button id="open-admin-todo-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
-                    <span class="text-lg">📅</span> 관리자 일정/투두
-                </button>
                 <a href="location.html" id="location-link-btn" target="location_window" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
                     <span class="text-lg">📍</span> 로케이션 관리
                 </a>
+                
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 mt-6 px-2">관리자 메뉴</div>
+                <button id="open-admin-todo-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
+                    <span class="text-lg">📅</span> 관리자 일정/투두
+                </button>
                 <a href="admin.html" id="admin-link-btn" target="admin_window" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
                     <span class="text-lg">⚙️</span> 관리자 페이지
                 </a>
                 <button id="reset-app-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
                     <span class="text-lg">🔄</span> 데이터 초기화
+                </button>
+                <button id="end-shift-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
+                    <span class="text-lg">🏁</span> 업무 마감
                 </button>
             </nav>
 
@@ -119,17 +119,18 @@
                     </div>
                 </div>
                 <button id="open-quantity-modal-today-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📊</span> 오늘 처리량 입력</button>
+                <button id="open-history-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📜</span> 데이터 관리</button>
+                
                 <button id="open-weekend-modal-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🗓️</span> 주말 근무 신청</button>
                 <button id="open-my-leave-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🏖️</span> 내 연차관리</button>
                 <button id="open-cost-simulation-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">💰</span> 운영 시뮬레이션</button>
-                <button id="end-shift-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2"><span class="text-lg">🏁</span> 업무 마감</button>
-                
+                <a href="location.html" id="location-link-btn-mobile" target="location_window" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📍</span> 로케이션 관리</a>
+
                 <div class="px-5 py-2 mt-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">관리자 메뉴</div>
-                <button id="open-history-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📜</span> 데이터 관리</button>
                 <button id="open-admin-todo-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📅</span> 관리자 일정/투두</button>
-                <a href="location.html" id="location-link-btn-mobile" target="location_window" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📍</span> 로케이션 관리</a>
                 <a href="admin.html" id="admin-link-btn-mobile" target="admin_window" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">⚙️</span> 관리자 페이지</a>
                 <button id="reset-app-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">🔄</span> 데이터 초기화</button>
+                <button id="end-shift-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-bold text-gray-600 dark:text-gray-400 flex items-center gap-2"><span class="text-lg">🏁</span> 업무 마감</button>
                 <button id="logout-btn-mobile" class="hidden text-left px-5 py-4 text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2 bg-red-50 dark:bg-red-900/20"><span class="text-lg">🚪</span> 로그아웃</button>
             </div>
 
