@@ -403,7 +403,7 @@ const loadCompletedInspectionData = async (item) => {
 export const searchProductHistory = async () => {
     let searchTerm = DOM.inspProductNameInput ? DOM.inspProductNameInput.value.trim() : document.getElementById('insp-product-name').value.trim();
     if (!searchTerm) {
-        showToast('상품명 또는 상품코문을 입력해주세요.', true);
+        showToast('상품명 또는 상품코드를 입력해주세요.', true);
         return;
     }
 
@@ -518,9 +518,19 @@ export const searchProductHistory = async () => {
                     }, 200);
                 }
             }
+            
+            // 기존 상품이면 '최초 입고 상품' 배지 숨기기
+            const newBadge = document.getElementById('insp-new-product-badge');
+            if (newBadge) newBadge.classList.add('hidden');
+
         } else {
             if(DOM.inspReportCount) DOM.inspReportCount.textContent = '0 (신규)';
-            if (editingLogIndex === -1) showToast('신규 상품입니다.');
+            
+            // 🔥 신규 상품일 경우 '최초 입고 상품' 튀는 배지 표시
+            const newBadge = document.getElementById('insp-new-product-badge');
+            if (newBadge) newBadge.classList.remove('hidden');
+
+            if (editingLogIndex === -1) showToast('신규 상품입니다. (최초 입고)');
         }
     } catch (e) {
         console.error("Error searching product history:", e);
