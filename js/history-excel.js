@@ -223,9 +223,6 @@ export const downloadInspectionHistory = async (format = 'xlsx', viewMode = 'pro
     }
 };
 
-// ... (기존 업무 이력 다운로드 함수들: downloadHistoryAsExcel 등 그대로 유지)
-// 아래 내용은 파일의 나머지 부분을 그대로 유지하기 위해 생략하지 않고 제공합니다.
-
 export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
     try {
         const data = allHistoryData.find(d => d.id === dateKey);
@@ -726,4 +723,47 @@ export const downloadContentAsPdf = (elementId, title) => {
         .finally(() => {
             document.body.removeChild(tempContainer);
         });
+};
+
+// =================================================================
+// ✅ [신규] 연차관리대장 엑셀 다운로드 함수
+// =================================================================
+export const downloadLeaveLedgerExcel = (year, data) => {
+    try {
+        // 1. 헤더 정의
+        const headers = ["이름", "총 연차", "기간 (리셋~만료)", "사용 개수", "잔여 연차", "사용 내역"];
+        
+        // 2. 데이터 행 생성
+        const rows = data.map(row => [
+            row.member,
+            row.total,
+            row.periodText,
+            row.used,
+            row.remaining,
+            row.history
+        ]);
+
+        // 3. 워크시트 생성
+        const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `${year}년 연차관리대장`);
+
+        // 4. 열 너비 설정
+        worksheet['!cols'] = [
+            { wch: 10 }, // 이름
+            { wch: 10 }, // 총 연차
+            { wch: 25 }, // 기간
+            { wch: 10 }, // 사용 개수
+            { wch: 10 }, // 잔여 연차
+            { wch: 60 }  // 사용 내역
+        ];
+
+        // 5. 파일 다운로드
+        XLSX.writeFile(workbook, `${year}년_연차관리대장_${new Date().toISOString().slice(0,10)}.xlsx`);
+        showToast('연차관리대장 엑셀 다운로드 완료');
+        
+    } catch (e) {
+        console.error("Excel download error:", e);
+        showToast("엑셀 다운로드 중 오류가 발생했습니다.", true);
+    }
 };

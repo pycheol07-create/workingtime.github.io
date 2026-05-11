@@ -1,15 +1,19 @@
 // === js/ui-history-leave.js ===
 import * as State from './state.js';
 import { showToast } from './utils.js';
-import { 
-    doc, getDoc, setDoc 
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ✅ 엑셀 변환 함수 불러오기
+import { downloadLeaveLedgerExcel } from './history-excel.js';
 
 let currentYear = new Date().getFullYear();
 let fullLeaveConfig = {}; 
 
 // 정렬 상태 관리 (기본값을 입사일 'joinDate'로 설정)
 let sortState = { key: 'joinDate', dir: 'asc' }; 
+
+// 엑셀 다운로드를 위해 마지막에 렌더링된 연차 데이터 임시 저장용
+let lastRenderedLeaveData = [];
 
 export async function initLeaveManagement() {
     const yearSelect = document.getElementById('leave-year-select');
@@ -30,7 +34,34 @@ export async function initLeaveManagement() {
     if (saveBtn) saveBtn.onclick = saveLeaveSettings;
 
     const refreshBtn = document.getElementById('refresh-leave-sheet-btn');
-    if (refreshBtn) refreshBtn.onclick = renderLeaveSheet;
+    if (refreshBtn) {
+        refreshBtn.onclick = renderLeaveSheet;
+        
+        // ✅ 엑셀 다운로드 버튼 동적 생성 및 추가 (기존에 없을 경우에만)
+        if (!document.getElementById('download-leave-sheet-btn')) {
+            const downloadBtn = document.createElement('button');
+            downloadBtn.id = 'download-leave-sheet-btn';
+            downloadBtn.className = 'px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded shadow-sm transition-colors flex items-center gap-2 ml-2';
+            downloadBtn.innerHTML = `
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                엑셀 다운로드
+            `;
+            
+            // 새로고침 버튼 부모 요소에 나란히 추가
+            refreshBtn.parentNode.appendChild(downloadBtn);
+
+            // 다운로드 이벤트 연결
+            downloadBtn.onclick = () => {
+                if (lastRenderedLeaveData.length === 0) {
+                    showToast("다운로드할 데이터가 없습니다.", true);
+                    return;
+                }
+                downloadLeaveLedgerExcel(currentYear, lastRenderedLeaveData);
+            };
+        }
+    }
 
     setupSortListeners();
     await renderLeaveSheet();
@@ -130,6 +161,9 @@ export async function renderLeaveSheet() {
                 return 0;
             });
         }
+
+        // ✅ 엑셀 다운로드를 위해 정렬까지 완료된 최종 데이터 저장
+        lastRenderedLeaveData = rowData;
 
         tbody.innerHTML = '';
         
@@ -445,9 +479,7 @@ async function fetchLeaveSettings() {
 }
 
 /**
- * ✅ [수정됨] 연차 사용 내역 집계 로직
- * - 연도 표시(YY.MM.DD) 추가
- * - 실제 날짜 기준 정렬 로직 강화
+ * 연차 사용 내역 집계 로직
  */
 async function fetchLeaveUsage(year) {
     let allLeavesMap = new Map();
@@ -522,7 +554,6 @@ async function fetchLeaveUsage(year) {
             let days = 0;
             let label = "";
 
-            // ✅ 연도 포함 표시 형식 (YYYY-MM-DD -> YY.MM.DD)
             const displayDate = recordDate.substring(2).replace(/-/g, '.');
             const displayEndDate = record.endDate ? record.endDate.substring(2).replace(/-/g, '.') : '';
 
@@ -552,16 +583,12 @@ async function fetchLeaveUsage(year) {
             }
 
             usage[name].count += days;
-            // ✅ 정렬을 위해 원본 날짜를 객체 형태로 저장
             usage[name].dates.push({ fullDate: recordDate, label: label });
         }
     });
 
-    // ✅ 결과 정렬 및 라벨 추출
     Object.keys(usage).forEach(key => {
-        // 원본 날짜(fullDate) 기준 오름차순 정렬
         usage[key].dates.sort((a, b) => a.fullDate.localeCompare(b.fullDate));
-        // 표시용 라벨 문자열로 변환
         usage[key].dates = usage[key].dates.map(item => item.label);
     });
 
