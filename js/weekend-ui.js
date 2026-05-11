@@ -59,6 +59,7 @@ export function renderWeekendStats(memberStats, yearlyStatsMap) {
     });
 }
 
+// 🌟 [수정 없음] 기존의 리스트 형태 렌더링 함수
 export function renderWeekendList(year, month) {
     const listView = document.getElementById('weekend-list-view');
     const label = document.getElementById('current-month-label');
@@ -73,12 +74,10 @@ export function renderWeekendList(year, month) {
     const isAdmin = (State.appState.currentUserRole === 'admin');
 
     const bulkBar = document.getElementById('admin-bulk-action-bar');
-    if (bulkBar) {
+    if (bulkBar && document.getElementById('weekend-list-view').classList.contains('hidden') === false) {
         if (isAdmin) {
             bulkBar.classList.remove('hidden');
             bulkBar.classList.add('flex');
-            const selAllCb = document.getElementById('select-all-dates-checkbox');
-            if (selAllCb) selAllCb.checked = false;
         } else {
             bulkBar.classList.add('hidden');
             bulkBar.classList.remove('flex');
@@ -108,7 +107,6 @@ export function renderWeekendList(year, month) {
             const rowItem = document.createElement('div');
             rowItem.className = 'flex flex-row items-stretch gap-2 p-1.5 rounded-lg border shadow-sm hover:shadow-md transition-all mb-2';
             
-            // 🔥 [핵심 수정] isBlocked 이거나 isPast 인 경우 어둡게(grayscale, opacity 등) 처리
             if (isPast || isBlocked) rowItem.classList.add('bg-gray-50', 'opacity-80', 'grayscale');
             else rowItem.classList.add('bg-white');
 
@@ -125,7 +123,6 @@ export function renderWeekendList(year, month) {
             const dateArea = document.createElement('div');
             dateArea.className = `w-[64px] md:w-[76px] flex-shrink-0 flex flex-col items-center justify-center rounded-md border overflow-hidden select-none`;
             
-            // 🔥 [핵심 수정] isBlocked 도 isPast 와 동일하게 회색 배경 적용
             if (isPast || isBlocked) {
                 dateArea.classList.add('bg-gray-200', 'text-gray-500', 'border-gray-300');
             } else {
@@ -149,7 +146,6 @@ export function renderWeekendList(year, month) {
             rightHeader.className = "flex justify-between items-center text-[10px] md:text-xs mb-1.5";
 
             if (isPast) {
-                // 이미 위에서 전체 row에 grayscale/opacity를 적용했으므로, 여기서는 배경색/커서만 처리
                 rightArea.classList.add('bg-gray-100', 'border-gray-300');
                 if (isAdmin) {
                     rightArea.classList.add('cursor-pointer', 'hover:bg-gray-200');
@@ -162,7 +158,6 @@ export function renderWeekendList(year, month) {
                 }
             } else {
                 if (isBlocked) {
-                    // 🔥 [핵심 수정] isBlocked 상태의 내부 스타일 재정의
                     rightArea.classList.add('bg-gray-100', 'border-gray-300', 'cursor-not-allowed');
                 } else if (isAppliedByMe) {
                     rightArea.classList.add('bg-indigo-50', 'border-indigo-300', 'border-dashed', 'cursor-pointer');
@@ -171,8 +166,6 @@ export function renderWeekendList(year, month) {
                 }
 
                 rightArea.onclick = () => handleDateClick(dateStr, isBlocked);
-                
-                // 마감됨 텍스트도 회색조로 통일 (기존 빨간색 제거)
                 rightHeader.innerHTML = `<span class="text-gray-500 font-medium">영역을 터치하여 신청/취소</span>${isBlocked ? '<span class="text-gray-600 font-bold bg-gray-200 border border-gray-300 px-1.5 rounded">마감됨</span>' : isAppliedByMe ? '<span class="text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded">✅ 신청됨</span>' : ''}`;
             }
 
@@ -207,7 +200,6 @@ export function renderWeekendList(year, month) {
                 });
 
                 store.requestsByDate[dateStr].forEach(req => {
-                    // 과거이거나 마감된 날짜면 뱃지의 상태/스타일도 그에 맞게 렌더링 됨
                     addBadgeToCalendar(dateStr, req, isAdmin && !isPast); 
                 });
             }
@@ -219,6 +211,156 @@ export function renderWeekendList(year, month) {
     }
 }
 
+
+// 🔥 [신규 추가] 달력 형태 렌더링 함수
+export function renderWeekendGrid(year, month) {
+    const gridView = document.getElementById('calendar-grid');
+    const label = document.getElementById('current-month-label');
+    
+    if (!gridView || !label) return;
+
+    label.textContent = `${year}년 ${month + 1}월`;
+    gridView.innerHTML = '';
+
+    const firstDay = new Date(year, month, 1).getDay(); // 해당 월 1일의 요일
+    const lastDate = new Date(year, month + 1, 0).getDate(); // 해당 월 마지막 날짜
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const isAdmin = (State.appState.currentUserRole === 'admin');
+
+    // 1일 이전의 빈 칸 채우기
+    for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = "bg-transparent p-1";
+        gridView.appendChild(emptyCell);
+    }
+
+    // 날짜 칸 채우기
+    for (let d = 1; d <= lastDate; d++) {
+        const dateObj = new Date(year, month, d);
+        const dayOfWeek = dateObj.getDay();
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        
+        const cell = document.createElement('div');
+        cell.className = "flex flex-col border rounded-md p-1 min-h-[80px] md:min-h-[100px] overflow-hidden transition-all bg-white relative";
+        
+        let headerColorClass = "text-gray-700";
+        if (dayOfWeek === 0) headerColorClass = "text-red-600";
+        if (dayOfWeek === 6) headerColorClass = "text-blue-600";
+
+        // 주말(토,일)일 경우에만 상호작용 및 데이터 표시
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            const isBlocked = store.blockedDatesSet.has(dateStr);
+            const isAppliedByMe = store.myRequestsMap.has(dateStr);
+            const capacity = store.capacityMap.get(dateStr); 
+            const isPast = dateObj < today;
+
+            // 배경/투명도 처리
+            if (isPast || isBlocked) {
+                cell.classList.add('bg-gray-50', 'opacity-80', 'grayscale', 'border-gray-200');
+            } else if (isAppliedByMe) {
+                cell.classList.add('bg-indigo-50', 'border-indigo-300', 'border-dashed');
+            } else {
+                cell.classList.add('hover:bg-blue-50', 'cursor-pointer', 'border-blue-100');
+            }
+
+            // 클릭 이벤트 매핑
+            if (!isPast) {
+                cell.onclick = () => handleDateClick(dateStr, isBlocked);
+            } else if (isAdmin) {
+                cell.onclick = () => openPastDateEditPopup(dateStr);
+                cell.classList.add('cursor-pointer', 'hover:bg-gray-200');
+            } else {
+                cell.onclick = () => showToast("지나간 주차는 관리자만 편집할 수 있습니다.", true);
+            }
+
+            // 헤더 조립 (날짜 숫자, 정원, 관리자설정 아이콘 등)
+            let headerHtml = `<div class="flex justify-between items-start mb-1">
+                                <span class="font-bold text-xs md:text-sm ${headerColorClass}">${d}</span>`;
+            
+            let badgesHtml = `<div class="flex flex-col gap-0.5" id="grid-list-${dateStr}">`;
+
+            if (capacity) {
+                headerHtml += `<span class="text-[9px] font-bold px-1 py-0.5 rounded border ${(isPast || isBlocked) ? 'bg-gray-200 text-gray-500 border-gray-300' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}">정원 ${capacity}</span>`;
+            } else if (isAdmin && !isPast) {
+                // 관리자용 설정 톱니바퀴 아이콘
+                headerHtml += `<button title="날짜 설정" class="text-gray-400 hover:text-indigo-600 transition p-0.5" onclick="event.stopPropagation(); window.openAdminDatePopup('${dateStr}');">
+                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                               </button>`;
+                window.openAdminDatePopup = openAdminDatePopup; // 글로벌 스코프 노출
+            }
+
+            headerHtml += `</div>`;
+            cell.innerHTML = headerHtml + badgesHtml;
+
+            // 데이터 채우기 로직은 setTimeout으로 DOM 부착 후 실행되도록 예약
+            setTimeout(() => {
+                if (store.requestsByDate[dateStr]) {
+                    const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
+                    store.requestsByDate[dateStr].sort((a, b) => {
+                        if (a.status === 'canceled' && b.status !== 'canceled') return 1;
+                        if (a.status !== 'canceled' && b.status === 'canceled') return -1;
+                        const aIsAdmin = adminMembers.includes(a.member);
+                        const bIsAdmin = adminMembers.includes(b.member);
+                        if (aIsAdmin && !bIsAdmin) return 1;  
+                        if (!aIsAdmin && bIsAdmin) return -1; 
+                        return (a.createdAt || "").localeCompare(b.createdAt || "");
+                    });
+
+                    store.requestsByDate[dateStr].forEach(req => {
+                        addBadgeToGrid(dateStr, req, isAdmin && !isPast); 
+                    });
+                }
+            }, 0);
+
+        } else {
+            // 평일 (회색으로 흐리게 처리)
+            cell.classList.add('bg-gray-50', 'border-gray-100');
+            cell.innerHTML = `<span class="font-medium text-xs md:text-sm text-gray-400 p-1">${d}</span>`;
+        }
+
+        gridView.appendChild(cell);
+    }
+}
+
+// 캘린더용 초소형 뱃지 생성기
+function addBadgeToGrid(dateStr, data, isClickableAdmin) {
+    const container = document.getElementById(`grid-list-${dateStr}`);
+    if (!container) return;
+
+    const badge = document.createElement('div');
+    
+    let colorClass = '';
+
+    if (data.status === 'confirmed') {
+        colorClass = 'bg-blue-600 text-white';
+    } else if (data.status === 'canceled') {
+        colorClass = 'bg-yellow-100 text-yellow-700 opacity-70 line-through';
+    } else {
+        colorClass = 'bg-white text-orange-600 border border-orange-200';
+    }
+    
+    badge.className = `px-1 py-0.5 rounded text-[10px] md:text-[11px] font-medium truncate w-full text-center shadow-sm ${colorClass}`;
+    // 모바일 등 폭이 좁을 경우 이름 앞 2글자만 자르거나, 그대로 넣음
+    badge.textContent = data.member;
+    badge.title = data.status === 'confirmed' ? '확정' : (data.status === 'canceled' ? '취소' : '대기중');
+
+    if (isClickableAdmin) {
+        badge.style.cursor = 'pointer';
+        badge.onclick = (e) => {
+            e.stopPropagation(); 
+            handleAdminBadgeClick(data.id, data);
+        };
+    } else {
+        badge.onclick = (e) => e.stopPropagation(); 
+    }
+
+    container.appendChild(badge);
+}
+
+// 기존 리스트 뷰용 뱃지 생성 함수 유지
 export function addBadgeToCalendar(dateStr, data, isClickableAdmin) {
     const container = document.getElementById(`weekend-list-${dateStr}`);
     if (!container) return;
