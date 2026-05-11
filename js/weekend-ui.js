@@ -4,6 +4,36 @@ import { store } from './weekend-store.js';
 import { handleDateClick } from './weekend-core.js';
 import { openAdminDatePopup, openPastDateEditPopup, handleAdminBadgeClick } from './weekend-admin.js';
 
+// 🔥 법정 공휴일 데이터를 반환하는 헬퍼 함수 (달력 뷰에서만 사용)
+export function getHolidayName(year, month, day) {
+    const mm = String(month).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    const md = `${mm}-${dd}`;
+    const ymd = `${year}-${mm}-${dd}`;
+
+    const fixedHolidays = {
+        '01-01': '신정', '03-01': '3·1절', '05-05': '어린이날', '06-06': '현충일',
+        '08-15': '광복절', '10-03': '개천절', '10-09': '한글날', '12-25': '기독탄신일(크리스마스)'
+    };
+
+    const variableHolidays = {
+        '2024-02-09': '설날 연휴', '2024-02-10': '설날', '2024-02-11': '설날 연휴', '2024-02-12': '대체공휴일',
+        '2024-04-10': '국회의원선거', '2024-05-06': '대체공휴일', '2024-05-15': '부처님오신날',
+        '2024-09-16': '추석 연휴', '2024-09-17': '추석', '2024-09-18': '추석 연휴',
+        '2025-01-28': '설날 연휴', '2025-01-29': '설날', '2025-01-30': '설날 연휴',
+        '2025-03-03': '대체공휴일', '2025-05-05': '어린이날/부처님오신날', '2025-05-06': '대체공휴일',
+        '2025-10-05': '추석 연휴', '2025-10-06': '추석', '2025-10-07': '추석 연휴', '2025-10-08': '대체공휴일',
+        '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
+        '2026-03-02': '대체공휴일', '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일',
+        '2026-06-03': '지방선거', '2026-08-16': '대체공휴일',
+        '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴', '2026-10-04': '대체공휴일', '2026-10-05': '대체공휴일'
+    };
+
+    if (variableHolidays[ymd]) return variableHolidays[ymd];
+    if (fixedHolidays[md]) return fixedHolidays[md];
+    return null;
+}
+
 export function renderWeekendStats(memberStats, yearlyStatsMap) {
     const sidebar = document.getElementById('weekend-stats-sidebar');
     const list = document.getElementById('weekend-stats-list');
@@ -59,7 +89,7 @@ export function renderWeekendStats(memberStats, yearlyStatsMap) {
     });
 }
 
-// 🌟 [수정 없음] 기존의 리스트 형태 렌더링 함수
+// 🌟 리스트 뷰 렌더링 함수 (공휴일 표시 제외)
 export function renderWeekendList(year, month) {
     const listView = document.getElementById('weekend-list-view');
     const label = document.getElementById('current-month-label');
@@ -101,6 +131,7 @@ export function renderWeekendList(year, month) {
             const capacity = store.capacityMap.get(dateStr); 
             const isPast = dateObj < today;
 
+            // 주말 색상만 적용 (공휴일 무시)
             let dayColor = dayOfWeek === 0 ? 'text-red-600' : 'text-blue-600';
             let bgColor = dayOfWeek === 0 ? 'bg-red-50' : 'bg-blue-50';
 
@@ -135,6 +166,7 @@ export function renderWeekendList(year, month) {
                 dateArea.onclick = () => openAdminDatePopup(dateStr);
             }
             
+            // 공휴일 라벨 제외
             dateArea.innerHTML = `
                 <span class="text-[17px] md:text-xl font-black tracking-tight mt-1 md:mt-2">${d}.${dayName}</span>
                 ${capacity ? `<span class="mt-1 mb-1 md:mb-2 text-[9px] md:text-[10px] font-bold ${(isPast || isBlocked) ? 'bg-gray-300 text-gray-600 border-gray-400' : 'bg-emerald-100 text-emerald-700 border-emerald-200'} px-1.5 py-0.5 rounded border">정원 ${capacity}</span>` : '<span class="h-1 md:h-2"></span>'}
@@ -212,7 +244,7 @@ export function renderWeekendList(year, month) {
 }
 
 
-// 🔥 [신규 추가] 달력 형태 렌더링 함수
+// 🌟 달력 뷰(Grid) 렌더링 함수 (공휴일 표시 유지)
 export function renderWeekendGrid(year, month) {
     const gridView = document.getElementById('calendar-grid');
     const label = document.getElementById('current-month-label');
@@ -222,42 +254,40 @@ export function renderWeekendGrid(year, month) {
     label.textContent = `${year}년 ${month + 1}월`;
     gridView.innerHTML = '';
 
-    const firstDay = new Date(year, month, 1).getDay(); // 해당 월 1일의 요일
-    const lastDate = new Date(year, month + 1, 0).getDate(); // 해당 월 마지막 날짜
+    const firstDay = new Date(year, month, 1).getDay(); 
+    const lastDate = new Date(year, month + 1, 0).getDate(); 
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const isAdmin = (State.appState.currentUserRole === 'admin');
 
-    // 1일 이전의 빈 칸 채우기
     for (let i = 0; i < firstDay; i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = "bg-transparent p-1";
         gridView.appendChild(emptyCell);
     }
 
-    // 날짜 칸 채우기
     for (let d = 1; d <= lastDate; d++) {
         const dateObj = new Date(year, month, d);
         const dayOfWeek = dateObj.getDay();
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         
+        const holidayName = getHolidayName(year, month + 1, d); 
+
         const cell = document.createElement('div');
         cell.className = "flex flex-col border rounded-md p-1 min-h-[80px] md:min-h-[100px] overflow-hidden transition-all bg-white relative";
         
         let headerColorClass = "text-gray-700";
-        if (dayOfWeek === 0) headerColorClass = "text-red-600";
-        if (dayOfWeek === 6) headerColorClass = "text-blue-600";
+        if (dayOfWeek === 0 || holidayName) headerColorClass = "text-red-600";
+        else if (dayOfWeek === 6) headerColorClass = "text-blue-600";
 
-        // 주말(토,일)일 경우에만 상호작용 및 데이터 표시
         if (dayOfWeek === 0 || dayOfWeek === 6) {
             const isBlocked = store.blockedDatesSet.has(dateStr);
             const isAppliedByMe = store.myRequestsMap.has(dateStr);
             const capacity = store.capacityMap.get(dateStr); 
             const isPast = dateObj < today;
 
-            // 배경/투명도 처리
             if (isPast || isBlocked) {
                 cell.classList.add('bg-gray-50', 'opacity-80', 'grayscale', 'border-gray-200');
             } else if (isAppliedByMe) {
@@ -266,7 +296,6 @@ export function renderWeekendGrid(year, month) {
                 cell.classList.add('hover:bg-blue-50', 'cursor-pointer', 'border-blue-100');
             }
 
-            // 클릭 이벤트 매핑
             if (!isPast) {
                 cell.onclick = () => handleDateClick(dateStr, isBlocked);
             } else if (isAdmin) {
@@ -276,26 +305,28 @@ export function renderWeekendGrid(year, month) {
                 cell.onclick = () => showToast("지나간 주차는 관리자만 편집할 수 있습니다.", true);
             }
 
-            // 헤더 조립 (날짜 숫자, 정원, 관리자설정 아이콘 등)
             let headerHtml = `<div class="flex justify-between items-start mb-1">
-                                <span class="font-bold text-xs md:text-sm ${headerColorClass}">${d}</span>`;
-            
-            let badgesHtml = `<div class="flex flex-col gap-0.5" id="grid-list-${dateStr}">`;
+                                <div class="flex flex-col">
+                                    <span class="font-bold text-xs md:text-sm ${headerColorClass}">${d}</span>
+                                    ${holidayName ? `<span class="text-[9px] md:text-[10px] text-red-500 font-bold tracking-tighter leading-none mt-0.5 break-keep">${holidayName}</span>` : ''}
+                                </div>
+                                <div class="flex flex-col items-end gap-1">`;
 
             if (capacity) {
-                headerHtml += `<span class="text-[9px] font-bold px-1 py-0.5 rounded border ${(isPast || isBlocked) ? 'bg-gray-200 text-gray-500 border-gray-300' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}">정원 ${capacity}</span>`;
-            } else if (isAdmin && !isPast) {
-                // 관리자용 설정 톱니바퀴 아이콘
-                headerHtml += `<button title="날짜 설정" class="text-gray-400 hover:text-indigo-600 transition p-0.5" onclick="event.stopPropagation(); window.openAdminDatePopup('${dateStr}');">
+                headerHtml += `<span class="text-[8px] md:text-[9px] font-bold px-1 py-0.5 rounded border ${(isPast || isBlocked) ? 'bg-gray-200 text-gray-500 border-gray-300' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}">정원 ${capacity}</span>`;
+            } 
+            if (isAdmin && !isPast) {
+                headerHtml += `<button title="날짜 설정" class="text-gray-400 hover:text-indigo-600 transition p-0.5 ml-auto" onclick="event.stopPropagation(); window.openAdminDatePopup('${dateStr}');">
                                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                </button>`;
-                window.openAdminDatePopup = openAdminDatePopup; // 글로벌 스코프 노출
+                window.openAdminDatePopup = openAdminDatePopup; 
             }
 
-            headerHtml += `</div>`;
+            headerHtml += `</div></div>`;
+            
+            let badgesHtml = `<div class="flex flex-col gap-0.5" id="grid-list-${dateStr}"></div>`;
             cell.innerHTML = headerHtml + badgesHtml;
 
-            // 데이터 채우기 로직은 setTimeout으로 DOM 부착 후 실행되도록 예약
             setTimeout(() => {
                 if (store.requestsByDate[dateStr]) {
                     const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
@@ -316,9 +347,17 @@ export function renderWeekendGrid(year, month) {
             }, 0);
 
         } else {
-            // 평일 (회색으로 흐리게 처리)
-            cell.classList.add('bg-gray-50', 'border-gray-100');
-            cell.innerHTML = `<span class="font-medium text-xs md:text-sm text-gray-400 p-1">${d}</span>`;
+            // 평일
+            if (holidayName) {
+                cell.classList.add('bg-red-50/20', 'border-red-100');
+                cell.innerHTML = `<div class="flex flex-col p-1">
+                                    <span class="font-bold text-xs md:text-sm text-red-500">${d}</span>
+                                    <span class="text-[9px] md:text-[10px] text-red-400 font-bold leading-tight mt-0.5 break-keep">${holidayName}</span>
+                                  </div>`;
+            } else {
+                cell.classList.add('bg-gray-50', 'border-gray-100');
+                cell.innerHTML = `<span class="font-medium text-xs md:text-sm text-gray-400 p-1">${d}</span>`;
+            }
         }
 
         gridView.appendChild(cell);
@@ -343,7 +382,6 @@ function addBadgeToGrid(dateStr, data, isClickableAdmin) {
     }
     
     badge.className = `px-1 py-0.5 rounded text-[10px] md:text-[11px] font-medium truncate w-full text-center shadow-sm ${colorClass}`;
-    // 모바일 등 폭이 좁을 경우 이름 앞 2글자만 자르거나, 그대로 넣음
     badge.textContent = data.member;
     badge.title = data.status === 'confirmed' ? '확정' : (data.status === 'canceled' ? '취소' : '대기중');
 
@@ -360,7 +398,7 @@ function addBadgeToGrid(dateStr, data, isClickableAdmin) {
     container.appendChild(badge);
 }
 
-// 기존 리스트 뷰용 뱃지 생성 함수 유지
+// 기존 리스트 뷰용 뱃지 생성기
 export function addBadgeToCalendar(dateStr, data, isClickableAdmin) {
     const container = document.getElementById(`weekend-list-${dateStr}`);
     if (!container) return;
