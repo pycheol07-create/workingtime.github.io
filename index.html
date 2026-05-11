@@ -552,8 +552,10 @@
 
             list.innerHTML = sorted.map(notice => {
                 const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
-                // 🔥 멘션 하이라이트 효과 (옵션)
-                const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, '<span class="text-blue-500 font-bold">@$1</span>');
+                
+                // 🔥 [수정] 멘션 텍스트를 배지(Badge) 스타일로 변환 (알림 관리 모달)
+                const mentionStyle = '<span class="inline-block bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50 rounded-md px-1.5 py-0.5 text-[11px] font-black mx-1 align-baseline shadow-sm leading-tight">@$1</span>';
+                const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, mentionStyle);
 
                 return `
                 <li class="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm transition-colors">
