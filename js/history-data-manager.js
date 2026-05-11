@@ -64,7 +64,6 @@ export const syncTodayToHistory = async () => {
             dailyAttendance: finalDailyData.dailyAttendance || {},
             management: finalDailyData.management || {},
             inspectionList: mergedInspectionList,
-            // 동기화 시 기존 확정 여부 유지 (없으면 false)
             isQuantityVerified: finalDailyData.isQuantityVerified || historyData.isQuantityVerified || false
         };
 
@@ -81,7 +80,6 @@ export const syncTodayToHistory = async () => {
     }
 };
 
-// [수정] isQuantityVerified 파라미터 추가 및 덮어쓰기 방지 로직 강화
 export async function saveProgress(isAutoSave = false, isQuantityVerified = false) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
@@ -116,13 +114,11 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             return Math.round(record.duration || 0) > 0;
         });
 
-        // 🌟 [핵심 수정] 기존 이력 데이터 확인 및 덮어쓰기 방지 로직 강화
         const historySnap = await getDoc(historyDocRef);
         if (historySnap.exists()) {
             const existingHistory = historySnap.data();
             const existingRecordsCount = (existingHistory.workRecords || []).length;
             
-            // 기존 이력에 데이터가 있는데, 현재 덮어씌우려는 데이터가 아예 없거나 현저히 적은 경우 (마감 후 덮어쓰기 방지)
             if (existingRecordsCount > 0 && liveWorkRecords.length < existingRecordsCount) {
                 console.log(`Safe-guard: 기존 기록(${existingRecordsCount}개)이 현재 라이브 기록(${liveWorkRecords.length}개)보다 많습니다. 덮어쓰기를 방지합니다.`);
                 if (!isAutoSave) showToast("이미 데이터가 안전하게 마감/저장되었습니다. (초기화 후 중복 덮어쓰기 차단)");
@@ -136,8 +132,10 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
              return;
         }
 
-        // [추가] DB에 저장된 기존 상태 확인 (이미 확정된 경우 false로 덮어쓰지 않기 위함)
         const currentVerifiedStatus = dailyData.isQuantityVerified === true;
+
+        // 🔥 [중요 수정] State.appState.dailyAttendance를 직접 참조하여 가장 최신의 퇴근 상태가 누락 없이 들어가게 합니다.
+        const mergedAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
 
         const historyData = {
             id: dateStr,
@@ -146,17 +144,15 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             confirmedZeroTasks: dailyData.confirmedZeroTasks || [],
             onLeaveMembers: dailyData.onLeaveMembers || [],
             partTimers: dailyData.partTimers || [],
-            dailyAttendance: dailyData.dailyAttendance || {},
+            dailyAttendance: mergedAttendance, // 👈 수정됨
             management: dailyData.management || {},
             inspectionList: dailyData.inspectionList || [],
-            // [수정] 파라미터가 true거나, 이미 DB에 true로 저장되어 있으면 true 유지
             isQuantityVerified: isQuantityVerified || currentVerifiedStatus,
             savedAt: now
         };
 
         await setDoc(historyDocRef, historyData, { merge: true });
         
-        // Daily Data에도 확정 여부 업데이트
         if (isQuantityVerified) {
             await setDoc(getDailyDocRef(), { isQuantityVerified: true }, { merge: true });
         }
@@ -185,20 +181,22 @@ export async function saveDayDataToHistory(shouldReset) {
         const dailyDocRef = getDailyDocRef();
         const dailyDocSnap = await getDoc(dailyDocRef);
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
-        const dailyAttendance = dailyData.dailyAttendance || {};
+        
+        // 메모리의 출결 상태를 최우선으로 가져옵니다.
+        const dailyAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
 
         const querySnapshot = await getDocs(workRecordsColRef);
         
         let attendanceUpdated = false;
         
         Object.keys(dailyAttendance).forEach(member => {
-            // 🌟 [핵심 수정] 출근 상태 체크를 'working'에서 'active'로 변경
+            // 출근 중인 인원을 모두 퇴근 처리
             if (dailyAttendance[member].status === 'active') {
                 let autoOutTime = globalEndTime; 
                 if (dailyAttendance[member].inTime && autoOutTime < dailyAttendance[member].inTime) {
                     autoOutTime = globalEndTime;
                 }
-                dailyAttendance[member].status = 'returned';
+                dailyAttendance[member].status = 'returned'; // 퇴근 상태
                 dailyAttendance[member].outTime = autoOutTime;
                 attendanceUpdated = true;
                 console.log(`[Auto-Clock-out] ${member}: ${autoOutTime} 퇴근 처리 (업무 마감 실행)`);
@@ -206,7 +204,10 @@ export async function saveDayDataToHistory(shouldReset) {
         });
 
         if (attendanceUpdated) {
+            // DB에 퇴근 기록 업데이트
             await updateDoc(dailyDocRef, { dailyAttendance: dailyAttendance });
+            // 🔥 [중요 수정] 로컬 메모리에도 퇴근 기록 즉시 업데이트 (이후 saveProgress가 이 값을 참조하도록)
+            State.appState.dailyAttendance = dailyAttendance;
             showToast("미퇴근 인원을 현재 시간으로 퇴근 처리했습니다.");
         }
         
@@ -271,7 +272,7 @@ export async function saveDayDataToHistory(shouldReset) {
     }
 
     await new Promise(resolve => setTimeout(resolve, 500));
-    await saveProgress(false);
+    await saveProgress(false); // 이 시점에서 변경된 퇴근 상태가 히스토리에 반영됩니다!
 
     if (shouldReset) {
          try {
@@ -290,7 +291,6 @@ export async function saveDayDataToHistory(shouldReset) {
         State.appState.workRecords = []; 
         showToast('오늘의 업무 기록을 초기화했습니다.');
 
-        // ✨ [수정됨] 마감 후에는 당일 빈 라이브 데이터가 아닌, 저장된 히스토리 데이터를 화면에 고정
         const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', getTodayDateString());
         const historySnap = await getDoc(historyDocRef);
         if(historySnap.exists()) {
