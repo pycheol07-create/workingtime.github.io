@@ -134,7 +134,6 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
 
         const currentVerifiedStatus = dailyData.isQuantityVerified === true;
 
-        // 🔥 [중요 수정] State.appState.dailyAttendance를 직접 참조하여 가장 최신의 퇴근 상태가 누락 없이 들어가게 합니다.
         const mergedAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
 
         const historyData = {
@@ -144,7 +143,7 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             confirmedZeroTasks: dailyData.confirmedZeroTasks || [],
             onLeaveMembers: dailyData.onLeaveMembers || [],
             partTimers: dailyData.partTimers || [],
-            dailyAttendance: mergedAttendance, // 👈 수정됨
+            dailyAttendance: mergedAttendance, 
             management: dailyData.management || {},
             inspectionList: dailyData.inspectionList || [],
             isQuantityVerified: isQuantityVerified || currentVerifiedStatus,
@@ -206,7 +205,7 @@ export async function saveDayDataToHistory(shouldReset) {
         if (attendanceUpdated) {
             // DB에 퇴근 기록 업데이트
             await updateDoc(dailyDocRef, { dailyAttendance: dailyAttendance });
-            // 🔥 [중요 수정] 로컬 메모리에도 퇴근 기록 즉시 업데이트 (이후 saveProgress가 이 값을 참조하도록)
+            // 로컬 메모리에도 퇴근 기록 즉시 업데이트
             State.appState.dailyAttendance = dailyAttendance;
             showToast("미퇴근 인원을 현재 시간으로 퇴근 처리했습니다.");
         }
@@ -272,7 +271,7 @@ export async function saveDayDataToHistory(shouldReset) {
     }
 
     await new Promise(resolve => setTimeout(resolve, 500));
-    await saveProgress(false); // 이 시점에서 변경된 퇴근 상태가 히스토리에 반영됩니다!
+    await saveProgress(false); 
 
     if (shouldReset) {
          try {
@@ -283,7 +282,14 @@ export async function saveDayDataToHistory(shouldReset) {
                 snapshotAll.forEach(doc => deleteBatch.delete(doc.ref));
                 await deleteBatch.commit();
             }
-             await setDoc(getDailyDocRef(), { state: '{}' });
+            
+            // 🔥 [버그 해결] 전체 문서를 삭제하는게 아니라, 작업량과 같은 임시 데이터만 비우고 퇴근기록(dailyAttendance) 등은 안전하게 보존합니다.
+            await setDoc(getDailyDocRef(), {
+                taskQuantities: {},
+                confirmedZeroTasks: [],
+                isQuantityVerified: false
+            }, { merge: true });
+
         } catch (e) {
              console.error("Error clearing daily data: ", e);
         }
@@ -544,17 +550,14 @@ export async function checkUnverifiedRecords() {
 
         snapshot.forEach(doc => {
             const data = doc.data();
-            // 오늘 날짜는 제외 (오늘은 아직 입력 중이므로)
             if (doc.id !== today) {
                 const hasQuantities = data.taskQuantities && Object.keys(data.taskQuantities).length > 0;
-                // 처리량이 있는데 확정 플래그가 없거나 false인 경우
                 if (hasQuantities && !data.isQuantityVerified) {
                     unverifiedDates.push(doc.id);
                 }
             }
         });
 
-        // 날짜순 정렬 (과거 -> 최신)
         unverifiedDates.sort();
         
         return unverifiedDates; 
