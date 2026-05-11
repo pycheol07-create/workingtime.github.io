@@ -56,8 +56,11 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         State.appState.lunchPauseExecuted = data.lunchPauseExecuted ?? false;
         State.appState.lunchResumeExecuted = data.lunchResumeExecuted ?? false;
         
-        // 🔥 누락되었던 검수 리스트 불러오기 로직 추가
+        // 이전에 수정한 검수 리스트 불러오기 로직
         State.appState.inspectionList = data.inspectionList || []; 
+
+        // 🔥 [해결 완료] 누락되었던 당일 근태(지각, 외출, 조퇴) 불러오기 로직 추가!
+        State.appState.dailyOnLeaveMembers = data.onLeaveMembers || [];
 
         State.setIsDataDirty(false); 
         renderCallback();
