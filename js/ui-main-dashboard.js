@@ -19,9 +19,14 @@ export const renderNoticeWidget = (appState) => {
     notices.forEach(notice => {
         const textClass = notice.completed ? 'line-through text-yellow-700/50 dark:text-yellow-500/50' : 'text-yellow-900 dark:text-yellow-200 font-bold';
         const icon = notice.completed ? '✅' : '📌';
+        
         const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
         
-        html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2 mb-1.5"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words flex-1">${safeText}</span></li>`;
+        // 🔥 [수정] 멘션(@이름)을 작고 귀여운 배지 스타일로 변경
+        const mentionStyle = '<span class="inline-block bg-indigo-100/80 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50 rounded-md px-1.5 py-0 text-[10px] font-black mx-1 align-middle shadow-sm leading-tight">@$1</span>';
+        const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, mentionStyle);
+        
+        html += `<li class="${textClass} list-none -ml-4 flex items-start gap-2 mb-1.5"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words flex-1">${highlightedText}</span></li>`;
     });
     memoList.innerHTML = html;
 };
