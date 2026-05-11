@@ -3,8 +3,10 @@ import * as State from './state.js';
 import * as DOM from './dom-elements.js';
 import { showToast } from './utils.js';
 import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// 💡 에러 해결: Firebase 초기화 모듈을 직접 가져옵니다.
 import { initializeFirebase } from './config.js';
+
+// 🔥 [신규] 멘션 발송을 위해 알림 함수 가져오기
+import { sendNotification } from './app-notifications.js';
 
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
@@ -18,8 +20,6 @@ const formatDateTimeShort = (isoString) => {
     return `${m}/${d} ${h}:${min}`;
 };
 
-// 💡 에러 해결: State.db가 비어있을 수 있으므로(너무 빨리 실행될 경우), 
-// config.js의 initializeFirebase()를 호출하여 무조건 확실하게 db를 확보합니다.
 const getTodoDocRef = () => {
     const firebase = initializeFirebase();
     return doc(firebase.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'adminTodos');
@@ -213,6 +213,32 @@ export const confirmPendingAlerts = async () => {
 // ==========================================
 // 3. 중요 알림(Notice) 전용 로직
 // ==========================================
+
+// 🔥 [신규] 텍스트 내에서 '@이름' 멘션을 찾아 알림을 발송하는 헬퍼 함수
+const processMentions = async (text) => {
+    const sender = State.appState.currentUser || '관리자';
+    const mentionRegex = /@([가-힣a-zA-Z0-9]+)/g;
+    const matches = [...text.matchAll(mentionRegex)];
+    
+    if (matches.length > 0) {
+        const uniqueMentions = [...new Set(matches.map(m => m[1]))];
+        
+        // 유효한 대상자인지 확인하기 위해 전체 멤버 세트 구성
+        const allMembers = new Set();
+        (State.appConfig?.teamGroups || []).forEach(g => g.members?.forEach(m => allMembers.add(m)));
+        (State.appState?.partTimers || []).forEach(p => allMembers.add(p.name));
+
+        const shortText = text.length > 20 ? text.substring(0, 20) + '...' : text;
+
+        for (const name of uniqueMentions) {
+            if (allMembers.has(name) && name !== sender) {
+                // 발송
+                await sendNotification(name, `🔔 중요 알림에서 ${sender}님이 회원님을 멘션했습니다:\n"${shortText}"`, 'mention');
+            }
+        }
+    }
+};
+
 export const addNotice = async (text) => {
     if (!text.trim()) { showToast("알림 내용을 입력해주세요.", true); return; }
     const newNotice = {
@@ -220,7 +246,11 @@ export const addNotice = async (text) => {
     };
     if(!State.appState.importantNotices) State.appState.importantNotices = [];
     State.appState.importantNotices.push(newNotice);
+    
     await saveAdminTodos();
+    
+    // 멘션 감지 및 푸시
+    await processMentions(text.trim());
 };
 
 export const toggleNotice = async (id) => {
@@ -242,5 +272,8 @@ export const editNotice = async (id, newText) => {
     if (notice && newText.trim()) {
         notice.text = newText.trim();
         await saveAdminTodos();
+
+        // 수정 시에도 새롭게 멘션된 사람이 있다면 푸시
+        await processMentions(newText.trim());
     }
 };

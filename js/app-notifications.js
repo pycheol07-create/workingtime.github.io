@@ -1,6 +1,23 @@
 // === js/app-notifications.js ===
 import * as State from './state.js';
-import { doc, writeBatch, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, writeBatch, deleteDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { showToast } from './utils.js';
+
+// 🔥 [신규] 특정 대상에게 알림을 발송하는 핵심 공통 함수
+export async function sendNotification(targetMember, message, type = 'info') {
+    try {
+        const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
+        await addDoc(notiColRef, {
+            targetMember,
+            message,
+            type,
+            isRead: false,
+            createdAt: new Date().toISOString()
+        });
+    } catch(e) {
+        console.error("알림 발송 실패", e);
+    }
+}
 
 // 알림 리스트 렌더링 함수
 export function renderNotificationList() {
@@ -15,7 +32,7 @@ export function renderNotificationList() {
     list.innerHTML = notis.map(n => `
         <li class="p-3 rounded-lg border ${n.isRead ? 'bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600 text-gray-500 dark:text-gray-400' : 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800 text-gray-800 dark:text-gray-200'} shadow-sm relative pr-8">
             <div class="text-[10px] font-bold mb-1 opacity-70">${new Date(n.createdAt).toLocaleString('ko-KR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</div>
-            <div class="text-sm font-medium leading-snug">${n.message}</div>
+            <div class="text-sm font-medium leading-snug break-words">${n.message}</div>
             <button class="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-bold text-lg delete-single-noti-btn transition" data-id="${n.id}">&times;</button>
         </li>
     `).join('');
@@ -83,5 +100,59 @@ export function setupNotificationListeners() {
                 console.error("개별 알림 삭제 실패:", err);
             }
         }
+    });
+
+    // 🔥 [신규] '쪽지 보내기' 관련 이벤트 리스너
+    const openSendMsgBtn = document.getElementById('open-send-msg-btn');
+    const closeSendMsgBtn = document.getElementById('close-send-msg-btn');
+    const sendMsgModal = document.getElementById('send-message-modal');
+    const sendMsgSubmitBtn = document.getElementById('send-msg-submit-btn');
+    
+    openSendMsgBtn?.addEventListener('click', () => {
+        const select = document.getElementById('msg-target-select');
+        select.innerHTML = '<option value="">대상을 선택하세요...</option>';
+        
+        const members = new Set();
+        (State.appConfig?.teamGroups || []).forEach(g => g.members?.forEach(m => members.add(m)));
+        (State.appState?.partTimers || []).forEach(p => members.add(p.name));
+        
+        Array.from(members).sort().forEach(m => {
+            if (m !== State.appState.currentUser) {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                select.appendChild(opt);
+            }
+        });
+
+        document.getElementById('msg-content-input').value = '';
+        sendMsgModal?.classList.remove('hidden');
+    });
+
+    closeSendMsgBtn?.addEventListener('click', () => {
+        sendMsgModal?.classList.add('hidden');
+    });
+
+    sendMsgSubmitBtn?.addEventListener('click', async () => {
+        const target = document.getElementById('msg-target-select').value;
+        const text = document.getElementById('msg-content-input').value.trim();
+        
+        if (!target) return showToast('받는 사람을 선택해주세요.', true);
+        if (!text) return showToast('메시지 내용을 입력해주세요.', true);
+        
+        const sender = State.appState.currentUser || '관리자';
+        const finalMsg = `✉️ [${sender}님의 쪽지]\n${text}`;
+
+        const originalBtnText = sendMsgSubmitBtn.textContent;
+        sendMsgSubmitBtn.disabled = true;
+        sendMsgSubmitBtn.textContent = '전송 중...';
+
+        await sendNotification(target, finalMsg, 'message');
+        
+        showToast(`${target}님에게 쪽지를 성공적으로 보냈습니다.`);
+        sendMsgModal?.classList.add('hidden');
+        
+        sendMsgSubmitBtn.disabled = false;
+        sendMsgSubmitBtn.textContent = originalBtnText;
     });
 }
