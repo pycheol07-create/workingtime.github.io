@@ -208,6 +208,7 @@ export const updateSummary = (appState, appConfig) => {
         combinedOnLeaveMembers
             .filter(item => {
                 if (item.type === '외출' && item.endTime) return false;
+                if (item.type === '지각') return false; // ✅ 지각은 휴무 인원에서 제외
                 return allStaffMembers.has(item.member) || allPartTimers.has(item.member);
             })
             .map(item => item.member)
@@ -398,7 +399,8 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
         const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
 
-        const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember && !(m.type === '외출' && m.endTime));
+        // ✅ 개인 상태 표시에서도 '지각'은 휴무/부재 상태로 취급하지 않음
+        const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember && !(m.type === '외출' && m.endTime) && m.type !== '지각');
         if (leaveInfo) {
              const label = getLeaveDisplayLabel(selectedMember, leaveInfo);
              currentStatusHtml = `<span class="text-sm font-bold text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-md">${label} 중</span>`;
@@ -539,7 +541,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
     const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
     const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
-    const onLeaveStatusMap = new Map(combinedOnLeaveMembers.filter(item => !(item.type === '외출' && item.endTime)).map(item => [item.member, item]));
+    
+    // ✅ 실시간 카드 표시(ui-main.js) 목적에서만 '지각' 데이터를 걸러냄
+    const onLeaveStatusMap = new Map(
+        combinedOnLeaveMembers
+            .filter(item => !(item.type === '외출' && item.endTime) && item.type !== '지각')
+            .map(item => [item.member, item])
+    );
     const onLeaveMemberNames = new Set(onLeaveStatusMap.keys());
 
     const presetTaskContainer = document.createElement('div');
@@ -606,7 +614,6 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const totalPauseMinutes = calcTotalPauseMinutes(representativeRecord.pauses);
             const pauseDisplay = totalPauseMinutes > 0 ? `<span class="text-[10px] text-gray-500 font-normal ml-1">(전체휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
 
-            // 💡 [신규] 샘플검수 / 전량검수 전용 매니저 열기 버튼 추가
             let specialButtonHtml = '';
             if (task === '샘플검수') {
                 specialButtonHtml = `
