@@ -107,7 +107,9 @@ export function renderWeekendList(year, month) {
 
             const rowItem = document.createElement('div');
             rowItem.className = 'flex flex-row items-stretch gap-2 p-1.5 rounded-lg border shadow-sm hover:shadow-md transition-all mb-2';
-            if (isPast) rowItem.classList.add('bg-gray-50', 'opacity-80');
+            
+            // 🔥 [핵심 수정] isBlocked 이거나 isPast 인 경우 어둡게(grayscale, opacity 등) 처리
+            if (isPast || isBlocked) rowItem.classList.add('bg-gray-50', 'opacity-80', 'grayscale');
             else rowItem.classList.add('bg-white');
 
             rowItem.id = `row-${dateStr}`;
@@ -123,7 +125,8 @@ export function renderWeekendList(year, month) {
             const dateArea = document.createElement('div');
             dateArea.className = `w-[64px] md:w-[76px] flex-shrink-0 flex flex-col items-center justify-center rounded-md border overflow-hidden select-none`;
             
-            if (isPast) {
+            // 🔥 [핵심 수정] isBlocked 도 isPast 와 동일하게 회색 배경 적용
+            if (isPast || isBlocked) {
                 dateArea.classList.add('bg-gray-200', 'text-gray-500', 'border-gray-300');
             } else {
                 dateArea.classList.add(bgColor, dayColor);
@@ -137,7 +140,7 @@ export function renderWeekendList(year, month) {
             
             dateArea.innerHTML = `
                 <span class="text-[17px] md:text-xl font-black tracking-tight mt-1 md:mt-2">${d}.${dayName}</span>
-                ${capacity ? `<span class="mt-1 mb-1 md:mb-2 text-[9px] md:text-[10px] font-bold ${isPast ? 'bg-gray-300 text-gray-600 border-gray-400' : 'bg-emerald-100 text-emerald-700 border-emerald-200'} px-1.5 py-0.5 rounded border">정원 ${capacity}</span>` : '<span class="h-1 md:h-2"></span>'}
+                ${capacity ? `<span class="mt-1 mb-1 md:mb-2 text-[9px] md:text-[10px] font-bold ${(isPast || isBlocked) ? 'bg-gray-300 text-gray-600 border-gray-400' : 'bg-emerald-100 text-emerald-700 border-emerald-200'} px-1.5 py-0.5 rounded border">정원 ${capacity}</span>` : '<span class="h-1 md:h-2"></span>'}
             `;
 
             const rightArea = document.createElement('div');
@@ -146,7 +149,8 @@ export function renderWeekendList(year, month) {
             rightHeader.className = "flex justify-between items-center text-[10px] md:text-xs mb-1.5";
 
             if (isPast) {
-                rightArea.classList.add('bg-gray-100', 'border-gray-300', 'grayscale');
+                // 이미 위에서 전체 row에 grayscale/opacity를 적용했으므로, 여기서는 배경색/커서만 처리
+                rightArea.classList.add('bg-gray-100', 'border-gray-300');
                 if (isAdmin) {
                     rightArea.classList.add('cursor-pointer', 'hover:bg-gray-200');
                     rightArea.onclick = () => openPastDateEditPopup(dateStr);
@@ -158,7 +162,8 @@ export function renderWeekendList(year, month) {
                 }
             } else {
                 if (isBlocked) {
-                    rightArea.classList.add('bg-gray-50', 'border-gray-300', 'opacity-70', 'cursor-not-allowed');
+                    // 🔥 [핵심 수정] isBlocked 상태의 내부 스타일 재정의
+                    rightArea.classList.add('bg-gray-100', 'border-gray-300', 'cursor-not-allowed');
                 } else if (isAppliedByMe) {
                     rightArea.classList.add('bg-indigo-50', 'border-indigo-300', 'border-dashed', 'cursor-pointer');
                 } else {
@@ -166,7 +171,9 @@ export function renderWeekendList(year, month) {
                 }
 
                 rightArea.onclick = () => handleDateClick(dateStr, isBlocked);
-                rightHeader.innerHTML = `<span class="text-gray-400 font-medium">영역을 터치하여 신청/취소</span>${isBlocked ? '<span class="text-red-500 font-bold bg-red-50 px-1.5 rounded">🚫 마감됨</span>' : isAppliedByMe ? '<span class="text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded">✅ 신청됨</span>' : ''}`;
+                
+                // 마감됨 텍스트도 회색조로 통일 (기존 빨간색 제거)
+                rightHeader.innerHTML = `<span class="text-gray-500 font-medium">영역을 터치하여 신청/취소</span>${isBlocked ? '<span class="text-gray-600 font-bold bg-gray-200 border border-gray-300 px-1.5 rounded">마감됨</span>' : isAppliedByMe ? '<span class="text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded">✅ 신청됨</span>' : ''}`;
             }
 
             const badgesArea = document.createElement('div');
@@ -200,6 +207,7 @@ export function renderWeekendList(year, month) {
                 });
 
                 store.requestsByDate[dateStr].forEach(req => {
+                    // 과거이거나 마감된 날짜면 뱃지의 상태/스타일도 그에 맞게 렌더링 됨
                     addBadgeToCalendar(dateStr, req, isAdmin && !isPast); 
                 });
             }
