@@ -423,9 +423,13 @@ export const downloadMonthlyHistoryAsExcel = async (monthKey, format = 'xlsx') =
      await downloadPeriodHistoryAsExcel(monthData[0].id, monthData[monthData.length - 1].id, `월간업무요약_${monthKey}.${format}`, format);
 };
 
+// =================================================================
+// ✅ [수정] 일별 모드일 때 상세 내역으로 출력되도록 변경됨
+// =================================================================
 export const downloadAttendanceExcel = (viewMode, key, format = 'xlsx') => {
     let dataList = [];
     let fileName = '';
+    
     if (viewMode === 'daily') {
         const day = allHistoryData.find(d => d.id === key);
         if (day) dataList = [day];
@@ -440,27 +444,54 @@ export const downloadAttendanceExcel = (viewMode, key, format = 'xlsx') => {
 
     if (dataList.length === 0) return showToast('다운로드할 데이터가 없습니다.', true);
 
-    const summary = {};
-    dataList.forEach(day => {
-        (day.onLeaveMembers || []).forEach(entry => {
-            if (!summary[entry.member]) {
-                summary[entry.member] = { '이름': entry.member, '지각':0, '외출':0, '조퇴':0, '결근':0, '연차':0, '출장':0, '총 횟수':0, '총 결근일수':0, '총 연차일수':0 };
-            }
-            const rec = summary[entry.member];
-            if (rec.hasOwnProperty(entry.type)) rec[entry.type]++;
-            if (entry.type !== '연차') rec['총 횟수']++;
-            if (entry.type === '결근') rec['총 결근일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
-            if (entry.type === '연차') rec['총 연차일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
-        });
-    });
-
-    const sheetData = Object.values(summary).sort((a, b) => a['이름'].localeCompare(b['이름']));
-    if (sheetData.length === 0) return showToast('근태 기록이 없습니다.', true);
-
     const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(sheetData);
-    fitToColumn(worksheet);
-    XLSX.utils.book_append_sheet(workbook, worksheet, '근태 요약');
+
+    if (viewMode === 'daily') {
+        // ✅ 일별 모드: 화면에 보이는 상세 양식 그대로 출력
+        const dayData = dataList[0];
+        const leaves = dayData.onLeaveMembers || [];
+        
+        if (leaves.length === 0) return showToast('근태 기록이 없습니다.', true);
+
+        const sheetData = leaves.map(entry => {
+            const isTimeBased = (entry.type === '외출' || entry.type === '조퇴' || entry.type === '지각');
+            return {
+                '이름': entry.member,
+                '유형': entry.type,
+                '시작 시간/날짜': isTimeBased ? formatTimeTo24H(entry.startTime) : entry.startDate,
+                '종료 시간/날짜': isTimeBased ? formatTimeTo24H(entry.endTime) : (entry.endDate || entry.startDate || '-')
+            };
+        }).sort((a, b) => a['이름'].localeCompare(b['이름']));
+
+        const worksheet = XLSX.utils.json_to_sheet(sheetData);
+        fitToColumn(worksheet);
+        XLSX.utils.book_append_sheet(workbook, worksheet, `일별 근태`);
+        
+    } else {
+        // ✅ 주별/월별 모드: 기존의 합산 요약 양식 사용
+        const summary = {};
+        dataList.forEach(day => {
+            (day.onLeaveMembers || []).forEach(entry => {
+                if (!summary[entry.member]) {
+                    summary[entry.member] = { '이름': entry.member, '지각':0, '외출':0, '조퇴':0, '결근':0, '연차':0, '출장':0, '총 횟수':0, '총 결근일수':0, '총 연차일수':0 };
+                }
+                const rec = summary[entry.member];
+                if (rec.hasOwnProperty(entry.type)) rec[entry.type]++;
+                if (entry.type !== '연차') rec['총 횟수']++;
+                if (entry.type === '결근') rec['총 결근일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+                if (entry.type === '연차') rec['총 연차일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            });
+        });
+
+        const sheetData = Object.values(summary).sort((a, b) => a['이름'].localeCompare(b['이름']));
+        if (sheetData.length === 0) return showToast('근태 기록이 없습니다.', true);
+
+        const worksheet = XLSX.utils.json_to_sheet(sheetData);
+        fitToColumn(worksheet);
+        XLSX.utils.book_append_sheet(workbook, worksheet, '근태 요약');
+    }
+
+    // 파일 생성
     XLSX.writeFile(workbook, fileName);
 };
 
