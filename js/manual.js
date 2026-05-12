@@ -12,7 +12,7 @@ let manuals = [];
 let currentGroupFilter = '전체';
 let editingId = null;
 let currentUploadedFileData = null; 
-let quill = null; // 🔥 에디터 객체
+let quill = null; 
 
 const DOM = {
     groupList: document.getElementById('manual-group-list'),
@@ -48,7 +48,35 @@ const DOM = {
     btnDelete: document.getElementById('btn-delete-manual')
 };
 
-// 🔥 에디터 내 이미지 업로드 핸들러
+// 🔥 [신규] 이미지 파일을 서버에 업로드하고 에디터 본문에 넣는 공통 함수
+async function handleImageUpload(file) {
+    try {
+        showToast('이미지 업로드 중...', false);
+        const fileName = file.name || `pasted_image_${Date.now()}.png`;
+        const fileRef = ref(storage, `manuals/images/${Date.now()}_${fileName}`);
+        const uploadTask = uploadBytesResumable(fileRef, file);
+        
+        uploadTask.on('state_changed', null, (err) => {
+            console.error(err);
+            showToast('이미지 업로드 실패', true);
+        }, async () => {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            let range = quill.getSelection(true);
+            // 선택된 위치가 없으면 맨 끝으로 지정
+            if (!range) {
+                range = { index: quill.getLength() };
+            }
+            quill.insertEmbed(range.index, 'image', url);
+            quill.setSelection(range.index + 1);
+            showToast('이미지 삽입 완료');
+        });
+    } catch (e) {
+        console.error(e);
+        showToast('이미지 처리 중 오류 발생', true);
+    }
+}
+
+// 툴바의 [이미지 아이콘] 클릭 시 파일 선택창 띄우기
 function selectLocalImage() {
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
@@ -58,29 +86,12 @@ function selectLocalImage() {
     input.onchange = async () => {
         const file = input.files[0];
         if (file) {
-            try {
-                showToast('이미지 업로드 중...', false);
-                const fileRef = ref(storage, `manuals/images/${Date.now()}_${file.name}`);
-                const uploadTask = uploadBytesResumable(fileRef, file);
-                
-                uploadTask.on('state_changed', null, (err) => {
-                    console.error(err);
-                    showToast('이미지 업로드 실패', true);
-                }, async () => {
-                    const url = await getDownloadURL(uploadTask.snapshot.ref);
-                    const range = quill.getSelection(true);
-                    quill.insertEmbed(range.index, 'image', url);
-                    quill.setSelection(range.index + 1);
-                    showToast('이미지 삽입 완료');
-                });
-            } catch (e) {
-                console.error(e);
-            }
+            await handleImageUpload(file);
         }
     };
 }
 
-// 🔥 [버그 해결] 에디터를 화면이 보여진 직후에만 생성하여 크기 계산 오류 방지
+// 고급 에디터(Quill) 초기화 및 붙여넣기/드래그앤드롭 이벤트 방어
 function initQuillIfNeeded() {
     if (!quill && document.getElementById('manual-content-editor')) {
         quill = new Quill('#manual-content-editor', {
@@ -99,6 +110,38 @@ function initQuillIfNeeded() {
                     handlers: {
                         image: selectLocalImage
                     }
+                }
+            }
+        });
+
+        // 🔥 [신규] 복사/붙여넣기(Paste) 했을 때 긴 텍스트(Base64) 대신 파일 업로드로 가로채기
+        quill.root.addEventListener('paste', (e) => {
+            const clipboardData = e.clipboardData || window.clipboardData;
+            if (clipboardData && clipboardData.items) {
+                for (let i = 0; i < clipboardData.items.length; i++) {
+                    const item = clipboardData.items[i];
+                    if (item.type.indexOf('image') !== -1) {
+                        e.preventDefault(); // 기본 붙여넣기 동작 차단
+                        const file = item.getAsFile();
+                        if (file) handleImageUpload(file);
+                    }
+                }
+            }
+        });
+
+        // 🔥 [신규] 이미지 파일을 드래그 앤 드롭(Drop) 했을 때 업로드로 가로채기
+        quill.root.addEventListener('drop', (e) => {
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                let hasImage = false;
+                for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                    const file = e.dataTransfer.files[i];
+                    if (file.type.indexOf('image') !== -1) {
+                        hasImage = true;
+                        handleImageUpload(file);
+                    }
+                }
+                if (hasImage) {
+                    e.preventDefault(); // 기본 동작 차단
                 }
             }
         });
@@ -197,7 +240,7 @@ function showEditMode(manual = null) {
     DOM.viewContainer.classList.add('hidden');
     DOM.editContainer.classList.remove('hidden');
     
-    initQuillIfNeeded(); // 🔥 화면이 보여진 후 딜레이 없이 에디터 로드
+    initQuillIfNeeded(); 
 
     currentUploadedFileData = null;
     DOM.fileInput.value = '';
@@ -271,12 +314,11 @@ async function saveManual() {
     const task = DOM.selectTask.value;
     const type = document.querySelector('input[name="manual-type"]:checked').value;
     
-    // 에디터 내용 추출 (비어있는 태그 방어 로직 추가)
     let contentHtml = '';
     if (quill) {
         contentHtml = quill.root.innerHTML;
         if (quill.getText().trim().length === 0 && !contentHtml.includes('<img')) {
-            contentHtml = ''; // 텍스트도 이미지도 없으면 완전 빈칸으로 처리
+            contentHtml = ''; 
         }
     }
 
@@ -353,7 +395,6 @@ function openDetail(manual) {
     area.innerHTML = '';
 
     if (manual.type === 'text') {
-        // 🔥 에디터에서 작성된 서식이 포함된 HTML을 화면에 렌더링 (ql-editor 클래스로 에디터와 동일한 모양 유지)
         area.innerHTML = `<div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 min-h-full"><div class="ql-editor p-0">${manual.content}</div></div>`;
     } else if (manual.type === 'file') {
         const isPdf = manual.fileType?.includes('pdf');
