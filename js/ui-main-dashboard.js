@@ -22,7 +22,6 @@ export const renderNoticeWidget = (appState) => {
         
         const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
         
-        // 🔥 [수정] 멘션(@이름)을 작고 귀여운 배지 스타일로 변경
         const mentionStyle = '<span class="inline-block bg-indigo-100/80 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50 rounded-md px-1.5 py-0 text-[10px] font-black mx-1 align-middle shadow-sm leading-tight">@$1</span>';
         const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, mentionStyle);
         
@@ -224,3 +223,104 @@ window.addEventListener('message', (event) => {
         }
     }
 });
+
+// ✨ 신규: 사이드바 동적 재배치 함수
+export const applyDynamicSidebar = (appConfig) => {
+    if (!appConfig || !appConfig.dashboardMenu) return;
+
+    const pcNav = document.querySelector('aside nav');
+    const mobileNav = document.getElementById('nav-content');
+    if (!pcNav && !mobileNav) return;
+
+    // 1. 기존 PC 메뉴 요소를 추출하여 보관 (이벤트 보존을 위해 DOM 자체를 이동시킴)
+    const pcElements = {};
+    if (pcNav) {
+        pcNav.querySelectorAll('button, a').forEach(el => {
+            const textNode = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0);
+            const name = textNode ? textNode.textContent.trim() : el.textContent.trim();
+            if (name) pcElements[name] = el;
+        });
+        pcNav.innerHTML = '';
+    }
+
+    // 2. 기존 모바일 메뉴 요소 추출
+    const mobileElements = {};
+    let mobileHeader = null;
+    let logoutBtn = null;
+    
+    if (mobileNav) {
+        mobileHeader = mobileNav.firstElementChild; // 상단 '내 출퇴근 상태'
+        logoutBtn = document.getElementById('logout-btn-mobile');
+        
+        mobileNav.querySelectorAll('button, a, div').forEach(el => {
+            if (el.id === 'logout-btn-mobile' || el === mobileHeader || (mobileHeader && mobileHeader.contains(el))) return;
+            if (el.tagName !== 'BUTTON' && el.tagName !== 'A') return;
+            
+            const textNode = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0);
+            const name = textNode ? textNode.textContent.trim() : el.textContent.trim();
+            if (name) mobileElements[name] = el;
+        });
+
+        // 헤더와 로그아웃 버튼을 제외하고 모두 비움
+        Array.from(mobileNav.children).forEach(child => {
+            if (child !== mobileHeader && child !== logoutBtn) {
+                mobileNav.removeChild(child);
+            }
+        });
+    }
+
+    // 3. 설정된 dashboardMenu 데이터를 기반으로 순서대로 재조립
+    appConfig.dashboardMenu.forEach((group, index) => {
+        // PC 카테고리 헤더
+        if (pcNav) {
+            const pcCat = document.createElement('div');
+            pcCat.className = `text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-2 ${index > 0 ? 'mt-6' : ''}`;
+            pcCat.textContent = group.category;
+            pcNav.appendChild(pcCat);
+        }
+
+        // 모바일 카테고리 헤더
+        if (mobileNav) {
+            const mobCat = document.createElement('div');
+            mobCat.className = `px-5 py-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase ${index > 0 ? 'mt-2' : ''}`;
+            mobCat.textContent = group.category;
+            if (logoutBtn) mobileNav.insertBefore(mobCat, logoutBtn);
+            else mobileNav.appendChild(mobCat);
+        }
+
+        // 하위 메뉴들 재배치
+        group.items.forEach(item => {
+            if (pcNav) {
+                const pcEl = pcElements[item.name];
+                if (pcEl) {
+                    if (pcEl.tagName === 'A' && item.link && item.link !== '#') pcEl.href = item.link;
+                    pcNav.appendChild(pcEl);
+                } else {
+                    // 완전히 새로 추가된 메뉴일 경우
+                    const newPc = document.createElement('a');
+                    newPc.href = item.link || '#';
+                    newPc.className = "w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition";
+                    newPc.innerHTML = `<span class="text-lg">🔗</span> ${item.name}`;
+                    pcNav.appendChild(newPc);
+                }
+            }
+
+            if (mobileNav) {
+                const mobEl = mobileElements[item.name];
+                if (mobEl) {
+                    if (mobEl.tagName === 'A' && item.link && item.link !== '#') mobEl.href = item.link;
+                    if (logoutBtn) mobileNav.insertBefore(mobEl, logoutBtn);
+                    else mobileNav.appendChild(mobEl);
+                } else {
+                    // 완전히 새로 추가된 메뉴일 경우
+                    const newMob = document.createElement('a');
+                    newMob.href = item.link || '#';
+                    newMob.className = "text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2";
+                    newMob.innerHTML = `<span class="text-lg">🔗</span> ${item.name}`;
+                    if (logoutBtn) mobileNav.insertBefore(newMob, logoutBtn);
+                    else mobileNav.appendChild(newMob);
+                }
+            }
+        });
+    });
+};

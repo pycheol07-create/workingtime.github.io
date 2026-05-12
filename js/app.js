@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule } from './config.js';
 import { displayCurrentDate, showToast } from './utils.js';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal } from './ui.js';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js';
 import { initializeAppListeners } from './app-listeners.js';
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
@@ -86,6 +86,10 @@ async function startAppAfterLogin(user) {
         document.getElementById('main-content-area')?.classList.remove('hidden');
 
         if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 
+        
+        // ✨ 신규: 관리자 권한 UI가 세팅된 직후, 메뉴 순서를 동적으로 재배치합니다.
+        applyDynamicSidebar(State.appConfig);
+
         renderDashboardLayout(State.appConfig);
         renderTaskSelectionModal(State.appConfig.taskGroups);
 
