@@ -56,10 +56,7 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         State.appState.lunchPauseExecuted = data.lunchPauseExecuted ?? false;
         State.appState.lunchResumeExecuted = data.lunchResumeExecuted ?? false;
         
-        // 이전에 수정한 검수 리스트 불러오기 로직
         State.appState.inspectionList = data.inspectionList || []; 
-
-        // 🔥 [해결 완료] 누락되었던 당일 근태(지각, 외출, 조퇴) 불러오기 로직 추가!
         State.appState.dailyOnLeaveMembers = data.onLeaveMembers || [];
 
         State.setIsDataDirty(false); 
@@ -85,16 +82,36 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
         const notiQuery = query(notiColRef, where("targetMember", "==", State.appState.currentUser));
         
+        let isInitialLoad = true; // 🔥 처음 로그인 시 과거 알림들로 인해 팝업이 뜨는 것을 방지
+
         if (unsubscribeNotifications) unsubscribeNotifications();
         unsubscribeNotifications = onSnapshot(notiQuery, (snapshot) => {
             const notifications = [];
             let unreadCount = 0;
+            
+            // 🔥 [신규] 새로운 알림(added)이 수신되었을 때 화면에 팝업창을 강제로 띄움
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === 'added' && !isInitialLoad) {
+                    const data = change.doc.data();
+                    // 읽지 않은 새 알림일 경우에만 팝업 표시
+                    if (!data.isRead) {
+                        showToast(`🔔 새 알림이 도착했습니다.`);
+                        
+                        const modal = document.getElementById('notification-modal');
+                        if (modal && modal.classList.contains('hidden')) {
+                            modal.classList.remove('hidden'); // 알림 센터 팝업 열기
+                        }
+                    }
+                }
+            });
+
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
                 data.id = docSnap.id;
                 notifications.push(data);
                 if (!data.isRead) unreadCount++;
             });
+            
             notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             State.appState.notifications = notifications;
             
@@ -102,8 +119,11 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
                 unreadCount > 0 ? badge.classList.remove('hidden') : badge.classList.add('hidden');
             });
             
+            // 모달이 열려있는 상태라면 내부 리스트를 갱신
             const modal = document.getElementById('notification-modal');
             if (modal && !modal.classList.contains('hidden')) renderNotificationList();
+
+            isInitialLoad = false; // 첫 동기화 완료 처리
         });
     }
 }
