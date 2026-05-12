@@ -23,7 +23,6 @@
         .dragging { @apply opacity-50 bg-blue-50 dark:bg-blue-900/20 scale-[0.99] transition-transform; }
         .drag-over { @apply border-t-2 border-blue-500 dark:border-blue-400; }
         .modal-close-btn { @apply absolute top-4 right-4 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors cursor-pointer bg-transparent border-none text-2xl leading-none; }
-        .arrow-rotated { transform: rotate(-180deg); }
     </style>
 </head>
 <body class="text-gray-800 dark:text-gray-200 overflow-hidden flex h-screen">
@@ -32,13 +31,45 @@
         <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
             <h1 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">⚙️ 관리자 시스템</h1>
         </div>
-        <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-            <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-2">관리 메뉴</div>
-            <button class="w-full flex items-center gap-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-xl font-semibold transition">
-                <span class="text-lg">🛠️</span> 전체 설정
+        <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+            <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 px-2">설정 메뉴</div>
+            
+            <button class="admin-tab-btn active w-full flex items-center gap-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-xl font-semibold transition shadow-sm" data-target="section-team">
+                <span class="text-lg">🧑‍🤝‍🧑</span> 팀원 관리
             </button>
-            <a href="index.html" class="w-full flex items-center gap-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-3 rounded-xl font-medium transition mt-4">
-                <span class="text-lg">⬅️</span> 메인으로 돌아가기
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-permission">
+                <span class="text-lg">🔐</span> 권한 관리
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-menu">
+                <span class="text-lg">📂</span> 메뉴 관리
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-widget">
+                <span class="text-lg">📊</span> 위젯 관리
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-task">
+                <span class="text-lg">🏷️</span> 업무 등록 관리
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-keytask">
+                <span class="text-lg">⭐</span> 고정 업무
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-quantity">
+                <span class="text-lg">🔗</span> 집계/위젯 연동
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-cost">
+                <span class="text-lg">💰</span> 원가/손익 분석
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-setting">
+                <span class="text-lg">⚙️</span> 기본 설정
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-3 rounded-xl font-medium transition" data-target="section-reset">
+                <span class="text-lg">⚠️</span> 데이터 초기화
+            </button>
+
+            <div class="pt-6 pb-2">
+                <hr class="border-gray-200 dark:border-gray-700">
+            </div>
+            <a href="index.html" class="w-full flex items-center gap-3 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
+                <span class="text-lg">⬅️</span> 메인 화면으로
             </a>
         </nav>
     </aside>
@@ -49,214 +80,215 @@
                 <a href="index.html" class="md:hidden p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                 </a>
-                <h2 class="text-lg font-bold text-gray-800 dark:text-white">시스템 환경 설정</h2>
+                <h2 class="text-lg font-bold text-gray-800 dark:text-white hidden md:block">시스템 환경 설정</h2>
             </div>
-            <button id="save-all-btn" class="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold py-2 px-5 rounded-lg transition-colors flex items-center gap-2 shadow-sm text-sm">
+            <button id="save-all-btn" class="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2 shadow-sm text-sm">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
                 전체 저장
             </button>
         </header>
 
-        <div id="admin-content" class="flex-1 overflow-y-auto p-4 md:p-8 hidden">
-            <div class="max-w-5xl mx-auto space-y-6">
+        <div id="admin-content" class="flex-1 overflow-y-auto p-4 md:p-8 hidden bg-gray-50 dark:bg-gray-900">
+            <div class="w-full h-full max-w-[1400px]"> <div class="block md:hidden mb-6">
+                    <select id="mobile-tab-select" class="w-full p-3.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold shadow-sm outline-none focus:border-blue-500 transition-colors appearance-none">
+                        <option value="section-team">🧑‍🤝‍🧑 팀원 관리</option>
+                        <option value="section-permission">🔐 권한 관리</option>
+                        <option value="section-menu">📂 대시보드 메뉴 관리</option>
+                        <option value="section-widget">📊 상단 위젯 관리</option>
+                        <option value="section-task">🏷️ 업무 등록 관리</option>
+                        <option value="section-keytask">⭐ 메인 보드 고정 업무</option>
+                        <option value="section-quantity">🔗 처리량 집계 연동</option>
+                        <option value="section-cost">💰 원가 및 손익 설정</option>
+                        <option value="section-setting">⚙️ 기타 기본 설정</option>
+                        <option value="section-reset">⚠️ 당일 데이터 초기화</option>
+                    </select>
+                </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors config-card">
-                    <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
+                <div class="admin-section block bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors" id="section-team">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 border-b border-gray-100 dark:border-gray-700 gap-4">
                         <div>
-                            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🧑‍🤝‍🧑</span> 팀원 및 시급 관리</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">그룹 순서 변경 가능 (권한은 아래에서 설정)</p>
+                            <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🧑‍🤝‍🧑</span> 팀원 및 시급 관리</h2>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">그룹 순서 변경 가능 (권한은 권한 관리 탭에서 설정)</p>
                         </div>
-                        <div class="flex items-center gap-4">
-                            <button id="add-team-group-btn" class="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 font-bold px-3 py-1.5 rounded-md transition shadow-sm z-10" onclick="event.stopPropagation()">+ 새 그룹 추가</button>
-                            <svg class="h-5 w-5 text-gray-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                        </div>
+                        <button id="add-team-group-btn" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-lg transition shadow-sm">+ 새 그룹 추가</button>
                     </div>
-                    <div class="config-card-content hidden p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl">
+                    <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl h-full min-h-[500px]">
                         <div id="team-groups-container" class="space-y-6"></div>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors config-card" id="permissions-config-card">
-                    <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
-                        <div>
-                            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🔐</span> 권한 및 접근 관리</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">사용자별 권한(관리자/일반) 및 일반 사용자의 메뉴별 접근 권한 설정</p>
+                <div class="admin-section hidden flex-col gap-6" id="section-permission">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
+                        <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2"><span class="text-2xl">🖥️</span> 시스템 전용 계정 관리</h2>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">대시보드 팀원 현황에는 표시되지 않지만, 프로그램에 로그인할 수 있는 외부 인력 전용 계정</p>
+                            </div>
+                            <button id="add-system-account-btn" type="button" class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold py-2.5 px-5 rounded-lg transition text-sm shadow-sm">+ 계정 추가</button>
                         </div>
-                        <svg class="h-5 w-5 text-gray-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl">
+                            <div id="system-accounts-container" class="space-y-3"></div>
+                        </div>
                     </div>
-                    <div class="config-card-content hidden p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl">
-                        <div class="text-xs text-blue-800 dark:text-blue-300 mb-4 bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
-                            💡 <b>안내:</b> 방금 새로 추가한 팀원은 상단의 <b>[전체 저장]</b> 버튼을 누른 후에 이 목록에 나타납니다.<br>일반 권한인 경우, 사이드바에서 접근할 수 있는 메뉴에만 체크해주세요.
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
+                        <div class="p-6 border-b border-gray-100 dark:border-gray-700">
+                            <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🔐</span> 권한 및 접근 관리</h2>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">사용자별 권한(관리자/일반) 및 일반 사용자의 메뉴별 접근 권한 설정</p>
                         </div>
-                        <div id="permissions-container" class="space-y-3"></div>
+                        <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl">
+                            <div class="text-sm text-blue-800 dark:text-blue-300 mb-6 bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
+                                💡 <b>안내:</b> 새로 추가한 팀원은 상단의 <b>[전체 저장]</b> 버튼을 누른 후에 아래 목록에 나타납니다.<br>일반 권한인 경우 사이드바에서 허용할 메뉴에만 체크해주세요.
+                            </div>
+                            <div id="permissions-container" class="space-y-3"></div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors config-card">
-                    <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
+                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors" id="section-menu">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 border-b border-gray-100 dark:border-gray-700 gap-4">
                         <div>
-                            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>📂</span> 대시보드 메뉴 관리 (대/소분류)</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">메인 화면의 네비게이션 메뉴 구조 및 순서를 변경합니다.</p>
+                            <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>📂</span> 대시보드 메뉴 관리 (대/소분류)</h2>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">메인 화면의 네비게이션 메뉴 구조 및 순서를 변경합니다.</p>
                         </div>
-                        <div class="flex items-center gap-4">
-                            <button id="add-menu-category-btn" class="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 font-bold px-3 py-1.5 rounded-md transition shadow-sm z-10" onclick="event.stopPropagation()">+ 대분류 추가</button>
-                            <svg class="h-5 w-5 text-gray-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                        </div>
+                        <button id="add-menu-category-btn" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-lg transition shadow-sm">+ 대분류 추가</button>
                     </div>
-                    <div class="config-card-content hidden p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl">
+                    <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[500px]">
                         <div id="menu-categories-container" class="space-y-6 min-h-[50px]"></div>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors config-card">
-                    <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
-                        <div>
-                            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>📊</span> 상단 위젯 항목 관리</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">메인 화면 상단 위젯에 표시될 항목 및 순서</p>
-                        </div>
-                        <svg class="h-5 w-5 text-gray-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors" id="section-widget">
+                    <div class="p-6 border-b border-gray-100 dark:border-gray-700">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>📊</span> 상단 위젯 항목 관리</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">메인 화면 상단 위젯에 표시될 항목 및 순서</p>
                     </div>
-                    <div class="config-card-content hidden p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl">
-                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 mb-4">
-                            <div id="dashboard-items-container" class="space-y-2"></div>
+                    <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[400px]">
+                        <div class="flex gap-2 mb-4">
+                            <button id="add-dashboard-item-btn" class="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition shadow-sm">+ 기존 항목 추가</button>
+                            <button id="add-custom-dashboard-item-btn" class="text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 font-bold px-4 py-2 rounded-lg transition shadow-sm">+ 커스텀 수량 생성</button>
                         </div>
-                        <div class="flex gap-2">
-                            <button id="add-dashboard-item-btn" class="text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold px-3 py-2 rounded-md transition shadow-sm">+ 기존 항목 추가</button>
-                            <button id="add-custom-dashboard-item-btn" class="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 font-bold px-3 py-2 rounded-md transition shadow-sm">+ 커스텀 수량 생성</button>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 max-w-2xl">
+                            <div id="dashboard-items-container" class="space-y-2"></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors config-card">
-                    <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
+                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors" id="section-task">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 border-b border-gray-100 dark:border-gray-700 gap-4">
                         <div>
-                            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🏷️</span> 업무 등록 관리</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">시스템에 사용되는 모든 업무 정의</p>
+                            <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🏷️</span> 업무 등록 관리</h2>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">시스템에 사용되는 모든 업무 정의</p>
                         </div>
-                        <div class="flex items-center gap-4">
-                            <button id="add-task-group-btn" class="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 font-bold px-3 py-1.5 rounded-md transition shadow-sm z-10" onclick="event.stopPropagation()">+ 새 업무 그룹 추가</button>
-                            <svg class="h-5 w-5 text-gray-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                        </div>
+                        <button id="add-task-group-btn" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-lg transition shadow-sm">+ 새 업무 그룹 추가</button>
                     </div>
-                    <div class="config-card-content hidden p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl">
+                    <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[500px]">
                         <div id="task-groups-container" class="space-y-6"></div>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors config-card">
-                    <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
+                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors" id="section-keytask">
+                    <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
                         <div>
-                            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>⭐</span> 메인 보드 고정 업무</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">대시보드에 항상 노출될 업무 목록</p>
+                            <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>⭐</span> 메인 보드 고정 업무</h2>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">대시보드에 항상 노출될 업무 목록</p>
                         </div>
-                        <svg class="h-5 w-5 text-gray-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        <button id="add-key-task-btn" class="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold px-4 py-2.5 rounded-lg transition shadow-sm">+ 업무 불러오기</button>
                     </div>
-                    <div class="config-card-content hidden p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl">
-                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 mb-4">
+                    <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[400px]">
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 max-w-2xl">
                             <div id="key-tasks-container" class="space-y-2"></div>
                         </div>
-                        <button id="add-key-task-btn" class="text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold px-3 py-2 rounded-md transition shadow-sm">+ 업무 불러오기</button>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors config-card">
-                     <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
-                        <div>
-                            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🔗</span> 처리량 집계 및 위젯 연동</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">입력된 수량을 어느 위젯에 보여줄지 연결합니다</p>
-                        </div>
-                        <svg class="h-5 w-5 text-gray-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors" id="section-quantity">
+                    <div class="p-6 border-b border-gray-100 dark:border-gray-700">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🔗</span> 처리량 집계 및 위젯 연동</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">입력된 수량을 어느 위젯에 보여줄지 연결합니다</p>
                     </div>
-                     <div class="config-card-content hidden p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl space-y-6">
-                        <div>
-                            <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">1. 수량을 입력받을 업무 목록</h3>
-                            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 mb-3">
+                    <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl space-y-8 min-h-[500px]">
+                        <div class="max-w-4xl">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-base font-bold text-gray-700 dark:text-gray-300">1. 수량을 입력받을 업무 목록</h3>
+                                <button id="add-quantity-task-btn" class="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition shadow-sm">+ 업무 불러오기</button>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <div id="quantity-tasks-container" class="space-y-2"></div>
                             </div>
-                            <button id="add-quantity-task-btn" class="text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold px-3 py-2 rounded-md transition shadow-sm">+ 업무 불러오기</button>
                         </div>
-                        <hr class="border-gray-200 dark:border-gray-700">
-                        <div>
-                            <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">2. 입력된 수량을 위젯에 연결</h3>
-                            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <div id="quantity-mapping-container" class="space-y-3"></div>
+                        <hr class="border-gray-200 dark:border-gray-700 max-w-4xl">
+                        <div class="max-w-4xl">
+                            <h3 class="text-base font-bold text-gray-700 dark:text-gray-300 mb-4">2. 입력된 수량을 위젯에 연결</h3>
+                            <div class="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                                <div id="quantity-mapping-container" class="space-y-4"></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-purple-100 dark:border-purple-900/50 transition-colors config-card">
-                     <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-purple-50/50 dark:hover:bg-purple-900/20 rounded-t-2xl transition-colors bg-purple-50/30 dark:bg-purple-900/10">
-                        <div>
-                            <h2 class="text-lg font-bold text-purple-900 dark:text-purple-400 flex items-center gap-2"><span>💰</span> 상품 원가 및 손익 분석 설정</h2>
-                            <p class="text-xs text-purple-600/70 dark:text-purple-400/70 mt-1">고정 부자재비 및 인건비 산출 기준</p>
-                        </div>
-                        <svg class="h-5 w-5 text-purple-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-purple-100 dark:border-purple-900/50 transition-colors" id="section-cost">
+                    <div class="p-6 border-b border-purple-100 dark:border-purple-900/50 bg-purple-50/30 dark:bg-purple-900/10 rounded-t-2xl">
+                        <h2 class="text-xl font-bold text-purple-900 dark:text-purple-400 flex items-center gap-2"><span>💰</span> 상품 원가 및 손익 분석 설정</h2>
+                        <p class="text-sm text-purple-600/70 dark:text-purple-400/70 mt-1">고정 부자재비 및 인건비 산출 기준</p>
                     </div>
-                     <div class="config-card-content hidden p-5 md:p-6 border-t border-purple-100 dark:border-purple-900/50 bg-white dark:bg-gray-800 rounded-b-2xl space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <label for="fixed-material-cost" class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">개당 고정 부자재비 (원)</label>
-                                <input type="number" id="fixed-material-cost" class="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:text-white" placeholder="예: 159">
+                    <div class="p-6 bg-white dark:bg-gray-800 rounded-b-2xl space-y-8 min-h-[400px]">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl">
+                            <div class="bg-gray-50 dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
+                                <label for="fixed-material-cost" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">개당 고정 부자재비 (원)</label>
+                                <input type="number" id="fixed-material-cost" class="w-full p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white outline-none focus:border-blue-500" placeholder="예: 159">
                             </div>
-                            <div class="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <label for="fixed-shipping-cost" class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">개당 고정 택배비 (원)</label>
-                                <input type="number" id="fixed-shipping-cost" class="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:text-white" placeholder="예: 2050">
+                            <div class="bg-gray-50 dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
+                                <label for="fixed-shipping-cost" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">개당 고정 택배비 (원)</label>
+                                <input type="number" id="fixed-shipping-cost" class="w-full p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white outline-none focus:border-blue-500" placeholder="예: 2050">
                             </div>
-                            <div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-200 dark:border-purple-800">
-                                <label for="fixed-direct-delivery-cost" class="block text-xs font-bold text-purple-700 dark:text-purple-400 mb-2">직진배송 화물비 (1회당)</label>
-                                <input type="number" id="fixed-direct-delivery-cost" class="w-full p-2.5 bg-white dark:bg-gray-800 border border-purple-300 dark:border-purple-600 rounded-lg text-sm dark:text-white" placeholder="예: 50000">
+                            <div class="bg-purple-50 dark:bg-purple-900/20 p-5 rounded-xl border border-purple-200 dark:border-purple-800">
+                                <label for="fixed-direct-delivery-cost" class="block text-sm font-bold text-purple-700 dark:text-purple-400 mb-2">직진배송 화물비 (1회당)</label>
+                                <input type="number" id="fixed-direct-delivery-cost" class="w-full p-3 bg-white dark:bg-gray-800 border border-purple-300 dark:border-purple-600 rounded-lg text-base dark:text-white outline-none focus:border-purple-500" placeholder="예: 50000">
                             </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">원가(인건비) 계산에 포함할 물류 업무 선택</label>
-                            <div id="cost-calc-tasks-container" class="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <label class="block text-base font-bold text-gray-700 dark:text-gray-300 mb-4">원가(인건비) 계산에 포함할 물류 업무 선택</label>
+                            <div id="cost-calc-tasks-container" class="bg-gray-50 dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                             </div>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">선택한 업무들의 인건비 총합을 전체 출고량으로 나누어 '개당 작업비'를 산출합니다.</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">선택한 업무들의 인건비 총합을 전체 출고량으로 나누어 '개당 작업비'를 산출합니다.</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors config-card">
-                     <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
-                        <div>
-                            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>⚙️</span> 기타 기본 설정</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">알바 기본 시급 및 시뮬레이션 기준값</p>
-                        </div>
-                        <svg class="h-5 w-5 text-gray-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors" id="section-setting">
+                    <div class="p-6 border-b border-gray-100 dark:border-gray-700">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>⚙️</span> 기타 기본 설정</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">알바 기본 시급 및 시뮬레이션 기준값</p>
                     </div>
-                     <div class="config-card-content hidden p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-b-2xl space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <label for="default-part-timer-wage" class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">알바 기본 시급 (원)</label>
-                                <input type="number" id="default-part-timer-wage" class="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:text-white">
+                    <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[400px]">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl">
+                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                <label for="default-part-timer-wage" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">알바 기본 시급 (원)</label>
+                                <input type="number" id="default-part-timer-wage" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white bg-gray-50 dark:bg-gray-900 outline-none focus:border-blue-500">
                             </div>
-                            <div class="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <label for="revenue-increment-unit" class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">매출액 증가 기준 단위 (원)</label>
-                                <input type="number" id="revenue-increment-unit" class="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:text-white">
+                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                <label for="revenue-increment-unit" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">매출액 증가 기준 단위 (원)</label>
+                                <input type="number" id="revenue-increment-unit" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white bg-gray-50 dark:bg-gray-900 outline-none focus:border-blue-500">
                             </div>
-                            <div class="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <label for="standard-monthly-work-hours" class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">1인당 월 표준 근무 (시간)</label>
-                                <input type="number" id="standard-monthly-work-hours" class="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:text-white">
+                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                <label for="standard-monthly-work-hours" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">1인당 월 표준 근무 (시간)</label>
+                                <input type="number" id="standard-monthly-work-hours" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white bg-gray-50 dark:bg-gray-900 outline-none focus:border-blue-500">
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-red-100 dark:border-red-900/50 transition-colors config-card">
-                    <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-red-50/50 dark:hover:bg-red-900/20 rounded-t-2xl transition-colors bg-red-50/30 dark:bg-red-900/10">
-                        <div>
-                            <h2 class="text-lg font-bold text-red-900 dark:text-red-400 flex items-center gap-2"><span>⚠️</span> 당일 데이터 초기화</h2>
-                            <p class="text-xs text-red-600/70 dark:text-red-400/70 mt-1">오늘 진행된 모든 업무 기록과 출퇴근 상태를 삭제합니다.</p>
-                        </div>
-                        <svg class="h-5 w-5 text-red-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-red-100 dark:border-red-900/50 transition-colors" id="section-reset">
+                    <div class="p-6 border-b border-red-100 dark:border-red-900/50 bg-red-50/30 dark:bg-red-900/10 rounded-t-2xl">
+                        <h2 class="text-xl font-bold text-red-900 dark:text-red-400 flex items-center gap-2"><span>⚠️</span> 당일 데이터 초기화</h2>
+                        <p class="text-sm text-red-600/70 dark:text-red-400/70 mt-1">오늘 진행된 모든 업무 기록과 출퇴근 상태를 삭제합니다.</p>
                     </div>
-                    <div class="config-card-content hidden p-5 md:p-6 border-t border-red-100 dark:border-red-900/50 bg-white dark:bg-gray-800 rounded-b-2xl space-y-6">
-                        <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-800">
-                            <p class="text-sm font-bold text-red-800 dark:text-red-400 mb-2">오늘 데이터 전체 초기화</p>
-                            <p class="text-xs text-red-600 dark:text-red-300 mb-4">이 작업은 취소할 수 없습니다. 테스트를 진행했거나 리셋이 꼭 필요한 경우에만 사용하세요.</p>
-                            <button id="admin-reset-daily-data-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm shadow-sm flex items-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    <div class="p-6 bg-white dark:bg-gray-800 rounded-b-2xl min-h-[400px] flex items-center justify-center">
+                        <div class="bg-red-50 dark:bg-red-900/20 p-8 rounded-2xl border border-red-200 dark:border-red-800 text-center max-w-md w-full">
+                            <p class="text-lg font-bold text-red-800 dark:text-red-400 mb-3">오늘 데이터 전체 초기화</p>
+                            <p class="text-sm text-red-600 dark:text-red-300 mb-6 leading-relaxed">이 작업은 취소할 수 없습니다. 테스트를 진행했거나 리셋이 꼭 필요한 경우에만 사용하세요.</p>
+                            <button id="admin-reset-daily-data-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors text-base shadow-sm flex items-center justify-center gap-2 w-full">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 초기화 실행
                             </button>
                         </div>
@@ -310,11 +342,55 @@
         import { saveDayDataToHistory } from './js/history-data-manager.js';
         
         document.addEventListener('DOMContentLoaded', () => {
+            // 사이드바 탭 클릭 처리
+            const tabBtns = document.querySelectorAll('.admin-tab-btn');
+            const sections = document.querySelectorAll('.admin-section');
+            const mobileSelect = document.getElementById('mobile-tab-select');
+
+            function activateTab(targetId) {
+                // 버튼 스타일 변경
+                tabBtns.forEach(t => {
+                    t.className = "admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition";
+                });
+                const activeBtn = document.querySelector(`.admin-tab-btn[data-target="${targetId}"]`);
+                if(activeBtn) {
+                    activeBtn.className = "admin-tab-btn active w-full flex items-center gap-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-xl font-semibold transition shadow-sm";
+                }
+
+                // 섹션 표시 변경
+                sections.forEach(sec => {
+                    sec.classList.remove('block', 'flex');
+                    sec.classList.add('hidden');
+                });
+                
+                const targetSec = document.getElementById(targetId);
+                if (targetSec) {
+                    targetSec.classList.remove('hidden');
+                    // 섹션이 원래 flex 였는지 block 인지 판단
+                    if(targetId === 'section-permission') {
+                        targetSec.classList.add('flex');
+                    } else {
+                        targetSec.classList.add('block');
+                    }
+                }
+                
+                // 모바일 select 동기화
+                if(mobileSelect) mobileSelect.value = targetId;
+            }
+
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => activateTab(btn.dataset.target));
+            });
+
+            if (mobileSelect) {
+                mobileSelect.addEventListener('change', (e) => activateTab(e.target.value));
+            }
+
+            // 초기화 버튼 로직
             const resetBtn = document.getElementById('admin-reset-daily-data-btn');
             if (resetBtn) {
                 resetBtn.addEventListener('click', async () => {
                     if (confirm('🚨 정말로 오늘 진행된 모든 데이터를 초기화하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 오늘의 모든 출근 및 업무 기록이 즉시 삭제됩니다.')) {
-                        const originalText = resetBtn.textContent;
                         resetBtn.disabled = true;
                         resetBtn.innerHTML = '처리 중...';
                         try {
@@ -325,7 +401,7 @@
                             alert('데이터 초기화 중 오류가 발생했습니다.');
                         } finally {
                             resetBtn.disabled = false;
-                            resetBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>초기화 실행`;
+                            resetBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>초기화 실행`;
                         }
                     }
                 });
