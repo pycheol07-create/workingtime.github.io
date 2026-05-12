@@ -27,7 +27,7 @@
         .tab-btn.active { border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: 700; }
         .dark .tab-btn.active { border-bottom: 2px solid #60a5fa; color: #60a5fa; }
         
-        /* 고급 에디터 커스텀 스타일 (다크모드 지원) */
+        /* 고급 에디터 커스텀 및 서식 복구 */
         .ql-toolbar { background: white; border-radius: 0.5rem 0.5rem 0 0; border-color: #d1d5db !important; }
         .dark .ql-toolbar { background: #374151; border-color: #4b5563 !important; }
         .dark .ql-container { border-color: #4b5563 !important; color: white; }
@@ -40,6 +40,15 @@
         .ql-editor { min-height: 400px; line-height: 1.6; }
         .ql-editor img { max-width: 100%; border-radius: 0.5rem; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
         .dark .ql-editor img { border-color: #374151; }
+        
+        /* 폰트 및 서식 강제 적용 (Tailwind 충돌 방지) */
+        .ql-editor h1 { font-size: 2em !important; font-weight: bold !important; margin-bottom: 0.5em; }
+        .ql-editor h2 { font-size: 1.5em !important; font-weight: bold !important; margin-bottom: 0.5em; }
+        .ql-editor h3 { font-size: 1.17em !important; font-weight: bold !important; margin-bottom: 0.5em; }
+        .ql-editor ul { list-style-type: disc !important; padding-left: 1.5em !important; margin-bottom: 0.5em; }
+        .ql-editor ol { list-style-type: decimal !important; padding-left: 1.5em !important; margin-bottom: 0.5em; }
+        .ql-editor a { color: #3b82f6 !important; text-decoration: underline !important; }
+        .ql-editor p { margin-bottom: 0.5em; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 overflow-hidden flex h-screen transition-colors duration-200">
@@ -101,12 +110,12 @@
                         <div>
                             <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">파트 (그룹)</label>
                             <select id="manual-group" class="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:border-blue-500 dark:text-white">
-                            </select>
+                                </select>
                         </div>
                         <div>
                             <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">관련 업무 (선택)</label>
                             <select id="manual-task" class="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:border-blue-500 dark:text-white">
-                            </select>
+                                </select>
                         </div>
                     </div>
 
@@ -135,7 +144,7 @@
                             <input type="file" id="manual-file-input" accept=".pdf, .png, .jpg, .jpeg, .xlsx, .xls" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                             <div class="text-4xl mb-2">📁</div>
                             <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">여기를 클릭하거나 파일을 드래그하여 업로드하세요.</p>
-                            <p class="text-xs text-gray-500">지원 형식: PDF, 엑셀(XLSX)</p>
+                            <p class="text-xs text-gray-500">지원 형식: PDF, 이미지, 엑셀(XLSX)</p>
                             <div id="file-name-display" class="mt-4 text-sm font-bold text-blue-600 hidden"></div>
                         </div>
                     </div>
