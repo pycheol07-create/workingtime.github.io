@@ -48,26 +48,29 @@ const DOM = {
     btnDelete: document.getElementById('btn-delete-manual')
 };
 
-// 🔥 [신규] 이미지 파일을 서버에 업로드하고 에디터 본문에 넣는 공통 함수
+// 🔥 [핵심 수정] 이미지를 서버에 업로드하고 정확한 커서 위치에 삽입하는 함수
 async function handleImageUpload(file) {
     try {
+        // 비동기 작업(업로드)이 시작되기 전에 현재 마우스 커서 위치를 미리 저장해둡니다.
+        let range = quill.getSelection(true);
+        const insertIndex = range ? range.index : quill.getLength();
+
         showToast('이미지 업로드 중...', false);
         const fileName = file.name || `pasted_image_${Date.now()}.png`;
         const fileRef = ref(storage, `manuals/images/${Date.now()}_${fileName}`);
-        const uploadTask = uploadBytesResumable(fileRef, file);
+        
+        // 파일 타입 명시
+        const metadata = { contentType: file.type || 'image/png' };
+        const uploadTask = uploadBytesResumable(fileRef, file, metadata);
         
         uploadTask.on('state_changed', null, (err) => {
             console.error(err);
             showToast('이미지 업로드 실패', true);
         }, async () => {
             const url = await getDownloadURL(uploadTask.snapshot.ref);
-            let range = quill.getSelection(true);
-            // 선택된 위치가 없으면 맨 끝으로 지정
-            if (!range) {
-                range = { index: quill.getLength() };
-            }
-            quill.insertEmbed(range.index, 'image', url);
-            quill.setSelection(range.index + 1);
+            // 저장해둔 정확한 위치에 이미지를 삽입합니다.
+            quill.insertEmbed(insertIndex, 'image', url);
+            quill.setSelection(insertIndex + 1);
             showToast('이미지 삽입 완료');
         });
     } catch (e) {
@@ -76,7 +79,6 @@ async function handleImageUpload(file) {
     }
 }
 
-// 툴바의 [이미지 아이콘] 클릭 시 파일 선택창 띄우기
 function selectLocalImage() {
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
@@ -91,13 +93,19 @@ function selectLocalImage() {
     };
 }
 
-// 고급 에디터(Quill) 초기화 및 붙여넣기/드래그앤드롭 이벤트 방어
 function initQuillIfNeeded() {
     if (!quill && document.getElementById('manual-content-editor')) {
         quill = new Quill('#manual-content-editor', {
             theme: 'snow',
             placeholder: '이곳에 매뉴얼 내용을 상세하게 적어주세요. 텍스트 꾸미기와 이미지 첨부가 모두 가능합니다.',
             modules: {
+                keyboard: {
+                    bindings: {
+                        'list autofill': {
+                            prefix: /^\s*()$/ 
+                        }
+                    }
+                },
                 toolbar: {
                     container: [
                         [{ 'header': [1, 2, 3, false] }],
@@ -114,37 +122,48 @@ function initQuillIfNeeded() {
             }
         });
 
-        // 🔥 [신규] 복사/붙여넣기(Paste) 했을 때 긴 텍스트(Base64) 대신 파일 업로드로 가로채기
+        // 🔥 [핵심 수정] 복사/붙여넣기 이벤트를 최우선(true)으로 가로채기
         quill.root.addEventListener('paste', (e) => {
+            let hasImage = false;
             const clipboardData = e.clipboardData || window.clipboardData;
+            
             if (clipboardData && clipboardData.items) {
                 for (let i = 0; i < clipboardData.items.length; i++) {
                     const item = clipboardData.items[i];
-                    if (item.type.indexOf('image') !== -1) {
-                        e.preventDefault(); // 기본 붙여넣기 동작 차단
+                    // 이미지가 포함되어 있는지 확인
+                    if (item.type.indexOf('image') === 0) {
+                        hasImage = true;
                         const file = item.getAsFile();
                         if (file) handleImageUpload(file);
                     }
                 }
             }
-        });
+            
+            // 이미지가 있다면 브라우저 및 에디터의 기본 붙여넣기 동작을 강제로 차단
+            if (hasImage) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true);
 
-        // 🔥 [신규] 이미지 파일을 드래그 앤 드롭(Drop) 했을 때 업로드로 가로채기
+        // 🔥 [핵심 수정] 드래그 앤 드롭 이벤트를 최우선(true)으로 가로채기
         quill.root.addEventListener('drop', (e) => {
+            let hasImage = false;
             if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                let hasImage = false;
                 for (let i = 0; i < e.dataTransfer.files.length; i++) {
                     const file = e.dataTransfer.files[i];
-                    if (file.type.indexOf('image') !== -1) {
+                    if (file.type.indexOf('image') === 0) {
                         hasImage = true;
                         handleImageUpload(file);
                     }
                 }
-                if (hasImage) {
-                    e.preventDefault(); // 기본 동작 차단
-                }
             }
-        });
+            
+            if (hasImage) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true);
     }
 }
 
