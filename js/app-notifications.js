@@ -3,7 +3,6 @@ import * as State from './state.js';
 import { doc, writeBatch, deleteDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from './utils.js';
 
-// 🔥 [신규] 특정 대상에게 알림을 발송하는 핵심 공통 함수
 export async function sendNotification(targetMember, message, type = 'info') {
     try {
         const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
@@ -19,7 +18,6 @@ export async function sendNotification(targetMember, message, type = 'info') {
     }
 }
 
-// 알림 리스트 렌더링 함수
 export function renderNotificationList() {
     const list = document.getElementById('notification-list');
     if (!list) return;
@@ -38,7 +36,6 @@ export function renderNotificationList() {
     `).join('');
 }
 
-// 알림 모두 읽음 처리 함수
 export async function markAllNotificationsAsRead() {
     const unreadNotis = (State.appState.notifications || []).filter(n => !n.isRead);
     if(unreadNotis.length === 0) return;
@@ -55,7 +52,6 @@ export async function markAllNotificationsAsRead() {
     }
 }
 
-// 알림 관련 모달 및 이벤트 설정
 export function setupNotificationListeners() {
     const notiModal = document.getElementById('notification-modal');
     const bellPc = document.getElementById('notification-bell-btn');
@@ -102,15 +98,18 @@ export function setupNotificationListeners() {
         }
     });
 
-    // 🔥 [신규] '쪽지 보내기' 관련 이벤트 리스너
+    // 🔥 쪽지 보내기 관련 이벤트 리스너 수정 (다중/전체 선택 기능)
     const openSendMsgBtn = document.getElementById('open-send-msg-btn');
     const closeSendMsgBtn = document.getElementById('close-send-msg-btn');
     const sendMsgModal = document.getElementById('send-message-modal');
     const sendMsgSubmitBtn = document.getElementById('send-msg-submit-btn');
     
     openSendMsgBtn?.addEventListener('click', () => {
-        const select = document.getElementById('msg-target-select');
-        select.innerHTML = '<option value="">대상을 선택하세요...</option>';
+        const listContainer = document.getElementById('msg-target-list');
+        const selectAllCb = document.getElementById('msg-target-select-all');
+        
+        if (listContainer) listContainer.innerHTML = '';
+        if (selectAllCb) selectAllCb.checked = false;
         
         const members = new Set();
         (State.appConfig?.teamGroups || []).forEach(g => g.members?.forEach(m => members.add(m)));
@@ -118,10 +117,10 @@ export function setupNotificationListeners() {
         
         Array.from(members).sort().forEach(m => {
             if (m !== State.appState.currentUser) {
-                const opt = document.createElement('option');
-                opt.value = m;
-                opt.textContent = m;
-                select.appendChild(opt);
+                const label = document.createElement('label');
+                label.className = 'flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-600 p-1.5 rounded-md transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-500';
+                label.innerHTML = `<input type="checkbox" value="${m}" class="msg-target-checkbox w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"> <span class="truncate font-medium">${m}</span>`;
+                if (listContainer) listContainer.appendChild(label);
             }
         });
 
@@ -129,15 +128,35 @@ export function setupNotificationListeners() {
         sendMsgModal?.classList.remove('hidden');
     });
 
+    // "전체 선택" 묶음 처리 로직
+    const selectAllCb = document.getElementById('msg-target-select-all');
+    const listContainer = document.getElementById('msg-target-list');
+    
+    if (selectAllCb && listContainer) {
+        selectAllCb.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            listContainer.querySelectorAll('.msg-target-checkbox').forEach(cb => cb.checked = isChecked);
+        });
+
+        listContainer.addEventListener('change', (e) => {
+            if (e.target.classList.contains('msg-target-checkbox')) {
+                const allCbs = listContainer.querySelectorAll('.msg-target-checkbox');
+                const allChecked = Array.from(allCbs).every(cb => cb.checked);
+                selectAllCb.checked = allChecked;
+            }
+        });
+    }
+
     closeSendMsgBtn?.addEventListener('click', () => {
         sendMsgModal?.classList.add('hidden');
     });
 
     sendMsgSubmitBtn?.addEventListener('click', async () => {
-        const target = document.getElementById('msg-target-select').value;
+        const selectedCbs = document.querySelectorAll('.msg-target-checkbox:checked');
+        const targets = Array.from(selectedCbs).map(cb => cb.value);
         const text = document.getElementById('msg-content-input').value.trim();
         
-        if (!target) return showToast('받는 사람을 선택해주세요.', true);
+        if (targets.length === 0) return showToast('받는 사람을 1명 이상 선택해주세요.', true);
         if (!text) return showToast('메시지 내용을 입력해주세요.', true);
         
         const sender = State.appState.currentUser || '관리자';
@@ -147,12 +166,18 @@ export function setupNotificationListeners() {
         sendMsgSubmitBtn.disabled = true;
         sendMsgSubmitBtn.textContent = '전송 중...';
 
-        await sendNotification(target, finalMsg, 'message');
-        
-        showToast(`${target}님에게 쪽지를 성공적으로 보냈습니다.`);
-        sendMsgModal?.classList.add('hidden');
-        
-        sendMsgSubmitBtn.disabled = false;
-        sendMsgSubmitBtn.textContent = originalBtnText;
+        try {
+            // 여러 명에게 병렬로 알림 발송
+            await Promise.all(targets.map(target => sendNotification(target, finalMsg, 'message')));
+            
+            showToast(`${targets.length}명에게 쪽지를 성공적으로 보냈습니다.`);
+            sendMsgModal?.classList.add('hidden');
+        } catch (e) {
+            showToast('쪽지 발송 중 오류가 발생했습니다.', true);
+            console.error(e);
+        } finally {
+            sendMsgSubmitBtn.disabled = false;
+            sendMsgSubmitBtn.textContent = originalBtnText;
+        }
     });
 }
