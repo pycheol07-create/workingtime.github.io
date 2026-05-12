@@ -87,7 +87,6 @@ function setupEventListeners() {
         });
     });
 
-    // ✨ 신규: 권한 선택 변경 시, 체크박스 영역 활성/비활성 처리
     document.body.addEventListener('change', (e) => {
         if (e.target.classList.contains('perm-role')) {
             const listContainer = e.target.closest('.permission-item').querySelector('.perm-menu-list');
@@ -300,7 +299,15 @@ function addTaskGroup() {
 }
 
 function handleDynamicClicks(e) {
-    if (e.target.classList.contains('delete-member-btn')) e.target.closest('.member-item')?.remove();
+    // ✨ 신규: 전체 체크 / 전체 해제 버튼 로직 추가
+    if (e.target.classList.contains('select-all-menu-btn')) {
+        e.target.closest('.permission-item').querySelectorAll('.perm-menu-checkbox').forEach(cb => cb.checked = true);
+    }
+    else if (e.target.classList.contains('deselect-all-menu-btn')) {
+        e.target.closest('.permission-item').querySelectorAll('.perm-menu-checkbox').forEach(cb => cb.checked = false);
+    }
+
+    else if (e.target.classList.contains('delete-member-btn')) e.target.closest('.member-item')?.remove();
     else if (e.target.classList.contains('delete-team-group-btn')) e.target.closest('.team-group-card')?.remove();
     else if (e.target.classList.contains('delete-key-task-btn')) e.target.closest('.key-task-item')?.remove();
     else if (e.target.classList.contains('delete-task-btn')) e.target.closest('.task-item')?.remove();

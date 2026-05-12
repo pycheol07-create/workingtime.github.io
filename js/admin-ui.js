@@ -1,4 +1,6 @@
 // === js/admin-ui.js ===
+// 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
+
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
     'leave-staff': { title: '휴무' },
@@ -48,10 +50,7 @@ export function renderAdminUI(config) {
     );
     
     renderSystemAccountsConfig(config.systemAccounts || []);
-    
-    // ✨ 신규: 권한 및 메뉴 접근 설정 렌더링
     renderPermissionsConfig(config);
-
     renderDashboardMenu(config.dashboardMenu || []);
     renderDashboardItemsConfig(config.dashboardItems || [], config);
     renderKeyTasks(config.keyTasks || []);
@@ -61,7 +60,6 @@ export function renderAdminUI(config) {
     renderCostAnalysisConfig(config);
 }
 
-// ✨ 신규: 사용자별 권한 설정 렌더링
 export function renderPermissionsConfig(config) {
     const container = document.getElementById('permissions-container');
     if (!container) return;
@@ -69,7 +67,6 @@ export function renderPermissionsConfig(config) {
 
     const allUsers = [];
     
-    // 팀 그룹에서 이메일이 등록된 사용자 추출
     (config.teamGroups || []).forEach(g => {
         (g.members || []).forEach(m => {
             const email = config.memberEmails?.[m] || '';
@@ -77,15 +74,12 @@ export function renderPermissionsConfig(config) {
         });
     });
     
-    // 시스템 계정에서 추출
     (config.systemAccounts || []).forEach(acc => {
         if(acc.email) allUsers.push({ name: acc.name, email: acc.email, type: '시스템계정' });
     });
 
-    // 이메일 기준으로 중복 제거
     const uniqueUsers = Array.from(new Map(allUsers.map(item => [item.email.toLowerCase(), item])).values());
 
-    // 대시보드 메뉴에 등록된 모든 소분류 이름 추출
     const allMenus = [];
     (config.dashboardMenu || []).forEach(cat => {
         (cat.items || []).forEach(item => {
@@ -99,9 +93,7 @@ export function renderPermissionsConfig(config) {
         const access = config.memberMenuAccess?.[emailLower] || [];
         const isUser = role === 'user';
         
-        // 메뉴 체크박스 HTML 생성
         const checkboxesHtml = allMenus.map(menuName => {
-            // 이전에 설정이 없었을 경우 기본적으로 전체 체크 (하위 호환성)
             const isNoAccessSet = !config.memberMenuAccess || !config.memberMenuAccess[emailLower];
             const checked = (isNoAccessSet || access.includes(menuName)) ? 'checked' : '';
             return `
@@ -116,6 +108,7 @@ export function renderPermissionsConfig(config) {
         row.className = 'permission-item p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm flex flex-col md:flex-row gap-4 md:items-center transition-colors';
         row.dataset.email = emailLower;
 
+        // ✨ 신규: 접근 허용 메뉴 영역 상단에 전체 체크/해제 버튼 추가
         row.innerHTML = `
             <div class="w-full md:w-1/4 flex flex-col gap-1 shrink-0">
                 <span class="text-sm font-extrabold text-gray-900 dark:text-white flex items-center gap-1">
@@ -132,8 +125,14 @@ export function renderPermissionsConfig(config) {
                 </select>
             </div>
             <div class="w-full flex-1 perm-menu-list p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700 transition-opacity ${isUser ? '' : 'opacity-40 pointer-events-none'}">
-                <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-2">접근 허용 메뉴 (일반 권한 전용)</div>
-                <div class="flex flex-wrap">
+                <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                    <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400">접근 허용 메뉴 (일반 권한 전용)</div>
+                    <div class="flex gap-2">
+                        <button type="button" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline select-all-menu-btn py-1 px-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">전체 체크</button>
+                        <button type="button" class="text-[10px] font-bold text-red-600 dark:text-red-400 hover:underline deselect-all-menu-btn py-1 px-2 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">전체 해제</button>
+                    </div>
+                </div>
+                <div class="flex flex-wrap pt-1">
                     ${checkboxesHtml}
                 </div>
             </div>
@@ -146,7 +145,6 @@ export function renderPermissionsConfig(config) {
     }
 }
 
-// 기존 팀 그룹 렌더링에서 권한 콤보박스 삭제됨
 export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}) {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
@@ -253,7 +251,6 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
     });
 }
 
-// 기존 시스템 계정 관리에서도 권한 콤보박스 삭제
 export function renderSystemAccountsConfig(accounts) {
     let container = document.getElementById('system-accounts-container');
     if (!container) {
