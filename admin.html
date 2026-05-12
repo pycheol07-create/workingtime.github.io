@@ -211,6 +211,26 @@
                     </div>
                 </div>
 
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-red-100 dark:border-red-900/50 transition-colors config-card">
+                    <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-red-50/50 dark:hover:bg-red-900/20 rounded-t-2xl transition-colors bg-red-50/30 dark:bg-red-900/10">
+                        <div>
+                            <h2 class="text-lg font-bold text-red-900 dark:text-red-400 flex items-center gap-2"><span>⚠️</span> 당일 데이터 초기화</h2>
+                            <p class="text-xs text-red-600/70 dark:text-red-400/70 mt-1">오늘 진행된 모든 업무 기록과 출퇴근 상태를 삭제합니다.</p>
+                        </div>
+                        <svg class="h-5 w-5 text-red-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                    <div class="config-card-content hidden p-5 md:p-6 border-t border-red-100 dark:border-red-900/50 bg-white dark:bg-gray-800 rounded-b-2xl space-y-6">
+                        <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-800">
+                            <p class="text-sm font-bold text-red-800 dark:text-red-400 mb-2">오늘 데이터 전체 초기화</p>
+                            <p class="text-xs text-red-600 dark:text-red-300 mb-4">이 작업은 취소할 수 없습니다. 테스트를 진행했거나 리셋이 꼭 필요한 경우에만 사용하세요.</p>
+                            <button id="admin-reset-daily-data-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm shadow-sm flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                초기화 실행
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </main>
@@ -253,5 +273,32 @@
     </div>
 
     <script type="module" src="js/admin.js"></script>
+
+    <script type="module">
+        import { saveDayDataToHistory } from './js/history-data-manager.js';
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const resetBtn = document.getElementById('admin-reset-daily-data-btn');
+            if (resetBtn) {
+                resetBtn.addEventListener('click', async () => {
+                    if (confirm('🚨 정말로 오늘 진행된 모든 데이터를 초기화하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 오늘의 모든 출근 및 업무 기록이 즉시 삭제됩니다.')) {
+                        const originalText = resetBtn.textContent;
+                        resetBtn.disabled = true;
+                        resetBtn.innerHTML = '처리 중...';
+                        try {
+                            await saveDayDataToHistory(true);
+                            alert('오늘의 모든 데이터가 안전하게 초기화되었습니다.');
+                        } catch(e) {
+                            console.error(e);
+                            alert('데이터 초기화 중 오류가 발생했습니다.');
+                        } finally {
+                            resetBtn.disabled = false;
+                            resetBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>초기화 실행`;
+                        }
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
