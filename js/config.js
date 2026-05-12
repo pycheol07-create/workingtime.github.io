@@ -52,6 +52,7 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) };
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             
+            // ✅ [자동 마이그레이션 1] 기존 DB에 '검수'가 남아있다면 강제로 '샘플검수', '전량검수'로 분리
             let loadedQtyTasks = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             if (loadedQtyTasks.includes('검수')) {
                 loadedQtyTasks = loadedQtyTasks.filter(t => t !== '검수');
@@ -60,6 +61,7 @@ export const loadAppConfig = async (dbInstance) => {
             }
             mergedConfig.quantityTaskTypes = loadedQtyTasks;
 
+            // 🚀 [추가 마이그레이션: 교환반품 강제 추가] DB에 교환반품이 없으면 상.하차 뒤에 추가
             if (!mergedConfig.keyTasks.includes('교환반품')) {
                 const idx = mergedConfig.keyTasks.indexOf('상.하차');
                 if (idx !== -1) mergedConfig.keyTasks.splice(idx + 1, 0, '교환반품');
@@ -73,8 +75,11 @@ export const loadAppConfig = async (dbInstance) => {
 
             mergedConfig.qualityCostTasks = loadedData.qualityCostTasks || defaultData.qualityCostTasks;
             mergedConfig.systemAccounts = loadedData.systemAccounts || defaultData.systemAccounts;
+            
+            // 표준 일일 근무시간 안전 병합
             mergedConfig.standardDailyWorkHours = { ...defaultData.standardDailyWorkHours, ...(loadedData.standardDailyWorkHours || {}) };
 
+            // ✅ [자동 마이그레이션 2] 업무 그룹(taskGroups) 내의 '검수'를 분리하고 '교환반품' 추가
             if (Array.isArray(loadedData.taskGroups)) {
                 mergedConfig.taskGroups = loadedData.taskGroups.map(group => {
                     if (group.tasks && group.tasks.includes('검수')) {
@@ -82,6 +87,7 @@ export const loadAppConfig = async (dbInstance) => {
                         if (!group.tasks.includes('샘플검수')) group.tasks.push('샘플검수');
                         if (!group.tasks.includes('전량검수')) group.tasks.push('전량검수');
                     }
+                    // '담당' 파트에 교환반품이 없다면 상.하차 뒤에 추가
                     if (group.name === '담당' && !group.tasks.includes('교환반품')) {
                         const idx = group.tasks.indexOf('상.하차');
                         if (idx !== -1) group.tasks.splice(idx + 1, 0, '교환반품');
@@ -112,11 +118,10 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberEmails = { ...defaultData.memberEmails, ...(loadedData.memberEmails || {}) };
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
-            mergedConfig.simulationTaskLinks = { ...(loadedData.simulationTaskLinks || {}), ...defaultData.simulationTaskLinks };
             
-            mergedConfig.menuOrder = loadedData.menuOrder || defaultData.menuOrder;
-            mergedConfig.userPermissions = loadedData.userPermissions || defaultData.userPermissions;
+            mergedConfig.simulationTaskLinks = { ...(loadedData.simulationTaskLinks || {}), ...defaultData.simulationTaskLinks };
 
+            // 🔥 [중요] 변경된 마이그레이션 설정을 다시 데이터베이스(Firestore)에 덮어써서 동기화
             saveAppConfig(dbToUse, mergedConfig).catch(e => console.error("DB 업데이트 실패:", e));
 
             return mergedConfig;
@@ -199,22 +204,17 @@ function getDefaultConfig() {
         quantityTaskTypes: ['채우기', '국내배송', '직진배송', '중국제작', '티니', '택배포장', '해외배송', '상.하차', '교환반품', '샘플검수', '전량검수'],
         qualityCostTasks: ['오류', '상품재작업', '재고찾는시간'],
         defaultPartTimerWage: 10000,
+
         simulationTaskLinks: {
             '직진배송': '직진배송 사전작업' 
         },
+
+        // ✨ 매출액 및 근무시간 분석 기준
         revenueIncrementUnit: 10000000,
         standardMonthlyWorkHours: 209,
         standardDailyWorkHours: {
              weekday: 8,
              weekend: 4
-        },
-        
-        // 👇 메뉴 설정 (대분류 포함)
-        menuOrder: [
-            'cat-main', 'dashboard', 'quantity', 'history',
-            'cat-manage', 'weekend', 'leave', 'simulation', 'location',
-            'cat-admin', 'admin-todo', 'admin-page', 'end-shift'
-        ],
-        userPermissions: {} 
+        }
     };
 }

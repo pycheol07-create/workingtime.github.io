@@ -11,6 +11,7 @@ import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js';
 import { checkAdminTodoNotifications } from './admin-todo-logic.js';
 import { setupWeekendListeners } from './listeners-weekend.js';
 
+// ✅ 분리된 모듈 가져오기
 import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js';
 import { setupNotificationListeners } from './app-notifications.js';
 import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js';
@@ -66,81 +67,22 @@ async function startAppAfterLogin(user) {
         State.appState.currentUser = currentUserName;
         State.appState.currentUserRole = currentUserRole;
 
+        // UI 토글 (Admin vs User) - 기존 로직 유지
         if (DOM.userGreeting) {
             DOM.userGreeting.textContent = `${currentUserName}님 (${currentUserRole}), 안녕하세요.`;
             DOM.userGreeting.classList.remove('hidden');
         }
         if (DOM.logoutBtn) DOM.logoutBtn.classList.remove('hidden');
 
-        // 👇 권한 기반 사이드바 메뉴 렌더링 로직 (대분류 동적 숨김 포함)
-        const menuOrder = State.appConfig.menuOrder || ['cat-main', 'dashboard', 'quantity', 'history', 'cat-manage', 'weekend', 'leave', 'simulation', 'location', 'cat-admin', 'admin-todo', 'admin-page', 'end-shift'];
-        const userPerms = State.appConfig.userPermissions || {};
-        const myAllowedMenus = userPerms[currentUserName] || []; // 나에게 허용된 메뉴들
-
-        const pcNav = document.querySelector('aside nav');
-        if (pcNav) {
-            pcNav.style.display = 'flex';
-            pcNav.style.flexDirection = 'column';
-        }
-
-        // 1. 모든 메뉴 요소에 우선 순서 및 기본 권한 적용
-        menuOrder.forEach((menuId, index) => {
-            const isCategory = menuId.startsWith('cat-');
-            // 관리자는 무조건 패스, 대분류 자체는 1차 패스(아래에서 재검사), 일반 유저는 허용목록에 있어야 패스
-            const hasPermission = isCategory || (currentUserRole === 'admin') || myAllowedMenus.includes(menuId);
-            
-            const pcBtn = document.querySelector(`nav [data-menu-id="${menuId}"]`);
-            const mobileBtn = document.querySelector(`#nav-content [data-menu-id="${menuId}"]`);
-            
-            if (pcBtn) {
-                pcBtn.style.display = hasPermission ? (isCategory ? 'block' : 'flex') : 'none';
-                pcBtn.style.order = index;
-            }
-            if (mobileBtn) {
-                mobileBtn.style.display = hasPermission ? (isCategory ? 'block' : 'flex') : 'none';
-                mobileBtn.style.order = index;
-            }
-        });
-
-        // 2. 하위 메뉴가 모두 숨겨진 '대분류'는 화면에서도 스마트하게 숨기기
-        ['aside nav', '#nav-content'].forEach(selector => {
-            const container = document.querySelector(selector);
-            if (!container) return;
-            
-            const items = Array.from(container.querySelectorAll('[data-menu-id]')).sort((a, b) => {
-                return parseInt(a.style.order || 0) - parseInt(b.style.order || 0);
-            });
-
-            let currentCategoryNode = null;
-            let categoryHasVisibleChild = false;
-
-            items.forEach(item => {
-                const isCategory = item.dataset.menuId.startsWith('cat-');
-                
-                if (isCategory) {
-                    // 직전 카테고리가 있었는데 보여지는 하위 메뉴가 0개였다면 숨김
-                    if (currentCategoryNode && !categoryHasVisibleChild) {
-                        currentCategoryNode.style.display = 'none';
-                    }
-                    currentCategoryNode = item;
-                    categoryHasVisibleChild = false;
-                } else {
-                    if (item.style.display !== 'none') {
-                        categoryHasVisibleChild = true;
-                    }
-                }
-            });
-            
-            // 마지막 카테고리 잔여 처리
-            if (currentCategoryNode && !categoryHasVisibleChild) {
-                currentCategoryNode.style.display = 'none';
-            }
-        });
+        // 관리자용 UI
+        const adminElements = [document.getElementById('admin-link-btn'), DOM.adminLinkBtnMobile, DOM.resetAppBtn, DOM.resetAppBtnMobile, DOM.openHistoryBtn, DOM.openHistoryBtnMobile, document.getElementById('open-admin-todo-btn')];
+        adminElements.forEach(el => { if (el) el.style.display = (currentUserRole === 'admin') ? 'flex' : 'none'; });
         
         if (currentUserRole === 'admin') {
             setInterval(checkAdminTodoNotifications, 30000);
         }
 
+        // 메인 영역 노출
         document.getElementById('main-content-area')?.classList.remove('hidden');
 
         if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 
@@ -154,6 +96,7 @@ async function startAppAfterLogin(user) {
 
     displayCurrentDate();
     
+    // ✅ 1. 타이머 설정 (분리된 로직 사용)
     if (State.elapsedTimeTimer) clearInterval(State.elapsedTimeTimer);
     State.setElapsedTimeTimer(setInterval(updateElapsedTimes, 1000));
 
@@ -163,6 +106,7 @@ async function startAppAfterLogin(user) {
     if (State.autoSaveTimer) clearInterval(State.autoSaveTimer);
     State.setAutoSaveTimer(setInterval(autoSaveProgress, State.AUTO_SAVE_INTERVAL));
 
+    // ✅ 2. Firebase 실시간 동기화 리스너 실행 (분리된 파일 호출)
     setupFirebaseListeners(render, markDataAsDirty);
 }
 
@@ -177,6 +121,7 @@ async function main() {
         return;
     }
 
+    // ✅ 3. 알림 이벤트 리스너 세팅
     setupNotificationListeners();
 
     onAuthStateChanged(State.auth, async user => {
@@ -184,6 +129,7 @@ async function main() {
             if (DOM.loginModal) DOM.loginModal.classList.add('hidden');
             await startAppAfterLogin(user);
         } else {
+            // 로그아웃 초기화
             if (State.unsubscribeToday) State.unsubscribeToday();
             if (State.unsubscribeWorkRecords) State.unsubscribeWorkRecords();
             if (unsubscribeNotifications) unsubscribeNotifications();
