@@ -1,6 +1,6 @@
 // === js/manual.js ===
 import { initializeFirebase, loadAppConfig } from './config.js';
-import { getTodayDateString, showToast } from './utils.js';
+import { showToast } from './utils.js';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
@@ -12,6 +12,7 @@ let manuals = [];
 let currentGroupFilter = '전체';
 let editingId = null;
 let currentUploadedFileData = null; 
+let quill = null; // 🔥 에디터 객체
 
 const DOM = {
     groupList: document.getElementById('manual-group-list'),
@@ -34,7 +35,6 @@ const DOM = {
     radioTypes: document.getElementsByName('manual-type'),
     typeTextContainer: document.getElementById('type-text-container'),
     typeFileContainer: document.getElementById('type-file-container'),
-    inputContent: document.getElementById('manual-content'),
     fileInput: document.getElementById('manual-file-input'),
     fileNameDisplay: document.getElementById('file-name-display'),
 
@@ -47,6 +47,63 @@ const DOM = {
     btnEdit: document.getElementById('btn-edit-manual'),
     btnDelete: document.getElementById('btn-delete-manual')
 };
+
+// 🔥 에디터 내 이미지 업로드 핸들러
+function selectLocalImage() {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+
+    input.onchange = async () => {
+        const file = input.files[0];
+        if (file) {
+            try {
+                showToast('이미지 업로드 중...', false);
+                const fileRef = ref(storage, `manuals/images/${Date.now()}_${file.name}`);
+                const uploadTask = uploadBytesResumable(fileRef, file);
+                
+                uploadTask.on('state_changed', null, (err) => {
+                    console.error(err);
+                    showToast('이미지 업로드 실패', true);
+                }, async () => {
+                    const url = await getDownloadURL(uploadTask.snapshot.ref);
+                    const range = quill.getSelection(true);
+                    quill.insertEmbed(range.index, 'image', url);
+                    quill.setSelection(range.index + 1);
+                    showToast('이미지 삽입 완료');
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    };
+}
+
+// 🔥 [버그 해결] 에디터를 화면이 보여진 직후에만 생성하여 크기 계산 오류 방지
+function initQuillIfNeeded() {
+    if (!quill && document.getElementById('manual-content-editor')) {
+        quill = new Quill('#manual-content-editor', {
+            theme: 'snow',
+            placeholder: '이곳에 매뉴얼 내용을 상세하게 적어주세요. 텍스트 꾸미기와 이미지 첨부가 모두 가능합니다.',
+            modules: {
+                toolbar: {
+                    container: [
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'color': [] }, { 'background': [] }],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['link', 'image'],
+                        ['clean']
+                    ],
+                    handlers: {
+                        image: selectLocalImage
+                    }
+                }
+            }
+        });
+    }
+}
 
 async function init() {
     appConfig = await loadAppConfig(db);
@@ -139,6 +196,9 @@ function renderManuals() {
 function showEditMode(manual = null) {
     DOM.viewContainer.classList.add('hidden');
     DOM.editContainer.classList.remove('hidden');
+    
+    initQuillIfNeeded(); // 🔥 화면이 보여진 후 딜레이 없이 에디터 로드
+
     currentUploadedFileData = null;
     DOM.fileInput.value = '';
     DOM.fileNameDisplay.classList.add('hidden');
@@ -163,7 +223,7 @@ function showEditMode(manual = null) {
             DOM.radioTypes[0].checked = true;
             DOM.typeTextContainer.classList.remove('hidden');
             DOM.typeFileContainer.classList.add('hidden');
-            DOM.inputContent.value = manual.content || '';
+            if(quill) quill.root.innerHTML = manual.content || ''; 
         }
     } else {
         editingId = null;
@@ -171,7 +231,7 @@ function showEditMode(manual = null) {
         DOM.inputTitle.value = '';
         DOM.selectGroup.value = '';
         DOM.selectTask.value = '';
-        DOM.inputContent.value = '';
+        if(quill) quill.root.innerHTML = ''; 
         DOM.radioTypes[0].checked = true;
         DOM.typeTextContainer.classList.remove('hidden');
         DOM.typeFileContainer.classList.add('hidden');
@@ -210,11 +270,20 @@ async function saveManual() {
     const group = DOM.selectGroup.value;
     const task = DOM.selectTask.value;
     const type = document.querySelector('input[name="manual-type"]:checked').value;
-    const content = DOM.inputContent.value.trim();
+    
+    // 에디터 내용 추출 (비어있는 태그 방어 로직 추가)
+    let contentHtml = '';
+    if (quill) {
+        contentHtml = quill.root.innerHTML;
+        if (quill.getText().trim().length === 0 && !contentHtml.includes('<img')) {
+            contentHtml = ''; // 텍스트도 이미지도 없으면 완전 빈칸으로 처리
+        }
+    }
+
     const file = DOM.fileInput.files[0];
 
     if (!title || !group) return showToast('제목과 파트를 모두 입력해주세요.', true);
-    if (type === 'text' && !content) return showToast('내용을 입력해주세요.', true);
+    if (type === 'text' && !contentHtml) return showToast('상세 내용을 입력하거나 이미지를 첨부해주세요.', true);
     if (type === 'file' && !file && !currentUploadedFileData) return showToast('파일을 첨부해주세요.', true);
 
     DOM.btnSave.disabled = true;
@@ -229,7 +298,7 @@ async function saveManual() {
 
         const data = {
             title, group, task, type,
-            content: type === 'text' ? content : '',
+            content: type === 'text' ? contentHtml : '',
             fileUrl: type === 'file' && fileData ? fileData.url : '',
             fileName: type === 'file' && fileData ? fileData.name : '',
             fileType: type === 'file' && fileData ? fileData.type : '',
@@ -284,12 +353,8 @@ function openDetail(manual) {
     area.innerHTML = '';
 
     if (manual.type === 'text') {
-        // 링크 자동 변환
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        let htmlContent = manual.content.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-        htmlContent = htmlContent.replace(urlRegex, '<a href="$1" target="_blank" class="text-blue-500 hover:underline break-all">$1</a>');
-        
-        area.innerHTML = `<div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm text-sm text-gray-800 dark:text-gray-200 leading-relaxed border border-gray-200 dark:border-gray-700 min-h-full">${htmlContent}</div>`;
+        // 🔥 에디터에서 작성된 서식이 포함된 HTML을 화면에 렌더링 (ql-editor 클래스로 에디터와 동일한 모양 유지)
+        area.innerHTML = `<div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 min-h-full"><div class="ql-editor p-0">${manual.content}</div></div>`;
     } else if (manual.type === 'file') {
         const isPdf = manual.fileType?.includes('pdf');
         const isImage = manual.fileType?.includes('image');
@@ -339,7 +404,7 @@ function setupListeners() {
         if (file) {
             DOM.fileNameDisplay.textContent = `선택된 파일: ${file.name}`;
             DOM.fileNameDisplay.classList.remove('hidden');
-            currentUploadedFileData = null; // 새 파일 선택 시 기존 url 해제
+            currentUploadedFileData = null; 
         }
     });
 }
