@@ -1,17 +1,16 @@
 // === js/admin-logic.js ===
-// 설명: 관리자 페이지의 데이터 수집 및 유효성 검사 로직을 담당합니다.
-
 import { getAllDashboardDefinitions } from './admin-ui.js';
 
 export function collectConfigFromDOM(currentConfig) {
     const newConfig = {
+        dashboardMenu: [], // ✨ 신규 추가: 대시보드 메뉴
         teamGroups: [],
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
         memberRanks: {}, 
         memberLeaveSettings: {},
-        systemAccounts: [], // 💡 [신규] 시스템 전용 계정 배열
+        systemAccounts: [], 
         dashboardItems: [],
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
@@ -30,14 +29,30 @@ export function collectConfigFromDOM(currentConfig) {
 
         simulationTaskLinks: currentConfig.simulationTaskLinks || {},
         qualityCostTasks: currentConfig.qualityCostTasks || [],
-        systemAccountsOld: currentConfig.systemAccounts || [], // 백업용
+        systemAccountsOld: currentConfig.systemAccounts || [], 
         standardDailyWorkHours: currentConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 }
     };
 
     const emailCheck = new Map();
     let duplicateEmailError = null;
 
-    // 1. 일반 팀원 그룹 정보 수집
+    // ✨ 신규: 메뉴 관리 데이터 수집
+    document.querySelectorAll('#menu-categories-container .menu-category-card').forEach(categoryCard => {
+        const categoryNameInput = categoryCard.querySelector('.menu-category-name');
+        const categoryName = categoryNameInput ? categoryNameInput.value.trim() : '';
+        if (!categoryName) return;
+        
+        const items = [];
+        categoryCard.querySelectorAll('.menu-item').forEach(itemEl => {
+            const itemName = itemEl.querySelector('.menu-item-name')?.value.trim();
+            const itemLink = itemEl.querySelector('.menu-item-link')?.value.trim();
+            if (itemName) {
+                items.push({ name: itemName, link: itemLink });
+            }
+        });
+        newConfig.dashboardMenu.push({ category: categoryName, items: items });
+    });
+
     document.querySelectorAll('#team-groups-container .team-group-card').forEach(groupCard => {
         const groupNameInput = groupCard.querySelector('.team-group-name');
         const groupName = groupNameInput ? groupNameInput.value.trim() : '';
@@ -83,7 +98,6 @@ export function collectConfigFromDOM(currentConfig) {
         newConfig.teamGroups.push(newGroup);
     });
 
-    // 💡 [신규] 2. 시스템 전용 계정 수집 로직
     document.querySelectorAll('#system-accounts-container .system-account-item').forEach(item => {
         const name = item.querySelector('.sys-name').value.trim();
         const email = item.querySelector('.sys-email').value.trim();

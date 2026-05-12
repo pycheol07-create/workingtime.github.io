@@ -1,6 +1,4 @@
 // === js/admin-ui.js ===
-// 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
-
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
     'leave-staff': { title: '휴무' },
@@ -49,8 +47,10 @@ export function renderAdminUI(config) {
         config.memberRanks || {} 
     );
     
-    // 💡 [신규] 시스템 전용 계정 렌더링 호출
     renderSystemAccountsConfig(config.systemAccounts || []);
+    
+    // ✨ 신규: 대시보드 메뉴 렌더링 호출
+    renderDashboardMenu(config.dashboardMenu || []);
     
     renderDashboardItemsConfig(config.dashboardItems || [], config);
     renderKeyTasks(config.keyTasks || []);
@@ -60,11 +60,9 @@ export function renderAdminUI(config) {
     renderCostAnalysisConfig(config);
 }
 
-// 💡 [신규] 시스템 전용 계정(팀원 외) UI 생성 함수
 export function renderSystemAccountsConfig(accounts) {
     let container = document.getElementById('system-accounts-container');
     
-    // DOM에 해당 영역이 없으면 팀 그룹 설정 밑에 자동으로 동적 생성합니다.
     if (!container) {
         const teamContainer = document.getElementById('team-groups-container');
         if (teamContainer) {
@@ -493,4 +491,45 @@ export function openDashboardItemModal(fullConfig) {
     }
 
     document.getElementById('select-dashboard-item-modal').classList.remove('hidden');
+}
+
+// ✨ 신규: 대시보드 메뉴 렌더링 함수
+export function renderDashboardMenu(menuConfig) {
+    const container = document.getElementById('menu-categories-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    (menuConfig || []).forEach((menuGroup, index) => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm menu-category-card transition-colors drop-zone';
+        groupEl.dataset.index = index;
+
+        const itemsHtml = (menuGroup.items || []).map((item, iIndex) => `
+            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm" draggable="true">
+                <div class="flex items-center gap-3 flex-grow">
+                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move">☰</span>
+                    <input type="text" value="${item.name}" class="menu-item-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none" placeholder="소분류 이름">
+                    <input type="text" value="${item.link || ''}" class="menu-item-link w-1/3 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="연결 링크 (예: index.html)">
+                </div>
+                <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-menu-item-btn opacity-0 group-hover:opacity-100" type="button">삭제</button>
+            </div>
+        `).join('');
+
+        groupEl.innerHTML = `
+             <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
+                <div class="flex items-center gap-2"> 
+                   <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>
+                   <input type="text" value="${menuGroup.category}" class="text-lg font-extrabold text-gray-800 dark:text-white menu-category-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none" placeholder="대분류 이름">
+                 </div>
+                <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-menu-category-btn" type="button">대분류 삭제</button>
+            </div>
+            
+            <div class="space-y-2 menu-items-container min-h-[40px]">${itemsHtml}</div>
+            
+            <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition shadow-sm add-menu-item-btn" type="button">+ 소분류 추가</button>
+            </div>
+        `;
+        container.appendChild(groupEl);
+    });
 }

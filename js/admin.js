@@ -1,10 +1,7 @@
 // === js/admin.js ===
-// 설명: 관리자 페이지의 메인 진입점. 초기화, 이벤트 연결, UI와 로직의 조정을 담당합니다.
-
 import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// UI 렌더링 모듈 임포트
 import {
     renderAdminUI,
     renderKeyTasks,
@@ -13,10 +10,10 @@ import {
     renderQuantityToDashboardMapping,
     populateTaskSelectModal,
     openDashboardItemModal,
-    getAllDashboardDefinitions
+    getAllDashboardDefinitions,
+    renderDashboardMenu // ✨ 신규 임포트
 } from './admin-ui.js';
 
-// 비즈니스 로직 모듈 임포트
 import {
     collectConfigFromDOM,
     validateConfig
@@ -25,14 +22,10 @@ import {
 let db, auth;
 let appConfig = {}; 
 
-// 드래그 앤 드롭 상태 변수
 let draggedItem = null;
 let currentModalTarget = null;
 let taskJustAdded = null;
 
-// =================================================================
-// 1. 메인 초기화 및 인증 처리
-// =================================================================
 document.addEventListener('DOMContentLoaded', () => {
     const adminContent = document.getElementById('admin-content');
 
@@ -81,9 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// =================================================================
-// 2. 이벤트 리스너 설정 (Controller)
-// =================================================================
 function setupEventListeners() {
     document.getElementById('save-all-btn')?.addEventListener('click', handleSaveAll);
     
@@ -97,6 +87,29 @@ function setupEventListeners() {
         });
     });
     
+    // ✨ 신규: 대분류 추가 버튼 이벤트
+    document.getElementById('add-menu-category-btn')?.addEventListener('click', () => {
+        const container = document.getElementById('menu-categories-container');
+        if (!container) return;
+        const groupEl = document.createElement('div');
+        groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm menu-category-card transition-colors drop-zone';
+        groupEl.innerHTML = `
+            <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
+                <div class="flex items-center gap-2"> 
+                   <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>
+                   <input type="text" value="새 대분류" class="text-lg font-extrabold text-gray-800 dark:text-white menu-category-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none" placeholder="대분류 이름">
+                 </div>
+                <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-menu-category-btn" type="button">대분류 삭제</button>
+            </div>
+            <div class="space-y-2 menu-items-container min-h-[40px]"></div>
+            <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition shadow-sm add-menu-item-btn" type="button">+ 소분류 추가</button>
+            </div>
+        `;
+        container.appendChild(groupEl);
+        setupDragDropListeners('.menu-items-container', '.menu-item');
+    });
+
     document.getElementById('add-team-group-btn')?.addEventListener('click', addTeamGroup);
     document.getElementById('add-task-group-btn')?.addEventListener('click', addTaskGroup);
     document.getElementById('add-dashboard-item-btn')?.addEventListener('click', () => openDashboardItemModal(appConfig));
@@ -153,9 +166,6 @@ function setupEventListeners() {
     setupAllDragListeners();
 }
 
-// =================================================================
-// 3. 주요 액션 핸들러 (Controller Logic)
-// =================================================================
 async function handleSaveAll() {
     const btn = document.getElementById('save-all-btn');
     if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
@@ -227,10 +237,6 @@ function addCustomDashboardItem() {
     renderQuantityToDashboardMapping(appConfig);
 }
 
-// =================================================================
-// 4. UI 인터랙션 (Interactive UI Builders)
-// =================================================================
-
 function addTeamGroup() {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
@@ -292,7 +298,16 @@ function handleDynamicClicks(e) {
         setTimeout(() => renderQuantityToDashboardMapping(collectConfigFromDOM(appConfig)), 0);
     }
     
-    // 💡 [신규] 시스템 계정 삭제 및 추가 로직
+    // ✨ 신규: 메뉴 소분류/대분류 삭제
+    else if (e.target.classList.contains('delete-menu-item-btn')) {
+        e.target.closest('.menu-item')?.remove();
+    }
+    else if (e.target.classList.contains('delete-menu-category-btn')) {
+        if(confirm('이 대분류와 포함된 모든 메뉴를 삭제하시겠습니까?')) {
+            e.target.closest('.menu-category-card')?.remove();
+        }
+    }
+    
     else if (e.target.classList.contains('delete-sys-account-btn')) {
         e.target.closest('.system-account-item')?.remove();
     }
@@ -321,6 +336,24 @@ function handleDynamicClicks(e) {
             <button type="button" class="delete-sys-account-btn w-full md:w-auto text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-4 py-2.5 rounded-md md:h-[38px] transition-colors shadow-sm">삭제</button>
         `;
         container.appendChild(item);
+    }
+
+    // ✨ 신규: 소분류 메뉴 아이템 추가
+    else if (e.target.classList.contains('add-menu-item-btn')) {
+        const container = e.target.closest('.menu-category-card').querySelector('.menu-items-container');
+        const newItemEl = document.createElement('div');
+        newItemEl.className = 'flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm';
+        newItemEl.setAttribute('draggable', 'true');
+        newItemEl.innerHTML = `
+            <div class="flex items-center gap-3 flex-grow">
+                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move">☰</span>
+                <input type="text" value="" class="menu-item-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none" placeholder="새 메뉴 이름">
+                <input type="text" value="" class="menu-item-link w-1/3 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="연결 링크 (예: index.html)">
+            </div>
+            <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-menu-item-btn opacity-0 group-hover:opacity-100" type="button">삭제</button>
+        `;
+        container.appendChild(newItemEl);
+        newItemEl.querySelector('.menu-item-name')?.focus();
     }
 
     else if (e.target.classList.contains('add-member-btn')) {
@@ -448,9 +481,6 @@ function getAllCurrentQuantityTasks() {
     return tasks;
 }
 
-// =================================================================
-// 5. 드래그 앤 드롭 (Drag & Drop)
-// =================================================================
 function setupAllDragListeners() {
     setupDragDropListeners('#team-groups-container', '.team-group-card');
     setupDragDropListeners('.members-container', '.member-item');
@@ -459,6 +489,10 @@ function setupAllDragListeners() {
     setupDragDropListeners('#task-groups-container', '.task-group-card');
     setupDragDropListeners('.tasks-container', '.task-item');
     setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item');
+    
+    // ✨ 신규: 메뉴 대/소분류 드래그 앤 드롭 활성화
+    setupDragDropListeners('#menu-categories-container', '.menu-category-card');
+    setupDragDropListeners('.menu-items-container', '.menu-item');
 }
 
 function setupDragDropListeners(containerSelector, itemSelector) {
