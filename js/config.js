@@ -114,7 +114,6 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
             mergedConfig.simulationTaskLinks = { ...(loadedData.simulationTaskLinks || {}), ...defaultData.simulationTaskLinks };
             
-            // 👇 메뉴 순서 및 권한 설정 병합
             mergedConfig.menuOrder = loadedData.menuOrder || defaultData.menuOrder;
             mergedConfig.userPermissions = loadedData.userPermissions || defaultData.userPermissions;
 
@@ -210,11 +209,12 @@ function getDefaultConfig() {
              weekend: 4
         },
         
-        // 👇 메뉴 설정 (순서 및 권한) 추가
+        // 👇 메뉴 설정 (대분류 포함)
         menuOrder: [
-            'dashboard', 'quantity', 'history', 'weekend', 'leave', 
-            'simulation', 'location', 'admin-todo', 'admin-page', 'end-shift'
+            'cat-main', 'dashboard', 'quantity', 'history',
+            'cat-manage', 'weekend', 'leave', 'simulation', 'location',
+            'cat-admin', 'admin-todo', 'admin-page', 'end-shift'
         ],
-        userPermissions: {} // 예: { "홍길동": ["dashboard", "quantity"] }
+        userPermissions: {} 
     };
 }

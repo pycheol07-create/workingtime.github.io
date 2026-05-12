@@ -72,8 +72,8 @@ async function startAppAfterLogin(user) {
         }
         if (DOM.logoutBtn) DOM.logoutBtn.classList.remove('hidden');
 
-        // 👇 권한 기반 사이드바 메뉴 렌더링 로직
-        const menuOrder = State.appConfig.menuOrder || ['dashboard', 'quantity', 'history', 'weekend', 'leave', 'simulation', 'location', 'admin-todo', 'admin-page', 'end-shift'];
+        // 👇 권한 기반 사이드바 메뉴 렌더링 로직 (대분류 동적 숨김 포함)
+        const menuOrder = State.appConfig.menuOrder || ['cat-main', 'dashboard', 'quantity', 'history', 'cat-manage', 'weekend', 'leave', 'simulation', 'location', 'cat-admin', 'admin-todo', 'admin-page', 'end-shift'];
         const userPerms = State.appConfig.userPermissions || {};
         const myAllowedMenus = userPerms[currentUserName] || []; // 나에게 허용된 메뉴들
 
@@ -83,21 +83,57 @@ async function startAppAfterLogin(user) {
             pcNav.style.flexDirection = 'column';
         }
 
-        // 전체 data-menu-id 요소를 돌며 권한과 순서 적용
+        // 1. 모든 메뉴 요소에 우선 순서 및 기본 권한 적용
         menuOrder.forEach((menuId, index) => {
-            // 관리자는 무조건 패스, 일반 유저는 myAllowedMenus 에 포함되어야 패스
-            const hasPermission = (currentUserRole === 'admin') || myAllowedMenus.includes(menuId);
+            const isCategory = menuId.startsWith('cat-');
+            // 관리자는 무조건 패스, 대분류 자체는 1차 패스(아래에서 재검사), 일반 유저는 허용목록에 있어야 패스
+            const hasPermission = isCategory || (currentUserRole === 'admin') || myAllowedMenus.includes(menuId);
             
             const pcBtn = document.querySelector(`nav [data-menu-id="${menuId}"]`);
             const mobileBtn = document.querySelector(`#nav-content [data-menu-id="${menuId}"]`);
             
             if (pcBtn) {
-                pcBtn.style.display = hasPermission ? 'flex' : 'none';
+                pcBtn.style.display = hasPermission ? (isCategory ? 'block' : 'flex') : 'none';
                 pcBtn.style.order = index;
             }
             if (mobileBtn) {
-                mobileBtn.style.display = hasPermission ? 'flex' : 'none';
+                mobileBtn.style.display = hasPermission ? (isCategory ? 'block' : 'flex') : 'none';
                 mobileBtn.style.order = index;
+            }
+        });
+
+        // 2. 하위 메뉴가 모두 숨겨진 '대분류'는 화면에서도 스마트하게 숨기기
+        ['aside nav', '#nav-content'].forEach(selector => {
+            const container = document.querySelector(selector);
+            if (!container) return;
+            
+            const items = Array.from(container.querySelectorAll('[data-menu-id]')).sort((a, b) => {
+                return parseInt(a.style.order || 0) - parseInt(b.style.order || 0);
+            });
+
+            let currentCategoryNode = null;
+            let categoryHasVisibleChild = false;
+
+            items.forEach(item => {
+                const isCategory = item.dataset.menuId.startsWith('cat-');
+                
+                if (isCategory) {
+                    // 직전 카테고리가 있었는데 보여지는 하위 메뉴가 0개였다면 숨김
+                    if (currentCategoryNode && !categoryHasVisibleChild) {
+                        currentCategoryNode.style.display = 'none';
+                    }
+                    currentCategoryNode = item;
+                    categoryHasVisibleChild = false;
+                } else {
+                    if (item.style.display !== 'none') {
+                        categoryHasVisibleChild = true;
+                    }
+                }
+            });
+            
+            // 마지막 카테고리 잔여 처리
+            if (currentCategoryNode && !categoryHasVisibleChild) {
+                currentCategoryNode.style.display = 'none';
             }
         });
         

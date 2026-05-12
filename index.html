@@ -32,6 +32,7 @@
             </div>
             
             <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto text-[14px]">
+                <div data-menu-id="cat-main" class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 mt-4 first:mt-0 px-2">메인 업무</div>
                 <button data-menu-id="dashboard" class="w-full flex items-center gap-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-xl font-semibold transition">
                     <span class="text-lg">📊</span> 대시보드
                 </button>
@@ -41,6 +42,8 @@
                 <button id="open-history-btn" data-menu-id="history" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
                     <span class="text-lg">📜</span> 데이터 관리
                 </button>
+
+                <div data-menu-id="cat-manage" class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 mt-6 px-2">관리 및 조회</div>
                 <button id="open-weekend-modal-btn" data-menu-id="weekend" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
                     <span class="text-lg">🗓️</span> 주말 근무 신청
                 </button>
@@ -53,6 +56,8 @@
                 <a href="location.html" id="location-link-btn" data-menu-id="location" target="location_window" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
                     <span class="text-lg">📍</span> 로케이션 관리
                 </a>
+                
+                <div data-menu-id="cat-admin" class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 mt-6 px-2">관리자 메뉴</div>
                 <button id="open-admin-todo-btn" data-menu-id="admin-todo" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
                     <span class="text-lg">📅</span> 관리자 일정/투두
                 </button>
@@ -110,12 +115,18 @@
                         </label>
                     </div>
                 </div>
+                
+                <div data-menu-id="cat-main" class="px-5 py-2 mt-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">메인 업무</div>
                 <button id="open-quantity-modal-today-mobile" data-menu-id="quantity" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📊</span> 오늘 처리량 입력</button>
                 <button id="open-history-btn-mobile" data-menu-id="history" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📜</span> 데이터 관리</button>
+                
+                <div data-menu-id="cat-manage" class="px-5 py-2 mt-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">관리 및 조회</div>
                 <button id="open-weekend-modal-btn-mobile" data-menu-id="weekend" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🗓️</span> 주말 근무 신청</button>
                 <button id="open-my-leave-btn-mobile" data-menu-id="leave" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🏖️</span> 내 연차관리</button>
                 <button id="open-cost-simulation-btn-mobile" data-menu-id="simulation" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">💰</span> 운영 시뮬레이션</button>
                 <a href="location.html" id="location-link-btn-mobile" data-menu-id="location" target="location_window" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📍</span> 로케이션 관리</a>
+
+                <div data-menu-id="cat-admin" class="px-5 py-2 mt-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">관리자 메뉴</div>
                 <button id="open-admin-todo-btn-mobile" data-menu-id="admin-todo" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📅</span> 관리자 일정/투두</button>
                 <a href="admin.html" id="admin-link-btn-mobile" data-menu-id="admin-page" target="admin_window" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">⚙️</span> 관리자 페이지</a>
                 <button id="end-shift-btn-mobile" data-menu-id="end-shift" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-bold text-gray-600 dark:text-gray-400 flex items-center gap-2"><span class="text-lg">🏁</span> 업무 마감</button>

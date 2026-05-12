@@ -15,13 +15,16 @@ export const DASHBOARD_ITEM_DEFINITIONS = {
 };
 
 export const MENU_LIST = [
+    { id: 'cat-main', label: '[대분류] 메인 업무', isCategory: true },
     { id: 'dashboard', label: '대시보드', icon: '📊' },
     { id: 'quantity', label: '처리량입력', icon: '📈' },
     { id: 'history', label: '데이터관리', icon: '📜' },
+    { id: 'cat-manage', label: '[대분류] 관리 및 조회', isCategory: true },
     { id: 'weekend', label: '주말근무', icon: '🗓️' },
     { id: 'leave', label: '연차관리', icon: '🏖️' },
     { id: 'simulation', label: '시뮬레이션', icon: '💰' },
     { id: 'location', label: '로케이션', icon: '📍' },
+    { id: 'cat-admin', label: '[대분류] 관리자 메뉴', isCategory: true },
     { id: 'admin-todo', label: '관리자투두', icon: '📅' },
     { id: 'admin-page', label: '관리자페이지', icon: '⚙️' },
     { id: 'end-shift', label: '업무마감', icon: '🏁' }
@@ -64,7 +67,6 @@ export function renderAdminUI(config) {
     
     renderSystemAccountsConfig(config.systemAccounts || []);
     
-    // 👇 신규 호출
     renderMenuOrderConfig(config);
     renderUserPermissionsConfig(config);
     
@@ -88,11 +90,21 @@ export function renderMenuOrderConfig(config) {
         if (!menuDef) return;
 
         const item = document.createElement('div');
-        item.className = 'flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm menu-order-item transition-colors';
+        item.className = 'flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm menu-order-item transition-colors';
+        
+        // 대분류는 다른 배경색으로 구분
+        if (menuDef.isCategory) {
+            item.classList.add('bg-gray-100', 'dark:bg-gray-700');
+        } else {
+            item.classList.add('bg-white', 'dark:bg-gray-800');
+        }
+        
         item.dataset.menuId = menuId;
         item.innerHTML = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>
-            <span class="font-bold text-sm text-gray-700 dark:text-gray-300">${menuDef.icon} ${menuDef.label}</span>
+            <span class="font-bold text-sm ${menuDef.isCategory ? 'text-gray-500 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300'}">
+                ${menuDef.isCategory ? '📁 ' : (menuDef.icon + ' ')}${menuDef.label}
+            </span>
         `;
         container.appendChild(item);
     });
@@ -103,7 +115,10 @@ export function renderUserPermissionsConfig(config) {
     const bodyContainer = document.getElementById('user-permissions-matrix-body');
     if (!headerRow || !bodyContainer) return;
 
-    headerRow.innerHTML = MENU_LIST.map(menu => `
+    // 대분류를 제외한 권한 설정용 메뉴 리스트만 필터링
+    const permMenus = MENU_LIST.filter(m => !m.isCategory);
+
+    headerRow.innerHTML = permMenus.map(menu => `
         <th class="p-3 md:p-4 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 min-w-[70px]">${menu.label}</th>
     `).join('');
 
@@ -124,7 +139,7 @@ export function renderUserPermissionsConfig(config) {
                     ${memberName}
                     ${isSystemAdmin ? '<span class="ml-1 text-[9px] bg-red-100 text-red-600 px-1 rounded">ADMIN</span>' : ''}
                 </td>
-                ${MENU_LIST.map(menu => {
+                ${permMenus.map(menu => {
                     const isChecked = allowedMenus.includes(menu.id) || isSystemAdmin ? 'checked' : '';
                     const isDisabled = isSystemAdmin ? 'disabled' : '';
                     return `
