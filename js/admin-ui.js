@@ -48,6 +48,10 @@ export function renderAdminUI(config) {
     );
     
     renderSystemAccountsConfig(config.systemAccounts || []);
+    
+    // ✨ 신규: 권한 및 메뉴 접근 설정 렌더링
+    renderPermissionsConfig(config);
+
     renderDashboardMenu(config.dashboardMenu || []);
     renderDashboardItemsConfig(config.dashboardItems || [], config);
     renderKeyTasks(config.keyTasks || []);
@@ -57,98 +61,92 @@ export function renderAdminUI(config) {
     renderCostAnalysisConfig(config);
 }
 
-export function renderSystemAccountsConfig(accounts) {
-    let container = document.getElementById('system-accounts-container');
-    
-    if (!container) {
-        const teamContainer = document.getElementById('team-groups-container');
-        if (teamContainer) {
-            const parentSection = teamContainer.parentElement;
-            const sysWrapper = document.createElement('div');
-            sysWrapper.className = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mt-8 transition-colors';
-            sysWrapper.innerHTML = `
-                <div class="mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
-                    <h2 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                        <span class="text-2xl">🖥️</span> 시스템 전용 계정 관리
-                    </h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">대시보드 팀원 현황에는 표시되지 않지만, 프로그램에 로그인하여 권한을 행사할 수 있는 별도 계정입니다. (최고 관리자, 외부 인력 등)</p>
-                </div>
-                <div id="system-accounts-container" class="space-y-3"></div>
-                <div class="mt-5">
-                    <button id="add-system-account-btn" type="button" class="bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold py-2.5 px-4 rounded-lg transition text-sm shadow-sm flex items-center gap-2">+ 계정 추가</button>
-                </div>
-            `;
-            parentSection.parentNode.insertBefore(sysWrapper, parentSection.nextSibling);
-            container = document.getElementById('system-accounts-container');
-        }
-    }
-
+// ✨ 신규: 사용자별 권한 설정 렌더링
+export function renderPermissionsConfig(config) {
+    const container = document.getElementById('permissions-container');
     if (!container) return;
     container.innerHTML = '';
 
-    accounts.forEach(acc => {
-        const item = document.createElement('div');
-        item.className = 'system-account-item flex flex-wrap md:flex-nowrap items-end gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 transition-colors';
-        item.innerHTML = `
-            <div class="flex flex-col flex-1 min-w-[150px]">
-                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">계정 이름 (별칭)</label>
-                <input type="text" value="${acc.name || ''}" class="sys-name p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="예: 외부 관리자">
+    const allUsers = [];
+    
+    // 팀 그룹에서 이메일이 등록된 사용자 추출
+    (config.teamGroups || []).forEach(g => {
+        (g.members || []).forEach(m => {
+            const email = config.memberEmails?.[m] || '';
+            if(email) allUsers.push({ name: m, email: email, type: '팀원' });
+        });
+    });
+    
+    // 시스템 계정에서 추출
+    (config.systemAccounts || []).forEach(acc => {
+        if(acc.email) allUsers.push({ name: acc.name, email: acc.email, type: '시스템계정' });
+    });
+
+    // 이메일 기준으로 중복 제거
+    const uniqueUsers = Array.from(new Map(allUsers.map(item => [item.email.toLowerCase(), item])).values());
+
+    // 대시보드 메뉴에 등록된 모든 소분류 이름 추출
+    const allMenus = [];
+    (config.dashboardMenu || []).forEach(cat => {
+        (cat.items || []).forEach(item => {
+            allMenus.push(item.name);
+        });
+    });
+
+    uniqueUsers.forEach(user => {
+        const emailLower = user.email.toLowerCase();
+        const role = config.memberRoles?.[emailLower] || 'user';
+        const access = config.memberMenuAccess?.[emailLower] || [];
+        const isUser = role === 'user';
+        
+        // 메뉴 체크박스 HTML 생성
+        const checkboxesHtml = allMenus.map(menuName => {
+            // 이전에 설정이 없었을 경우 기본적으로 전체 체크 (하위 호환성)
+            const isNoAccessSet = !config.memberMenuAccess || !config.memberMenuAccess[emailLower];
+            const checked = (isNoAccessSet || access.includes(menuName)) ? 'checked' : '';
+            return `
+                <label class="inline-flex items-center gap-1.5 mr-4 mb-2 cursor-pointer select-none">
+                    <input type="checkbox" value="${menuName}" class="perm-menu-checkbox w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 bg-white dark:bg-gray-800" ${checked} ${!isUser ? 'disabled' : ''}>
+                    <span class="text-xs font-bold text-gray-700 dark:text-gray-300">${menuName}</span>
+                </label>
+            `;
+        }).join('');
+
+        const row = document.createElement('div');
+        row.className = 'permission-item p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm flex flex-col md:flex-row gap-4 md:items-center transition-colors';
+        row.dataset.email = emailLower;
+
+        row.innerHTML = `
+            <div class="w-full md:w-1/4 flex flex-col gap-1 shrink-0">
+                <span class="text-sm font-extrabold text-gray-900 dark:text-white flex items-center gap-1">
+                    ${user.name} 
+                    <span class="text-[10px] font-normal bg-gray-100 dark:bg-gray-700 text-gray-500 px-1.5 py-0.5 rounded">${user.type}</span>
+                </span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">${user.email}</span>
             </div>
-            <div class="flex flex-col flex-1 min-w-[200px]">
-                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이메일 (로그인 ID)</label>
-                <input type="email" value="${acc.email || ''}" class="sys-email p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="admin@example.com">
-            </div>
-            <div class="flex flex-col w-full md:w-32">
-                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">권한</label>
-                <select class="sys-role p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white font-bold text-blue-600 dark:text-blue-400 outline-none focus:border-blue-500">
-                    <option value="admin" ${acc.role === 'admin' ? 'selected' : ''}>관리자</option>
-                    <option value="user" ${acc.role === 'user' ? 'selected' : ''}>일반</option>
+            <div class="w-full md:w-1/5 shrink-0">
+                <label class="block text-[10px] text-gray-500 dark:text-gray-400 mb-1 font-bold">기본 권한</label>
+                <select class="perm-role w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500 transition-colors">
+                    <option value="user" ${role === 'user' ? 'selected' : ''}>일반</option>
+                    <option value="admin" ${role === 'admin' ? 'selected' : ''}>관리자</option>
                 </select>
             </div>
-            <button type="button" class="delete-sys-account-btn w-full md:w-auto text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-4 py-2.5 rounded-md md:h-[38px] transition-colors shadow-sm">삭제</button>
+            <div class="w-full flex-1 perm-menu-list p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700 transition-opacity ${isUser ? '' : 'opacity-40 pointer-events-none'}">
+                <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-2">접근 허용 메뉴 (일반 권한 전용)</div>
+                <div class="flex flex-wrap">
+                    ${checkboxesHtml}
+                </div>
+            </div>
         `;
-        container.appendChild(item);
+        container.appendChild(row);
     });
-}
 
-export function renderCostAnalysisConfig(config) {
-    const materialInput = document.getElementById('fixed-material-cost');
-    if (materialInput) materialInput.value = config.fixedMaterialCost || 0;
-    
-    const shippingInput = document.getElementById('fixed-shipping-cost');
-    if (shippingInput) shippingInput.value = config.fixedShippingCost || 0;
-    
-    const directDeliveryInput = document.getElementById('fixed-direct-delivery-cost');
-    if (directDeliveryInput) directDeliveryInput.value = config.fixedDirectDeliveryCost || 0;
-
-    const container = document.getElementById('cost-calc-tasks-container');
-    if (container) {
-        container.innerHTML = '';
-        
-        const allTasks = new Set();
-        (config.taskGroups || []).forEach(group => {
-            (group.tasks || []).forEach(task => allTasks.add(task));
-        });
-
-        const savedTasks = new Set(config.costCalcTasks || []);
-
-        if (allTasks.size === 0) {
-             container.innerHTML = '<p class="text-xs text-gray-400 dark:text-gray-500 col-span-full text-center py-4">등록된 업무가 없습니다.</p>';
-        } else {
-            Array.from(allTasks).sort().forEach(taskName => {
-                const isChecked = savedTasks.has(taskName) ? 'checked' : '';
-                const div = document.createElement('div');
-                div.className = 'flex items-center p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:border-purple-300 dark:hover:border-purple-500 transition-colors';
-                div.innerHTML = `
-                    <input type="checkbox" id="cost-task-${taskName}" value="${taskName}" class="cost-calc-task-checkbox w-4 h-4 text-purple-600 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500 bg-gray-50 dark:bg-gray-900" ${isChecked}>
-                    <label for="cost-task-${taskName}" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer select-none flex-grow">${taskName}</label>
-                `;
-                container.appendChild(div);
-            });
-        }
+    if (uniqueUsers.length === 0) {
+        container.innerHTML = '<p class="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">이메일이 등록된 계정이 없습니다.</p>';
     }
 }
 
+// 기존 팀 그룹 렌더링에서 권한 콤보박스 삭제됨
 export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}) {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
@@ -161,7 +159,6 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
 
         const membersHtml = group.members.map((member, mIndex) => {
             const memberEmail = memberEmails[member] || '';
-            const currentRole = (memberEmail && memberRoles[memberEmail.toLowerCase()]) ? memberRoles[memberEmail.toLowerCase()] : 'user';
             const currentRank = memberRanks[member] || '사원'; 
             
             const settings = memberLeaveSettings[member] || {};
@@ -206,14 +203,6 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
                         <div class="flex flex-col">
                             <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">시급</label>
                             <input type="number" value="${memberWages[member] || 0}" class="member-wage w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="시급">
-                        </div>
-                        
-                        <div class="flex flex-col">
-                             <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">권한</label>
-                            <select class="member-role w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500">
-                                <option value="user" ${currentRole === 'user' ? 'selected' : ''}>일반</option>
-                                <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>관리자</option>
-                            </select>
                         </div>
                     </div>
                     <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-2 rounded-md transition delete-member-btn" data-m-index="${mIndex}">삭제</button>
@@ -262,6 +251,91 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
         `;
         container.appendChild(groupEl);
     });
+}
+
+// 기존 시스템 계정 관리에서도 권한 콤보박스 삭제
+export function renderSystemAccountsConfig(accounts) {
+    let container = document.getElementById('system-accounts-container');
+    if (!container) {
+        const teamContainer = document.getElementById('team-groups-container');
+        if (teamContainer) {
+            const parentSection = teamContainer.parentElement;
+            const sysWrapper = document.createElement('div');
+            sysWrapper.className = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mt-8 transition-colors';
+            sysWrapper.innerHTML = `
+                <div class="mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+                    <h2 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                        <span class="text-2xl">🖥️</span> 시스템 전용 계정 관리
+                    </h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">대시보드 팀원 현황에는 표시되지 않지만, 시스템에 로그인할 수 있는 별도 계정입니다. (최고 관리자, 외부 인력 등)</p>
+                </div>
+                <div id="system-accounts-container" class="space-y-3"></div>
+                <div class="mt-5">
+                    <button id="add-system-account-btn" type="button" class="bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold py-2.5 px-4 rounded-lg transition text-sm shadow-sm flex items-center gap-2">+ 계정 추가</button>
+                </div>
+            `;
+            parentSection.parentNode.insertBefore(sysWrapper, parentSection.nextSibling);
+            container = document.getElementById('system-accounts-container');
+        }
+    }
+
+    if (!container) return;
+    container.innerHTML = '';
+
+    accounts.forEach(acc => {
+        const item = document.createElement('div');
+        item.className = 'system-account-item flex flex-wrap md:flex-nowrap items-end gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 transition-colors';
+        item.innerHTML = `
+            <div class="flex flex-col flex-1 min-w-[150px]">
+                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">계정 이름 (별칭)</label>
+                <input type="text" value="${acc.name || ''}" class="sys-name p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="예: 외부 관리자">
+            </div>
+            <div class="flex flex-col flex-1 min-w-[200px]">
+                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이메일 (로그인 ID)</label>
+                <input type="email" value="${acc.email || ''}" class="sys-email p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="admin@example.com">
+            </div>
+            <button type="button" class="delete-sys-account-btn w-full md:w-auto text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-4 py-2.5 rounded-md md:h-[38px] transition-colors shadow-sm">삭제</button>
+        `;
+        container.appendChild(item);
+    });
+}
+
+export function renderCostAnalysisConfig(config) {
+    const materialInput = document.getElementById('fixed-material-cost');
+    if (materialInput) materialInput.value = config.fixedMaterialCost || 0;
+    
+    const shippingInput = document.getElementById('fixed-shipping-cost');
+    if (shippingInput) shippingInput.value = config.fixedShippingCost || 0;
+    
+    const directDeliveryInput = document.getElementById('fixed-direct-delivery-cost');
+    if (directDeliveryInput) directDeliveryInput.value = config.fixedDirectDeliveryCost || 0;
+
+    const container = document.getElementById('cost-calc-tasks-container');
+    if (container) {
+        container.innerHTML = '';
+        
+        const allTasks = new Set();
+        (config.taskGroups || []).forEach(group => {
+            (group.tasks || []).forEach(task => allTasks.add(task));
+        });
+
+        const savedTasks = new Set(config.costCalcTasks || []);
+
+        if (allTasks.size === 0) {
+             container.innerHTML = '<p class="text-xs text-gray-400 dark:text-gray-500 col-span-full text-center py-4">등록된 업무가 없습니다.</p>';
+        } else {
+            Array.from(allTasks).sort().forEach(taskName => {
+                const isChecked = savedTasks.has(taskName) ? 'checked' : '';
+                const div = document.createElement('div');
+                div.className = 'flex items-center p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:border-purple-300 dark:hover:border-purple-500 transition-colors';
+                div.innerHTML = `
+                    <input type="checkbox" id="cost-task-${taskName}" value="${taskName}" class="cost-calc-task-checkbox w-4 h-4 text-purple-600 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500 bg-gray-50 dark:bg-gray-900" ${isChecked}>
+                    <label for="cost-task-${taskName}" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer select-none flex-grow">${taskName}</label>
+                `;
+                container.appendChild(div);
+            });
+        }
+    }
 }
 
 export function renderDashboardItemsConfig(itemIds, fullConfig) {

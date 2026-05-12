@@ -3,11 +3,12 @@ import { getAllDashboardDefinitions } from './admin-ui.js';
 
 export function collectConfigFromDOM(currentConfig) {
     const newConfig = {
-        dashboardMenu: [], // ✨ 신규 추가: 대시보드 메뉴
+        dashboardMenu: [],
         teamGroups: [],
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
+        memberMenuAccess: {}, // ✨ 신규 권한 객체
         memberRanks: {}, 
         memberLeaveSettings: {},
         systemAccounts: [], 
@@ -36,7 +37,6 @@ export function collectConfigFromDOM(currentConfig) {
     const emailCheck = new Map();
     let duplicateEmailError = null;
 
-    // ✨ 신규: 메뉴 관리 데이터 수집
     document.querySelectorAll('#menu-categories-container .menu-category-card').forEach(categoryCard => {
         const categoryNameInput = categoryCard.querySelector('.menu-category-name');
         const categoryName = categoryNameInput ? categoryNameInput.value.trim() : '';
@@ -64,7 +64,6 @@ export function collectConfigFromDOM(currentConfig) {
             const memberName = memberItem.querySelector('.member-name').value.trim();
             const memberEmail = memberItem.querySelector('.member-email').value.trim();
             const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
-            const memberRole = memberItem.querySelector('.member-role').value || 'user';
             const memberRank = memberItem.querySelector('.member-rank')?.value || '사원'; 
 
             const joinDate = memberItem.querySelector('.member-join-date').value;
@@ -92,7 +91,6 @@ export function collectConfigFromDOM(currentConfig) {
                 }
                 emailCheck.set(emailLower, memberName);
                 newConfig.memberEmails[memberName] = memberEmail;
-                newConfig.memberRoles[emailLower] = memberRole;
             }
         });
         newConfig.teamGroups.push(newGroup);
@@ -101,23 +99,49 @@ export function collectConfigFromDOM(currentConfig) {
     document.querySelectorAll('#system-accounts-container .system-account-item').forEach(item => {
         const name = item.querySelector('.sys-name').value.trim();
         const email = item.querySelector('.sys-email').value.trim();
-        const role = item.querySelector('.sys-role').value;
 
         if (name && email) {
-            newConfig.systemAccounts.push({ name, email, role });
-            
+            newConfig.systemAccounts.push({ name, email });
             const emailLower = email.toLowerCase();
             if (emailCheck.has(emailLower) && emailCheck.get(emailLower) !== name) {
                 duplicateEmailError = email;
             }
             emailCheck.set(emailLower, name);
-            newConfig.memberRoles[emailLower] = role;
         }
     });
 
     if (duplicateEmailError) {
         throw new Error(`이메일 주소 '${duplicateEmailError}'가 중복 할당되었습니다. 모든 팀원 및 시스템 계정의 이메일은 고유해야 합니다.`);
     }
+
+    // ✨ 신규: 새 권한 섹션(permissions-container)에서 권한 및 접근 정보 수집
+    document.querySelectorAll('#permissions-container .permission-item').forEach(item => {
+        const email = item.dataset.email;
+        const role = item.querySelector('.perm-role').value;
+        newConfig.memberRoles[email] = role;
+        
+        if (role === 'user') {
+            const allowed = [];
+            item.querySelectorAll('.perm-menu-checkbox:checked').forEach(cb => {
+                allowed.push(cb.value);
+            });
+            newConfig.memberMenuAccess[email] = allowed;
+        } else {
+            // 관리자는 제한 없음
+            newConfig.memberMenuAccess[email] = [];
+        }
+    });
+
+    // 💡 방금 막 새로 추가되어 권한 섹션에 나타나지 않은 사용자에 대한 기본값(일반, 전체메뉴접근) 부여
+    const allMenus = [];
+    newConfig.dashboardMenu.forEach(c => c.items.forEach(i => allMenus.push(i.name)));
+    
+    Array.from(emailCheck.keys()).forEach(email => {
+        if (!newConfig.memberRoles[email]) {
+            newConfig.memberRoles[email] = 'user';
+            newConfig.memberMenuAccess[email] = allMenus; // 기본적으로 모든 메뉴 허용
+        }
+    });
 
     const allDefinitions = getAllDashboardDefinitions(currentConfig);
     document.querySelectorAll('#dashboard-items-container .dashboard-item-config').forEach(item => {

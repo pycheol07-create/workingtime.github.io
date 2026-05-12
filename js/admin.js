@@ -86,6 +86,22 @@ function setupEventListeners() {
             }
         });
     });
+
+    // ✨ 신규: 권한 선택 변경 시, 체크박스 영역 활성/비활성 처리
+    document.body.addEventListener('change', (e) => {
+        if (e.target.classList.contains('perm-role')) {
+            const listContainer = e.target.closest('.permission-item').querySelector('.perm-menu-list');
+            const checkboxes = listContainer.querySelectorAll('.perm-menu-checkbox');
+            
+            if (e.target.value === 'admin') {
+                listContainer.classList.add('opacity-40', 'pointer-events-none');
+                checkboxes.forEach(cb => cb.disabled = true);
+            } else {
+                listContainer.classList.remove('opacity-40', 'pointer-events-none');
+                checkboxes.forEach(cb => cb.disabled = false);
+            }
+        }
+    });
     
     document.getElementById('add-menu-category-btn')?.addEventListener('click', () => {
         const container = document.getElementById('menu-categories-container');
@@ -325,13 +341,6 @@ function handleDynamicClicks(e) {
                 <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이메일 (로그인 ID)</label>
                 <input type="email" class="sys-email p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="admin@example.com">
             </div>
-            <div class="flex flex-col w-full md:w-32">
-                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">권한</label>
-                <select class="sys-role p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white font-bold text-blue-600 dark:text-blue-400 outline-none focus:border-blue-500">
-                    <option value="admin" selected>관리자</option>
-                    <option value="user">일반</option>
-                </select>
-            </div>
             <button type="button" class="delete-sys-account-btn w-full md:w-auto text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-4 py-2.5 rounded-md md:h-[38px] transition-colors shadow-sm">삭제</button>
         `;
         container.appendChild(item);
@@ -394,13 +403,6 @@ function handleDynamicClicks(e) {
                     <div class="flex flex-col">
                         <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">시급</label>
                         <input type="number" value="${defaultWage}" class="member-wage w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white">
-                    </div>
-                    <div class="flex flex-col">
-                        <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">권한</label>
-                        <select class="member-role w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white">
-                            <option value="user" selected>일반</option>
-                            <option value="admin">관리자</option>
-                        </select>
                     </div>
                 </div>
                 <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-2 rounded-md transition delete-member-btn">삭제</button>
@@ -486,13 +488,10 @@ function setupAllDragListeners() {
     setupDragDropListeners('#task-groups-container', '.task-group-card');
     setupDragDropListeners('.tasks-container', '.task-item');
     setupDragDropListeners('#quantity-tasks-container', '.quantity-task-item');
-    
-    // ✨ 대/소분류 드래그 앤 드롭 활성화
     setupDragDropListeners('#menu-categories-container', '.menu-category-card');
     setupDragDropListeners('.menu-items-container', '.menu-item');
 }
 
-// 🚀 [핵심 수정 로직] 부모-자식 간에 드래그 이벤트가 겹치지 않게 완벽하게 처리합니다.
 function setupDragDropListeners(containerSelector, itemSelector) {
     const containers = document.querySelectorAll(containerSelector);
     containers.forEach(container => {
@@ -501,7 +500,6 @@ function setupDragDropListeners(containerSelector, itemSelector) {
 
         container.addEventListener('dragstart', (e) => {
             if (!e.target.classList.contains('drag-handle')) return;
-            // 이미 다른 하위 요소에서 드래그를 시작했다면 중복 실행 방지
             if (draggedItem) return; 
 
             const item = e.target.closest(itemSelector);
@@ -509,7 +507,6 @@ function setupDragDropListeners(containerSelector, itemSelector) {
                 draggedItem = item;
                 setTimeout(() => { if (draggedItem) draggedItem.classList.add('dragging'); }, 0);
                 e.dataTransfer.effectAllowed = 'move';
-                // 아이콘만 끌려가는 것을 방지하고 전체 상자(Row)가 시각적으로 끌려가도록 만듦
                 try { e.dataTransfer.setDragImage(item, 20, 20); } catch(err) {} 
             }
         });
@@ -526,7 +523,6 @@ function setupDragDropListeners(containerSelector, itemSelector) {
         });
 
         container.addEventListener('dragover', (e) => {
-            // 내가 드래그하는 요소의 종류(.menu-item 등)가 맞을 때만 반응!
             if (!draggedItem || !draggedItem.matches(itemSelector)) return;
             e.preventDefault(); 
             
@@ -538,7 +534,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
         container.addEventListener('drop', (e) => {
             if (!draggedItem || !draggedItem.matches(itemSelector)) return;
             e.preventDefault();
-            e.stopPropagation(); // 내가 처리했으니 부모 상자(대분류)는 반응하지 마! (버블링 방지)
+            e.stopPropagation(); 
             
             const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
             if (afterElement) container.insertBefore(draggedItem, afterElement);

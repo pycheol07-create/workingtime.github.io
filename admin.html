@@ -64,7 +64,7 @@
                     <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
                         <div>
                             <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🧑‍🤝‍🧑</span> 팀원 및 시급 관리</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">그룹 순서 변경 가능</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">그룹 순서 변경 가능 (권한은 아래에서 설정)</p>
                         </div>
                         <div class="flex items-center gap-4">
                             <button id="add-team-group-btn" class="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 font-bold px-3 py-1.5 rounded-md transition shadow-sm z-10" onclick="event.stopPropagation()">+ 새 그룹 추가</button>
@@ -75,7 +75,23 @@
                         <div id="team-groups-container" class="space-y-6"></div>
                     </div>
                 </div>
-                
+
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors config-card" id="permissions-config-card">
+                    <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🔐</span> 권한 및 접근 관리</h2>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">사용자별 권한(관리자/일반) 및 일반 사용자의 메뉴별 접근 권한 설정</p>
+                        </div>
+                        <svg class="h-5 w-5 text-gray-400 transform transition-transform arrow-rotated" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                    <div class="config-card-content hidden p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl">
+                        <div class="text-xs text-blue-800 dark:text-blue-300 mb-4 bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
+                            💡 <b>안내:</b> 방금 새로 추가한 팀원은 상단의 <b>[전체 저장]</b> 버튼을 누른 후에 이 목록에 나타납니다.<br>일반 권한인 경우, 사이드바에서 접근할 수 있는 메뉴에만 체크해주세요.
+                        </div>
+                        <div id="permissions-container" class="space-y-3"></div>
+                    </div>
+                </div>
+
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors config-card">
                     <div class="flex justify-between items-center p-5 md:p-6 cursor-pointer config-card-toggle hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-t-2xl transition-colors">
                         <div>
@@ -88,8 +104,7 @@
                         </div>
                     </div>
                     <div class="config-card-content hidden p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl">
-                        <div id="menu-categories-container" class="space-y-6 min-h-[50px]">
-                            </div>
+                        <div id="menu-categories-container" class="space-y-6 min-h-[50px]"></div>
                     </div>
                 </div>
 

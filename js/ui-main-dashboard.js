@@ -224,7 +224,7 @@ window.addEventListener('message', (event) => {
     }
 });
 
-// ✨ 신규: 사이드바 동적 재배치 함수
+// ✨ 신규: 접근 권한에 따른 사이드바 동적 필터링 및 재배치
 export const applyDynamicSidebar = (appConfig) => {
     if (!appConfig || !appConfig.dashboardMenu) return;
 
@@ -232,7 +232,15 @@ export const applyDynamicSidebar = (appConfig) => {
     const mobileNav = document.getElementById('nav-content');
     if (!pcNav && !mobileNav) return;
 
-    // 1. 기존 PC 메뉴 요소를 추출하여 보관 (이벤트 보존을 위해 DOM 자체를 이동시킴)
+    const currentUserEmail = State.auth.currentUser?.email?.toLowerCase() || '';
+    const currentUserRole = State.appState.currentUserRole;
+    
+    // 관리자(admin)면 null(모두 통과), 일반(user)이면 허용된 메뉴 배열 할당
+    let allowedMenus = null; 
+    if (currentUserRole !== 'admin') {
+        allowedMenus = appConfig.memberMenuAccess?.[currentUserEmail] || [];
+    }
+
     const pcElements = {};
     if (pcNav) {
         pcNav.querySelectorAll('button, a').forEach(el => {
@@ -243,13 +251,12 @@ export const applyDynamicSidebar = (appConfig) => {
         pcNav.innerHTML = '';
     }
 
-    // 2. 기존 모바일 메뉴 요소 추출
     const mobileElements = {};
     let mobileHeader = null;
     let logoutBtn = null;
     
     if (mobileNav) {
-        mobileHeader = mobileNav.firstElementChild; // 상단 '내 출퇴근 상태'
+        mobileHeader = mobileNav.firstElementChild; 
         logoutBtn = document.getElementById('logout-btn-mobile');
         
         mobileNav.querySelectorAll('button, a, div').forEach(el => {
@@ -261,7 +268,6 @@ export const applyDynamicSidebar = (appConfig) => {
             if (name) mobileElements[name] = el;
         });
 
-        // 헤더와 로그아웃 버튼을 제외하고 모두 비움
         Array.from(mobileNav.children).forEach(child => {
             if (child !== mobileHeader && child !== logoutBtn) {
                 mobileNav.removeChild(child);
@@ -269,9 +275,16 @@ export const applyDynamicSidebar = (appConfig) => {
         });
     }
 
-    // 3. 설정된 dashboardMenu 데이터를 기반으로 순서대로 재조립
     appConfig.dashboardMenu.forEach((group, index) => {
-        // PC 카테고리 헤더
+        // ✨ 권한 필터링: 현재 사용자가 볼 수 있는 하위 메뉴만 추려냅니다.
+        const visibleItems = group.items.filter(item => {
+            if (allowedMenus === null) return true; // 관리자 프리패스
+            return allowedMenus.includes(item.name);
+        });
+
+        // 허용된 하위 메뉴가 하나도 없으면 카테고리 전체를 아예 렌더링하지 않습니다.
+        if (visibleItems.length === 0) return;
+
         if (pcNav) {
             const pcCat = document.createElement('div');
             pcCat.className = `text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-2 ${index > 0 ? 'mt-6' : ''}`;
@@ -279,7 +292,6 @@ export const applyDynamicSidebar = (appConfig) => {
             pcNav.appendChild(pcCat);
         }
 
-        // 모바일 카테고리 헤더
         if (mobileNav) {
             const mobCat = document.createElement('div');
             mobCat.className = `px-5 py-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase ${index > 0 ? 'mt-2' : ''}`;
@@ -288,15 +300,14 @@ export const applyDynamicSidebar = (appConfig) => {
             else mobileNav.appendChild(mobCat);
         }
 
-        // 하위 메뉴들 재배치
-        group.items.forEach(item => {
+        // 필터링 통과된 하위 메뉴만 렌더링
+        visibleItems.forEach(item => {
             if (pcNav) {
                 const pcEl = pcElements[item.name];
                 if (pcEl) {
                     if (pcEl.tagName === 'A' && item.link && item.link !== '#') pcEl.href = item.link;
                     pcNav.appendChild(pcEl);
                 } else {
-                    // 완전히 새로 추가된 메뉴일 경우
                     const newPc = document.createElement('a');
                     newPc.href = item.link || '#';
                     newPc.className = "w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition";
@@ -312,7 +323,6 @@ export const applyDynamicSidebar = (appConfig) => {
                     if (logoutBtn) mobileNav.insertBefore(mobEl, logoutBtn);
                     else mobileNav.appendChild(mobEl);
                 } else {
-                    // 완전히 새로 추가된 메뉴일 경우
                     const newMob = document.createElement('a');
                     newMob.href = item.link || '#';
                     newMob.className = "text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2";

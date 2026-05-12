@@ -39,7 +39,6 @@ export const loadAppConfig = async (dbInstance) => {
     try {
         const docSnap = await getDoc(configDocRef);
         if (docSnap.exists()) {
-            console.log("Firestore에서 앱 설정을 불러왔습니다.");
             const loadedData = docSnap.data();
             const defaultData = getDefaultConfig();
 
@@ -51,7 +50,6 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) };
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             
-            // ✨ 에러 방지를 위한 철저한 메뉴 데이터 마이그레이션 로직
             let loadedMenu = loadedData.dashboardMenu || defaultData.dashboardMenu;
             try {
                 if (loadedMenu && Array.isArray(loadedMenu) && loadedMenu.length > 0) {
@@ -61,7 +59,6 @@ export const loadAppConfig = async (dbInstance) => {
                     }
                 }
             } catch(e) {
-                console.error("메뉴 구조 업데이트 중 오류:", e);
                 loadedMenu = defaultData.dashboardMenu;
             }
             mergedConfig.dashboardMenu = loadedMenu;
@@ -125,6 +122,9 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberWages = { ...defaultData.memberWages, ...(loadedData.memberWages || {}) };
             mergedConfig.memberEmails = { ...defaultData.memberEmails, ...(loadedData.memberEmails || {}) };
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
+            // ✨ 신규: 메뉴 개별 권한 데이터 병합
+            mergedConfig.memberMenuAccess = { ...defaultData.memberMenuAccess, ...(loadedData.memberMenuAccess || {}) };
+            
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
             mergedConfig.simulationTaskLinks = { ...(loadedData.simulationTaskLinks || {}), ...defaultData.simulationTaskLinks };
 
@@ -179,7 +179,6 @@ export const saveLeaveSchedule = async (dbInstance, leaveData) => {
 
 function getDefaultConfig() {
     return {
-        // ✨ 실제 메인 화면의 메뉴 구조를 반영한 기본값
         dashboardMenu: [
             {
                 category: '메인업무',
@@ -217,6 +216,7 @@ function getDefaultConfig() {
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
+        memberMenuAccess: {}, // ✨ 개별 권한 추가
         keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무', '상.하차', '교환반품'],
         dashboardItems: [
             'total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff',
