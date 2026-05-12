@@ -51,7 +51,7 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) };
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             
-            // ✨ 신규: 메뉴 구조 데이터 병합
+            // ✨ 메뉴 구조 병합
             mergedConfig.dashboardMenu = loadedData.dashboardMenu || defaultData.dashboardMenu;
 
             let loadedQtyTasks = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
@@ -167,19 +167,19 @@ export const saveLeaveSchedule = async (dbInstance, leaveData) => {
 
 function getDefaultConfig() {
     return {
-        // ✨ 신규: 대시보드 메뉴 구조 초기값
+        // ✨ 메인 보드의 실제 구조를 반영한 기본값
         dashboardMenu: [
             {
-                category: '메인 업무',
+                category: '📊 업무 현황',
                 items: [
-                    { name: '대시보드', link: 'index.html' },
-                    { name: '히스토리', link: 'history.html' }
+                    { name: '메인 대시보드', link: 'index.html' },
+                    { name: '업무 히스토리', link: 'history.html' }
                 ]
             },
             {
-                category: '설정 및 관리',
+                category: '⚙️ 설정 및 관리',
                 items: [
-                    { name: '시스템 관리', link: 'admin.html' }
+                    { name: '시스템 환경 설정', link: 'admin.html' }
                 ]
             }
         ],

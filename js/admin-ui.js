@@ -49,7 +49,6 @@ export function renderAdminUI(config) {
     
     renderSystemAccountsConfig(config.systemAccounts || []);
     
-    // ✨ 신규: 대시보드 메뉴 렌더링 호출
     renderDashboardMenu(config.dashboardMenu || []);
     
     renderDashboardItemsConfig(config.dashboardItems || [], config);
@@ -493,7 +492,6 @@ export function openDashboardItemModal(fullConfig) {
     document.getElementById('select-dashboard-item-modal').classList.remove('hidden');
 }
 
-// ✨ 신규: 대시보드 메뉴 렌더링 함수
 export function renderDashboardMenu(menuConfig) {
     const container = document.getElementById('menu-categories-container');
     if (!container) return;
@@ -524,7 +522,7 @@ export function renderDashboardMenu(menuConfig) {
                 <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-menu-category-btn" type="button">대분류 삭제</button>
             </div>
             
-            <div class="space-y-2 menu-items-container min-h-[40px]">${itemsHtml}</div>
+            <div class="space-y-2 menu-items-container min-h-[60px] p-2 -mx-2 rounded-lg border-2 border-transparent border-dashed hover:border-gray-300 dark:hover:border-gray-600 transition-colors">${itemsHtml}</div>
             
             <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                 <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition shadow-sm add-menu-item-btn" type="button">+ 소분류 추가</button>
