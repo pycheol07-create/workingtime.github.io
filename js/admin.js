@@ -107,6 +107,7 @@ function setupEventListeners() {
         `;
         container.appendChild(groupEl);
         setupDragDropListeners('.menu-items-container', '.menu-item');
+        setupDragDropListeners('#menu-categories-container', '.menu-category-card');
     });
 
     document.getElementById('add-team-group-btn')?.addEventListener('click', addTeamGroup);
@@ -245,7 +246,7 @@ function addTeamGroup() {
     groupEl.innerHTML = `
         <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
             <div class="flex items-center gap-2">
-                <span class="drag-handle" draggable="true">☰</span> 
+                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
                 <input type="text" value="새 그룹" class="text-lg font-extrabold text-gray-800 dark:text-white team-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1">
             </div>
             <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-team-group-btn">그룹 삭제</button>
@@ -268,7 +269,7 @@ function addTaskGroup() {
     groupEl.innerHTML = `
          <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
             <div class="flex items-center gap-2"> 
-               <span class="drag-handle" draggable="true">☰</span>
+               <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
                <input type="text" value="새 업무 그룹" class="text-lg font-extrabold text-gray-800 dark:text-white task-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1">
              </div>
             <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-task-group-btn">그룹 삭제</button>
@@ -340,7 +341,6 @@ function handleDynamicClicks(e) {
         const container = e.target.closest('.menu-category-card').querySelector('.menu-items-container');
         const newItemEl = document.createElement('div');
         newItemEl.className = 'flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm';
-        // 🚨 중요 수정: 새 아이템 생성 시 전체 상자에 걸리던 draggable 속성을 제거합니다
         newItemEl.innerHTML = `
             <div class="flex items-center gap-3 flex-grow">
                 <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
@@ -364,7 +364,7 @@ function handleDynamicClicks(e) {
         newMemberEl.innerHTML = `
             <div class="flex flex-wrap md:flex-nowrap justify-between items-start gap-4">
                 <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                    <span class="drag-handle" draggable="true">☰</span>
+                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
                     <div class="flex flex-col">
                         <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이름</label>
                         <input type="text" value="새 팀원" class="member-name w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white">
@@ -435,7 +435,7 @@ function handleDynamicClicks(e) {
         newTaskEl.className = 'flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group shadow-sm';
         newTaskEl.innerHTML = `
             <div class="flex items-center gap-2 flex-grow">
-                <span class="drag-handle" draggable="true">☰</span>
+                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
                 <input type="text" value="새 업무" class="task-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none">
             </div>
             <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100">삭제</button>
@@ -492,6 +492,7 @@ function setupAllDragListeners() {
     setupDragDropListeners('.menu-items-container', '.menu-item');
 }
 
+// 🚀 [핵심 수정 로직] 부모-자식 간에 드래그 이벤트가 겹치지 않게 완벽하게 처리합니다.
 function setupDragDropListeners(containerSelector, itemSelector) {
     const containers = document.querySelectorAll(containerSelector);
     containers.forEach(container => {
@@ -499,40 +500,50 @@ function setupDragDropListeners(containerSelector, itemSelector) {
         container.dataset.dragAttached = 'true';
 
         container.addEventListener('dragstart', (e) => {
-            if (!e.target.classList.contains('drag-handle')) { e.preventDefault(); return; }
-            draggedItem = e.target.closest(itemSelector);
-            if (draggedItem) {
-                setTimeout(() => draggedItem.classList.add('dragging'), 0);
+            if (!e.target.classList.contains('drag-handle')) return;
+            // 이미 다른 하위 요소에서 드래그를 시작했다면 중복 실행 방지
+            if (draggedItem) return; 
+
+            const item = e.target.closest(itemSelector);
+            if (item) {
+                draggedItem = item;
+                setTimeout(() => { if (draggedItem) draggedItem.classList.add('dragging'); }, 0);
                 e.dataTransfer.effectAllowed = 'move';
+                // 아이콘만 끌려가는 것을 방지하고 전체 상자(Row)가 시각적으로 끌려가도록 만듦
+                try { e.dataTransfer.setDragImage(item, 20, 20); } catch(err) {} 
             }
         });
 
         container.addEventListener('dragend', (e) => {
-            if (draggedItem) {
+            if (draggedItem && draggedItem.matches(itemSelector)) {
                 draggedItem.classList.remove('dragging');
                 draggedItem = null;
-            }
-            container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-            if (containerSelector === '#dashboard-items-container') {
-                renderQuantityToDashboardMapping(collectConfigFromDOM(appConfig));
+                container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+                if (containerSelector === '#dashboard-items-container') {
+                    renderQuantityToDashboardMapping(collectConfigFromDOM(appConfig));
+                }
             }
         });
 
         container.addEventListener('dragover', (e) => {
-            e.preventDefault();
+            // 내가 드래그하는 요소의 종류(.menu-item 등)가 맞을 때만 반응!
+            if (!draggedItem || !draggedItem.matches(itemSelector)) return;
+            e.preventDefault(); 
+            
             const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
             container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
             if (afterElement) afterElement.classList.add('drag-over');
         });
 
         container.addEventListener('drop', (e) => {
+            if (!draggedItem || !draggedItem.matches(itemSelector)) return;
             e.preventDefault();
-            const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
+            e.stopPropagation(); // 내가 처리했으니 부모 상자(대분류)는 반응하지 마! (버블링 방지)
             
-            if (draggedItem) {
-                if (afterElement) container.insertBefore(draggedItem, afterElement);
-                else container.appendChild(draggedItem);
-            }
+            const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
+            if (afterElement) container.insertBefore(draggedItem, afterElement);
+            else container.appendChild(draggedItem);
+            
             container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
         });
     });
