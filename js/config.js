@@ -51,8 +51,13 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) };
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             
-            // ✨ 메뉴 구조 병합
-            mergedConfig.dashboardMenu = loadedData.dashboardMenu || defaultData.dashboardMenu;
+            // ✨ 메뉴 구조 병합 및 자동 초기화 로직
+            let loadedMenu = loadedData.dashboardMenu || defaultData.dashboardMenu;
+            // 이전 테스트용 임시 데이터가 저장되어 있다면 실제 구조로 강제 덮어쓰기 (새로고침 시 자동 적용)
+            if (loadedMenu.length > 0 && loadedMenu[0].category === '메인 업무' && loadedMenu[0].items.length <= 2) {
+                loadedMenu = defaultData.dashboardMenu;
+            }
+            mergedConfig.dashboardMenu = loadedMenu;
 
             let loadedQtyTasks = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             if (loadedQtyTasks.includes('검수')) {
@@ -167,19 +172,31 @@ export const saveLeaveSchedule = async (dbInstance, leaveData) => {
 
 function getDefaultConfig() {
     return {
-        // ✨ 메인 보드의 실제 구조를 반영한 기본값
+        // ✨ 실제 메인 화면의 메뉴 구조를 반영한 기본값
         dashboardMenu: [
             {
-                category: '📊 업무 현황',
+                category: '메인업무',
                 items: [
-                    { name: '메인 대시보드', link: 'index.html' },
-                    { name: '업무 히스토리', link: 'history.html' }
+                    { name: '대시보드', link: 'index.html' },
+                    { name: '오늘 처리량 입력', link: '#' },
+                    { name: '데이터 관리', link: 'history.html' }
                 ]
             },
             {
-                category: '⚙️ 설정 및 관리',
+                category: '관리 및 조회',
                 items: [
-                    { name: '시스템 환경 설정', link: 'admin.html' }
+                    { name: '주말 근무 신청', link: '#' },
+                    { name: '내 연차관리', link: '#' },
+                    { name: '운영 시뮬레이션', link: '#' },
+                    { name: '로케이션 관리', link: 'location.html' }
+                ]
+            },
+            {
+                category: '관리자 메뉴',
+                items: [
+                    { name: '관리자 일정/투두', link: '#' },
+                    { name: '관리자 페이지', link: 'admin.html' },
+                    { name: '업무 마감', link: '#' }
                 ]
             }
         ],
