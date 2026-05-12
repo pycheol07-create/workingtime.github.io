@@ -27,7 +27,6 @@
         .tab-btn.active { border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: 700; }
         .dark .tab-btn.active { border-bottom: 2px solid #60a5fa; color: #60a5fa; }
         
-        /* 고급 에디터 커스텀 및 서식 복구 */
         .ql-toolbar { background: white; border-radius: 0.5rem 0.5rem 0 0; border-color: #d1d5db !important; }
         .dark .ql-toolbar { background: #374151; border-color: #4b5563 !important; }
         .dark .ql-container { border-color: #4b5563 !important; color: white; }
@@ -41,7 +40,6 @@
         .ql-editor img { max-width: 100%; border-radius: 0.5rem; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
         .dark .ql-editor img { border-color: #374151; }
         
-        /* 폰트 및 서식 강제 적용 (Tailwind 충돌 방지) */
         .ql-editor h1 { font-size: 2em !important; font-weight: bold !important; margin-bottom: 0.5em; }
         .ql-editor h2 { font-size: 1.5em !important; font-weight: bold !important; margin-bottom: 0.5em; }
         .ql-editor h3 { font-size: 1.17em !important; font-weight: bold !important; margin-bottom: 0.5em; }
@@ -62,7 +60,7 @@
             <button id="btn-show-add" class="w-full flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-bold transition shadow-sm mb-6">+ 새 매뉴얼 등록</button>
             <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-2">파트별 조회</div>
             <div id="manual-group-list" class="space-y-1">
-                </div>
+            </div>
             
             <a href="index.html" class="w-full flex items-center gap-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-3 rounded-xl font-medium transition mt-10">
                 <span class="text-lg">⬅️</span> 메인으로 돌아가기
@@ -86,7 +84,7 @@
 
         <div id="view-mode-container" class="flex-1 overflow-y-auto p-4 md:p-8">
             <div id="manual-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                </div>
+            </div>
             <div id="empty-state" class="hidden flex flex-col items-center justify-center h-full text-gray-400">
                 <span class="text-4xl mb-3">📄</span>
                 <p>등록된 매뉴얼이 없습니다.</p>
@@ -110,12 +108,12 @@
                         <div>
                             <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">파트 (그룹)</label>
                             <select id="manual-group" class="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:border-blue-500 dark:text-white">
-                                </select>
+                            </select>
                         </div>
                         <div>
                             <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">관련 업무 (선택)</label>
                             <select id="manual-task" class="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:border-blue-500 dark:text-white">
-                                </select>
+                            </select>
                         </div>
                     </div>
 
@@ -176,7 +174,7 @@
             </div>
             
             <div id="detail-content-area" class="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-100 dark:bg-gray-900">
-                </div>
+            </div>
         </div>
     </div>
 
