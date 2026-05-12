@@ -5,8 +5,8 @@ import * as DOM from './dom-elements.js';
 import { appState, appConfig, allHistoryData } from './state.js';
 import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js';
 import { runAdvancedSimulation } from './analysis-logic.js'; 
-// 🌟 [수정] 2개월치 평균을 내는 calculateSimulationThroughputs 함수로 가져옵니다.
-import { calculateAverageStaffing, calculateSimulationThroughputs } from './ui-history-reports-logic.js';
+// 🌟 [수정] 올바른 함수 이름으로 변경하고 2개월 필터링을 내부에서 처리합니다.
+import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js';
 import { fetchAllHistoryData } from './history-data-manager.js';
 
 const CUSTOM_TASK_ORDER = ['채우기', '국내배송', '교환반품', '해외배송', '상.하차', '중국제작', '직진배송', '티니'];
@@ -19,6 +19,15 @@ const sortTasksCustom = (a, b) => {
     if (idxA !== -1) return -1;
     if (idxB !== -1) return 1;
     return a.localeCompare(b);
+};
+
+// 🔥 [신규] 최근 N개월의 데이터만 필터링하는 헬퍼 함수
+const getRecentHistoryData = (months = 2) => {
+    if (!allHistoryData || allHistoryData.length === 0) return [];
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - months);
+    const cutoffStr = cutoffDate.toISOString().slice(0, 10);
+    return allHistoryData.filter(d => d.id >= cutoffStr);
 };
 
 const updateFirstRowCheckbox = () => {
@@ -310,10 +319,10 @@ export function setupSimulationModalListeners() {
         if (simTaskTableBody) {
             simTaskTableBody.innerHTML = '';
 
-            const avgStaffMap = calculateAverageStaffing(allHistoryData);
-            
-            // 🌟 [적용됨] 2개월간의 평균 속도를 계산합니다.
-            const standards = calculateSimulationThroughputs(allHistoryData);
+            // 🌟 모달 오픈 시에도 최근 2개월 기준으로 계산
+            const recentHistory = getRecentHistoryData(2);
+            const avgStaffMap = calculateAverageStaffing(recentHistory);
+            const standards = calculateStandardThroughputs(recentHistory);
             
             const quantityTaskSet = new Set(appConfig.quantityTaskTypes || []);
             const quantities = appState.taskQuantities || {};
@@ -416,6 +425,7 @@ export function setupSimulationModalListeners() {
             }
         });
 
+        // 🌟 [수정] 드롭다운에서 업무를 선택했을 때 자동입력
         simTaskTableBody.addEventListener('change', (e) => {
             if (e.target.classList.contains('sim-row-task')) {
                 const taskName = e.target.value;
@@ -428,8 +438,9 @@ export function setupSimulationModalListeners() {
                 const startInput = row.querySelector('.sim-row-manual-start');
 
                 if (taskName) {
-                     // 1. 속도 자동 입력 (2개월 평균 적용)
-                     const standards = calculateSimulationThroughputs(allHistoryData);
+                     // 1. 최근 2개월 데이터만 가져와서 속도 계산
+                     const recentHistory = getRecentHistoryData(2);
+                     const standards = calculateStandardThroughputs(recentHistory);
                      const speed = standards[taskName] || 0;
                      if (speedInput) speedInput.value = speed > 0 ? speed.toFixed(2) : '';
                      
@@ -440,7 +451,7 @@ export function setupSimulationModalListeners() {
                      }
                      
                      // 3. 투입 인원 자동 입력
-                     const avgStaffMap = calculateAverageStaffing(allHistoryData);
+                     const avgStaffMap = calculateAverageStaffing(recentHistory);
                      const attendanceMap = appState.dailyAttendance || {};
                      const currentActiveCount = Object.values(attendanceMap).filter(a => a.status === 'active').length;
                      
