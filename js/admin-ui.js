@@ -108,7 +108,6 @@ export function renderPermissionsConfig(config) {
         row.className = 'permission-item p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm flex flex-col md:flex-row gap-4 md:items-center transition-colors';
         row.dataset.email = emailLower;
 
-        // ✨ 신규: 접근 허용 메뉴 영역 상단에 전체 체크/해제 버튼 추가
         row.innerHTML = `
             <div class="w-full md:w-1/4 flex flex-col gap-1 shrink-0">
                 <span class="text-sm font-extrabold text-gray-900 dark:text-white flex items-center gap-1">
@@ -251,32 +250,11 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
     });
 }
 
+// 💡 시스템 전용 계정 렌더링 함수도 하드코딩된 컨테이너에 내용만 채우도록 간소화됨
 export function renderSystemAccountsConfig(accounts) {
     let container = document.getElementById('system-accounts-container');
-    if (!container) {
-        const teamContainer = document.getElementById('team-groups-container');
-        if (teamContainer) {
-            const parentSection = teamContainer.parentElement;
-            const sysWrapper = document.createElement('div');
-            sysWrapper.className = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mt-8 transition-colors';
-            sysWrapper.innerHTML = `
-                <div class="mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
-                    <h2 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                        <span class="text-2xl">🖥️</span> 시스템 전용 계정 관리
-                    </h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">대시보드 팀원 현황에는 표시되지 않지만, 시스템에 로그인할 수 있는 별도 계정입니다. (최고 관리자, 외부 인력 등)</p>
-                </div>
-                <div id="system-accounts-container" class="space-y-3"></div>
-                <div class="mt-5">
-                    <button id="add-system-account-btn" type="button" class="bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold py-2.5 px-4 rounded-lg transition text-sm shadow-sm flex items-center gap-2">+ 계정 추가</button>
-                </div>
-            `;
-            parentSection.parentNode.insertBefore(sysWrapper, parentSection.nextSibling);
-            container = document.getElementById('system-accounts-container');
-        }
-    }
-
     if (!container) return;
+    
     container.innerHTML = '';
 
     accounts.forEach(acc => {
