@@ -51,10 +51,17 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.dashboardQuantities = { ...defaultData.dashboardQuantities, ...(loadedData.dashboardQuantities || {}) };
             mergedConfig.dashboardCustomItems = { ...(loadedData.dashboardCustomItems || {}) };
             
-            // ✨ 메뉴 구조 병합 및 자동 초기화 로직
+            // ✨ 에러 방지를 위한 철저한 메뉴 데이터 마이그레이션 로직
             let loadedMenu = loadedData.dashboardMenu || defaultData.dashboardMenu;
-            // 이전 테스트용 임시 데이터가 저장되어 있다면 실제 구조로 강제 덮어쓰기 (새로고침 시 자동 적용)
-            if (loadedMenu.length > 0 && loadedMenu[0].category === '메인 업무' && loadedMenu[0].items.length <= 2) {
+            try {
+                if (loadedMenu && Array.isArray(loadedMenu) && loadedMenu.length > 0) {
+                    const firstCat = loadedMenu[0];
+                    if ((firstCat.category === '메인 업무' || firstCat.category === '메인업무') && (!firstCat.items || firstCat.items.length <= 2)) {
+                        loadedMenu = defaultData.dashboardMenu;
+                    }
+                }
+            } catch(e) {
+                console.error("메뉴 구조 업데이트 중 오류:", e);
                 loadedMenu = defaultData.dashboardMenu;
             }
             mergedConfig.dashboardMenu = loadedMenu;

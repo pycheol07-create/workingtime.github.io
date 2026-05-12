@@ -49,6 +49,7 @@ export function renderAdminUI(config) {
     
     renderSystemAccountsConfig(config.systemAccounts || []);
     
+    // ✨ 메뉴 구조 렌더링 호출
     renderDashboardMenu(config.dashboardMenu || []);
     
     renderDashboardItemsConfig(config.dashboardItems || [], config);
@@ -502,10 +503,11 @@ export function renderDashboardMenu(menuConfig) {
         groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm menu-category-card transition-colors drop-zone';
         groupEl.dataset.index = index;
 
+        // 🚨 중요 수정: 전체 div가 아닌 drag-handle에만 draggable="true" 적용
         const itemsHtml = (menuGroup.items || []).map((item, iIndex) => `
-            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm" draggable="true">
+            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm">
                 <div class="flex items-center gap-3 flex-grow">
-                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move">☰</span>
+                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
                     <input type="text" value="${item.name}" class="menu-item-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none" placeholder="소분류 이름">
                     <input type="text" value="${item.link || ''}" class="menu-item-link w-1/3 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="연결 링크 (예: index.html)">
                 </div>

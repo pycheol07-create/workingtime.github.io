@@ -340,10 +340,10 @@ function handleDynamicClicks(e) {
         const container = e.target.closest('.menu-category-card').querySelector('.menu-items-container');
         const newItemEl = document.createElement('div');
         newItemEl.className = 'flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm';
-        newItemEl.setAttribute('draggable', 'true');
+        // 🚨 중요 수정: 새 아이템 생성 시 전체 상자에 걸리던 draggable 속성을 제거합니다
         newItemEl.innerHTML = `
             <div class="flex items-center gap-3 flex-grow">
-                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move">☰</span>
+                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
                 <input type="text" value="" class="menu-item-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none" placeholder="새 메뉴 이름">
                 <input type="text" value="" class="menu-item-link w-1/3 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="연결 링크 (예: index.html)">
             </div>
@@ -529,7 +529,6 @@ function setupDragDropListeners(containerSelector, itemSelector) {
             e.preventDefault();
             const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
             
-            // 전역에서 드래그된 아이템을 찾아서 현재 컨테이너에 삽입 (이게 서로 다른 그룹간 이동을 가능하게 합니다!)
             if (draggedItem) {
                 if (afterElement) container.insertBefore(draggedItem, afterElement);
                 else container.appendChild(draggedItem);
