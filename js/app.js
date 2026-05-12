@@ -11,7 +11,6 @@ import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js';
 import { checkAdminTodoNotifications } from './admin-todo-logic.js';
 import { setupWeekendListeners } from './listeners-weekend.js';
 
-// ✅ 분리된 모듈 가져오기
 import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js';
 import { setupNotificationListeners } from './app-notifications.js';
 import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js';
@@ -67,22 +66,45 @@ async function startAppAfterLogin(user) {
         State.appState.currentUser = currentUserName;
         State.appState.currentUserRole = currentUserRole;
 
-        // UI 토글 (Admin vs User) - 기존 로직 유지
         if (DOM.userGreeting) {
             DOM.userGreeting.textContent = `${currentUserName}님 (${currentUserRole}), 안녕하세요.`;
             DOM.userGreeting.classList.remove('hidden');
         }
         if (DOM.logoutBtn) DOM.logoutBtn.classList.remove('hidden');
 
-        // 관리자용 UI
-        const adminElements = [document.getElementById('admin-link-btn'), DOM.adminLinkBtnMobile, DOM.resetAppBtn, DOM.resetAppBtnMobile, DOM.openHistoryBtn, DOM.openHistoryBtnMobile, document.getElementById('open-admin-todo-btn')];
-        adminElements.forEach(el => { if (el) el.style.display = (currentUserRole === 'admin') ? 'flex' : 'none'; });
+        // 👇 권한 기반 사이드바 메뉴 렌더링 로직
+        const menuOrder = State.appConfig.menuOrder || ['dashboard', 'quantity', 'history', 'weekend', 'leave', 'simulation', 'location', 'admin-todo', 'admin-page', 'end-shift'];
+        const userPerms = State.appConfig.userPermissions || {};
+        const myAllowedMenus = userPerms[currentUserName] || []; // 나에게 허용된 메뉴들
+
+        const pcNav = document.querySelector('aside nav');
+        if (pcNav) {
+            pcNav.style.display = 'flex';
+            pcNav.style.flexDirection = 'column';
+        }
+
+        // 전체 data-menu-id 요소를 돌며 권한과 순서 적용
+        menuOrder.forEach((menuId, index) => {
+            // 관리자는 무조건 패스, 일반 유저는 myAllowedMenus 에 포함되어야 패스
+            const hasPermission = (currentUserRole === 'admin') || myAllowedMenus.includes(menuId);
+            
+            const pcBtn = document.querySelector(`nav [data-menu-id="${menuId}"]`);
+            const mobileBtn = document.querySelector(`#nav-content [data-menu-id="${menuId}"]`);
+            
+            if (pcBtn) {
+                pcBtn.style.display = hasPermission ? 'flex' : 'none';
+                pcBtn.style.order = index;
+            }
+            if (mobileBtn) {
+                mobileBtn.style.display = hasPermission ? 'flex' : 'none';
+                mobileBtn.style.order = index;
+            }
+        });
         
         if (currentUserRole === 'admin') {
             setInterval(checkAdminTodoNotifications, 30000);
         }
 
-        // 메인 영역 노출
         document.getElementById('main-content-area')?.classList.remove('hidden');
 
         if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'none'; 
@@ -96,7 +118,6 @@ async function startAppAfterLogin(user) {
 
     displayCurrentDate();
     
-    // ✅ 1. 타이머 설정 (분리된 로직 사용)
     if (State.elapsedTimeTimer) clearInterval(State.elapsedTimeTimer);
     State.setElapsedTimeTimer(setInterval(updateElapsedTimes, 1000));
 
@@ -106,7 +127,6 @@ async function startAppAfterLogin(user) {
     if (State.autoSaveTimer) clearInterval(State.autoSaveTimer);
     State.setAutoSaveTimer(setInterval(autoSaveProgress, State.AUTO_SAVE_INTERVAL));
 
-    // ✅ 2. Firebase 실시간 동기화 리스너 실행 (분리된 파일 호출)
     setupFirebaseListeners(render, markDataAsDirty);
 }
 
@@ -121,7 +141,6 @@ async function main() {
         return;
     }
 
-    // ✅ 3. 알림 이벤트 리스너 세팅
     setupNotificationListeners();
 
     onAuthStateChanged(State.auth, async user => {
@@ -129,7 +148,6 @@ async function main() {
             if (DOM.loginModal) DOM.loginModal.classList.add('hidden');
             await startAppAfterLogin(user);
         } else {
-            // 로그아웃 초기화
             if (State.unsubscribeToday) State.unsubscribeToday();
             if (State.unsubscribeWorkRecords) State.unsubscribeWorkRecords();
             if (unsubscribeNotifications) unsubscribeNotifications();

@@ -14,6 +14,19 @@ export const DASHBOARD_ITEM_DEFINITIONS = {
     'direct-delivery': { title: '직진배송', isQuantity: true }
 };
 
+export const MENU_LIST = [
+    { id: 'dashboard', label: '대시보드', icon: '📊' },
+    { id: 'quantity', label: '처리량입력', icon: '📈' },
+    { id: 'history', label: '데이터관리', icon: '📜' },
+    { id: 'weekend', label: '주말근무', icon: '🗓️' },
+    { id: 'leave', label: '연차관리', icon: '🏖️' },
+    { id: 'simulation', label: '시뮬레이션', icon: '💰' },
+    { id: 'location', label: '로케이션', icon: '📍' },
+    { id: 'admin-todo', label: '관리자투두', icon: '📅' },
+    { id: 'admin-page', label: '관리자페이지', icon: '⚙️' },
+    { id: 'end-shift', label: '업무마감', icon: '🏁' }
+];
+
 export function getAllDashboardDefinitions(config) {
     return {
         ...DASHBOARD_ITEM_DEFINITIONS,
@@ -49,8 +62,11 @@ export function renderAdminUI(config) {
         config.memberRanks || {} 
     );
     
-    // 💡 [신규] 시스템 전용 계정 렌더링 호출
     renderSystemAccountsConfig(config.systemAccounts || []);
+    
+    // 👇 신규 호출
+    renderMenuOrderConfig(config);
+    renderUserPermissionsConfig(config);
     
     renderDashboardItemsConfig(config.dashboardItems || [], config);
     renderKeyTasks(config.keyTasks || []);
@@ -60,11 +76,71 @@ export function renderAdminUI(config) {
     renderCostAnalysisConfig(config);
 }
 
-// 💡 [신규] 시스템 전용 계정(팀원 외) UI 생성 함수
+export function renderMenuOrderConfig(config) {
+    const container = document.getElementById('menu-order-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const order = config.menuOrder || MENU_LIST.map(m => m.id);
+    
+    order.forEach(menuId => {
+        const menuDef = MENU_LIST.find(m => m.id === menuId);
+        if (!menuDef) return;
+
+        const item = document.createElement('div');
+        item.className = 'flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm menu-order-item transition-colors';
+        item.dataset.menuId = menuId;
+        item.innerHTML = `
+            <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>
+            <span class="font-bold text-sm text-gray-700 dark:text-gray-300">${menuDef.icon} ${menuDef.label}</span>
+        `;
+        container.appendChild(item);
+    });
+}
+
+export function renderUserPermissionsConfig(config) {
+    const headerRow = document.getElementById('permission-table-header-row');
+    const bodyContainer = document.getElementById('user-permissions-matrix-body');
+    if (!headerRow || !bodyContainer) return;
+
+    headerRow.innerHTML = MENU_LIST.map(menu => `
+        <th class="p-3 md:p-4 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 min-w-[70px]">${menu.label}</th>
+    `).join('');
+
+    const allMembers = [];
+    (config.teamGroups || []).forEach(g => allMembers.push(...(g.members || [])));
+    (config.systemAccounts || []).forEach(acc => { if(acc.name) allMembers.push(acc.name); });
+    
+    const uniqueMembers = [...new Set(allMembers)].sort();
+    const userPerms = config.userPermissions || {};
+
+    bodyContainer.innerHTML = uniqueMembers.map(memberName => {
+        const allowedMenus = userPerms[memberName] || [];
+        const isSystemAdmin = (config.memberRoles || {})[((config.memberEmails || {})[memberName] || '').toLowerCase()] === 'admin';
+
+        return `
+            <tr class="border-b border-gray-50 dark:border-gray-700/50 hover:bg-blue-50/20 dark:hover:bg-blue-900/10 transition-colors user-perm-row" data-member-name="${memberName}">
+                <td class="p-3 md:p-4 text-sm font-bold text-gray-700 dark:text-gray-200 sticky left-0 bg-white dark:bg-gray-800 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
+                    ${memberName}
+                    ${isSystemAdmin ? '<span class="ml-1 text-[9px] bg-red-100 text-red-600 px-1 rounded">ADMIN</span>' : ''}
+                </td>
+                ${MENU_LIST.map(menu => {
+                    const isChecked = allowedMenus.includes(menu.id) || isSystemAdmin ? 'checked' : '';
+                    const isDisabled = isSystemAdmin ? 'disabled' : '';
+                    return `
+                        <td class="p-3 md:p-4 text-center">
+                            <input type="checkbox" data-menu-id="${menu.id}" class="menu-perm-checkbox w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded cursor-pointer focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" ${isChecked} ${isDisabled}>
+                        </td>
+                    `;
+                }).join('')}
+            </tr>
+        `;
+    }).join('');
+}
+
 export function renderSystemAccountsConfig(accounts) {
     let container = document.getElementById('system-accounts-container');
     
-    // DOM에 해당 영역이 없으면 팀 그룹 설정 밑에 자동으로 동적 생성합니다.
     if (!container) {
         const teamContainer = document.getElementById('team-groups-container');
         if (teamContainer) {

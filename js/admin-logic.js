@@ -11,7 +11,7 @@ export function collectConfigFromDOM(currentConfig) {
         memberRoles: {},
         memberRanks: {}, 
         memberLeaveSettings: {},
-        systemAccounts: [], // 💡 [신규] 시스템 전용 계정 배열
+        systemAccounts: [],
         dashboardItems: [],
         dashboardCustomItems: {},
         quantityToDashboardMap: {},
@@ -30,8 +30,12 @@ export function collectConfigFromDOM(currentConfig) {
 
         simulationTaskLinks: currentConfig.simulationTaskLinks || {},
         qualityCostTasks: currentConfig.qualityCostTasks || [],
-        systemAccountsOld: currentConfig.systemAccounts || [], // 백업용
-        standardDailyWorkHours: currentConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 }
+        systemAccountsOld: currentConfig.systemAccounts || [],
+        standardDailyWorkHours: currentConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 },
+        
+        // 👇 신규 항목 추가
+        menuOrder: [],
+        userPermissions: {}
     };
 
     const emailCheck = new Map();
@@ -83,7 +87,7 @@ export function collectConfigFromDOM(currentConfig) {
         newConfig.teamGroups.push(newGroup);
     });
 
-    // 💡 [신규] 2. 시스템 전용 계정 수집 로직
+    // 2. 시스템 전용 계정 수집 로직
     document.querySelectorAll('#system-accounts-container .system-account-item').forEach(item => {
         const name = item.querySelector('.sys-name').value.trim();
         const email = item.querySelector('.sys-email').value.trim();
@@ -172,6 +176,21 @@ export function collectConfigFromDOM(currentConfig) {
         if (taskName && select && select.value) {
             newConfig.quantityToDashboardMap[taskName] = select.value;
         }
+    });
+
+    // 👇 신규: 메뉴 순서 수집
+    document.querySelectorAll('#menu-order-container .menu-order-item').forEach(item => {
+        newConfig.menuOrder.push(item.dataset.menuId);
+    });
+
+    // 👇 신규: 개인별 메뉴 권한 수집
+    document.querySelectorAll('#user-permissions-matrix-body .user-perm-row').forEach(row => {
+        const memberName = row.dataset.memberName;
+        const selectedMenus = [];
+        row.querySelectorAll('.menu-perm-checkbox:checked').forEach(cb => {
+            selectedMenus.push(cb.dataset.menuId);
+        });
+        newConfig.userPermissions[memberName] = selectedMenus;
     });
 
     return newConfig;
