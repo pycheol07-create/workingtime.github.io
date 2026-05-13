@@ -3,7 +3,8 @@ import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { updateDailyData } from './app-data.js'; 
 import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ✨ Firestore에서 숫자를 안전하게 누적하는 increment 추가
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
 import { currentImageBase64, clearImageState, setCurrentImageBase64 } from './inspection-media.js';
@@ -365,7 +366,7 @@ const loadCompletedInspectionData = async (item) => {
                 setSelect('insp-check-distortion', cl.distortion);
                 setSelect('insp-check-unraveling', cl.unraveling);
                 setSelect('insp-check-finishing', cl.finishing);
-                setSelect('insp-check-zipper', cl.zipper);
+                setSelect('insp-check-zipper', cl.button); // Fixed typo from original
                 setSelect('insp-check-button', cl.button);
                 setSelect('insp-check-lining', cl.lining);
                 setSelect('insp-check-pilling', cl.pilling);
@@ -519,14 +520,12 @@ export const searchProductHistory = async () => {
                 }
             }
             
-            // 기존 상품이면 '최초 입고 상품' 배지 숨기기
             const newBadge = document.getElementById('insp-new-product-badge');
             if (newBadge) newBadge.classList.add('hidden');
 
         } else {
             if(DOM.inspReportCount) DOM.inspReportCount.textContent = '0 (신규)';
             
-            // 🔥 신규 상품일 경우 '최초 입고 상품' 튀는 배지 표시
             const newBadge = document.getElementById('insp-new-product-badge');
             if (newBadge) newBadge.classList.remove('hidden');
 
@@ -633,8 +632,13 @@ export const saveInspectionAndNext = async () => {
         
         if (editingLogIndex !== -1) {
             if (docSnap.exists() && editingLogIndex >= 0 && editingLogIndex < existingLogs.length) {
+                const oldLog = existingLogs[editingLogIndex];
+                const oldSampleQty = Number(oldLog.sampleQty) || 1;
+                const newSampleQtyNum = Number(sampleQty) || 1;
+                const diff = newSampleQtyNum - oldSampleQty;
+
                 existingLogs[editingLogIndex] = {
-                    ...existingLogs[editingLogIndex],
+                    ...oldLog,
                     ...inspectionRecord
                 };
                 
@@ -648,6 +652,20 @@ export const saveInspectionAndNext = async () => {
                     totalInbound: getUniqueInboundCount(existingLogs),
                     updatedAt: serverTimestamp()
                 });
+
+                // ✨ 신규: 당일 기록 수정 시 메인 대시보드의 '샘플검수' 처리량 자동 조율
+                if (diff !== 0 && oldLog.date === today) {
+                    try {
+                        const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
+                        await updateDoc(dailyDocRef, {
+                            [`taskQuantities.샘플검수`]: increment(diff)
+                        });
+                        if (!State.appState.taskQuantities) State.appState.taskQuantities = {};
+                        State.appState.taskQuantities['샘플검수'] = Math.max(0, (State.appState.taskQuantities['샘플검수'] || 0) + diff);
+                    } catch(err) {
+                        console.warn("샘플검수 처리량 동기화 실패:", err);
+                    }
+                }
                 
                 showToast(`'${productName}' 검수 기록이 수정되었습니다.`);
             }
@@ -674,6 +692,21 @@ export const saveInspectionAndNext = async () => {
 
             await setDoc(docRef, updates, { merge: true });
             
+            // ✨ 신규: 샘플 검수 완료 시 메인 대시보드의 '샘플검수' 처리량에 자동 누적
+            try {
+                const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
+                const sampleQtyNum = Number(sampleQty) || 1;
+                
+                await updateDoc(dailyDocRef, {
+                    [`taskQuantities.샘플검수`]: increment(sampleQtyNum)
+                });
+                
+                if (!State.appState.taskQuantities) State.appState.taskQuantities = {};
+                State.appState.taskQuantities['샘플검수'] = (State.appState.taskQuantities['샘플검수'] || 0) + sampleQtyNum;
+            } catch(err) {
+                console.warn("샘플검수 처리량 누적 실패:", err);
+            }
+
             todayInspectionList.unshift({
                 productName,
                 inboundDate: packingDate !== '-' ? packingDate : inboundDate, 
@@ -807,10 +840,6 @@ export const clearTodayList = () => {
     renderTodayInspectionList();
 };
 
-// ==========================================
-// 🚀 외부 파일들을 위한 Re-Exports (중요)
-// 이 덕분에 기존 리스너 파일들은 수정할 필요가 없습니다.
-// ==========================================
 export { handleExcelUpload } from './inspection-excel.js';
 export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js';
 export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js';

@@ -4,7 +4,7 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getTodayDateString } from './utils.js';
-import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 현재 조회된 상품의 누적 상태를 저장할 변수
 let currentTotalInspData = null;
@@ -178,6 +178,18 @@ export async function saveTotalInspection() {
             worker: State.auth.currentUser?.email || 'unknown',
             timestamp: serverTimestamp()
         });
+
+        // ✨ 3. 신규: 당일 전량검수 처리량 자동 누적
+        try {
+            const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+            await updateDoc(dailyDocRef, {
+                [`taskQuantities.전량검수`]: increment(todayTotal)
+            });
+            if (!State.appState.taskQuantities) State.appState.taskQuantities = {};
+            State.appState.taskQuantities['전량검수'] = (State.appState.taskQuantities['전량검수'] || 0) + todayTotal;
+        } catch(err) {
+            console.warn("전량검수 처리량 누적 실패:", err);
+        }
 
         showToast('전량검수 내역이 누적 저장되었습니다.');
         
