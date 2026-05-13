@@ -3,7 +3,7 @@ import * as State from './state.js';
 import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js';
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc,
-    query, where, writeBatch, updateDoc, increment
+    query, where, writeBatch, updateDoc, increment, documentId
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // --- Helper Functions ---
@@ -21,10 +21,9 @@ export const syncTodayToHistory = async () => {
     const now = getCurrentTime();
 
     try {
-        const workRecordsColRef = getWorkRecordsCollectionRef();
-        const recordsSnapshot = await getDocs(workRecordsColRef);
-        const liveWorkRecords = recordsSnapshot.docs.map(doc => {
-            const data = doc.data();
+        // 🚨 최적화 1: DB에서 매번 다시 읽어오지 않고, 실시간 동기화된 로컬 상태(appState)를 즉시 활용하여 Read 비용 대폭 절감!
+        const liveWorkRecords = (State.appState.workRecords || []).map(record => {
+            const data = { ...record };
             if (data.status === 'ongoing' || data.status === 'paused') {
                 data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
                 data.endTime = now;
@@ -94,11 +93,9 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
         const dailyDocSnap = await getDoc(getDailyDocRef());
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
 
-        const workRecordsColRef = getWorkRecordsCollectionRef();
-        const recordsSnapshot = await getDocs(workRecordsColRef);
-        
-        const liveWorkRecords = recordsSnapshot.docs.map(doc => {
-            const data = doc.data();
+        // 🚨 최적화 2: 자동 저장 시 컬렉션 전체(getDocs)를 읽어오는 무거운 호출 제거!
+        const liveWorkRecords = (State.appState.workRecords || []).map(record => {
+            const data = { ...record };
             if (data.status === 'ongoing' || data.status === 'paused') {
                 data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
                 data.endTime = now;
@@ -221,23 +218,18 @@ export async function saveDayDataToHistory(shouldReset) {
 
                 const attendance = dailyAttendance[record.member];
                 
-                // 🔥 [버그 해결 핵심]: 이전 날짜의 늦은 퇴근시간(예: 23:00) 잔재가 
-                // 오늘의 빠른 마감시간(예: 17:30)을 덮어쓰지 못하도록 엄격하게 방어합니다.
                 if (attendance && attendance.status === 'returned' && attendance.outTime) {
                     if (attendance.outTime > record.startTime) {
-                        // 개인 퇴근 시간이 현재 마감 버튼을 누른 시간(globalEndTime)보다 크다면 마감 시간으로 캡핑
                         if (attendance.outTime <= globalEndTime) {
                             recordEndTime = attendance.outTime;
                         } else {
                             recordEndTime = globalEndTime;
                         }
                     } else {
-                        // 어제 퇴근 시간 잔재 등의 이유로 시작시간보다 빠르면 캡핑
                         recordEndTime = globalEndTime;
                     }
                 }
 
-                // 시작 시간 역전 방지
                 if (record.startTime > recordEndTime) {
                     recordEndTime = record.startTime;
                 }
@@ -553,7 +545,12 @@ export async function checkUnverifiedRecords() {
     const historyCol = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     
     try {
-        const q = query(historyCol); 
+        // 🚨 최적화 3: 앱 전체 역사가 아닌 "최근 30일치" 문서만 검색하여 수천 건의 불필요한 Read 방지
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        const thirtyDaysAgoStr = d.toISOString().split('T')[0];
+
+        const q = query(historyCol, where(documentId(), ">=", thirtyDaysAgoStr)); 
         const snapshot = await getDocs(q);
         
         const unverifiedDates = [];
