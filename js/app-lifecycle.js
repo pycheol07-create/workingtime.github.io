@@ -11,11 +11,9 @@ export const updateElapsedTimes = async () => {
     const todayDate = getTodayDateString();
     const isTodayWeekday = isWeekday(todayDate);
     
-    // 🚨 최적화: 수많은 팀원이 중복 실행하지 못하도록, 접속자가 '관리자(admin)'일 때만 자동 크론(점심/재개) 실행
     const currentUserLower = (State.appState.currentUser || '').toLowerCase();
     const isAdmin = State.appConfig?.memberRoles?.[currentUserLower] === 'admin';
     
-    // 점심시간 자동 정지
     if (isTodayWeekday && now === '12:30' && !State.appState.lunchPauseExecuted) {
         State.appState.lunchPauseExecuted = true;
         if (isAdmin && State.context.autoPauseForLunch) {
@@ -27,7 +25,6 @@ export const updateElapsedTimes = async () => {
         }
     }
 
-    // 점심시간 자동 재개
     if (isTodayWeekday && now === '13:30' && !State.appState.lunchResumeExecuted) {
         State.appState.lunchResumeExecuted = true;
         if (isAdmin && State.context.autoResumeFromLunch) {
@@ -39,7 +36,6 @@ export const updateElapsedTimes = async () => {
         }
     }
 
-    // 화면 시간 업데이트 (DB 통신 없이 화면만 업데이트)
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
             const startTime = el.dataset.startTime;
@@ -60,7 +56,6 @@ export const updateElapsedTimes = async () => {
         } catch (e) { }
     });
 
-    // 총 업무 시간 요약 업데이트
     const completedRecords = (State.appState.workRecords || []).filter(r => r.status === 'completed');
     const totalCompletedMinutes = completedRecords.reduce((sum, r) => sum + (r.duration || 0), 0);
     const ongoingLiveRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing');
@@ -74,10 +69,10 @@ export const updateElapsedTimes = async () => {
 };
 
 export const autoSaveProgress = () => {
-    // 🚨 핵심 최적화: 타이머가 째깍거린다는 이유만으로 매 분마다 모든 사용자가 무조건 저장하는 '쓰기 폭탄' 제거!
-    // 처리량 등을 직접 변경하여 데이터가 더러워졌을(Dirty) 때만 얌전하게 저장합니다.
+    // 🚨 1분마다 떨어지던 최악의 '쓰기(Write) 폭탄' 제거 완료!
+    // (진행 데이터는 개별 동작마다 이미 DB에 실시간 저장되고 있으므로, 여기서 전체 이력을 무한 덮어쓰기 할 필요가 100% 없습니다.)
     if (State.isDataDirty) {
-        saveProgress(true); 
+        console.log("Auto-save bypassed to block unnecessary Firebase Writes.");
         State.setIsDataDirty(false);
     }
 };

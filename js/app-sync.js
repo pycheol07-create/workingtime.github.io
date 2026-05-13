@@ -2,8 +2,7 @@
 import * as State from './state.js';
 import * as DOM from './dom-elements.js';
 import { getTodayDateString, showToast } from './utils.js';
-// 🚨 deleteDoc 추가 임포트
-import { doc, onSnapshot, collection, query, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js';
 import { renderTodoList } from './inspection-logic.js';
 import { renderNotificationList } from './app-notifications.js';
@@ -11,7 +10,6 @@ import { renderNotificationList } from './app-notifications.js';
 export let unsubscribeNotifications = null;
 
 export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
-    // 1. 근태 일정 실시간 리스너
     const leaveScheduleDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
     State.setUnsubscribeLeaveSchedule(onSnapshot(leaveScheduleDocRef, (docSnap) => {
         State.setPersistentLeaveSchedule(docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] });
@@ -30,7 +28,6 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         renderCallback();
     }));
 
-    // 2. 환경 설정 실시간 리스너
     const configDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
     State.setUnsubscribeConfig(onSnapshot(configDocRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -46,7 +43,6 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         }
     }));
 
-    // 3. 일일 데이터(오늘) 실시간 리스너
     const todayDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
     State.setUnsubscribeToday(onSnapshot(todayDocRef, (docSnap) => {
         const data = docSnap.exists() ? docSnap.data() : {};
@@ -68,7 +64,6 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
     }));
     
-    // 4. 업무 기록 실시간 리스너
     const workRecordsCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
     State.setUnsubscribeWorkRecords(onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
         State.appState.workRecords = [];
@@ -78,10 +73,21 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (업무)';
     }));
 
-    // 5. 알림 실시간 리스너
     if (State.appState.currentUser) {
         const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
-        const notiQuery = query(notiColRef, where("targetMember", "==", State.appState.currentUser));
+        
+        // 🚨 알림 삭제(Write) 폭탄 제거 완료!
+        // 클라이언트에서 억지로 삭제(deleteDoc) 명령을 내리지 않고, 
+        // 아예 DB에서 가져올 때부터 "최근 15일 치만 가져와라"고 쿼리문에 방어막을 쳤습니다. (읽기/쓰기 둘 다 절감)
+        const d = new Date();
+        d.setDate(d.getDate() - 15);
+        const fifteenDaysAgoStr = d.toISOString();
+
+        const notiQuery = query(
+            notiColRef, 
+            where("targetMember", "==", State.appState.currentUser),
+            where("createdAt", ">=", fifteenDaysAgoStr) 
+        );
         
         let isInitialLoad = true;
 
@@ -90,16 +96,11 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
             const notifications = [];
             let unreadCount = 0;
             
-            // ✨ 알림 15일 경과 기준 (15일 * 24시간 * 60분 * 60초 * 1000밀리초)
-            const now = Date.now();
-            const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
-            
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added' && !isInitialLoad) {
                     const data = change.doc.data();
                     if (!data.isRead) {
                         showToast(`🔔 새 알림이 도착했습니다.`);
-                        
                         const modal = document.getElementById('notification-modal');
                         if (modal && modal.classList.contains('hidden')) {
                             modal.classList.remove('hidden'); 
@@ -111,15 +112,6 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
                 data.id = docSnap.id;
-                
-                // ✨ 15일이 경과한 알림은 파이어베이스 DB에서 완전히 자동 삭제
-                const createdAtTime = new Date(data.createdAt).getTime();
-                if (now - createdAtTime > FIFTEEN_DAYS_MS) {
-                    deleteDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'notifications', data.id))
-                        .catch(e => console.error("알림 자동 삭제 실패:", e));
-                    return; // 로컬 배열(화면)에는 담지 않음
-                }
-
                 notifications.push(data);
                 if (!data.isRead) unreadCount++;
             });

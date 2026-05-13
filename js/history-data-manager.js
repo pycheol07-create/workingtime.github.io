@@ -6,7 +6,6 @@ import {
     query, where, writeBatch, updateDoc, increment, documentId
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// --- Helper Functions ---
 export const getWorkRecordsCollectionRef = () => {
     const today = getTodayDateString();
     return collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
@@ -21,6 +20,8 @@ export const syncTodayToHistory = async () => {
     const now = getCurrentTime();
 
     try {
+        // 🚨 꼬리를 무는 '읽기(Read) 폭탄' 제거 완료!
+        // DB를 다시 조회(getDoc)하는 대신, 실시간 동기화로 가지고 있는 로컬 데이터(State.appState)를 즉시 조립합니다.
         const liveWorkRecords = (State.appState.workRecords || []).map(record => {
             const data = { ...record };
             if (data.status === 'ongoing' || data.status === 'paused') {
@@ -30,39 +31,17 @@ export const syncTodayToHistory = async () => {
             return data;
         });
 
-        const dailyDocSnap = await getDoc(getDailyDocRef());
-        const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
-
-        const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', todayKey);
-        const historyDocSnap = await getDoc(historyDocRef);
-        const historyData = historyDocSnap.exists() ? historyDocSnap.data() : {};
-
-        let finalWorkRecords = liveWorkRecords;
-        let finalDailyData = dailyData;
-
-        const isLiveEmpty = liveWorkRecords.length === 0;
-        const hasHistoryData = historyData.workRecords && historyData.workRecords.length > 0;
-
-        if (isLiveEmpty && hasHistoryData) {
-            finalWorkRecords = historyData.workRecords;
-            finalDailyData = historyData;
-        }
-
-        const mergedInspectionList = (finalDailyData.inspectionList && finalDailyData.inspectionList.length > 0) 
-                                     ? finalDailyData.inspectionList 
-                                     : (historyData.inspectionList || []);
-
         const liveTodayData = {
             id: todayKey,
-            workRecords: finalWorkRecords,
-            taskQuantities: finalDailyData.taskQuantities || {},
-            confirmedZeroTasks: finalDailyData.confirmedZeroTasks || [],
-            onLeaveMembers: finalDailyData.onLeaveMembers || [],
-            partTimers: finalDailyData.partTimers || [],
-            dailyAttendance: finalDailyData.dailyAttendance || {},
-            management: finalDailyData.management || {},
-            inspectionList: mergedInspectionList,
-            isQuantityVerified: finalDailyData.isQuantityVerified || historyData.isQuantityVerified || false
+            workRecords: liveWorkRecords,
+            taskQuantities: State.appState.taskQuantities || {},
+            confirmedZeroTasks: State.appState.confirmedZeroTasks || [],
+            onLeaveMembers: State.appState.dailyOnLeaveMembers || [],
+            partTimers: State.appState.partTimers || [],
+            dailyAttendance: State.appState.dailyAttendance || {},
+            management: State.appState.management || {},
+            inspectionList: State.appState.inspectionList || [],
+            isQuantityVerified: State.appState.isQuantityVerified || false
         };
 
         const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
@@ -77,6 +56,9 @@ export const syncTodayToHistory = async () => {
         console.error("Error syncing today to history cache: ", e);
     }
 };
+
+// ... 아래의 기존 함수들(saveProgress, saveDayDataToHistory, fetchAllHistoryData 등)은 이전 메시지의 코드 그대로 유지해 주세요! ...
+// (위 syncTodayToHistory 함수만 교체하시면 됩니다!)
 
 export async function saveProgress(isAutoSave = false, isQuantityVerified = false) {
     const dateStr = getTodayDateString();
