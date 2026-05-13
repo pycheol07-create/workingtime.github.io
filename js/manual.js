@@ -25,7 +25,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // ✨ 에디터 이미지 업로드 핸들러 정의 (버튼 클릭 시)
     const imageHandler = () => {
         const input = document.createElement('input');
         input.setAttribute('type', 'file');
@@ -55,7 +54,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ['link', 'image', 'video'], 
                     ['clean'] 
                 ],
-                // 커스텀 이미지 핸들러 연결
                 handlers: {
                     image: imageHandler
                 }
@@ -63,21 +61,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // ✨ 붙여넣기(Ctrl+V) 시 Base64 텍스트 대신 실제 파일로 가로채서 업로드
     quillEditor.root.addEventListener('paste', async (e) => {
         if (e.clipboardData && e.clipboardData.items && e.clipboardData.items.length) {
             const items = e.clipboardData.items;
+            let hasImage = false;
             for (let i = 0; i < items.length; i++) {
                 if (items[i].type.indexOf('image') !== -1) {
-                    e.preventDefault(); // 기본 Base64 삽입 방지
+                    hasImage = true;
+                    e.preventDefault(); 
                     const file = items[i].getAsFile();
-                    await uploadInlineImageToStorage(file);
+                    // ✨ 파일 추출 성공 시만 업로드 시도 (실패 시 빈 에러 방지)
+                    if(file) await uploadInlineImageToStorage(file);
                 }
             }
         }
     });
 
-    // ✨ 드래그 앤 드롭 시 Base64 방지 및 파일로 업로드
     quillEditor.root.addEventListener('drop', async (e) => {
         if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
             let hasImage = false;
@@ -87,7 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
             if (hasImage) {
-                e.preventDefault(); // 기본 동작 방지
+                e.preventDefault(); 
                 for (let i = 0; i < e.dataTransfer.files.length; i++) {
                     const file = e.dataTransfer.files[i];
                     if (file.type.indexOf('image') !== -1) {
@@ -121,7 +120,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-// ✨ 본문 삽입용 이미지를 Firebase Storage에 업로드하고 URL을 반환받아 에디터에 삽입하는 헬퍼 함수
 async function uploadInlineImageToStorage(file) {
     const btn = document.getElementById('btn-save-manual');
     const originalText = btn.textContent;
@@ -141,7 +139,8 @@ async function uploadInlineImageToStorage(file) {
         quillEditor.setSelection(range.index + 1);
     } catch (e) {
         console.error("본문 이미지 업로드 실패:", e);
-        alert("이미지를 서버에 업로드하는데 실패했습니다.");
+        // ✨ 업로드 실패 시 강경한 경고 및 Base64 우회 삽입 원천 차단
+        alert("이미지를 서버에 업로드하는데 실패했습니다.\n- 용량이 너무 큰 이미지이거나 네트워크 연결이 끊겼습니다.\n- 또는 Firebase CORS 권한 설정이 필요합니다.");
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;
@@ -370,6 +369,11 @@ async function saveManual() {
             fileName = selectedFile.name;
         }
 
+        // ✨ 너무 큰 Base64 데이터가 남아있지 않은지 최종 검증 (CORS 미적용 상태에서 저장 시도 방어)
+        if (content.length > 500000) { 
+            throw new Error("OVERSIZED_CONTENT");
+        }
+
         const manualData = {
             title,
             category,
@@ -399,7 +403,11 @@ async function saveManual() {
 
     } catch (e) {
         console.error("저장 오류:", e);
-        alert("저장에 실패했습니다. 첨부파일의 용량이 너무 크거나 인터넷 연결이 불안정할 수 있습니다.");
+        if (e.message === "OVERSIZED_CONTENT" || e.code === "resource-exhausted") {
+            alert("저장 실패: 본문 텍스트 용량이 초과되었습니다.\n\n(이미지 업로드가 실패하여 강제로 글자로 변환된 이미지가 남아있을 수 있습니다. 이미지를 지우고 다시 시도하거나 Firebase CORS 설정을 확인해주세요.)");
+        } else {
+            alert("저장에 실패했습니다. 관리자에게 문의하세요.");
+        }
     } finally {
         btn.disabled = false;
         btn.textContent = '저장하기';
