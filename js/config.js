@@ -7,7 +7,7 @@ export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
     authDomain: "work-tool-e2943.firebaseapp.com",
     projectId: "work-tool-e2943",
-    storageBucket: "work-tool-e2943.firebasestorage.app",
+    storageBucket: "work-tool-e2943.firebasestorage.app", // 이전 수정사항 유지
     messagingSenderId: "133294945093",
     appId: "1:133294945093:web:cde90aab6716127512842c",
     measurementId: "G-ZZQLKB0057"
@@ -122,13 +122,16 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.memberWages = { ...defaultData.memberWages, ...(loadedData.memberWages || {}) };
             mergedConfig.memberEmails = { ...defaultData.memberEmails, ...(loadedData.memberEmails || {}) };
             mergedConfig.memberRoles = { ...defaultData.memberRoles, ...(loadedData.memberRoles || {}) };
-            // ✨ 신규: 메뉴 개별 권한 데이터 병합
             mergedConfig.memberMenuAccess = { ...defaultData.memberMenuAccess, ...(loadedData.memberMenuAccess || {}) };
             
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
             mergedConfig.simulationTaskLinks = { ...(loadedData.simulationTaskLinks || {}), ...defaultData.simulationTaskLinks };
 
-            saveAppConfig(dbToUse, mergedConfig).catch(e => console.error("DB 업데이트 실패:", e));
+            // 🚨 핵심 수정: 불러온 데이터와 병합된 데이터가 "다를 때만" DB에 저장하여 무한 쓰기(루프) 방지!
+            if (JSON.stringify(loadedData) !== JSON.stringify(mergedConfig)) {
+                console.log("설정 변경 감지됨. DB에 업데이트합니다.");
+                saveAppConfig(dbToUse, mergedConfig).catch(e => console.error("DB 업데이트 실패:", e));
+            }
 
             return mergedConfig;
         } else {
@@ -216,7 +219,7 @@ function getDefaultConfig() {
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
-        memberMenuAccess: {}, // ✨ 개별 권한 추가
+        memberMenuAccess: {}, 
         keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무', '상.하차', '교환반품'],
         dashboardItems: [
             'total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff',
