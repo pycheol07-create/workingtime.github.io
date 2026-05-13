@@ -11,9 +11,6 @@ let quillEditor;
 let manualList = [];
 let currentEditingId = null;
 let selectedFile = null;
-let isAdmin = false;
-
-// ✨ 배율 기본값을 100에서 80으로 변경 (한 화면에 더 많은 정보를 표시하기 위함)
 let currentZoom = 80; 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -69,8 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     });
-    
-    // ✨ 에디터 로드 직후 기본 배율(80%)을 텍스트 작성창에 즉시 적용
+
     applyZoom();
 
     quillEditor.root.addEventListener('paste', async (e) => {
@@ -109,14 +105,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             appConfig = await loadAppConfig(db);
-            const userEmailLower = (user.email || '').toLowerCase();
-            const role = (appConfig.memberRoles || {})[userEmailLower] || 'user';
             
-            isAdmin = (role === 'admin');
-            
-            if (isAdmin) {
-                document.getElementById('btn-new-manual').classList.remove('hidden');
-            }
+            // ✨ 수정됨: 관리자 제한을 해제하여, 이 페이지에 접속한 누구나 새 매뉴얼을 작성할 수 있도록 변경
+            document.getElementById('btn-new-manual').classList.remove('hidden');
 
             populateCategories(); 
             populateManagers(); 
@@ -191,7 +182,6 @@ function populateManagers() {
     });
 }
 
-// ✨ 신규: 화면 전체가 아닌 [매뉴얼 본문]과 [에디터 본문]에만 배율 적용
 const applyZoom = () => {
     const zoomLevelEl = document.getElementById('zoom-level');
     if(zoomLevelEl) zoomLevelEl.textContent = `${currentZoom}%`;
@@ -495,10 +485,9 @@ function viewManual(id) {
         attachArea.classList.add('hidden');
     }
 
-    if (isAdmin) {
-        document.getElementById('btn-edit-manual').classList.remove('hidden');
-        document.getElementById('btn-delete-manual').classList.remove('hidden');
-    }
+    // ✨ 수정됨: 관리자뿐만 아니라 누구나 수정/삭제 버튼을 볼 수 있도록 변경
+    document.getElementById('btn-edit-manual').classList.remove('hidden');
+    document.getElementById('btn-delete-manual').classList.remove('hidden');
 }
 
 async function deleteManual() {
