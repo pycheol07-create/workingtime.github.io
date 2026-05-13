@@ -224,7 +224,7 @@ window.addEventListener('message', (event) => {
     }
 });
 
-// ✨ 신규: 접근 권한에 따른 사이드바 동적 필터링 및 재배치
+// 사이드바 동적 필터링 및 재배치 (매뉴얼 새 창 열기 포함)
 export const applyDynamicSidebar = (appConfig) => {
     if (!appConfig || !appConfig.dashboardMenu) return;
 
@@ -235,7 +235,6 @@ export const applyDynamicSidebar = (appConfig) => {
     const currentUserEmail = State.auth.currentUser?.email?.toLowerCase() || '';
     const currentUserRole = State.appState.currentUserRole;
     
-    // 관리자(admin)면 null(모두 통과), 일반(user)이면 허용된 메뉴 배열 할당
     let allowedMenus = null; 
     if (currentUserRole !== 'admin') {
         allowedMenus = appConfig.memberMenuAccess?.[currentUserEmail] || [];
@@ -276,13 +275,11 @@ export const applyDynamicSidebar = (appConfig) => {
     }
 
     appConfig.dashboardMenu.forEach((group, index) => {
-        // ✨ 권한 필터링: 현재 사용자가 볼 수 있는 하위 메뉴만 추려냅니다.
         const visibleItems = group.items.filter(item => {
-            if (allowedMenus === null) return true; // 관리자 프리패스
+            if (allowedMenus === null) return true; 
             return allowedMenus.includes(item.name);
         });
 
-        // 허용된 하위 메뉴가 하나도 없으면 카테고리 전체를 아예 렌더링하지 않습니다.
         if (visibleItems.length === 0) return;
 
         if (pcNav) {
@@ -300,16 +297,22 @@ export const applyDynamicSidebar = (appConfig) => {
             else mobileNav.appendChild(mobCat);
         }
 
-        // 필터링 통과된 하위 메뉴만 렌더링
         visibleItems.forEach(item => {
+            // ✨ 신규: 해당 메뉴가 매뉴얼(manual.html)인지 판단
+            const isManualLink = item.link && item.link.includes('manual.html');
+
             if (pcNav) {
                 const pcEl = pcElements[item.name];
                 if (pcEl) {
-                    if (pcEl.tagName === 'A' && item.link && item.link !== '#') pcEl.href = item.link;
+                    if (pcEl.tagName === 'A' && item.link && item.link !== '#') {
+                        pcEl.href = item.link;
+                        if(isManualLink) pcEl.target = '_blank'; // 새 탭
+                    }
                     pcNav.appendChild(pcEl);
                 } else {
                     const newPc = document.createElement('a');
                     newPc.href = item.link || '#';
+                    if(isManualLink) newPc.target = '_blank'; // 새 탭
                     newPc.className = "w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition";
                     newPc.innerHTML = `<span class="text-lg">🔗</span> ${item.name}`;
                     pcNav.appendChild(newPc);
@@ -319,12 +322,16 @@ export const applyDynamicSidebar = (appConfig) => {
             if (mobileNav) {
                 const mobEl = mobileElements[item.name];
                 if (mobEl) {
-                    if (mobEl.tagName === 'A' && item.link && item.link !== '#') mobEl.href = item.link;
+                    if (mobEl.tagName === 'A' && item.link && item.link !== '#') {
+                        mobEl.href = item.link;
+                        if(isManualLink) mobEl.target = '_blank'; // 새 탭
+                    }
                     if (logoutBtn) mobileNav.insertBefore(mobEl, logoutBtn);
                     else mobileNav.appendChild(mobEl);
                 } else {
                     const newMob = document.createElement('a');
                     newMob.href = item.link || '#';
+                    if(isManualLink) newMob.target = '_blank'; // 새 탭
                     newMob.className = "text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2";
                     newMob.innerHTML = `<span class="text-lg">🔗</span> ${item.name}`;
                     if (logoutBtn) mobileNav.insertBefore(newMob, logoutBtn);

@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Quill 에디터 초기화
     quillEditor = new Quill('#quill-editor', {
         theme: 'snow',
-        placeholder: '여기에 매뉴얼 내용을 작성하세요. 이미지는 캡처 후 붙여넣기(Ctrl+V) 하거나 끌어다 놓으세요.',
+        placeholder: '여기에 업무 매뉴얼 내용을 자세히 작성하세요. (이미지는 화면 캡처 후 Ctrl+V로 바로 붙여넣을 수 있습니다)',
         modules: {
             toolbar: [
                 [{ 'header': [1, 2, 3, false] }],
@@ -49,11 +49,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             isAdmin = (role === 'admin');
             
-            // 관리자면 버튼 노출
             if (isAdmin) {
                 document.getElementById('btn-new-manual').classList.remove('hidden');
             }
 
+            populateCategories(); // ✨ 동적 카테고리 로딩
             setupEventListeners();
             loadManuals();
         } else {
@@ -63,7 +63,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
+// ✨ 신규: config 데이터(팀 그룹)를 기반으로 작성 시 분류 콤보박스 세팅
+function populateCategories() {
+    const select = document.getElementById('edit-category');
+    select.innerHTML = '';
+    
+    const groups = appConfig.teamGroups || [];
+    
+    // 기본 공통 카테고리 추가
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '공통 지침';
+    defaultOpt.textContent = '공통 지침';
+    select.appendChild(defaultOpt);
+
+    // 파트별 카테고리 추가
+    groups.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.name; // 예: "관리", "담당파트" 등
+        opt.textContent = `${g.name} 매뉴얼`;
+        select.appendChild(opt);
+    });
+}
+
 function setupEventListeners() {
+    document.getElementById('btn-close-window').addEventListener('click', () => {
+        window.close(); // 새 탭으로 열렸을 때 닫기 동작
+    });
+
+    // ✨ 신규: 실시간 검색 이벤트
+    document.getElementById('manual-search-input').addEventListener('input', renderList);
+
     document.getElementById('btn-new-manual').addEventListener('click', () => {
         openEditor();
     });
@@ -80,7 +109,7 @@ function setupEventListeners() {
     document.getElementById('edit-file-upload').addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             selectedFile = e.target.files[0];
-            document.getElementById('upload-file-name').textContent = selectedFile.name;
+            document.getElementById('upload-file-name').innerHTML = `<span class="text-indigo-600 font-bold">✓ ${selectedFile.name}</span>`;
         }
     });
 
@@ -95,7 +124,7 @@ function setupEventListeners() {
 
 async function loadManuals() {
     const listContainer = document.getElementById('manual-list-container');
-    listContainer.innerHTML = '<div class="flex justify-center p-5 text-gray-400 text-sm">불러오는 중...</div>';
+    listContainer.innerHTML = '<div class="flex justify-center p-5 text-gray-400 text-sm">데이터를 불러오는 중...</div>';
     
     try {
         const manualCol = collection(db, 'artifacts', 'team-work-logger-v2', 'manuals');
@@ -110,33 +139,41 @@ async function loadManuals() {
         renderList();
     } catch (e) {
         console.error("매뉴얼 로드 실패:", e);
-        listContainer.innerHTML = '<div class="text-center p-5 text-red-500 text-sm">데이터를 불러오지 못했습니다.</div>';
+        listContainer.innerHTML = '<div class="text-center p-5 text-red-500 text-sm font-bold">데이터를 불러오지 못했습니다. 새로고침 해주세요.</div>';
     }
 }
 
+// ✨ 신규: 검색어 필터링이 포함된 목록 렌더링
 function renderList() {
+    const searchTerm = document.getElementById('manual-search-input').value.trim().toLowerCase();
     const listContainer = document.getElementById('manual-list-container');
     listContainer.innerHTML = '';
 
-    if (manualList.length === 0) {
-        listContainer.innerHTML = '<div class="p-4 text-center text-sm text-gray-400">등록된 매뉴얼이 없습니다.</div>';
+    const filteredList = manualList.filter(item => {
+        const titleMatch = (item.title || '').toLowerCase().includes(searchTerm);
+        const catMatch = (item.category || '').toLowerCase().includes(searchTerm);
+        return titleMatch || catMatch;
+    });
+
+    if (filteredList.length === 0) {
+        listContainer.innerHTML = `<div class="p-6 text-center text-sm text-gray-400 border border-dashed border-gray-200 dark:border-gray-700 rounded-xl mt-4">검색 결과가 없습니다.</div>`;
         return;
     }
 
-    manualList.forEach(item => {
+    filteredList.forEach(item => {
         const div = document.createElement('div');
-        div.className = 'p-3 mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group';
+        div.className = 'p-4 mb-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all group flex flex-col gap-1.5';
         
         const dateStr = item.createdAt ? new Date(item.createdAt.toMillis()).toISOString().split('T')[0] : '방금 전';
-        const hasFile = item.fileUrl ? '📎' : '📝';
+        const hasFile = item.fileUrl ? '<span class="text-[10px] bg-indigo-50 text-indigo-600 px-1 rounded font-bold border border-indigo-100">첨부</span>' : '';
 
         div.innerHTML = `
-            <div class="flex items-center gap-2 mb-1">
-                <span class="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded font-bold">${item.category || '일반'}</span>
+            <div class="flex items-center justify-between">
+                <span class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 px-2 py-0.5 rounded font-bold shadow-sm">${item.category || '일반'}</span>
                 <span class="text-[10px] text-gray-400 font-mono">${dateStr}</span>
             </div>
-            <div class="text-sm font-bold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 transition flex items-center gap-1">
-                <span>${hasFile}</span> <span class="truncate">${item.title}</span>
+            <div class="text-sm font-extrabold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug">
+                ${item.title} ${hasFile}
             </div>
         `;
 
@@ -150,17 +187,22 @@ function openEditor(item = null) {
     selectedFile = null;
 
     document.getElementById('edit-title').value = item ? item.title : '';
-    document.getElementById('edit-category').value = item ? item.category : '일반';
     
-    // 에디터 내용 세팅
+    // 카테고리 설정 (없으면 첫번째 값)
+    const catSelect = document.getElementById('edit-category');
+    if (item && item.category) {
+        catSelect.value = item.category;
+    } else {
+        catSelect.selectedIndex = 0;
+    }
+    
     quillEditor.root.innerHTML = item ? (item.content || '') : '';
     
-    // 첨부파일 세팅
     const fileNameDisplay = document.getElementById('upload-file-name');
     document.getElementById('edit-file-upload').value = '';
     
     if (item && item.fileUrl) {
-        fileNameDisplay.innerHTML = `<span class="text-blue-600 font-bold">기존 파일 유지됨 (클릭 시 변경)</span>`;
+        fileNameDisplay.innerHTML = `<span class="text-blue-600 font-bold">💾 기존 첨부파일: ${item.fileName || '유지됨'} (선택 시 교체)</span>`;
     } else {
         fileNameDisplay.textContent = '선택된 파일 없음';
     }
@@ -174,26 +216,24 @@ async function saveManual() {
     const content = quillEditor.root.innerHTML;
     
     if (!title) {
-        alert("제목을 입력해주세요.");
+        alert("제목을 반드시 입력해주세요.");
         return;
     }
 
     const btn = document.getElementById('btn-save-manual');
     btn.disabled = true;
-    btn.textContent = '저장 중...';
+    btn.textContent = '저장 처리 중...';
 
     try {
         let fileUrl = null;
         let fileName = null;
 
-        // 기존 데이터 유지용
         const existingItem = manualList.find(m => m.id === currentEditingId);
         if (existingItem) {
             fileUrl = existingItem.fileUrl;
             fileName = existingItem.fileName;
         }
 
-        // 새 파일이 선택된 경우 Storage에 업로드
         if (selectedFile) {
             const ext = selectedFile.name.split('.').pop();
             const safeName = `manual_${Date.now()}.${ext}`;
@@ -220,18 +260,19 @@ async function saveManual() {
             await setDoc(doc(manualCol, currentEditingId), manualData, { merge: true });
         } else {
             manualData.createdAt = serverTimestamp();
-            await setDoc(doc(manualCol, `doc_${Date.now()}`), manualData);
+            const newDocRef = doc(manualCol, `doc_${Date.now()}`);
+            await setDoc(newDocRef, manualData);
+            currentEditingId = newDocRef.id; // 방금 작성한 글을 바로 열기 위해 ID 지정
         }
 
         document.getElementById('manual-edit-area').classList.add('hidden');
-        await loadManuals(); // 목록 새로고침
+        await loadManuals(); 
         
-        // 새로 저장한 문서 열기
-        if(currentEditingId) viewManual(currentEditingId);
+        viewManual(currentEditingId);
 
     } catch (e) {
         console.error("저장 오류:", e);
-        alert("저장에 실패했습니다. 용량이 너무 크거나 네트워크 오류일 수 있습니다.");
+        alert("저장에 실패했습니다. 첨부파일의 용량이 너무 크거나 인터넷 연결이 불안정할 수 있습니다.");
     } finally {
         btn.disabled = false;
         btn.textContent = '저장하기';
@@ -246,25 +287,22 @@ function viewManual(id) {
     document.getElementById('viewer-empty').classList.add('hidden');
     document.getElementById('viewer-content').classList.remove('hidden');
     document.getElementById('view-title').textContent = item.title;
-    document.getElementById('view-type-badge').textContent = item.category || '일반';
+    document.getElementById('view-type-badge').textContent = item.category || '공통 지침';
     
     const dateStr = item.createdAt ? new Date(item.createdAt.toMillis()).toISOString().split('T')[0] : '';
     document.getElementById('view-date').textContent = dateStr;
 
-    // 본문 (Quill로 작성된 HTML 그대로 렌더링)
     document.getElementById('view-body').innerHTML = item.content || '';
 
-    // 첨부파일
     const attachArea = document.getElementById('view-attachment');
     if (item.fileUrl) {
         attachArea.classList.remove('hidden');
-        document.getElementById('view-file-name').textContent = item.fileName || '첨부문서 확인하기';
+        document.getElementById('view-file-name').textContent = item.fileName || '첨부된 파일 확인하기';
         document.getElementById('view-file-link').href = item.fileUrl;
     } else {
         attachArea.classList.add('hidden');
     }
 
-    // 관리자 버튼
     if (isAdmin) {
         document.getElementById('btn-edit-manual').classList.remove('hidden');
         document.getElementById('btn-delete-manual').classList.remove('hidden');
@@ -272,7 +310,7 @@ function viewManual(id) {
 }
 
 async function deleteManual() {
-    if (!confirm("이 매뉴얼을 정말 삭제하시겠습니까?")) return;
+    if (!confirm("이 매뉴얼을 정말로 삭제하시겠습니까?\n(복구할 수 없습니다)")) return;
     
     try {
         await deleteDoc(doc(db, 'artifacts', 'team-work-logger-v2', 'manuals', currentEditingId));
