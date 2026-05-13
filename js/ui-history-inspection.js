@@ -81,12 +81,11 @@ export const renderInspectionLayout = (container) => {
     `;
 };
 
-// ✨ [Auto-Sync 탑재] 일자별 검수 리스트 렌더링
+// ✨ [수정됨] 일자별 검수 리스트 렌더링 (대기 상태 항목은 샘플 수량 0개로 철저히 계산)
 export const renderInspectionListMode = async (dateList, selectedDateData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
 
-    // 렌더링 준비 스피너 노출 (매우 짧은 찰나)
     if (!container.querySelector('.insp-list-loaded')) {
         container.innerHTML = `<div class="flex h-full items-center justify-center text-indigo-500 font-bold animate-pulse">데이터 동기화 및 렌더링 중...</div>`;
     }
@@ -114,19 +113,16 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
 
     const filteredSelectedData = filteredDateList.find(d => d.date === selectedDate)?.data || [];
 
-    // 🛠️ [백그라운드 자동 동기화] 과거 1개로 저장된 오류 데이터를 자동으로 추적하여 3개/5개 등으로 복구
     if (State.db && filteredSelectedData.length > 0) {
         let needsDbUpdate = false;
         await Promise.all(filteredSelectedData.map(async (item) => {
             if (item.status === '완료' && item.inspectionType !== 'total') {
-                // 수량이 없거나 오류로 인해 1개로 기록되어 있을 가능성이 있는 항목 추적
                 if (item.sampleQty === undefined || item.sampleQty === 1 || item.sampleQty === 0) {
                     try {
                         const docRef = doc(State.db, 'product_history', item.name);
                         const snap = await getDoc(docRef);
                         if (snap.exists()) {
                             const logs = snap.data().logs || [];
-                            // 원본 로그에서 정확한 기록 찾기
                             const targetLog = logs.find(l => 
                                 l.date === selectedDate && 
                                 (item.packingDate ? l.packingDate === item.packingDate : true) &&
@@ -135,7 +131,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                             if (targetLog && targetLog.sampleQty !== undefined) {
                                 const trueQty = Number(targetLog.sampleQty);
                                 if (item.sampleQty !== trueQty) {
-                                    item.sampleQty = trueQty; // 정확한 수량으로 복구
+                                    item.sampleQty = trueQty;
                                     needsDbUpdate = true;
                                 }
                             }
@@ -145,7 +141,6 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
             }
         }));
 
-        // 복구된 데이터가 있다면 DB에 조용히 덮어쓰기하여 영구적으로 수정
         if (needsDbUpdate) {
             try {
                 const originalDayData = dateList.find(d => d.date === selectedDate)?.data;
@@ -205,9 +200,13 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                 ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
                 : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
 
-            // 복구된 수량 추출
+            // ✨ 입고 수량 및 샘플검수 수량 계산 로직 (대기 상태는 무조건 0으로)
             const inboundQty = Number(item.inboundQty || item.qty || 0);
-            const sampleQty = item.sampleQty !== undefined ? Number(item.sampleQty) : (item.inspectionType === 'total' ? inboundQty : 1);
+            
+            let sampleQty = 0;
+            if (isCompleted) {
+                sampleQty = item.sampleQty !== undefined ? Number(item.sampleQty) : (item.inspectionType === 'total' ? inboundQty : 1);
+            }
             
             totalInboundQty += inboundQty;
             totalSampleQty += sampleQty;
@@ -226,7 +225,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                     <td class="px-4 py-3 text-xs text-gray-600">${item.supplierName || '-'}</td>
                     <td class="px-4 py-3 text-center">
                         <div class="text-xs font-bold text-gray-700">${inboundQty.toLocaleString()}</div>
-                        <div class="text-[10px] text-blue-600 font-bold">(샘플검수: ${sampleQty.toLocaleString()})</div>
+                        <div class="text-[10px] ${isCompleted ? 'text-blue-600' : 'text-gray-400'} font-bold">(샘플검수: ${sampleQty.toLocaleString()}개)</div>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">${item.thickness || '-'}</td>
                     <td class="px-4 py-3 text-center">${statusBadge}</td>
