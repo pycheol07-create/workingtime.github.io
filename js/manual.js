@@ -25,11 +25,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Quill 에디터 초기화
+    // ✨ Quill 에디터 초기화 (ImageResize 모듈 활성화 추가)
     quillEditor = new Quill('#quill-editor', {
         theme: 'snow',
         placeholder: '여기에 업무 매뉴얼 내용을 자세히 작성하세요. (이미지는 화면 캡처 후 Ctrl+V로 바로 붙여넣을 수 있습니다)',
         modules: {
+            imageResize: { 
+                displaySize: true // 이미지 리사이징 박스 및 크기 툴팁 활성화
+            },
             toolbar: [
                 [{ 'header': [1, 2, 3, false] }],
                 ['bold', 'italic', 'underline', 'strike'],
@@ -53,7 +56,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('btn-new-manual').classList.remove('hidden');
             }
 
-            populateCategories(); // ✨ 동적 카테고리 로딩
+            populateCategories(); 
+            populateManagers(); 
             setupEventListeners();
             loadManuals();
         } else {
@@ -63,34 +67,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-// ✨ 신규: config 데이터(팀 그룹)를 기반으로 작성 시 분류 콤보박스 세팅
 function populateCategories() {
     const select = document.getElementById('edit-category');
     select.innerHTML = '';
     
     const groups = appConfig.teamGroups || [];
     
-    // 기본 공통 카테고리 추가
     const defaultOpt = document.createElement('option');
     defaultOpt.value = '공통 지침';
     defaultOpt.textContent = '공통 지침';
     select.appendChild(defaultOpt);
 
-    // 파트별 카테고리 추가
     groups.forEach(g => {
         const opt = document.createElement('option');
-        opt.value = g.name; // 예: "관리", "담당파트" 등
+        opt.value = g.name; 
         opt.textContent = `${g.name} 매뉴얼`;
+        select.appendChild(opt);
+    });
+}
+
+function populateManagers() {
+    const select = document.getElementById('edit-manager');
+    select.innerHTML = '<option value="">선택 안함</option>';
+    
+    const members = new Set();
+    (appConfig.teamGroups || []).forEach(g => {
+        (g.members || []).forEach(m => members.add(m));
+    });
+    
+    Array.from(members).sort().forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
         select.appendChild(opt);
     });
 }
 
 function setupEventListeners() {
     document.getElementById('btn-close-window').addEventListener('click', () => {
-        window.close(); // 새 탭으로 열렸을 때 닫기 동작
+        window.close(); 
     });
 
-    // ✨ 신규: 실시간 검색 이벤트
     document.getElementById('manual-search-input').addEventListener('input', renderList);
 
     document.getElementById('btn-new-manual').addEventListener('click', () => {
@@ -143,7 +160,6 @@ async function loadManuals() {
     }
 }
 
-// ✨ 신규: 검색어 필터링이 포함된 목록 렌더링
 function renderList() {
     const searchTerm = document.getElementById('manual-search-input').value.trim().toLowerCase();
     const listContainer = document.getElementById('manual-list-container');
@@ -152,7 +168,8 @@ function renderList() {
     const filteredList = manualList.filter(item => {
         const titleMatch = (item.title || '').toLowerCase().includes(searchTerm);
         const catMatch = (item.category || '').toLowerCase().includes(searchTerm);
-        return titleMatch || catMatch;
+        const managerMatch = (item.manager || '').toLowerCase().includes(searchTerm);
+        return titleMatch || catMatch || managerMatch;
     });
 
     if (filteredList.length === 0) {
@@ -160,25 +177,37 @@ function renderList() {
         return;
     }
 
+    const grouped = {};
     filteredList.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'p-4 mb-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all group flex flex-col gap-1.5';
-        
-        const dateStr = item.createdAt ? new Date(item.createdAt.toMillis()).toISOString().split('T')[0] : '방금 전';
-        const hasFile = item.fileUrl ? '<span class="text-[10px] bg-indigo-50 text-indigo-600 px-1 rounded font-bold border border-indigo-100">첨부</span>' : '';
+        const cat = item.category || '공통 지침';
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(item);
+    });
 
-        div.innerHTML = `
-            <div class="flex items-center justify-between">
-                <span class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 px-2 py-0.5 rounded font-bold shadow-sm">${item.category || '일반'}</span>
-                <span class="text-[10px] text-gray-400 font-mono">${dateStr}</span>
-            </div>
-            <div class="text-sm font-extrabold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug">
-                ${item.title} ${hasFile}
-            </div>
-        `;
+    Object.keys(grouped).sort().forEach(cat => {
+        const catHeader = document.createElement('div');
+        catHeader.className = 'text-xs font-bold text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700 pb-1 mt-6 mb-3 px-2 uppercase tracking-wider';
+        catHeader.textContent = cat;
+        listContainer.appendChild(catHeader);
 
-        div.addEventListener('click', () => viewManual(item.id));
-        listContainer.appendChild(div);
+        grouped[cat].forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'p-3 mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all group flex flex-col gap-1.5';
+            
+            const hasFile = item.fileUrl ? '<span class="text-[10px] bg-indigo-50 text-indigo-600 px-1 rounded font-bold border border-indigo-100 ml-1">첨부</span>' : '';
+
+            div.innerHTML = `
+                <div class="text-sm font-extrabold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug">
+                    ${item.title} ${hasFile}
+                </div>
+                <div class="flex items-center justify-between mt-1">
+                    <span class="text-[10px] text-gray-500 font-medium">담당: ${item.manager || '<span class="text-gray-300">미지정</span>'}</span>
+                </div>
+            `;
+
+            div.addEventListener('click', () => viewManual(item.id));
+            listContainer.appendChild(div);
+        });
     });
 }
 
@@ -188,12 +217,18 @@ function openEditor(item = null) {
 
     document.getElementById('edit-title').value = item ? item.title : '';
     
-    // 카테고리 설정 (없으면 첫번째 값)
     const catSelect = document.getElementById('edit-category');
     if (item && item.category) {
         catSelect.value = item.category;
     } else {
         catSelect.selectedIndex = 0;
+    }
+
+    const managerSelect = document.getElementById('edit-manager');
+    if (item && item.manager) {
+        managerSelect.value = item.manager;
+    } else {
+        managerSelect.selectedIndex = 0;
     }
     
     quillEditor.root.innerHTML = item ? (item.content || '') : '';
@@ -213,6 +248,7 @@ function openEditor(item = null) {
 async function saveManual() {
     const title = document.getElementById('edit-title').value.trim();
     const category = document.getElementById('edit-category').value;
+    const manager = document.getElementById('edit-manager').value;
     const content = quillEditor.root.innerHTML;
     
     if (!title) {
@@ -247,6 +283,7 @@ async function saveManual() {
         const manualData = {
             title,
             category,
+            manager,
             content: content === '<p><br></p>' ? '' : content,
             fileUrl: fileUrl || null,
             fileName: fileName || null,
@@ -262,7 +299,7 @@ async function saveManual() {
             manualData.createdAt = serverTimestamp();
             const newDocRef = doc(manualCol, `doc_${Date.now()}`);
             await setDoc(newDocRef, manualData);
-            currentEditingId = newDocRef.id; // 방금 작성한 글을 바로 열기 위해 ID 지정
+            currentEditingId = newDocRef.id; 
         }
 
         document.getElementById('manual-edit-area').classList.add('hidden');
@@ -279,6 +316,13 @@ async function saveManual() {
     }
 }
 
+const formatDateTime = (timestamp) => {
+    if (!timestamp) return '-';
+    const d = new Date(timestamp.toMillis ? timestamp.toMillis() : timestamp);
+    if (isNaN(d)) return '-';
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+};
+
 function viewManual(id) {
     const item = manualList.find(m => m.id === id);
     if (!item) return;
@@ -289,8 +333,9 @@ function viewManual(id) {
     document.getElementById('view-title').textContent = item.title;
     document.getElementById('view-type-badge').textContent = item.category || '공통 지침';
     
-    const dateStr = item.createdAt ? new Date(item.createdAt.toMillis()).toISOString().split('T')[0] : '';
-    document.getElementById('view-date').textContent = dateStr;
+    document.getElementById('view-manager').innerHTML = item.manager ? `<span class="text-indigo-600">${item.manager}</span>` : '<span class="text-gray-300">미지정</span>';
+    document.getElementById('view-created-date').textContent = formatDateTime(item.createdAt);
+    document.getElementById('view-updated-date').textContent = formatDateTime(item.updatedAt || item.createdAt);
 
     document.getElementById('view-body').innerHTML = item.content || '';
 
