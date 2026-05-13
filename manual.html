@@ -46,8 +46,11 @@
         .prose blockquote { border-left-color: #3b82f6; font-style: normal; background-color: #f3f4f6; padding: 0.5rem 1rem; border-radius: 0 0.5rem 0.5rem 0; }
         .dark .prose blockquote { background-color: #374151; border-left-color: #60a5fa; color: #d1d5db; }
         
-        /* 뷰어 영역 부드러운 확대/축소를 위한 전환 효과 */
-        #manual-view-area, #manual-edit-area, #manual-list-container { transition: zoom 0.2s ease; }
+        .ql-editor hr, .prose hr { border: none; border-top: 2px solid #e2e8f0; margin: 2rem 0; }
+        .dark .ql-editor hr, .dark .prose hr { border-top-color: #374151; }
+        
+        /* ✨ 신규: 전체 창이 아닌 뷰어 본문과 에디터 본문에만 배율 애니메이션 적용 */
+        #view-body, .ql-editor { transition: zoom 0.2s ease; }
     </style>
 </head>
 <body class="text-gray-800 dark:text-gray-200 overflow-hidden flex h-screen relative">
@@ -67,10 +70,10 @@
             </div>
 
             <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-900 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 shadow-inner">
-                <span class="text-xs font-bold text-gray-600 dark:text-gray-400">🔍 화면 배율</span>
+                <span class="text-xs font-bold text-gray-600 dark:text-gray-400">🔍 본문 배율</span>
                 <div class="flex items-center gap-2">
                     <button id="btn-zoom-out" class="w-6 h-6 flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 hover:bg-gray-100 font-bold transition shadow-sm">-</button>
-                    <span id="zoom-level" class="text-xs font-bold text-gray-800 dark:text-gray-200 w-10 text-center font-mono">100%</span>
+                    <span id="zoom-level" class="text-xs font-bold text-gray-800 dark:text-gray-200 w-10 text-center font-mono">80%</span>
                     <button id="btn-zoom-in" class="w-6 h-6 flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 hover:bg-gray-100 font-bold transition shadow-sm">+</button>
                 </div>
             </div>
@@ -92,7 +95,7 @@
 
     <main class="flex-1 flex flex-col relative h-full overflow-hidden bg-gray-50 dark:bg-gray-900 w-full">
         
-        <div id="manual-view-area" class="absolute inset-0 overflow-y-auto custom-scrollbar p-4 md:p-6 pt-16 md:pt-6 w-full bg-gray-50 dark:bg-gray-900 origin-top">
+        <div id="manual-view-area" class="absolute inset-0 overflow-y-auto custom-scrollbar p-4 md:p-6 pt-16 md:pt-6 w-full bg-gray-50 dark:bg-gray-900">
             <div class="w-full min-h-full bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col">
                 <div id="viewer-empty" class="flex-1 flex flex-col justify-center items-center text-gray-400 p-10 text-center min-h-[500px]">
                     <span class="text-6xl mb-4">📖</span>
@@ -134,7 +137,7 @@
             </div>
         </div>
 
-        <div id="manual-edit-area" class="absolute inset-0 z-10 p-3 md:p-4 pt-14 md:pt-4 bg-gray-50 dark:bg-gray-900 hidden w-full flex flex-col origin-top">
+        <div id="manual-edit-area" class="absolute inset-0 z-10 p-3 md:p-4 pt-14 md:pt-4 bg-gray-50 dark:bg-gray-900 hidden w-full flex flex-col">
             <div class="w-full flex-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden min-h-0">
                 
                 <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
@@ -176,6 +179,7 @@
                                 <button type="button" class="symbol-btn text-xs px-2 py-0.5 bg-white dark:bg-gray-700 hover:bg-blue-50 border border-gray-200 dark:border-gray-600 rounded transition shadow-sm text-gray-700 dark:text-gray-200">■</button>
                                 <button type="button" class="symbol-btn text-xs px-2 py-0.5 bg-white dark:bg-gray-700 hover:bg-blue-50 border border-gray-200 dark:border-gray-600 rounded transition shadow-sm text-gray-700 dark:text-gray-200">💡</button>
                                 <button type="button" class="symbol-btn text-xs px-2 py-0.5 bg-white dark:bg-gray-700 hover:bg-blue-50 border border-gray-200 dark:border-gray-600 rounded transition shadow-sm text-gray-700 dark:text-gray-200">🚨</button>
+                                <button type="button" id="btn-divider" class="text-[11px] px-2.5 py-0.5 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 border border-gray-200 dark:border-gray-500 rounded transition shadow-sm text-gray-700 dark:text-gray-200 font-bold ml-1 flex items-center gap-1"><span class="text-xs">➖</span> 구분선</button>
                             </div>
                         </div>
 
