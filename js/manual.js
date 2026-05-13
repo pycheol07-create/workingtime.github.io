@@ -25,22 +25,76 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // ✨ Quill 에디터 초기화 (ImageResize 모듈 활성화 추가)
+    // ✨ 에디터 이미지 업로드 핸들러 정의 (버튼 클릭 시)
+    const imageHandler = () => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+
+        input.onchange = async () => {
+            const file = input.files[0];
+            if (file) await uploadInlineImageToStorage(file);
+        };
+    };
+
     quillEditor = new Quill('#quill-editor', {
         theme: 'snow',
         placeholder: '여기에 업무 매뉴얼 내용을 자세히 작성하세요. (이미지는 화면 캡처 후 Ctrl+V로 바로 붙여넣을 수 있습니다)',
         modules: {
             imageResize: { 
-                displaySize: true // 이미지 리사이징 박스 및 크기 툴팁 활성화
+                displaySize: true 
             },
-            toolbar: [
-                [{ 'header': [1, 2, 3, false] }],
-                ['bold', 'italic', 'underline', 'strike'],
-                [{ 'color': [] }, { 'background': [] }],
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                ['image', 'link'],
-                ['clean']
-            ]
+            toolbar: {
+                container: [
+                    [{ 'header': [1, 2, 3, 4, false] }, { 'size': ['small', false, 'large', 'huge'] }], 
+                    ['bold', 'italic', 'underline', 'strike', 'blockquote'], 
+                    [{ 'color': [] }, { 'background': [] }], 
+                    [{ 'align': [] }], 
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }, { 'indent': '-1'}, { 'indent': '+1' }], 
+                    ['link', 'image', 'video'], 
+                    ['clean'] 
+                ],
+                // 커스텀 이미지 핸들러 연결
+                handlers: {
+                    image: imageHandler
+                }
+            }
+        }
+    });
+
+    // ✨ 붙여넣기(Ctrl+V) 시 Base64 텍스트 대신 실제 파일로 가로채서 업로드
+    quillEditor.root.addEventListener('paste', async (e) => {
+        if (e.clipboardData && e.clipboardData.items && e.clipboardData.items.length) {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    e.preventDefault(); // 기본 Base64 삽입 방지
+                    const file = items[i].getAsFile();
+                    await uploadInlineImageToStorage(file);
+                }
+            }
+        }
+    });
+
+    // ✨ 드래그 앤 드롭 시 Base64 방지 및 파일로 업로드
+    quillEditor.root.addEventListener('drop', async (e) => {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+            let hasImage = false;
+            for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                if (e.dataTransfer.files[i].type.indexOf('image') !== -1) {
+                    hasImage = true;
+                }
+            }
+            if (hasImage) {
+                e.preventDefault(); // 기본 동작 방지
+                for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                    const file = e.dataTransfer.files[i];
+                    if (file.type.indexOf('image') !== -1) {
+                        await uploadInlineImageToStorage(file);
+                    }
+                }
+            }
         }
     });
 
@@ -66,6 +120,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 });
+
+// ✨ 본문 삽입용 이미지를 Firebase Storage에 업로드하고 URL을 반환받아 에디터에 삽입하는 헬퍼 함수
+async function uploadInlineImageToStorage(file) {
+    const btn = document.getElementById('btn-save-manual');
+    const originalText = btn.textContent;
+    btn.textContent = '이미지 업로드 중...';
+    btn.disabled = true;
+
+    try {
+        const ext = file.name ? file.name.split('.').pop() : 'png';
+        const safeName = `manual_inline_${Date.now()}_${Math.floor(Math.random()*1000)}.${ext}`;
+        const storageRef = ref(storage, `manuals/images/${safeName}`);
+
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+
+        const range = quillEditor.getSelection(true); 
+        quillEditor.insertEmbed(range.index, 'image', url);
+        quillEditor.setSelection(range.index + 1);
+    } catch (e) {
+        console.error("본문 이미지 업로드 실패:", e);
+        alert("이미지를 서버에 업로드하는데 실패했습니다.");
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+}
 
 function populateCategories() {
     const select = document.getElementById('edit-category');
@@ -136,6 +217,15 @@ function setupEventListeners() {
     document.getElementById('btn-edit-manual').addEventListener('click', () => {
         const item = manualList.find(m => m.id === currentEditingId);
         if (item) openEditor(item);
+    });
+
+    document.querySelectorAll('.symbol-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const symbol = e.target.textContent;
+            const range = quillEditor.getSelection(true); 
+            quillEditor.insertText(range.index, symbol); 
+            quillEditor.setSelection(range.index + symbol.length); 
+        });
     });
 }
 
