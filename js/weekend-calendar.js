@@ -6,8 +6,11 @@ import { collection, query, where, onSnapshot } from "https://www.gstatic.com/fi
 import { renderWeekendStats, renderWeekendList, renderWeekendGrid } from './weekend-ui.js';
 import { processSelectedDatesBulkAction, populatePastDateAddSelect, renderPastDateMembers } from './weekend-admin.js';
 
-// 현재 뷰 상태 저장용 변수
-let currentViewMode = 'list'; // 'list' or 'calendar'
+let currentViewMode = 'list'; 
+
+// ✨ 추가: 읽기(Read) 비용 최적화를 위한 로컬 데이터 캐싱 변수
+let currentLoadedYear = null; 
+let yearSnapshotData = []; 
 
 export async function initWeekendCalendar() {
     await loadWeekendRequests(store.currentYear, store.currentMonth);
@@ -29,7 +32,6 @@ export async function initWeekendCalendar() {
     const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
     if (bulkDeleteBtn) bulkDeleteBtn.onclick = () => processSelectedDatesBulkAction('delete');
 
-    // 🔥 [추가] 뷰 전환 버튼 이벤트 리스너 설정
     const btnList = document.getElementById('view-toggle-list');
     const btnCalendar = document.getElementById('view-toggle-calendar');
 
@@ -39,7 +41,6 @@ export async function initWeekendCalendar() {
     }
 }
 
-// 🔥 [추가] 뷰 전환 및 UI 업데이트 함수
 function setViewMode(mode) {
     currentViewMode = mode;
     const btnList = document.getElementById('view-toggle-list');
@@ -54,7 +55,6 @@ function setViewMode(mode) {
         viewList.classList.remove('hidden');
         viewCalendar.classList.add('hidden');
         
-        // 리스트 뷰에서만 일괄 선택 메뉴 표시 (관리자인 경우 renderWeekendList에서 처리됨)
         renderWeekendList(store.currentYear, store.currentMonth);
     } else {
         btnList.className = 'px-2 py-1 text-xs font-bold bg-white text-gray-500 hover:bg-gray-50';
@@ -63,7 +63,6 @@ function setViewMode(mode) {
         viewCalendar.classList.remove('hidden');
         viewCalendar.classList.add('flex');
         
-        // 캘린더 뷰에서는 일괄 처리 바를 숨김
         if (bulkBar) {
             bulkBar.classList.add('hidden');
             bulkBar.classList.remove('flex');
@@ -85,99 +84,113 @@ export function changeMonth(offset) {
     loadWeekendRequests(store.currentYear, store.currentMonth);
 }
 
-async function loadWeekendRequests(year, month) {
+// ✨ 추가: DB에서 받아온 전체 연도 데이터를 월별 화면에 맞게 가공하고 렌더링하는 전담 함수
+function processAndRenderWeekend(year, month) {
     const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
     
-    if (store.unsubscribe) {
-        store.unsubscribe();
-        store.unsubscribe = null;
-    }
+    store.myRequestsMap.clear();
+    store.blockedDatesSet.clear();
+    store.capacityMap.clear(); 
+    store.requestsByDate = {};
+    
+    const memberStats = new Map(); 
+    const yearlyStatsMap = new Map(); 
+    const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
 
-    try {
-        const startOfYear = `${year}-01-01`;
-        const endOfYear = `${year}-12-31`;
-        
-        const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
-        const q = query(colRef, where("date", ">=", startOfYear), where("date", "<=", endOfYear));
-
-        store.unsubscribe = onSnapshot(q, (snapshot) => {
-            store.myRequestsMap.clear();
-            store.blockedDatesSet.clear();
-            store.capacityMap.clear(); 
-            store.requestsByDate = {};
-            
-            const memberStats = new Map(); 
-            const yearlyStatsMap = new Map(); 
-            const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
-
-            if (State.appConfig && State.appConfig.teamGroups) {
-                State.appConfig.teamGroups.forEach(group => {
-                    if (group.members && Array.isArray(group.members)) {
-                        group.members.forEach(member => {
-                            if (!excludedMembers.includes(member)) {
-                                memberStats.set(member, { confirmed: 0, requested: 0 });
-                                yearlyStatsMap.set(member, 0); 
-                            }
-                        });
+    if (State.appConfig && State.appConfig.teamGroups) {
+        State.appConfig.teamGroups.forEach(group => {
+            if (group.members && Array.isArray(group.members)) {
+                group.members.forEach(member => {
+                    if (!excludedMembers.includes(member)) {
+                        memberStats.set(member, { confirmed: 0, requested: 0 });
+                        yearlyStatsMap.set(member, 0); 
                     }
                 });
             }
+        });
+    }
 
-            snapshot.forEach(docSnap => {
-                const data = docSnap.data();
-                
-                if (data.type === 'blocked') {
-                    if (data.month === monthStr) store.blockedDatesSet.add(data.date);
-                } else if (data.type === 'capacity') {
-                    if (data.month === monthStr) store.capacityMap.set(data.date, data.capacity);
-                } else {
-                    if (data.status === 'confirmed' && !excludedMembers.includes(data.member)) {
-                        yearlyStatsMap.set(data.member, (yearlyStatsMap.get(data.member) || 0) + 1);
-                    }
+    // 로컬에 캐싱된(저장된) 1년 치 데이터에서 화면에 그릴 달(Month)의 정보만 추출
+    yearSnapshotData.forEach(data => {
+        if (data.type === 'blocked') {
+            if (data.month === monthStr) store.blockedDatesSet.add(data.date);
+        } else if (data.type === 'capacity') {
+            if (data.month === monthStr) store.capacityMap.set(data.date, data.capacity);
+        } else {
+            if (data.status === 'confirmed' && !excludedMembers.includes(data.member)) {
+                yearlyStatsMap.set(data.member, (yearlyStatsMap.get(data.member) || 0) + 1);
+            }
 
-                    if (data.month === monthStr) {
-                        if (!store.requestsByDate[data.date]) store.requestsByDate[data.date] = [];
-                        store.requestsByDate[data.date].push({ id: docSnap.id, ...data });
+            if (data.month === monthStr) {
+                if (!store.requestsByDate[data.date]) store.requestsByDate[data.date] = [];
+                store.requestsByDate[data.date].push(data);
 
-                        if (data.member === State.appState.currentUser) {
-                            store.myRequestsMap.set(data.date, docSnap.id);
-                        }
-
-                        if (!excludedMembers.includes(data.member)) {
-                            const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
-                            if (data.status === 'confirmed') stat.confirmed++;
-                            else if (data.status === 'requested') stat.requested++;
-                            memberStats.set(data.member, stat);
-                        }
-                    }
+                if (data.member === State.appState.currentUser) {
+                    store.myRequestsMap.set(data.date, data.id);
                 }
+
+                if (!excludedMembers.includes(data.member)) {
+                    const stat = memberStats.get(data.member) || { confirmed: 0, requested: 0 };
+                    if (data.status === 'confirmed') stat.confirmed++;
+                    else if (data.status === 'requested') stat.requested++;
+                    memberStats.set(data.member, stat);
+                }
+            }
+        }
+    });
+
+    store.currentYearlyStats = new Map(yearlyStatsMap);
+    store.currentMonthStats = new Map(memberStats);
+
+    renderWeekendStats(memberStats, yearlyStatsMap);
+    
+    if (currentViewMode === 'list') {
+        renderWeekendList(year, month);
+    } else {
+        renderWeekendGrid(year, month);
+    }
+    
+    const pastPopup = document.getElementById('past-date-edit-popup');
+    if (pastPopup && !pastPopup.classList.contains('hidden') && currentManageDateStr) {
+        populatePastDateAddSelect(currentManageDateStr);
+        renderPastDateMembers(currentManageDateStr);
+    }
+}
+
+async function loadWeekendRequests(year, month) {
+    // ✨ 핵심 최적화: 사용자가 연도(Year)를 바꿀 때만 DB에 새로 요청하고, 
+    // 같은 연도 내에서 월(Month)만 앞뒤로 넘길 때는 DB에 요청하지 않고 즉시 화면만 다시 그림!
+    if (currentLoadedYear !== year) {
+        if (store.unsubscribe) {
+            store.unsubscribe();
+            store.unsubscribe = null;
+        }
+
+        try {
+            const startOfYear = `${year}-01-01`;
+            const endOfYear = `${year}-12-31`;
+            
+            const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
+            const q = query(colRef, where("date", ">=", startOfYear), where("date", "<=", endOfYear));
+
+            store.unsubscribe = onSnapshot(q, (snapshot) => {
+                yearSnapshotData = []; 
+                snapshot.forEach(docSnap => {
+                    yearSnapshotData.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                currentLoadedYear = year;
+                processAndRenderWeekend(store.currentYear, store.currentMonth);
+            }, (error) => {
+                console.error("Error in weekend listener:", error);
+                showToast("실시간 데이터를 불러오지 못했습니다.", true);
             });
 
-            store.currentYearlyStats = new Map(yearlyStatsMap);
-            store.currentMonthStats = new Map(memberStats);
-
-            renderWeekendStats(memberStats, yearlyStatsMap);
-            
-            // 🔥 [추가] 현재 활성화된 뷰에 따라 다르게 렌더링 호출
-            if (currentViewMode === 'list') {
-                renderWeekendList(year, month);
-            } else {
-                renderWeekendGrid(year, month);
-            }
-            
-            const pastPopup = document.getElementById('past-date-edit-popup');
-            if (pastPopup && !pastPopup.classList.contains('hidden') && currentManageDateStr) {
-                populatePastDateAddSelect(currentManageDateStr);
-                renderPastDateMembers(currentManageDateStr);
-            }
-
-        }, (error) => {
-            console.error("Error in weekend listener:", error);
-            showToast("실시간 데이터를 불러오지 못했습니다.", true);
-        });
-
-    } catch (e) {
-        console.error("Error setting up listener:", e);
+        } catch (e) {
+            console.error("Error setting up listener:", e);
+        }
+    } else {
+        // 연도가 같으면 값비싼 DB 호출 없이 로컬 데이터로 화면 렌더링 (초고속 동작)
+        processAndRenderWeekend(store.currentYear, store.currentMonth);
     }
 }
 
