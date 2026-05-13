@@ -2,7 +2,8 @@
 import * as State from './state.js';
 import * as DOM from './dom-elements.js';
 import { getTodayDateString, showToast } from './utils.js';
-import { doc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// 🚨 deleteDoc 추가 임포트
+import { doc, onSnapshot, collection, query, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js';
 import { renderTodoList } from './inspection-logic.js';
 import { renderNotificationList } from './app-notifications.js';
@@ -82,24 +83,26 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
         const notiQuery = query(notiColRef, where("targetMember", "==", State.appState.currentUser));
         
-        let isInitialLoad = true; // 🔥 처음 로그인 시 과거 알림들로 인해 팝업이 뜨는 것을 방지
+        let isInitialLoad = true;
 
         if (unsubscribeNotifications) unsubscribeNotifications();
         unsubscribeNotifications = onSnapshot(notiQuery, (snapshot) => {
             const notifications = [];
             let unreadCount = 0;
             
-            // 🔥 [신규] 새로운 알림(added)이 수신되었을 때 화면에 팝업창을 강제로 띄움
+            // ✨ 알림 15일 경과 기준 (15일 * 24시간 * 60분 * 60초 * 1000밀리초)
+            const now = Date.now();
+            const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
+            
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added' && !isInitialLoad) {
                     const data = change.doc.data();
-                    // 읽지 않은 새 알림일 경우에만 팝업 표시
                     if (!data.isRead) {
                         showToast(`🔔 새 알림이 도착했습니다.`);
                         
                         const modal = document.getElementById('notification-modal');
                         if (modal && modal.classList.contains('hidden')) {
-                            modal.classList.remove('hidden'); // 알림 센터 팝업 열기
+                            modal.classList.remove('hidden'); 
                         }
                     }
                 }
@@ -108,6 +111,15 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
                 data.id = docSnap.id;
+                
+                // ✨ 15일이 경과한 알림은 파이어베이스 DB에서 완전히 자동 삭제
+                const createdAtTime = new Date(data.createdAt).getTime();
+                if (now - createdAtTime > FIFTEEN_DAYS_MS) {
+                    deleteDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'notifications', data.id))
+                        .catch(e => console.error("알림 자동 삭제 실패:", e));
+                    return; // 로컬 배열(화면)에는 담지 않음
+                }
+
                 notifications.push(data);
                 if (!data.isRead) unreadCount++;
             });
@@ -119,11 +131,10 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
                 unreadCount > 0 ? badge.classList.remove('hidden') : badge.classList.add('hidden');
             });
             
-            // 모달이 열려있는 상태라면 내부 리스트를 갱신
             const modal = document.getElementById('notification-modal');
             if (modal && !modal.classList.contains('hidden')) renderNotificationList();
 
-            isInitialLoad = false; // 첫 동기화 완료 처리
+            isInitialLoad = false;
         });
     }
 }

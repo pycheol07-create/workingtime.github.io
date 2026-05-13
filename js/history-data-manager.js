@@ -21,7 +21,6 @@ export const syncTodayToHistory = async () => {
     const now = getCurrentTime();
 
     try {
-        // 🚨 최적화 1: DB에서 매번 다시 읽어오지 않고, 실시간 동기화된 로컬 상태(appState)를 즉시 활용하여 Read 비용 대폭 절감!
         const liveWorkRecords = (State.appState.workRecords || []).map(record => {
             const data = { ...record };
             if (data.status === 'ongoing' || data.status === 'paused') {
@@ -93,7 +92,6 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
         const dailyDocSnap = await getDoc(getDailyDocRef());
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
 
-        // 🚨 최적화 2: 자동 저장 시 컬렉션 전체(getDocs)를 읽어오는 무거운 호출 제거!
         const liveWorkRecords = (State.appState.workRecords || []).map(record => {
             const data = { ...record };
             if (data.status === 'ongoing' || data.status === 'paused') {
@@ -130,7 +128,6 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
         }
 
         const currentVerifiedStatus = dailyData.isQuantityVerified === true;
-
         const mergedAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
 
         const historyData = {
@@ -215,7 +212,6 @@ export async function saveDayDataToHistory(shouldReset) {
                 let needsUpdate = false;
                 
                 let recordEndTime = globalEndTime;
-
                 const attendance = dailyAttendance[record.member];
                 
                 if (attendance && attendance.status === 'returned' && attendance.outTime) {
@@ -315,7 +311,14 @@ export async function saveDayDataToHistory(shouldReset) {
 export async function fetchAllHistoryData() {
     const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     try {
-        const querySnapshot = await getDocs(historyCollectionRef);
+        // ✨ 데이터베이스 읽기 최적화: 앱의 전체 이력이 아닌 최근 6개월(180일)치만 조회
+        const d = new Date();
+        d.setMonth(d.getMonth() - 6);
+        const sixMonthsAgoStr = d.toISOString().split('T')[0];
+
+        const q = query(historyCollectionRef, where(documentId(), ">=", sixMonthsAgoStr));
+        const querySnapshot = await getDocs(q);
+        
         const dataMap = new Map();
         querySnapshot.forEach((doc) => {
             const docData = doc.data();
@@ -545,7 +548,7 @@ export async function checkUnverifiedRecords() {
     const historyCol = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     
     try {
-        // 🚨 최적화 3: 앱 전체 역사가 아닌 "최근 30일치" 문서만 검색하여 수천 건의 불필요한 Read 방지
+        // ✨ 데이터베이스 읽기 최적화: 앱의 전체가 아닌 최근 30일치만 조회
         const d = new Date();
         d.setDate(d.getDate() - 30);
         const thirtyDaysAgoStr = d.toISOString().split('T')[0];
