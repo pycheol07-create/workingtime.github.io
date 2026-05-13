@@ -181,7 +181,6 @@ export async function saveDayDataToHistory(shouldReset) {
         const dailyDocSnap = await getDoc(dailyDocRef);
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
         
-        // 메모리의 출결 상태를 최우선으로 가져옵니다.
         const dailyAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
 
         const querySnapshot = await getDocs(workRecordsColRef);
@@ -189,13 +188,12 @@ export async function saveDayDataToHistory(shouldReset) {
         let attendanceUpdated = false;
         
         Object.keys(dailyAttendance).forEach(member => {
-            // 출근 중인 인원을 모두 퇴근 처리
             if (dailyAttendance[member].status === 'active') {
                 let autoOutTime = globalEndTime; 
                 if (dailyAttendance[member].inTime && autoOutTime < dailyAttendance[member].inTime) {
                     autoOutTime = globalEndTime;
                 }
-                dailyAttendance[member].status = 'returned'; // 퇴근 상태
+                dailyAttendance[member].status = 'returned'; 
                 dailyAttendance[member].outTime = autoOutTime;
                 attendanceUpdated = true;
                 console.log(`[Auto-Clock-out] ${member}: ${autoOutTime} 퇴근 처리 (업무 마감 실행)`);
@@ -203,9 +201,7 @@ export async function saveDayDataToHistory(shouldReset) {
         });
 
         if (attendanceUpdated) {
-            // DB에 퇴근 기록 업데이트
             await updateDoc(dailyDocRef, { dailyAttendance: dailyAttendance });
-            // 로컬 메모리에도 퇴근 기록 즉시 업데이트
             State.appState.dailyAttendance = dailyAttendance;
             showToast("미퇴근 인원을 현재 시간으로 퇴근 처리했습니다.");
         }
@@ -224,10 +220,26 @@ export async function saveDayDataToHistory(shouldReset) {
                 let recordEndTime = globalEndTime;
 
                 const attendance = dailyAttendance[record.member];
+                
+                // 🔥 [버그 해결 핵심]: 이전 날짜의 늦은 퇴근시간(예: 23:00) 잔재가 
+                // 오늘의 빠른 마감시간(예: 17:30)을 덮어쓰지 못하도록 엄격하게 방어합니다.
                 if (attendance && attendance.status === 'returned' && attendance.outTime) {
                     if (attendance.outTime > record.startTime) {
-                        recordEndTime = attendance.outTime;
+                        // 개인 퇴근 시간이 현재 마감 버튼을 누른 시간(globalEndTime)보다 크다면 마감 시간으로 캡핑
+                        if (attendance.outTime <= globalEndTime) {
+                            recordEndTime = attendance.outTime;
+                        } else {
+                            recordEndTime = globalEndTime;
+                        }
+                    } else {
+                        // 어제 퇴근 시간 잔재 등의 이유로 시작시간보다 빠르면 캡핑
+                        recordEndTime = globalEndTime;
                     }
+                }
+
+                // 시작 시간 역전 방지
+                if (record.startTime > recordEndTime) {
+                    recordEndTime = record.startTime;
                 }
 
                 if (record.status === 'ongoing' || record.status === 'paused') {
@@ -283,7 +295,6 @@ export async function saveDayDataToHistory(shouldReset) {
                 await deleteBatch.commit();
             }
             
-            // 🔥 [버그 해결] 전체 문서를 삭제하는게 아니라, 작업량과 같은 임시 데이터만 비우고 퇴근기록(dailyAttendance) 등은 안전하게 보존합니다.
             await setDoc(getDailyDocRef(), {
                 taskQuantities: {},
                 confirmedZeroTasks: [],
