@@ -11,31 +11,35 @@ export const updateElapsedTimes = async () => {
     const todayDate = getTodayDateString();
     const isTodayWeekday = isWeekday(todayDate);
     
+    // 🚨 최적화: 수많은 팀원이 중복 실행하지 못하도록, 접속자가 '관리자(admin)'일 때만 자동 크론(점심/재개) 실행
+    const currentUserLower = (State.appState.currentUser || '').toLowerCase();
+    const isAdmin = State.appConfig?.memberRoles?.[currentUserLower] === 'admin';
+    
     // 점심시간 자동 정지
     if (isTodayWeekday && now === '12:30' && !State.appState.lunchPauseExecuted) {
         State.appState.lunchPauseExecuted = true;
-        if (State.context.autoPauseForLunch) {
+        if (isAdmin && State.context.autoPauseForLunch) {
             try {
                 const tasksPaused = await State.context.autoPauseForLunch();
                 if (tasksPaused > 0) showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
             } catch (e) { console.error("Error during auto-pause: ", e); }
+            saveStateToFirestore(); 
         }
-        saveStateToFirestore(); 
     }
 
     // 점심시간 자동 재개
     if (isTodayWeekday && now === '13:30' && !State.appState.lunchResumeExecuted) {
         State.appState.lunchResumeExecuted = true;
-        if (State.context.autoResumeFromLunch) {
+        if (isAdmin && State.context.autoResumeFromLunch) {
             try {
                 const tasksResumed = await State.context.autoResumeFromLunch();
                 if (tasksResumed > 0) showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
             } catch (e) { console.error("Error during auto-resume: ", e); }
+            saveStateToFirestore(); 
         }
-        saveStateToFirestore(); 
     }
 
-    // 화면 시간 업데이트
+    // 화면 시간 업데이트 (DB 통신 없이 화면만 업데이트)
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
             const startTime = el.dataset.startTime;
@@ -70,8 +74,9 @@ export const updateElapsedTimes = async () => {
 };
 
 export const autoSaveProgress = () => {
-    const hasOngoing = (State.appState.workRecords || []).some(r => r.status === 'ongoing');
-    if (State.isDataDirty || hasOngoing) {
+    // 🚨 핵심 최적화: 타이머가 째깍거린다는 이유만으로 매 분마다 모든 사용자가 무조건 저장하는 '쓰기 폭탄' 제거!
+    // 처리량 등을 직접 변경하여 데이터가 더러워졌을(Dirty) 때만 얌전하게 저장합니다.
+    if (State.isDataDirty) {
         saveProgress(true); 
         State.setIsDataDirty(false);
     }

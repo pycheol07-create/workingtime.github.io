@@ -35,12 +35,11 @@ export const processClockIn = async (memberName, isAdminAction = false) => {
     }
 
     try {
-        // Dot Notation을 사용한 원자적 업데이트
         await updateDoc(getDailyDocRef(), {
             [`dailyAttendance.${memberName}`]: {
                 inTime: now,
                 outTime: null,
-                status: 'active' // 활동 중(출근 상태)
+                status: 'active' 
             }
         });
 
@@ -48,7 +47,6 @@ export const processClockIn = async (memberName, isAdminAction = false) => {
         return true;
     } catch (e) {
         console.error("Clock-in error:", e);
-        // 문서가 없을 경우(하루 첫 출근) 대비한 setDoc fallback
         if (e.code === 'not-found' || e.message.includes('No document to update')) {
              await setDoc(getDailyDocRef(), {
                 dailyAttendance: {
@@ -110,7 +108,6 @@ export const cancelClockOut = async (memberName, isAdminAction = false) => {
 // --- 업무 시작/추가 로직 ---
 
 export const startWorkGroup = async (members, task) => {
-    // 1. 출근 여부 체크
     const notClockedInMembers = members.filter(member =>
         !appState.dailyAttendance?.[member] || appState.dailyAttendance[member].status !== 'active'
     );
@@ -120,7 +117,6 @@ export const startWorkGroup = async (members, task) => {
         return;
     }
 
-    // 2. 이미 업무 중인지 체크
     const alreadyWorkingMembers = members.filter(member =>
         (appState.workRecords || []).some(r =>
             r.member === member && (r.status === 'ongoing' || r.status === 'paused')
@@ -138,10 +134,10 @@ export const startWorkGroup = async (members, task) => {
         const startTime = getCurrentTime();
 
         members.forEach(member => {
-            const recordId = generateId(); // Firestore 문서 ID로 사용
+            const recordId = generateId(); 
             const newRecordRef = doc(workRecordsColRef, recordId);
             const newRecordData = {
-                id: recordId, // 데이터 내부에도 ID 저장
+                id: recordId, 
                 member,
                 task,
                 startTime,
@@ -162,7 +158,6 @@ export const startWorkGroup = async (members, task) => {
 };
 
 export const addMembersToWorkGroup = async (members, task, groupId) => {
-    // 1. 출근 여부 체크
     const notClockedInMembers = members.filter(member =>
         !appState.dailyAttendance?.[member] || appState.dailyAttendance[member].status !== 'active'
     );
@@ -172,7 +167,6 @@ export const addMembersToWorkGroup = async (members, task, groupId) => {
         return;
     }
 
-    // 2. 이미 업무 중인지 체크
     const alreadyWorkingMembers = members.filter(member =>
         (appState.workRecords || []).some(r =>
             r.member === member && (r.status === 'ongoing' || r.status === 'paused')
@@ -216,7 +210,6 @@ export const addMembersToWorkGroup = async (members, task, groupId) => {
 // --- 업무 종료/정지/재개 로직 ---
 
 export const stopWorkGroup = (groupId) => {
-    // 호환성을 위해 유지, 실제로는 finalizeStopGroup 사용
     finalizeStopGroup(groupId, null);
 };
 
@@ -249,7 +242,6 @@ export const finalizeStopGroup = async (groupId, quantity) => {
             }
             const duration = calcElapsedMinutes(record.startTime, endTime, pauses);
 
-            // 0분 이하 자동 삭제 로직
             if (Math.round(duration) <= 0) {
                 batch.delete(docSnap.ref);
                 removedCount++;
@@ -269,7 +261,6 @@ export const finalizeStopGroup = async (groupId, quantity) => {
              showToast(`${removedCount}건의 기록이 0분 소요로 인해 자동 삭제되었습니다.`);
         }
 
-        // 처리량 원자적 증가
         if (quantity !== null && taskName && Number(quantity) > 0) {
              await updateDoc(getDailyDocRef(), {
                 [`taskQuantities.${taskName}`]: increment(Number(quantity))
@@ -282,11 +273,9 @@ export const finalizeStopGroup = async (groupId, quantity) => {
     }
 };
 
-// ✅ [신규] 업무명(Task) 기준으로 일괄 종료하는 함수
 export const stopWorkByTask = async (taskName, quantity) => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
-        // 해당 업무명의 진행중/일시정지인 모든 기록 조회
         const q = query(workRecordsColRef, where("task", "==", taskName), where("status", "in", ["ongoing", "paused"]));
         const querySnapshot = await getDocs(q);
 
@@ -303,7 +292,6 @@ export const stopWorkByTask = async (taskName, quantity) => {
             const record = docSnap.data();
             let pauses = record.pauses || [];
             
-            // 일시정지 상태라면 마지막 휴식 종료 처리
             if (record.status === 'paused') {
                 const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
                 if (lastPause && lastPause.end === null) {
@@ -312,7 +300,6 @@ export const stopWorkByTask = async (taskName, quantity) => {
             }
             const duration = calcElapsedMinutes(record.startTime, endTime, pauses);
 
-            // 0분 이하 삭제
             if (Math.round(duration) <= 0) {
                 batch.delete(docSnap.ref);
                 removedCount++;
@@ -327,7 +314,6 @@ export const stopWorkByTask = async (taskName, quantity) => {
              showToast(`${removedCount}건의 기록이 0분 소요로 인해 자동 삭제되었습니다.`);
         }
 
-        // 처리량 업데이트
         if (quantity !== null && Number(quantity) > 0) {
              await updateDoc(getDailyDocRef(), {
                 [`taskQuantities.${taskName}`]: increment(Number(quantity))
@@ -341,14 +327,13 @@ export const stopWorkByTask = async (taskName, quantity) => {
     }
 };
 
-// ✅ [신규] 업무명(Task) 기준으로 일괄 정지하는 함수
 export const pauseWorkByTask = async (taskName) => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
         const q = query(workRecordsColRef, where("task", "==", taskName), where("status", "==", "ongoing"));
         const querySnapshot = await getDocs(q);
 
-        if (querySnapshot.empty) return; // 이미 정지 상태거나 대상 없음
+        if (querySnapshot.empty) return; 
 
         const batch = writeBatch(db);
         const currentTime = getCurrentTime();
@@ -372,7 +357,6 @@ export const pauseWorkByTask = async (taskName) => {
     }
 };
 
-// ✅ [신규] 업무명(Task) 기준으로 일괄 재개하는 함수
 export const resumeWorkByTask = async (taskName) => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
@@ -424,7 +408,6 @@ export const stopWorkIndividual = async (recordId) => {
             }
             const duration = calcElapsedMinutes(record.startTime, endTime, pauses);
 
-            // 0분 이하 자동 삭제 로직
             if (Math.round(duration) <= 0) {
                 await deleteDoc(recordRef);
                 showToast(`${record.member}님의 '${record.task}' 기록이 0분 소요로 인해 삭제되었습니다.`);
@@ -570,8 +553,7 @@ export const autoPauseForLunch = async () => {
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            console.log("Auto-pause: No ongoing tasks to pause.");
-            return 0; // 0건 처리
+            return 0; 
         }
 
         const batch = writeBatch(db);
@@ -581,21 +563,26 @@ export const autoPauseForLunch = async () => {
         querySnapshot.forEach(doc => {
             const record = doc.data();
             const newPauses = record.pauses || [];
-            newPauses.push({ start: currentTime, end: null, type: 'lunch' });
-
-            batch.update(doc.ref, {
-                status: 'paused',
-                pauses: newPauses
-            });
-            tasksPaused++;
+            
+            // 🚨 방어 로직: 혹시 다른 관리자 창에서 이미 실행되었는지 2중 체크
+            const hasLunchPause = newPauses.some(p => p.type === 'lunch' && p.start === currentTime);
+            if (!hasLunchPause) {
+                newPauses.push({ start: currentTime, end: null, type: 'lunch' });
+                batch.update(doc.ref, {
+                    status: 'paused',
+                    pauses: newPauses
+                });
+                tasksPaused++;
+            }
         });
 
-        await batch.commit();
-        return tasksPaused; // 처리한 건수 반환
+        if (tasksPaused > 0) {
+            await batch.commit();
+        }
+        return tasksPaused; 
 
     } catch (e) {
         console.error("Error during auto-pause for lunch: ", e);
-        showToast("점심시간 자동 정지 중 오류 발생", true);
         return 0;
     }
 };
@@ -607,7 +594,6 @@ export const autoResumeFromLunch = async () => {
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            console.log("Auto-resume: No paused tasks to resume.");
             return 0;
         }
 
@@ -620,9 +606,9 @@ export const autoResumeFromLunch = async () => {
             const pauses = record.pauses || [];
             const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
 
+            // 🚨 방어 로직: 아직 종료 시간이 안 적혀있는 런치 브레이크만 타겟
             if (lastPause && lastPause.type === 'lunch' && lastPause.end === null) {
                 lastPause.end = currentTime;
-
                 batch.update(doc.ref, {
                     status: 'ongoing',
                     pauses: pauses
@@ -634,31 +620,26 @@ export const autoResumeFromLunch = async () => {
         if (tasksResumed > 0) {
             await batch.commit();
         }
-        return tasksResumed; // 처리한 건수 반환
+        return tasksResumed; 
 
     } catch (e) {
         console.error("Error during auto-resume from lunch: ", e);
-        showToast("점심시간 자동 재개 중 오류 발생", true);
         return 0;
     }
 };
 
-// ✅ [신규] 수동 처리량 입력 저장 (상태 포함)
 export const saveManualTaskQuantities = async (newQuantities, confirmedZeroTasks, newStatuses) => {
     try {
         const updates = {};
 
-        // 수량 데이터 준비
         if (newQuantities && Object.keys(newQuantities).length > 0) {
             updates.taskQuantities = newQuantities;
         }
 
-        // 상태 데이터 준비 (예: 'estimated' or 'confirmed')
         if (newStatuses && Object.keys(newStatuses).length > 0) {
             updates.taskQuantityStatuses = newStatuses;
         }
         
-        // 0건 확인된 태스크 처리
         if (confirmedZeroTasks && confirmedZeroTasks.length > 0) {
             updates.confirmedZeroTasks = confirmedZeroTasks;
         }
