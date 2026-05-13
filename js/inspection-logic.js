@@ -3,7 +3,6 @@ import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { updateDailyData } from './app-data.js'; 
 import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
-// ✨ Firestore에서 숫자를 안전하게 누적하는 increment 추가
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
@@ -366,7 +365,7 @@ const loadCompletedInspectionData = async (item) => {
                 setSelect('insp-check-distortion', cl.distortion);
                 setSelect('insp-check-unraveling', cl.unraveling);
                 setSelect('insp-check-finishing', cl.finishing);
-                setSelect('insp-check-zipper', cl.button); // Fixed typo from original
+                setSelect('insp-check-zipper', cl.zipper); 
                 setSelect('insp-check-button', cl.button);
                 setSelect('insp-check-lining', cl.lining);
                 setSelect('insp-check-pilling', cl.pilling);
@@ -653,7 +652,6 @@ export const saveInspectionAndNext = async () => {
                     updatedAt: serverTimestamp()
                 });
 
-                // ✨ 신규: 당일 기록 수정 시 메인 대시보드의 '샘플검수' 처리량 자동 조율
                 if (diff !== 0 && oldLog.date === today) {
                     try {
                         const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
@@ -666,7 +664,6 @@ export const saveInspectionAndNext = async () => {
                         console.warn("샘플검수 처리량 동기화 실패:", err);
                     }
                 }
-                
                 showToast(`'${productName}' 검수 기록이 수정되었습니다.`);
             }
         } else {
@@ -692,7 +689,6 @@ export const saveInspectionAndNext = async () => {
 
             await setDoc(docRef, updates, { merge: true });
             
-            // ✨ 신규: 샘플 검수 완료 시 메인 대시보드의 '샘플검수' 처리량에 자동 누적
             try {
                 const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
                 const sampleQtyNum = Number(sampleQty) || 1;
@@ -718,35 +714,61 @@ export const saveInspectionAndNext = async () => {
             showToast(`'${productName}' 저장 완료!`);
         }
 
-        let pastListUpdated = false;
+        // ✨ 리스트(Todo) 내역에 수량(sampleQty, inboundQty) 정보를 완벽하게 삽입/업데이트 합니다.
+        // 1. 과거 히스토리 리스트 업데이트
         for (let i = 0; i < State.allHistoryData.length; i++) {
             const dayData = State.allHistoryData[i];
             if (dayData.inspectionList && dayData.inspectionList.length > 0) {
                 let dayUpdated = false;
                 dayData.inspectionList.forEach(pastItem => {
-                    if ((pastItem.name === productName || pastItem.code === productName) && pastItem.status !== '완료') {
-                        pastItem.status = '완료';
-                        dayUpdated = true;
+                    const isNameMatch = (pastItem.name === productName || pastItem.code === productName);
+                    if (editingLogIndex === -1 && isNameMatch && pastItem.status !== '완료') {
+                         pastItem.status = '완료';
+                         pastItem.sampleQty = Number(sampleQty) || 1;
+                         pastItem.inboundQty = Number(inboundQty) || pastItem.qty || 0;
+                         pastItem.qty = Number(inboundQty) || pastItem.qty || 0;
+                         dayUpdated = true;
+                    } else if (editingLogIndex !== -1 && isNameMatch && pastItem.packingDate === packingDate) {
+                         pastItem.sampleQty = Number(sampleQty) || 1;
+                         pastItem.inboundQty = Number(inboundQty) || pastItem.qty || 0;
+                         pastItem.qty = Number(inboundQty) || pastItem.qty || 0;
+                         dayUpdated = true;
                     }
                 });
                 if (dayUpdated) {
                     const pastDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dayData.id);
                     updateDoc(pastDocRef, { inspectionList: dayData.inspectionList }).catch(e => console.error("과거 리스트 갱신 실패", e));
-                    pastListUpdated = true;
                 }
             }
         }
 
+        // 2. 금일 리스트 업데이트
         const list = [...State.appState.inspectionList];
         let isTodayListUpdated = false;
-        if (currentTodoIndex >= 0 && list[currentTodoIndex]) {
+        
+        if (editingLogIndex === -1 && currentTodoIndex >= 0 && list[currentTodoIndex]) {
             list[currentTodoIndex].status = '완료';
+            list[currentTodoIndex].sampleQty = Number(sampleQty) || 1;
+            list[currentTodoIndex].inboundQty = Number(inboundQty) || list[currentTodoIndex].qty || 0;
+            list[currentTodoIndex].qty = Number(inboundQty) || list[currentTodoIndex].qty || 0;
             isTodayListUpdated = true;
+        } else if (editingLogIndex !== -1) {
+            list.forEach(todayItem => {
+                const isTarget = (todayItem.name === productName || todayItem.code === productName) && todayItem.packingDate === packingDate;
+                if (isTarget) {
+                    todayItem.sampleQty = Number(sampleQty) || 1;
+                    todayItem.inboundQty = Number(inboundQty) || todayItem.qty || 0;
+                    todayItem.qty = Number(inboundQty) || todayItem.qty || 0;
+                    isTodayListUpdated = true;
+                }
+            });
+        }
+        
+        if (isTodayListUpdated) {
             await updateDailyData({ inspectionList: list });
         }
 
         renderTodayInspectionList();
-        
         resetInspectionForm(true);
         resetEditingState();
         
