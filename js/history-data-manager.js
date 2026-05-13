@@ -6,6 +6,11 @@ import {
     query, where, writeBatch, updateDoc, increment, documentId
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ✨ 과금 방어의 핵심: 브라우저 메모리 캐싱 변수 추가
+let isHistoryCached = false;
+let cachedUnverifiedDates = null;
+let lastUnverifiedCheckTime = 0;
+
 export const getWorkRecordsCollectionRef = () => {
     const today = getTodayDateString();
     return collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
@@ -20,8 +25,6 @@ export const syncTodayToHistory = async () => {
     const now = getCurrentTime();
 
     try {
-        // 🚨 꼬리를 무는 '읽기(Read) 폭탄' 제거 완료!
-        // DB를 다시 조회(getDoc)하는 대신, 실시간 동기화로 가지고 있는 로컬 데이터(State.appState)를 즉시 조립합니다.
         const liveWorkRecords = (State.appState.workRecords || []).map(record => {
             const data = { ...record };
             if (data.status === 'ongoing' || data.status === 'paused') {
@@ -56,9 +59,6 @@ export const syncTodayToHistory = async () => {
         console.error("Error syncing today to history cache: ", e);
     }
 };
-
-// ... 아래의 기존 함수들(saveProgress, saveDayDataToHistory, fetchAllHistoryData 등)은 이전 메시지의 코드 그대로 유지해 주세요! ...
-// (위 syncTodayToHistory 함수만 교체하시면 됩니다!)
 
 export async function saveProgress(isAutoSave = false, isQuantityVerified = false) {
     const dateStr = getTodayDateString();
@@ -97,8 +97,8 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             const existingRecordsCount = (existingHistory.workRecords || []).length;
             
             if (existingRecordsCount > 0 && liveWorkRecords.length < existingRecordsCount) {
-                console.log(`Safe-guard: 기존 기록(${existingRecordsCount}개)이 현재 라이브 기록(${liveWorkRecords.length}개)보다 많습니다. 덮어쓰기를 방지합니다.`);
-                if (!isAutoSave) showToast("이미 데이터가 안전하게 마감/저장되었습니다. (초기화 후 중복 덮어쓰기 차단)");
+                console.log(`Safe-guard: 기존 기록이 현재 라이브 기록보다 많습니다. 덮어쓰기를 방지합니다.`);
+                if (!isAutoSave) showToast("이미 데이터가 안전하게 마감/저장되었습니다.");
                 return; 
             }
         }
@@ -290,10 +290,14 @@ export async function saveDayDataToHistory(shouldReset) {
     }
 }
 
-export async function fetchAllHistoryData() {
+export async function fetchAllHistoryData(forceRefresh = false) {
+    // 🚨 탭 이동(Read) 폭탄 차단: 이미 불러온 데이터가 있다면 DB에 접속하지 않고 메모리에서 0.001초 만에 꺼내옵니다.
+    if (!forceRefresh && isHistoryCached && State.allHistoryData.length > 0) {
+        return State.allHistoryData;
+    }
+
     const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     try {
-        // ✨ 데이터베이스 읽기 최적화: 앱의 전체 이력이 아닌 최근 6개월(180일)치만 조회
         const d = new Date();
         d.setMonth(d.getMonth() - 6);
         const sixMonthsAgoStr = d.toISOString().split('T')[0];
@@ -343,6 +347,8 @@ export async function fetchAllHistoryData() {
         fullHistory.sort((a, b) => b.id.localeCompare(a.id));
         State.allHistoryData.length = 0; 
         State.allHistoryData.push(...fullHistory); 
+        
+        isHistoryCached = true; // 캐시 락(Lock) 활성화
         return State.allHistoryData;
     } catch (error) {
         console.error('Error fetching all history data:', error);
@@ -526,11 +532,17 @@ export async function saveManagementData(dateKey, managementData) {
     }
 }
 
-export async function checkUnverifiedRecords() {
+export async function checkUnverifiedRecords(forceRefresh = false) {
+    const now = Date.now();
+    
+    // 🚨 수백 개의 문서 읽기 폭탄 차단: 최근 1시간 이내에 확인한 적이 있다면 캐시된 배열을 즉시 반환
+    if (!forceRefresh && cachedUnverifiedDates && (now - lastUnverifiedCheckTime < 3600000)) {
+        return cachedUnverifiedDates;
+    }
+
     const historyCol = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     
     try {
-        // ✨ 데이터베이스 읽기 최적화: 앱의 전체가 아닌 최근 30일치만 조회
         const d = new Date();
         d.setDate(d.getDate() - 30);
         const thirtyDaysAgoStr = d.toISOString().split('T')[0];
@@ -553,6 +565,8 @@ export async function checkUnverifiedRecords() {
 
         unverifiedDates.sort();
         
+        cachedUnverifiedDates = unverifiedDates;
+        lastUnverifiedCheckTime = now;
         return unverifiedDates; 
     } catch (e) {
         console.error("Failed to check unverified records:", e);

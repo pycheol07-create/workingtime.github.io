@@ -7,7 +7,7 @@ export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
     authDomain: "work-tool-e2943.firebaseapp.com",
     projectId: "work-tool-e2943",
-    storageBucket: "work-tool-e2943.firebasestorage.app", // 이전 수정사항 유지
+    storageBucket: "work-tool-e2943.firebasestorage.app", 
     messagingSenderId: "133294945093",
     appId: "1:133294945093:web:cde90aab6716127512842c",
     measurementId: "G-ZZQLKB0057"
@@ -127,12 +127,10 @@ export const loadAppConfig = async (dbInstance) => {
             mergedConfig.quantityToDashboardMap = { ...defaultData.quantityToDashboardMap, ...(loadedData.quantityToDashboardMap || {}) };
             mergedConfig.simulationTaskLinks = { ...(loadedData.simulationTaskLinks || {}), ...defaultData.simulationTaskLinks };
 
-            // 🚨 핵심 수정: 불러온 데이터와 병합된 데이터가 "다를 때만" DB에 저장하여 무한 쓰기(루프) 방지!
-            if (JSON.stringify(loadedData) !== JSON.stringify(mergedConfig)) {
-                console.log("설정 변경 감지됨. DB에 업데이트합니다.");
-                saveAppConfig(dbToUse, mergedConfig).catch(e => console.error("DB 업데이트 실패:", e));
-            }
-
+            // 🚨 최악의 쓰기(Write) 폭탄 원인 제거 완료!
+            // 기존에는 JSON.stringify 문자열 비교 때문에 키 순서만 달라도 접속할 때마다 무한히 DB를 덮어썼습니다.
+            // 이제 로컬에서만 병합(Merge)해서 사용하므로 접속만으로는 절대 요금이 발생하지 않습니다.
+            
             return mergedConfig;
         } else {
             const defaultData = getDefaultConfig();
