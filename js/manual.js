@@ -12,7 +12,9 @@ let manualList = [];
 let currentEditingId = null;
 let selectedFile = null;
 let isAdmin = false;
-let currentZoom = 100; // ✨ 화면 배율 상태 관리
+
+// ✨ 배율 기본값을 100에서 80으로 변경 (한 화면에 더 많은 정보를 표시하기 위함)
+let currentZoom = 80; 
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -25,6 +27,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert("시스템을 초기화할 수 없습니다.");
         return;
     }
+
+    const BlockEmbed = Quill.import('blots/block/embed');
+    class DividerBlot extends BlockEmbed {}
+    DividerBlot.blotName = 'divider';
+    DividerBlot.tagName = 'hr';
+    Quill.register(DividerBlot);
 
     const imageHandler = () => {
         const input = document.createElement('input');
@@ -61,6 +69,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     });
+    
+    // ✨ 에디터 로드 직후 기본 배율(80%)을 텍스트 작성창에 즉시 적용
+    applyZoom();
 
     quillEditor.root.addEventListener('paste', async (e) => {
         if (e.clipboardData && e.clipboardData.items && e.clipboardData.items.length) {
@@ -180,16 +191,16 @@ function populateManagers() {
     });
 }
 
-// ✨ 신규: 화면 배율(Zoom) 적용 함수
+// ✨ 신규: 화면 전체가 아닌 [매뉴얼 본문]과 [에디터 본문]에만 배율 적용
 const applyZoom = () => {
-    document.getElementById('zoom-level').textContent = `${currentZoom}%`;
-    const viewArea = document.getElementById('manual-view-area');
-    const editArea = document.getElementById('manual-edit-area');
-    const listContainer = document.getElementById('manual-list-container');
+    const zoomLevelEl = document.getElementById('zoom-level');
+    if(zoomLevelEl) zoomLevelEl.textContent = `${currentZoom}%`;
+
+    const viewBody = document.getElementById('view-body');
+    const editorBody = document.querySelector('.ql-editor');
     
-    if(viewArea) viewArea.style.zoom = `${currentZoom}%`;
-    if(editArea) editArea.style.zoom = `${currentZoom}%`;
-    if(listContainer) listContainer.style.zoom = `${currentZoom}%`;
+    if(viewBody) viewBody.style.zoom = `${currentZoom}%`;
+    if(editorBody) editorBody.style.zoom = `${currentZoom}%`;
 };
 
 function setupEventListeners() {
@@ -199,7 +210,6 @@ function setupEventListeners() {
 
     document.getElementById('manual-search-input').addEventListener('input', renderList);
 
-    // ✨ 배율 확대/축소 이벤트
     document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
         if (currentZoom < 200) { currentZoom += 10; applyZoom(); }
     });
@@ -243,6 +253,14 @@ function setupEventListeners() {
             quillEditor.setSelection(range.index + symbol.length); 
         });
     });
+
+    document.getElementById('btn-divider')?.addEventListener('click', () => {
+        const range = quillEditor.getSelection(true);
+        quillEditor.insertText(range.index, '\n', 'user');
+        quillEditor.insertEmbed(range.index + 1, 'divider', true, 'user');
+        quillEditor.insertText(range.index + 2, '\n', 'user');
+        quillEditor.setSelection(range.index + 3, 'silent');
+    });
 }
 
 async function loadManuals() {
@@ -266,7 +284,6 @@ async function loadManuals() {
     }
 }
 
-// ✨ 짧은 날짜 포맷 (예: 24.05.10)
 const formatDateTimeShort = (timestamp) => {
     if (!timestamp) return '-';
     const d = new Date(timestamp.toMillis ? timestamp.toMillis() : timestamp);
@@ -314,7 +331,6 @@ function renderList() {
             const dateStr = formatDateTimeShort(item.updatedAt || item.createdAt);
             const hasFile = item.fileUrl ? '<span class="text-[10px] bg-indigo-50 text-indigo-600 px-1 rounded font-bold border border-indigo-100 shadow-sm ml-1">첨부</span>' : '';
 
-            // ✨ 네임택 전면 개편 (상단: 파트 + 최종수정일 / 중단: 제목 / 하단: 담당자)
             div.innerHTML = `
                 <div class="flex items-center justify-between mb-1.5">
                     <span class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 px-1.5 py-0.5 rounded font-bold shadow-sm">${item.category || '공통 지침'}</span>
