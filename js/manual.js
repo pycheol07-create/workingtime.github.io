@@ -13,6 +13,10 @@ let currentEditingId = null;
 let selectedFile = null;
 let currentZoom = 80; 
 
+// ✨ 추가됨: 접속한 사용자의 진짜 '이름'과 권한을 파악하기 위한 변수
+let currentUserName = '';
+let isAdmin = false;
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         app = initializeApp(firebaseConfig);
@@ -105,12 +109,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             appConfig = await loadAppConfig(db);
+            const userEmailLower = (user.email || '').toLowerCase();
             
-            // ✨ 수정됨: 관리자 제한을 해제하여, 이 페이지에 접속한 누구나 새 매뉴얼을 작성할 수 있도록 변경
+            // 관리자 여부 확인
+            isAdmin = (appConfig.memberRoles && appConfig.memberRoles[userEmailLower] === 'admin');
+
+            // 접속자의 이메일을 바탕으로 실제 '이름' 찾기 (열람 권한 비교용)
+            const emails = appConfig.memberEmails || {};
+            currentUserName = Object.keys(emails).find(name => (emails[name] || '').toLowerCase() === userEmailLower);
+            if (!currentUserName) currentUserName = userEmailLower; // 매핑된 이름이 없으면 이메일 자체를 사용
+            
             document.getElementById('btn-new-manual').classList.remove('hidden');
 
             populateCategories(); 
             populateManagers(); 
+            populateAccessMembers(); // ✨ 추가: 열람 권한 체크박스 목록 생성
             setupEventListeners();
             loadManuals();
         } else {
@@ -149,9 +162,7 @@ async function uploadInlineImageToStorage(file) {
 function populateCategories() {
     const select = document.getElementById('edit-category');
     select.innerHTML = '';
-    
     const groups = appConfig.teamGroups || [];
-    
     const defaultOpt = document.createElement('option');
     defaultOpt.value = '공통 지침';
     defaultOpt.textContent = '공통 지침';
@@ -168,7 +179,6 @@ function populateCategories() {
 function populateManagers() {
     const select = document.getElementById('edit-manager');
     select.innerHTML = '<option value="">선택 안함</option>';
-    
     const members = new Set();
     (appConfig.teamGroups || []).forEach(g => {
         (g.members || []).forEach(m => members.add(m));
@@ -182,13 +192,36 @@ function populateManagers() {
     });
 }
 
+// ✨ 신규: 부서별 팀원 체크박스 UI 자동 생성 함수
+function populateAccessMembers() {
+    const container = document.getElementById('edit-access-members-container');
+    container.innerHTML = '';
+    const groups = appConfig.teamGroups || [];
+    
+    groups.forEach(g => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'flex flex-col gap-1 w-full md:w-auto min-w-[120px]';
+        groupDiv.innerHTML = `<span class="text-[10px] font-extrabold text-indigo-500 mb-0.5">${g.name}</span>`;
+        
+        const membersDiv = document.createElement('div');
+        membersDiv.className = 'flex flex-wrap gap-2';
+        
+        (g.members || []).forEach(m => {
+            const label = document.createElement('label');
+            label.className = 'flex items-center gap-1.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1.5 py-1 rounded transition select-none';
+            label.innerHTML = `<input type="checkbox" value="${m}" class="access-member-cb w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"> <span>${m}</span>`;
+            membersDiv.appendChild(label);
+        });
+        groupDiv.appendChild(membersDiv);
+        container.appendChild(groupDiv);
+    });
+}
+
 const applyZoom = () => {
     const zoomLevelEl = document.getElementById('zoom-level');
     if(zoomLevelEl) zoomLevelEl.textContent = `${currentZoom}%`;
-
     const viewBody = document.getElementById('view-body');
     const editorBody = document.querySelector('.ql-editor');
-    
     if(viewBody) viewBody.style.zoom = `${currentZoom}%`;
     if(editorBody) editorBody.style.zoom = `${currentZoom}%`;
 };
@@ -199,6 +232,18 @@ function setupEventListeners() {
     });
 
     document.getElementById('manual-search-input').addEventListener('input', renderList);
+
+    // ✨ 신규: 열람 권한 드롭다운 선택에 따라 하단 체크박스 영역 보이기/숨기기
+    document.getElementById('edit-access-level').addEventListener('change', (e) => {
+        const container = document.getElementById('edit-access-members-container');
+        if (e.target.value === 'private') {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+            // 전체공개로 바꾸면 체크된 인원들 모두 초기화
+            document.querySelectorAll('.access-member-cb').forEach(cb => cb.checked = false);
+        }
+    });
 
     document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
         if (currentZoom < 200) { currentZoom += 10; applyZoom(); }
@@ -228,7 +273,6 @@ function setupEventListeners() {
     });
 
     document.getElementById('btn-save-manual').addEventListener('click', saveManual);
-    
     document.getElementById('btn-delete-manual').addEventListener('click', deleteManual);
     document.getElementById('btn-edit-manual').addEventListener('click', () => {
         const item = manualList.find(m => m.id === currentEditingId);
@@ -289,15 +333,28 @@ function renderList() {
     const listContainer = document.getElementById('manual-list-container');
     listContainer.innerHTML = '';
 
-    const filteredList = manualList.filter(item => {
+    // 1차 필터링: 검색어 기준
+    let filteredList = manualList.filter(item => {
         const titleMatch = (item.title || '').toLowerCase().includes(searchTerm);
         const catMatch = (item.category || '').toLowerCase().includes(searchTerm);
         const managerMatch = (item.manager || '').toLowerCase().includes(searchTerm);
         return titleMatch || catMatch || managerMatch;
     });
 
+    // ✨ 2차 필터링 (가장 중요): 열람 권한 검사
+    filteredList = filteredList.filter(item => {
+        // 1. 최고 관리자는 모든 매뉴얼(비공개 포함)을 무조건 볼 수 있음
+        if (isAdmin) return true;
+        // 2. 자신이 작성한 매뉴얼은 자기가 볼 수 있음
+        if (item.author === auth.currentUser.email) return true;
+        // 3. 열람 권한 배열이 없거나 비어있으면 전체 공개
+        if (!item.allowedMembers || item.allowedMembers.length === 0) return true;
+        // 4. 권한 배열 안에 현재 사용자의 '이름'이 포함되어 있으면 허용
+        return item.allowedMembers.includes(currentUserName);
+    });
+
     if (filteredList.length === 0) {
-        listContainer.innerHTML = `<div class="p-6 text-center text-sm text-gray-400 border border-dashed border-gray-200 dark:border-gray-700 rounded-xl mt-4">검색 결과가 없습니다.</div>`;
+        listContainer.innerHTML = `<div class="p-6 text-center text-sm text-gray-400 border border-dashed border-gray-200 dark:border-gray-700 rounded-xl mt-4">접근할 수 있는 검색 결과가 없습니다.</div>`;
         return;
     }
 
@@ -316,18 +373,23 @@ function renderList() {
 
         grouped[cat].forEach(item => {
             const div = document.createElement('div');
-            div.className = 'p-3 mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all group flex flex-col gap-1.5';
+            div.className = 'p-3 mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all group flex flex-col gap-1.5 relative overflow-hidden';
             
             const dateStr = formatDateTimeShort(item.updatedAt || item.createdAt);
             const hasFile = item.fileUrl ? '<span class="text-[10px] bg-indigo-50 text-indigo-600 px-1 rounded font-bold border border-indigo-100 shadow-sm ml-1">첨부</span>' : '';
+            
+            // 비공개 매뉴얼일 경우 리스트 제목에 빨간 자물쇠 아이콘 표시
+            const isPrivate = item.allowedMembers && item.allowedMembers.length > 0;
+            const privateBadge = isPrivate ? '<span class="text-[10px] bg-red-50 text-red-600 px-1 rounded font-bold border border-red-100 shadow-sm ml-1">🔒 비공개</span>' : '';
 
             div.innerHTML = `
+                ${isPrivate ? '<div class="absolute top-0 right-0 w-2 h-full bg-red-400"></div>' : ''}
                 <div class="flex items-center justify-between mb-1.5">
                     <span class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 px-1.5 py-0.5 rounded font-bold shadow-sm">${item.category || '공통 지침'}</span>
-                    <span class="text-[10px] text-gray-400 font-mono tracking-tighter">수정: ${dateStr}</span>
+                    <span class="text-[10px] text-gray-400 font-mono tracking-tighter ${isPrivate ? 'mr-3' : ''}">수정: ${dateStr}</span>
                 </div>
-                <div class="text-sm font-extrabold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug break-all">
-                    ${item.title} ${hasFile}
+                <div class="text-sm font-extrabold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug break-all pr-2">
+                    ${item.title} ${privateBadge} ${hasFile}
                 </div>
                 <div class="flex items-center justify-between mt-1">
                     <span class="text-[10px] text-gray-500 font-medium">담당: ${item.manager || '<span class="text-gray-300">미지정</span>'}</span>
@@ -347,19 +409,30 @@ function openEditor(item = null) {
     document.getElementById('edit-title').value = item ? item.title : '';
     
     const catSelect = document.getElementById('edit-category');
-    if (item && item.category) {
-        catSelect.value = item.category;
-    } else {
-        catSelect.selectedIndex = 0;
-    }
+    if (item && item.category) catSelect.value = item.category;
+    else catSelect.selectedIndex = 0;
 
     const managerSelect = document.getElementById('edit-manager');
-    if (item && item.manager) {
-        managerSelect.value = item.manager;
-    } else {
-        managerSelect.selectedIndex = 0;
-    }
+    if (item && item.manager) managerSelect.value = item.manager;
+    else managerSelect.selectedIndex = 0;
     
+    // ✨ 열람 권한 UI 상태 복원 로직
+    const accessSelect = document.getElementById('edit-access-level');
+    const accessContainer = document.getElementById('edit-access-members-container');
+    document.querySelectorAll('.access-member-cb').forEach(cb => cb.checked = false);
+
+    if (item && item.allowedMembers && item.allowedMembers.length > 0) {
+        // 기존에 비공개 설정되어 있던 문서면 셋팅
+        accessSelect.value = 'private';
+        accessContainer.classList.remove('hidden');
+        document.querySelectorAll('.access-member-cb').forEach(cb => {
+            if (item.allowedMembers.includes(cb.value)) cb.checked = true;
+        });
+    } else {
+        accessSelect.value = 'public';
+        accessContainer.classList.add('hidden');
+    }
+
     quillEditor.root.innerHTML = item ? (item.content || '') : '';
     
     const fileNameDisplay = document.getElementById('upload-file-name');
@@ -383,6 +456,19 @@ async function saveManual() {
     if (!title) {
         alert("제목을 반드시 입력해주세요.");
         return;
+    }
+
+    // ✨ 저장 전 열람 권한 추출 로직 추가
+    const accessLevel = document.getElementById('edit-access-level').value;
+    let allowedMembers = [];
+    if (accessLevel === 'private') {
+        document.querySelectorAll('.access-member-cb:checked').forEach(cb => {
+            allowedMembers.push(cb.value);
+        });
+        if (allowedMembers.length === 0) {
+            alert("비공개(특정 인원 열람) 설정 시, 열람을 허용할 인원을 최소 1명 이상 체크해야 합니다.");
+            return; // 저장 차단
+        }
     }
 
     const btn = document.getElementById('btn-save-manual');
@@ -420,6 +506,7 @@ async function saveManual() {
             content: content === '<p><br></p>' ? '' : content,
             fileUrl: fileUrl || null,
             fileName: fileName || null,
+            allowedMembers: allowedMembers, // 🔥 DB에 저장되는 권한 데이터
             author: auth.currentUser.email,
             updatedAt: serverTimestamp()
         };
@@ -470,6 +557,14 @@ function viewManual(id) {
     document.getElementById('view-title').textContent = item.title;
     document.getElementById('view-type-badge').textContent = item.category || '공통 지침';
     
+    // ✨ 뷰어 타이틀 옆에 자물쇠(비공개) 배지 표시 로직
+    const accessBadge = document.getElementById('view-access-badge');
+    if (item.allowedMembers && item.allowedMembers.length > 0) {
+        accessBadge.classList.remove('hidden');
+    } else {
+        accessBadge.classList.add('hidden');
+    }
+    
     document.getElementById('view-manager').innerHTML = item.manager ? `<span class="text-indigo-600">${item.manager}</span>` : '<span class="text-gray-300">미지정</span>';
     document.getElementById('view-created-date').textContent = formatDateTime(item.createdAt);
     document.getElementById('view-updated-date').textContent = formatDateTime(item.updatedAt || item.createdAt);
@@ -485,7 +580,6 @@ function viewManual(id) {
         attachArea.classList.add('hidden');
     }
 
-    // ✨ 수정됨: 관리자뿐만 아니라 누구나 수정/삭제 버튼을 볼 수 있도록 변경
     document.getElementById('btn-edit-manual').classList.remove('hidden');
     document.getElementById('btn-delete-manual').classList.remove('hidden');
 }
