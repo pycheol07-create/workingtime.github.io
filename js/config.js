@@ -7,7 +7,7 @@ export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
     authDomain: "work-tool-e2943.firebaseapp.com",
     projectId: "work-tool-e2943",
-    storageBucket: "work-tool-e2943.appspot.com",
+    storageBucket: "work-tool-e2943.firebasestorage.app",
     messagingSenderId: "133294945093",
     appId: "1:133294945093:web:cde90aab6716127512842c",
     measurementId: "G-ZZQLKB0057"
