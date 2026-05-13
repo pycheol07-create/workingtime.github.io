@@ -80,6 +80,7 @@ export const renderInspectionLayout = (container) => {
     `;
 };
 
+// ✨ [수정됨] 일자별 검수 보기에서 입고/검수 수량 분리 및 총계 표시
 export const renderInspectionListMode = (dateList, selectedDateData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -142,6 +143,9 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
             </div>
         `;
     } else {
+        let totalInboundQty = 0;
+        let totalSampleQty = 0;
+
         const rows = filteredSelectedData.map((item, idx) => {
             const isCompleted = item.status === '완료';
             const statusBadge = isCompleted 
@@ -151,6 +155,13 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
             const typeBadge = item.inspectionType === 'total' 
                 ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
                 : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
+
+            // 수량 추출 및 합계 계산 로직 보강
+            const inboundQty = Number(item.inboundQty || item.qty || 0);
+            const sampleQty = Number(item.sampleQty || (item.inspectionType === 'total' ? inboundQty : 1));
+            
+            totalInboundQty += inboundQty;
+            totalSampleQty += sampleQty;
 
             return `
                 <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail" 
@@ -164,7 +175,10 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                     <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.name}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${item.option || '-'}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${item.supplierName || '-'}</td>
-                    <td class="px-4 py-3 text-xs text-center">${item.qty || 0}</td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="text-xs font-bold text-gray-700">${inboundQty.toLocaleString()}</div>
+                        <div class="text-[10px] text-blue-600 font-bold">(검수: ${sampleQty.toLocaleString()})</div>
+                    </td>
                     <td class="px-4 py-3 text-xs text-gray-500">${item.thickness || '-'}</td>
                     <td class="px-4 py-3 text-center">${statusBadge}</td>
                 </tr>
@@ -174,9 +188,12 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
         detailHtml = `
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-3">
                         <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
-                        <span class="text-xs text-gray-500">상품을 클릭하면 검수 상세내역이 펼쳐집니다.</span>
+                        <span class="text-[11px] font-medium bg-white border border-gray-200 shadow-sm px-2.5 py-1 rounded text-gray-600">
+                            총 입고: <strong class="text-gray-900">${totalInboundQty.toLocaleString()}</strong>개 <span class="mx-1 text-gray-300">|</span> 
+                            총 검수: <strong class="text-blue-600">${totalSampleQty.toLocaleString()}</strong>개
+                        </span>
                     </div>
                     <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list" 
                             data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
@@ -185,16 +202,16 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                 </div>
                 <div class="flex-grow overflow-y-auto custom-scrollbar relative">
                     <table class="w-full text-left border-collapse">
-                        <thead class="bg-white text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm outline outline-1 outline-gray-200">
+                        <thead class="bg-white text-[11px] uppercase text-gray-500 sticky top-0 z-10 shadow-sm outline outline-1 outline-gray-200">
                             <tr>
-                                <th class="px-4 py-2 font-semibold bg-gray-50 text-center">유형</th>
-                                <th class="px-4 py-2 font-semibold bg-gray-50">코드</th>
-                                <th class="px-4 py-2 font-semibold bg-gray-50">상품명</th>
-                                <th class="px-4 py-2 font-semibold bg-gray-50">옵션</th>
-                                <th class="px-4 py-2 font-semibold bg-gray-50">공급처</th>
-                                <th class="px-4 py-2 font-semibold bg-gray-50 text-center">수량</th>
-                                <th class="px-4 py-2 font-semibold bg-gray-50">기준</th>
-                                <th class="px-4 py-2 font-semibold bg-gray-50 text-center">상태</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[6%]">유형</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[12%]">코드</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[20%]">상품명</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[15%]">옵션</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[15%]">공급처</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[12%]">수량 (입고/검수)</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[10%]">기준</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[10%]">상태</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-100">
@@ -483,7 +500,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                         </div>`;
                 }
 
-                // 🟢 상세 로그 창에서 입고 수량과 샘플 수량을 나눠서 표기
                 const inboundQtyDisplay = item.inboundQty ? item.inboundQty.toLocaleString() + '개' : '-';
                 const sampleQtyDisplay = item.sampleQty || 1;
 
@@ -585,8 +601,8 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         else selectedPeriod = weekOptions[0];
     }
 
-    let totalInspectedQty = 0; // 🟢 총 입고 수량 누적용
-    let totalSampledQty = 0;   // 🟢 총 샘플 검수 수량 누적용
+    let totalInspectedQty = 0; 
+    let totalSampledQty = 0;   
     let totalDefectQty = 0;
     let totalInspectionCount = 0;
     let totalDefectCount = 0;
@@ -618,7 +634,6 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                         productStats[pName] = { totalQty: 0, sampleQty: 0, defectQty: 0, inspCount: 0, defectCount: 0, defectsList: [] };
                     }
 
-                    // 🟢 입고 수량과 샘플 수량 별도 추출
                     const qty = Number(log.inboundQty) || Number(log.qty) || 0; 
                     const sampleQty = Number(log.sampleQty) || 1;
                     
@@ -658,7 +673,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                         productStats[pName].defectCount += 1;
                         totalDefectCount += 1;
                         
-                        productStats[pName].defectQty += qty; // 불량은 해당 입고건(qty) 전체를 기준으로 잡습니다. 필요시 sampleQty로 변경 가능.
+                        productStats[pName].defectQty += qty; 
                         totalDefectQty += qty;
 
                         if (defectReasons.length > 0) {
@@ -680,7 +695,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
         .map(([name, stats]) => ({
             name,
             totalQty: stats.totalQty,
-            sampleQty: stats.sampleQty, // 🟢 샘플 수량 전달
+            sampleQty: stats.sampleQty, 
             defectQty: stats.defectQty,
             qtyRate: stats.totalQty > 0 ? ((stats.defectQty / stats.totalQty) * 100).toFixed(1) : 0,
             inspCount: stats.inspCount,
