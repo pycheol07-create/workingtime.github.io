@@ -1,7 +1,8 @@
 // === js/ui-history-inspection.js ===
 import * as DOM from './dom-elements.js';
-import { context, allHistoryData } from './state.js';
+import * as State from './state.js';
 import { getWeekOfYear } from './utils.js';
+import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
 let sortState = { key: 'lastInspectionDate', dir: 'desc' };
@@ -39,7 +40,7 @@ const formatDefectSummary = (defectSummary) => {
 
 export const renderInspectionLayout = (container) => {
     if (!container) return;
-    const activeTab = context.inspectionViewMode || 'product';
+    const activeTab = State.context.inspectionViewMode || 'product';
 
     container.innerHTML = `
         <div class="flex flex-col h-full relative">
@@ -80,10 +81,15 @@ export const renderInspectionLayout = (container) => {
     `;
 };
 
-// ✨ 일자별 검수 리스트 렌더링 (샘플검수 수량 명확히 반영)
-export const renderInspectionListMode = (dateList, selectedDateData) => {
+// ✨ [Auto-Sync 탑재] 일자별 검수 리스트 렌더링
+export const renderInspectionListMode = async (dateList, selectedDateData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
+
+    // 렌더링 준비 스피너 노출 (매우 짧은 찰나)
+    if (!container.querySelector('.insp-list-loaded')) {
+        container.innerHTML = `<div class="flex h-full items-center justify-center text-indigo-500 font-bold animate-pulse">데이터 동기화 및 렌더링 중...</div>`;
+    }
 
     let filteredDateList = [];
     dateList.forEach(d => {
@@ -100,13 +106,56 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
         }
     });
 
-    let selectedDate = context.selectedInspectionDate;
+    let selectedDate = State.context.selectedInspectionDate;
     if (!filteredDateList.find(d => d.date === selectedDate) && filteredDateList.length > 0) {
         selectedDate = filteredDateList[0].date;
-        context.selectedInspectionDate = selectedDate;
+        State.context.selectedInspectionDate = selectedDate;
     }
 
     const filteredSelectedData = filteredDateList.find(d => d.date === selectedDate)?.data || [];
+
+    // 🛠️ [백그라운드 자동 동기화] 과거 1개로 저장된 오류 데이터를 자동으로 추적하여 3개/5개 등으로 복구
+    if (State.db && filteredSelectedData.length > 0) {
+        let needsDbUpdate = false;
+        await Promise.all(filteredSelectedData.map(async (item) => {
+            if (item.status === '완료' && item.inspectionType !== 'total') {
+                // 수량이 없거나 오류로 인해 1개로 기록되어 있을 가능성이 있는 항목 추적
+                if (item.sampleQty === undefined || item.sampleQty === 1 || item.sampleQty === 0) {
+                    try {
+                        const docRef = doc(State.db, 'product_history', item.name);
+                        const snap = await getDoc(docRef);
+                        if (snap.exists()) {
+                            const logs = snap.data().logs || [];
+                            // 원본 로그에서 정확한 기록 찾기
+                            const targetLog = logs.find(l => 
+                                l.date === selectedDate && 
+                                (item.packingDate ? l.packingDate === item.packingDate : true) &&
+                                (item.code && item.code !== '-' ? l.code === item.code : true)
+                            );
+                            if (targetLog && targetLog.sampleQty !== undefined) {
+                                const trueQty = Number(targetLog.sampleQty);
+                                if (item.sampleQty !== trueQty) {
+                                    item.sampleQty = trueQty; // 정확한 수량으로 복구
+                                    needsDbUpdate = true;
+                                }
+                            }
+                        }
+                    } catch(e) { console.warn("Auto-sync error", e); }
+                }
+            }
+        }));
+
+        // 복구된 데이터가 있다면 DB에 조용히 덮어쓰기하여 영구적으로 수정
+        if (needsDbUpdate) {
+            try {
+                const originalDayData = dateList.find(d => d.date === selectedDate)?.data;
+                if (originalDayData) {
+                    const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', selectedDate);
+                    await updateDoc(historyDocRef, { inspectionList: originalDayData });
+                }
+            } catch(e) { console.error("Silent DB update failed", e); }
+        }
+    }
 
     let dateListHtml = '';
     if (!filteredDateList || filteredDateList.length === 0) {
@@ -156,7 +205,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                 ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
                 : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
 
-            // 수량 추출: sampleQty가 저장되어 있으면 그대로 사용, 없으면 1
+            // 복구된 수량 추출
             const inboundQty = Number(item.inboundQty || item.qty || 0);
             const sampleQty = item.sampleQty !== undefined ? Number(item.sampleQty) : (item.inspectionType === 'total' ? inboundQty : 1);
             
@@ -224,7 +273,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
     }
 
     container.innerHTML = `
-        <div class="absolute inset-0 flex border border-gray-200 rounded-lg overflow-hidden bg-white">
+        <div class="absolute inset-0 flex border border-gray-200 rounded-lg overflow-hidden bg-white insp-list-loaded">
             <div class="w-1/4 min-w-[180px] border-r border-gray-200 bg-gray-50 overflow-y-auto custom-scrollbar shrink-0">
                 ${dateListHtml}
             </div>
@@ -353,7 +402,6 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
-// ✨ 펼쳐지는 상세 기록 화면에도 샘플검수 라벨 및 수량 반영
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const table = targetTr.closest('table');
     if (table) {
@@ -368,7 +416,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
         return currentInspTypeFilter === 'all' || type === currentInspTypeFilter;
     });
     
-    if (context.inspectionViewMode === 'list') {
+    if (State.context.inspectionViewMode === 'list') {
         const targetOption = targetTr.dataset.productOption;
         const targetCode = targetTr.dataset.productCode;
         const targetDate = targetTr.dataset.targetDate;
@@ -564,7 +612,6 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     targetTr.after(tr); 
 };
 
-// ✨ QC 통계 리포트 화면에도 샘플검수 라벨명 및 수량 반영
 export const renderQCStatsMode = (historyData, periodType = 'month', selectedPeriod = '') => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -811,7 +858,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
 
                                     <td class="px-2 py-3 text-center text-gray-500 border-l group-hover:bg-transparent">
                                         <div class="text-xs font-bold text-gray-700">${p.totalQty.toLocaleString()}개</div>
-                                        <div class="text-[10px] text-blue-600 font-bold">(샘플검수: ${p.sampleQty.toLocaleString()}개)</div>
+                                        <div class="text-[10px] text-blue-600 font-bold">(샘플: ${p.sampleQty.toLocaleString()}개)</div>
                                     </td>
                                     <td class="px-2 py-3 text-center text-orange-600 group-hover:bg-transparent">${p.defectQty}개</td>
                                     <td class="px-2 py-3 text-center group-hover:bg-transparent">
