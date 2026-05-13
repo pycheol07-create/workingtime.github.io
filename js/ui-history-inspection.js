@@ -80,7 +80,7 @@ export const renderInspectionLayout = (container) => {
     `;
 };
 
-// ✨ [수정됨] 일자별 검수 보기에서 입고/검수 수량 분리 및 총계 표시
+// ✨ 일자별 검수 리스트 렌더링 (샘플검수 수량 명확히 반영)
 export const renderInspectionListMode = (dateList, selectedDateData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -156,9 +156,9 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                 ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
                 : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
 
-            // 수량 추출 및 합계 계산 로직 보강
+            // 수량 추출: sampleQty가 저장되어 있으면 그대로 사용, 없으면 1
             const inboundQty = Number(item.inboundQty || item.qty || 0);
-            const sampleQty = Number(item.sampleQty || (item.inspectionType === 'total' ? inboundQty : 1));
+            const sampleQty = item.sampleQty !== undefined ? Number(item.sampleQty) : (item.inspectionType === 'total' ? inboundQty : 1);
             
             totalInboundQty += inboundQty;
             totalSampleQty += sampleQty;
@@ -177,7 +177,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                     <td class="px-4 py-3 text-xs text-gray-600">${item.supplierName || '-'}</td>
                     <td class="px-4 py-3 text-center">
                         <div class="text-xs font-bold text-gray-700">${inboundQty.toLocaleString()}</div>
-                        <div class="text-[10px] text-blue-600 font-bold">(검수: ${sampleQty.toLocaleString()})</div>
+                        <div class="text-[10px] text-blue-600 font-bold">(샘플검수: ${sampleQty.toLocaleString()})</div>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">${item.thickness || '-'}</td>
                     <td class="px-4 py-3 text-center">${statusBadge}</td>
@@ -192,7 +192,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                         <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
                         <span class="text-[11px] font-medium bg-white border border-gray-200 shadow-sm px-2.5 py-1 rounded text-gray-600">
                             총 입고: <strong class="text-gray-900">${totalInboundQty.toLocaleString()}</strong>개 <span class="mx-1 text-gray-300">|</span> 
-                            총 검수: <strong class="text-blue-600">${totalSampleQty.toLocaleString()}</strong>개
+                            총 샘플검수: <strong class="text-blue-600">${totalSampleQty.toLocaleString()}</strong>개
                         </span>
                     </div>
                     <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list" 
@@ -209,7 +209,7 @@ export const renderInspectionListMode = (dateList, selectedDateData) => {
                                 <th class="px-4 py-2 font-bold bg-gray-50 w-[20%]">상품명</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 w-[15%]">옵션</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 w-[15%]">공급처</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[12%]">수량 (입고/검수)</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[12%]">수량 (입고/샘플검수)</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 w-[10%]">기준</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[10%]">상태</th>
                             </tr>
@@ -353,6 +353,7 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
+// ✨ 펼쳐지는 상세 기록 화면에도 샘플검수 라벨 및 수량 반영
 export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     const table = targetTr.closest('table');
     if (table) {
@@ -501,7 +502,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 }
 
                 const inboundQtyDisplay = item.inboundQty ? item.inboundQty.toLocaleString() + '개' : '-';
-                const sampleQtyDisplay = item.sampleQty || 1;
+                const sampleQtyDisplay = item.sampleQty !== undefined ? item.sampleQty : 1;
 
                 return `
                     <tr class="border-b border-indigo-100/50 hover:bg-white transition bg-white/40">
@@ -510,7 +511,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                         <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.inboundDate || '-'}</td>
                         <td class="px-4 py-3 text-center">
                             <div class="text-xs font-bold text-gray-700">${inboundQtyDisplay}</div>
-                            <div class="text-[10px] text-blue-600 font-bold">(샘플: ${sampleQtyDisplay}개)</div>
+                            <div class="text-[10px] text-blue-600 font-bold">(샘플검수: ${sampleQtyDisplay}개)</div>
                         </td>
                         <td class="px-4 py-3 text-center">${statusBadge}</td>
                         <td class="px-4 py-3 max-w-[300px] leading-tight">${checklistStr.join('') || '-'}</td>
@@ -542,7 +543,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                                 <th class="px-4 py-2 font-bold whitespace-nowrap w-[6%] bg-indigo-100 text-center">유형</th>
                                 <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">입고(검수)일시</th>
                                 <th class="px-4 py-2 font-bold whitespace-nowrap w-[10%] bg-indigo-100">출고일자</th>
-                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%] bg-indigo-100">수량(입고/샘플)</th>
+                                <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%] bg-indigo-100">수량(입고/샘플검수)</th>
                                 <th class="px-4 py-2 font-bold text-center whitespace-nowrap w-[8%] bg-indigo-100">상태</th>
                                 <th class="px-4 py-2 font-bold w-[30%] bg-indigo-100">검수항목 (체크리스트)</th>
                                 <th class="px-4 py-2 font-bold w-[20%] bg-indigo-100">특이사항/메모</th>
@@ -563,6 +564,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     targetTr.after(tr); 
 };
 
+// ✨ QC 통계 리포트 화면에도 샘플검수 라벨명 및 수량 반영
 export const renderQCStatsMode = (historyData, periodType = 'month', selectedPeriod = '') => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -635,7 +637,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                     }
 
                     const qty = Number(log.inboundQty) || Number(log.qty) || 0; 
-                    const sampleQty = Number(log.sampleQty) || 1;
+                    const sampleQty = log.sampleQty !== undefined ? Number(log.sampleQty) : 1;
                     
                     productStats[pName].inspCount += 1;
                     totalInspectionCount += 1;
@@ -739,7 +741,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
             
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 shrink-0">
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500">
-                    <div class="text-xs text-gray-500 mb-1">총 검수 대상(입고) / 실제(샘플)</div>
+                    <div class="text-xs text-gray-500 mb-1">총 검수 대상(입고) / 실제(샘플검수)</div>
                     <div class="text-xl font-bold text-gray-800">
                         ${totalInspectedQty.toLocaleString()}<span class="text-sm font-normal text-gray-500">개</span> <span class="text-gray-300 mx-1">/</span> <span class="text-blue-600">${totalSampledQty.toLocaleString()}</span><span class="text-sm font-normal text-gray-500">개</span>
                     </div>
@@ -770,7 +772,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                             <tr class="bg-gray-50">
                                 <th class="px-4 py-3 border-b">상품명</th>
                                 <th class="px-4 py-3 text-center border-b border-l bg-gray-100/50" colspan="3">📊 검수 횟수 (상품 건별) 기준</th>
-                                <th class="px-4 py-3 text-center border-b border-l" colspan="3">📦 검수 수량 (개수) 기준</th>
+                                <th class="px-4 py-3 text-center border-b border-l" colspan="3">📦 샘플검수 수량 (개수) 기준</th>
                                 <th class="px-4 py-3 border-b border-l">주요 불량 사유</th>
                             </tr>
                             <tr class="text-[11px] text-gray-400 bg-gray-50">
@@ -778,7 +780,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                                 <th class="px-2 py-2 text-center border-b border-l bg-gray-100/50">총 횟수</th>
                                 <th class="px-2 py-2 text-center border-b bg-gray-100/50">불량 횟수</th>
                                 <th class="px-2 py-2 text-center border-b bg-gray-100/50">횟수 불량률</th>
-                                <th class="px-2 py-2 text-center border-b border-l">입고 / 샘플 수량</th>
+                                <th class="px-2 py-2 text-center border-b border-l">입고 / 샘플검수 수량</th>
                                 <th class="px-2 py-2 text-center border-b">불량 수량</th>
                                 <th class="px-2 py-2 text-center border-b">수량 불량률</th>
                                 <th class="px-4 py-2 border-b border-l"></th>
@@ -809,7 +811,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
 
                                     <td class="px-2 py-3 text-center text-gray-500 border-l group-hover:bg-transparent">
                                         <div class="text-xs font-bold text-gray-700">${p.totalQty.toLocaleString()}개</div>
-                                        <div class="text-[10px] text-blue-600 font-bold">(샘플: ${p.sampleQty.toLocaleString()}개)</div>
+                                        <div class="text-[10px] text-blue-600 font-bold">(샘플검수: ${p.sampleQty.toLocaleString()}개)</div>
                                     </td>
                                     <td class="px-2 py-3 text-center text-orange-600 group-hover:bg-transparent">${p.defectQty}개</td>
                                     <td class="px-2 py-3 text-center group-hover:bg-transparent">
