@@ -49,7 +49,6 @@
         .ql-editor hr, .prose hr { border: none; border-top: 2px solid #e2e8f0; margin: 2rem 0; }
         .dark .ql-editor hr, .dark .prose hr { border-top-color: #374151; }
         
-        /* ✨ 신규: 전체 창이 아닌 뷰어 본문과 에디터 본문에만 배율 애니메이션 적용 */
         #view-body, .ql-editor { transition: zoom 0.2s ease; }
     </style>
 </head>
@@ -106,6 +105,7 @@
                         <div class="flex-1 w-full">
                             <div class="flex flex-wrap items-center gap-3 mb-3">
                                 <span id="view-type-badge" class="px-2.5 py-1 text-xs font-bold rounded bg-indigo-100 text-indigo-800 border border-indigo-200 shadow-sm">분류</span>
+                                <span id="view-access-badge" class="hidden px-2.5 py-1 text-xs font-bold rounded bg-red-100 text-red-800 border border-red-200 shadow-sm">🔒 지정 인원만 열람 가능</span>
                                 <span class="text-xs text-gray-500 dark:text-gray-400">담당 관리자: <span id="view-manager" class="font-bold text-gray-800 dark:text-gray-200"></span></span>
                             </div>
                             <h2 id="view-title" class="text-2xl md:text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">제목</h2>
@@ -148,7 +148,7 @@
                     </div>
                 </div>
                 
-                <div class="p-3 md:p-4 flex flex-col flex-1 gap-3 bg-white dark:bg-gray-800 min-h-0">
+                <div class="p-3 md:p-4 flex flex-col flex-1 gap-3 bg-white dark:bg-gray-800 min-h-0 overflow-y-auto custom-scrollbar">
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-3 shrink-0">
                         <div class="md:col-span-6 flex flex-col justify-end">
                             <label class="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">매뉴얼 제목</label>
@@ -164,7 +164,19 @@
                         </div>
                     </div>
 
-                    <div class="flex flex-col flex-1 min-h-0">
+                    <div class="flex flex-col shrink-0 bg-gray-50 dark:bg-gray-800/50 p-3 rounded border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center gap-3">
+                            <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">열람 권한</label>
+                            <select id="edit-access-level" class="p-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-xs font-bold dark:text-white outline-none focus:border-blue-500 shadow-sm">
+                                <option value="public">🌐 전체 공개 (누구나 열람 가능)</option>
+                                <option value="private">🔒 특정 인원만 열람 (비공개)</option>
+                            </select>
+                        </div>
+                        <div id="edit-access-members-container" class="hidden mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-x-6 gap-y-3">
+                            </div>
+                    </div>
+
+                    <div class="flex flex-col flex-1 min-h-[300px]">
                         <div class="flex flex-col md:flex-row md:items-end justify-between mb-1.5 shrink-0 gap-2">
                             <label class="block text-[11px] font-bold text-gray-500 dark:text-gray-400">
                                 본문 내용 <span class="font-normal text-gray-400 text-[10px] ml-1">※ 이미지는 복사해서 붙여넣기 후 드래그하여 크기 조절</span>
