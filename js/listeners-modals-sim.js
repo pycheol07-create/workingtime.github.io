@@ -1,11 +1,8 @@
 // === js/listeners-modals-sim.js ===
-// 설명: 통합된 '업무 예측 시뮬레이션' 모달 전용 리스너입니다.
-
 import * as DOM from './dom-elements.js';
 import { appState, appConfig, allHistoryData } from './state.js';
 import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js';
 import { runAdvancedSimulation } from './analysis-logic.js'; 
-// 🌟 [수정] 올바른 함수 이름으로 변경하고 2개월 필터링을 내부에서 처리합니다.
 import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js';
 import { fetchAllHistoryData } from './history-data-manager.js';
 
@@ -21,7 +18,6 @@ const sortTasksCustom = (a, b) => {
     return a.localeCompare(b);
 };
 
-// 🔥 [신규] 최근 N개월의 데이터만 필터링하는 헬퍼 함수
 const getRecentHistoryData = (months = 2) => {
     if (!allHistoryData || allHistoryData.length === 0) return [];
     const cutoffDate = new Date();
@@ -54,7 +50,7 @@ const updateFirstRowCheckbox = () => {
 
 const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConcurrent = false, standardSpeed = 0, manualStartTime = '') => {
     const row = document.createElement('tr');
-    row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row';
+    row.className = 'bg-white border-b hover:bg-gray-50 transition sim-task-row group';
     row.draggable = true;
     
     const isFirstRow = tbody.children.length === 0;
@@ -74,34 +70,34 @@ const renderSimulationTaskRow = (tbody, task = '', qty = '', workers = 0, isConc
     const speedVal = standardSpeed > 0 ? standardSpeed.toFixed(2) : '';
 
     row.innerHTML = `
-        <td class="px-2 py-2 text-center cursor-grab text-gray-400 hover:text-indigo-600 active:cursor-grabbing" title="드래그하여 순서 변경">
+        <td class="px-2 py-2 text-center cursor-grab text-gray-300 hover:text-indigo-600 active:cursor-grabbing transition" title="드래그하여 순서 변경">
             <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path></svg>
         </td>
         <td class="px-2 py-2 text-center border-r border-gray-100">
             <div class="flex flex-col items-center justify-center">
                 <input type="checkbox" class="sim-row-concurrent w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 ${checkboxClass}" ${disableCheckbox} ${checkedAttr}>
-                <span class="text-[10px] text-gray-400 mt-0.5 ${isFirstRow ? 'invisible' : ''}">동시</span>
+                <span class="text-[10px] text-gray-400 mt-0.5 font-medium ${isFirstRow ? 'invisible' : ''}">동시</span>
             </div>
         </td>
         <td class="px-2 py-2">
-            <select class="sim-row-task w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+            <select class="sim-row-task w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm font-bold text-gray-700 bg-gray-50 shadow-inner">
                 ${taskOptions}
             </select>
         </td>
         <td class="px-2 py-2">
-            <input type="time" class="sim-row-manual-start w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-indigo-600 font-semibold" title="수동 시작 시각 지정" value="${manualStartTime}">
+            <input type="time" class="sim-row-manual-start w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm text-indigo-600 font-bold bg-white" title="수동 시작 시각 지정" value="${manualStartTime}">
         </td>
         <td class="px-2 py-2">
-            <input type="number" class="sim-row-speed w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right bg-blue-50/30" placeholder="자동" step="0.01" value="${speedVal}">
+            <input type="number" class="sim-row-speed w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right bg-gray-50 text-gray-500 font-mono" placeholder="자동" step="0.01" value="${speedVal}">
         </td>
         <td class="px-2 py-2">
-            <input type="number" class="sim-row-qty w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="1000" min="1" value="${qty > 0 ? qty : ''}">
+            <input type="number" class="sim-row-qty w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right font-bold text-gray-800 shadow-inner" placeholder="1000" min="1" value="${qty > 0 ? qty : ''}">
         </td>
-        <td class="px-2 py-2 sim-row-worker-or-time-cell">
-            <input type="number" class="sim-row-worker-or-time w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right" placeholder="5" min="1" step="1" value="${workerVal}">
+        <td class="px-2 py-2">
+            <input type="number" class="sim-row-worker-or-time w-full p-2 border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm text-right font-bold text-indigo-700 bg-indigo-50/50 shadow-inner placeholder:font-normal placeholder:text-gray-300" placeholder="(자동 배분)" min="1" step="1" value="${workerVal}">
         </td>
         <td class="px-2 py-2 text-center">
-            <button class="sim-row-delete-btn text-gray-400 hover:text-red-500 transition">
+            <button class="sim-row-delete-btn text-gray-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
                 </svg>
@@ -150,10 +146,12 @@ function makeDraggable(modalOverlay, header, contentBox) {
     }
 }
 
+// ✨ 핵심: 결과를 명확하게 3단계로 분리하여 렌더링
 const renderSimulationResults = (data) => {
     const contentBox = document.getElementById('sim-modal-content-box');
     const simResultThead = document.getElementById('sim-result-thead');
     const simResultTbody = document.getElementById('sim-result-tbody');
+    const summaryGrid = document.getElementById('sim-summary-grid');
     
     if (!data) {
         if (DOM.simResultContainer) DOM.simResultContainer.classList.add('hidden');
@@ -163,62 +161,89 @@ const renderSimulationResults = (data) => {
     
     if (contentBox) contentBox.style.height = 'auto';
 
-    const { results, totalDuration, finalEndTimeStr, totalCost, totalWorkersForTarget } = data;
+    const { results, totalDuration, finalEndTimeStr, totalCost, totalWorkersForTarget, targetEndTimeStr, simulationPoolSize } = data;
     
-    const simSummaryLabel1 = document.getElementById('sim-summary-label-1');
-    const simSummaryValue1 = document.getElementById('sim-summary-value-1');
-    const simSummaryLabel2 = document.getElementById('sim-summary-label-2');
-    const simSummaryValue2 = document.getElementById('sim-summary-value-2');
-    const simSummaryLabel3 = document.getElementById('sim-summary-label-3');
-    const simSummaryValue3 = document.getElementById('sim-summary-value-3');
+    // 1. 카드 UI 분리 렌더링
+    if (summaryGrid) {
+        const extraNeeded = Math.max(0, totalWorkersForTarget - simulationPoolSize);
+        
+        summaryGrid.innerHTML = `
+            <div class="bg-blue-50/70 p-5 rounded-2xl border border-blue-200 flex flex-col justify-center shadow-sm relative overflow-hidden">
+                <div class="text-[11px] text-blue-600 mb-2 font-extrabold tracking-wider">1️⃣ 현재 투입 인원 (${simulationPoolSize}명) 기준</div>
+                <div class="text-3xl font-extrabold text-blue-800">${finalEndTimeStr} <span class="text-sm font-bold text-blue-600">종료 예상</span></div>
+                <div class="text-xs text-blue-500 mt-2 font-medium">총 소요 시간: ${formatDuration(totalDuration)}</div>
+            </div>
+            
+            <div class="bg-green-50 p-5 rounded-2xl border border-green-200 flex flex-col justify-center shadow-md relative overflow-hidden ring-1 ring-green-300">
+                <div class="text-[11px] text-green-700 mb-2 font-extrabold tracking-wider">2️⃣ 목표 퇴근 (${targetEndTimeStr}) 맞출 시</div>
+                <div class="text-3xl font-extrabold text-green-800">총 ${totalWorkersForTarget}명 <span class="text-sm font-bold text-green-600">필요</span></div>
+                <div class="mt-2.5">
+                    <span class="text-[11px] text-red-600 font-extrabold bg-white border border-red-200 px-2.5 py-1 rounded-full shadow-sm">
+                        🚨 유동 인원 <span class="text-base">+${extraNeeded}명</span> 더 필요
+                    </span>
+                </div>
+            </div>
+            
+            <div class="bg-orange-50/70 p-5 rounded-2xl border border-orange-200 flex flex-col justify-center shadow-sm relative overflow-hidden">
+                <div class="text-[11px] text-orange-600 mb-2 font-extrabold tracking-wider">3️⃣ 예상 총 인건비</div>
+                <div class="text-3xl font-extrabold text-orange-800">${Math.round(totalCost).toLocaleString()}<span class="text-sm font-bold text-orange-600">원</span></div>
+                <div class="text-xs text-orange-500 mt-2 font-medium">현재 투입 (${simulationPoolSize}명) 기준</div>
+            </div>
+        `;
+    }
 
-    if (simSummaryLabel1) simSummaryLabel1.textContent = '총 예상 소요 시간';
-    if (simSummaryValue1) simSummaryValue1.textContent = formatDuration(totalDuration); 
-    if (simSummaryLabel2) simSummaryLabel2.textContent = '예상 종료 시각 / 총 필요 인원';
-    if (simSummaryValue2) simSummaryValue2.innerHTML = `<span class="text-indigo-600">${finalEndTimeStr}</span> <span class="text-gray-400 mx-1">|</span> <span class="text-orange-600">${Math.ceil(totalWorkersForTarget)}명</span>`;
-    if (simSummaryLabel3) simSummaryLabel3.textContent = '예상 총 인건비';
-    if (simSummaryValue3) simSummaryValue3.textContent = `${Math.round(totalCost).toLocaleString()}원`;
-
+    // 2. 표 헤더 변경 (투입 인원 명확화)
     if (simResultThead) {
         simResultThead.innerHTML = `
             <tr>
-                <th class="px-4 py-2">업무</th>
-                <th class="px-4 py-2 text-right">표준 속도</th>
-                <th class="px-4 py-2 text-right">예상 소요 시간</th>
-                <th class="px-4 py-2 text-right">필요 인원<br><span class="text-[10px] text-gray-400 font-normal">(목표 시각 기준)</span></th>
-                <th class="px-4 py-2 text-right">예상 종료 시각</th>
+                <th class="px-4 py-3 border-b border-gray-200">업무명</th>
+                <th class="px-4 py-3 text-center border-b border-gray-200">동시진행</th>
+                <th class="px-4 py-3 text-right border-b border-gray-200">표준 속도</th>
+                <th class="px-4 py-3 text-right border-b border-gray-200 text-indigo-700">개별 할당 인원</th>
+                <th class="px-4 py-3 text-right border-b border-gray-200">예상 소요 시간</th>
+                <th class="px-4 py-3 text-right border-b border-gray-200">예상 종료 시각</th>
             </tr>
         `;
     }
 
+    // 3. 표 내용 렌더링 (고정 인원 vs 유동 배분 뱃지)
     if (simResultTbody) {
         simResultTbody.innerHTML = results.map(res => {
             let relatedTaskHtml = '';
             if (res.relatedTaskInfo) {
                 const fixedTime = res.relatedTaskInfo.time;
                 const timeClass = fixedTime > 0 ? "text-gray-400" : "text-gray-300";
-                relatedTaskHtml = `<div class="text-xs ${timeClass} font-normal">+ ${res.relatedTaskInfo.name} (${formatDuration(fixedTime)})</div>`;
+                relatedTaskHtml = `<div class="text-[10px] ${timeClass} font-normal mt-0.5">+ ${res.relatedTaskInfo.name} (${formatDuration(fixedTime)})</div>`;
             }
-            const concurrentIcon = res.isConcurrent ? `<span class="text-indigo-500 ml-1" title="동시 진행">🔗</span>` : '';
+            const concurrentIcon = res.isConcurrent 
+                ? `<span class="bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-100">동시</span>` 
+                : '<span class="text-gray-300 text-[10px] font-bold">-</span>';
+            
+            // 🔥 고정/유동 배지 완벽 분리
+            const workerBadge = res.assignedWorkers > 0 
+                ? `<span class="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 font-extrabold px-2.5 py-1 rounded-md text-[11px] border border-indigo-200 shadow-sm"><span class="text-sm">👤</span> ${res.assignedWorkers}명 (고정)</span>`
+                : `<span class="inline-flex items-center gap-1 bg-gray-100 text-gray-500 font-bold px-2.5 py-1 rounded-md text-[11px] border border-gray-200"><span class="text-sm">🔄</span> 유동 배분</span>`;
 
             return `
-            <tr class="bg-white hover:bg-gray-50 transition">
-                <td class="px-4 py-3 font-medium text-gray-900">
-                    ${res.task} ${concurrentIcon}
-                    <div class="text-xs text-indigo-500 font-semibold">${res.startTime} 시작</div>
+            <tr class="bg-white hover:bg-blue-50/30 transition border-b border-gray-100">
+                <td class="px-4 py-3.5 font-bold text-gray-800">
+                    ${res.task}
                     ${relatedTaskHtml} 
                 </td>
-                <td class="px-4 py-3 text-right text-gray-500 font-mono">
-                    ${res.speed.toFixed(2)} 
+                <td class="px-4 py-3.5 text-center">
+                    ${concurrentIcon}
                 </td>
-                <td class="px-4 py-3 text-right text-indigo-700 font-medium">
+                <td class="px-4 py-3.5 text-right text-gray-500 font-mono text-xs">
+                    ${res.speed.toFixed(2)}
+                </td>
+                <td class="px-4 py-3.5 text-right">
+                    ${workerBadge}
+                </td>
+                <td class="px-4 py-3.5 text-right text-indigo-700 font-bold text-sm">
                     ${formatDuration(res.durationMinutes)}
-                    ${res.includesLunch ? '<span class="text-xs text-orange-500 block">(점심포함)</span>' : ''}
+                    ${res.includesLunch ? '<span class="text-[10px] text-orange-500 block leading-none mt-1 font-medium">(점심 포함)</span>' : ''}
                 </td>
-                <td class="px-4 py-3 text-right text-orange-600 font-bold">
-                    ${res.requiredWorkers} 명
-                </td>
-                <td class="px-4 py-3 text-right font-bold text-gray-700">${res.expectedEndTime}</td>
+                <td class="px-4 py-3.5 text-right font-extrabold text-gray-800">${res.expectedEndTime}</td>
             </tr>
             `;
         }).join('');
@@ -237,10 +262,10 @@ const renderTimelineChart = (data) => {
         return;
     }
     
-    container.innerHTML = `<h4 class="text-md font-bold text-gray-800 mb-3 mt-6">📅 시뮬레이션 타임라인 시각화</h4>`;
+    container.innerHTML = `<h4 class="text-sm font-extrabold text-gray-800 mb-3 mt-8 flex items-center gap-2"><span>📈</span> 시뮬레이션 타임라인</h4>`;
     
     const chartWrapper = document.createElement('div');
-    chartWrapper.className = "space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200 relative";
+    chartWrapper.className = "space-y-3 bg-white p-5 rounded-2xl border border-gray-200 relative shadow-sm";
     
     const totalMs = data.globalEndTimeMs - data.globalStartTimeMs;
     
@@ -263,10 +288,10 @@ const renderTimelineChart = (data) => {
         const isLunchIncluded = res.includesLunch ? '<span class="text-orange-300 ml-1">🍵</span>' : '';
 
         const rowHtml = `
-            <div class="w-24 text-xs font-bold text-gray-700 truncate" title="${res.task}">${res.task}</div>
-            <div class="flex-grow bg-white h-8 rounded-lg border border-gray-300 relative overflow-hidden shadow-inner">
-                <div class="absolute h-full bg-gradient-to-r from-indigo-500 to-indigo-600 flex items-center justify-center text-[11px] text-white font-semibold rounded shadow transition-all hover:brightness-110 cursor-pointer" 
-                     style="left: ${leftPercent}%; width: ${widthPercent}%; min-width: 3rem;"
+            <div class="w-24 text-[11px] font-bold text-gray-600 truncate text-right pr-2" title="${res.task}">${res.task}</div>
+            <div class="flex-grow bg-gray-50 h-8 rounded-lg border border-gray-200 relative overflow-hidden shadow-inner">
+                <div class="absolute h-full bg-gradient-to-r from-indigo-500 to-indigo-600 flex items-center justify-center text-[10px] text-white font-bold rounded shadow transition-all hover:brightness-110 cursor-pointer" 
+                     style="left: ${leftPercent}%; width: ${widthPercent}%; min-width: 4rem;"
                      title="${res.task} (${res.startTime} ~ ${res.expectedEndTime})">
                     ${res.startTime} ~ ${res.expectedEndTime} ${isLunchIncluded}
                 </div>
@@ -285,10 +310,10 @@ const renderTimelineChart = (data) => {
         const lunchWidth = ((60 * 60000) / totalMs) * 100; 
         
         const lunchMarker = document.createElement('div');
-        lunchMarker.className = "absolute top-0 bottom-0 bg-orange-100 bg-opacity-40 border-x border-orange-300 border-dashed pointer-events-none";
+        lunchMarker.className = "absolute top-0 bottom-0 bg-orange-100 bg-opacity-30 border-x border-orange-300 border-dashed pointer-events-none";
         lunchMarker.style.left = `${lunchLeft}%`;
         lunchMarker.style.width = `${lunchWidth}%`;
-        lunchMarker.innerHTML = `<div class="text-[9px] text-orange-600 absolute top-[-15px] left-1 bg-white px-1 rounded">점심 휴식 (12:30~13:30)</div>`;
+        lunchMarker.innerHTML = `<div class="text-[9px] text-orange-600 absolute top-[-20px] left-1 bg-white border border-orange-100 px-1.5 py-0.5 rounded font-bold shadow-sm">점심 휴식 (12:30~13:30)</div>`;
         chartWrapper.appendChild(lunchMarker);
     }
 
@@ -313,13 +338,9 @@ export function setupSimulationModalListeners() {
         const attendanceMap = appState.dailyAttendance || {};
         const currentActiveCount = Object.values(attendanceMap).filter(a => a.status === 'active').length;
         
-        const activeDisplay = document.getElementById('sim-active-count-display');
-        if (activeDisplay) activeDisplay.textContent = currentActiveCount;
-
         if (simTaskTableBody) {
             simTaskTableBody.innerHTML = '';
 
-            // 🌟 모달 오픈 시에도 최근 2개월 기준으로 계산
             const recentHistory = getRecentHistoryData(2);
             const avgStaffMap = calculateAverageStaffing(recentHistory);
             const standards = calculateStandardThroughputs(recentHistory);
@@ -371,9 +392,7 @@ export function setupSimulationModalListeners() {
             renderSimulationResults(appState.simulationResults);
             try {
                 renderTimelineChart(appState.simulationResults);
-            } catch (err) {
-                console.error("차트 렌더링 중 오류 발생:", err);
-            }
+            } catch (err) {}
         } else {
             renderSimulationResults(null); 
             const container = document.getElementById('sim-bottleneck-container');
@@ -425,7 +444,6 @@ export function setupSimulationModalListeners() {
             }
         });
 
-        // 🌟 [수정] 드롭다운에서 업무를 선택했을 때 자동입력
         simTaskTableBody.addEventListener('change', (e) => {
             if (e.target.classList.contains('sim-row-task')) {
                 const taskName = e.target.value;
@@ -438,19 +456,16 @@ export function setupSimulationModalListeners() {
                 const startInput = row.querySelector('.sim-row-manual-start');
 
                 if (taskName) {
-                     // 1. 최근 2개월 데이터만 가져와서 속도 계산
                      const recentHistory = getRecentHistoryData(2);
                      const standards = calculateStandardThroughputs(recentHistory);
                      const speed = standards[taskName] || 0;
                      if (speedInput) speedInput.value = speed > 0 ? speed.toFixed(2) : '';
                      
-                     // 2. 당일 목표 수량 자동 입력
                      const quantities = appState.taskQuantities || {};
                      if (qtyInput && quantities[taskName]) {
                          qtyInput.value = quantities[taskName];
                      }
                      
-                     // 3. 투입 인원 자동 입력
                      const avgStaffMap = calculateAverageStaffing(recentHistory);
                      const attendanceMap = appState.dailyAttendance || {};
                      const currentActiveCount = Object.values(attendanceMap).filter(a => a.status === 'active').length;
@@ -461,12 +476,10 @@ export function setupSimulationModalListeners() {
                          workerInput.value = Math.round(avgStaff) || '';
                      }
 
-                     // 4. 동시 진행 여부 자동 체크
                      if (concurrentCheck && DEFAULT_CONCURRENT_TASKS.includes(taskName)) {
                          concurrentCheck.checked = true;
                      }
 
-                     // 5. 시작 시각 (첫 줄인 경우 자동 채움)
                      if (startInput && !startInput.value && row.previousElementSibling === null) {
                          startInput.value = simStartTimeInput ? simStartTimeInput.value : "09:00";
                      }
@@ -517,24 +530,29 @@ export function setupSimulationModalListeners() {
 
             const rows = document.querySelectorAll('.sim-task-row');
             const taskList = [];
-            let maxInputWorkers = 0; 
+            let totalFixedWorkers = 0; 
+            let hasAnyFixed = false;
 
             rows.forEach((row, index) => {
                 const task = row.querySelector('.sim-row-task').value;
                 const qty = Number(row.querySelector('.sim-row-qty').value);
-                const workerInput = Number(row.querySelector('.sim-row-worker-or-time').value);
+                const workerInputStr = row.querySelector('.sim-row-worker-or-time').value;
+                const workerInput = workerInputStr ? Number(workerInputStr) : 0;
                 const isConcurrent = row.querySelector('.sim-row-concurrent').checked;
                 const manualSpeed = Number(row.querySelector('.sim-row-speed').value);
                 const manualStart = row.querySelector('.sim-row-manual-start').value;
 
                 if (task && qty > 0) {
-                    if (workerInput > maxInputWorkers) maxInputWorkers = workerInput;
+                    if (workerInput > 0) hasAnyFixed = true;
+                    totalFixedWorkers += workerInput;
+                    
                     taskList.push({ 
                         task, 
                         targetQty: qty, 
                         manualSpeed, 
                         manualStart: manualStart || null,
-                        isConcurrent: (index > 0 && isConcurrent) 
+                        isConcurrent: (index > 0 && isConcurrent),
+                        requiredWorkers: workerInput 
                     });
                 }
             });
@@ -544,9 +562,23 @@ export function setupSimulationModalListeners() {
                 return;
             }
 
-            if (maxInputWorkers <= 0) maxInputWorkers = 1;
+            // 전체 가용 풀(Pool) 계산
+            let activeStaffCount = 1;
+            const attendanceMap = appState.dailyAttendance || {};
+            const activeStaff = Object.values(attendanceMap).filter(a => a.status === 'active').length;
+            if (activeStaff > 0) activeStaffCount = activeStaff;
 
-            const timeSimulation = runAdvancedSimulation('fixed-workers', taskList, maxInputWorkers, currentStartTimeStr, includeLinkedTasks);
+            let simulationPoolSize = activeStaffCount;
+            if (totalFixedWorkers > simulationPoolSize) {
+                simulationPoolSize = totalFixedWorkers; 
+            } else if (!hasAnyFixed) {
+                simulationPoolSize = activeStaffCount;
+            }
+
+            // 1. 현재 풀(Pool) 인원 기준 시뮬레이션
+            const timeSimulation = runAdvancedSimulation('fixed-workers', taskList, simulationPoolSize, currentStartTimeStr, includeLinkedTasks);
+            
+            // 2. 목표 종료 시간 달성 역산 시뮬레이션
             const targetSimulation = runAdvancedSimulation('target-time', taskList, currentEndTimeStr, currentStartTimeStr, includeLinkedTasks);
 
             if (timeSimulation.error) {
@@ -555,10 +587,7 @@ export function setupSimulationModalListeners() {
             }
 
             const results = timeSimulation.results.map((tRes) => {
-                return {
-                    ...tRes,
-                    requiredWorkers: targetSimulation.error ? '-' : targetSimulation.totalWorkers 
-                };
+                return { ...tRes };
             });
 
             const simulationData = {
@@ -567,6 +596,8 @@ export function setupSimulationModalListeners() {
                 finalEndTimeStr: timeSimulation.finalEndTimeStr,
                 totalCost: timeSimulation.totalCost,
                 totalWorkersForTarget: targetSimulation.error ? 0 : targetSimulation.totalWorkers,
+                targetEndTimeStr: currentEndTimeStr,
+                simulationPoolSize: simulationPoolSize,
                 startTime: currentStartTimeStr,
                 endTime: currentEndTimeStr,
                 globalStartTimeMs: timeSimulation.globalStartTimeMs,
