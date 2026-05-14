@@ -4,6 +4,11 @@ import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calc
 import { saveProgress } from './history-data-manager.js';
 import { saveStateToFirestore } from './app-data.js';
 
+// ✨ 서버 동기화 오류를 막기 위한 '브라우저 전용(Local)' 점심시간 잠금 변수
+let localLunchPauseExecuted = false;
+let localLunchResumeExecuted = false;
+let lastCheckedDay = null;
+
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     displayCurrentDate();
@@ -11,28 +16,34 @@ export const updateElapsedTimes = async () => {
     const todayDate = getTodayDateString();
     const isTodayWeekday = isWeekday(todayDate);
     
+    // 날짜가 바뀌면(자정) 잠금장치 스스로 초기화
+    if (lastCheckedDay !== todayDate) {
+        localLunchPauseExecuted = false;
+        localLunchResumeExecuted = false;
+        lastCheckedDay = todayDate;
+    }
+    
     const currentUserLower = (State.appState.currentUser || '').toLowerCase();
     const isAdmin = State.appConfig?.memberRoles?.[currentUserLower] === 'admin';
     
-    if (isTodayWeekday && now === '12:30' && !State.appState.lunchPauseExecuted) {
-        State.appState.lunchPauseExecuted = true;
+    // 🚨 전역 잠금(DB) 대신 로컬 잠금으로 변경하여 부분 누락 현상 100% 방지
+    if (isTodayWeekday && now === '12:30' && !localLunchPauseExecuted) {
+        localLunchPauseExecuted = true; 
         if (isAdmin && State.context.autoPauseForLunch) {
             try {
                 const tasksPaused = await State.context.autoPauseForLunch();
                 if (tasksPaused > 0) showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
             } catch (e) { console.error("Error during auto-pause: ", e); }
-            saveStateToFirestore(); 
         }
     }
 
-    if (isTodayWeekday && now === '13:30' && !State.appState.lunchResumeExecuted) {
-        State.appState.lunchResumeExecuted = true;
+    if (isTodayWeekday && now === '13:30' && !localLunchResumeExecuted) {
+        localLunchResumeExecuted = true;
         if (isAdmin && State.context.autoResumeFromLunch) {
             try {
                 const tasksResumed = await State.context.autoResumeFromLunch();
                 if (tasksResumed > 0) showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
             } catch (e) { console.error("Error during auto-resume: ", e); }
-            saveStateToFirestore(); 
         }
     }
 
@@ -69,8 +80,6 @@ export const updateElapsedTimes = async () => {
 };
 
 export const autoSaveProgress = () => {
-    // 🚨 1분마다 떨어지던 최악의 '쓰기(Write) 폭탄' 제거 완료!
-    // (진행 데이터는 개별 동작마다 이미 DB에 실시간 저장되고 있으므로, 여기서 전체 이력을 무한 덮어쓰기 할 필요가 100% 없습니다.)
     if (State.isDataDirty) {
         console.log("Auto-save bypassed to block unnecessary Firebase Writes.");
         State.setIsDataDirty(false);
