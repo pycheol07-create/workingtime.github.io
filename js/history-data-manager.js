@@ -33,26 +33,45 @@ export const syncTodayToHistory = async () => {
             return data;
         });
 
+        // 현재 날짜의 메모리 캐시 데이터를 가져옵니다
+        const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
+        const existingHistory = idx > -1 ? State.allHistoryData[idx] : null;
+
+        // 🚨 버그 해결 방어막: 업무 마감 후 대시보드(Live)가 비워졌을 때, 
+        // 화면 동기화 로직이 이력(History) 화면까지 지워버리지 못하게 차단!
+        const isLiveEmpty = liveWorkRecords.length === 0;
+        const isLiveQtyEmpty = !State.appState.taskQuantities || Object.keys(State.appState.taskQuantities).length === 0;
+        const hasHistoryData = existingHistory && existingHistory.workRecords && existingHistory.workRecords.length > 0;
+
+        let finalWorkRecords = liveWorkRecords;
+        let finalQuantities = State.appState.taskQuantities || {};
+
+        // 대시보드가 초기화된 상태고 저장된 이력이 있다면, 무조건 이력 데이터를 우선시합니다
+        if (isLiveEmpty && isLiveQtyEmpty && hasHistoryData) {
+            finalWorkRecords = existingHistory.workRecords;
+            finalQuantities = existingHistory.taskQuantities || {};
+        }
+
         const liveTodayData = {
             id: todayKey,
-            workRecords: liveWorkRecords,
-            taskQuantities: State.appState.taskQuantities || {},
-            confirmedZeroTasks: State.appState.confirmedZeroTasks || [],
-            onLeaveMembers: State.appState.dailyOnLeaveMembers || [],
-            partTimers: State.appState.partTimers || [],
-            dailyAttendance: State.appState.dailyAttendance || {},
-            management: State.appState.management || {},
-            inspectionList: State.appState.inspectionList || [],
-            isQuantityVerified: State.appState.isQuantityVerified || false
+            workRecords: finalWorkRecords,
+            taskQuantities: finalQuantities,
+            confirmedZeroTasks: State.appState.confirmedZeroTasks || (existingHistory?.confirmedZeroTasks || []),
+            onLeaveMembers: State.appState.dailyOnLeaveMembers || (existingHistory?.onLeaveMembers || []),
+            partTimers: State.appState.partTimers || (existingHistory?.partTimers || []),
+            dailyAttendance: State.appState.dailyAttendance || (existingHistory?.dailyAttendance || {}),
+            management: State.appState.management || (existingHistory?.management || {}),
+            inspectionList: State.appState.inspectionList || (existingHistory?.inspectionList || []),
+            isQuantityVerified: State.appState.isQuantityVerified || (existingHistory?.isQuantityVerified || false)
         };
 
-        const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
         if (idx > -1) {
             State.allHistoryData[idx] = liveTodayData;
         } else {
             State.allHistoryData.unshift(liveTodayData);
             State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
         }
+
     } catch (e) {
         console.error("Error syncing today to history cache: ", e);
     }
@@ -69,7 +88,6 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateStr);
 
     try {
-        // 🚨 핵심 최적화: getDoc(getDailyDocRef) 통신 삭제! 이미 메모리에 있는 데이터 재활용 (읽기 요금 0원)
         const dailyData = {
             taskQuantities: State.appState.taskQuantities || {},
             confirmedZeroTasks: State.appState.confirmedZeroTasks || [],
@@ -94,7 +112,6 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             return Math.round(record.duration || 0) > 0;
         });
 
-        // 🚨 핵심 최적화: getDoc(historyDocRef) 통신 삭제! 이미 다운받아둔 allHistoryData 캐시 활용 (읽기 요금 0원)
         const existingHistory = State.allHistoryData.find(d => d.id === dateStr) || {};
         const existingRecordsCount = (existingHistory.workRecords || []).length;
         
@@ -253,7 +270,6 @@ export async function fetchAllHistoryData(forceRefresh = false) {
 
     const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     try {
-        // 🔥 기존 6개월(180일)에서 -> 최근 2개월(60일)로 대폭 축소! (읽기 비용 약 66% 즉각 삭감)
         const d = new Date();
         d.setMonth(d.getMonth() - 2);
         const twoMonthsAgoStr = d.toISOString().split('T')[0];
@@ -468,7 +484,6 @@ export async function checkUnverifiedRecords(forceRefresh = false) {
     const historyCol = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
     
     try {
-        // 🔥 기존 30일에서 -> 최근 14일(2주)치로 대폭 축소! (읽기 비용 절반 삭감)
         const d = new Date();
         d.setDate(d.getDate() - 14);
         const fourteenDaysAgoStr = d.toISOString().split('T')[0];
