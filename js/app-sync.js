@@ -7,15 +7,23 @@ import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js';
 import { renderTodoList } from './inspection-logic.js';
 import { renderNotificationList } from './app-notifications.js';
 
-// 🔥 리스너 추적을 위한 로컬 변수 선언 (유령 리스너 사살용)
 let unsubLeave = null;
 let unsubConfig = null;
 let unsubToday = null;
 let unsubWorkRecords = null;
 export let unsubscribeNotifications = null;
 
-export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
-    // 🚨 핵심 방어막: 기존에 살아있던 유령 리스너들을 모조리 쏴서 죽임 (중복 읽기 과금 원천 차단!)
+// ✨ 핵심 방어막: 초기화 잠금 변수
+let isListenersInitialized = false;
+
+export function setupFirebaseListeners(renderCallback, markDirtyCallback, force = false) {
+    // 🚨 라우터 이동이나 토큰 갱신 시 리스너가 중복 재실행되어 데이터를 다시 통째로 다운받는 최악의 현상 완벽 차단!
+    if (isListenersInitialized && !force) {
+        console.log("Listeners already active. Bypassing redundant DB reads.");
+        return;
+    }
+    isListenersInitialized = true;
+
     if (unsubLeave) { unsubLeave(); unsubLeave = null; }
     if (unsubConfig) { unsubConfig(); unsubConfig = null; }
     if (unsubToday) { unsubToday(); unsubToday = null; }

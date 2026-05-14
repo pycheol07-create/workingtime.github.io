@@ -10,6 +10,10 @@ let isHistoryCached = false;
 let cachedUnverifiedDates = null;
 let lastUnverifiedCheckTime = 0;
 
+// ✨ 핵심 방어막: 동시다발적 DB 요청을 막기 위한 '대기실(Promise Lock)' 변수
+let historyFetchPromise = null;
+let unverifiedFetchPromise = null;
+
 export const getWorkRecordsCollectionRef = () => {
     const today = getTodayDateString();
     return collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
@@ -33,12 +37,9 @@ export const syncTodayToHistory = async () => {
             return data;
         });
 
-        // 현재 날짜의 메모리 캐시 데이터를 가져옵니다
         const idx = State.allHistoryData.findIndex(d => d.id === todayKey);
         const existingHistory = idx > -1 ? State.allHistoryData[idx] : null;
 
-        // 🚨 버그 해결 방어막: 업무 마감 후 대시보드(Live)가 비워졌을 때, 
-        // 화면 동기화 로직이 이력(History) 화면까지 지워버리지 못하게 차단!
         const isLiveEmpty = liveWorkRecords.length === 0;
         const isLiveQtyEmpty = !State.appState.taskQuantities || Object.keys(State.appState.taskQuantities).length === 0;
         const hasHistoryData = existingHistory && existingHistory.workRecords && existingHistory.workRecords.length > 0;
@@ -46,7 +47,6 @@ export const syncTodayToHistory = async () => {
         let finalWorkRecords = liveWorkRecords;
         let finalQuantities = State.appState.taskQuantities || {};
 
-        // 대시보드가 초기화된 상태고 저장된 이력이 있다면, 무조건 이력 데이터를 우선시합니다
         if (isLiveEmpty && isLiveQtyEmpty && hasHistoryData) {
             finalWorkRecords = existingHistory.workRecords;
             finalQuantities = existingHistory.taskQuantities || {};
@@ -71,7 +71,6 @@ export const syncTodayToHistory = async () => {
             State.allHistoryData.unshift(liveTodayData);
             State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
         }
-
     } catch (e) {
         console.error("Error syncing today to history cache: ", e);
     }
@@ -268,57 +267,68 @@ export async function fetchAllHistoryData(forceRefresh = false) {
         return State.allHistoryData;
     }
 
-    const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
-    try {
-        const d = new Date();
-        d.setMonth(d.getMonth() - 2);
-        const twoMonthsAgoStr = d.toISOString().split('T')[0];
-
-        const q = query(historyCollectionRef, where(documentId(), ">=", twoMonthsAgoStr));
-        const querySnapshot = await getDocs(q);
-        
-        const dataMap = new Map();
-        querySnapshot.forEach((doc) => {
-            const docData = doc.data();
-            if (docData) dataMap.set(doc.id, { id: doc.id, ...docData });
-        });
-
-        const today = getTodayDateString();
-        let minDate = today;
-        if (dataMap.size > 0) {
-            const keys = Array.from(dataMap.keys());
-            keys.sort();
-            minDate = keys[0];
-        }
-
-        const fullHistory = [];
-        const current = new Date(minDate);
-        const end = new Date(today);
-
-        while (current <= end) {
-            const dateStr = current.toISOString().slice(0, 10);
-            if (dataMap.has(dateStr)) {
-                fullHistory.push(dataMap.get(dateStr));
-            } else {
-                fullHistory.push({
-                    id: dateStr, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [],
-                    management: { revenue: 0, orderCount: 0, inventoryQty: 0, inventoryAmt: 0 }, inspectionList: []
-                });
-            }
-            current.setDate(current.getDate() + 1);
-        }
-
-        fullHistory.sort((a, b) => b.id.localeCompare(a.id));
-        State.allHistoryData.length = 0; 
-        State.allHistoryData.push(...fullHistory); 
-        
-        isHistoryCached = true; 
-        return State.allHistoryData;
-    } catch (error) {
-        console.error('Error fetching all history data:', error);
-        State.allHistoryData.length = 0;
-        return [];
+    // 🚨 병목 방어: 여러 위젯이 동시에 데이터를 요청하면, DB를 중복해서 찌르지 않고 첫 번째 요청자가 가져올 때까지 다 같이 기다립니다.
+    if (historyFetchPromise && !forceRefresh) {
+        return historyFetchPromise; 
     }
+
+    historyFetchPromise = (async () => {
+        const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
+        try {
+            const d = new Date();
+            d.setMonth(d.getMonth() - 2); // 최근 2개월
+            const twoMonthsAgoStr = d.toISOString().split('T')[0];
+
+            const q = query(historyCollectionRef, where(documentId(), ">=", twoMonthsAgoStr));
+            const querySnapshot = await getDocs(q);
+            
+            const dataMap = new Map();
+            querySnapshot.forEach((doc) => {
+                const docData = doc.data();
+                if (docData) dataMap.set(doc.id, { id: doc.id, ...docData });
+            });
+
+            const today = getTodayDateString();
+            let minDate = today;
+            if (dataMap.size > 0) {
+                const keys = Array.from(dataMap.keys());
+                keys.sort();
+                minDate = keys[0];
+            }
+
+            const fullHistory = [];
+            const current = new Date(minDate);
+            const end = new Date(today);
+
+            while (current <= end) {
+                const dateStr = current.toISOString().slice(0, 10);
+                if (dataMap.has(dateStr)) {
+                    fullHistory.push(dataMap.get(dateStr));
+                } else {
+                    fullHistory.push({
+                        id: dateStr, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [],
+                        management: { revenue: 0, orderCount: 0, inventoryQty: 0, inventoryAmt: 0 }, inspectionList: []
+                    });
+                }
+                current.setDate(current.getDate() + 1);
+            }
+
+            fullHistory.sort((a, b) => b.id.localeCompare(a.id));
+            State.allHistoryData.length = 0; 
+            State.allHistoryData.push(...fullHistory); 
+            
+            isHistoryCached = true; 
+            return State.allHistoryData;
+        } catch (error) {
+            console.error('Error fetching all history data:', error);
+            State.allHistoryData.length = 0;
+            return [];
+        } finally {
+            historyFetchPromise = null; // 처리 완료 후 자물쇠 해제
+        }
+    })();
+
+    return historyFetchPromise;
 }
 
 export async function addHistoryWorkRecord(dateKey, newRecordData) {
@@ -406,7 +416,7 @@ async function updateHistoryDirectly(dateKey, recordId, updateData) {
     const originalRecord = dayData.workRecords[recordIndex];
     const updatedRecord = { ...originalRecord, ...updateData };
 
-    if (updateData.startTime || updateData.endTime || updateData.pauses) {
+    if (updateData.startTime || updateData.endTime || originalRecord.pauses) {
         const start = updateData.startTime || originalRecord.startTime;
         const end = updateData.endTime || originalRecord.endTime;
         const pauses = updateData.pauses || originalRecord.pauses || [];
@@ -481,33 +491,44 @@ export async function checkUnverifiedRecords(forceRefresh = false) {
         return cachedUnverifiedDates;
     }
 
-    const historyCol = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
-    
-    try {
-        const d = new Date();
-        d.setDate(d.getDate() - 14);
-        const fourteenDaysAgoStr = d.toISOString().split('T')[0];
-
-        const q = query(historyCol, where(documentId(), ">=", fourteenDaysAgoStr)); 
-        const snapshot = await getDocs(q);
-        
-        const unverifiedDates = [];
-        const today = getTodayDateString();
-
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            if (doc.id !== today) {
-                const hasQuantities = data.taskQuantities && Object.keys(data.taskQuantities).length > 0;
-                if (hasQuantities && !data.isQuantityVerified) unverifiedDates.push(doc.id);
-            }
-        });
-
-        unverifiedDates.sort();
-        cachedUnverifiedDates = unverifiedDates;
-        lastUnverifiedCheckTime = now;
-        return unverifiedDates; 
-    } catch (e) {
-        console.error("Failed to check unverified records:", e);
-        return [];
+    // 🚨 병목 방어 2
+    if (unverifiedFetchPromise && !forceRefresh) {
+        return unverifiedFetchPromise;
     }
+
+    unverifiedFetchPromise = (async () => {
+        const historyCol = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
+        
+        try {
+            const d = new Date();
+            d.setDate(d.getDate() - 14); // 최근 14일
+            const fourteenDaysAgoStr = d.toISOString().split('T')[0];
+
+            const q = query(historyCol, where(documentId(), ">=", fourteenDaysAgoStr)); 
+            const snapshot = await getDocs(q);
+            
+            const unverifiedDates = [];
+            const today = getTodayDateString();
+
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (doc.id !== today) {
+                    const hasQuantities = data.taskQuantities && Object.keys(data.taskQuantities).length > 0;
+                    if (hasQuantities && !data.isQuantityVerified) unverifiedDates.push(doc.id);
+                }
+            });
+
+            unverifiedDates.sort();
+            cachedUnverifiedDates = unverifiedDates;
+            lastUnverifiedCheckTime = Date.now();
+            return unverifiedDates; 
+        } catch (e) {
+            console.error("Failed to check unverified records:", e);
+            return [];
+        } finally {
+            unverifiedFetchPromise = null;
+        }
+    })();
+
+    return unverifiedFetchPromise;
 }
