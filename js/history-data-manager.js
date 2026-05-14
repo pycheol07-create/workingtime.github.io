@@ -10,9 +10,16 @@ let isHistoryCached = false;
 let cachedUnverifiedDates = null;
 let lastUnverifiedCheckTime = 0;
 
-// ✨ 핵심 방어막: 동시다발적 DB 요청을 막기 위한 '대기실(Promise Lock)' 변수
 let historyFetchPromise = null;
 let unverifiedFetchPromise = null;
+
+// ✨ 데이터가 변경되었을 때 로컬 캐시를 초기화하는 헬퍼 함수 (읽기 요금 방어용)
+const clearLocalCache = () => {
+    sessionStorage.removeItem('historyDataCache');
+    sessionStorage.removeItem('historyDataCacheTime');
+    sessionStorage.removeItem('unverifiedDataCache');
+    sessionStorage.removeItem('unverifiedDataCacheTime');
+};
 
 export const getWorkRecordsCollectionRef = () => {
     const today = getTodayDateString();
@@ -148,6 +155,7 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
         }
 
         await syncTodayToHistory(); 
+        clearLocalCache(); // ✨ 데이터 변경 시 캐시 지우기
 
         if (!isAutoSave) {
             showToast('최신 상태가 이력에 안전하게 저장되었습니다.');
@@ -258,6 +266,7 @@ export async function saveDayDataToHistory(shouldReset) {
         }
         
         State.appState.workRecords = []; 
+        clearLocalCache();
         showToast('오늘의 업무 기록을 초기화했습니다.');
     }
 }
@@ -267,7 +276,22 @@ export async function fetchAllHistoryData(forceRefresh = false) {
         return State.allHistoryData;
     }
 
-    // 🚨 병목 방어: 여러 위젯이 동시에 데이터를 요청하면, DB를 중복해서 찌르지 않고 첫 번째 요청자가 가져올 때까지 다 같이 기다립니다.
+    // ✨ 브라우저 세션 스토리지 확인 (새로고침 시 DB 읽기 요금 방어)
+    if (!forceRefresh) {
+        const cached = sessionStorage.getItem('historyDataCache');
+        const cacheTime = sessionStorage.getItem('historyDataCacheTime');
+        const now = Date.now();
+        // 5분(300,000ms) 이내의 캐시가 있다면 통신 없이 바로 재사용!
+        if (cached && cacheTime && (now - parseInt(cacheTime) < 300000)) {
+            try {
+                State.allHistoryData.length = 0;
+                State.allHistoryData.push(...JSON.parse(cached));
+                isHistoryCached = true;
+                return State.allHistoryData;
+            } catch(e) {}
+        }
+    }
+
     if (historyFetchPromise && !forceRefresh) {
         return historyFetchPromise; 
     }
@@ -276,10 +300,11 @@ export async function fetchAllHistoryData(forceRefresh = false) {
         const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
         try {
             const d = new Date();
-            d.setMonth(d.getMonth() - 2); // 최근 2개월
-            const twoMonthsAgoStr = d.toISOString().split('T')[0];
+            // 🚨 기존 2개월 -> 1개월로 축소 (기본 읽기 비용 50% 절감)
+            d.setMonth(d.getMonth() - 1); 
+            const oneMonthAgoStr = d.toISOString().split('T')[0];
 
-            const q = query(historyCollectionRef, where(documentId(), ">=", twoMonthsAgoStr));
+            const q = query(historyCollectionRef, where(documentId(), ">=", oneMonthAgoStr));
             const querySnapshot = await getDocs(q);
             
             const dataMap = new Map();
@@ -318,13 +343,18 @@ export async function fetchAllHistoryData(forceRefresh = false) {
             State.allHistoryData.push(...fullHistory); 
             
             isHistoryCached = true; 
+            
+            // ✨ 성공적으로 가져왔다면 브라우저 메모리에 캐싱
+            sessionStorage.setItem('historyDataCache', JSON.stringify(State.allHistoryData));
+            sessionStorage.setItem('historyDataCacheTime', Date.now().toString());
+
             return State.allHistoryData;
         } catch (error) {
             console.error('Error fetching all history data:', error);
             State.allHistoryData.length = 0;
             return [];
         } finally {
-            historyFetchPromise = null; // 처리 완료 후 자물쇠 해제
+            historyFetchPromise = null;
         }
     })();
 
@@ -344,6 +374,7 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey, 'workRecords', newRecordData.id);
         await setDoc(docRef, newRecordData);
         await syncTodayToHistory();
+        clearLocalCache();
         return;
     }
 
@@ -361,6 +392,7 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
 
     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
     await setDoc(historyDocRef, { workRecords: dayData.workRecords }, { merge: true });
+    clearLocalCache();
 }
 
 export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
@@ -399,6 +431,7 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey, 'workRecords', recordId);
         await updateDoc(docRef, updateData);
         await syncTodayToHistory(); 
+        clearLocalCache();
         return;
     }
 
@@ -431,6 +464,7 @@ async function updateHistoryDirectly(dateKey, recordId, updateData) {
     dayData.workRecords[recordIndex] = updatedRecord;
     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
     await setDoc(historyDocRef, { workRecords: dayData.workRecords }, { merge: true });
+    clearLocalCache();
 }
 
 export async function deleteHistoryWorkRecord(dateKey, recordId) {
@@ -443,6 +477,7 @@ export async function deleteHistoryWorkRecord(dateKey, recordId) {
         if (dailySnap.exists()) {
             await deleteDoc(dailyRecordRef);
             await syncTodayToHistory();
+            clearLocalCache();
             return;
         }
     }
@@ -458,6 +493,7 @@ export async function deleteHistoryWorkRecord(dateKey, recordId) {
     dayData.workRecords = newRecords; 
     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
     await setDoc(historyDocRef, { workRecords: newRecords }, { merge: true });
+    clearLocalCache();
 }
 
 export async function saveManagementData(dateKey, managementData) {
@@ -479,6 +515,7 @@ export async function saveManagementData(dateKey, managementData) {
         if (dateKey === todayKey) await setDoc(getDailyDocRef(), updates, { merge: true });
         const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
         await setDoc(historyDocRef, updates, { merge: true });
+        clearLocalCache();
     } catch (e) {
         console.error("Error saving management data:", e);
         throw e; 
@@ -491,7 +528,19 @@ export async function checkUnverifiedRecords(forceRefresh = false) {
         return cachedUnverifiedDates;
     }
 
-    // 🚨 병목 방어 2
+    // ✨ 브라우저 세션 스토리지 캐시 확인
+    if (!forceRefresh) {
+        const cached = sessionStorage.getItem('unverifiedDataCache');
+        const cacheTime = sessionStorage.getItem('unverifiedDataCacheTime');
+        if (cached && cacheTime && (now - parseInt(cacheTime) < 300000)) { // 5분
+            try {
+                cachedUnverifiedDates = JSON.parse(cached);
+                lastUnverifiedCheckTime = now;
+                return cachedUnverifiedDates;
+            } catch(e) {}
+        }
+    }
+
     if (unverifiedFetchPromise && !forceRefresh) {
         return unverifiedFetchPromise;
     }
@@ -501,10 +550,11 @@ export async function checkUnverifiedRecords(forceRefresh = false) {
         
         try {
             const d = new Date();
-            d.setDate(d.getDate() - 14); // 최근 14일
-            const fourteenDaysAgoStr = d.toISOString().split('T')[0];
+            // 🚨 기존 14일 -> 7일로 축소하여 읽기 요금 반토막
+            d.setDate(d.getDate() - 7); 
+            const sevenDaysAgoStr = d.toISOString().split('T')[0];
 
-            const q = query(historyCol, where(documentId(), ">=", fourteenDaysAgoStr)); 
+            const q = query(historyCol, where(documentId(), ">=", sevenDaysAgoStr)); 
             const snapshot = await getDocs(q);
             
             const unverifiedDates = [];
@@ -521,6 +571,10 @@ export async function checkUnverifiedRecords(forceRefresh = false) {
             unverifiedDates.sort();
             cachedUnverifiedDates = unverifiedDates;
             lastUnverifiedCheckTime = Date.now();
+            
+            sessionStorage.setItem('unverifiedDataCache', JSON.stringify(unverifiedDates));
+            sessionStorage.setItem('unverifiedDataCacheTime', Date.now().toString());
+
             return unverifiedDates; 
         } catch (e) {
             console.error("Failed to check unverified records:", e);
