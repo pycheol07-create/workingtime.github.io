@@ -7,11 +7,23 @@ import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js';
 import { renderTodoList } from './inspection-logic.js';
 import { renderNotificationList } from './app-notifications.js';
 
+// 🔥 리스너 추적을 위한 로컬 변수 선언 (유령 리스너 사살용)
+let unsubLeave = null;
+let unsubConfig = null;
+let unsubToday = null;
+let unsubWorkRecords = null;
 export let unsubscribeNotifications = null;
 
 export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
+    // 🚨 핵심 방어막: 기존에 살아있던 유령 리스너들을 모조리 쏴서 죽임 (중복 읽기 과금 원천 차단!)
+    if (unsubLeave) { unsubLeave(); unsubLeave = null; }
+    if (unsubConfig) { unsubConfig(); unsubConfig = null; }
+    if (unsubToday) { unsubToday(); unsubToday = null; }
+    if (unsubWorkRecords) { unsubWorkRecords(); unsubWorkRecords = null; }
+    if (unsubscribeNotifications) { unsubscribeNotifications(); unsubscribeNotifications = null; }
+
     const leaveScheduleDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
-    State.setUnsubscribeLeaveSchedule(onSnapshot(leaveScheduleDocRef, (docSnap) => {
+    unsubLeave = onSnapshot(leaveScheduleDocRef, (docSnap) => {
         State.setPersistentLeaveSchedule(docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] });
         const today = getTodayDateString();
         const leaves = State.persistentLeaveSchedule.onLeaveMembers || [];
@@ -26,10 +38,10 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         });
         markDirtyCallback();
         renderCallback();
-    }));
+    });
 
     const configDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
-    State.setUnsubscribeConfig(onSnapshot(configDocRef, (docSnap) => {
+    unsubConfig = onSnapshot(configDocRef, (docSnap) => {
         if (docSnap.exists()) {
             const loadedConfig = docSnap.data();
             const mergedConfig = { ...State.appConfig, ...loadedConfig };
@@ -41,10 +53,10 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
             renderTaskSelectionModal(State.appConfig.taskGroups);
             renderCallback();
         }
-    }));
+    });
 
     const todayDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-    State.setUnsubscribeToday(onSnapshot(todayDocRef, (docSnap) => {
+    unsubToday = onSnapshot(todayDocRef, (docSnap) => {
         const data = docSnap.exists() ? docSnap.data() : {};
         State.appState.taskQuantities = { ...data.taskQuantities };
         State.appState.partTimers = data.partTimers || [];
@@ -62,23 +74,19 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (메타)';
         if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
-    }));
+    });
     
     const workRecordsCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
-    State.setUnsubscribeWorkRecords(onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
+    unsubWorkRecords = onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
         State.appState.workRecords = [];
         querySnapshot.forEach(doc => State.appState.workRecords.push(doc.data()));
         State.appState.workRecords.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
         renderCallback();
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (업무)';
-    }));
+    });
 
     if (State.appState.currentUser) {
         const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
-        
-        // 🚨 알림 삭제(Write) 폭탄 제거 완료!
-        // 클라이언트에서 억지로 삭제(deleteDoc) 명령을 내리지 않고, 
-        // 아예 DB에서 가져올 때부터 "최근 15일 치만 가져와라"고 쿼리문에 방어막을 쳤습니다. (읽기/쓰기 둘 다 절감)
         const d = new Date();
         d.setDate(d.getDate() - 15);
         const fifteenDaysAgoStr = d.toISOString();
@@ -91,7 +99,6 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback) {
         
         let isInitialLoad = true;
 
-        if (unsubscribeNotifications) unsubscribeNotifications();
         unsubscribeNotifications = onSnapshot(notiQuery, (snapshot) => {
             const notifications = [];
             let unreadCount = 0;
