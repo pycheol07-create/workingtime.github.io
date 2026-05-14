@@ -4,7 +4,6 @@ import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calc
 import { saveProgress } from './history-data-manager.js';
 import { saveStateToFirestore } from './app-data.js';
 
-// ✨ 서버 동기화 오류를 막기 위한 '브라우저 전용(Local)' 점심시간 잠금 변수
 let localLunchPauseExecuted = false;
 let localLunchResumeExecuted = false;
 let lastCheckedDay = null;
@@ -26,10 +25,10 @@ export const updateElapsedTimes = async () => {
     const currentUserLower = (State.appState.currentUser || '').toLowerCase();
     const isAdmin = State.appConfig?.memberRoles?.[currentUserLower] === 'admin';
     
-    // 🚨 전역 잠금(DB) 대신 로컬 잠금으로 변경하여 부분 누락 현상 100% 방지
+    // ✨ 핵심 방어막 1: 여러 관리자가 동시 접속해 있을 때 중복 쓰기(Write) 폭탄이 발생하는 것을 막기 위해 글로벌 상태 교차 검증
     if (isTodayWeekday && now === '12:30' && !localLunchPauseExecuted) {
         localLunchPauseExecuted = true; 
-        if (isAdmin && State.context.autoPauseForLunch) {
+        if (isAdmin && !State.appState.lunchPauseExecuted && State.context.autoPauseForLunch) {
             try {
                 const tasksPaused = await State.context.autoPauseForLunch();
                 if (tasksPaused > 0) showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
@@ -39,7 +38,8 @@ export const updateElapsedTimes = async () => {
 
     if (isTodayWeekday && now === '13:30' && !localLunchResumeExecuted) {
         localLunchResumeExecuted = true;
-        if (isAdmin && State.context.autoResumeFromLunch) {
+        // ✨ 핵심 방어막 2: 동일하게 글로벌 재개 상태 확인
+        if (isAdmin && !State.appState.lunchResumeExecuted && State.context.autoResumeFromLunch) {
             try {
                 const tasksResumed = await State.context.autoResumeFromLunch();
                 if (tasksResumed > 0) showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
@@ -79,10 +79,10 @@ export const updateElapsedTimes = async () => {
     if (el) el.textContent = formatDuration(totalCompletedMinutes + totalOngoingMinutes);
 };
 
-export const autoSaveProgress = () => {
+export const autoSaveProgress = async () => {
+    // ✨ 핵심 개선 3: 변경사항이 무시되는 버그를 고치고, 데이터가 실제로 변했을 때만 안전하게 저장 연동
     if (State.isDataDirty) {
-        console.log("Auto-save bypassed to block unnecessary Firebase Writes.");
-        State.setIsDataDirty(false);
+        await saveStateToFirestore();
     }
 };
 

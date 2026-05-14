@@ -14,6 +14,9 @@ import {
 import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
+import { syncTodayToHistory } from './history-data-manager.js';
+
 
 const getWorkRecordsCollectionRef = () => {
     const today = getTodayDateString();
@@ -546,38 +549,44 @@ export const resumeWorkIndividual = async (recordId) => {
     }
 };
 
+// ✨ 완벽 개선된 점심시간 자동 정지 로직 (일괄 처리 + 글로벌 잠금)
 export const autoPauseForLunch = async () => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
-        const q = query(workRecordsColRef, where("status", "==", "ongoing"));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-            return 0; 
-        }
-
+        const dailyDocRef = getDailyDocRef();
         const batch = writeBatch(db);
         const currentTime = getCurrentTime();
         let tasksPaused = 0;
 
-        querySnapshot.forEach(doc => {
-            const record = doc.data();
-            const newPauses = record.pauses || [];
+        // DB에서 읽지 않고, 브라우저 화면에 떠있는 실시간 메모리 데이터만 딱 집어서 처리!
+        const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
+
+        ongoingRecords.forEach(record => {
+            const docRef = doc(workRecordsColRef, record.id);
+            const newPauses = record.pauses ? [...record.pauses] : [];
             
-            // 🚨 방어 로직: 혹시 다른 관리자 창에서 이미 실행되었는지 2중 체크
             const hasLunchPause = newPauses.some(p => p.type === 'lunch' && p.start === currentTime);
             if (!hasLunchPause) {
                 newPauses.push({ start: currentTime, end: null, type: 'lunch' });
-                batch.update(doc.ref, {
+                batch.update(docRef, {
                     status: 'paused',
                     pauses: newPauses
                 });
+                
+                // 로컬 상태 즉시 반영으로 화면 갱신
+                record.status = 'paused';
+                record.pauses = newPauses;
                 tasksPaused++;
             }
         });
 
-        if (tasksPaused > 0) {
-            await batch.commit();
+        // 진행 중이던 업무가 있거나, 아무도 점심시간 잠금을 켜지 않았을 때 실행
+        if (tasksPaused > 0 || !appState.lunchPauseExecuted) {
+            batch.set(dailyDocRef, { lunchPauseExecuted: true }, { merge: true });
+            appState.lunchPauseExecuted = true;
+            
+            await batch.commit(); // 단 1회의 서버 통신으로 모두 안전하게 정지!
+            await syncTodayToHistory(); // 변경된 이력을 즉시 동기화
         }
         return tasksPaused; 
 
@@ -587,38 +596,43 @@ export const autoPauseForLunch = async () => {
     }
 };
 
+// ✨ 완벽 개선된 점심시간 자동 재개 로직 (일괄 처리 + 글로벌 잠금)
 export const autoResumeFromLunch = async () => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
-        const q = query(workRecordsColRef, where("status", "==", "paused"));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-            return 0;
-        }
-
+        const dailyDocRef = getDailyDocRef();
         const batch = writeBatch(db);
         const currentTime = getCurrentTime();
         let tasksResumed = 0;
 
-        querySnapshot.forEach(doc => {
-            const record = doc.data();
-            const pauses = record.pauses || [];
+        const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
+
+        pausedRecords.forEach(record => {
+            const docRef = doc(workRecordsColRef, record.id);
+            const pauses = record.pauses ? [...record.pauses] : [];
             const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
 
-            // 🚨 방어 로직: 아직 종료 시간이 안 적혀있는 런치 브레이크만 타겟
+            // 점심시간(lunch)에 의해 멈춘 업무들만 찾아서 재개시킴
             if (lastPause && lastPause.type === 'lunch' && lastPause.end === null) {
                 lastPause.end = currentTime;
-                batch.update(doc.ref, {
+                batch.update(docRef, {
                     status: 'ongoing',
                     pauses: pauses
                 });
+                
+                record.status = 'ongoing';
+                record.pauses = pauses;
                 tasksResumed++;
             }
         });
 
-        if (tasksResumed > 0) {
-            await batch.commit();
+        // 재개할 업무가 있거나, 아무도 점심시간 재개 잠금을 켜지 않았을 때 실행
+        if (tasksResumed > 0 || !appState.lunchResumeExecuted) {
+            batch.set(dailyDocRef, { lunchResumeExecuted: true }, { merge: true });
+            appState.lunchResumeExecuted = true;
+            
+            await batch.commit(); // 단 1회의 서버 통신으로 모두 안전하게 재개!
+            await syncTodayToHistory(); // 변경된 이력을 즉시 동기화
         }
         return tasksResumed; 
 
