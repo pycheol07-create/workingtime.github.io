@@ -2,7 +2,8 @@
 import * as State from './state.js';
 import * as DOM from './dom-elements.js';
 import { getTodayDateString, showToast } from './utils.js';
-import { doc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ✨ limit가 추가되었습니다.
+import { doc, onSnapshot, collection, query, where, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js';
 import { renderTodoList } from './inspection-logic.js';
 import { renderNotificationList } from './app-notifications.js';
@@ -17,7 +18,7 @@ export let unsubscribeNotifications = null;
 let isListenersInitialized = false;
 
 export function setupFirebaseListeners(renderCallback, markDirtyCallback, force = false) {
-    // 🚨 라우터 이동이나 토큰 갱신 시 리스너가 중복 재실행되어 데이터를 다시 통째로 다운받는 최악의 현상 완벽 차단!
+    // 🚨 라우터 이동이나 토큰 갱신 시 리스너가 중복 재실행되어 데이터를 다시 통째로 다운받는 현상 차단
     if (isListenersInitialized && !force) {
         console.log("Listeners already active. Bypassing redundant DB reads.");
         return;
@@ -96,13 +97,16 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
     if (State.appState.currentUser) {
         const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
         const d = new Date();
-        d.setDate(d.getDate() - 15);
-        const fifteenDaysAgoStr = d.toISOString();
+        
+        // 🚨 기존 15일 -> 3일로 축소
+        d.setDate(d.getDate() - 3);
+        const recentDaysAgoStr = d.toISOString();
 
         const notiQuery = query(
             notiColRef, 
             where("targetMember", "==", State.appState.currentUser),
-            where("createdAt", ">=", fifteenDaysAgoStr) 
+            where("createdAt", ">=", recentDaysAgoStr),
+            limit(30) // ✨ 핵심 방어막: 최근 3일 내의 알림 중 최대 30개까지만 가져와 읽기 폭탄 방지
         );
         
         let isInitialLoad = true;

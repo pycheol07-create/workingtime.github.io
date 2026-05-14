@@ -22,6 +22,11 @@ export async function updateDailyData(updates) {
 }
 
 export async function saveStateToFirestore() {
+    // ✨ 핵심 방어막: 데이터에 변경 사항이 없으면(dirty가 아니면) 통신을 차단합니다. (쓰기 요금 방어)
+    if (!State.isDataDirty) {
+        return; 
+    }
+
     const updates = {
         taskQuantities: State.appState.taskQuantities || {},
         onLeaveMembers: State.appState.dailyOnLeaveMembers || [],
@@ -35,6 +40,8 @@ export async function saveStateToFirestore() {
     };
 
     await updateDailyData(updates);
+    
+    // 저장 완료 후 상태 초기화
     State.setIsDataDirty(false);
 }
 
