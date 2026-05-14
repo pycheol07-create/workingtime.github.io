@@ -10,7 +10,7 @@ import { checkMissingQuantities } from './analysis-logic.js';
 import { renderQuantityModalInputs } from './ui.js';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 🌟 [추가] 렌더링 중복 실행 방지를 위한 Lock 상태 변수
+// 🌟 렌더링 중복 실행 방지를 위한 Lock 상태 변수
 let isRenderingList = false;
 let renderListQueue = null;
 
@@ -72,7 +72,7 @@ export const loadAndRenderHistoryList = async () => {
     document.getElementById('history-attendance-daily-view')?.classList.add('hidden');
     document.getElementById('history-attendance-weekly-view')?.classList.add('hidden');
     document.getElementById('history-attendance-monthly-view')?.classList.add('hidden');
-    document.getElementById('report-daily-view')?.classList.add('hidden');
+    document.getElementById('report-daily-view')?.classList.remove('hidden');
     document.getElementById('report-weekly-view')?.classList.add('hidden');
     document.getElementById('report-monthly-view')?.classList.add('hidden');
     document.getElementById('report-yearly-view')?.classList.add('hidden');
@@ -90,7 +90,6 @@ export const loadAndRenderHistoryList = async () => {
 export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = null) => {
     if (!DOM.historyDateList) return;
 
-    // 🌟 [강력한 방어 로직 1] 렌더링이 진행 중일 때는 중복 실행을 막고 대기열에 등록합니다.
     if (isRenderingList) {
         renderListQueue = { mode, selectedKey };
         return;
@@ -128,13 +127,11 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
             keys = Array.from(yearSet).sort((a, b) => b.localeCompare(a));
         }
 
-        // 🌟 [강력한 방어 로직 2] 혹시 모를 배열 내 중복 값을 강제로 한 번 더 제거합니다.
         keys = [...new Set(keys)];
 
         if (keys.length === 0) {
             DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
         } else {
-            // 🌟 [강력한 방어 로직 3] appendChild 대신 문자열로 HTML을 완성한 뒤 단 한 번만 DOM에 덮어씌웁니다.
             let htmlContent = '';
             
             keys.forEach(key => {
@@ -152,11 +149,9 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                     }
                 }
                 
-                // HTML을 문자열로만 합칩니다.
                 htmlContent += `<li><button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300 ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>${key}</button></li>`;
             });
 
-            // 조립된 완벽한 리스트를 단 한 번에 덮어씌웁니다.
             DOM.historyDateList.innerHTML = htmlContent;
         }
 
@@ -171,17 +166,13 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
 
         if (targetBtn) {
             targetBtn.click();
-            // 선택된 항목으로 스크롤 이동
             if (selectedKey) {
                 targetBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
             }
         }
 
     } finally {
-        // 렌더링 락 해제
         isRenderingList = false;
-        
-        // 렌더링 중에 밀려있던 탭 전환 요청이 있다면 실행
         if (renderListQueue) {
             const nextJob = renderListQueue;
             renderListQueue = null;
@@ -191,7 +182,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
 };
 
 /**
- * 이력 보기 내의 뷰(일/주/월 리포트 등) 전환을 처리합니다.
+ * 이력 보기 내의 뷰 전환을 처리합니다.
  */
 export const switchHistoryView = async (view, preserveKey = null) => {
     const allViews = [
@@ -208,7 +199,6 @@ export const switchHistoryView = async (view, preserveKey = null) => {
     ];
     allViews.forEach(v => v && v.classList.add('hidden'));
 
-    // 탭 버튼 스타일 리셋
     const resetTabs = (container) => {
         if (container) {
             container.querySelectorAll('button').forEach(btn => {
@@ -342,6 +332,12 @@ export const openHistoryQuantityModal = (dateKey) => {
             }, { merge: true });
 
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
+
+            // ✨ [추가된 핵심 방어막] 데이터가 수정되었으므로 기존 캐시를 즉시 파기합니다!
+            sessionStorage.removeItem('historyDataCache');
+            sessionStorage.removeItem('historyDataCacheTime');
+            sessionStorage.removeItem('unverifiedDataCache');
+            sessionStorage.removeItem('unverifiedDataCacheTime');
 
             if (dateKey === getTodayDateString()) {
                  const dailyDocRef = getDailyDocRef();
