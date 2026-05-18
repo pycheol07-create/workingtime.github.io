@@ -16,41 +16,39 @@ let currentZoom = 80;
 let currentUserName = '';
 let isAdmin = false;
 
-// ✨ 자유로운 작성을 위해 단순화된 템플릿 양식
+// ✨ 요청하신 구조로 새롭게 개편된 기본 매뉴얼 양식
 const MANUAL_TEMPLATE = `
-    <h3 style="color: #1d4ed8;"><strong>1. 🎯 업무 목적 및 결과물</strong></h3>
+    <h3 style="color: #1d4ed8;"><strong>1. 🔑 사전 준비 & 참고사항</strong></h3>
     <ul>
-        <li><strong>목적:</strong> 이 업무를 수행하는 이유를 1~2줄로 명확히 적어주세요.</li>
-        <li><strong>최종 결과물:</strong> 업무 완료 시 나와야 하는 결과 (예: 정산 완료된 엑셀 파일, 승인된 기안 등)</li>
+        <li><strong>필요 권한/계정:</strong> </li>
+        <li><strong>접속 링크:</strong> </li>
+        <li><strong>기타 참고사항:</strong> </li>
     </ul>
     <p><br></p>
 
-    <h3 style="color: #1d4ed8;"><strong>2. 🔑 사전 준비 사항 (준비물)</strong></h3>
-    <ul>
-        <li><strong>필요 권한/계정:</strong> (예: ERP 시스템 관리자 권한, 특정 폴더 접근 권한 등)</li>
-        <li><strong>접속 링크:</strong> 업무를 진행할 시스템이나 드라이브 URL을 남겨주세요.</li>
-    </ul>
-    <p><br></p>
-
-    <h3 style="color: #1d4ed8;"><strong>3. 🏃‍♂️ 업무 진행 절차 (Step-by-Step)</strong></h3>
+    <h3 style="color: #1d4ed8;"><strong>2. 🏃‍♂️ 업무 진행 절차</strong></h3>
     <p><strong style="color: #ef4444;">※ 이미지는 화면 캡처 후 여기에 바로 붙여넣기(Ctrl+V) 하세요.</strong></p>
-    <p><strong>▶ 1단계 - 경로 진입</strong></p>
-    <p>&nbsp;&nbsp;&nbsp;&nbsp;어디로 들어가서 어떤 메뉴를 클릭하나요?</p>
-    <p><strong>▶ 2단계 - 데이터 처리</strong></p>
-    <p>&nbsp;&nbsp;&nbsp;&nbsp;어떤 값을 입력하거나 확인해야 하나요?</p>
-    <p><strong>▶ 3단계 - 완료 및 보고</strong></p>
-    <p>&nbsp;&nbsp;&nbsp;&nbsp;최종적으로 어떤 버튼을 누르고 누구에게 알리나요?</p>
+    <p><strong>▶ 1단계</strong></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;내용을 입력하세요</p>
+    <p><strong>▶ 2단계</strong></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;내용을 입력하세요</p>
+    <p><strong>▶ 3단계</strong></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;내용을 입력하세요</p>
+    <p><strong>▶ 4단계</strong></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;내용을 입력하세요</p>
+    <p><strong>▶ 5단계</strong></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;내용을 입력하세요</p>
     <p><br></p>
 
-    <h3 style="color: #1d4ed8;"><strong>4. 🚨 필수 주의사항 및 예외 처리</strong></h3>
+    <h3 style="color: #1d4ed8;"><strong>3. 🚨 필수 주의사항 및 예외</strong></h3>
     <ul>
-        <li><strong>자주 하는 실수:</strong> (예: 날짜를 이번 달이 아닌 전월 말일로 설정해야 함)</li>
-        <li><strong>문제 발생 시 대처:</strong> (예: 권한 오류 시 IT팀 OOO에게 슬랙 문의)</li>
+        <li>업무 진행 시 주의해야 할 점이나 빈번한 실수 등을 적어주세요.</li>
+        <li><strong>문제 발생 시 대처:</strong> </li>
     </ul>
     <p><br></p>
 
-    <h3 style="color: #1d4ed8;"><strong>5. 📎 참고 양식 첨부</strong></h3>
-    <p>※ 하단의 <strong>'파일 찾기'</strong> 버튼을 눌러 이 업무에 필요한 엑셀 양식이나 PDF를 첨부해 주세요.</p>
+    <h3 style="color: #1d4ed8;"><strong>4. 📎 참고 파일</strong></h3>
+    <p>※ 하단의 <strong>'파일 찾기'</strong> 버튼을 눌러 참고할 파일을 첨부해 주세요.</p>
 `;
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -90,7 +88,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             imageResize: { 
                 displaySize: true 
             },
-            // ✨ 에디터에서 1. 하고 띄어쓰기 시 자동으로 들여쓰기 리스트로 변환되는 기능(autofill) 차단
             keyboard: {
                 bindings: {
                     disableAutoList: {
@@ -98,7 +95,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         collapsed: true,
                         prefix: /^\s*?(\d+\.|-|\*)$/,
                         handler: function(range, context) {
-                            // 리스트로 변환하지 않고 단순히 공백(스페이스바)만 입력되도록 처리
                             this.quill.insertText(range.index, ' ', 'user');
                             this.quill.setSelection(range.index + 1, 'silent');
                             return false; 
@@ -353,14 +349,14 @@ function setupEventListeners() {
         quillEditor.root.innerHTML = MANUAL_TEMPLATE;
     });
 
-    // ✨ 단계 추가 버튼: 일반적인 문단 양식 삽입으로 변경
+    // ✨ 단계 추가 버튼: 소제목 없이 심플하게 삽입되도록 변경
     document.getElementById('btn-add-step')?.addEventListener('click', () => {
         let range = quillEditor.getSelection(true);
         let index = range ? range.index : quillEditor.getLength();
         
         const stepHtml = `
-            <p><strong>▶ [추가 단계] 제목 양식</strong></p>
-            <p>&nbsp;&nbsp;&nbsp;&nbsp;본문 양식 (상세 설명이나 이미지를 넣으세요)</p>
+            <p><strong>▶ 추가 단계</strong></p>
+            <p>&nbsp;&nbsp;&nbsp;&nbsp;내용을 입력하세요</p>
             <p><br></p>
         `;
         
