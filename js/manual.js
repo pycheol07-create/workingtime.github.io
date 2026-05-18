@@ -13,11 +13,10 @@ let currentEditingId = null;
 let selectedFile = null;
 let currentZoom = 80; 
 
-// 접속한 사용자의 진짜 '이름'과 권한을 파악하기 위한 변수
 let currentUserName = '';
 let isAdmin = false;
 
-// ✨ 기본 매뉴얼 양식 템플릿
+// 효율성을 높인 매뉴얼 템플릿
 const MANUAL_TEMPLATE = `
     <h3 style="color: #1d4ed8;"><strong>1. 🎯 업무 목적 및 결과물</strong></h3>
     <ul>
@@ -35,11 +34,9 @@ const MANUAL_TEMPLATE = `
 
     <h3 style="color: #1d4ed8;"><strong>3. 🏃‍♂️ 업무 진행 절차 (Step-by-Step)</strong></h3>
     <p><strong style="color: #ef4444;">※ 이미지는 화면 캡처 후 여기에 바로 붙여넣기(Ctrl+V) 하세요.</strong></p>
-    <ol>
-        <li><strong>[경로 진입]</strong> 어디로 들어가서 어떤 메뉴를 클릭하나요?</li>
-        <li><strong>[데이터 처리]</strong> 어떤 값을 입력하거나 확인해야 하나요?</li>
-        <li><strong>[완료 및 보고]</strong> 최종적으로 어떤 버튼을 누르고 누구에게 알리나요?</li>
-    </ol>
+    <p class="manual-list">1. <strong>[경로 진입]</strong> 어디로 들어가서 어떤 메뉴를 클릭하나요?</p>
+    <p class="manual-list">2. <strong>[데이터 처리]</strong> 어떤 값을 입력하거나 확인해야 하나요?</p>
+    <p class="manual-list">3. <strong>[완료 및 보고]</strong> 최종적으로 어떤 버튼을 누르고 누구에게 알리나요?</p>
     <p><br></p>
 
     <h3 style="color: #1d4ed8;"><strong>4. 🚨 필수 주의사항 및 예외 처리</strong></h3>
@@ -70,6 +67,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     DividerBlot.blotName = 'divider';
     DividerBlot.tagName = 'hr';
     Quill.register(DividerBlot);
+
+    // ✨ Quill에 수동 번호 정렬용 커스텀 블록 Blot 정의 및 등록
+    const Block = Quill.import('blots/block');
+    class ManualListBlot extends Block {
+        static create() {
+            let node = super.create();
+            node.setAttribute('class', 'manual-list');
+            return node;
+        }
+        static formats(node) {
+            return node.getAttribute('class') === 'manual-list' ? true : undefined;
+        }
+    }
+    ManualListBlot.blotName = 'manual-list';
+    ManualListBlot.tagName = 'p';
+    Quill.register(ManualListBlot);
 
     const imageHandler = () => {
         const input = document.createElement('input');
@@ -147,13 +160,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             appConfig = await loadAppConfig(db);
             const userEmailLower = (user.email || '').toLowerCase();
             
-            // 관리자 여부 확인
             isAdmin = (appConfig.memberRoles && appConfig.memberRoles[userEmailLower] === 'admin');
 
-            // 접속자의 이메일을 바탕으로 실제 '이름' 찾기 (열람 권한 비교용)
             const emails = appConfig.memberEmails || {};
             currentUserName = Object.keys(emails).find(name => (emails[name] || '').toLowerCase() === userEmailLower);
-            if (!currentUserName) currentUserName = userEmailLower; // 매핑된 이름이 없으면 이메일 자체를 사용
+            if (!currentUserName) currentUserName = userEmailLower; 
             
             document.getElementById('btn-new-manual').classList.remove('hidden');
 
@@ -274,7 +285,6 @@ function setupEventListeners() {
             container.classList.remove('hidden');
         } else {
             container.classList.add('hidden');
-            // 전체공개로 바꾸면 체크된 인원들 모두 초기화
             document.querySelectorAll('.access-member-cb').forEach(cb => cb.checked = false);
         }
     });
@@ -330,16 +340,27 @@ function setupEventListeners() {
         quillEditor.setSelection(range.index + 3, 'silent');
     });
 
-    // ✨ '기본 양식 삽입' 버튼 이벤트 추가
     document.getElementById('btn-load-template')?.addEventListener('click', () => {
         const currentContent = quillEditor.root.innerHTML.trim();
-        // 내용이 이미 작성되어 있다면 경고창 띄우기
         if (currentContent !== '' && currentContent !== '<p><br></p>') {
             if (!confirm("현재 작성된 내용이 지워지고 기본 양식으로 덮어씌워집니다. 계속하시겠습니까?")) {
                 return;
             }
         }
         quillEditor.root.innerHTML = MANUAL_TEMPLATE;
+    });
+
+    // ✨ [🔢 자유 번호] 버튼 클릭 이벤트 구현 (내어쓰기 정렬 적용/해제 토글)
+    document.getElementById('btn-manual-list')?.addEventListener('click', () => {
+        const range = quillEditor.getSelection();
+        if (range) {
+            const formats = quillEditor.getFormat(range.index, range.length);
+            if (formats['manual-list']) {
+                quillEditor.formatLine(range.index, range.length, 'manual-list', false); // 서식 해제
+            } else {
+                quillEditor.formatLine(range.index, range.length, 'manual-list', true);  // 서식 적용
+            }
+        }
     });
 }
 
@@ -470,7 +491,6 @@ function openEditor(item = null) {
         accessContainer.classList.add('hidden');
     }
 
-    // ✨ 수정본인 경우 기존 내용 로드, 새 글인 경우 템플릿 로드
     quillEditor.root.innerHTML = item ? (item.content || '') : MANUAL_TEMPLATE;
     
     const fileNameDisplay = document.getElementById('upload-file-name');
