@@ -13,9 +13,45 @@ let currentEditingId = null;
 let selectedFile = null;
 let currentZoom = 80; 
 
-// ✨ 추가됨: 접속한 사용자의 진짜 '이름'과 권한을 파악하기 위한 변수
+// 접속한 사용자의 진짜 '이름'과 권한을 파악하기 위한 변수
 let currentUserName = '';
 let isAdmin = false;
+
+// ✨ 기본 매뉴얼 양식 템플릿
+const MANUAL_TEMPLATE = `
+    <h3 style="color: #1d4ed8;"><strong>1. 🎯 업무 목적 및 결과물</strong></h3>
+    <ul>
+        <li><strong>목적:</strong> 이 업무를 수행하는 이유를 1~2줄로 명확히 적어주세요.</li>
+        <li><strong>최종 결과물:</strong> 업무 완료 시 나와야 하는 결과 (예: 정산 완료된 엑셀 파일, 승인된 기안 등)</li>
+    </ul>
+    <p><br></p>
+
+    <h3 style="color: #1d4ed8;"><strong>2. 🔑 사전 준비 사항 (준비물)</strong></h3>
+    <ul>
+        <li><strong>필요 권한/계정:</strong> (예: ERP 시스템 관리자 권한, 특정 폴더 접근 권한 등)</li>
+        <li><strong>접속 링크:</strong> 업무를 진행할 시스템이나 드라이브 URL을 남겨주세요.</li>
+    </ul>
+    <p><br></p>
+
+    <h3 style="color: #1d4ed8;"><strong>3. 🏃‍♂️ 업무 진행 절차 (Step-by-Step)</strong></h3>
+    <p><strong style="color: #ef4444;">※ 이미지는 화면 캡처 후 여기에 바로 붙여넣기(Ctrl+V) 하세요.</strong></p>
+    <ol>
+        <li><strong>[경로 진입]</strong> 어디로 들어가서 어떤 메뉴를 클릭하나요?</li>
+        <li><strong>[데이터 처리]</strong> 어떤 값을 입력하거나 확인해야 하나요?</li>
+        <li><strong>[완료 및 보고]</strong> 최종적으로 어떤 버튼을 누르고 누구에게 알리나요?</li>
+    </ol>
+    <p><br></p>
+
+    <h3 style="color: #1d4ed8;"><strong>4. 🚨 필수 주의사항 및 예외 처리</strong></h3>
+    <ul>
+        <li><strong>자주 하는 실수:</strong> (예: 날짜를 이번 달이 아닌 전월 말일로 설정해야 함)</li>
+        <li><strong>문제 발생 시 대처:</strong> (예: 권한 오류 시 IT팀 OOO에게 슬랙 문의)</li>
+    </ul>
+    <p><br></p>
+
+    <h3 style="color: #1d4ed8;"><strong>5. 📎 참고 양식 첨부</strong></h3>
+    <p>※ 하단의 <strong>'파일 찾기'</strong> 버튼을 눌러 이 업무에 필요한 엑셀 양식이나 PDF를 첨부해 주세요.</p>
+`;
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -123,7 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             populateCategories(); 
             populateManagers(); 
-            populateAccessMembers(); // ✨ 추가: 열람 권한 체크박스 목록 생성
+            populateAccessMembers(); 
             setupEventListeners();
             loadManuals();
         } else {
@@ -192,7 +228,6 @@ function populateManagers() {
     });
 }
 
-// ✨ 신규: 부서별 팀원 체크박스 UI 자동 생성 함수
 function populateAccessMembers() {
     const container = document.getElementById('edit-access-members-container');
     container.innerHTML = '';
@@ -233,7 +268,6 @@ function setupEventListeners() {
 
     document.getElementById('manual-search-input').addEventListener('input', renderList);
 
-    // ✨ 신규: 열람 권한 드롭다운 선택에 따라 하단 체크박스 영역 보이기/숨기기
     document.getElementById('edit-access-level').addEventListener('change', (e) => {
         const container = document.getElementById('edit-access-members-container');
         if (e.target.value === 'private') {
@@ -295,6 +329,18 @@ function setupEventListeners() {
         quillEditor.insertText(range.index + 2, '\n', 'user');
         quillEditor.setSelection(range.index + 3, 'silent');
     });
+
+    // ✨ '기본 양식 삽입' 버튼 이벤트 추가
+    document.getElementById('btn-load-template')?.addEventListener('click', () => {
+        const currentContent = quillEditor.root.innerHTML.trim();
+        // 내용이 이미 작성되어 있다면 경고창 띄우기
+        if (currentContent !== '' && currentContent !== '<p><br></p>') {
+            if (!confirm("현재 작성된 내용이 지워지고 기본 양식으로 덮어씌워집니다. 계속하시겠습니까?")) {
+                return;
+            }
+        }
+        quillEditor.root.innerHTML = MANUAL_TEMPLATE;
+    });
 }
 
 async function loadManuals() {
@@ -333,7 +379,6 @@ function renderList() {
     const listContainer = document.getElementById('manual-list-container');
     listContainer.innerHTML = '';
 
-    // 1차 필터링: 검색어 기준
     let filteredList = manualList.filter(item => {
         const titleMatch = (item.title || '').toLowerCase().includes(searchTerm);
         const catMatch = (item.category || '').toLowerCase().includes(searchTerm);
@@ -341,15 +386,10 @@ function renderList() {
         return titleMatch || catMatch || managerMatch;
     });
 
-    // ✨ 2차 필터링 (가장 중요): 열람 권한 검사
     filteredList = filteredList.filter(item => {
-        // 1. 최고 관리자는 모든 매뉴얼(비공개 포함)을 무조건 볼 수 있음
         if (isAdmin) return true;
-        // 2. 자신이 작성한 매뉴얼은 자기가 볼 수 있음
         if (item.author === auth.currentUser.email) return true;
-        // 3. 열람 권한 배열이 없거나 비어있으면 전체 공개
         if (!item.allowedMembers || item.allowedMembers.length === 0) return true;
-        // 4. 권한 배열 안에 현재 사용자의 '이름'이 포함되어 있으면 허용
         return item.allowedMembers.includes(currentUserName);
     });
 
@@ -378,7 +418,6 @@ function renderList() {
             const dateStr = formatDateTimeShort(item.updatedAt || item.createdAt);
             const hasFile = item.fileUrl ? '<span class="text-[10px] bg-indigo-50 text-indigo-600 px-1 rounded font-bold border border-indigo-100 shadow-sm ml-1">첨부</span>' : '';
             
-            // 비공개 매뉴얼일 경우 리스트 제목에 빨간 자물쇠 아이콘 표시
             const isPrivate = item.allowedMembers && item.allowedMembers.length > 0;
             const privateBadge = isPrivate ? '<span class="text-[10px] bg-red-50 text-red-600 px-1 rounded font-bold border border-red-100 shadow-sm ml-1">🔒 비공개</span>' : '';
 
@@ -416,13 +455,11 @@ function openEditor(item = null) {
     if (item && item.manager) managerSelect.value = item.manager;
     else managerSelect.selectedIndex = 0;
     
-    // ✨ 열람 권한 UI 상태 복원 로직
     const accessSelect = document.getElementById('edit-access-level');
     const accessContainer = document.getElementById('edit-access-members-container');
     document.querySelectorAll('.access-member-cb').forEach(cb => cb.checked = false);
 
     if (item && item.allowedMembers && item.allowedMembers.length > 0) {
-        // 기존에 비공개 설정되어 있던 문서면 셋팅
         accessSelect.value = 'private';
         accessContainer.classList.remove('hidden');
         document.querySelectorAll('.access-member-cb').forEach(cb => {
@@ -433,7 +470,8 @@ function openEditor(item = null) {
         accessContainer.classList.add('hidden');
     }
 
-    quillEditor.root.innerHTML = item ? (item.content || '') : '';
+    // ✨ 수정본인 경우 기존 내용 로드, 새 글인 경우 템플릿 로드
+    quillEditor.root.innerHTML = item ? (item.content || '') : MANUAL_TEMPLATE;
     
     const fileNameDisplay = document.getElementById('upload-file-name');
     document.getElementById('edit-file-upload').value = '';
@@ -458,7 +496,6 @@ async function saveManual() {
         return;
     }
 
-    // ✨ 저장 전 열람 권한 추출 로직 추가
     const accessLevel = document.getElementById('edit-access-level').value;
     let allowedMembers = [];
     if (accessLevel === 'private') {
@@ -467,7 +504,7 @@ async function saveManual() {
         });
         if (allowedMembers.length === 0) {
             alert("비공개(특정 인원 열람) 설정 시, 열람을 허용할 인원을 최소 1명 이상 체크해야 합니다.");
-            return; // 저장 차단
+            return; 
         }
     }
 
@@ -506,7 +543,7 @@ async function saveManual() {
             content: content === '<p><br></p>' ? '' : content,
             fileUrl: fileUrl || null,
             fileName: fileName || null,
-            allowedMembers: allowedMembers, // 🔥 DB에 저장되는 권한 데이터
+            allowedMembers: allowedMembers, 
             author: auth.currentUser.email,
             updatedAt: serverTimestamp()
         };
@@ -557,7 +594,6 @@ function viewManual(id) {
     document.getElementById('view-title').textContent = item.title;
     document.getElementById('view-type-badge').textContent = item.category || '공통 지침';
     
-    // ✨ 뷰어 타이틀 옆에 자물쇠(비공개) 배지 표시 로직
     const accessBadge = document.getElementById('view-access-badge');
     if (item.allowedMembers && item.allowedMembers.length > 0) {
         accessBadge.classList.remove('hidden');
