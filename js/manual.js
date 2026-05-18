@@ -16,7 +16,7 @@ let currentZoom = 80;
 let currentUserName = '';
 let isAdmin = false;
 
-// 효율성을 높인 매뉴얼 템플릿
+// ✨ 자유로운 작성을 위해 단순화된 템플릿 양식
 const MANUAL_TEMPLATE = `
     <h3 style="color: #1d4ed8;"><strong>1. 🎯 업무 목적 및 결과물</strong></h3>
     <ul>
@@ -34,9 +34,12 @@ const MANUAL_TEMPLATE = `
 
     <h3 style="color: #1d4ed8;"><strong>3. 🏃‍♂️ 업무 진행 절차 (Step-by-Step)</strong></h3>
     <p><strong style="color: #ef4444;">※ 이미지는 화면 캡처 후 여기에 바로 붙여넣기(Ctrl+V) 하세요.</strong></p>
-    <p class="manual-list">1. <strong>[경로 진입]</strong> 어디로 들어가서 어떤 메뉴를 클릭하나요?</p>
-    <p class="manual-list">2. <strong>[데이터 처리]</strong> 어떤 값을 입력하거나 확인해야 하나요?</p>
-    <p class="manual-list">3. <strong>[완료 및 보고]</strong> 최종적으로 어떤 버튼을 누르고 누구에게 알리나요?</p>
+    <p><strong>▶ 1단계 - 경로 진입</strong></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;어디로 들어가서 어떤 메뉴를 클릭하나요?</p>
+    <p><strong>▶ 2단계 - 데이터 처리</strong></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;어떤 값을 입력하거나 확인해야 하나요?</p>
+    <p><strong>▶ 3단계 - 완료 및 보고</strong></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;최종적으로 어떤 버튼을 누르고 누구에게 알리나요?</p>
     <p><br></p>
 
     <h3 style="color: #1d4ed8;"><strong>4. 🚨 필수 주의사항 및 예외 처리</strong></h3>
@@ -68,22 +71,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     DividerBlot.tagName = 'hr';
     Quill.register(DividerBlot);
 
-    // ✨ Quill에 수동 번호 정렬용 커스텀 블록 Blot 정의 및 등록
-    const Block = Quill.import('blots/block');
-    class ManualListBlot extends Block {
-        static create() {
-            let node = super.create();
-            node.setAttribute('class', 'manual-list');
-            return node;
-        }
-        static formats(node) {
-            return node.getAttribute('class') === 'manual-list' ? true : undefined;
-        }
-    }
-    ManualListBlot.blotName = 'manual-list';
-    ManualListBlot.tagName = 'p';
-    Quill.register(ManualListBlot);
-
     const imageHandler = () => {
         const input = document.createElement('input');
         input.setAttribute('type', 'file');
@@ -102,6 +89,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         modules: {
             imageResize: { 
                 displaySize: true 
+            },
+            // ✨ 에디터에서 1. 하고 띄어쓰기 시 자동으로 들여쓰기 리스트로 변환되는 기능(autofill) 차단
+            keyboard: {
+                bindings: {
+                    disableAutoList: {
+                        key: ' ',
+                        collapsed: true,
+                        prefix: /^\s*?(\d+\.|-|\*)$/,
+                        handler: function(range, context) {
+                            // 리스트로 변환하지 않고 단순히 공백(스페이스바)만 입력되도록 처리
+                            this.quill.insertText(range.index, ' ', 'user');
+                            this.quill.setSelection(range.index + 1, 'silent');
+                            return false; 
+                        }
+                    }
+                }
             },
             toolbar: {
                 container: [
@@ -350,17 +353,18 @@ function setupEventListeners() {
         quillEditor.root.innerHTML = MANUAL_TEMPLATE;
     });
 
-    // ✨ [🔢 자유 번호] 버튼 클릭 이벤트 구현 (내어쓰기 정렬 적용/해제 토글)
-    document.getElementById('btn-manual-list')?.addEventListener('click', () => {
-        const range = quillEditor.getSelection();
-        if (range) {
-            const formats = quillEditor.getFormat(range.index, range.length);
-            if (formats['manual-list']) {
-                quillEditor.formatLine(range.index, range.length, 'manual-list', false); // 서식 해제
-            } else {
-                quillEditor.formatLine(range.index, range.length, 'manual-list', true);  // 서식 적용
-            }
-        }
+    // ✨ 단계 추가 버튼: 일반적인 문단 양식 삽입으로 변경
+    document.getElementById('btn-add-step')?.addEventListener('click', () => {
+        let range = quillEditor.getSelection(true);
+        let index = range ? range.index : quillEditor.getLength();
+        
+        const stepHtml = `
+            <p><strong>▶ [추가 단계] 제목 양식</strong></p>
+            <p>&nbsp;&nbsp;&nbsp;&nbsp;본문 양식 (상세 설명이나 이미지를 넣으세요)</p>
+            <p><br></p>
+        `;
+        
+        quillEditor.clipboard.dangerouslyPasteHTML(index, stepHtml);
     });
 }
 
