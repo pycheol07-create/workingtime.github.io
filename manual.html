@@ -49,6 +49,14 @@
         .ql-editor hr, .prose hr { border: none; border-top: 2px solid #e2e8f0; margin: 2rem 0; }
         .dark .ql-editor hr, .dark .prose hr { border-top-color: #374151; }
         
+        /* ✨ 자유 번호용 내어쓰기(Hanging Indent) 스타일 정의 */
+        .manual-list {
+            padding-left: 1.8rem !important;
+            text-indent: -1.8rem !important;
+            margin-top: 0.3rem !important;
+            margin-bottom: 0.3rem !important;
+        }
+        
         #view-body, .ql-editor { transition: zoom 0.2s ease; }
     </style>
 </head>
@@ -196,6 +204,10 @@
                                 <button type="button" class="symbol-btn text-xs px-2 py-0.5 bg-white dark:bg-gray-700 hover:bg-blue-50 border border-gray-200 dark:border-gray-600 rounded transition shadow-sm text-gray-700 dark:text-gray-200">💡</button>
                                 <button type="button" class="symbol-btn text-xs px-2 py-0.5 bg-white dark:bg-gray-700 hover:bg-blue-50 border border-gray-200 dark:border-gray-600 rounded transition shadow-sm text-gray-700 dark:text-gray-200">🚨</button>
                                 <button type="button" id="btn-divider" class="text-[11px] px-2.5 py-0.5 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 border border-gray-200 dark:border-gray-500 rounded transition shadow-sm text-gray-700 dark:text-gray-200 font-bold ml-1 flex items-center gap-1"><span class="text-xs">➖</span> 구분선</button>
+                                
+                                <button type="button" id="btn-manual-list" class="text-[11px] px-2.5 py-0.5 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 border border-gray-200 dark:border-gray-500 rounded transition shadow-sm text-gray-700 dark:text-gray-200 font-bold ml-1 flex items-center gap-1">
+                                    <span class="text-xs">🔢</span> 자유 번호
+                                </button>
                             </div>
                         </div>
 
@@ -206,11 +218,11 @@
 
                     <div class="shrink-0 bg-gray-50 dark:bg-gray-900/50 p-2.5 rounded border border-gray-200 dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-3">
                         <div class="flex flex-col">
-                            <label class="text-[11px] font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1">📁 문서 원본 첨부 (선택)</label>
-                            <span class="text-[10px] text-gray-400">PDF, 엑셀 첨부 시 뷰어에 다운로드 제공</span>
+                            <label class="text-[11px] font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1">📁 참고 파일 첨부 (선택)</label>
+                            <span class="text-[10px] text-gray-400">워드, 엑셀, PDF, 압축파일, 실행파일(.exe) 등 모든 파일 첨부 가능</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            <input type="file" id="edit-file-upload" accept=".pdf, .xlsx, .xls" class="hidden">
+                            <input type="file" id="edit-file-upload" accept=".pdf, .xlsx, .xls, .doc, .docx, .ppt, .pptx, .hwp, .txt, .zip, .rar, .7z, .exe, .msi, .bat, .apk" class="hidden">
                             <span id="upload-file-name" class="text-xs font-medium text-gray-500 px-2 py-1.5 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 truncate max-w-[200px] shadow-sm">선택된 파일 없음</span>
                             <button id="btn-trigger-upload" class="px-3 py-1.5 border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold rounded hover:bg-indigo-100 transition shadow-sm whitespace-nowrap">
                                 파일 찾기
