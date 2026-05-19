@@ -355,7 +355,6 @@ function setupEventListeners() {
         quillEditor.root.innerHTML = MANUAL_TEMPLATE;
     });
 
-    // ✨ 단계 추가 버튼: 소제목도 h3(Header3)로 삽입되도록 변경
     document.getElementById('btn-add-step')?.addEventListener('click', () => {
         let range = quillEditor.getSelection(true);
         let index = range ? range.index : quillEditor.getLength();
@@ -401,6 +400,7 @@ const formatDateTimeShort = (timestamp) => {
     return `${yy}.${mm}.${dd}`;
 };
 
+// ✨ 폴더형 매뉴얼 목록 렌더링 (파트 뱃지 부활 + 공개/비공개 라인 추가)
 function renderList() {
     const searchTerm = document.getElementById('manual-search-input').value.trim().toLowerCase();
     const listContainer = document.getElementById('manual-list-container');
@@ -432,39 +432,71 @@ function renderList() {
         grouped[cat].push(item);
     });
 
-    Object.keys(grouped).sort().forEach(cat => {
-        const catHeader = document.createElement('div');
-        catHeader.className = 'text-xs font-bold text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700 pb-1 mt-6 mb-3 px-2 uppercase tracking-wider';
-        catHeader.textContent = cat;
-        listContainer.appendChild(catHeader);
+    Object.keys(grouped).sort().forEach((cat, index) => {
+        const isExpanded = searchTerm !== '' || index === 0;
+
+        const folderHeader = document.createElement('div');
+        folderHeader.className = 'flex items-center justify-between p-2 mt-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition select-none group';
+        folderHeader.innerHTML = `
+            <div class="flex items-center gap-2">
+                <span class="text-sm opacity-80">📁</span>
+                <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                    ${cat} <span class="text-gray-400 font-normal">(${grouped[cat].length})</span>
+                </span>
+            </div>
+            <svg class="w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        `;
+
+        const itemsContainer = document.createElement('div');
+        itemsContainer.className = `flex flex-col gap-1.5 pl-2 border-l-2 border-gray-100 dark:border-gray-800 ml-3 mt-1.5 mb-3 overflow-hidden transition-all duration-300 ${isExpanded ? '' : 'hidden'}`;
+
+        folderHeader.addEventListener('click', () => {
+            const svg = folderHeader.querySelector('svg');
+            if (itemsContainer.classList.contains('hidden')) {
+                itemsContainer.classList.remove('hidden');
+                svg.classList.add('rotate-180');
+            } else {
+                itemsContainer.classList.add('hidden');
+                svg.classList.remove('rotate-180');
+            }
+        });
+
+        listContainer.appendChild(folderHeader);
 
         grouped[cat].forEach(item => {
             const div = document.createElement('div');
-            div.className = 'p-3 mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all group flex flex-col gap-1.5 relative overflow-hidden';
+            div.className = 'p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all group flex flex-col gap-1 relative overflow-hidden';
             
             const dateStr = formatDateTimeShort(item.updatedAt || item.createdAt);
             const hasFile = item.fileUrl ? '<span class="text-[10px] bg-indigo-50 text-indigo-600 px-1 rounded font-bold border border-indigo-100 shadow-sm ml-1">첨부</span>' : '';
             
             const isPrivate = item.allowedMembers && item.allowedMembers.length > 0;
             const privateBadge = isPrivate ? '<span class="text-[10px] bg-red-50 text-red-600 px-1 rounded font-bold border border-red-100 shadow-sm ml-1">🔒 비공개</span>' : '';
+            
+            // ✨ 공개/비공개 여부에 따른 우측 색상 라인 (비공개: 빨간색, 공개: 녹색)
+            const sideBar = isPrivate 
+                ? '<div class="absolute top-0 right-0 w-1.5 h-full bg-red-400 dark:bg-red-500"></div>' 
+                : '<div class="absolute top-0 right-0 w-1.5 h-full bg-emerald-400 dark:bg-emerald-500"></div>';
 
             div.innerHTML = `
-                ${isPrivate ? '<div class="absolute top-0 right-0 w-2 h-full bg-red-400"></div>' : ''}
-                <div class="flex items-center justify-between mb-1.5">
-                    <span class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 px-1.5 py-0.5 rounded font-bold shadow-sm">${item.category || '공통 지침'}</span>
-                    <span class="text-[10px] text-gray-400 font-mono tracking-tighter ${isPrivate ? 'mr-3' : ''}">수정: ${dateStr}</span>
+                ${sideBar}
+                <div class="flex items-center justify-between mb-1 pr-2">
+                    <span class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 px-1.5 py-0.5 rounded font-bold shadow-sm truncate max-w-[150px]">${item.category || '공통 지침'}</span>
                 </div>
-                <div class="text-sm font-extrabold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug break-all pr-2">
+                <div class="text-sm font-extrabold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug break-all pr-3">
                     ${item.title} ${privateBadge} ${hasFile}
                 </div>
-                <div class="flex items-center justify-between mt-1">
+                <div class="flex items-center justify-between mt-1.5 pr-2">
                     <span class="text-[10px] text-gray-500 font-medium">담당: ${item.manager || '<span class="text-gray-300">미지정</span>'}</span>
+                    <span class="text-[10px] text-gray-400 font-mono tracking-tighter">수정: ${dateStr}</span>
                 </div>
             `;
 
             div.addEventListener('click', () => viewManual(item.id));
-            listContainer.appendChild(div);
+            itemsContainer.appendChild(div);
         });
+
+        listContainer.appendChild(itemsContainer);
     });
 }
 
