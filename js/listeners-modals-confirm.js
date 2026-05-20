@@ -8,8 +8,6 @@ import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-log
 import { saveLeaveSchedule } from './config.js';
 import { switchHistoryView } from './app-history-logic.js';
 import { saveDayDataToHistory } from './history-data-manager.js';
-
-// ✅ [수정] saveStateToFirestore 함수를 app-data.js에서 가져오도록 추가
 import { saveStateToFirestore } from './app-data.js';
 
 import {
@@ -48,7 +46,6 @@ const deleteWorkRecordDocuments = async (recordIds) => {
         showToast("여러 문서 삭제 중 오류 발생.", true);
     }
 };
-
 
 export function setupConfirmationModalListeners() {
 
@@ -165,7 +162,7 @@ export function setupConfirmationModalListeners() {
                 if (dailyChanged || persistentChanged) {
                     try {
                         if (dailyChanged) {
-                            State.setIsDataDirty(true); // ✅ 서버 저장 차단 해제 (데이터 변경됨을 알림)
+                            State.setIsDataDirty(true); 
                             await saveStateToFirestore();
                         }
                         if (persistentChanged) await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
@@ -182,6 +179,15 @@ export function setupConfirmationModalListeners() {
             }
 
             DOM.deleteConfirmModal.classList.add('hidden');
+            State.context.recordToDeleteId = null;
+            State.context.deleteMode = 'single';
+        });
+    }
+
+    // 💡 [신규/보완] 삭제 취소 버튼
+    if (DOM.cancelDeleteBtn) {
+        DOM.cancelDeleteBtn.addEventListener('click', () => {
+            if (DOM.deleteConfirmModal) DOM.deleteConfirmModal.classList.add('hidden');
             State.context.recordToDeleteId = null;
             State.context.deleteMode = 'single';
         });
@@ -220,6 +226,14 @@ export function setupConfirmationModalListeners() {
         DOM.confirmStopIndividualBtn.addEventListener('click', async () => {
             await stopWorkIndividual(State.context.recordToStopId);
             DOM.stopIndividualConfirmModal.classList.add('hidden');
+            State.context.recordToStopId = null;
+        });
+    }
+
+    // 💡 [신규/보완] 개별 업무 종료 취소 버튼
+    if (DOM.cancelStopIndividualBtn) {
+        DOM.cancelStopIndividualBtn.addEventListener('click', () => {
+            if (DOM.stopIndividualConfirmModal) DOM.stopIndividualConfirmModal.classList.add('hidden');
             State.context.recordToStopId = null;
         });
     }
@@ -297,7 +311,7 @@ export function setupConfirmationModalListeners() {
 
             try {
                 if (dailyChanged) {
-                    State.setIsDataDirty(true); // ✅ 서버 저장 차단 해제 (이 코드가 빠져서 화면 갱신이 안 되었습니다)
+                    State.setIsDataDirty(true); 
                     await saveStateToFirestore();
                 }
                 if (persistentChanged) await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
@@ -317,14 +331,18 @@ export function setupConfirmationModalListeners() {
         });
     }
 
+    // 💡 [신규/보완] 근태 복귀(취소) 취소 버튼
+    if (DOM.cancelCancelLeaveBtn) {
+        DOM.cancelCancelLeaveBtn.addEventListener('click', () => {
+            if (DOM.cancelLeaveConfirmModal) DOM.cancelLeaveConfirmModal.classList.add('hidden');
+            State.context.memberToCancelLeave = null;
+        });
+    }
+
     // 6. 업무 마감 확인
     if (DOM.confirmEndShiftBtn) {
         DOM.confirmEndShiftBtn.addEventListener('click', async () => {
-            // 설명: 업무를 이력으로 저장한 후, 현재 라이브 데이터를 '완전 삭제(초기화)'합니다.
-            // 이렇게 하면 다른 기기에서 켜져 있던 창(좀비 탭)이 서버 데이터를 덮어쓰려 할 때
-            // 원본 문서가 없거나 초기화되어 있어 덮어쓰기에 실패하거나 오류가 발생해 멈추게 됩니다.
             await saveDayDataToHistory(true); 
-            
             DOM.endShiftConfirmModal.classList.add('hidden');
         });
     }
@@ -370,6 +388,13 @@ export function setupConfirmationModalListeners() {
                 console.error("오늘 데이터 초기화 실패: ", e);
                 showToast("데이터 초기화 중 오류가 발생했습니다.", true);
             }
+        });
+    }
+
+    // 💡 [신규/보완] 앱 초기화 취소 버튼
+    if (DOM.cancelResetAppBtn) {
+        DOM.cancelResetAppBtn.addEventListener('click', () => {
+            if (DOM.resetAppModal) DOM.resetAppModal.classList.add('hidden');
         });
     }
 }
