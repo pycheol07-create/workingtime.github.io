@@ -10,13 +10,9 @@ import { checkMissingQuantities } from './analysis-logic.js';
 import { renderQuantityModalInputs } from './ui.js';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 🌟 렌더링 중복 실행 방지를 위한 Lock 상태 변수
 let isRenderingList = false;
 let renderListQueue = null;
 
-/**
- * 이력 데이터를 로드하고 초기 화면을 렌더링합니다.
- */
 export const loadAndRenderHistoryList = async () => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500 text-sm">이력 로딩 중...</div></li>';
@@ -40,7 +36,7 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
-    // 탭 스타일 초기화
+    // 메인 탭 스타일 초기화
     document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
         btn.classList.remove('font-medium', 'text-gray-500');
@@ -50,6 +46,7 @@ export const loadAndRenderHistoryList = async () => {
         btn.classList.add('font-medium', 'text-gray-500');
     });
 
+    // 하위 탭 스타일 초기화
     document.querySelectorAll('#history-tabs button[data-view="daily"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
         btn.classList.remove('text-gray-500');
@@ -83,9 +80,6 @@ export const loadAndRenderHistoryList = async () => {
     await renderHistoryDateListByMode('day');
 };
 
-/**
- * 모드(일/주/월/년)에 따라 좌측 리스트를 폴더형(아코디언)으로 렌더링합니다.
- */
 export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = null) => {
     if (!DOM.historyDateList) return;
 
@@ -160,13 +154,13 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
             for (const [groupName, groupItemKeys] of Object.entries(groupedKeys)) {
                 const isOpen = targetGroupName ? (groupName === targetGroupName) : isFirstGroup;
                 
-                // ✨ 수정 포인트 1: 폴더명의 줄바꿈 방지를 위해 whitespace-nowrap 적용 및 레이아웃 최적화
+                // ✨ 수정 포인트: 좁은 영역에서도 폴더명 텍스트가 줄바꿈되거나 잘리지 않도록 (shrink-0, whitespace-nowrap) 강력 적용
                 htmlContent += `
                 <li class="mb-2">
-                    <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm focus:outline-none">
+                    <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm focus:outline-none shrink-0">
                         <div class="flex items-center gap-2 shrink-0">
                             <span class="folder-icon text-[15px]">${isOpen ? '📂' : '📁'}</span>
-                            <span class="font-bold text-[13px] text-gray-700 dark:text-gray-200 whitespace-nowrap tracking-tight">${groupName}</span>
+                            <span class="font-bold text-[14px] text-gray-700 dark:text-gray-200 whitespace-nowrap tracking-tight shrink-0">${groupName}</span>
                         </div>
                         <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
@@ -188,11 +182,12 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                         }
                     }
                     
+                    // ✨ 요일 표시 로직 
                     let displayKey = key;
                     if (mode === 'day') {
                         const d = new Date(key);
                         const days = ['일', '월', '화', '수', '목', '금', '토'];
-                        const dayStr = isNaN(d) ? '' : ` (${days[d.getDay()]})`;
+                        const dayStr = isNaN(d.getDay()) ? '' : ` (${days[d.getDay()]})`;
                         displayKey = `${key}${dayStr}`;
                     }
 
@@ -201,12 +196,12 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                         ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold' 
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50';
 
-                    // ✨ 수정 포인트 2: 잘림 방지를 위해 truncate 클래스를 제거하고 whitespace-nowrap으로 변경
+                    // ✨ 수정 포인트: 좁은 영역에서도 날짜와 요일 텍스트가 줄바꿈되거나 잘리지 않도록 (shrink-0, whitespace-nowrap) 강력 적용
                     htmlContent += `
                         <li>
-                            <button data-key="${key}" class="history-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none flex items-center gap-2 ${baseClass} ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>
+                            <button data-key="${key}" class="history-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none flex items-center gap-2 shrink-0 ${baseClass} ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>
                                 <span class="inline-block w-1.5 h-1.5 rounded-full ${hasWarning ? 'bg-red-500' : (isSelected ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600')} shrink-0"></span>
-                                <span class="whitespace-nowrap tracking-tight">${displayKey}</span>
+                                <span class="whitespace-nowrap tracking-tight shrink-0">${displayKey}</span>
                             </button>
                         </li>`;
                 });
@@ -217,6 +212,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
 
             DOM.historyDateList.innerHTML = htmlContent;
 
+            // 아코디언 토글 이벤트 부착
             const toggleBtns = DOM.historyDateList.querySelectorAll('.accordion-toggle');
             toggleBtns.forEach(btn => {
                 btn.addEventListener('click', function() {
@@ -262,9 +258,6 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
     }
 };
 
-/**
- * 이력 보기 내의 뷰 전환을 처리합니다.
- */
 export const switchHistoryView = async (view, preserveKey = null) => {
     const allViews = [
         document.getElementById('history-daily-view'),
@@ -363,9 +356,6 @@ export const switchHistoryView = async (view, preserveKey = null) => {
     }
 };
 
-/**
- * 처리량 수정 모달을 엽니다.
- */
 export const openHistoryQuantityModal = (dateKey) => {
     const todayDateString = getTodayDateString();
 
@@ -445,9 +435,6 @@ export const openHistoryQuantityModal = (dateKey) => {
     if (DOM.quantityModal) DOM.quantityModal.classList.remove('hidden');
 };
 
-/**
- * 이력 삭제 요청을 처리합니다.
- */
 export const requestHistoryDeletion = (dateKey) => {
     State.context.historyKeyToDelete = dateKey;
     const activeTab = State.context.activeMainHistoryTab || 'work';
