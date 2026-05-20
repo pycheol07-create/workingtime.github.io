@@ -301,6 +301,26 @@
     <div id="modals-container-admin-todo-alert"></div>
     <div id="modals-container-weekend"></div>
 
+    <div id="overtime-prompt-modal" class="hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 transition-opacity">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center border border-gray-100 dark:border-gray-700">
+            <div class="text-4xl mb-4">🌙</div>
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">정규 근무 시간 종료</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                17시 30분이 되었습니다.<br>
+                연장 근무를 계속하시겠습니까?<br><br>
+                <span class="text-red-500 font-bold" id="auto-close-countdown">응답이 없으면 5분 후 자동으로 업무가 마감됩니다.</span>
+            </p>
+            <div class="flex gap-2 justify-center mt-4">
+                <button id="btn-continue-overtime" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-bold transition-colors">
+                    연장 근무 계속하기
+                </button>
+                <button id="btn-close-now" class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg shadow-sm text-sm transition-colors font-medium">
+                    지금 마감하기
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="notice-management-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center hidden z-[100] p-4 transition-opacity">
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg relative border border-gray-100 dark:border-gray-700 flex flex-col max-h-[85vh]">
             <div class="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center shrink-0">
