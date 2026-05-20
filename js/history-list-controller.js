@@ -85,7 +85,7 @@ export const loadAndRenderHistoryList = async () => {
 };
 
 /**
- * 모드(일/주/월/년)에 따라 좌측 리스트를 렌더링합니다.
+ * 모드(일/주/월/년)에 따라 좌측 리스트를 폴더형(아코디언)으로 렌더링합니다.
  */
 export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = null) => {
     if (!DOM.historyDateList) return;
@@ -132,36 +132,127 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
         if (keys.length === 0) {
             DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500">데이터 없음</div></li>';
         } else {
-            let htmlContent = '';
-            
+            // ✨ 1단계: 연/월 기준으로 데이터 그룹화 (폴더 생성)
+            const groupedKeys = {};
             keys.forEach(key => {
-                let hasWarning = false;
-                let titleAttr = '';
-
+                let groupName = '전체 이력';
                 if (mode === 'day') {
-                    const dayData = filteredData.find(d => d.id === key);
-                    if (dayData) {
-                        const missingTasksList = checkMissingQuantities(dayData);
-                        hasWarning = missingTasksList.length > 0;
-                        if (hasWarning) {
-                            titleAttr = ` title="처리량 누락: ${missingTasksList.join(', ')}"`;
-                        }
-                    }
+                    // 일별 보기: "YYYY년 MM월" 형태의 폴더
+                    groupName = `${key.substring(0, 4)}년 ${key.substring(5, 7)}월`;
+                } else if (mode === 'week' || mode === 'month') {
+                    // 주/월별 보기: "YYYY년" 형태의 폴더
+                    groupName = `${key.substring(0, 4)}년`;
                 }
                 
-                htmlContent += `<li><button data-key="${key}" class="history-date-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-300 ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>${key}</button></li>`;
+                if (!groupedKeys[groupName]) groupedKeys[groupName] = [];
+                groupedKeys[groupName].push(key);
             });
 
+            let htmlContent = '';
+            let isFirstGroup = true;
+
+            // 선택된 항목이 속한 그룹 찾기 (해당 폴더를 자동으로 열기 위해)
+            let targetGroupName = null;
+            if (selectedKey) {
+                for (const [gName, gKeys] of Object.entries(groupedKeys)) {
+                    if (gKeys.includes(selectedKey)) {
+                        targetGroupName = gName;
+                        break;
+                    }
+                }
+            }
+
+            // ✨ 2단계: 아코디언 HTML 구조 생성
+            for (const [groupName, groupItemKeys] of Object.entries(groupedKeys)) {
+                // 선택된 키가 있거나, 선택된 게 없을 땐 첫 번째 폴더를 기본으로 열어둠
+                const isOpen = targetGroupName ? (groupName === targetGroupName) : isFirstGroup;
+                
+                htmlContent += `
+                <li class="mb-3">
+                    <button class="accordion-toggle w-full flex justify-between items-center p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        <span class="font-bold text-[15px] text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                            <span class="text-lg folder-icon">${isOpen ? '📂' : '📁'}</span> ${groupName}
+                        </span>
+                        <svg class="w-5 h-5 text-gray-500 transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <ul class="accordion-content mt-1.5 pl-3 space-y-1 overflow-hidden transition-all duration-300 ${isOpen ? 'block' : 'hidden'} border-l-2 border-gray-100 dark:border-gray-700 ml-3">
+                `;
+
+                groupItemKeys.forEach(key => {
+                    let hasWarning = false;
+                    let titleAttr = '';
+
+                    // 누락 경고 확인 로직
+                    if (mode === 'day') {
+                        const dayData = filteredData.find(d => d.id === key);
+                        if (dayData) {
+                            const missingTasksList = checkMissingQuantities(dayData);
+                            hasWarning = missingTasksList.length > 0;
+                            if (hasWarning) {
+                                titleAttr = ` title="처리량 누락: ${missingTasksList.join(', ')}"`;
+                            }
+                        }
+                    }
+                    
+                    // ✨ 3단계: 일별 보기일 때 요일 추가하여 가독성 향상
+                    let displayKey = key;
+                    if (mode === 'day') {
+                        const d = new Date(key);
+                        const days = ['일', '월', '화', '수', '목', '금', '토'];
+                        const dayStr = isNaN(d) ? '' : ` (${days[d.getDay()]})`;
+                        displayKey = `${key}${dayStr}`;
+                    }
+
+                    // 선택된 버튼 스타일 적용
+                    const isSelected = key === selectedKey;
+                    const baseClass = isSelected 
+                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-800' 
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 border border-transparent';
+
+                    htmlContent += `
+                        <li class="relative">
+                            <button data-key="${key}" class="history-date-btn w-full text-left py-2 px-3 text-sm rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 ${baseClass} flex items-center gap-2 ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>
+                                <span class="inline-block w-1.5 h-1.5 rounded-full ${hasWarning ? 'bg-red-500' : (isSelected ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600')} shrink-0"></span>
+                                <span class="truncate">${displayKey}</span>
+                            </button>
+                        </li>`;
+                });
+
+                htmlContent += `</ul></li>`;
+                isFirstGroup = false;
+            }
+
             DOM.historyDateList.innerHTML = htmlContent;
+
+            // ✨ 4단계: 아코디언 토글 이벤트 리스너 부착
+            const toggleBtns = DOM.historyDateList.querySelectorAll('.accordion-toggle');
+            toggleBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const content = this.nextElementSibling;
+                    const icon = this.querySelector('svg');
+                    const folderIcon = this.querySelector('.folder-icon');
+                    
+                    // 열려있으면 닫고, 닫혀있으면 열기
+                    if (content.classList.contains('hidden')) {
+                        content.classList.remove('hidden');
+                        icon.classList.add('rotate-180');
+                        if(folderIcon) folderIcon.textContent = '📂';
+                    } else {
+                        content.classList.add('hidden');
+                        icon.classList.remove('rotate-180');
+                        if(folderIcon) folderIcon.textContent = '📁';
+                    }
+                });
+            });
         }
 
+        // 초기 선택 (또는 클릭 시 자동 선택)
         let targetBtn = null;
         if (selectedKey) {
             targetBtn = DOM.historyDateList.querySelector(`button[data-key="${selectedKey}"]`);
         }
-        
         if (!targetBtn) {
-            targetBtn = DOM.historyDateList.firstChild?.querySelector('button');
+            targetBtn = DOM.historyDateList.querySelector('.history-date-btn');
         }
 
         if (targetBtn) {
@@ -333,7 +424,7 @@ export const openHistoryQuantityModal = (dateKey) => {
 
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
 
-            // ✨ [추가된 핵심 방어막] 데이터가 수정되었으므로 기존 캐시를 즉시 파기합니다!
+            // 데이터가 수정되었으므로 기존 캐시 파기
             sessionStorage.removeItem('historyDataCache');
             sessionStorage.removeItem('historyDataCacheTime');
             sessionStorage.removeItem('unverifiedDataCache');
@@ -349,6 +440,7 @@ export const openHistoryQuantityModal = (dateKey) => {
                                      || document.querySelector('#report-tabs button.font-semibold');
                 const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
                 
+                // 변경된 데이터를 반영하기 위해 현재 뷰 유지하며 리렌더링 (리스트도 포함)
                 await switchHistoryView(currentView, dateKey);
             }
 
