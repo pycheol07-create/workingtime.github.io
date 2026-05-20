@@ -8,6 +8,10 @@ let localLunchPauseExecuted = false;
 let localLunchResumeExecuted = false;
 let lastCheckedDay = null;
 
+// ✨ 야근 확인 팝업 및 타이머용 변수 추가
+let localAutoClosePromptExecuted = false;
+let autoCloseTimer = null;
+
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     displayCurrentDate();
@@ -19,6 +23,12 @@ export const updateElapsedTimes = async () => {
     if (lastCheckedDay !== todayDate) {
         localLunchPauseExecuted = false;
         localLunchResumeExecuted = false;
+        
+        // ✨ 다음 날을 위해 야근 팝업 잠금장치 초기화
+        localAutoClosePromptExecuted = false; 
+        if (autoCloseTimer) clearTimeout(autoCloseTimer);
+        autoCloseTimer = null;
+        
         lastCheckedDay = todayDate;
     }
     
@@ -44,6 +54,59 @@ export const updateElapsedTimes = async () => {
                 const tasksResumed = await State.context.autoResumeFromLunch();
                 if (tasksResumed > 0) showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
             } catch (e) { console.error("Error during auto-resume: ", e); }
+        }
+    }
+
+    // ✨ 핵심 방어막 3: 17:30 퇴근 시간 감지 및 야근 확인 팝업 (관리자 전용)
+    if (isAdmin && isTodayWeekday && now === '17:30' && !localAutoClosePromptExecuted) {
+        localAutoClosePromptExecuted = true;
+        
+        // 현재 진행 중인 업무 찾기
+        const ongoingRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing');
+        
+        // 진행 중인 업무가 있을 때만 팝업 띄우기
+        if (ongoingRecords.length > 0) {
+            const modal = document.getElementById('overtime-prompt-modal');
+            const btnContinue = document.getElementById('btn-continue-overtime');
+            const btnCloseNow = document.getElementById('btn-close-now');
+            
+            if (modal) modal.classList.remove('hidden');
+
+            // 실제 마감을 수행하는 함수 (진행 중인 업무를 17:30으로 마감)
+            const executeAutoClose = () => {
+                ongoingRecords.forEach(rec => {
+                    rec.status = 'completed';
+                    rec.endTime = '17:30';
+                    const totalMins = calcElapsedMinutes(rec.startTime, '17:30', rec.pauses || []);
+                    rec.duration = totalMins > 0 ? totalMins : 0;
+                });
+                
+                markDataAsDirty(); // 데이터 변경 알림 (서버에 딱 1번 저장됨)
+                showToast('응답이 없어 17:30 기준으로 모든 업무가 자동 마감되었습니다.', true);
+                if (modal) modal.classList.add('hidden');
+            };
+
+            // 1. 5분(300,000ms) 대기 타이머 시작
+            autoCloseTimer = setTimeout(() => {
+                executeAutoClose();
+            }, 5 * 60 * 1000);
+
+            // 2. [연장 근무 계속하기] 버튼 클릭 시
+            if (btnContinue) {
+                btnContinue.onclick = () => {
+                    clearTimeout(autoCloseTimer); // 타이머 폭탄 해제!
+                    if (modal) modal.classList.add('hidden');
+                    showToast('연장 근무가 활성화되었습니다. 퇴근 시 직접 마감해주세요.', false);
+                };
+            }
+
+            // 3. [지금 마감하기] 버튼 클릭 시 (기다리지 않고 즉시 마감)
+            if (btnCloseNow) {
+                btnCloseNow.onclick = () => {
+                    clearTimeout(autoCloseTimer);
+                    executeAutoClose();
+                };
+            }
         }
     }
 
