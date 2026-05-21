@@ -92,7 +92,7 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
     `;
 };
 
-// ✅ [신규] 인당 생산성 지표 카드 렌더러
+// ✅ [신규] 인당 생산성 지표 카드 렌더러 (설명 툴팁 아이콘 추가)
 const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
     const getTaskProd = (aggr, taskName) => {
         if (!aggr || !aggr.taskSummary) return 0;
@@ -117,17 +117,36 @@ const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
         { label: '직진배송', t: getTaskProd(tMetrics.aggr, '직진배송'), p: getTaskProd(pMetrics?.aggr, '직진배송') }
     ];
 
+    // 💡 계산식 및 의미를 설명하는 툴팁 HTML 정의
+    const infoTooltip = `<span class="group relative ml-2 inline-block cursor-pointer text-indigo-500 hover:text-indigo-700 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6 inline">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM8.94 6.94a.75.75 0 11-1.061-1.061 3 3 0 112.871 5.026v.345a.75.75 0 01-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 108.94 6.94zM10 15a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+        </svg>
+        <span class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition bg-gray-800 text-white text-xs rounded-lg p-4 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 break-keep leading-relaxed text-left shadow-xl pointer-events-none" data-html2canvas-ignore="true">
+            <strong class="block mb-2 text-yellow-300 text-sm font-bold">💡 인당 생산성 (UPH)</strong>
+            <span class="block mb-3 font-mono bg-gray-700 p-2 rounded text-center font-bold tracking-wide text-sm">
+                (총 수량 ÷ 총 소요시간) × 60
+            </span>
+            <ul class="list-disc pl-4 space-y-1.5 text-gray-200">
+                <li><span class="text-white font-semibold">총 소요시간:</span> 투입된 모든 작업자의 분(Minute) 단위 누적 업무 시간의 합</li>
+                <li><span class="text-white font-semibold">의미:</span> 1명의 작업자가 1시간 동안 평균적으로 몇 개를 처리했는지 나타내는 체력 지표</li>
+            </ul>
+            <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+        </span>
+    </span>`;
+
     let html = `
         <div class="bg-white p-5 rounded-lg shadow-sm">
             <h3 class="text-lg font-bold mb-4 text-gray-800 flex items-center">
-                🧑‍💻 주요 업무 인당 생산성 <span class="text-xs text-gray-500 font-normal ml-2">(1명이 1시간 동안 처리한 수량, 단위: 개/H)</span>
+                🧑‍💻 주요 업무 인당 생산성
+                ${infoTooltip}
             </h3>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
     `;
 
     tasks.forEach(task => {
         html += `
-            <div class="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 shadow-sm">
+            <div class="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 shadow-sm relative group">
                 <div class="text-sm font-bold text-gray-700 mb-1">${task.label}</div>
                 <div class="text-2xl font-extrabold text-indigo-700">${task.t.toFixed(1)} <span class="text-sm font-medium text-gray-500">개/H</span></div>
                 ${getDiffHtmlForMetric('overallAvgThroughput', task.t, task.p)}
