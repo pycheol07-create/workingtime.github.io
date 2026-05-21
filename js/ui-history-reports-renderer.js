@@ -92,6 +92,53 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
     `;
 };
 
+// ✅ [신규] 인당 생산성 지표 카드 렌더러
+const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
+    const getTaskProd = (aggr, taskName) => {
+        if (!aggr || !aggr.taskSummary) return 0;
+        let task = aggr.taskSummary[taskName];
+        if (!task && taskName === '중국제작(입고)') {
+            task = aggr.taskSummary['중국제작입고'] || aggr.taskSummary['중국제작'];
+        }
+        if (task && task.duration > 0) {
+            // 인당 시간당 생산성 (총 개수 / 총 시간 * 60)
+            return (task.quantity / task.duration) * 60;
+        }
+        return 0;
+    };
+
+    const tOverall = tMetrics.kpis.totalDuration > 0 ? (tMetrics.kpis.totalQuantity / tMetrics.kpis.totalDuration) * 60 : 0;
+    const pOverall = pMetrics?.kpis?.totalDuration > 0 ? (pMetrics.kpis.totalQuantity / pMetrics.kpis.totalDuration) * 60 : 0;
+
+    const tasks = [
+        { label: '종합 (전체)', t: tOverall, p: pOverall },
+        { label: '국내배송', t: getTaskProd(tMetrics.aggr, '국내배송'), p: getTaskProd(pMetrics?.aggr, '국내배송') },
+        { label: '중국제작(입고)', t: getTaskProd(tMetrics.aggr, '중국제작(입고)'), p: getTaskProd(pMetrics?.aggr, '중국제작(입고)') },
+        { label: '직진배송', t: getTaskProd(tMetrics.aggr, '직진배송'), p: getTaskProd(pMetrics?.aggr, '직진배송') }
+    ];
+
+    let html = `
+        <div class="bg-white p-5 rounded-lg shadow-sm">
+            <h3 class="text-lg font-bold mb-4 text-gray-800 flex items-center">
+                🧑‍💻 주요 업무 인당 생산성 <span class="text-xs text-gray-500 font-normal ml-2">(1명이 1시간 동안 처리한 수량, 단위: 개/H)</span>
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+    `;
+
+    tasks.forEach(task => {
+        html += `
+            <div class="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 shadow-sm">
+                <div class="text-sm font-bold text-gray-700 mb-1">${task.label}</div>
+                <div class="text-2xl font-extrabold text-indigo-700">${task.t.toFixed(1)} <span class="text-sm font-medium text-gray-500">개/H</span></div>
+                ${getDiffHtmlForMetric('overallAvgThroughput', task.t, task.p)}
+            </div>
+        `;
+    });
+
+    html += `</div></div>`;
+    return html;
+};
+
 const _renderTooltip = (metricKey) => {
     const info = PRODUCTIVITY_METRIC_DESCRIPTIONS[metricKey];
     if (!info) return '';
@@ -737,6 +784,8 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
 
     let html = `<div class="space-y-6">${headerHtml}`;
     html += _generateKPIHTML(tMetrics.kpis, pMetrics.kpis);
+    // ✅ [신규] 인당 생산성 (시간당 UPH) 영역 추가
+    html += _generateProductivityPerPersonHTML(tMetrics, pMetrics);
     html += _generateProductivityAnalysisHTML(tMetrics, pMetrics, periodText, benchmarkOEE);
     html += _generateRevenueAnalysisHTML(periodText, tMetrics.revenueAnalysis, tMetrics.revenueTrend, currentRevenue, prevRevenue);
     html += _generateInsightsHTML(tMetrics.aggr, pMetrics.aggr, appConfig, periodText);
