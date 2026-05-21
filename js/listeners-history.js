@@ -116,7 +116,6 @@ async function loadAndRenderWeekendStats() {
         }
     }
 
-    // 💡 엑셀 스타일의 정렬/필터 헤더 렌더링
     thead.innerHTML = `
         <tr class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
             <th class="px-6 py-4 w-20 text-center font-bold text-gray-500 border-r border-gray-100 select-none">순위</th>
@@ -239,22 +238,16 @@ export function setupHistoryModalListeners() {
         if (!tabsContainer) return;
         
         tabsContainer.classList.remove('-mb-px');
-        tabsContainer.classList.add('p-1.5', 'bg-gray-200/70', 'rounded-xl', 'inline-flex', 'items-center', 'shadow-inner');
-        tabsContainer.style.gap = '0.35rem';
+        tabsContainer.classList.add('p-1', 'bg-gray-200/70', 'rounded-xl', 'inline-flex', 'items-center', 'shadow-inner');
+        tabsContainer.style.gap = '0.25rem';
         
-        if (tabsContainer.parentElement) {
-            tabsContainer.parentElement.classList.remove('border-b', 'border-gray-200');
-            tabsContainer.parentElement.classList.add('pb-4', 'pt-1');
-        }
-
+        // 💡 탭 그룹에 맞는 아이콘 매핑 (새로운 B안 구조)
         const tabIcons = {
-            'work': '📋',
-            'attendance': '⏰',
+            'report': '📊',
             'trends': '📈',
             'prediction': '🔮',
-            'report': '📊',
-            'personal': '👤',
-            'management': '💼',
+            'work': '📋',
+            'attendance': '⏰',
             'inspection': '📦',
             'leave': '🏖️',
             'weekend': '📅'
@@ -262,9 +255,9 @@ export function setupHistoryModalListeners() {
 
         document.querySelectorAll('.history-main-tab-btn').forEach(btn => {
             const tabKey = btn.dataset.mainTab;
-            const pureText = btn.textContent.replace(/[^\w\s가-힣]/gi, '').trim();
-            btn.innerHTML = `<span class="text-[15px] mr-1.5 opacity-90 drop-shadow-sm">${tabIcons[tabKey] || '📄'}</span><span>${pureText}</span>`;
-            btn.className = 'history-main-tab-btn px-4 py-2.5 rounded-lg transition-all duration-200 whitespace-nowrap text-sm flex items-center justify-center';
+            const pureText = btn.textContent.replace(/[^\w\s가-힣()]/gi, '').trim();
+            btn.innerHTML = `<span class="text-[14px] mr-1 opacity-90 drop-shadow-sm">${tabIcons[tabKey] || '📄'}</span><span>${pureText}</span>`;
+            btn.className = 'history-main-tab-btn px-4 py-2 rounded-lg transition-all duration-200 whitespace-nowrap text-sm flex items-center justify-center';
             
             if (tabKey === activeTabName) {
                 btn.classList.add('bg-white', 'text-blue-700', 'font-extrabold', 'shadow-md', 'border', 'border-gray-200/80', 'scale-[1.02]');
@@ -288,7 +281,7 @@ export function setupHistoryModalListeners() {
             activeSubTabBtn = managementTabs?.querySelector('button.font-semibold');
         }
 
-        const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (State.context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
+        const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
 
         if (activeView.includes('yearly')) return 'year';
         if (activeView.includes('weekly')) return 'week';
@@ -460,7 +453,9 @@ export function setupHistoryModalListeners() {
             State.context.historyStartDate = null;
             State.context.historyEndDate = null;
             
-            styleHistoryTabs(State.context.activeMainHistoryTab || 'work');
+            // 💡 [수정] 모달 진입 시 기본 탭을 'report (대시보드)'로 강제 설정
+            State.context.activeMainHistoryTab = 'report';
+            styleHistoryTabs('report');
             
             const periodExcelBtn = document.getElementById('history-download-period-excel-btn');
             if (periodExcelBtn) {
@@ -470,6 +465,11 @@ export function setupHistoryModalListeners() {
 
             try {
                 await loadAndRenderHistoryList();
+                
+                // 탭 강제 클릭 이벤트를 발생시켜 연관된 패널 및 날짜 리스트 초기화 보장
+                const activeTabBtn = document.querySelector(`button[data-main-tab="report"]`);
+                if (activeTabBtn) activeTabBtn.click();
+
             } catch (loadError) {
                 console.error("이력 데이터 로딩 중 오류:", loadError);
                 showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true);
@@ -497,7 +497,7 @@ export function setupHistoryModalListeners() {
                 btn.classList.add('bg-blue-100', 'font-bold');
                 const dateKey = btn.dataset.key;
 
-                let activeMainTab = State.context.activeMainHistoryTab || 'work';
+                let activeMainTab = State.context.activeMainHistoryTab || 'report';
                 State.context.activeFilterDropdown = null; 
 
                 if (activeMainTab === 'attendance') { refreshAttendanceView(); return; }
@@ -592,6 +592,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // 💡 메인 상단 탭 전환 로직
     if (DOM.historyMainTabs) {
         DOM.historyMainTabs.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-main-tab]');
@@ -738,7 +739,7 @@ export function setupHistoryModalListeners() {
         DOM.confirmHistoryDeleteBtn.addEventListener('click', async () => {
             const dateKey = State.context.historyKeyToDelete;
             if (dateKey) {
-                const activeTab = State.context.activeMainHistoryTab || 'work';
+                const activeTab = State.context.activeMainHistoryTab || 'report';
                 const updates = {};
                 
                 if (activeTab === 'work' || activeTab === 'report') {
@@ -882,7 +883,6 @@ export function setupHistoryModalListeners() {
     }
 }
 
-// 💡 엑셀 스타일 이벤트 위임 (전역 위임으로 이벤트 누락 방지)
 document.addEventListener('click', (e) => {
     const isWeekendPanel = e.target.closest('#history-weekend-panel') || e.target.closest('table:has(#weekend-history-table-body)');
     if (!isWeekendPanel) return;
@@ -942,7 +942,7 @@ document.addEventListener('input', (e) => {
 
 export const requestHistoryDeletion = (dateKey) => {
     State.context.historyKeyToDelete = dateKey;
-    const activeTab = State.context.activeMainHistoryTab || 'work';
+    const activeTab = State.context.activeMainHistoryTab || 'report';
     let targetName = '모든';
     
     if (activeTab === 'work' || activeTab === 'report') targetName = '업무 이력(처리량 포함)';
