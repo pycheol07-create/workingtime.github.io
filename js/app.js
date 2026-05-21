@@ -114,6 +114,35 @@ async function startAppAfterLogin(user) {
     setupFirebaseListeners(render, markDataAsDirty);
 }
 
+// ✨ 신규: 분할된 HTML 파일들을 동적으로 불러와 뼈대 파일(DOM)에 꽂아 넣는 함수
+async function loadHistoryComponents() {
+    try {
+        // 1. 패널 HTML과 서브 팝업 HTML을 동시에 불러옵니다.
+        const [panelsResponse, subModalsResponse] = await Promise.all([
+            fetch('components/history-panels.html'),
+            fetch('components/history-sub-modals.html')
+        ]);
+
+        const panelsHtml = await panelsResponse.text();
+        const subModalsHtml = await subModalsResponse.text();
+
+        // 2. 뼈대 파일에 준비해둔 빈 상자를 찾습니다.
+        const panelsWrapper = document.getElementById('history-panels-wrapper');
+        const subModalsWrapper = document.getElementById('history-sub-modals-wrapper');
+
+        // 3. 내용물을 꽂아 넣습니다.
+        if (panelsWrapper && subModalsWrapper) {
+            panelsWrapper.innerHTML = panelsHtml;
+            subModalsWrapper.innerHTML = subModalsHtml;
+            console.log("히스토리 모달 컴포넌트 로드 성공!");
+        } else {
+            console.warn("히스토리 뼈대 영역(Wrapper)을 찾을 수 없어 조립하지 못했습니다.");
+        }
+    } catch (error) {
+        console.error("컴포넌트를 불러오는 데 실패했습니다:", error);
+    }
+}
+
 async function main() {
     if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; 
 
@@ -124,6 +153,10 @@ async function main() {
     } catch (e) {
         return;
     }
+
+    // ✨ 신규: 앱이 시작되자마자 가장 먼저 분할된 HTML 파일부터 조립합니다.
+    // (그래야 아래에 있는 이벤트 리스너들이 새로 만들어진 HTML 버튼들을 찾을 수 있습니다!)
+    await loadHistoryComponents();
 
     // ✅ 3. 알림 이벤트 리스너 세팅
     setupNotificationListeners();
