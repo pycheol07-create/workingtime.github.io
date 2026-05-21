@@ -45,7 +45,22 @@ const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
     `;
 };
 
+// ✅ [수정] 상단 KPI 카드 - COQ 비율 툴팁 추가
 const _generateKPIHTML = (tKPIs, pKPIs) => {
+    const coqTooltip = `<span class="group relative ml-1 inline-block cursor-help text-red-400 hover:text-red-600 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 inline">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM8.94 6.94a.75.75 0 11-1.061-1.061 3 3 0 112.871 5.026v.345a.75.75 0 01-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 108.94 6.94zM10 15a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+        </svg>
+        <span class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition bg-gray-800 text-white text-xs rounded-lg p-3 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 break-keep leading-relaxed text-left shadow-xl pointer-events-none" data-html2canvas-ignore="true">
+            <strong class="block mb-1 text-yellow-300 text-sm font-bold">💡 COQ (품질비용) 비율</strong>
+            <span class="block mb-2 font-mono bg-gray-700 p-1.5 rounded text-center font-bold tracking-wide text-xs">
+                (품질관리 인건비 ÷ 총 인건비) × 100
+            </span>
+            <span class="text-gray-200 block">전체 인건비 중에서 검수, 재작업, 불량 처리 등 <strong>품질을 유지하거나 실패를 복구하는 데 쓰인 인건비</strong>의 비율입니다. 수치가 낮을수록 비용 효율이 높습니다.</span>
+            <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+        </span>
+    </span>`;
+
     return `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -84,7 +99,10 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
                 ${getDiffHtmlForMetric('nonWorkTime', tKPIs.nonWorkMinutes, pKPIs.nonWorkMinutes)}
             </div>
             <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
-                <div class="text-xs text-red-600 font-semibold">COQ 비율 (총 ${Math.round(tKPIs.totalQualityCost).toLocaleString()}원) ⓘ</div>
+                <div class="text-xs text-red-600 font-semibold flex items-center justify-center">
+                    COQ 비율 (총 ${Math.round(tKPIs.totalQualityCost).toLocaleString()}원)
+                    ${coqTooltip}
+                </div>
                 <div class="text-xl font-bold text-red-600">${tKPIs.coqPercentage.toFixed(1)} %</div>
                 ${getDiffHtmlForMetric('coqPercentage', tKPIs.coqPercentage, pKPIs.coqPercentage)}
             </div>
