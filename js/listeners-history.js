@@ -15,7 +15,6 @@ import * as UILeave from './ui-history-leave.js';
 import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
 import { doc, updateDoc, deleteField, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 대분류 개편용 신규 탭 모듈 연동
 import { renderDashboardTab } from './ui-history-dashboard.js';
 import { renderProductivityTab } from './ui-history-productivity.js';
 import { renderStaffingTab } from './ui-history-staffing.js';
@@ -27,7 +26,6 @@ let currentWeekendTotalCost = 0;
 let currentWeekendTotalCount = 0;
 let currentWeekendMonthStr = "";
 
-// 주말 통계 전용 정렬 및 필터 상태 관리
 let weekendSortState = { key: 'count', dir: 'desc' };
 let weekendFilterState = { name: '' };
 
@@ -202,13 +200,29 @@ export function setupHistoryModalListeners() {
     setupHistoryAttendanceListeners();
     setupHistoryInspectionListeners();
 
-    // 글로벌 기간 필터 설정
+    // 💡 1. 글로벌 기간 필터 및 '올해', '전체' 옵션 추가 로직
     const presetBtn = document.getElementById('global-period-preset');
     const startInput = document.getElementById('global-start-date');
     const endInput = document.getElementById('global-end-date');
     const applyBtn = document.getElementById('global-filter-btn');
+    const globalExcelBtn = document.getElementById('global-download-excel-btn');
 
     if (presetBtn && startInput && endInput && applyBtn) {
+        
+        // HTML을 건드리지 않고 '올해', '전체' 옵션을 동적으로 삽입
+        if (!presetBtn.querySelector('option[value="year"]')) {
+            const yearOpt = document.createElement('option');
+            yearOpt.value = 'year'; yearOpt.textContent = '올해';
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all'; allOpt.textContent = '전체';
+            
+            const customOpt = presetBtn.querySelector('option[value="custom"]');
+            if (customOpt) {
+                presetBtn.insertBefore(yearOpt, customOpt);
+                presetBtn.insertBefore(allOpt, customOpt);
+            }
+        }
+
         const updateDates = () => {
             const val = presetBtn.value;
             const today = new Date();
@@ -227,7 +241,14 @@ export function setupHistoryModalListeners() {
             } else if (val === 'month') {
                 start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
                 end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+            } else if (val === 'year') { // 새로 추가된 올해 로직
+                start = `${today.getFullYear()}-01-01`;
+                end = `${today.getFullYear()}-12-31`;
+            } else if (val === 'all') { // 새로 추가된 전체 로직
+                start = '';
+                end = '';
             }
+            
             if (val !== 'custom') {
                 startInput.value = start;
                 endInput.value = end;
@@ -237,7 +258,6 @@ export function setupHistoryModalListeners() {
         updateDates();
         presetBtn.addEventListener('change', updateDates);
         
-        // 💡 글로벌 조회 적용 시 데이터 갱신 트리거 로직 수정
         applyBtn.addEventListener('click', () => {
             State.context.historyStartDate = startInput.value || null;
             State.context.historyEndDate = endInput.value || null;
@@ -247,13 +267,75 @@ export function setupHistoryModalListeners() {
             if (activeMainBtn) {
                 const tabName = activeMainBtn.dataset.mainTab;
                 if (tabName === 'rawdata') {
-                    // 로우 데이터 탭에서는 현재 열려있는 서브 탭을 다시 클릭하게 해서 환경 리프레시
                     const activeSubTab = document.querySelector('.rawdata-sub-tab-btn.font-bold');
                     if (activeSubTab) activeSubTab.click();
                 } else {
                     activeMainBtn.click();
                 }
             }
+        });
+    }
+
+    // 💡 2. 통합 엑셀 다운로드 (글로벌 요약 데이터 추출)
+    if (globalExcelBtn) {
+        globalExcelBtn.addEventListener('click', () => {
+            const filteredData = getFilteredHistoryData();
+            if (!filteredData || filteredData.length === 0) {
+                showToast('다운로드할 데이터가 없습니다.', true);
+                return;
+            }
+
+            let csvContent = "\uFEFF"; // 한글 깨짐 방지 BOM
+            csvContent += "날짜,출근 인원(명),총 업무시간(분),총 인건비(원),총 생산량(개),종합 UPH\n";
+
+            let totalMembers = 0, totalMins = 0, totalCost = 0, totalQty = 0;
+            
+            // 날짜순 오름차순 정렬
+            const sortedData = [...filteredData].sort((a, b) => a.id.localeCompare(b.id));
+
+            sortedData.forEach(day => {
+                const date = day.id;
+                const uniqueMembers = new Set((day.workRecords || []).map(r => r.member));
+                const memCount = uniqueMembers.size;
+                
+                let dayMin = 0;
+                let dayCost = 0;
+                (day.workRecords || []).forEach(r => {
+                    dayMin += (r.duration || 0);
+                    const wage = State.appConfig?.memberWages?.[r.member] || 10000;
+                    dayCost += ((r.duration || 0) / 60) * wage;
+                });
+
+                let dayQty = 0;
+                Object.values(day.taskQuantities || {}).forEach(q => { dayQty += (Number(q) || 0); });
+
+                const dayUph = dayMin > 0 ? (dayQty / (dayMin / 60)).toFixed(1) : 0;
+
+                totalMembers += memCount;
+                totalMins += dayMin;
+                totalCost += dayCost;
+                totalQty += dayQty;
+
+                csvContent += `${date},${memCount},${dayMin},${Math.round(dayCost)},${dayQty},${dayUph}\n`;
+            });
+
+            const totalUph = totalMins > 0 ? (totalQty / (totalMins / 60)).toFixed(1) : 0;
+            csvContent += `\n합계,-,${totalMins},${Math.round(totalCost)},${totalQty},${totalUph}\n`;
+
+            const startStr = State.context.historyStartDate || '전체';
+            const endStr = State.context.historyEndDate || '전체';
+            const fileName = `물류팀_통합데이터_${startStr}_to_${endStr}.csv`;
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", fileName);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('통합 엑셀 데이터가 성공적으로 다운로드되었습니다.');
         });
     }
 
@@ -400,7 +482,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 데스크톱 환경 분리 새 탭 열기 대응 및 모달 호출 로직
     const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
@@ -549,7 +630,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 4대 핵심 메인 탭 대전환 리스너
     const mainTabsContainer = document.getElementById('history-main-tabs');
     if (mainTabsContainer) {
         mainTabsContainer.addEventListener('click', async (e) => {
@@ -583,13 +663,11 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 💡 [수정 핵심] 로우 데이터 서브 탭 연동 및 인원/날짜 컨텍스트 복구
     document.querySelectorAll('.rawdata-sub-tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const subTabName = e.target.dataset.subTab;
             State.context.activeMainHistoryTab = subTabName;
             
-            // 1. 활성화 탭 버튼 스타일 처리
             document.querySelectorAll('.rawdata-sub-tab-btn').forEach(b => {
                  const isActive = (b === e.target);
                  b.className = isActive
@@ -597,7 +675,6 @@ export function setupHistoryModalListeners() {
                     : 'rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap';
             });
 
-            // 2. 화면에 알맞은 패널 보이기
             const panels = {
                 'work': document.getElementById('work-history-panel'),
                 'attendance': document.getElementById('attendance-history-panel'),
@@ -613,14 +690,12 @@ export function setupHistoryModalListeners() {
                 if (panels[key]) panels[key].classList.toggle('hidden', key !== subTabName);
             });
             
-            // 3. 날짜 사이드바 숨김/표시 처리
             const dateListContainer = document.getElementById('history-date-list-container');
             if (dateListContainer) {
                 const hideListTabs = ['inspection', 'leave', 'weekend'];
                 dateListContainer.style.display = hideListTabs.includes(subTabName) ? 'none' : 'block';
             }
 
-            // 4. 탭 환경(주/월/년)에 맞는 날짜 조회 렌더링 (인원 리스트 복구 포함)
             if (subTabName === 'work') {
                 const view = DOM.historyTabs?.querySelector('button.font-semibold')?.dataset.view || 'daily';
                 switchHistoryView(view);
@@ -631,7 +706,6 @@ export function setupHistoryModalListeners() {
                 const view = DOM.reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
                 switchHistoryView(view);
             } else if (subTabName === 'personal') {
-                // 개인 리포트 인원 목록 채우기 로직 완벽 복구
                 if (DOM.personalReportMemberSelect && DOM.personalReportMemberSelect.options.length <= 1) {
                     const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
                     const partTimers = (State.appState.partTimers || []).map(p => p.name);
@@ -876,7 +950,6 @@ export function setupHistoryModalListeners() {
     }
 }
 
-// 엑셀 스타일 이벤트 위임 (전역 위임으로 이벤트 누락 방지)
 document.addEventListener('click', (e) => {
     const isWeekendPanel = e.target.closest('#history-weekend-panel') || e.target.closest('table:has(#weekend-history-table-body)');
     if (!isWeekendPanel) return;
