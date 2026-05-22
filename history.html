@@ -33,6 +33,7 @@
     <div id="toast-container" class="space-y-2 w-full max-w-xs"></div>
 
     <div id="modals-container-history" class="w-full h-full"></div>
+    <div id="modals-container-history-popups"></div>
     <div id="modals-container-form"></div> <div id="modals-container-download"></div>
     <div id="modals-container-confirm"></div>
     
@@ -52,6 +53,8 @@
         async function initHistoryApp() {
             await Promise.all([
                 loadComponent('components/modals-history.html', 'modals-container-history'),
+                // 👇 추가된 부분 👇
+                loadComponent('components/modals-history-popups.html', 'modals-container-history-popups'),
                 loadComponent('components/modals-confirm.html', 'modals-container-confirm'),
                 loadComponent('components/modals-form.html', 'modals-container-form') 
             ]);
