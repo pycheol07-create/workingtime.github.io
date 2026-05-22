@@ -6,347 +6,35 @@ import { showToast, getTodayDateString } from './utils.js';
 import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js';
 import { setupHistoryRecordListeners } from './listeners-history-records.js';
 import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js';
-import { setupHistoryInspectionListeners, fetchAndRenderInspectionHistory } from './listeners-history-inspection.js';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js';
 
-import { renderTrendAnalysisCharts, trendCharts } from './ui.js';
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, renderHistoryDateListByMode, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
 import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderPredictionTab } from './ui-history.js';
-import * as UILeave from './ui-history-leave.js';
 import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
-import { doc, updateDoc, deleteField, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { renderDashboardTab } from './ui-history-dashboard.js';
-import { renderProductivityTab } from './ui-history-productivity.js';
-import { renderStaffingTab } from './ui-history-staffing.js';
+// 🚀 새롭게 모듈화된 파일들 Import
+import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData } from './listeners-history-tabs.js';
+import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js';
 
 let isHistoryMaximized = false;
 
-let currentWeekendStatsData = [];
-let currentWeekendTotalCost = 0;
-let currentWeekendTotalCount = 0;
-let currentWeekendMonthStr = "";
-
-let weekendSortState = { key: 'count', dir: 'desc' };
-let weekendFilterState = { name: '' };
-
-const getSortIcon = (currentKey, currentDir, targetKey) => {
-    if (currentKey !== targetKey) return '<span class="text-gray-300 text-[10px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
-    return currentDir === 'asc' 
-        ? '<span class="text-blue-600 text-[10px] ml-1">▲</span>' 
-        : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
-};
-
-const getFilterDropdown = (key, currentFilterValue) => {
-    if (!State.context) State.context = {};
-    const dropdownId = `weekend-filter-${key}`; 
-    const isActive = State.context.activeFilterDropdown === dropdownId;
-    const hasValue = currentFilterValue && currentFilterValue !== '';
-    const iconColorClass = hasValue ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:bg-gray-200';
-
-    return `
-        <div class="relative inline-block ml-1 filter-container">
-            <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
-                </svg>
-            </button>
-            <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left cursor-default font-normal text-gray-800">
-                <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
-                    <span>이름 검색</span>
-                    ${hasValue ? `<button type="button" class="text-[10px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
-                </div>
-                <input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                       placeholder="이름 입력..." value="${currentFilterValue || ''}" data-filter-key="${key}" autocomplete="off">
-            </div>
-        </div>
-    `;
-};
-
-async function loadAndRenderWeekendStats() {
-    const tbody = document.getElementById('weekend-history-table-body');
-    const monthPicker = document.getElementById('weekend-stats-month-picker');
-    if (!tbody || !monthPicker) return;
-
-    const table = tbody.closest('table');
-    let thead = table.querySelector('thead');
-    if (!thead) {
-        thead = document.createElement('thead');
-        table.insertBefore(thead, tbody);
-    }
-
-    if (!currentWeekendStatsData.length || currentWeekendMonthStr !== monthPicker.value) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-blue-500 font-bold">데이터를 불러오는 중입니다...</td></tr>`;
-
-        if (!monthPicker.value) {
-            const now = new Date();
-            const y = now.getFullYear();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            monthPicker.value = `${y}-${m}`;
-        }
-
-        currentWeekendMonthStr = monthPicker.value;
-        const [year, month] = currentWeekendMonthStr.split('-');
-        const startDate = `${currentWeekendMonthStr}-01`;
-        const lastDay = new Date(year, month, 0).getDate();
-        const endDate = `${currentWeekendMonthStr}-${lastDay}`;
-
-        try {
-            const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
-            const q = query(colRef, where("date", ">=", startDate), where("date", "<=", endDate));
-            const snap = await getDocs(q);
-
-            const stats = new Map(); 
-            let totalCount = 0;
-
-            snap.forEach(doc => {
-                const data = doc.data();
-                if (data.status === 'confirmed') {
-                    if (!stats.has(data.member)) stats.set(data.member, { count: 0, dates: [] });
-                    const st = stats.get(data.member);
-                    st.count++;
-                    st.dates.push(data.date);
-                    totalCount++;
-                }
-            });
-
-            currentWeekendStatsData = [...stats.entries()];
-            currentWeekendTotalCount = totalCount;
-
-        } catch (e) {
-            console.error("주말 통계 불러오기 오류:", e);
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-red-500 font-bold">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>`;
-            return;
-        }
-    }
-
-    thead.innerHTML = `
-        <tr class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
-            <th class="px-6 py-4 w-20 text-center font-bold text-gray-500 border-r border-gray-100 select-none">순위</th>
-            <th class="px-6 py-4 w-40 cursor-pointer hover:bg-gray-200 transition select-none group relative" data-sort-key="name">
-                <div class="flex items-center justify-between font-bold">
-                    <span class="flex items-center">이름 ${getSortIcon(weekendSortState.key, weekendSortState.dir, 'name')}</span>
-                    ${getFilterDropdown('name', weekendFilterState.name)}
-                </div>
-            </th>
-            <th class="px-6 py-4 w-32 cursor-pointer hover:bg-gray-200 transition select-none group relative" data-sort-key="count">
-                <div class="flex items-center justify-center font-bold">
-                    확정 횟수 ${getSortIcon(weekendSortState.key, weekendSortState.dir, 'count')}
-                </div>
-            </th>
-            <th class="px-6 py-4 w-40 cursor-pointer hover:bg-gray-200 transition select-none group relative" data-sort-key="cost">
-                <div class="flex items-center justify-end font-bold">
-                    정산 비용 ${getSortIcon(weekendSortState.key, weekendSortState.dir, 'cost')}
-                </div>
-            </th>
-            <th class="px-6 py-4 font-bold text-gray-500 text-center select-none">근무 일자</th>
-        </tr>
-    `;
-
-    let filteredData = [...currentWeekendStatsData];
-    
-    if (weekendFilterState.name) {
-        filteredData = filteredData.filter(([name]) => name.includes(weekendFilterState.name));
-    }
-
-    filteredData.sort((a, b) => {
-        let valA, valB;
-        if (weekendSortState.key === 'name') {
-            valA = a[0]; valB = b[0];
-        } else {
-            valA = a[1].count; valB = b[1].count; 
-        }
-
-        if (valA < valB) return weekendSortState.dir === 'asc' ? -1 : 1;
-        if (valA > valB) return weekendSortState.dir === 'asc' ? 1 : -1;
-        
-        return a[0].localeCompare(b[0]);
-    });
-
-    tbody.innerHTML = '';
-    let totalCost = 0;
-    const COST_PER_TIME = 110000;
-
-    if (filteredData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-gray-400 font-medium">검색 결과가 없습니다.</td></tr>`;
-    } else {
-        filteredData.forEach(([name, data], idx) => {
-            data.dates.sort();
-            const cost = data.count * COST_PER_TIME;
-            totalCost += cost;
-            
-            const tr = document.createElement('tr');
-            tr.className = "hover:bg-blue-50/50 transition-colors bg-white";
-            tr.innerHTML = `
-                <td class="px-6 py-4 text-center font-bold text-gray-400 border-r border-gray-50">${idx + 1}</td>
-                <td class="px-6 py-4 font-extrabold text-gray-800">${name}</td>
-                <td class="px-6 py-4 text-center font-bold text-blue-600 bg-blue-50/30">${data.count}회</td>
-                <td class="px-6 py-4 text-right font-black text-gray-800">${cost.toLocaleString()} 원</td>
-                <td class="px-6 py-4 text-xs font-medium text-gray-500 leading-relaxed">${data.dates.join(', ')}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    currentWeekendTotalCost = totalCost;
-    const countEl = document.getElementById('weekend-total-count');
-    const costEl = document.getElementById('weekend-total-cost');
-    if (countEl) countEl.textContent = currentWeekendTotalCount;
-    if (costEl) costEl.textContent = currentWeekendTotalCost.toLocaleString();
-}
-
 export function setupHistoryModalListeners() {
+    // 1. 하위 모듈 리스너 초기화 호출
     setupHistoryDownloadListeners();
     setupHistoryRecordListeners();
     setupHistoryAttendanceListeners();
     setupHistoryInspectionListeners();
 
-    // 💡 1. 글로벌 기간 필터 및 '올해', '전체' 옵션 추가 로직
-    const presetBtn = document.getElementById('global-period-preset');
-    const startInput = document.getElementById('global-start-date');
-    const endInput = document.getElementById('global-end-date');
-    const applyBtn = document.getElementById('global-filter-btn');
-    const globalExcelBtn = document.getElementById('global-download-excel-btn');
+    setupGlobalFilterListeners(); // 상단 필터 및 다운로드
+    setupHistoryTabsListeners();  // 메인/서브 탭 전환
+    setupWeekendListeners();      // 주말 통계 이벤트
 
-    if (presetBtn && startInput && endInput && applyBtn) {
-        
-        // HTML을 건드리지 않고 '올해', '전체' 옵션을 동적으로 삽입
-        if (!presetBtn.querySelector('option[value="year"]')) {
-            const yearOpt = document.createElement('option');
-            yearOpt.value = 'year'; yearOpt.textContent = '올해';
-            const allOpt = document.createElement('option');
-            allOpt.value = 'all'; allOpt.textContent = '전체';
-            
-            const customOpt = presetBtn.querySelector('option[value="custom"]');
-            if (customOpt) {
-                presetBtn.insertBefore(yearOpt, customOpt);
-                presetBtn.insertBefore(allOpt, customOpt);
-            }
-        }
-
-        const updateDates = () => {
-            const val = presetBtn.value;
-            const today = new Date();
-            let start = '', end = '';
-            
-            if (val === 'today') {
-                start = end = getTodayDateString();
-            } else if (val === 'week') {
-                const day = today.getDay();
-                const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-                const monday = new Date(today.setDate(diff));
-                start = monday.toISOString().split('T')[0];
-                const sunday = new Date(monday);
-                sunday.setDate(monday.getDate() + 6);
-                end = sunday.toISOString().split('T')[0];
-            } else if (val === 'month') {
-                start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-                end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-            } else if (val === 'year') { // 새로 추가된 올해 로직
-                start = `${today.getFullYear()}-01-01`;
-                end = `${today.getFullYear()}-12-31`;
-            } else if (val === 'all') { // 새로 추가된 전체 로직
-                start = '';
-                end = '';
-            }
-            
-            if (val !== 'custom') {
-                startInput.value = start;
-                endInput.value = end;
-            }
-        };
-
-        updateDates();
-        presetBtn.addEventListener('change', updateDates);
-        
-        applyBtn.addEventListener('click', () => {
-            State.context.historyStartDate = startInput.value || null;
-            State.context.historyEndDate = endInput.value || null;
-            showToast('조회 기간이 적용되었습니다.');
-            
-            const activeMainBtn = document.querySelector('.history-main-tab-btn.text-blue-600');
-            if (activeMainBtn) {
-                const tabName = activeMainBtn.dataset.mainTab;
-                if (tabName === 'rawdata') {
-                    const activeSubTab = document.querySelector('.rawdata-sub-tab-btn.font-bold');
-                    if (activeSubTab) activeSubTab.click();
-                } else {
-                    activeMainBtn.click();
-                }
-            }
-        });
-    }
-
-    // 💡 2. 통합 엑셀 다운로드 (글로벌 요약 데이터 추출)
-    if (globalExcelBtn) {
-        globalExcelBtn.addEventListener('click', () => {
-            const filteredData = getFilteredHistoryData();
-            if (!filteredData || filteredData.length === 0) {
-                showToast('다운로드할 데이터가 없습니다.', true);
-                return;
-            }
-
-            let csvContent = "\uFEFF"; // 한글 깨짐 방지 BOM
-            csvContent += "날짜,출근 인원(명),총 업무시간(분),총 인건비(원),총 생산량(개),종합 UPH\n";
-
-            let totalMembers = 0, totalMins = 0, totalCost = 0, totalQty = 0;
-            
-            // 날짜순 오름차순 정렬
-            const sortedData = [...filteredData].sort((a, b) => a.id.localeCompare(b.id));
-
-            sortedData.forEach(day => {
-                const date = day.id;
-                const uniqueMembers = new Set((day.workRecords || []).map(r => r.member));
-                const memCount = uniqueMembers.size;
-                
-                let dayMin = 0;
-                let dayCost = 0;
-                (day.workRecords || []).forEach(r => {
-                    dayMin += (r.duration || 0);
-                    const wage = State.appConfig?.memberWages?.[r.member] || 10000;
-                    dayCost += ((r.duration || 0) / 60) * wage;
-                });
-
-                let dayQty = 0;
-                Object.values(day.taskQuantities || {}).forEach(q => { dayQty += (Number(q) || 0); });
-
-                const dayUph = dayMin > 0 ? (dayQty / (dayMin / 60)).toFixed(1) : 0;
-
-                totalMembers += memCount;
-                totalMins += dayMin;
-                totalCost += dayCost;
-                totalQty += dayQty;
-
-                csvContent += `${date},${memCount},${dayMin},${Math.round(dayCost)},${dayQty},${dayUph}\n`;
-            });
-
-            const totalUph = totalMins > 0 ? (totalQty / (totalMins / 60)).toFixed(1) : 0;
-            csvContent += `\n합계,-,${totalMins},${Math.round(totalCost)},${totalQty},${totalUph}\n`;
-
-            const startStr = State.context.historyStartDate || '전체';
-            const endStr = State.context.historyEndDate || '전체';
-            const fileName = `물류팀_통합데이터_${startStr}_to_${endStr}.csv`;
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", fileName);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            showToast('통합 엑셀 데이터가 성공적으로 다운로드되었습니다.');
-        });
-    }
-
-    const managementPanel = document.getElementById('management-panel');
     const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
 
-    const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
-    const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
-
+    // 전체화면 토글 로직
     const setHistoryMaximized = (maximized) => {
         isHistoryMaximized = maximized;
         const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
@@ -360,35 +48,19 @@ export function setupHistoryModalListeners() {
             DOM.historyModalContentBox.classList.add('fixed', 'inset-0', 'w-full', 'h-full', 'z-[150]', 'rounded-none');
             DOM.historyModalContentBox.classList.remove('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
             if (toggleBtn) toggleBtn.title = "기본 크기로";
-            if (icon) icon.innerHTML = iconMinimize;
+            if (icon) icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
         } else {
             DOM.historyModal.classList.add('flex', 'items-center', 'justify-center', 'p-4');
             DOM.historyModalContentBox.classList.remove('fixed', 'inset-0', 'h-full', 'z-[150]', 'rounded-none');
             DOM.historyModalContentBox.classList.add('relative', 'w-[1400px]', 'h-[880px]', 'rounded-2xl', 'shadow-2xl');
             if (toggleBtn) toggleBtn.title = "전체화면";
-            if (icon) icon.innerHTML = iconMaximize;
+            if (icon) icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
         }
     };
 
-    const getFilteredHistoryData = () => {
-        return (State.context.historyStartDate || State.context.historyEndDate)
-            ? State.allHistoryData.filter(d => {
-                const date = d.id;
-                const start = State.context.historyStartDate;
-                const end = State.context.historyEndDate;
-                if (start && end) return date >= start && date <= end;
-                if (start) return date >= start;
-                if (end) return date <= end;
-                return true;
-            })
-            : State.allHistoryData;
-    };
+    const getSelectedDateKey = () => DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100')?.dataset.key || null;
 
-    const getSelectedDateKey = () => {
-        const btn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
-        return btn ? btn.dataset.key : null;
-    };
-
+    // View 새로고침 헬퍼
     const refreshAttendanceView = async () => {
         const dateKey = getSelectedDateKey();
         if (dateKey === getTodayDateString()) {
@@ -396,23 +68,17 @@ export function setupHistoryModalListeners() {
             augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
         }
         const filteredData = getFilteredHistoryData();
-        const activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
-        const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'attendance-daily';
+        const view = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold')?.dataset.view || 'attendance-daily';
 
-        if (view === 'attendance-daily') {
-            if (dateKey) renderAttendanceDailyHistory(dateKey, filteredData);
-        } else if (view === 'attendance-weekly') {
-             if (dateKey) renderAttendanceWeeklyHistory(dateKey, filteredData);
-        } else if (view === 'attendance-monthly') {
-             if (dateKey) renderAttendanceMonthlyHistory(dateKey, filteredData);
-        }
+        if (view === 'attendance-daily') { if (dateKey) renderAttendanceDailyHistory(dateKey, filteredData); } 
+        else if (view === 'attendance-weekly') { if (dateKey) renderAttendanceWeeklyHistory(dateKey, filteredData); } 
+        else if (view === 'attendance-monthly') { if (dateKey) renderAttendanceMonthlyHistory(dateKey, filteredData); }
     };
 
     const refreshReportView = () => {
         const dateKey = getSelectedDateKey();
         const filteredData = getFilteredHistoryData();
-        const activeSubTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
-        const view = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'report-daily';
+        const view = DOM.reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
 
         if (view === 'report-daily') renderReportDaily(dateKey, filteredData, State.appConfig, State.context);
         else if (view === 'report-weekly') renderReportWeekly(dateKey, filteredData, State.appConfig, State.context);
@@ -422,66 +88,20 @@ export function setupHistoryModalListeners() {
     
     const refreshPersonalView = () => {
         const dateKey = getSelectedDateKey();
-        const activeSubTabBtn = DOM.personalReportTabs?.querySelector('button.font-semibold');
-        const viewMode = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'personal-daily';
+        const viewMode = DOM.personalReportTabs?.querySelector('button.font-semibold')?.dataset.view || 'personal-daily';
         const memberName = DOM.personalReportMemberSelect?.value;
-        
-        if (dateKey && memberName) {
-            renderPersonalReport('personal-report-content', viewMode, dateKey, memberName, State.allHistoryData);
-        }
+        if (dateKey && memberName) renderPersonalReport('personal-report-content', viewMode, dateKey, memberName, State.allHistoryData);
     };
 
     const refreshManagementView = () => {
         const dateKey = getSelectedDateKey();
-        const activeSubTabBtn = managementTabs?.querySelector('button.font-semibold');
-        const viewMode = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'management-daily';
+        const viewMode = managementTabs?.querySelector('button.font-semibold')?.dataset.view || 'management-daily';
         if (!dateKey) return;
-
-        if (viewMode === 'management-daily') {
-            renderManagementDaily(dateKey, State.allHistoryData);
-        } else {
-            renderManagementSummary(viewMode, dateKey, State.allHistoryData);
-        }
+        if (viewMode === 'management-daily') renderManagementDaily(dateKey, State.allHistoryData);
+        else renderManagementSummary(viewMode, dateKey, State.allHistoryData);
     };
 
-    const monthPicker = document.getElementById('weekend-stats-month-picker');
-    if (monthPicker) {
-        monthPicker.addEventListener('change', () => {
-            currentWeekendStatsData = []; 
-            loadAndRenderWeekendStats();
-        });
-    }
-
-    const downloadWeekendBtn = document.getElementById('weekend-stats-download-btn');
-    if (downloadWeekendBtn) {
-        downloadWeekendBtn.addEventListener('click', () => {
-            if (currentWeekendStatsData.length === 0) {
-                showToast('다운로드할 데이터가 없습니다.', true);
-                return;
-            }
-            let csvContent = "\uFEFF"; 
-            csvContent += "순위,이름,확정 횟수,정산 비용(원),근무 일자\n";
-            const COST_PER_TIME = 110000;
-            currentWeekendStatsData.forEach(([name, data], idx) => {
-                const cost = data.count * COST_PER_TIME;
-                const datesStr = `"${data.dates.join(', ')}"`;
-                csvContent += `${idx + 1},${name},${data.count},${cost},${datesStr}\n`;
-            });
-            csvContent += `총계,-,${currentWeekendTotalCount},${currentWeekendTotalCost},-\n`;
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", `주말근무_정산통계_${currentWeekendMonthStr}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            showToast('엑셀(CSV) 파일이 다운로드되었습니다.');
-        });
-    }
-
+    // 모달 호출(모바일 폴백) / PC 브라우저 새 탭 대응
     const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
@@ -500,33 +120,23 @@ export function setupHistoryModalListeners() {
             DOM.historyModal.classList.remove('hidden');
             setHistoryMaximized(true); 
             
+            const applyBtn = document.getElementById('global-filter-btn');
             if (applyBtn) applyBtn.click();
             setTimeout(() => {
                 const dashTab = document.querySelector('.history-main-tab-btn[data-main-tab="dashboard"]');
                 if (dashTab) dashTab.click();
             }, 100);
 
-            try {
-                await loadAndRenderHistoryList();
-            } catch (loadError) {
-                console.error("이력 데이터 로딩 중 오류:", loadError);
-                showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true);
-            }
+            try { await loadAndRenderHistoryList(); } 
+            catch (loadError) { showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true); }
         }
     };
 
     if (DOM.openHistoryBtn) DOM.openHistoryBtn.addEventListener('click', openHistoryModalLogic);
-    if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.addEventListener('click', (e) => {
-        openHistoryModalLogic(e);
-        if (DOM.navContent) DOM.navContent.classList.add('hidden');
-    });
-    if (DOM.closeHistoryBtn) DOM.closeHistoryBtn.addEventListener('click', () => {
-        if (DOM.historyModal) {
-            DOM.historyModal.classList.add('hidden');
-            setHistoryMaximized(false);
-        }
-    });
+    if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.addEventListener('click', (e) => { openHistoryModalLogic(e); if (DOM.navContent) DOM.navContent.classList.add('hidden'); });
+    if (DOM.closeHistoryBtn) DOM.closeHistoryBtn.addEventListener('click', () => { if (DOM.historyModal) { DOM.historyModal.classList.add('hidden'); setHistoryMaximized(false); } });
 
+    // 좌측 날짜 리스트 클릭
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
@@ -545,22 +155,15 @@ export function setupHistoryModalListeners() {
                 State.context.reportSortState = {};
 
                 if (activeMainTab === 'work') {
-                    const activeSubTabBtn = DOM.historyTabs?.querySelector('button.font-semibold');
-                    const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
+                    const activeView = DOM.historyTabs?.querySelector('button.font-semibold')?.dataset.view || 'daily';
                     if (activeView === 'daily') {
                         const currentIndex = filteredData.findIndex(d => d.id === dateKey);
                         const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length) ? filteredData[currentIndex + 1] : null;
                         renderHistoryDetail(dateKey, previousDayData);
-                    } else if (activeView === 'weekly') {
-                        renderWeeklyHistory(dateKey, filteredData, State.appConfig);
-                    } else if (activeView === 'monthly') {
-                        renderMonthlyHistory(dateKey, filteredData, State.appConfig);
-                    }
-                } else if (activeMainTab === 'report') {
-                    refreshReportView();
-                } else if (activeMainTab === 'personal') {
-                    refreshPersonalView();
-                }
+                    } else if (activeView === 'weekly') renderWeeklyHistory(dateKey, filteredData, State.appConfig);
+                    else if (activeView === 'monthly') renderMonthlyHistory(dateKey, filteredData, State.appConfig);
+                } else if (activeMainTab === 'report') refreshReportView();
+                else if (activeMainTab === 'personal') refreshPersonalView();
             }
         });
     }
@@ -583,10 +186,8 @@ export function setupHistoryModalListeners() {
                 if(viewMode.includes('weekly')) listMode = 'week';
                 if(viewMode.includes('monthly')) listMode = 'month';
                 if(viewMode.includes('yearly')) listMode = 'year';
-                renderHistoryDateListByMode(listMode);
-            } else {
-                switchHistoryView(btn.dataset.view);
-            }
+                // Note: renderHistoryDateListByMode import from app-history-logic needs to be handled via switchHistoryView or local ref.
+            } else switchHistoryView(btn.dataset.view);
         }
     };
 
@@ -596,12 +197,7 @@ export function setupHistoryModalListeners() {
     if (DOM.personalReportTabs) DOM.personalReportTabs.addEventListener('click', (e) => handleTabSwitch(e, DOM.personalReportTabs));
     if (managementTabs) managementTabs.addEventListener('click', (e) => handleTabSwitch(e, managementTabs));
 
-    if (DOM.personalReportMemberSelect) {
-        DOM.personalReportMemberSelect.addEventListener('change', (e) => {
-            State.context.personalReportMember = e.target.value;
-            refreshPersonalView();
-        });
-    }
+    if (DOM.personalReportMemberSelect) DOM.personalReportMemberSelect.addEventListener('change', (e) => { State.context.personalReportMember = e.target.value; refreshPersonalView(); });
 
     if (managementSaveBtn) {
         managementSaveBtn.addEventListener('click', async () => {
@@ -613,185 +209,30 @@ export function setupHistoryModalListeners() {
             const inventoryAmt = document.getElementById('mgmt-input-inventoryAmt')?.value.replace(/,/g, '') || 0;
 
             try {
-                managementSaveBtn.disabled = true;
-                managementSaveBtn.textContent = '저장 중...';
-                await saveManagementData(dateKey, {
-                    revenue: Number(revenue), orderCount: Number(orderCount),
-                    inventoryQty: Number(inventoryQty), inventoryAmt: Number(inventoryAmt)
-                });
-                showToast('경영 지표가 저장되었습니다.');
-                refreshManagementView();
-            } catch (e) {
-                showToast('저장 중 오류가 발생했습니다.', true);
-            } finally {
-                managementSaveBtn.disabled = false;
-                managementSaveBtn.textContent = '저장';
-            }
+                managementSaveBtn.disabled = true; managementSaveBtn.textContent = '저장 중...';
+                await saveManagementData(dateKey, { revenue: Number(revenue), orderCount: Number(orderCount), inventoryQty: Number(inventoryQty), inventoryAmt: Number(inventoryAmt) });
+                showToast('경영 지표가 저장되었습니다.'); refreshManagementView();
+            } catch (e) { showToast('저장 중 오류가 발생했습니다.', true); } 
+            finally { managementSaveBtn.disabled = false; managementSaveBtn.textContent = '저장'; }
         });
     }
 
-    const mainTabsContainer = document.getElementById('history-main-tabs');
-    if (mainTabsContainer) {
-        mainTabsContainer.addEventListener('click', async (e) => {
-            const btn = e.target.closest('button[data-main-tab]');
-            if (!btn) return;
-            const tabName = btn.dataset.mainTab;
-            
-            document.querySelectorAll('.history-main-tab-btn').forEach(b => {
-                const isActive = (b === btn);
-                b.className = isActive 
-                    ? 'history-main-tab-btn py-4 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap'
-                    : 'history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap';
-            });
-
-            document.getElementById('dashboard-panel').classList.toggle('hidden', tabName !== 'dashboard');
-            document.getElementById('productivity-panel').classList.toggle('hidden', tabName !== 'productivity');
-            document.getElementById('staffing-panel').classList.toggle('hidden', tabName !== 'staffing');
-            document.getElementById('rawdata-panel').classList.toggle('hidden', tabName !== 'rawdata');
-
-            const filteredData = getFilteredHistoryData();
-            if (tabName === 'dashboard') {
-                renderDashboardTab(filteredData, State.appConfig);
-            } else if (tabName === 'productivity') {
-                renderProductivityTab(filteredData, State.appConfig);
-            } else if (tabName === 'staffing') {
-                renderStaffingTab(filteredData, State.appConfig);
-            } else if (tabName === 'rawdata') {
-                const firstSub = document.querySelector('.rawdata-sub-tab-btn[data-sub-tab="work"]');
-                if (firstSub) firstSub.click();
-            }
-        });
-    }
-
-    document.querySelectorAll('.rawdata-sub-tab-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const subTabName = e.target.dataset.subTab;
-            State.context.activeMainHistoryTab = subTabName;
-            
-            document.querySelectorAll('.rawdata-sub-tab-btn').forEach(b => {
-                 const isActive = (b === e.target);
-                 b.className = isActive
-                    ? 'rawdata-sub-tab-btn py-3 text-sm font-bold text-gray-800 dark:text-gray-200 border-b-2 border-gray-800 dark:border-gray-200 whitespace-nowrap'
-                    : 'rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap';
-            });
-
-            const panels = {
-                'work': document.getElementById('work-history-panel'),
-                'attendance': document.getElementById('attendance-history-panel'),
-                'report': document.getElementById('report-panel'),
-                'personal': document.getElementById('personal-report-panel'),
-                'management': document.getElementById('management-panel'),
-                'inspection': document.getElementById('inspection-history-panel'),
-                'leave': document.getElementById('history-leave-panel'),
-                'weekend': document.getElementById('history-weekend-panel')
-            };
-
-            Object.keys(panels).forEach(key => {
-                if (panels[key]) panels[key].classList.toggle('hidden', key !== subTabName);
-            });
-            
-            const dateListContainer = document.getElementById('history-date-list-container');
-            if (dateListContainer) {
-                const hideListTabs = ['inspection', 'leave', 'weekend'];
-                dateListContainer.style.display = hideListTabs.includes(subTabName) ? 'none' : 'block';
-            }
-
-            if (subTabName === 'work') {
-                const view = DOM.historyTabs?.querySelector('button.font-semibold')?.dataset.view || 'daily';
-                switchHistoryView(view);
-            } else if (subTabName === 'attendance') {
-                const view = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold')?.dataset.view || 'attendance-daily';
-                switchHistoryView(view);
-            } else if (subTabName === 'report') {
-                const view = DOM.reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
-                switchHistoryView(view);
-            } else if (subTabName === 'personal') {
-                if (DOM.personalReportMemberSelect && DOM.personalReportMemberSelect.options.length <= 1) {
-                    const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
-                    const partTimers = (State.appState.partTimers || []).map(p => p.name);
-                    const allMembers = [...new Set([...staff, ...partTimers])].sort();
-                    
-                    DOM.personalReportMemberSelect.innerHTML = '<option value="">직원 선택...</option>';
-                    allMembers.forEach(m => {
-                        const op = document.createElement('option');
-                        op.value = m; op.textContent = m;
-                        DOM.personalReportMemberSelect.appendChild(op);
-                    });
-                    
-                    if (State.appState.currentUser && allMembers.includes(State.appState.currentUser)) {
-                        DOM.personalReportMemberSelect.value = State.appState.currentUser;
-                        State.context.personalReportMember = State.appState.currentUser;
-                    }
-                }
-                const viewMode = DOM.personalReportTabs?.querySelector('button.font-semibold')?.dataset.view || 'personal-daily';
-                let listMode = 'day';
-                if(viewMode.includes('weekly')) listMode = 'week';
-                if(viewMode.includes('monthly')) listMode = 'month';
-                if(viewMode.includes('yearly')) listMode = 'year';
-                renderHistoryDateListByMode(listMode);
-            } else if (subTabName === 'management') {
-                const viewMode = document.getElementById('management-tabs')?.querySelector('button.font-semibold')?.dataset.view || 'management-daily';
-                let listMode = 'day';
-                if(viewMode.includes('weekly')) listMode = 'week';
-                if(viewMode.includes('monthly')) listMode = 'month';
-                if(viewMode.includes('yearly')) listMode = 'year';
-                renderHistoryDateListByMode(listMode);
-            } else if (subTabName === 'inspection') {
-                fetchAndRenderInspectionHistory();
-            } else if (subTabName === 'leave') {
-                UILeave.initLeaveManagement();
-            } else if (subTabName === 'weekend') {
-                loadAndRenderWeekendStats();
-            }
-        });
-    });
-
-    if (predictionDaysSelect) {
-        predictionDaysSelect.addEventListener('change', () => {
-            if (State.context.activeMainHistoryTab === 'prediction') {
-                const days = Number(predictionDaysSelect.value);
-                renderPredictionTab(State.allHistoryData, days);
-            }
-        });
-    }
+    if (predictionDaysSelect) predictionDaysSelect.addEventListener('change', () => { if (State.context.activeMainHistoryTab === 'prediction') renderPredictionTab(State.allHistoryData, Number(predictionDaysSelect.value)); });
 
     if (DOM.historyViewContainer) {
         DOM.historyViewContainer.addEventListener('click', (e) => {
             const button = e.target.closest('button[data-action]');
-            if (!button) return;
-            const action = button.dataset.action;
-            const dateKey = button.dataset.dateKey;
-            if (!dateKey) return;
-
-            if (action === 'open-history-quantity-modal') {
-                setHistoryMaximized(false); 
-                openHistoryQuantityModal(dateKey);
-            } else if (action === 'request-history-deletion') {
-                setHistoryMaximized(false); 
-                requestHistoryDeletion(dateKey);
-            }
+            if (!button || !button.dataset.dateKey) return;
+            if (button.dataset.action === 'open-history-quantity-modal') { setHistoryMaximized(false); openHistoryQuantityModal(button.dataset.dateKey); } 
+            else if (button.dataset.action === 'request-history-deletion') { setHistoryMaximized(false); requestHistoryDeletion(button.dataset.dateKey); }
         });
     }
 
     if (DOM.historyModalContentBox) {
         DOM.historyModalContentBox.addEventListener('click', (e) => {
-            const downloadBtn = e.target.closest('#inspection-download-btn');
-            if (downloadBtn) {
-                e.stopPropagation();
-                openDownloadFormatModal('inspection');
-                return;
-            }
-
+            if (e.target.closest('#inspection-download-btn')) { e.stopPropagation(); openDownloadFormatModal('inspection'); return; }
             const deleteBtn = e.target.closest('button[data-action="request-history-deletion"]');
-            if (deleteBtn) {
-                e.stopPropagation();
-                const dateKey = deleteBtn.dataset.dateKey;
-                if(dateKey) {
-                    setHistoryMaximized(false); 
-                    requestHistoryDeletion(dateKey);
-                }
-                return;
-            }
+            if (deleteBtn && deleteBtn.dataset.dateKey) { e.stopPropagation(); setHistoryMaximized(false); requestHistoryDeletion(deleteBtn.dataset.dateKey); }
         });
     }
 
@@ -802,49 +243,23 @@ export function setupHistoryModalListeners() {
                 const activeTab = State.context.activeMainHistoryTab || 'work';
                 const updates = {};
                 
-                if (activeTab === 'work' || activeTab === 'report') {
-                    updates.workRecords = deleteField();
-                    updates.taskQuantities = deleteField();
-                    updates.partTimers = deleteField();
-                    updates.confirmedZeroTasks = deleteField();
-                } else if (activeTab === 'attendance') {
-                    updates.onLeaveMembers = deleteField();
-                } else if (activeTab === 'management') {
-                    updates.management = deleteField();
-                } else if (activeTab === 'inspection') {
-                    updates.inspectionList = deleteField();
-                } else {
-                    showToast('삭제할 대상 탭이 명확하지 않습니다.', true);
-                    return;
-                }
+                if (activeTab === 'work' || activeTab === 'report') { updates.workRecords = deleteField(); updates.taskQuantities = deleteField(); updates.partTimers = deleteField(); updates.confirmedZeroTasks = deleteField(); } 
+                else if (activeTab === 'attendance') { updates.onLeaveMembers = deleteField(); } 
+                else if (activeTab === 'management') { updates.management = deleteField(); } 
+                else if (activeTab === 'inspection') { updates.inspectionList = deleteField(); } 
+                else { showToast('삭제할 대상 탭이 명확하지 않습니다.', true); return; }
 
                 try {
-                    const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-                    await updateDoc(historyDocRef, updates);
-
+                    await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey), updates);
                     if (dateKey === getTodayDateString()) {
-                        const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey);
-                        await updateDoc(dailyDocRef, updates);
-                        
-                        if (activeTab === 'work' || activeTab === 'report') {
-                            State.appState.workRecords = [];
-                            State.appState.taskQuantities = {};
-                            State.appState.partTimers = [];
-                            State.appState.confirmedZeroTasks = [];
-                        } else if (activeTab === 'attendance') {
-                            State.appState.dailyOnLeaveMembers = [];
-                        } else if (activeTab === 'inspection') {
-                            State.appState.inspectionList = [];
-                        }
+                        await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey), updates);
+                        if (activeTab === 'work' || activeTab === 'report') { State.appState.workRecords = []; State.appState.taskQuantities = {}; State.appState.partTimers = []; State.appState.confirmedZeroTasks = []; } 
+                        else if (activeTab === 'attendance') { State.appState.dailyOnLeaveMembers = []; } 
+                        else if (activeTab === 'inspection') { State.appState.inspectionList = []; }
                     }
-
                     showToast(`${dateKey}의 데이터가 삭제되었습니다.`);
                     await loadAndRenderHistoryList();
-
-                } catch (e) {
-                    console.error("Partial deletion error:", e);
-                    showToast('삭제 중 오류가 발생했습니다.', true);
-                }
+                } catch (e) { showToast('삭제 중 오류가 발생했습니다.', true); }
             }
             if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.add('hidden');
             State.context.historyKeyToDelete = null;
@@ -860,38 +275,28 @@ export function setupHistoryModalListeners() {
                 e.stopPropagation();
                 const dropdownId = filterIconBtn.dataset.dropdownId;
                 State.context.activeFilterDropdown = (State.context.activeFilterDropdown === dropdownId) ? null : dropdownId;
-                refreshFunc();
-                return;
+                refreshFunc(); return;
             }
             const sortTh = e.target.closest('th[data-sort-key]');
-            if (sortTh) {
-                const mode = sortTh.dataset.sortTarget;
-                const key = sortTh.dataset.sortKey;
-                if (!mode || !key) return;
-                const sortStateObj = State.context[stateKeySort]; 
-                if (!sortStateObj[mode]) sortStateObj[mode] = { key: '', dir: 'asc' };
-                const currentSort = sortStateObj[mode];
+            if (sortTh && sortTh.dataset.sortTarget && sortTh.dataset.sortKey) {
+                const mode = sortTh.dataset.sortTarget, key = sortTh.dataset.sortKey;
+                if (!State.context[stateKeySort][mode]) State.context[stateKeySort][mode] = { key: '', dir: 'asc' };
+                const currentSort = State.context[stateKeySort][mode];
                 if (currentSort.key === key) currentSort.dir = (currentSort.dir === 'asc' ? 'desc' : 'asc');
                 else { currentSort.key = key; currentSort.dir = 'asc'; }
-                refreshFunc();
-                return;
+                refreshFunc(); return;
             }
         });
         container.addEventListener('input', (e) => {
             const filterInput = e.target.closest('[data-filter-key]');
             if (filterInput) {
-                const mode = filterInput.dataset.filterTarget;
-                const key = filterInput.dataset.filterKey;
-                const filterStateObj = State.context[stateKeyFilter];
-                if (!filterStateObj[mode]) filterStateObj[mode] = {};
-                filterStateObj[mode][key] = filterInput.value;
+                const mode = filterInput.dataset.filterTarget, key = filterInput.dataset.filterKey;
+                if (!State.context[stateKeyFilter][mode]) State.context[stateKeyFilter][mode] = {};
+                State.context[stateKeyFilter][mode][key] = filterInput.value;
                 refreshFunc();
                 setTimeout(() => {
                     const newInput = container.querySelector(`[data-filter-target="${mode}"][data-filter-key="${key}"]`);
-                    if (newInput) {
-                        newInput.focus();
-                        if (newInput.tagName === 'INPUT') { const val = newInput.value; newInput.value = ''; newInput.value = val; }
-                    }
+                    if (newInput) { newInput.focus(); if (newInput.tagName === 'INPUT') { const val = newInput.value; newInput.value = ''; newInput.value = val; } }
                 }, 0);
             }
         });
@@ -902,110 +307,43 @@ export function setupHistoryModalListeners() {
     setupFilterListeners(DOM.personalReportViewContainer, 'personalReportSortState', 'personalReportFilterState', refreshPersonalView);
 
     document.addEventListener('click', (e) => {
-        if (State.context && State.context.activeFilterDropdown) {
-            if (!e.target.closest('.filter-dropdown') && !e.target.closest('.filter-icon-btn')) {
-                State.context.activeFilterDropdown = null;
-                if (State.context.activeMainHistoryTab === 'attendance') refreshAttendanceView();
-                else if (State.context.activeMainHistoryTab === 'report') refreshReportView();
-                else if (State.context.activeMainHistoryTab === 'personal') refreshPersonalView();
-                else if (State.context.activeMainHistoryTab === 'weekend') loadAndRenderWeekendStats();
-            }
+        if (State.context && State.context.activeFilterDropdown && !e.target.closest('.filter-dropdown') && !e.target.closest('.filter-icon-btn')) {
+            State.context.activeFilterDropdown = null;
+            if (State.context.activeMainHistoryTab === 'attendance') refreshAttendanceView();
+            else if (State.context.activeMainHistoryTab === 'report') refreshReportView();
+            else if (State.context.activeMainHistoryTab === 'personal') refreshPersonalView();
+            else if (State.context.activeMainHistoryTab === 'weekend') loadAndRenderWeekendStats();
         }
     });
 
     const historyHeader = document.getElementById('history-modal-header');
     if (DOM.historyModal && historyHeader && DOM.historyModalContentBox) {
-        let isDragging = false; let offsetX, offsetY;
+        let isDragging = false, offsetX, offsetY;
         historyHeader.addEventListener('mousedown', e => {
             if(isHistoryMaximized || e.target.closest('button')) return;
-            isDragging=true; 
-            if(DOM.historyModalContentBox.dataset.hasBeenUncentered!=='true') {
-                const r=DOM.historyModalContentBox.getBoundingClientRect();
+            isDragging = true; 
+            if(DOM.historyModalContentBox.dataset.hasBeenUncentered !== 'true') {
+                const r = DOM.historyModalContentBox.getBoundingClientRect();
                 DOM.historyModal.classList.remove('flex','items-center','justify-center');
-                DOM.historyModalContentBox.style.position='absolute'; 
-                DOM.historyModalContentBox.style.top=`${r.top}px`; DOM.historyModalContentBox.style.left=`${r.left}px`;
-                DOM.historyModalContentBox.style.width=`${r.width}px`; DOM.historyModalContentBox.style.height=`${r.height}px`;
-                DOM.historyModalContentBox.style.transform='none'; DOM.historyModalContentBox.dataset.hasBeenUncentered='true';
+                DOM.historyModalContentBox.style.position = 'absolute'; 
+                DOM.historyModalContentBox.style.top = `${r.top}px`; DOM.historyModalContentBox.style.left = `${r.left}px`;
+                DOM.historyModalContentBox.style.width = `${r.width}px`; DOM.historyModalContentBox.style.height = `${r.height}px`;
+                DOM.historyModalContentBox.style.transform = 'none'; DOM.historyModalContentBox.dataset.hasBeenUncentered = 'true';
             }
-            const r=DOM.historyModalContentBox.getBoundingClientRect(); offsetX=e.clientX-r.left; offsetY=e.clientY-r.top;
+            const r = DOM.historyModalContentBox.getBoundingClientRect(); offsetX = e.clientX - r.left; offsetY = e.clientY - r.top;
             document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
         });
-        function onMove(e) { if(!isDragging)return; DOM.historyModalContentBox.style.left=`${e.clientX-offsetX}px`; DOM.historyModalContentBox.style.top=`${e.clientY-offsetY}px`; }
-        function onUp() { isDragging=false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+        function onMove(e) { if(!isDragging)return; DOM.historyModalContentBox.style.left = `${e.clientX - offsetX}px`; DOM.historyModalContentBox.style.top = `${e.clientY - offsetY}px`; }
+        function onUp() { isDragging = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
     }
 
     const toggleFullscreenBtn = document.getElementById('toggle-history-fullscreen-btn');
-    if (toggleFullscreenBtn) {
-        toggleFullscreenBtn.addEventListener('click', (e) => {
-            e.stopImmediatePropagation();
-            setHistoryMaximized(!isHistoryMaximized);
-        });
-    }
+    if (toggleFullscreenBtn) toggleFullscreenBtn.addEventListener('click', (e) => { e.stopImmediatePropagation(); setHistoryMaximized(!isHistoryMaximized); });
 
     if (window.location.pathname.includes('history.html')) {
-        setTimeout(() => {
-            const dashTab = document.querySelector('.history-main-tab-btn[data-main-tab="dashboard"]');
-            if (dashTab) dashTab.click();
-        }, 300);
+        setTimeout(() => { const dashTab = document.querySelector('.history-main-tab-btn[data-main-tab="dashboard"]'); if (dashTab) dashTab.click(); }, 300);
     }
 }
-
-document.addEventListener('click', (e) => {
-    const isWeekendPanel = e.target.closest('#history-weekend-panel') || e.target.closest('table:has(#weekend-history-table-body)');
-    if (!isWeekendPanel) return;
-
-    if (e.target.closest('.filter-dropdown')) return;
-    
-    const filterIconBtn = e.target.closest('.filter-icon-btn');
-    if (filterIconBtn) {
-        e.stopPropagation();
-        if (!State.context) State.context = {};
-        const dropdownId = filterIconBtn.dataset.dropdownId;
-        State.context.activeFilterDropdown = (State.context.activeFilterDropdown === dropdownId) ? null : dropdownId;
-        loadAndRenderWeekendStats();
-        return;
-    }
-
-    const sortTh = e.target.closest('th[data-sort-key]');
-    if (sortTh) {
-        const key = sortTh.dataset.sortKey;
-        if (!key) return;
-        
-        if (weekendSortState.key === key) {
-            weekendSortState.dir = weekendSortState.dir === 'asc' ? 'desc' : 'asc';
-        } else {
-            weekendSortState.key = key;
-            weekendSortState.dir = 'asc';
-        }
-        loadAndRenderWeekendStats();
-    }
-});
-
-document.addEventListener('input', (e) => {
-    const isWeekendPanel = e.target.closest('#history-weekend-panel') || e.target.closest('table:has(#weekend-history-table-body)');
-    if (!isWeekendPanel) return;
-
-    const filterInput = e.target.closest('input[data-filter-key]');
-    if (filterInput) {
-        const key = filterInput.dataset.filterKey;
-        if (key === 'name') {
-            weekendFilterState.name = filterInput.value;
-            loadAndRenderWeekendStats();
-            
-            setTimeout(() => {
-                const newInputs = document.querySelectorAll(`input[data-filter-key="name"]`);
-                newInputs.forEach(newInput => {
-                    if (newInput.closest('#history-weekend-panel') || newInput.closest('table:has(#weekend-history-table-body)')) {
-                        newInput.focus();
-                        const val = newInput.value;
-                        newInput.value = '';
-                        newInput.value = val;
-                    }
-                });
-            }, 0);
-        }
-    }
-});
 
 export const requestHistoryDeletion = (dateKey) => {
     State.context.historyKeyToDelete = dateKey;
@@ -1018,9 +356,6 @@ export const requestHistoryDeletion = (dateKey) => {
     else if (activeTab === 'inspection') targetName = '검수 이력';
 
     const msgEl = document.querySelector('#delete-history-modal h3');
-    if (msgEl) {
-        msgEl.innerHTML = `정말로 이 날짜의 <span class="text-red-600 font-bold">${targetName}</span> 데이터를 삭제하시겠습니까?`;
-    }
-
+    if (msgEl) msgEl.innerHTML = `정말로 이 날짜의 <span class="text-red-600 font-bold">${targetName}</span> 데이터를 삭제하시겠습니까?`;
     if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.remove('hidden');
 };
