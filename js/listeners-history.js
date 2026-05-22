@@ -15,7 +15,7 @@ import * as UILeave from './ui-history-leave.js';
 import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
 import { doc, updateDoc, deleteField, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ 신규 개편용 탭 렌더링 모듈 연동
+// 대분류 개편용 신규 탭 모듈 연동
 import { renderDashboardTab } from './ui-history-dashboard.js';
 import { renderProductivityTab } from './ui-history-productivity.js';
 import { renderStaffingTab } from './ui-history-staffing.js';
@@ -27,7 +27,7 @@ let currentWeekendTotalCost = 0;
 let currentWeekendTotalCount = 0;
 let currentWeekendMonthStr = "";
 
-// 💡 주말 통계 전용 정렬 및 필터 상태 관리
+// 주말 통계 전용 정렬 및 필터 상태 관리
 let weekendSortState = { key: 'count', dir: 'desc' };
 let weekendFilterState = { name: '' };
 
@@ -121,7 +121,6 @@ async function loadAndRenderWeekendStats() {
         }
     }
 
-    // 💡 엑셀 스타일의 정렬/필터 헤더 렌더링
     thead.innerHTML = `
         <tr class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
             <th class="px-6 py-4 w-20 text-center font-bold text-gray-500 border-r border-gray-100 select-none">순위</th>
@@ -155,7 +154,7 @@ async function loadAndRenderWeekendStats() {
         let valA, valB;
         if (weekendSortState.key === 'name') {
             valA = a[0]; valB = b[0];
-        } else { // count, cost
+        } else {
             valA = a[1].count; valB = b[1].count; 
         }
 
@@ -203,7 +202,7 @@ export function setupHistoryModalListeners() {
     setupHistoryAttendanceListeners();
     setupHistoryInspectionListeners();
 
-    // 💡 1. [신규 로직] 글로벌 기간 필터 설정
+    // 글로벌 기간 필터 설정
     const presetBtn = document.getElementById('global-period-preset');
     const startInput = document.getElementById('global-start-date');
     const endInput = document.getElementById('global-end-date');
@@ -238,24 +237,30 @@ export function setupHistoryModalListeners() {
         updateDates();
         presetBtn.addEventListener('change', updateDates);
         
+        // 💡 글로벌 조회 적용 시 데이터 갱신 트리거 로직 수정
         applyBtn.addEventListener('click', () => {
             State.context.historyStartDate = startInput.value || null;
             State.context.historyEndDate = endInput.value || null;
             showToast('조회 기간이 적용되었습니다.');
             
             const activeMainBtn = document.querySelector('.history-main-tab-btn.text-blue-600');
-            if (activeMainBtn) activeMainBtn.click();
+            if (activeMainBtn) {
+                const tabName = activeMainBtn.dataset.mainTab;
+                if (tabName === 'rawdata') {
+                    // 로우 데이터 탭에서는 현재 열려있는 서브 탭을 다시 클릭하게 해서 환경 리프레시
+                    const activeSubTab = document.querySelector('.rawdata-sub-tab-btn.font-bold');
+                    if (activeSubTab) activeSubTab.click();
+                } else {
+                    activeMainBtn.click();
+                }
+            }
         });
     }
 
     const managementPanel = document.getElementById('management-panel');
     const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
-    const inspectionPanel = document.getElementById('inspection-history-panel');
-    const predictionPanel = document.getElementById('prediction-panel');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
-    const leavePanel = document.getElementById('history-leave-panel');
-    const weekendPanel = document.getElementById('history-weekend-panel');
 
     const iconMaximize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m0 0V4m0 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m0 0v-4m0 0l-5-5" />`;
     const iconMinimize = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />`;
@@ -281,28 +286,6 @@ export function setupHistoryModalListeners() {
             if (toggleBtn) toggleBtn.title = "전체화면";
             if (icon) icon.innerHTML = iconMaximize;
         }
-    };
-
-    const getCurrentHistoryListMode = () => {
-        let activeSubTabBtn;
-        if (State.context.activeMainHistoryTab === 'work') {
-            activeSubTabBtn = DOM.historyTabs?.querySelector('button.font-semibold');
-        } else if (State.context.activeMainHistoryTab === 'attendance') {
-            activeSubTabBtn = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold');
-        } else if (State.context.activeMainHistoryTab === 'report') {
-            activeSubTabBtn = DOM.reportTabs?.querySelector('button.font-semibold');
-        } else if (State.context.activeMainHistoryTab === 'personal') {
-            activeSubTabBtn = DOM.personalReportTabs?.querySelector('button.font-semibold');
-        } else if (State.context.activeMainHistoryTab === 'management') {
-            activeSubTabBtn = managementTabs?.querySelector('button.font-semibold');
-        }
-
-        const activeView = activeSubTabBtn ? activeSubTabBtn.dataset.view : (State.context.activeMainHistoryTab === 'work' ? 'daily' : 'attendance-daily');
-
-        if (activeView.includes('yearly')) return 'year';
-        if (activeView.includes('weekly')) return 'week';
-        if (activeView.includes('monthly')) return 'month';
-        return 'day';
     };
 
     const getFilteredHistoryData = () => {
@@ -379,33 +362,6 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    if (DOM.historyFilterBtn) {
-        DOM.historyFilterBtn.addEventListener('click', () => {
-            const startDate = DOM.historyStartDateInput.value;
-            const endDate = DOM.historyEndDateInput.value;
-            if (startDate && endDate && endDate < startDate) {
-                showToast('종료일은 시작일보다 이후여야 합니다.', true); return;
-            }
-            State.context.historyStartDate = startDate || null;
-            State.context.historyEndDate = endDate || null;
-            State.context.reportSortState = {};
-            renderHistoryDateListByMode(getCurrentHistoryListMode());
-            showToast('이력 목록을 필터링했습니다.');
-        });
-    }
-
-    if (DOM.historyClearFilterBtn) {
-        DOM.historyClearFilterBtn.addEventListener('click', () => {
-            DOM.historyStartDateInput.value = '';
-            DOM.historyEndDateInput.value = '';
-            State.context.historyStartDate = null;
-            State.context.historyEndDate = null;
-            State.context.reportSortState = {};
-            renderHistoryDateListByMode(getCurrentHistoryListMode());
-            showToast('필터를 초기화했습니다.');
-        });
-    }
-
     const monthPicker = document.getElementById('weekend-stats-month-picker');
     if (monthPicker) {
         monthPicker.addEventListener('change', () => {
@@ -421,17 +377,14 @@ export function setupHistoryModalListeners() {
                 showToast('다운로드할 데이터가 없습니다.', true);
                 return;
             }
-            
             let csvContent = "\uFEFF"; 
             csvContent += "순위,이름,확정 횟수,정산 비용(원),근무 일자\n";
-            
             const COST_PER_TIME = 110000;
             currentWeekendStatsData.forEach(([name, data], idx) => {
                 const cost = data.count * COST_PER_TIME;
                 const datesStr = `"${data.dates.join(', ')}"`;
                 csvContent += `${idx + 1},${name},${data.count},${cost},${datesStr}\n`;
             });
-            
             csvContent += `총계,-,${currentWeekendTotalCount},${currentWeekendTotalCost},-\n`;
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -447,7 +400,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 💡 [수정됨] 데스크톱 환경 분리 새 탭 열기 대응 및 모달 호출 로직
+    // 데스크톱 환경 분리 새 탭 열기 대응 및 모달 호출 로직
     const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
@@ -456,14 +409,12 @@ export function setupHistoryModalListeners() {
             return;
         }
 
-        // 데스크톱 브라우저(PC) 화면에서는 history.html 새 탭으로 분리하여 열기
         if (window.innerWidth >= 768) {
             if (e) e.preventDefault();
             window.open('history.html', '_blank');
             return;
         }
 
-        // 모바일 등에서 내부 모달로 실행 시 처리
         if (DOM.historyModal) {
             DOM.historyModal.classList.remove('hidden');
             setHistoryMaximized(true); 
@@ -598,7 +549,7 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 💡 2. [신규 로직] 4대 핵심 메인 탭 대전환 리스너 적용
+    // 4대 핵심 메인 탭 대전환 리스너
     const mainTabsContainer = document.getElementById('history-main-tabs');
     if (mainTabsContainer) {
         mainTabsContainer.addEventListener('click', async (e) => {
@@ -632,19 +583,21 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // 💡 3. [신규 로직] 로우 데이터 서브 탭 연동 (기존 기능 10개 탭 호환 구조)
+    // 💡 [수정 핵심] 로우 데이터 서브 탭 연동 및 인원/날짜 컨텍스트 복구
     document.querySelectorAll('.rawdata-sub-tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const subTabName = e.target.dataset.subTab;
             State.context.activeMainHistoryTab = subTabName;
             
+            // 1. 활성화 탭 버튼 스타일 처리
             document.querySelectorAll('.rawdata-sub-tab-btn').forEach(b => {
                  const isActive = (b === e.target);
                  b.className = isActive
                     ? 'rawdata-sub-tab-btn py-3 text-sm font-bold text-gray-800 dark:text-gray-200 border-b-2 border-gray-800 dark:border-gray-200 whitespace-nowrap'
-                    : 'rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 border-b-2 border-transparent whitespace-nowrap';
+                    : 'rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap';
             });
 
+            // 2. 화면에 알맞은 패널 보이기
             const panels = {
                 'work': document.getElementById('work-history-panel'),
                 'attendance': document.getElementById('attendance-history-panel'),
@@ -660,14 +613,62 @@ export function setupHistoryModalListeners() {
                 if (panels[key]) panels[key].classList.toggle('hidden', key !== subTabName);
             });
             
-            if (subTabName === 'work') switchHistoryView('daily');
-            else if (subTabName === 'attendance') switchHistoryView('attendance-daily');
-            else if (subTabName === 'report') switchHistoryView('report-daily');
-            else if (subTabName === 'inspection') fetchAndRenderInspectionHistory();
-            else if (subTabName === 'leave') UILeave.initLeaveManagement();
-            else if (subTabName === 'weekend') loadAndRenderWeekendStats();
+            // 3. 날짜 사이드바 숨김/표시 처리
+            const dateListContainer = document.getElementById('history-date-list-container');
+            if (dateListContainer) {
+                const hideListTabs = ['inspection', 'leave', 'weekend'];
+                dateListContainer.style.display = hideListTabs.includes(subTabName) ? 'none' : 'block';
+            }
 
-            renderHistoryDateListByMode('day');
+            // 4. 탭 환경(주/월/년)에 맞는 날짜 조회 렌더링 (인원 리스트 복구 포함)
+            if (subTabName === 'work') {
+                const view = DOM.historyTabs?.querySelector('button.font-semibold')?.dataset.view || 'daily';
+                switchHistoryView(view);
+            } else if (subTabName === 'attendance') {
+                const view = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold')?.dataset.view || 'attendance-daily';
+                switchHistoryView(view);
+            } else if (subTabName === 'report') {
+                const view = DOM.reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
+                switchHistoryView(view);
+            } else if (subTabName === 'personal') {
+                // 개인 리포트 인원 목록 채우기 로직 완벽 복구
+                if (DOM.personalReportMemberSelect && DOM.personalReportMemberSelect.options.length <= 1) {
+                    const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
+                    const partTimers = (State.appState.partTimers || []).map(p => p.name);
+                    const allMembers = [...new Set([...staff, ...partTimers])].sort();
+                    
+                    DOM.personalReportMemberSelect.innerHTML = '<option value="">직원 선택...</option>';
+                    allMembers.forEach(m => {
+                        const op = document.createElement('option');
+                        op.value = m; op.textContent = m;
+                        DOM.personalReportMemberSelect.appendChild(op);
+                    });
+                    
+                    if (State.appState.currentUser && allMembers.includes(State.appState.currentUser)) {
+                        DOM.personalReportMemberSelect.value = State.appState.currentUser;
+                        State.context.personalReportMember = State.appState.currentUser;
+                    }
+                }
+                const viewMode = DOM.personalReportTabs?.querySelector('button.font-semibold')?.dataset.view || 'personal-daily';
+                let listMode = 'day';
+                if(viewMode.includes('weekly')) listMode = 'week';
+                if(viewMode.includes('monthly')) listMode = 'month';
+                if(viewMode.includes('yearly')) listMode = 'year';
+                renderHistoryDateListByMode(listMode);
+            } else if (subTabName === 'management') {
+                const viewMode = document.getElementById('management-tabs')?.querySelector('button.font-semibold')?.dataset.view || 'management-daily';
+                let listMode = 'day';
+                if(viewMode.includes('weekly')) listMode = 'week';
+                if(viewMode.includes('monthly')) listMode = 'month';
+                if(viewMode.includes('yearly')) listMode = 'year';
+                renderHistoryDateListByMode(listMode);
+            } else if (subTabName === 'inspection') {
+                fetchAndRenderInspectionHistory();
+            } else if (subTabName === 'leave') {
+                UILeave.initLeaveManagement();
+            } else if (subTabName === 'weekend') {
+                loadAndRenderWeekendStats();
+            }
         });
     });
 
@@ -867,7 +868,6 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    // history.html 단독으로 실행(PC 새 탭)했을 때 초기 렌더링 강제 연동
     if (window.location.pathname.includes('history.html')) {
         setTimeout(() => {
             const dashTab = document.querySelector('.history-main-tab-btn[data-main-tab="dashboard"]');
@@ -876,7 +876,7 @@ export function setupHistoryModalListeners() {
     }
 }
 
-// 💡 엑셀 스타일 이벤트 위임 (전역 위임으로 이벤트 누락 방지)
+// 엑셀 스타일 이벤트 위임 (전역 위임으로 이벤트 누락 방지)
 document.addEventListener('click', (e) => {
     const isWeekendPanel = e.target.closest('#history-weekend-panel') || e.target.closest('table:has(#weekend-history-table-body)');
     if (!isWeekendPanel) return;
