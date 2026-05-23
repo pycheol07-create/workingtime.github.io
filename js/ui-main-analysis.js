@@ -21,6 +21,8 @@ export const renderTaskAnalysis = (appState, appConfig) => {
     let totalLoggedMinutes = 0;
     let totalBreakMinutes = 0;
     const taskAnalysis = {};
+    const overallMembers = new Set();
+    const breakMembers = new Set();
 
     allRecords.forEach(record => {
         let duration = 0;
@@ -31,7 +33,14 @@ export const renderTaskAnalysis = (appState, appConfig) => {
         }
 
         if (record.task) {
-             taskAnalysis[record.task] = (taskAnalysis[record.task] || 0) + duration;
+             if (!taskAnalysis[record.task]) {
+                 taskAnalysis[record.task] = { duration: 0, members: new Set() };
+             }
+             taskAnalysis[record.task].duration += duration;
+             if (record.member) {
+                 taskAnalysis[record.task].members.add(record.member);
+                 overallMembers.add(record.member);
+             }
              totalLoggedMinutes += duration;
         }
 
@@ -41,39 +50,65 @@ export const renderTaskAnalysis = (appState, appConfig) => {
                 const s = new Date(`1970-01-01T${pause.start}:00Z`).getTime();
                 const e = new Date(`1970-01-01T${endTime}:00Z`).getTime();
                 if (e > s) {
-                    totalBreakMinutes += (e - s) / 60000;
+                    const breakDur = (e - s) / 60000;
+                    totalBreakMinutes += breakDur;
+                    if (record.member) breakMembers.add(record.member);
                 }
             }
         });
     });
 
     const taskColorsHex = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','샘플검수':'#14b8a6', '전량검수':'#9333ea', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399', '출장': '#6b7280'};
-    const sortedTasks = Object.entries(taskAnalysis).sort(([, a], [, b]) => b - a);
+    
+    // duration 기준으로 내림차순 정렬
+    const sortedTasks = Object.entries(taskAnalysis).sort(([, a], [, b]) => b.duration - a.duration);
 
     let gradientParts = [];
     let cumulativePercentage = 0;
-    let legendHTML = '<div class="flex-grow max-h-72 overflow-y-auto pr-2 space-y-2">';
+    let legendHTML = '<div class="flex-grow max-h-[300px] overflow-y-auto pr-2 space-y-2">';
 
-    sortedTasks.forEach(([task, minutes]) => {
+    sortedTasks.forEach(([task, data]) => {
+        const minutes = data.duration;
+        const actualMinutes = data.members.size > 0 ? minutes / data.members.size : 0;
         const percentage = totalLoggedMinutes > 0 ? (minutes / totalLoggedMinutes) * 100 : 0;
         const color = taskColorsHex[task] || '#6b7280';
+        
         if (percentage > 0) {
             gradientParts.push(`${color} ${cumulativePercentage}% ${cumulativePercentage + percentage}%`);
             cumulativePercentage += percentage;
         }
-        legendHTML += `<div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600"><div class="flex items-center"><span class="w-3 h-3 rounded-full mr-2 shadow-sm" style="background-color: ${color};"></span><span class="font-bold text-gray-700 dark:text-gray-200 text-sm">${task}</span></div><div class="text-right"><div class="text-sm font-extrabold text-gray-800 dark:text-white">${formatDuration(minutes)}</div><div class="text-[10px] text-gray-500 dark:text-gray-400">${percentage.toFixed(1)}%</div></div></div>`;
+        
+        legendHTML += `
+            <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600">
+                <div class="flex items-center">
+                    <span class="w-3 h-3 rounded-full mr-2 shadow-sm" style="background-color: ${color};"></span>
+                    <span class="font-bold text-gray-700 dark:text-gray-200 text-sm">${task}</span>
+                </div>
+                <div class="text-right flex flex-col justify-center">
+                    <div class="text-sm font-extrabold text-gray-800 dark:text-white">총 ${formatDuration(minutes)}</div>
+                    <div class="text-[11px] font-bold text-blue-600 dark:text-blue-400">인당 평균: ${formatDuration(Math.round(actualMinutes))}</div>
+                    <div class="text-[10px] text-gray-500 dark:text-gray-400">${percentage.toFixed(1)}%</div>
+                </div>
+            </div>`;
     });
     legendHTML += '</div>';
 
     const finalGradient = gradientParts.length > 0 ? `conic-gradient(${gradientParts.join(', ')})` : 'conic-gradient(#e5e7eb 0% 100%)';
     
+    const actualTotalMinutes = overallMembers.size > 0 ? totalLoggedMinutes / overallMembers.size : 0;
+    const actualBreakMinutes = breakMembers.size > 0 ? totalBreakMinutes / breakMembers.size : 0;
+
     analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8">
         <div class="flex-shrink-0">
-            <div class="chart shadow-sm" style="background: ${finalGradient}; width: 160px; height: 160px;">
-                <div class="chart-center shadow-sm dark:bg-gray-800">
-                    <span class="text-xs font-bold text-gray-400 dark:text-gray-500">총 업무</span>
-                    <span class="text-xl font-extrabold text-blue-600 dark:text-blue-400">${formatDuration(totalLoggedMinutes)}</span>
-                    <span class="text-[10px] text-gray-400 mt-1">휴식: ${formatDuration(Math.round(totalBreakMinutes))}</span>
+            <div class="chart shadow-sm" style="background: ${finalGradient}; width: 170px; height: 170px;">
+                <div class="chart-center shadow-sm dark:bg-gray-800 flex flex-col justify-center items-center">
+                    <span class="text-[11px] font-bold text-gray-400 dark:text-gray-500">총 업무시간</span>
+                    <span class="text-lg font-extrabold text-blue-600 dark:text-blue-400 leading-none mb-1">${formatDuration(totalLoggedMinutes)}</span>
+                    <span class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400">인당: ${formatDuration(Math.round(actualTotalMinutes))}</span>
+                    <span class="text-[9px] text-gray-400 mt-1.5 text-center leading-tight">
+                        휴식 총 ${formatDuration(Math.round(totalBreakMinutes))}<br>
+                        (인당 ${formatDuration(Math.round(actualBreakMinutes))})
+                    </span>
                 </div>
             </div>
         </div>
@@ -192,7 +227,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         </div>
         <div class="grid grid-cols-2 gap-3 mb-4 text-center">
             <div class="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-center">
-                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1">실제 업무시간</div>
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1">본인 실제 업무시간</div>
                 <div class="text-xl font-extrabold text-blue-600 dark:text-blue-400">${formatDuration(totalLiveMinutes)}</div>
             </div>
              <div class="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-center">
