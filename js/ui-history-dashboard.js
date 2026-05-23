@@ -24,15 +24,16 @@ export function renderDashboardTab(filteredData, appConfig) {
         return;
     }
 
-    // 1. 데이터 집계 계산
     let totalDurationMin = 0;
+    let totalActualDurationMin = 0; 
     let totalCost = 0;
     let totalQty = 0;
+    
     const trendLabels = [];
     const uphTrendData = [];
     const timeTrendData = [];
+    const actualTimeTrendData = []; 
     
-    // 파트별 시간/수량 집계 (병목 분석용)
     const taskTypes = ['국내배송', '중국제작', '직진배송'];
     const partSummary = {
         '국내배송': { duration: 0, qty: 0 },
@@ -40,10 +41,8 @@ export function renderDashboardTab(filteredData, appConfig) {
         '직진배송': { duration: 0, qty: 0 }
     };
 
-    // 시급 맵(Wage Map) 구성
     const wageMap = { ...(appConfig.memberWages || {}) };
 
-    // --- 경영지표(총 출고원가/회전율) 분석용 집계 변수 ---
     const aggregatedWorkRecords = [];
     const aggregatedQuantities = {};
     let totalOrderCount = 0;
@@ -51,14 +50,12 @@ export function renderDashboardTab(filteredData, appConfig) {
     let totalInventoryAmt = 0;
     let daysWithInventory = 0;
 
-    // 날짜 오름차순(과거->최신) 정렬 후 계산
     const sortedData = [...filteredData].sort((a, b) => a.id.localeCompare(b.id));
 
     sortedData.forEach(day => {
         const dateStr = day.id.substring(5); // 'MM-DD'
         trendLabels.push(dateStr);
         
-        // 알바생 개별 시급 업데이트 (경영지표 탭과 동일 조건)
         (day.partTimers || []).forEach(pt => {
             if (pt.name) wageMap[pt.name] = pt.wage || 0;
         });
@@ -66,35 +63,30 @@ export function renderDashboardTab(filteredData, appConfig) {
         let dayDuration = 0;
         let dayCost = 0;
         let dayQty = 0;
+        const uniqueMembers = new Set();
 
-        // 하루 총 근무시간 및 비용 합산
         (day.workRecords || []).forEach(r => {
             dayDuration += (r.duration || 0);
+            if (r.member) uniqueMembers.add(r.member);
             const wage = wageMap[r.member] || 0;
             dayCost += ((r.duration || 0) / 60) * wage;
             
-            // 파트별 시간 합산
             const matchedType = taskTypes.find(t => (r.taskType && r.taskType.includes(t)) || (r.task && r.task.includes(t)));
             if (matchedType) partSummary[matchedType].duration += (r.duration || 0);
             
-            // 원가 분석용 레코드 수집
             aggregatedWorkRecords.push({ ...r, date: day.id });
         });
 
-        // 하루 총 처리량 합산
         Object.entries(day.taskQuantities || {}).forEach(([taskKey, qty]) => {
             const numQty = Number(qty) || 0;
             dayQty += numQty;
             
-            // 파트별 수량 합산
             const matchedType = taskTypes.find(t => taskKey.includes(t));
             if (matchedType) partSummary[matchedType].qty += numQty;
             
-            // 원가 분석용 수량 수집
             aggregatedQuantities[taskKey] = (aggregatedQuantities[taskKey] || 0) + numQty;
         });
 
-        // 경영 지표 합산 (매출, 주문건수, 재고금액)
         const mgmt = day.management || {};
         totalOrderCount += (Number(mgmt.orderCount) || 0);
         totalRevenue += (Number(mgmt.revenue) || 0);
@@ -104,17 +96,19 @@ export function renderDashboardTab(filteredData, appConfig) {
             daysWithInventory++;
         }
 
+        const dayActualDuration = uniqueMembers.size > 0 ? dayDuration / uniqueMembers.size : 0;
+        
         totalDurationMin += dayDuration;
+        totalActualDurationMin += dayActualDuration; 
         totalCost += dayCost;
         totalQty += dayQty;
 
-        // 해당 일자의 UPH (분당 개수 * 60)
         const dayUph = dayDuration > 0 ? (dayQty / (dayDuration / 60)) : 0;
         uphTrendData.push(parseFloat(dayUph.toFixed(1)));
         timeTrendData.push(parseFloat((dayDuration / 60).toFixed(1)));
+        actualTimeTrendData.push(parseFloat((dayActualDuration / 60).toFixed(1)));
     });
 
-    // 경영지표 탭과 완전히 동일한 analyzeUnitCost 실행
     const analysis = analyzeUnitCost(
         { 
             id: 'dashboard-aggregated', 
@@ -128,21 +122,21 @@ export function renderDashboardTab(filteredData, appConfig) {
     );
 
     const totalHours = totalDurationMin / 60;
+    const totalActualHours = totalActualDurationMin / 60;
     const avgUph = totalHours > 0 ? (totalQty / totalHours) : 0;
-    
-    // 분석된 '총 출고 원가' 반영
     const unitCost = analysis.isValid ? analysis.costs.total : 0;
-    
-    // 재고회전율 계산 (경영지표와 동일: 매출액 / 평균재고금액)
     const avgInventoryAmt = daysWithInventory > 0 ? (totalInventoryAmt / daysWithInventory) : 0;
     const turnoverRate = avgInventoryAmt > 0 ? (totalRevenue / avgInventoryAmt) : 0;
     
-    // 임시 OEE 계산 로직 (수량과 목표 UPH 기반으로 추정)
-    const TARGET_UPH = 200; // 기준이 되는 표준 생산성
+    const TARGET_UPH = 200; 
     const oee = Math.min(100, Math.max(0, (avgUph / TARGET_UPH) * 100)); 
 
-    // 2. 대시보드 KPI 카드 업데이트
-    document.getElementById('kpi-total-time').innerHTML = `${Math.round(totalHours).toLocaleString()}<span class="text-sm font-medium text-gray-500 ml-1">h</span>`;
+    // KPI 업데이트: 총 시간 + 인당 평균(실제 소요시간) 표시
+    document.getElementById('kpi-total-time').innerHTML = `
+        ${Math.round(totalHours).toLocaleString()}<span class="text-sm font-medium text-gray-500 ml-1">h</span>
+        <div class="text-sm font-bold text-blue-600 mt-1 bg-blue-50/50 inline-block px-1.5 py-0.5 rounded">인당 평균: ${Math.round(totalActualHours).toLocaleString()}h</div>
+    `;
+    
     document.getElementById('kpi-total-cost').innerHTML = `${Math.round(totalCost).toLocaleString()}<span class="text-sm font-medium text-gray-500 ml-1">원</span>`;
     document.getElementById('kpi-avg-uph').innerHTML = `${avgUph.toFixed(1)}<span class="text-sm font-medium text-blue-400 ml-1">개/시</span>`;
     document.getElementById('kpi-total-oee').innerHTML = `${oee.toFixed(1)}<span class="text-sm font-medium text-green-400 ml-1">%</span>`;
@@ -156,9 +150,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     const turnoverEl = document.getElementById('kpi-inventory-turnover');
     if(turnoverEl) turnoverEl.innerHTML = `${turnoverRate.toFixed(2)}<span class="text-sm font-medium text-orange-400 ml-1">회</span>`;
 
-    // 3. AI 현황 진단 코멘트 업데이트
     const aiCommentEl = document.getElementById('ai-dashboard-comment');
-    
     let lowestPart = '';
     let lowestUph = Infinity;
     taskTypes.forEach(type => {
@@ -171,7 +163,6 @@ export function renderDashboardTab(filteredData, appConfig) {
     });
 
     let diagnosticHtml = '';
-    
     if (oee < 60) {
         diagnosticHtml = `
             <div class="text-red-700 mb-2">⚠️ <strong class="font-bold text-lg">생산 효율 경고: 기준치 대비 ${Math.round(100 - oee)}% 저하되었습니다.</strong></div>
@@ -202,17 +193,13 @@ export function renderDashboardTab(filteredData, appConfig) {
             </ul>
         `;
     }
-    
     aiCommentEl.innerHTML = diagnosticHtml;
 
-    // 4. Chart.js 추세 그래프 그리기
     const ctx = document.getElementById('chart-dashboard-trend');
     if (!ctx) return;
-    
-    if (dashboardChartInstance) {
-        dashboardChartInstance.destroy(); 
-    }
+    if (dashboardChartInstance) { dashboardChartInstance.destroy(); }
 
+    // 그래프에도 '인당 소요 시간' Bar 추가
     dashboardChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -229,9 +216,17 @@ export function renderDashboardTab(filteredData, appConfig) {
                     yAxisID: 'y'
                 },
                 {
-                    label: '투입 인력 시간 (Hours)',
+                    label: '총 투입 인력 시간 (Hours)',
                     data: timeTrendData,
                     backgroundColor: '#cbd5e1', 
+                    type: 'bar',
+                    borderRadius: 4,
+                    yAxisID: 'y1'
+                },
+                {
+                    label: '실제 소요 시간 (인당 평균 Hours)',
+                    data: actualTimeTrendData,
+                    backgroundColor: '#93c5fd', 
                     type: 'bar',
                     borderRadius: 4,
                     yAxisID: 'y1'
