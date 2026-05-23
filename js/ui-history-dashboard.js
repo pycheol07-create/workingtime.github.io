@@ -1,5 +1,6 @@
 // === js/ui-history-dashboard.js ===
 import * as State from './state.js';
+import { analyzeUnitCost } from './ui-history-reports-logic.js';
 
 let dashboardChartInstance = null;
 
@@ -12,7 +13,10 @@ export function renderDashboardTab(filteredData, appConfig) {
         document.getElementById('kpi-total-oee').innerHTML = `0<span class="text-sm font-medium text-green-400 ml-1">%</span>`;
         
         const unitCostEl = document.getElementById('kpi-unit-cost');
-        if(unitCostEl) unitCostEl.innerHTML = `0<span class="text-sm font-medium text-purple-400 ml-1">원</span>`;
+        if(unitCostEl) {
+            unitCostEl.innerHTML = `0<span class="text-sm font-medium text-purple-400 ml-1">원</span>`;
+            if(unitCostEl.previousElementSibling) unitCostEl.previousElementSibling.textContent = '총 출고원가 (건당)';
+        }
         const turnoverEl = document.getElementById('kpi-inventory-turnover');
         if(turnoverEl) turnoverEl.innerHTML = `0.0<span class="text-sm font-medium text-orange-400 ml-1">회</span>`;
         
@@ -39,6 +43,14 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 시급 맵(Wage Map) 구성
     const wageMap = { ...(appConfig.memberWages || {}) };
 
+    // --- 경영지표(총 출고원가/회전율) 분석용 집계 변수 ---
+    const aggregatedWorkRecords = [];
+    const aggregatedQuantities = {};
+    let totalOrderCount = 0;
+    let totalRevenue = 0;
+    let totalInventoryAmt = 0;
+    let daysWithInventory = 0;
+
     // 날짜 오름차순(과거->최신) 정렬 후 계산
     const sortedData = [...filteredData].sort((a, b) => a.id.localeCompare(b.id));
 
@@ -46,6 +58,11 @@ export function renderDashboardTab(filteredData, appConfig) {
         const dateStr = day.id.substring(5); // 'MM-DD'
         trendLabels.push(dateStr);
         
+        // 알바생 개별 시급 업데이트 (경영지표 탭과 동일 조건)
+        (day.partTimers || []).forEach(pt => {
+            if (pt.name) wageMap[pt.name] = pt.wage || 0;
+        });
+
         let dayDuration = 0;
         let dayCost = 0;
         let dayQty = 0;
@@ -59,6 +76,9 @@ export function renderDashboardTab(filteredData, appConfig) {
             // 파트별 시간 합산
             const matchedType = taskTypes.find(t => (r.taskType && r.taskType.includes(t)) || (r.task && r.task.includes(t)));
             if (matchedType) partSummary[matchedType].duration += (r.duration || 0);
+            
+            // 원가 분석용 레코드 수집
+            aggregatedWorkRecords.push({ ...r, date: day.id });
         });
 
         // 하루 총 처리량 합산
@@ -69,7 +89,20 @@ export function renderDashboardTab(filteredData, appConfig) {
             // 파트별 수량 합산
             const matchedType = taskTypes.find(t => taskKey.includes(t));
             if (matchedType) partSummary[matchedType].qty += numQty;
+            
+            // 원가 분석용 수량 수집
+            aggregatedQuantities[taskKey] = (aggregatedQuantities[taskKey] || 0) + numQty;
         });
+
+        // 경영 지표 합산 (매출, 주문건수, 재고금액)
+        const mgmt = day.management || {};
+        totalOrderCount += (Number(mgmt.orderCount) || 0);
+        totalRevenue += (Number(mgmt.revenue) || 0);
+        
+        if (Number(mgmt.inventoryAmt) > 0) {
+            totalInventoryAmt += Number(mgmt.inventoryAmt);
+            daysWithInventory++;
+        }
 
         totalDurationMin += dayDuration;
         totalCost += dayCost;
@@ -81,10 +114,28 @@ export function renderDashboardTab(filteredData, appConfig) {
         timeTrendData.push(parseFloat((dayDuration / 60).toFixed(1)));
     });
 
+    // 경영지표 탭과 완전히 동일한 analyzeUnitCost 실행
+    const analysis = analyzeUnitCost(
+        { 
+            id: 'dashboard-aggregated', 
+            workRecords: aggregatedWorkRecords, 
+            taskQuantities: aggregatedQuantities, 
+            management: { orderCount: totalOrderCount } 
+        },
+        appConfig,
+        wageMap,
+        totalRevenue
+    );
+
     const totalHours = totalDurationMin / 60;
     const avgUph = totalHours > 0 ? (totalQty / totalHours) : 0;
-    const unitCost = totalQty > 0 ? (totalCost / totalQty) : 0; // 건당 출고원가
-    const turnoverRate = totalQty > 0 ? (totalQty / 5000) : 0; // 가상의 평균 재고(5000)를 가정한 회전율
+    
+    // 분석된 '총 출고 원가' 반영
+    const unitCost = analysis.isValid ? analysis.costs.total : 0;
+    
+    // 재고회전율 계산 (경영지표와 동일: 매출액 / 평균재고금액)
+    const avgInventoryAmt = daysWithInventory > 0 ? (totalInventoryAmt / daysWithInventory) : 0;
+    const turnoverRate = avgInventoryAmt > 0 ? (totalRevenue / avgInventoryAmt) : 0;
     
     // 임시 OEE 계산 로직 (수량과 목표 UPH 기반으로 추정)
     const TARGET_UPH = 200; // 기준이 되는 표준 생산성
@@ -97,12 +148,15 @@ export function renderDashboardTab(filteredData, appConfig) {
     document.getElementById('kpi-total-oee').innerHTML = `${oee.toFixed(1)}<span class="text-sm font-medium text-green-400 ml-1">%</span>`;
     
     const unitCostEl = document.getElementById('kpi-unit-cost');
-    if(unitCostEl) unitCostEl.innerHTML = `${Math.round(unitCost).toLocaleString()}<span class="text-sm font-medium text-purple-400 ml-1">원</span>`;
+    if(unitCostEl) {
+        unitCostEl.innerHTML = `${Math.round(unitCost).toLocaleString()}<span class="text-sm font-medium text-purple-400 ml-1">원</span>`;
+        if(unitCostEl.previousElementSibling) unitCostEl.previousElementSibling.textContent = '총 출고원가 (건당)';
+    }
     
     const turnoverEl = document.getElementById('kpi-inventory-turnover');
     if(turnoverEl) turnoverEl.innerHTML = `${turnoverRate.toFixed(2)}<span class="text-sm font-medium text-orange-400 ml-1">회</span>`;
 
-    // 3. AI 현황 진단 코멘트 업데이트 (구체적인 병목 분석 및 조치)
+    // 3. AI 현황 진단 코멘트 업데이트
     const aiCommentEl = document.getElementById('ai-dashboard-comment');
     
     let lowestPart = '';
@@ -127,7 +181,7 @@ export function renderDashboardTab(filteredData, appConfig) {
                     해당 파트에 <span class="text-blue-600 font-bold">인력을 추가 배치(1~2명)</span>하거나, 
                     작업자들의 피로도를 고려하여 <span class="text-green-600 font-bold">10분간 강제 휴식</span>을 부여하세요.
                 </li>
-                <li>현재 건당 출고 원가가 <strong>${Math.round(unitCost).toLocaleString()}원</strong>으로 상승했습니다. 병목 해소가 시급합니다.</li>
+                <li>현재 건당 총 출고 원가가 <strong>${Math.round(unitCost).toLocaleString()}원</strong>으로 상승 추세입니다. 병목 해소가 시급합니다.</li>
             </ul>
         `;
     } else if (oee >= 90) {
@@ -136,7 +190,7 @@ export function renderDashboardTab(filteredData, appConfig) {
             <ul class="list-disc pl-5 space-y-1 text-sm">
                 <li>현재의 속도가 지속될 경우, 남은 업무량 대비 투입 인원이 남을 수 있습니다.</li>
                 <li><span class="font-bold text-gray-900">조치 권고사항:</span> 작업 속도가 빠른 인원을 <span class="text-blue-600 font-bold">내일 업무 준비나 재고 조사 등</span> 다른 업무로 전환하여 유휴 시간을 줄이세요.</li>
-                <li>건당 출고 원가가 <strong>${Math.round(unitCost).toLocaleString()}원</strong>으로 낮게 유지되고 있어 수익성이 매우 좋습니다.</li>
+                <li>건당 총 출고 원가가 <strong>${Math.round(unitCost).toLocaleString()}원</strong>으로 낮게 방어되어 수익성이 매우 좋습니다.</li>
             </ul>
         `;
     } else {
