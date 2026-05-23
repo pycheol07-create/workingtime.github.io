@@ -6,10 +6,16 @@ let dashboardChartInstance = null;
 export function renderDashboardTab(filteredData, appConfig) {
     if (!filteredData || filteredData.length === 0) {
         document.getElementById('ai-dashboard-comment').textContent = "조회된 기간에 이력 데이터가 없습니다.";
-        document.getElementById('kpi-total-time').innerHTML = `0<span class="text-lg font-medium text-gray-500 ml-1">시간</span>`;
-        document.getElementById('kpi-total-cost').innerHTML = `0<span class="text-lg font-medium text-gray-500 ml-1">원</span>`;
-        document.getElementById('kpi-avg-uph').innerHTML = `0.0<span class="text-lg font-medium text-blue-400 ml-1">개/시</span>`;
-        document.getElementById('kpi-total-oee').innerHTML = `0<span class="text-lg font-medium text-green-400 ml-1">%</span>`;
+        document.getElementById('kpi-total-time').innerHTML = `0<span class="text-sm font-medium text-gray-500 ml-1">h</span>`;
+        document.getElementById('kpi-total-cost').innerHTML = `0<span class="text-sm font-medium text-gray-500 ml-1">원</span>`;
+        document.getElementById('kpi-avg-uph').innerHTML = `0.0<span class="text-sm font-medium text-blue-400 ml-1">개/시</span>`;
+        document.getElementById('kpi-total-oee').innerHTML = `0<span class="text-sm font-medium text-green-400 ml-1">%</span>`;
+        
+        const unitCostEl = document.getElementById('kpi-unit-cost');
+        if(unitCostEl) unitCostEl.innerHTML = `0<span class="text-sm font-medium text-purple-400 ml-1">원</span>`;
+        const turnoverEl = document.getElementById('kpi-inventory-turnover');
+        if(turnoverEl) turnoverEl.innerHTML = `0.0<span class="text-sm font-medium text-orange-400 ml-1">회</span>`;
+        
         if (dashboardChartInstance) dashboardChartInstance.destroy();
         return;
     }
@@ -21,6 +27,14 @@ export function renderDashboardTab(filteredData, appConfig) {
     const trendLabels = [];
     const uphTrendData = [];
     const timeTrendData = [];
+    
+    // 파트별 시간/수량 집계 (병목 분석용)
+    const taskTypes = ['국내배송', '중국제작', '직진배송'];
+    const partSummary = {
+        '국내배송': { duration: 0, qty: 0 },
+        '중국제작': { duration: 0, qty: 0 },
+        '직진배송': { duration: 0, qty: 0 }
+    };
 
     // 시급 맵(Wage Map) 구성
     const wageMap = { ...(appConfig.memberWages || {}) };
@@ -41,11 +55,20 @@ export function renderDashboardTab(filteredData, appConfig) {
             dayDuration += (r.duration || 0);
             const wage = wageMap[r.member] || 0;
             dayCost += ((r.duration || 0) / 60) * wage;
+            
+            // 파트별 시간 합산
+            const matchedType = taskTypes.find(t => (r.taskType && r.taskType.includes(t)) || (r.task && r.task.includes(t)));
+            if (matchedType) partSummary[matchedType].duration += (r.duration || 0);
         });
 
         // 하루 총 처리량 합산
-        Object.values(day.taskQuantities || {}).forEach(q => {
-            dayQty += (Number(q) || 0);
+        Object.entries(day.taskQuantities || {}).forEach(([taskKey, qty]) => {
+            const numQty = Number(qty) || 0;
+            dayQty += numQty;
+            
+            // 파트별 수량 합산
+            const matchedType = taskTypes.find(t => taskKey.includes(t));
+            if (matchedType) partSummary[matchedType].qty += numQty;
         });
 
         totalDurationMin += dayDuration;
@@ -60,33 +83,80 @@ export function renderDashboardTab(filteredData, appConfig) {
 
     const totalHours = totalDurationMin / 60;
     const avgUph = totalHours > 0 ? (totalQty / totalHours) : 0;
+    const unitCost = totalQty > 0 ? (totalCost / totalQty) : 0; // 건당 출고원가
+    const turnoverRate = totalQty > 0 ? (totalQty / 5000) : 0; // 가상의 평균 재고(5000)를 가정한 회전율
     
-    // 임시 OEE 계산 로직 (수량과 목표 UPH 기반으로 추정, 향후 고도화 가능)
+    // 임시 OEE 계산 로직 (수량과 목표 UPH 기반으로 추정)
     const TARGET_UPH = 200; // 기준이 되는 표준 생산성
     const oee = Math.min(100, Math.max(0, (avgUph / TARGET_UPH) * 100)); 
 
     // 2. 대시보드 KPI 카드 업데이트
-    document.getElementById('kpi-total-time').innerHTML = `${Math.round(totalHours).toLocaleString()}<span class="text-lg font-medium text-gray-500 ml-1">시간</span>`;
-    document.getElementById('kpi-total-cost').innerHTML = `${Math.round(totalCost).toLocaleString()}<span class="text-lg font-medium text-gray-500 ml-1">원</span>`;
-    document.getElementById('kpi-avg-uph').innerHTML = `${avgUph.toFixed(1)}<span class="text-lg font-medium text-blue-400 ml-1">개/시</span>`;
-    document.getElementById('kpi-total-oee').innerHTML = `${oee.toFixed(1)}<span class="text-lg font-medium text-green-400 ml-1">%</span>`;
+    document.getElementById('kpi-total-time').innerHTML = `${Math.round(totalHours).toLocaleString()}<span class="text-sm font-medium text-gray-500 ml-1">h</span>`;
+    document.getElementById('kpi-total-cost').innerHTML = `${Math.round(totalCost).toLocaleString()}<span class="text-sm font-medium text-gray-500 ml-1">원</span>`;
+    document.getElementById('kpi-avg-uph').innerHTML = `${avgUph.toFixed(1)}<span class="text-sm font-medium text-blue-400 ml-1">개/시</span>`;
+    document.getElementById('kpi-total-oee').innerHTML = `${oee.toFixed(1)}<span class="text-sm font-medium text-green-400 ml-1">%</span>`;
+    
+    const unitCostEl = document.getElementById('kpi-unit-cost');
+    if(unitCostEl) unitCostEl.innerHTML = `${Math.round(unitCost).toLocaleString()}<span class="text-sm font-medium text-purple-400 ml-1">원</span>`;
+    
+    const turnoverEl = document.getElementById('kpi-inventory-turnover');
+    if(turnoverEl) turnoverEl.innerHTML = `${turnoverRate.toFixed(2)}<span class="text-sm font-medium text-orange-400 ml-1">회</span>`;
 
-    // 3. AI 현황 진단 코멘트 업데이트
+    // 3. AI 현황 진단 코멘트 업데이트 (구체적인 병목 분석 및 조치)
     const aiCommentEl = document.getElementById('ai-dashboard-comment');
+    
+    let lowestPart = '';
+    let lowestUph = Infinity;
+    taskTypes.forEach(type => {
+        const pHours = partSummary[type].duration / 60;
+        const pUph = pHours > 0 ? (partSummary[type].qty / pHours) : Infinity;
+        if(pHours > 0 && pUph < lowestUph) {
+            lowestUph = pUph;
+            lowestPart = type;
+        }
+    });
+
+    let diagnosticHtml = '';
+    
     if (oee < 60) {
-        aiCommentEl.innerHTML = `⚠️ <strong class="text-red-600">생산 효율 경고:</strong> 기준치 대비 생산성이 저하되었습니다. 병목 구간 확인이 필요합니다.`;
+        diagnosticHtml = `
+            <div class="text-red-700 mb-2">⚠️ <strong class="font-bold text-lg">생산 효율 경고: 기준치 대비 ${Math.round(100 - oee)}% 저하되었습니다.</strong></div>
+            <ul class="list-disc pl-5 space-y-1 text-sm">
+                <li><span class="font-bold text-gray-900">가장 취약한 파트:</span> <span class="bg-red-100 text-red-800 px-1 rounded">${lowestPart || '전반적'}</span> (현재 UPH: ${lowestUph === Infinity ? 0 : Math.round(lowestUph)})</li>
+                <li><span class="font-bold text-gray-900">조치 권고사항:</span> 
+                    해당 파트에 <span class="text-blue-600 font-bold">인력을 추가 배치(1~2명)</span>하거나, 
+                    작업자들의 피로도를 고려하여 <span class="text-green-600 font-bold">10분간 강제 휴식</span>을 부여하세요.
+                </li>
+                <li>현재 건당 출고 원가가 <strong>${Math.round(unitCost).toLocaleString()}원</strong>으로 상승했습니다. 병목 해소가 시급합니다.</li>
+            </ul>
+        `;
     } else if (oee >= 90) {
-        aiCommentEl.innerHTML = `🔥 <strong class="text-blue-600">최상 컨디션:</strong> 목표치를 초과 달성 중입니다. 훌륭한 팀워크입니다!`;
+         diagnosticHtml = `
+            <div class="text-blue-700 mb-2">🔥 <strong class="font-bold text-lg">최상 컨디션: 목표 달성률 ${Math.round(oee)}%</strong></div>
+            <ul class="list-disc pl-5 space-y-1 text-sm">
+                <li>현재의 속도가 지속될 경우, 남은 업무량 대비 투입 인원이 남을 수 있습니다.</li>
+                <li><span class="font-bold text-gray-900">조치 권고사항:</span> 작업 속도가 빠른 인원을 <span class="text-blue-600 font-bold">내일 업무 준비나 재고 조사 등</span> 다른 업무로 전환하여 유휴 시간을 줄이세요.</li>
+                <li>건당 출고 원가가 <strong>${Math.round(unitCost).toLocaleString()}원</strong>으로 낮게 유지되고 있어 수익성이 매우 좋습니다.</li>
+            </ul>
+        `;
     } else {
-        aiCommentEl.innerHTML = `✅ <strong class="text-green-600">안정적 운영:</strong> 전반적으로 안정적인 처리 속도를 유지하고 있습니다.`;
+         diagnosticHtml = `
+            <div class="text-green-700 mb-2">✅ <strong class="font-bold text-lg">안정적 운영 상태 (효율 ${Math.round(oee)}%)</strong></div>
+            <ul class="list-disc pl-5 space-y-1 text-sm">
+                <li>현재 목표 UPH(${TARGET_UPH}) 대비 <span class="font-bold">${avgUph.toFixed(1)}</span>으로 안정적인 처리 속도를 유지 중입니다.</li>
+                <li><span class="font-bold text-gray-900">모니터링 대상:</span> <span class="bg-yellow-100 text-yellow-800 px-1 rounded">${lowestPart || '일부 파트'}</span> 파트의 처리량이 약간 저하되고 있는지 지속 관찰하세요.</li>
+            </ul>
+        `;
     }
+    
+    aiCommentEl.innerHTML = diagnosticHtml;
 
     // 4. Chart.js 추세 그래프 그리기
     const ctx = document.getElementById('chart-dashboard-trend');
     if (!ctx) return;
     
     if (dashboardChartInstance) {
-        dashboardChartInstance.destroy(); // 기존 그래프 삭제 후 다시 그림 (중복 렌더링 방지)
+        dashboardChartInstance.destroy(); 
     }
 
     dashboardChartInstance = new Chart(ctx, {
@@ -97,7 +167,7 @@ export function renderDashboardTab(filteredData, appConfig) {
                 {
                     label: '종합 UPH (생산성)',
                     data: uphTrendData,
-                    borderColor: '#2563eb', // blue-600
+                    borderColor: '#2563eb', 
                     backgroundColor: 'rgba(37, 99, 235, 0.1)',
                     type: 'line',
                     fill: true,
@@ -107,7 +177,7 @@ export function renderDashboardTab(filteredData, appConfig) {
                 {
                     label: '투입 인력 시간 (Hours)',
                     data: timeTrendData,
-                    backgroundColor: '#cbd5e1', // slate-300
+                    backgroundColor: '#cbd5e1', 
                     type: 'bar',
                     borderRadius: 4,
                     yAxisID: 'y1'

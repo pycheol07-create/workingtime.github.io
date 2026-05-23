@@ -51,18 +51,28 @@ export function renderProductivityTab(filteredData, appConfig) {
         }
     });
 
-    // UPH 화면 출력
-    const setUphText = (id, data) => {
-        const hours = data.duration / 60;
+    // UPM, UPH, UPD 계산 및 화면 출력
+    const setProductivityText = (typeId, data) => {
+        const mins = data.duration;
+        const hours = mins / 60;
+        
+        const upm = mins > 0 ? (data.qty / mins) : 0;
         const uph = hours > 0 ? (data.qty / hours) : 0;
-        const el = document.getElementById(id);
-        if (el) el.textContent = uph > 0 ? `${uph.toFixed(1)} 개/시` : '-';
+        const upd = uph * 8; // 일당 (8시간 기준)
+
+        const upmEl = document.getElementById(`prod-upm-${typeId}`);
+        const uphEl = document.getElementById(`prod-uph-${typeId}`);
+        const updEl = document.getElementById(`prod-upd-${typeId}`);
+
+        if (upmEl) upmEl.textContent = upm > 0 ? `${upm.toFixed(2)} 개` : '0';
+        if (uphEl) uphEl.textContent = uph > 0 ? `${uph.toFixed(1)} 개` : '0';
+        if (updEl) updEl.textContent = upd > 0 ? `${Math.round(upd).toLocaleString()} 개` : '0';
     };
 
-    setUphText('prod-uph-general', summary['종합']);
-    setUphText('prod-uph-domestic', summary['국내배송']);
-    setUphText('prod-uph-china', summary['중국제작']);
-    setUphText('prod-uph-direct', summary['직진배송']);
+    setProductivityText('general', summary['종합']);
+    setProductivityText('domestic', summary['국내배송']);
+    setProductivityText('china', summary['중국제작']);
+    setProductivityText('direct', summary['직진배송']);
 
     // 2. 리소스 투입 대비 효율 차트 (시각화)
     const ctx = document.getElementById('chart-productivity-efficiency');
@@ -94,7 +104,7 @@ export function renderProductivityTab(filteredData, appConfig) {
         });
     }
 
-    // 3. COQ 품질 비용 테이블 구성
+    // 3. COQ 품질 비용 테이블 구성 (유지)
     const tbody = document.getElementById('prod-coq-table-body');
     if (tbody) {
         tbody.innerHTML = `
