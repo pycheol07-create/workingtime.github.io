@@ -13,28 +13,25 @@ import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAtte
 import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
 import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 🚀 새롭게 모듈화된 파일들 Import
 import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData } from './listeners-history-tabs.js';
 import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js';
 
 let isHistoryMaximized = false;
 
 export function setupHistoryModalListeners() {
-    // 1. 하위 모듈 리스너 초기화 호출
     setupHistoryDownloadListeners();
     setupHistoryRecordListeners();
     setupHistoryAttendanceListeners();
     setupHistoryInspectionListeners();
 
-    setupGlobalFilterListeners(); // 상단 필터 및 다운로드
-    setupHistoryTabsListeners();  // 메인/서브 탭 전환
-    setupWeekendListeners();      // 주말 통계 이벤트
+    setupGlobalFilterListeners(); 
+    setupHistoryTabsListeners();  
+    setupWeekendListeners();      
 
     const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
 
-    // 전체화면 토글 로직
     const setHistoryMaximized = (maximized) => {
         isHistoryMaximized = maximized;
         const toggleBtn = document.getElementById('toggle-history-fullscreen-btn');
@@ -60,7 +57,6 @@ export function setupHistoryModalListeners() {
 
     const getSelectedDateKey = () => DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100')?.dataset.key || null;
 
-    // View 새로고침 헬퍼
     const refreshAttendanceView = async () => {
         const dateKey = getSelectedDateKey();
         if (dateKey === getTodayDateString()) {
@@ -101,7 +97,6 @@ export function setupHistoryModalListeners() {
         else renderManagementSummary(viewMode, dateKey, State.allHistoryData);
     };
 
-    // 모달 호출(모바일 폴백) / PC 브라우저 새 탭 대응
     const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
@@ -132,11 +127,22 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    if (DOM.openHistoryBtn) DOM.openHistoryBtn.addEventListener('click', openHistoryModalLogic);
-    if (DOM.openHistoryBtnMobile) DOM.openHistoryBtnMobile.addEventListener('click', (e) => { openHistoryModalLogic(e); if (DOM.navContent) DOM.navContent.classList.add('hidden'); });
+    if (DOM.openHistoryBtn) {
+        DOM.openHistoryBtn.addEventListener('click', openHistoryModalLogic);
+    }
+    
+    // 🔥 모바일용 이벤트 버블링 차단 적용 (중복 클릭 방지)
+    if (DOM.openHistoryBtnMobile) {
+        DOM.openHistoryBtnMobile.addEventListener('click', (e) => { 
+            e.preventDefault();
+            e.stopPropagation();
+            openHistoryModalLogic(e); 
+            if (DOM.navContent) DOM.navContent.classList.add('hidden'); 
+        });
+    }
+
     if (DOM.closeHistoryBtn) DOM.closeHistoryBtn.addEventListener('click', () => { if (DOM.historyModal) { DOM.historyModal.classList.add('hidden'); setHistoryMaximized(false); } });
 
-    // 좌측 날짜 리스트 클릭
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
@@ -186,7 +192,6 @@ export function setupHistoryModalListeners() {
                 if(viewMode.includes('weekly')) listMode = 'week';
                 if(viewMode.includes('monthly')) listMode = 'month';
                 if(viewMode.includes('yearly')) listMode = 'year';
-                // Note: renderHistoryDateListByMode import from app-history-logic needs to be handled via switchHistoryView or local ref.
             } else switchHistoryView(btn.dataset.view);
         }
     };
