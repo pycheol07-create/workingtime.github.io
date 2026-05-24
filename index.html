@@ -102,7 +102,7 @@
                 </div>
             </div>
 
-            <div id="nav-content" class="hidden absolute top-[60px] left-0 w-full bg-white dark:bg-gray-800 shadow-xl z-40 border-b dark:border-gray-700 flex-col max-h-[80vh] overflow-y-auto pb-4 transition-colors">
+            <div id="nav-content" class="hidden absolute top-[60px] left-0 w-full bg-white dark:bg-gray-800 shadow-xl z-[60] border-b dark:border-gray-700 flex-col max-h-[80vh] overflow-y-auto pb-4 transition-colors">
                 <div class="p-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex justify-between items-center">
                     <span class="font-bold text-gray-800 dark:text-white flex items-center gap-2">내 출퇴근 상태</span>
                     <div class="flex items-center gap-2">
@@ -115,6 +115,7 @@
                         </label>
                     </div>
                 </div>
+                
                 <button id="open-quantity-modal-today-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📊</span> 오늘 처리량 입력</button>
                 <button id="open-history-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📜</span> 데이터 관리</button>
                 
@@ -414,16 +415,13 @@
                 loadComponent('components/modals-simulation.html', 'modals-container-simulation'),
                 loadComponent('components/modals-confirm.html', 'modals-container-confirm'),
                 loadComponent('components/modals-history.html', 'modals-container-history'),
-                // 👇 추가된 부분 👇
                 loadComponent('components/modals-history-popups.html', 'modals-container-history-popups'),
-                
                 loadComponent('components/modals-form-attendance.html', 'modals-container-form-attendance'),
                 loadComponent('components/modals-form-record.html', 'modals-container-form-record'),
                 loadComponent('components/modals-form-quantity.html', 'modals-container-form-quantity'),
                 loadComponent('components/modals-form-team.html', 'modals-container-form-team'),
                 loadComponent('components/modals-form-inspection.html', 'modals-container-form-inspection'),
                 loadComponent('components/modals-form-total-inspection.html', 'modals-container-form-total-inspection'),
-                
                 loadComponent('components/modals-admin-todo.html', 'modals-container-admin-todo'),
                 loadComponent('components/modals-admin-todo-alert.html', 'modals-container-admin-todo-alert'),
                 loadComponent('components/modals-weekend.html', 'modals-container-weekend')
