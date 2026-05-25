@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>물류팀 데이터 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -17,24 +18,65 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <style>
-        /* 모달 껍데기를 일반 페이지처럼 보이도록 CSS 조정 */
-        body { background-color: #f9fafb; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; }
+        /* 모달 껍데기를 일반 페이지처럼 완벽하게 보이도록 CSS 조정 */
+        body { 
+            background-color: #f9fafb; 
+            margin: 0; 
+            padding: 0; 
+            height: 100dvh; /* 모바일 하단바까지 완벽히 채우기 */
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; /* 이중 스크롤 방지 */
+        }
         #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
         
-        /* 모달 배경 지우고 꽉 차게 만들기 */
-        #history-modal { position: static !important; display: flex !important; background: none !important; width: 100%; height: 100%; padding: 0 !important; }
-        #history-modal-content-box { width: 100% !important; height: 100% !important; border-radius: 0 !important; box-shadow: none !important; }
+        /* 컨테이너 빈틈없이 채우기 */
+        #modals-container-history { 
+            flex-grow: 1; 
+            width: 100%; 
+            height: 100%; 
+            display: flex; 
+            flex-direction: column; 
+        }
+
+        /* 모달 배경을 지우고 꽉 차게 만들기 (position 수정) */
+        #history-modal { 
+            position: relative !important; 
+            display: flex !important; 
+            flex-direction: column !important;
+            background: none !important; 
+            width: 100% !important; 
+            height: 100% !important; 
+            padding: 0 !important; 
+            margin: 0 !important;
+        }
         
-        /* 전체화면/닫기 버튼 숨기기 */
+        /* [핵심] 1400px 제한 무력화 및 PC 전체화면 강제 확장 */
+        #history-modal-content-box { 
+            flex-grow: 1 !important;
+            width: 100% !important; 
+            max-width: none !important; 
+            height: 100% !important; 
+            max-height: none !important; 
+            border-radius: 0 !important; 
+            box-shadow: none !important; 
+            border: none !important; 
+            margin: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        
+        /* 전체화면/닫기 버튼 및 모달 상단 여백 숨기기 */
         #toggle-history-fullscreen-btn, #close-history-btn, #history-modal-header { display: none !important; }
     </style>
 </head>
 <body class="text-gray-800 font-['Inter'] transition-colors duration-200">
     <div id="toast-container" class="space-y-2 w-full max-w-xs"></div>
 
-    <div id="modals-container-history" class="w-full h-full"></div>
+    <div id="modals-container-history" class="w-full h-full flex flex-col"></div>
     <div id="modals-container-history-popups"></div>
-    <div id="modals-container-form"></div> <div id="modals-container-download"></div>
+    <div id="modals-container-form"></div> 
+    <div id="modals-container-download"></div>
     <div id="modals-container-confirm"></div>
     
     <script>
@@ -53,7 +95,6 @@
         async function initHistoryApp() {
             await Promise.all([
                 loadComponent('components/modals-history.html', 'modals-container-history'),
-                // 👇 추가된 부분 👇
                 loadComponent('components/modals-history-popups.html', 'modals-container-history-popups'),
                 loadComponent('components/modals-confirm.html', 'modals-container-confirm'),
                 loadComponent('components/modals-form.html', 'modals-container-form') 
@@ -70,25 +111,32 @@
                     let uiAttempts = 0;
                     const triggerInterval = setInterval(() => {
                         uiAttempts++;
-                        // DOM에서 탭 버튼과 날짜 리스트 항목을 찾습니다.
+                        
+                        // DOM에서 메인 탭과 하위 탭, 날짜 리스트 항목 찾기
+                        const rawdataMainTabBtn = document.querySelector('[data-main-tab="rawdata"]');
                         const tabButtons = Array.from(document.querySelectorAll('.history-tab-btn, button'));
                         const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.trim().includes('일별 상세'));
                         const firstDateItem = document.querySelector('#history-date-list li');
 
-                        // 두 요소가 모두 렌더링되어 찾았을 때!
-                        if (dailyTabBtn && firstDateItem) {
+                        // 요소들이 모두 렌더링되어 찾았을 때!
+                        if (rawdataMainTabBtn && dailyTabBtn && firstDateItem) {
                             clearInterval(triggerInterval); // 감시 중지
                             
-                            // 1. 탭 클릭 처리
-                            dailyTabBtn.click();
-                            try { 
-                                if (typeof switchHistoryView === 'function') switchHistoryView('daily'); 
-                            } catch(e) {}
+                            // 1. [모바일 빈 화면 방지] '로우 데이터' 메인 탭으로 확실하게 전환
+                            if (rawdataMainTabBtn) rawdataMainTabBtn.click();
 
-                            // 2. 탭 전환 후 약간의 틈(0.1초)을 주고 첫 번째 날짜 데이터 클릭
                             setTimeout(() => {
-                                firstDateItem.click();
-                            }, 100);
+                                // 2. 탭 클릭 처리 (일별 상세)
+                                dailyTabBtn.click();
+                                try { 
+                                    if (typeof switchHistoryView === 'function') switchHistoryView('daily'); 
+                                } catch(e) {}
+
+                                // 3. 탭 전환 후 약간의 틈(0.1초)을 주고 첫 번째 날짜 데이터 클릭
+                                setTimeout(() => {
+                                    firstDateItem.click();
+                                }, 100);
+                            }, 100); // 메인 탭 전환 후 렌더링 대기
                             
                         } else if (uiAttempts > 50) {
                             // 5초 이상 지나도 안 나오면 무한 루프 방지를 위해 종료
