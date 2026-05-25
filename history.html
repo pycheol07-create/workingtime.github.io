@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
     <title>물류팀 데이터 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -18,62 +18,67 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <style>
-        /* 모달 껍데기를 일반 페이지처럼 완벽하게 보이도록 CSS 조정 */
+        /* HTML/Body 레벨부터 스크롤 꼬임 및 모바일 높이 무너짐 완벽 방지 */
+        html, body { 
+            height: 100% !important; 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            overflow: hidden !important; 
+        }
         body { 
             background-color: #f9fafb; 
-            margin: 0; 
-            padding: 0; 
-            height: 100dvh; /* 모바일 하단바까지 완벽히 채우기 */
+            height: 100dvh !important; 
             display: flex; 
             flex-direction: column; 
-            overflow: hidden; /* 이중 스크롤 방지 */
         }
         #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
         
-        /* 컨테이너 빈틈없이 채우기 */
+        /* 💡 최상위 컨테이너가 모바일에서 축소되는 버그 방지 */
         #modals-container-history { 
-            flex-grow: 1; 
-            width: 100%; 
-            height: 100%; 
-            display: flex; 
-            flex-direction: column; 
-        }
-
-        /* 모달 배경을 지우고 꽉 차게 만들기 (position 수정) */
-        #history-modal { 
-            position: relative !important; 
-            display: flex !important; 
-            flex-direction: column !important;
-            background: none !important; 
+            flex: 1 1 auto !important;
             width: 100% !important; 
             height: 100% !important; 
-            padding: 0 !important; 
-            margin: 0 !important;
+            display: flex !important; 
+            flex-direction: column !important; 
         }
         
-        /* [핵심] 1400px 제한 무력화 및 PC 전체화면 강제 확장 */
+        /* 💡 PC/모바일 공통: 하드코딩된 모달 스타일을 지우고 무조건 화면 100% 전체화면으로 바인딩 */
+        #history-modal { 
+            position: fixed !important; 
+            inset: 0 !important;
+            display: flex !important; 
+            flex-direction: column !important;
+            background: #f9fafb !important; 
+            width: 100vw !important; 
+            height: 100dvh !important; 
+            padding: 0 !important; 
+            margin: 0 !important;
+            z-index: 40 !important;
+        }
+        
+        /* 💡 1400px 최대너비 및 높이 제한을 완전히 무력화하여 완벽한 Standalone 페이지 구현 */
         #history-modal-content-box { 
-            flex-grow: 1 !important;
+            flex: 1 1 auto !important;
             width: 100% !important; 
             max-width: none !important; 
             height: 100% !important; 
             max-height: none !important; 
             border-radius: 0 !important; 
             box-shadow: none !important; 
-            border: none !important; 
+            border: none !important;
             margin: 0 !important;
             display: flex !important;
             flex-direction: column !important;
         }
         
-        /* 전체화면/닫기 버튼 및 모달 상단 여백 숨기기 */
+        /* 전체화면/닫기 버튼 및 모달 전용 헤더는 완전 매립 숨김 처리 */
         #toggle-history-fullscreen-btn, #close-history-btn, #history-modal-header { display: none !important; }
     </style>
 </head>
 <body class="text-gray-800 font-['Inter'] transition-colors duration-200">
     <div id="toast-container" class="space-y-2 w-full max-w-xs"></div>
 
-    <div id="modals-container-history" class="w-full h-full flex flex-col"></div>
+    <div id="modals-container-history" class="w-full h-full"></div>
     <div id="modals-container-history-popups"></div>
     <div id="modals-container-form"></div> 
     <div id="modals-container-download"></div>
@@ -106,41 +111,46 @@
                 
                 const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js');
 
-                // 💡 UI 강제 초기화 트리거 함수 (화면에 버튼이 생길 때까지 추적)
+                // 💡 UI 초기화 트리거 함수 (순차적 렌더링 후 대시보드 원위치 보장)
                 const triggerInitialUI = () => {
                     let uiAttempts = 0;
                     const triggerInterval = setInterval(() => {
                         uiAttempts++;
                         
-                        // DOM에서 메인 탭과 하위 탭, 날짜 리스트 항목 찾기
+                        const dashboardMainTabBtn = document.querySelector('[data-main-tab="dashboard"]');
                         const rawdataMainTabBtn = document.querySelector('[data-main-tab="rawdata"]');
                         const tabButtons = Array.from(document.querySelectorAll('.history-tab-btn, button'));
                         const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.trim().includes('일별 상세'));
                         const firstDateItem = document.querySelector('#history-date-list li');
 
-                        // 요소들이 모두 렌더링되어 찾았을 때!
-                        if (rawdataMainTabBtn && dailyTabBtn && firstDateItem) {
+                        // 필수 타겟 엘리먼트가 정상 로드되었을 때 백그라운드 세팅 시작
+                        if (dashboardMainTabBtn && rawdataMainTabBtn && dailyTabBtn && firstDateItem) {
                             clearInterval(triggerInterval); // 감시 중지
                             
-                            // 1. [모바일 빈 화면 방지] '로우 데이터' 메인 탭으로 확실하게 전환
-                            if (rawdataMainTabBtn) rawdataMainTabBtn.click();
-
-                            setTimeout(() => {
-                                // 2. 탭 클릭 처리 (일별 상세)
+                            try {
+                                // 1. 로우 데이터 내부 목록 데이터 로드를 위해 트리거 작동
+                                rawdataMainTabBtn.click();
                                 dailyTabBtn.click();
-                                try { 
-                                    if (typeof switchHistoryView === 'function') switchHistoryView('daily'); 
-                                } catch(e) {}
-
-                                // 3. 탭 전환 후 약간의 틈(0.1초)을 주고 첫 번째 날짜 데이터 클릭
+                                if (typeof switchHistoryView === 'function') switchHistoryView('daily'); 
+                                
                                 setTimeout(() => {
-                                    firstDateItem.click();
-                                }, 100);
-                            }, 100); // 메인 탭 전환 후 렌더링 대기
+                                    if (firstDateItem) firstDateItem.click();
+                                    
+                                    // 2. ⭐ [요청사항 반영] 모든 초기화 완료 후 사용자가 보게 될 첫 화면은 무조건 '종합 대시보드'로 지정
+                                    setTimeout(() => {
+                                        if (dashboardMainTabBtn) dashboardMainTabBtn.click();
+                                    }, 50);
+                                }, 50);
+                            } catch (e) {
+                                console.error("백그라운드 UI 렌더링 오류:", e);
+                                if (dashboardMainTabBtn) dashboardMainTabBtn.click();
+                            }
                             
                         } else if (uiAttempts > 50) {
-                            // 5초 이상 지나도 안 나오면 무한 루프 방지를 위해 종료
                             clearInterval(triggerInterval);
+                            // 시간 초과 시 안전장치로 대시보드 활성화
+                            const dashboardMainTabBtn = document.querySelector('[data-main-tab="dashboard"]');
+                            if (dashboardMainTabBtn) dashboardMainTabBtn.click();
                         }
                     }, 100); // 0.1초마다 감시
                 };
