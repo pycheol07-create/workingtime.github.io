@@ -1,12 +1,12 @@
-<div id="history-modal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4 transition-colors">
-    <div id="history-modal-content-box" class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-[1400px] h-[880px] flex flex-col relative overflow-hidden transition-colors border border-gray-200 dark:border-gray-700">
+<div id="history-modal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center hidden z-50 p-0 md:p-4 transition-colors">
+    <div id="history-modal-content-box" class="bg-white dark:bg-gray-900 md:rounded-2xl shadow-2xl w-full max-w-[1400px] h-full md:h-[880px] max-h-[100dvh] flex flex-col relative overflow-hidden transition-colors border-0 md:border border-gray-200 dark:border-gray-700">
 
-        <div id="history-modal-header" class="p-5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center cursor-move bg-white dark:bg-gray-800 rounded-t-2xl shrink-0 transition-colors">
-            <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+        <div id="history-modal-header" class="p-4 md:p-5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center cursor-move bg-white dark:bg-gray-800 md:rounded-t-2xl shrink-0 transition-colors">
+            <h2 class="text-lg md:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <span>📊</span> 물류팀 종합 데이터 센터
             </h2>
-            <div class="flex items-center gap-3">
-                <button id="toggle-history-fullscreen-btn" class="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition" title="전체화면">
+            <div class="flex items-center gap-2 md:gap-3">
+                <button id="toggle-history-fullscreen-btn" class="hidden md:block p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition" title="전체화면">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
                 </button>
                 <button id="close-history-btn" class="p-1.5 text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition" title="닫기">
@@ -15,30 +15,30 @@
             </div>
         </div>
 
-        <div class="px-6 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex flex-wrap justify-between items-end gap-4 pt-2 shrink-0 transition-colors z-20">
-            <div id="history-main-tabs" class="flex gap-6 -mb-px overflow-x-auto no-scrollbar">
-                <button data-main-tab="dashboard" class="history-main-tab-btn py-4 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap">📊 종합 대시보드</button>
-                <button data-main-tab="productivity" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap">🚀 생산성 및 효율성</button>
-                <button data-main-tab="staffing" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap">👥 인력 운영 및 적정성</button>
-                <button data-main-tab="rawdata" class="history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap">📁 로우 데이터 및 추출</button>
+        <div class="px-4 md:px-6 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pt-2 shrink-0 transition-colors z-20 overflow-x-auto no-scrollbar">
+            <div id="history-main-tabs" class="flex gap-4 md:gap-6 -mb-px overflow-x-auto no-scrollbar w-full md:w-auto">
+                <button data-main-tab="dashboard" class="history-main-tab-btn py-3 md:py-4 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap text-sm md:text-base">📊 종합 대시보드</button>
+                <button data-main-tab="productivity" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">🚀 생산성 및 효율성</button>
+                <button data-main-tab="staffing" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">👥 인력 운영 및 적정성</button>
+                <button data-main-tab="rawdata" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">📁 로우 데이터 및 추출</button>
             </div>
 
-            <div id="global-date-range-controls" class="flex items-center gap-3 pb-3">
-                <div class="flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors">
-                    <span class="text-xs font-bold text-gray-600 dark:text-gray-300">조회 기간:</span>
-                    <select id="global-period-preset" class="p-1 bg-transparent border-none text-xs font-bold text-blue-600 dark:text-blue-400 focus:ring-0 outline-none cursor-pointer">
+            <div id="global-date-range-controls" class="flex flex-wrap items-center gap-2 md:gap-3 pb-3 w-full md:w-auto">
+                <div class="flex items-center gap-1 md:gap-2 bg-white dark:bg-gray-800 px-2 md:px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors overflow-x-auto no-scrollbar w-full md:w-auto">
+                    <span class="text-[11px] md:text-xs font-bold text-gray-600 dark:text-gray-300 whitespace-nowrap">조회:</span>
+                    <select id="global-period-preset" class="p-1 bg-transparent border-none text-[11px] md:text-xs font-bold text-blue-600 dark:text-blue-400 focus:ring-0 outline-none cursor-pointer">
                         <option value="today">오늘</option>
                         <option value="week" selected>이번 주</option>
                         <option value="month">이번 달</option>
                         <option value="custom">직접 지정</option>
                     </select>
-                    <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></div>
-                    <input type="date" id="global-start-date" class="p-1 bg-transparent border border-gray-300 dark:border-gray-600 rounded text-xs focus:ring-blue-500 focus:border-blue-500 h-7 text-gray-700 dark:text-white outline-none">
-                    <span class="text-gray-400 dark:text-gray-500 text-xs">~</span>
-                    <input type="date" id="global-end-date" class="p-1 bg-transparent border border-gray-300 dark:border-gray-600 rounded text-xs focus:ring-blue-500 focus:border-blue-500 h-7 text-gray-700 dark:text-white outline-none">
-                    <button id="global-filter-btn" class="ml-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold text-xs px-3 py-1.5 rounded transition">조회 적용</button>
+                    <div class="w-px h-3 md:h-4 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                    <input type="date" id="global-start-date" class="p-0.5 md:p-1 bg-transparent border border-gray-300 dark:border-gray-600 rounded text-[11px] md:text-xs focus:ring-blue-500 focus:border-blue-500 h-6 md:h-7 text-gray-700 dark:text-white outline-none">
+                    <span class="text-gray-400 dark:text-gray-500 text-[11px] md:text-xs">~</span>
+                    <input type="date" id="global-end-date" class="p-0.5 md:p-1 bg-transparent border border-gray-300 dark:border-gray-600 rounded text-[11px] md:text-xs focus:ring-blue-500 focus:border-blue-500 h-6 md:h-7 text-gray-700 dark:text-white outline-none">
+                    <button id="global-filter-btn" class="ml-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold text-[11px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded transition whitespace-nowrap">조회 적용</button>
                 </div>
-                <button id="global-download-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs shadow-sm flex items-center gap-1.5 transition h-[34px]">
+                <button id="global-download-excel-btn" class="hidden md:flex bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs shadow-sm items-center gap-1.5 transition h-[34px]">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     통합 엑셀 다운로드
                 </button>
@@ -47,82 +47,137 @@
 
         <div class="flex-grow flex overflow-hidden bg-gray-100/80 dark:bg-gray-900 transition-colors">
             
-            <div id="dashboard-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-6 space-y-6">
+            <div id="dashboard-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6">
                 <div class="bg-indigo-50 dark:bg-indigo-900/30 border-l-4 border-indigo-500 p-4 rounded-r-xl shadow-sm">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-indigo-600 dark:text-indigo-400">🤖</span>
                         <h3 class="font-bold text-indigo-800 dark:text-indigo-300 text-sm">AI 현황 진단</h3>
                     </div>
-                    <p id="ai-dashboard-comment" class="text-indigo-900 dark:text-indigo-200 font-medium text-lg">
+                    <div id="ai-dashboard-comment" class="text-indigo-900 dark:text-indigo-200 font-medium text-sm leading-relaxed">
                         "데이터를 불러오고 분석 중입니다..."
-                    </p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-sm font-bold text-gray-500 dark:text-gray-400">총 업무시간</p>
-                        <p class="text-3xl font-black text-gray-800 dark:text-white mt-2" id="kpi-total-time">0<span class="text-lg font-medium text-gray-500 ml-1">시간</span></p>
-                    </div>
-                    <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-sm font-bold text-gray-500 dark:text-gray-400">총 인건비 (추정)</p>
-                        <p class="text-3xl font-black text-gray-800 dark:text-white mt-2" id="kpi-total-cost">0<span class="text-lg font-medium text-gray-500 ml-1">원</span></p>
-                    </div>
-                    <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-sm font-bold text-gray-500 dark:text-gray-400">종합 인당 생산성 (UPH)</p>
-                        <p class="text-3xl font-black text-blue-600 dark:text-blue-400 mt-2" id="kpi-avg-uph">0.0<span class="text-lg font-medium text-blue-400 ml-1">개/시</span></p>
-                    </div>
-                    <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-sm font-bold text-gray-500 dark:text-gray-400">종합 OEE (생산 효율)</p>
-                        <p class="text-3xl font-black text-green-600 dark:text-green-400 mt-2" id="kpi-total-oee">0<span class="text-lg font-medium text-green-400 ml-1">%</span></p>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex-grow min-h-[350px]">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">총 업무시간</p>
+                        <p class="text-xl md:text-2xl font-black text-gray-800 dark:text-white mt-1" id="kpi-total-time">0<span class="text-sm font-medium text-gray-500 ml-1">h</span></p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">총 인건비 (추정)</p>
+                        <p class="text-xl md:text-2xl font-black text-gray-800 dark:text-white mt-1" id="kpi-total-cost">0<span class="text-sm font-medium text-gray-500 ml-1">원</span></p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">종합 UPH</p>
+                        <p class="text-xl md:text-2xl font-black text-blue-600 dark:text-blue-400 mt-1" id="kpi-avg-uph">0.0<span class="text-[10px] md:text-sm font-medium text-blue-400 ml-1">개/시</span></p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">종합 OEE</p>
+                        <p class="text-xl md:text-2xl font-black text-green-600 dark:text-green-400 mt-1" id="kpi-total-oee">0<span class="text-sm font-medium text-green-400 ml-1">%</span></p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">출고원가 (건당)</p>
+                        <p class="text-xl md:text-2xl font-black text-purple-600 dark:text-purple-400 mt-1" id="kpi-unit-cost">0<span class="text-sm font-medium text-purple-400 ml-1">원</span></p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">재고회전율 (추정)</p>
+                        <p class="text-xl md:text-2xl font-black text-orange-600 dark:text-orange-400 mt-1" id="kpi-inventory-turnover">0.0<span class="text-sm font-medium text-orange-400 ml-1">회</span></p>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex-grow min-h-[350px]">
                     <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-4">📈 생산성(UPH) 및 투입 인원 추이</h4>
-                    <div class="relative w-full h-[calc(100%-2rem)]">
+                    <div class="relative w-full h-[calc(100%-2rem)] min-h-[250px]">
                         <canvas id="chart-dashboard-trend"></canvas>
                     </div>
                 </div>
             </div>
 
-            <div id="productivity-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-6 space-y-6 hidden">
-                <h3 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-2">
+            <div id="productivity-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6 hidden">
+                <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-2">
                     <span>🚀</span> 파트별 정밀 생산성 분석
                 </h3>
                 
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border-l-4 border-l-blue-500 depth-panel">
-                        <p class="text-xs font-bold text-gray-500">종합물류 UPH</p>
-                        <p class="text-2xl font-black text-gray-800 dark:text-white mt-1" id="prod-uph-general">0</p>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border-t-4 border-t-blue-500 depth-panel">
+                        <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate">종합물류</p>
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] text-gray-500">분당</span>
+                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-general">0</span>
+                        </div>
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] text-gray-500">시간당</span>
+                            <span class="text-lg md:text-xl font-black text-blue-600 dark:text-blue-400" id="prod-uph-general">0</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-[10px] text-gray-500">일당</span>
+                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-general">0</span>
+                        </div>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border-l-4 border-l-green-500 depth-panel">
-                        <p class="text-xs font-bold text-gray-500">국내배송 UPH</p>
-                        <p class="text-2xl font-black text-gray-800 dark:text-white mt-1" id="prod-uph-domestic">0</p>
+                    
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border-t-4 border-t-green-500 depth-panel">
+                        <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate">국내배송</p>
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] text-gray-500">분당</span>
+                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-domestic">0</span>
+                        </div>
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] text-gray-500">시간당</span>
+                            <span class="text-lg md:text-xl font-black text-green-600 dark:text-green-400" id="prod-uph-domestic">0</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-[10px] text-gray-500">일당</span>
+                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-domestic">0</span>
+                        </div>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border-l-4 border-l-red-500 depth-panel">
-                        <p class="text-xs font-bold text-gray-500">중국제작 UPH</p>
-                        <p class="text-2xl font-black text-gray-800 dark:text-white mt-1" id="prod-uph-china">0</p>
+                    
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border-t-4 border-t-red-500 depth-panel">
+                        <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate">중국제작</p>
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] text-gray-500">분당</span>
+                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-china">0</span>
+                        </div>
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] text-gray-500">시간당</span>
+                            <span class="text-lg md:text-xl font-black text-red-500 dark:text-red-400" id="prod-uph-china">0</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-[10px] text-gray-500">일당</span>
+                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-china">0</span>
+                        </div>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border-l-4 border-l-purple-500 depth-panel">
-                        <p class="text-xs font-bold text-gray-500">직진배송 UPH</p>
-                        <p class="text-2xl font-black text-gray-800 dark:text-white mt-1" id="prod-uph-direct">0</p>
+                    
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border-t-4 border-t-purple-500 depth-panel">
+                        <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate">직진배송</p>
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] text-gray-500">분당</span>
+                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-direct">0</span>
+                        </div>
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] text-gray-500">시간당</span>
+                            <span class="text-lg md:text-xl font-black text-purple-600 dark:text-purple-400" id="prod-uph-direct">0</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-[10px] text-gray-500">일당</span>
+                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-direct">0</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-grow min-h-[300px]">
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-2">⚖️ 리소스 투입 대비 효율 (병목 분석)</h4>
-                        <p class="text-xs text-gray-500 mb-4">X축: 투입 시간, Y축: 산출량, 원 크기: 투입 인원</p>
-                        <div class="relative w-full h-64">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 flex-grow min-h-[300px]">
+                    <div class="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white mb-2">⚖️ 리소스 투입 대비 효율</h4>
+                        <p class="text-[10px] md:text-xs text-gray-500 mb-4">X축: 투입 시간, Y축: 산출량, 원 크기: 투입 인원</p>
+                        <div class="relative w-full h-48 md:h-64">
                             <canvas id="chart-productivity-efficiency"></canvas>
                         </div>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-2">💸 비효율 요인 및 손실 비용 (COQ)</h4>
-                        <div class="overflow-y-auto h-64 mt-4">
-                            <table class="w-full text-sm text-left">
-                                <thead class="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50">
-                                    <tr><th class="px-4 py-2">요인 (속도저하/불량)</th><th class="px-4 py-2 text-right">손실 시간</th><th class="px-4 py-2 text-right">추정 비용</th></tr>
+                    <div class="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white mb-2">💸 비효율 요인 및 손실 비용</h4>
+                        <div class="overflow-y-auto h-48 md:h-64 mt-4">
+                            <table class="w-full text-xs md:text-sm text-left">
+                                <thead class="text-[10px] md:text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                                    <tr><th class="px-2 md:px-4 py-2">요인</th><th class="px-2 md:px-4 py-2 text-right">손실 시간</th><th class="px-2 md:px-4 py-2 text-right">추정 비용</th></tr>
                                 </thead>
                                 <tbody id="prod-coq-table-body" class="divide-y divide-gray-100 dark:divide-gray-700">
                                     <tr><td colspan="3" class="text-center py-4 text-gray-400">데이터 준비 중...</td></tr>
@@ -133,41 +188,41 @@
                 </div>
             </div>
 
-            <div id="staffing-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-6 space-y-6 hidden">
-                 <h3 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-2">
+            <div id="staffing-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6 hidden">
+                 <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-2">
                     <span>👥</span> 인력 운영 최적화 및 예측
                 </h3>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <h4 class="text-md font-bold text-gray-800 dark:text-white mb-4">현재 투입 vs 필요 인력 (FTE)</h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                    <div class="bg-white dark:bg-gray-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white mb-4">현재 투입 vs 필요 인력 (FTE)</h4>
                         <div class="space-y-4">
                             <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
-                                <span class="text-sm text-gray-500">실제 출근 인원</span>
-                                <span class="text-xl font-bold" id="staff-actual">0명</span>
+                                <span class="text-xs md:text-sm text-gray-500">실제 출근 인원</span>
+                                <span class="text-lg md:text-xl font-bold" id="staff-actual">0명</span>
                             </div>
                             <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
-                                <span class="text-sm text-gray-500">표준 기준 필요 인원</span>
-                                <span class="text-xl font-bold text-blue-600" id="staff-required">0.0명</span>
+                                <span class="text-xs md:text-sm text-gray-500">표준 기준 필요 인원</span>
+                                <span class="text-lg md:text-xl font-bold text-blue-600" id="staff-required">0.0명</span>
                             </div>
                             <div class="pt-2">
-                                <p class="text-xs text-center text-gray-400" id="staff-fte-comment">분석 중...</p>
+                                <p class="text-[10px] md:text-xs text-center text-gray-400" id="staff-fte-comment">분석 중...</p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <h4 class="text-md font-bold text-gray-800 dark:text-white mb-4">근태 손실 시간 (지각/외출/휴식)</h4>
-                        <div class="flex items-center justify-center h-32">
+                    <div class="bg-white dark:bg-gray-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white mb-4">근태 손실 시간</h4>
+                        <div class="flex items-center justify-center h-28 md:h-32">
                             <canvas id="chart-staffing-loss"></canvas>
                         </div>
-                        <p class="text-center text-xs font-bold text-red-500 mt-2">총 누수 시간: <span id="staff-total-loss">0</span>분</p>
+                        <p class="text-center text-[10px] md:text-xs font-bold text-red-500 mt-2">총 누수 시간: <span id="staff-total-loss">0</span>분</p>
                     </div>
 
-                    <div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-2xl shadow-md text-white flex flex-col justify-between">
+                    <div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-5 md:p-6 rounded-2xl shadow-md text-white flex flex-col justify-between">
                         <div>
-                            <h4 class="text-md font-bold mb-2 flex items-center gap-2"><span>🔮</span> 차월 목표 매출 연동 시뮬레이터</h4>
-                            <p class="text-xs text-indigo-100 mb-4">다음 달 목표 매출을 입력하면 필요 알바 인원을 예측합니다.</p>
+                            <h4 class="text-sm md:text-md font-bold mb-2 flex items-center gap-2"><span>🔮</span> 차월 목표 매출 연동 시뮬레이터</h4>
+                            <p class="text-[10px] md:text-xs text-indigo-100 mb-4">다음 달 목표 매출을 입력하면 필요 알바 인원을 예측합니다.</p>
                             <input type="number" placeholder="예: 50000000" class="w-full p-2 rounded text-gray-900 font-bold text-sm bg-white/90 focus:outline-none mb-2">
                         </div>
                         <button class="w-full bg-white text-indigo-600 font-bold py-2 rounded shadow hover:bg-gray-50 transition text-sm">필요 인원 계산하기</button>
@@ -176,7 +231,7 @@
             </div>
 
             <div id="rawdata-panel" class="flex-1 flex flex-col h-full hidden bg-white dark:bg-gray-900">
-                <div class="px-6 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 flex gap-4 shrink-0 overflow-x-auto no-scrollbar">
+                <div class="px-4 md:px-6 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 flex gap-4 shrink-0 overflow-x-auto no-scrollbar w-full">
                     <button data-sub-tab="work" class="rawdata-sub-tab-btn py-3 text-sm font-bold text-gray-800 dark:text-gray-200 border-b-2 border-gray-800 dark:border-gray-200 whitespace-nowrap">업무 이력</button>
                     <button data-sub-tab="attendance" class="rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap">근태 이력</button>
                     <button data-sub-tab="report" class="rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap">업무 리포트</button>
@@ -187,26 +242,26 @@
                     <button data-sub-tab="weekend" class="rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap">주말 통계</button>
                 </div>
 
-                <div class="flex-grow flex overflow-hidden">
+                <div class="flex-grow flex flex-col md:flex-row overflow-hidden">
                     
-                    <div id="history-date-list-container" class="w-[230px] border-r border-gray-200 dark:border-gray-800 overflow-y-auto bg-gray-50 dark:bg-gray-800/30 flex-shrink-0 transition-colors">
-                        <ul id="history-date-list" class="p-3 space-y-1"></ul>
+                    <div id="history-date-list-container" class="w-full md:w-[230px] h-[140px] md:h-auto border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800 overflow-y-auto bg-gray-50 dark:bg-gray-800/30 flex-shrink-0 transition-colors">
+                        <ul id="history-date-list" class="p-2 md:p-3 space-y-0 md:space-y-1"></ul>
                     </div>
                     
                     <div class="flex-1 flex flex-col overflow-hidden relative">
                         
                         <div id="work-history-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto z-10">
-                            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between bg-white dark:bg-gray-800 shrink-0">
-                                <div id="history-tabs" class="flex gap-4">
-                                    <button data-view="daily" class="history-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 border-b-2 text-sm">일별 상세</button>
-                                    <button data-view="weekly" class="history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent">주별 요약</button>
-                                    <button data-view="monthly" class="history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent">월별 요약</button>
+                            <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0 gap-3">
+                                <div id="history-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                    <button data-view="daily" class="history-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 상세</button>
+                                    <button data-view="weekly" class="history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">주별 요약</button>
+                                    <button data-view="monthly" class="history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">월별 요약</button>
                                 </div>
-                                <button id="history-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 shadow-sm">
-                                     엑셀 다운로드
+                                <button id="history-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 shadow-sm whitespace-nowrap">
+                                     엑셀
                                 </button>
                             </div>
-                            <div id="history-view-container" class="p-6 flex-grow">
+                            <div id="history-view-container" class="p-4 md:p-6 flex-grow">
                                 <div id="history-daily-view" class="hidden"></div>
                                 <div id="history-weekly-view" class="hidden space-y-6"></div>
                                 <div id="history-monthly-view" class="hidden space-y-6"></div>
@@ -214,17 +269,17 @@
                         </div>
 
                         <div id="attendance-history-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
-                            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between bg-white dark:bg-gray-800 shrink-0">
-                                <div id="attendance-history-tabs" class="flex gap-4">
-                                    <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 border-b-2 text-sm">일별 상세</button>
-                                    <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent">주별 요약</button>
-                                    <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent">월별 요약</button>
+                            <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0 gap-3">
+                                <div id="attendance-history-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                    <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 상세</button>
+                                    <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">주별 요약</button>
+                                    <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">월별 요약</button>
                                 </div>
-                                <button id="attendance-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 shadow-sm">
-                                     엑셀 다운로드
+                                <button id="attendance-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 shadow-sm whitespace-nowrap">
+                                     엑셀
                                 </button>
                             </div>
-                            <div id="attendance-history-view-container" class="p-6 flex-grow">
+                            <div id="attendance-history-view-container" class="p-4 md:p-6 flex-grow">
                                 <div id="history-attendance-daily-view" class="hidden space-y-4"></div>
                                 <div id="history-attendance-weekly-view" class="hidden space-y-4"></div>
                                 <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
@@ -232,15 +287,15 @@
                         </div>
 
                         <div id="report-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
-                            <div class="p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 bg-white dark:bg-gray-800">
-                                <div id="report-tabs" class="flex gap-4">
-                                    <button data-view="report-daily" class="report-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm">일별 리포트</button>
-                                    <button data-view="report-weekly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm">주별 리포트</button>
-                                    <button data-view="report-monthly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm">월별 리포트</button>
-                                    <button data-view="report-yearly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm">연간 리포트</button>
+                            <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 bg-white dark:bg-gray-800">
+                                <div id="report-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                    <button data-view="report-daily" class="report-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 리포트</button>
+                                    <button data-view="report-weekly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">주별 리포트</button>
+                                    <button data-view="report-monthly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">월별 리포트</button>
+                                    <button data-view="report-yearly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">연간 리포트</button>
                                 </div>
                             </div>
-                            <div id="report-view-container" class="p-6 flex-grow space-y-6">
+                            <div id="report-view-container" class="p-4 md:p-6 flex-grow space-y-4 md:space-y-6">
                                 <div id="report-daily-view"></div>
                                 <div id="report-weekly-view" class="hidden space-y-6"></div>
                                 <div id="report-monthly-view" class="hidden space-y-6"></div>
@@ -249,21 +304,19 @@
                         </div>
 
                         <div id="personal-report-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
-                            <div class="p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 flex justify-between bg-white dark:bg-gray-800">
-                                <div class="flex items-center gap-4">
-                                    <select id="personal-report-member-select" class="p-2 border border-gray-200 rounded-lg text-sm font-bold bg-gray-50">
-                                        <option value="">직원 선택...</option>
-                                    </select>
-                                    <div class="h-6 w-px bg-gray-200"></div>
-                                    <div id="personal-report-tabs" class="flex gap-4">
-                                        <button data-view="personal-daily" class="personal-report-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm">일별</button>
-                                        <button data-view="personal-weekly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm">주별</button>
-                                        <button data-view="personal-monthly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm">월별</button>
-                                        <button data-view="personal-yearly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm">연간</button>
-                                    </div>
+                            <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 flex flex-col md:flex-row bg-white dark:bg-gray-800 gap-3">
+                                <select id="personal-report-member-select" class="p-2 border border-gray-200 rounded-lg text-sm font-bold bg-gray-50 w-full md:w-auto">
+                                    <option value="">직원 선택...</option>
+                                </select>
+                                <div class="h-6 w-px bg-gray-200 hidden md:block"></div>
+                                <div id="personal-report-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                    <button data-view="personal-daily" class="personal-report-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별</button>
+                                    <button data-view="personal-weekly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">주별</button>
+                                    <button data-view="personal-monthly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">월별</button>
+                                    <button data-view="personal-yearly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">연간</button>
                                 </div>
                             </div>
-                            <div id="personal-report-view-container" class="p-6 flex-grow">
+                            <div id="personal-report-view-container" class="p-4 md:p-6 flex-grow">
                                 <div id="personal-report-content" class="space-y-6">
                                     <div class="text-center text-gray-400 font-medium py-12">직원을 선택하면 리포트가 표시됩니다.</div>
                                 </div>
@@ -271,58 +324,58 @@
                         </div>
 
                         <div id="management-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
-                            <div class="p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 flex justify-between bg-white dark:bg-gray-800">
-                                <div id="management-tabs" class="flex gap-4">
-                                    <button data-view="management-daily" class="management-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm">일별 입력/조회</button>
-                                    <button data-view="management-weekly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm">주별 요약</button>
-                                    <button data-view="management-monthly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm">월별 요약</button>
-                                    <button data-view="management-yearly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm">연간 요약</button>
+                            <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 flex justify-between bg-white dark:bg-gray-800 gap-3">
+                                <div id="management-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                    <button data-view="management-daily" class="management-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 입력</button>
+                                    <button data-view="management-weekly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">주별 요약</button>
+                                    <button data-view="management-monthly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">월별 요약</button>
+                                    <button data-view="management-yearly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">연간 요약</button>
                                 </div>
-                                <button id="management-save-btn" class="bg-blue-600 text-white font-bold py-2 px-5 rounded-lg text-sm hidden">저장</button>
+                                <button id="management-save-btn" class="bg-blue-600 text-white font-bold py-1.5 md:py-2 px-4 md:px-5 rounded-lg text-sm hidden whitespace-nowrap">저장</button>
                             </div>
-                            <div id="management-view-container" class="p-6 flex-grow space-y-6"></div>
+                            <div id="management-view-container" class="p-4 md:p-6 flex-grow space-y-4 md:space-y-6"></div>
                         </div>
 
                         <div id="inspection-history-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
-                            <div class="p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 flex justify-between bg-white dark:bg-gray-800">
-                                <div class="flex items-center gap-3">
-                                    <input type="text" id="inspection-history-search" class="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 w-64" placeholder="상품명 검색...">
-                                    <button id="inspection-history-refresh-btn" class="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg">새로고침</button>
+                            <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 flex flex-col md:flex-row justify-between bg-white dark:bg-gray-800 gap-3">
+                                <div class="flex items-center gap-2 md:gap-3 w-full md:w-auto">
+                                    <input type="text" id="inspection-history-search" class="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 flex-1 md:w-64" placeholder="상품명 검색...">
+                                    <button id="inspection-history-refresh-btn" class="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg whitespace-nowrap">새로고침</button>
                                 </div>
-                                <div class="flex items-center gap-4">
+                                <div class="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto">
                                     <div class="text-sm text-gray-500">총 <span id="inspection-total-product-count" class="font-bold text-indigo-600">0</span>개</div>
-                                    <button id="inspection-tab-download-btn" class="bg-white border border-gray-300 font-bold py-1.5 px-3 rounded-lg text-sm">엑셀 다운로드</button>
+                                    <button id="inspection-tab-download-btn" class="bg-white border border-gray-300 font-bold py-1.5 px-3 rounded-lg text-sm whitespace-nowrap">엑셀 다운로드</button>
                                 </div>
                             </div>
-                            <div id="inspection-history-view-container" class="p-6 flex-grow">
+                            <div id="inspection-history-view-container" class="p-4 md:p-6 flex-grow">
                                 <div class="text-center text-gray-400 py-12">데이터를 불러오는 중...</div>
                             </div>
                         </div>
 
-                        <div id="history-leave-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 p-6 space-y-6 overflow-y-auto hidden z-10">
-                            <div class="flex justify-between items-center bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel shrink-0">
-                                <div class="flex items-center gap-4">
-                                    <h3 class="text-xl font-bold text-gray-800 dark:text-white">🏖️ 연차 관리 대장</h3>
+                        <div id="history-leave-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 p-4 md:p-6 space-y-4 md:space-y-6 overflow-y-auto hidden z-10">
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel shrink-0 gap-4">
+                                <div class="flex items-center justify-between w-full md:w-auto gap-4">
+                                    <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white">🏖️ 연차 관리 대장</h3>
                                     <select id="leave-year-select" class="p-2 border border-gray-200 rounded-xl text-sm font-bold text-blue-600">
                                         <option value="2024">2024년</option><option value="2025" selected>2025년</option><option value="2026">2026년</option>
                                     </select>
                                 </div>
-                                <div class="flex gap-3">
-                                    <button id="refresh-leave-sheet-btn" class="px-4 py-2 border border-gray-300 rounded-xl text-sm font-bold">새로고침</button>
-                                    <button id="save-leave-settings-btn" class="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold">설정 저장</button>
+                                <div class="flex gap-2 md:gap-3 w-full md:w-auto justify-end">
+                                    <button id="refresh-leave-sheet-btn" class="px-4 py-2 border border-gray-300 rounded-xl text-sm font-bold whitespace-nowrap">새로고침</button>
+                                    <button id="save-leave-settings-btn" class="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold whitespace-nowrap">설정 저장</button>
                                 </div>
                             </div>
                             <div class="flex-grow bg-white border border-gray-100 rounded-2xl shadow-sm depth-panel flex flex-col">
                                 <div class="overflow-auto flex-grow">
-                                    <table class="w-full text-sm text-left text-gray-600">
+                                    <table class="w-full text-sm text-left text-gray-600 whitespace-nowrap">
                                         <thead class="text-xs text-gray-700 bg-gray-50 border-b">
                                             <tr>
-                                                <th class="px-6 py-4 w-32 cursor-pointer" data-sort-key="member">이름 ↕</th>
-                                                <th class="px-6 py-4 w-32 text-center cursor-pointer" data-sort-key="total">총 연차 ↕</th>
-                                                <th class="px-6 py-4 w-48 text-center cursor-pointer" data-sort-key="period">사용 기간 ↕</th>
-                                                <th class="px-6 py-4 w-32 text-center cursor-pointer" data-sort-key="used">사용일수 ↕</th>
-                                                <th class="px-6 py-4 w-32 text-center text-blue-600 cursor-pointer" data-sort-key="remaining">잔여일수 ↕</th>
-                                                <th class="px-6 py-4 cursor-pointer" data-sort-key="history">사용 내역 ↕</th>
+                                                <th class="px-4 md:px-6 py-4 w-24 md:w-32 cursor-pointer" data-sort-key="member">이름 ↕</th>
+                                                <th class="px-4 md:px-6 py-4 w-24 md:w-32 text-center cursor-pointer" data-sort-key="total">총 연차 ↕</th>
+                                                <th class="px-4 md:px-6 py-4 w-32 md:w-48 text-center cursor-pointer" data-sort-key="period">사용 기간 ↕</th>
+                                                <th class="px-4 md:px-6 py-4 w-24 md:w-32 text-center cursor-pointer" data-sort-key="used">사용일수 ↕</th>
+                                                <th class="px-4 md:px-6 py-4 w-24 md:w-32 text-center text-blue-600 cursor-pointer" data-sort-key="remaining">잔여일수 ↕</th>
+                                                <th class="px-4 md:px-6 py-4 cursor-pointer" data-sort-key="history">사용 내역 ↕</th>
                                             </tr>
                                         </thead>
                                         <tbody id="leave-sheet-body">
@@ -333,22 +386,22 @@
                             </div>
                         </div>
 
-                        <div id="history-weekend-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 p-6 space-y-6 overflow-y-auto hidden z-10">
-                            <div class="flex justify-between items-center bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel shrink-0">
+                        <div id="history-weekend-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 p-4 md:p-6 space-y-4 md:space-y-6 overflow-y-auto hidden z-10">
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel shrink-0 gap-4">
                                 <div>
-                                    <h3 class="text-xl font-bold text-gray-800 dark:text-white">📅 주말 근무 정산 통계</h3>
-                                    <p class="text-sm text-gray-500 mt-1">월 단위 확정 횟수 및 비용 산출</p>
+                                    <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white">📅 주말 근무 정산 통계</h3>
+                                    <p class="text-xs md:text-sm text-gray-500 mt-1">월 단위 확정 횟수 및 비용 산출</p>
                                 </div>
-                                <div class="flex gap-3">
-                                    <input type="month" id="weekend-stats-month-picker" class="p-2 border border-gray-300 rounded-lg text-sm">
-                                    <button id="weekend-stats-download-btn" class="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-bold">엑셀 다운로드</button>
+                                <div class="flex gap-2 md:gap-3 w-full md:w-auto justify-end">
+                                    <input type="month" id="weekend-stats-month-picker" class="p-2 border border-gray-300 rounded-lg text-sm flex-1 md:flex-none">
+                                    <button id="weekend-stats-download-btn" class="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-bold whitespace-nowrap">엑셀 다운로드</button>
                                 </div>
                             </div>
                             <div class="flex-grow bg-white border border-gray-100 rounded-2xl shadow-sm depth-panel flex flex-col">
                                 <div class="overflow-auto flex-grow">
-                                    <table class="w-full text-sm text-left text-gray-600">
+                                    <table class="w-full text-sm text-left text-gray-600 whitespace-nowrap">
                                         <thead class="text-xs bg-gray-50 border-b">
-                                            <tr><th class="px-6 py-4">순위</th><th class="px-6 py-4">이름</th><th class="px-6 py-4">횟수</th><th class="px-6 py-4 text-right">비용</th><th class="px-6 py-4">일자</th></tr>
+                                            <tr><th class="px-4 md:px-6 py-4">순위</th><th class="px-4 md:px-6 py-4">이름</th><th class="px-4 md:px-6 py-4">횟수</th><th class="px-4 md:px-6 py-4 text-right">비용</th><th class="px-4 md:px-6 py-4">일자</th></tr>
                                         </thead>
                                         <tbody id="weekend-history-table-body">
                                             <tr><td colspan="5" class="text-center py-12 text-gray-400">데이터를 불러오는 중...</td></tr>
