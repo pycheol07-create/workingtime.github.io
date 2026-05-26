@@ -6,7 +6,6 @@ import { showToast, getTodayDateString } from './utils.js';
 import { renderDashboardTab } from './ui-history-dashboard.js';
 import { renderProductivityTab } from './ui-history-productivity.js';
 import { renderStaffingTab } from './ui-history-staffing.js';
-// 💡 실적 예측 함수 불러오기 추가
 import { renderPredictionTab } from './ui-history-prediction.js';
 import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js';
 import * as UILeave from './ui-history-leave.js';
@@ -146,11 +145,10 @@ export function setupHistoryTabsListeners() {
             document.querySelectorAll('.history-main-tab-btn').forEach(b => {
                 const isActive = (b === btn);
                 b.className = isActive 
-                    ? 'history-main-tab-btn py-4 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap'
-                    : 'history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap';
+                    ? 'history-main-tab-btn py-3 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap text-sm md:text-base'
+                    : 'history-main-tab-btn py-3 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base';
             });
 
-            // 💡 실적 예측 패널 토글 추가
             document.getElementById('dashboard-panel').classList.toggle('hidden', tabName !== 'dashboard');
             document.getElementById('productivity-panel').classList.toggle('hidden', tabName !== 'productivity');
             document.getElementById('staffing-panel').classList.toggle('hidden', tabName !== 'staffing');
@@ -159,13 +157,12 @@ export function setupHistoryTabsListeners() {
 
             const filteredData = getFilteredHistoryData();
             
-            // 💡 실적 예측 렌더링 호출 추가
             if (tabName === 'dashboard') renderDashboardTab(filteredData, State.appConfig);
             else if (tabName === 'productivity') renderProductivityTab(filteredData, State.appConfig);
             else if (tabName === 'staffing') renderStaffingTab(filteredData, State.appConfig);
             else if (tabName === 'prediction') renderPredictionTab(filteredData);
             else if (tabName === 'rawdata') {
-                const firstSub = document.querySelector('.rawdata-sub-tab-btn[data-sub-tab="work"]');
+                const firstSub = document.querySelector('.rawdata-sub-tab-btn.font-bold') || document.querySelector('.rawdata-sub-tab-btn[data-sub-tab="work"]');
                 if (firstSub) firstSub.click();
             }
         });
@@ -196,39 +193,41 @@ export function setupHistoryTabsListeners() {
 
             Object.keys(panels).forEach(key => { if (panels[key]) panels[key].classList.toggle('hidden', key !== subTabName); });
             
-            const dateListContainer = document.getElementById('history-date-list-container');
-            if (dateListContainer) {
-                dateListContainer.style.display = ['inspection', 'leave', 'weekend'].includes(subTabName) ? 'none' : 'block';
-            }
-
-            if (subTabName === 'work') switchHistoryView(DOM.historyTabs?.querySelector('button.font-semibold')?.dataset.view || 'daily');
-            else if (subTabName === 'attendance') switchHistoryView(DOM.attendanceHistoryTabs?.querySelector('button.font-semibold')?.dataset.view || 'attendance-daily');
-            else if (subTabName === 'report') switchHistoryView(DOM.reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily');
-            else if (subTabName === 'personal') {
-                if (DOM.personalReportMemberSelect && DOM.personalReportMemberSelect.options.length <= 1) {
-                    const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
-                    const partTimers = (State.appState.partTimers || []).map(p => p.name);
-                    const allMembers = [...new Set([...staff, ...partTimers])].sort();
-                    
-                    DOM.personalReportMemberSelect.innerHTML = '<option value="">직원 선택...</option>';
-                    allMembers.forEach(m => {
-                        const op = document.createElement('option'); op.value = m; op.textContent = m;
-                        DOM.personalReportMemberSelect.appendChild(op);
-                    });
-                    
-                    if (State.appState.currentUser && allMembers.includes(State.appState.currentUser)) {
-                        DOM.personalReportMemberSelect.value = State.appState.currentUser;
-                        State.context.personalReportMember = State.appState.currentUser;
+            // 전역 보기 모드 파악 (일/주/월/연)
+            const viewMode = document.querySelector('.global-view-btn.font-bold')?.dataset.viewMode || 'daily';
+            const modeMap = { daily: 'daily', weekly: 'weekly', monthly: 'monthly', yearly: 'yearly' };
+            const subTabPrefixes = { work: '', attendance: 'attendance-', report: 'report-', personal: 'personal-', management: 'management-' };
+            
+            if (['work', 'attendance', 'report', 'personal', 'management'].includes(subTabName)) {
+                let viewString = modeMap[viewMode];
+                if (subTabName !== 'work' && subTabPrefixes[subTabName] !== undefined) {
+                    viewString = subTabPrefixes[subTabName] + modeMap[viewMode];
+                }
+                
+                if (subTabName === 'personal') {
+                    if (DOM.personalReportMemberSelect && DOM.personalReportMemberSelect.options.length <= 1) {
+                        const staff = (State.appConfig.teamGroups || []).flatMap(g => g.members);
+                        const partTimers = (State.appState.partTimers || []).map(p => p.name);
+                        const allMembers = [...new Set([...staff, ...partTimers])].sort();
+                        
+                        DOM.personalReportMemberSelect.innerHTML = '<option value="">직원 선택...</option>';
+                        allMembers.forEach(m => {
+                            const op = document.createElement('option'); op.value = m; op.textContent = m;
+                            DOM.personalReportMemberSelect.appendChild(op);
+                        });
+                        if (State.appState.currentUser && allMembers.includes(State.appState.currentUser)) {
+                            DOM.personalReportMemberSelect.value = State.appState.currentUser;
+                            State.context.personalReportMember = State.appState.currentUser;
+                        }
                     }
                 }
-                const viewMode = DOM.personalReportTabs?.querySelector('button.font-semibold')?.dataset.view || 'personal-daily';
-                renderHistoryDateListByMode(viewMode.includes('weekly') ? 'week' : viewMode.includes('monthly') ? 'month' : viewMode.includes('yearly') ? 'year' : 'day');
-            } else if (subTabName === 'management') {
-                const viewMode = document.getElementById('management-tabs')?.querySelector('button.font-semibold')?.dataset.view || 'management-daily';
-                renderHistoryDateListByMode(viewMode.includes('weekly') ? 'week' : viewMode.includes('monthly') ? 'month' : viewMode.includes('yearly') ? 'year' : 'day');
-            } else if (subTabName === 'inspection') fetchAndRenderInspectionHistory();
-            else if (subTabName === 'leave') UILeave.initLeaveManagement();
-            else if (subTabName === 'weekend') loadAndRenderWeekendStats();
+                
+                // 실제 뷰 전환 및 화면 출력
+                switchHistoryView(viewString);
+                
+            } else if (subTabName === 'inspection') { fetchAndRenderInspectionHistory(); }
+            else if (subTabName === 'leave') { UILeave.initLeaveManagement(); }
+            else if (subTabName === 'weekend') { loadAndRenderWeekendStats(); }
         });
     });
 }
