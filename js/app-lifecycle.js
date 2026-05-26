@@ -35,37 +35,25 @@ export const updateElapsedTimes = async () => {
     const currentUserLower = (State.appState.currentUser || '').toLowerCase();
     const isAdmin = State.appConfig?.memberRoles?.[currentUserLower] === 'admin';
     
-    // ✨ 핵심 방어막 1: 점심시간 자동 일시정지 (12:30 ~ 13:29)
-    // - 누구나 앱을 켜두면 실행되도록 isAdmin 조건 해제
-    // - 12:31분에 접속해도 실행되도록 시간 범위를 넓힘
-    if (isTodayWeekday && now >= '12:30' && now < '13:30' && !localLunchPauseExecuted && !State.appState.lunchPauseExecuted) {
+    // ✨ 핵심 방어막 1: 여러 관리자가 동시 접속해 있을 때 중복 쓰기(Write) 폭탄이 발생하는 것을 막기 위해 글로벌 상태 교차 검증
+    if (isTodayWeekday && now === '12:30' && !localLunchPauseExecuted) {
         localLunchPauseExecuted = true; 
-        if (State.context.autoPauseForLunch) {
-            // 다중 접속 시 중복 저장을 막기 위해 0~2초 랜덤 딜레이 후 교차 검증
-            setTimeout(async () => {
-                if (!State.appState.lunchPauseExecuted) {
-                    try {
-                        const tasksPaused = await State.context.autoPauseForLunch();
-                        if (tasksPaused > 0) showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
-                    } catch (e) { console.error("Error during auto-pause: ", e); }
-                }
-            }, Math.random() * 2000);
+        if (isAdmin && !State.appState.lunchPauseExecuted && State.context.autoPauseForLunch) {
+            try {
+                const tasksPaused = await State.context.autoPauseForLunch();
+                if (tasksPaused > 0) showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
+            } catch (e) { console.error("Error during auto-pause: ", e); }
         }
     }
 
-    // ✨ 핵심 방어막 2: 점심시간 자동 재개 (13:30 ~ 17:30)
-    // - 13:30 이후에 접속해도 즉시 재개되도록 범위 설정
-    if (isTodayWeekday && now >= '13:30' && now < '17:30' && !localLunchResumeExecuted && !State.appState.lunchResumeExecuted) {
+    if (isTodayWeekday && now === '13:30' && !localLunchResumeExecuted) {
         localLunchResumeExecuted = true;
-        if (State.context.autoResumeFromLunch) {
-            setTimeout(async () => {
-                if (!State.appState.lunchResumeExecuted) {
-                    try {
-                        const tasksResumed = await State.context.autoResumeFromLunch();
-                        if (tasksResumed > 0) showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
-                    } catch (e) { console.error("Error during auto-resume: ", e); }
-                }
-            }, Math.random() * 2000);
+        // ✨ 핵심 방어막 2: 동일하게 글로벌 재개 상태 확인
+        if (isAdmin && !State.appState.lunchResumeExecuted && State.context.autoResumeFromLunch) {
+            try {
+                const tasksResumed = await State.context.autoResumeFromLunch();
+                if (tasksResumed > 0) showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
+            } catch (e) { console.error("Error during auto-resume: ", e); }
         }
     }
 

@@ -8,10 +8,8 @@ import { setupHistoryRecordListeners } from './listeners-history-records.js';
 import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js';
 import { setupHistoryInspectionListeners } from './listeners-history-inspection.js';
 
-// 💡 수정됨: renderHistoryDateListByMode를 app-history-logic.js에서 불러옵니다.
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave, renderHistoryDateListByMode } from './app-history-logic.js';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
 import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderPredictionTab } from './ui-history.js';
-// 💡 수정됨: history-data-manager에서는 필요한 것만 불러옵니다.
 import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
 import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -66,76 +64,40 @@ export function setupHistoryModalListeners() {
             augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
         }
         const filteredData = getFilteredHistoryData();
-        const viewMode = document.querySelector('.global-view-btn.font-bold')?.dataset.viewMode || 'daily';
+        const view = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold')?.dataset.view || 'attendance-daily';
 
-        if (viewMode === 'daily') { if (dateKey) renderAttendanceDailyHistory(dateKey, filteredData); } 
-        else if (viewMode === 'weekly') { if (dateKey) renderAttendanceWeeklyHistory(dateKey, filteredData); } 
-        else if (viewMode === 'monthly') { if (dateKey) renderAttendanceMonthlyHistory(dateKey, filteredData); }
+        if (view === 'attendance-daily') { if (dateKey) renderAttendanceDailyHistory(dateKey, filteredData); } 
+        else if (view === 'attendance-weekly') { if (dateKey) renderAttendanceWeeklyHistory(dateKey, filteredData); } 
+        else if (view === 'attendance-monthly') { if (dateKey) renderAttendanceMonthlyHistory(dateKey, filteredData); }
     };
 
     const refreshReportView = () => {
         const dateKey = getSelectedDateKey();
         const filteredData = getFilteredHistoryData();
-        const viewMode = document.querySelector('.global-view-btn.font-bold')?.dataset.viewMode || 'daily';
+        const view = DOM.reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
 
-        if (viewMode === 'daily') renderReportDaily(dateKey, filteredData, State.appConfig, State.context);
-        else if (viewMode === 'weekly') renderReportWeekly(dateKey, filteredData, State.appConfig, State.context);
-        else if (viewMode === 'monthly') renderReportMonthly(dateKey, filteredData, State.appConfig, State.context);
-        else if (viewMode === 'yearly') renderReportYearly(dateKey, filteredData, State.appConfig, State.context);
+        if (view === 'report-daily') renderReportDaily(dateKey, filteredData, State.appConfig, State.context);
+        else if (view === 'report-weekly') renderReportWeekly(dateKey, filteredData, State.appConfig, State.context);
+        else if (view === 'report-monthly') renderReportMonthly(dateKey, filteredData, State.appConfig, State.context);
+        else if (view === 'report-yearly') renderReportYearly(dateKey, filteredData, State.appConfig, State.context);
     };
     
     const refreshPersonalView = () => {
         const dateKey = getSelectedDateKey();
-        const viewMode = document.querySelector('.global-view-btn.font-bold')?.dataset.viewMode || 'daily';
+        const viewMode = DOM.personalReportTabs?.querySelector('button.font-semibold')?.dataset.view || 'personal-daily';
         const memberName = DOM.personalReportMemberSelect?.value;
-        const mappedMode = `personal-${viewMode.replace('ily', 'y').replace('ly', 'ly')}`; 
-        if (dateKey && memberName) renderPersonalReport('personal-report-content', mappedMode, dateKey, memberName, State.allHistoryData);
+        if (dateKey && memberName) renderPersonalReport('personal-report-content', viewMode, dateKey, memberName, State.allHistoryData);
     };
 
     const refreshManagementView = () => {
         const dateKey = getSelectedDateKey();
-        const viewMode = document.querySelector('.global-view-btn.font-bold')?.dataset.viewMode || 'daily';
+        const viewMode = managementTabs?.querySelector('button.font-semibold')?.dataset.view || 'management-daily';
         if (!dateKey) return;
-        if (viewMode === 'daily') renderManagementDaily(dateKey, State.allHistoryData);
-        else renderManagementSummary(`management-${viewMode.replace('ily','y').replace('ly','ly')}`, dateKey, State.allHistoryData);
+        if (viewMode === 'management-daily') renderManagementDaily(dateKey, State.allHistoryData);
+        else renderManagementSummary(viewMode, dateKey, State.allHistoryData);
     };
 
-    // ✨ [신규] 전역 보기 모드 컨트롤러 통합
-    document.getElementById('global-view-mode-tabs')?.addEventListener('click', async (e) => {
-        const btn = e.target.closest('.global-view-btn');
-        if (!btn) return;
-        
-        // 버튼 스타일 전환
-        document.querySelectorAll('.global-view-btn').forEach(b => {
-            b.classList.remove('bg-white', 'text-blue-600', 'shadow-sm', 'font-bold');
-            b.classList.add('text-gray-600', 'dark:text-gray-300', 'font-medium');
-        });
-        btn.classList.remove('text-gray-600', 'dark:text-gray-300', 'font-medium');
-        btn.classList.add('bg-white', 'text-blue-600', 'shadow-sm', 'font-bold');
-
-        const viewMode = btn.dataset.viewMode; // daily, weekly, monthly, yearly
-        const listModeMap = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' };
-        
-        // 1. 좌측 폴더 리스트 형태(일/주/월/년) 즉각 변경
-        renderHistoryDateListByMode(listModeMap[viewMode]);
-
-        // 2. 우측 패널이 로우 데이터라면 뷰 전환 트리거
-        const activeTopTab = document.querySelector('.history-main-tab-btn.text-blue-600')?.dataset.mainTab;
-        if (activeTopTab === 'rawdata') {
-            const activeSubTab = document.querySelector('.rawdata-sub-tab-btn.font-bold')?.dataset.subTab || 'work';
-            const modeMap = { daily: 'daily', weekly: 'weekly', monthly: 'monthly', yearly: 'yearly' };
-            const subTabPrefixes = { work: '', attendance: 'attendance-', report: 'report-', personal: 'personal-', management: 'management-' };
-            
-            if (['work', 'attendance', 'report', 'personal', 'management'].includes(activeSubTab)) {
-                let viewString = modeMap[viewMode];
-                if (activeSubTab !== 'work' && subTabPrefixes[activeSubTab] !== undefined) {
-                    viewString = subTabPrefixes[activeSubTab] + modeMap[viewMode];
-                }
-                switchHistoryView(viewString);
-            }
-        }
-    });
-
+    // 💡 핵심 수정 파트: 데이터를 다 불러온 후에 UI를 순차적으로 깨웁니다.
     const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
@@ -157,13 +119,30 @@ export function setupHistoryModalListeners() {
             try { 
                 await loadAndRenderHistoryList(); 
                 
-                // 오픈 시 뷰 엔진 깨우기 (대시보드 강제 렌더링)
+                // 모바일 환경에서 데이터가 빈 화면으로 뜨는 것을 방지하기 위한 강제 렌더링 트리거
+                const rawdataMainTabBtn = document.querySelector('[data-main-tab="rawdata"]');
+                const dashboardMainTabBtn = document.querySelector('[data-main-tab="dashboard"]');
+                const tabButtons = Array.from(document.querySelectorAll('.history-tab-btn, button'));
+                const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.trim().includes('일별 상세'));
+                
+                if (rawdataMainTabBtn) rawdataMainTabBtn.click();
+                if (dailyTabBtn) dailyTabBtn.click();
+                if (typeof switchHistoryView === 'function') switchHistoryView('daily');
+                
                 setTimeout(() => {
-                    const dashboardTab = document.querySelector('[data-main-tab="dashboard"]');
-                    if(dashboardTab) dashboardTab.click();
+                    const firstDateItem = document.querySelector('#history-date-list li');
+                    if (firstDateItem) firstDateItem.click();
+                    
+                    setTimeout(() => {
+                        if (dashboardMainTabBtn) dashboardMainTabBtn.click();
+                    }, 100);
                 }, 100);
+
             } 
-            catch (loadError) { console.error(loadError); }
+            catch (loadError) { 
+                console.error("이력 데이터 로딩 에러:", loadError);
+                showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true); 
+            }
         }
     };
 
@@ -173,7 +152,8 @@ export function setupHistoryModalListeners() {
     
     if (DOM.openHistoryBtnMobile) {
         DOM.openHistoryBtnMobile.addEventListener('click', (e) => { 
-            e.preventDefault(); e.stopPropagation();
+            e.preventDefault();
+            e.stopPropagation();
             openHistoryModalLogic(e); 
             if (DOM.navContent) DOM.navContent.classList.add('hidden'); 
         });
@@ -181,7 +161,6 @@ export function setupHistoryModalListeners() {
 
     if (DOM.closeHistoryBtn) DOM.closeHistoryBtn.addEventListener('click', () => { if (DOM.historyModal) { DOM.historyModal.classList.add('hidden'); setHistoryMaximized(false); } });
 
-    // ✨ 날짜 목록 클릭 시 처리 로직
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
@@ -190,35 +169,56 @@ export function setupHistoryModalListeners() {
                 btn.classList.add('bg-blue-100', 'font-bold');
                 const dateKey = btn.dataset.key;
 
-                // 좌측 날짜를 누르면 자동으로 '로우 데이터' 탭으로 점프
-                const activeTopTab = document.querySelector('.history-main-tab-btn.text-blue-600')?.dataset.mainTab;
-                if (activeTopTab !== 'rawdata') {
-                    const rawTabBtn = document.querySelector('[data-main-tab="rawdata"]');
-                    if (rawTabBtn) rawTabBtn.click();
-                }
-
-                const activeSubTab = document.querySelector('.rawdata-sub-tab-btn.font-bold')?.dataset.subTab || 'work';
-                State.context.activeMainHistoryTab = activeSubTab; 
+                let activeMainTab = State.context.activeMainHistoryTab || 'work';
                 State.context.activeFilterDropdown = null; 
 
-                const viewMode = document.querySelector('.global-view-btn.font-bold')?.dataset.viewMode || 'daily';
+                if (activeMainTab === 'attendance') { refreshAttendanceView(); return; }
+                else if (activeMainTab === 'management') { refreshManagementView(); return; }
+
                 const filteredData = getFilteredHistoryData();
                 State.context.reportSortState = {};
 
-                if (activeSubTab === 'work') {
-                    if (viewMode === 'daily') {
+                if (activeMainTab === 'work') {
+                    const activeView = DOM.historyTabs?.querySelector('button.font-semibold')?.dataset.view || 'daily';
+                    if (activeView === 'daily') {
                         const currentIndex = filteredData.findIndex(d => d.id === dateKey);
                         const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length) ? filteredData[currentIndex + 1] : null;
                         renderHistoryDetail(dateKey, previousDayData);
-                    } else if (viewMode === 'weekly') renderWeeklyHistory(dateKey, filteredData, State.appConfig);
-                    else if (viewMode === 'monthly') renderMonthlyHistory(dateKey, filteredData, State.appConfig);
-                } else if (activeSubTab === 'attendance') { refreshAttendanceView(); }
-                else if (activeSubTab === 'report') { refreshReportView(); }
-                else if (activeSubTab === 'personal') { refreshPersonalView(); }
-                else if (activeSubTab === 'management') { refreshManagementView(); }
+                    } else if (activeView === 'weekly') renderWeeklyHistory(dateKey, filteredData, State.appConfig);
+                    else if (activeView === 'monthly') renderMonthlyHistory(dateKey, filteredData, State.appConfig);
+                } else if (activeMainTab === 'report') refreshReportView();
+                else if (activeMainTab === 'personal') refreshPersonalView();
             }
         });
     }
+
+    const handleTabSwitch = (e, tabsContainer) => {
+        const btn = e.target.closest('button[data-view]');
+        if (btn) {
+            State.context.activeFilterDropdown = null;
+            if (tabsContainer) {
+                tabsContainer.querySelectorAll('button').forEach(b => {
+                    b.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+                    b.classList.add('text-gray-500', 'hover:text-gray-700');
+                });
+                btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
+                btn.classList.remove('text-gray-500', 'hover:text-gray-700');
+            }
+            if (tabsContainer === DOM.personalReportTabs || tabsContainer === managementTabs) {
+                const viewMode = btn.dataset.view;
+                let listMode = 'day';
+                if(viewMode.includes('weekly')) listMode = 'week';
+                if(viewMode.includes('monthly')) listMode = 'month';
+                if(viewMode.includes('yearly')) listMode = 'year';
+            } else switchHistoryView(btn.dataset.view);
+        }
+    };
+
+    if (DOM.historyTabs) DOM.historyTabs.addEventListener('click', (e) => switchHistoryView(e.target.closest('button[data-view]')?.dataset.view));
+    if (DOM.attendanceHistoryTabs) DOM.attendanceHistoryTabs.addEventListener('click', (e) => { State.context.activeFilterDropdown = null; switchHistoryView(e.target.closest('button[data-view]')?.dataset.view); });
+    if (DOM.reportTabs) DOM.reportTabs.addEventListener('click', (e) => { State.context.reportSortState = {}; State.context.activeFilterDropdown = null; switchHistoryView(e.target.closest('button[data-view]')?.dataset.view); });
+    if (DOM.personalReportTabs) DOM.personalReportTabs.addEventListener('click', (e) => handleTabSwitch(e, DOM.personalReportTabs));
+    if (managementTabs) managementTabs.addEventListener('click', (e) => handleTabSwitch(e, managementTabs));
 
     if (DOM.personalReportMemberSelect) DOM.personalReportMemberSelect.addEventListener('change', (e) => { State.context.personalReportMember = e.target.value; refreshPersonalView(); });
 
