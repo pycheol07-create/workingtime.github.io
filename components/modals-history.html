@@ -1,10 +1,11 @@
 <style>
     @media (max-width: 768px) {
-        /* 모달 최상위 컨테이너 꽉 차게 강제 */
-        #history-modal {
-            display: block !important;
+        /* 💡 [핵심 수정] .hidden 클래스가 없을 때만 강제로 꽉 차게 렌더링! */
+        #history-modal:not(.hidden) {
+            display: flex !important;
             padding: 0 !important;
         }
+        
         /* 콘텐츠 박스가 화면 전체를 덮도록 강제 */
         #history-modal-content-box {
             position: fixed !important;
@@ -17,6 +18,7 @@
             display: flex !important;
             flex-direction: column !important;
         }
+        
         /* 내용물이 들어가는 패널 컨테이너의 높이가 0이 되는 현상 방지 */
         #history-modal-content-box > .flex-grow {
             flex: 1 1 auto !important;
@@ -26,6 +28,7 @@
             flex-direction: column !important;
             width: 100% !important;
         }
+        
         /* 각 탭별 패널 영역 강제 확장 */
         #dashboard-panel, #productivity-panel, #staffing-panel, #rawdata-panel {
             flex: 1 1 auto !important;
@@ -33,10 +36,12 @@
             min-height: 0 !important;
             width: 100% !important;
         }
+        
         /* 로우 데이터 패널 내부 가로 쪼개짐을 세로 구조로 변경 */
         #rawdata-panel > .flex-grow {
             flex-direction: column !important;
         }
+        
         /* 상단 탭 스크롤 영역이 찌그러지지 않도록 보호 */
         #history-modal-content-box > div.px-4.border-b {
             flex-shrink: 0 !important;
