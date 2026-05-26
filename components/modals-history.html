@@ -1,3 +1,50 @@
+<style>
+    @media (max-width: 768px) {
+        /* 모달 최상위 컨테이너 꽉 차게 강제 */
+        #history-modal {
+            display: block !important;
+            padding: 0 !important;
+        }
+        /* 콘텐츠 박스가 화면 전체를 덮도록 강제 */
+        #history-modal-content-box {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important; /* 최신 모바일 브라우저 대응 */
+            max-height: none !important;
+            border-radius: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        /* 내용물이 들어가는 패널 컨테이너의 높이가 0이 되는 현상 방지 */
+        #history-modal-content-box > .flex-grow {
+            flex: 1 1 auto !important;
+            height: 0 !important; /* flex-grow가 작동하기 위한 필수 속성 */
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+        }
+        /* 각 탭별 패널 영역 강제 확장 */
+        #dashboard-panel, #productivity-panel, #staffing-panel, #rawdata-panel {
+            flex: 1 1 auto !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            width: 100% !important;
+        }
+        /* 로우 데이터 패널 내부 가로 쪼개짐을 세로 구조로 변경 */
+        #rawdata-panel > .flex-grow {
+            flex-direction: column !important;
+        }
+        /* 상단 탭 스크롤 영역이 찌그러지지 않도록 보호 */
+        #history-modal-content-box > div.px-4.border-b {
+            flex-shrink: 0 !important;
+            width: 100% !important;
+        }
+    }
+</style>
+
 <div id="history-modal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center hidden z-50 p-0 md:p-4 transition-colors">
     <div id="history-modal-content-box" class="bg-white dark:bg-gray-900 md:rounded-2xl shadow-2xl w-full max-w-[1400px] h-full md:h-[880px] max-h-[100dvh] flex flex-col relative overflow-hidden transition-colors border-0 md:border border-gray-200 dark:border-gray-700">
 
