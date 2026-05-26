@@ -12,6 +12,9 @@ let lastCheckedDay = null;
 let localAutoClosePromptExecuted = false;
 let autoCloseTimer = null;
 
+// ✨ 데이터 로딩 경합 방지를 위한 앱 시작 시간 기록
+let appLoadTime = Date.now();
+
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
     displayCurrentDate();
@@ -32,16 +35,18 @@ export const updateElapsedTimes = async () => {
         lastCheckedDay = todayDate;
     }
     
-    const currentUserLower = (State.appState.currentUser || '').toLowerCase();
-    const isAdmin = State.appConfig?.memberRoles?.[currentUserLower] === 'admin';
+    // ✨ 수정 1: 이름이 아닌 이미 저장된 권한 상태를 바탕으로 관리자 여부 판별
+    const isAdmin = State.appState.currentUserRole === 'admin';
     
-    // ✨ 개선: 12:30분 정각이 아니더라도(예: 12:32분 접속) 범위 내라면 안전하게 감지
+    // 12:30분 정각이 아니더라도 범위 내라면 감지
     const isLunchTime = now >= '12:30' && now < '13:30';
     const isAfterLunch = now >= '13:30';
 
-    if (isTodayWeekday) {
+    // ✨ 수정 2: 앱 실행 직후 3초 동안은 서버에서 데이터를 불러오는 중이므로 자동화 기능 대기
+    const isDataReady = (Date.now() - appLoadTime > 3000) && State.appState.currentUser;
+
+    if (isTodayWeekday && isDataReady) {
         // --- 1. 점심시간 일시정지 (12:30 ~ 13:29) ---
-        // ✨ 개선: 관리자(isAdmin) 조건 삭제! 누구나 접속해 있으면 서버 동기화를 통해 1회만 안전하게 실행
         if (isLunchTime && !localLunchPauseExecuted && !State.appState.lunchPauseExecuted) {
             localLunchPauseExecuted = true; 
             
@@ -54,7 +59,6 @@ export const updateElapsedTimes = async () => {
         }
 
         // --- 2. 점심시간 재개 (13:30 이후) ---
-        // ✨ 개선: 역시 관리자 조건 삭제. 누군가 13:30 이후에 접속해 있다면 자동 재개
         if (isAfterLunch && !localLunchResumeExecuted && !State.appState.lunchResumeExecuted) {
             localLunchResumeExecuted = true;
             
@@ -68,7 +72,8 @@ export const updateElapsedTimes = async () => {
     }
 
     // ✨ 핵심 방어막 3: 17:30 퇴근 시간 감지 및 야근 확인 팝업 (관리자 전용)
-    if (isAdmin && isTodayWeekday && now === '17:30' && !localAutoClosePromptExecuted) {
+    // 데이터를 완전히 불러온 상태(isDataReady)일 때만 실행되도록 보호합니다.
+    if (isAdmin && isTodayWeekday && now === '17:30' && !localAutoClosePromptExecuted && isDataReady) {
         localAutoClosePromptExecuted = true;
         
         // 현재 진행 중인 업무 찾기
@@ -120,6 +125,7 @@ export const updateElapsedTimes = async () => {
         }
     }
 
+    // 아래 로직들은 데이터와 무관하게 실시간 시간 계산을 담당하므로 보호막 밖에서 항상 실행됩니다.
     document.querySelectorAll('.ongoing-duration').forEach(el => {
         try {
             const startTime = el.dataset.startTime;
@@ -153,7 +159,6 @@ export const updateElapsedTimes = async () => {
 };
 
 export const autoSaveProgress = async () => {
-    // 변경사항이 무시되는 버그를 고치고, 데이터가 실제로 변했을 때만 안전하게 저장 연동
     if (State.isDataDirty) {
         await saveStateToFirestore();
     }
