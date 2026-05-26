@@ -386,3 +386,27 @@ html.dark .depth-panel {
         white-space: nowrap !important; 
     }
 }
+
+/* =========================================================================
+   데이터 관리 모달(공통) 패널 높이 붕괴 방지 (index.html 모바일 인라인 오픈 대비)
+   ========================================================================= */
+#history-modal-content-box > .flex-grow {
+    min-height: 0 !important; 
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#dashboard-panel, #productivity-panel, #staffing-panel, #rawdata-panel {
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+#dashboard-panel, #productivity-panel, #staffing-panel {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+#rawdata-panel {
+    overflow: hidden !important; 
+}
