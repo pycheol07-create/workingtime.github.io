@@ -97,6 +97,7 @@ export function setupHistoryModalListeners() {
         else renderManagementSummary(viewMode, dateKey, State.allHistoryData);
     };
 
+    // 💡 핵심 수정 파트: 데이터를 다 불러온 후에 UI를 순차적으로 깨웁니다.
     const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
@@ -114,16 +115,34 @@ export function setupHistoryModalListeners() {
         if (DOM.historyModal) {
             DOM.historyModal.classList.remove('hidden');
             setHistoryMaximized(true); 
-            
-            const applyBtn = document.getElementById('global-filter-btn');
-            if (applyBtn) applyBtn.click();
-            setTimeout(() => {
-                const dashTab = document.querySelector('.history-main-tab-btn[data-main-tab="dashboard"]');
-                if (dashTab) dashTab.click();
-            }, 100);
 
-            try { await loadAndRenderHistoryList(); } 
-            catch (loadError) { showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true); }
+            try { 
+                await loadAndRenderHistoryList(); 
+                
+                // 모바일 환경에서 데이터가 빈 화면으로 뜨는 것을 방지하기 위한 강제 렌더링 트리거
+                const rawdataMainTabBtn = document.querySelector('[data-main-tab="rawdata"]');
+                const dashboardMainTabBtn = document.querySelector('[data-main-tab="dashboard"]');
+                const tabButtons = Array.from(document.querySelectorAll('.history-tab-btn, button'));
+                const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.trim().includes('일별 상세'));
+                
+                if (rawdataMainTabBtn) rawdataMainTabBtn.click();
+                if (dailyTabBtn) dailyTabBtn.click();
+                if (typeof switchHistoryView === 'function') switchHistoryView('daily');
+                
+                setTimeout(() => {
+                    const firstDateItem = document.querySelector('#history-date-list li');
+                    if (firstDateItem) firstDateItem.click();
+                    
+                    setTimeout(() => {
+                        if (dashboardMainTabBtn) dashboardMainTabBtn.click();
+                    }, 100);
+                }, 100);
+
+            } 
+            catch (loadError) { 
+                console.error("이력 데이터 로딩 에러:", loadError);
+                showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true); 
+            }
         }
     };
 
@@ -131,7 +150,6 @@ export function setupHistoryModalListeners() {
         DOM.openHistoryBtn.addEventListener('click', openHistoryModalLogic);
     }
     
-    // 🔥 모바일용 이벤트 버블링 차단 적용 (중복 클릭 방지)
     if (DOM.openHistoryBtnMobile) {
         DOM.openHistoryBtnMobile.addEventListener('click', (e) => { 
             e.preventDefault();
