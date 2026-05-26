@@ -25,14 +25,14 @@
         }
         
         /* 각 탭별 패널: 숨겨지지 않았을 때만 화면 꽉 채우기 */
-        #dashboard-panel:not(.hidden), #productivity-panel:not(.hidden), #staffing-panel:not(.hidden), #rawdata-panel:not(.hidden) {
+        #dashboard-panel:not(.hidden), #productivity-panel:not(.hidden), #staffing-panel:not(.hidden), #prediction-panel:not(.hidden), #rawdata-panel:not(.hidden) {
             flex: 1 1 auto !important;
             min-height: 0 !important; height: 100% !important;
             display: flex !important; flex-direction: column !important;
         }
         
         /* 내부 스크롤 허용 */
-        #dashboard-panel, #productivity-panel, #staffing-panel {
+        #dashboard-panel, #productivity-panel, #staffing-panel, #prediction-panel {
             overflow-y: auto !important; -webkit-overflow-scrolling: touch !important;
         }
         
@@ -76,6 +76,7 @@
                 <button data-main-tab="dashboard" class="history-main-tab-btn py-3 md:py-4 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap text-sm md:text-base">📊 종합 대시보드</button>
                 <button data-main-tab="productivity" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">🚀 생산성 및 효율성</button>
                 <button data-main-tab="staffing" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">👥 인력 운영 및 적정성</button>
+                <button data-main-tab="prediction" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">🔮 실적 예측</button>
                 <button data-main-tab="rawdata" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">📁 로우 데이터 및 추출</button>
             </div>
 
@@ -296,6 +297,81 @@
                 </div>
             </div>
 
+            <div id="prediction-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6 hidden">
+                <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-2">
+                    <span>🔮</span> AI 실적 및 트렌드 예측
+                </h3>
+                
+                <div class="flex flex-col md:flex-row md:items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel gap-4">
+                    <div class="flex items-center">
+                        <span id="pred-period-label" class="text-sm font-bold text-gray-700 dark:text-gray-300">향후 14일 기준</span>
+                        <select id="prediction-days-select" class="ml-3 border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-lg p-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 outline-none">
+                            <option value="7">7일 예측</option>
+                            <option value="14" selected>14일 예측</option>
+                            <option value="30">30일 예측</option>
+                        </select>
+                    </div>
+                    <p id="pred-error-rate-text" class="text-xs text-gray-500 dark:text-gray-400 text-right"></p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <div class="text-sm font-bold text-gray-500 dark:text-gray-400">내일 매출 예측</div>
+                        <div id="pred-tomorrow-revenue" class="text-xl md:text-2xl font-black text-gray-900 dark:text-white mt-2">-</div>
+                        <div id="pred-revenue-trend" class="text-xs mt-2"></div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <div class="text-sm font-bold text-gray-500 dark:text-gray-400">내일 배송량 예측</div>
+                        <div id="pred-tomorrow-delivery" class="text-xl md:text-2xl font-black text-gray-900 dark:text-white mt-2">-</div>
+                        <div id="pred-delivery-trend" class="text-xs mt-2"></div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <div class="text-sm font-bold text-gray-500 dark:text-gray-400">기간 평균 매출 (일)</div>
+                        <div id="pred-period-avg-revenue" class="text-xl md:text-2xl font-black text-gray-900 dark:text-white mt-2">-</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <div class="text-sm font-bold text-gray-500 dark:text-gray-400">기간 평균 배송량 (일)</div>
+                        <div id="pred-period-avg-delivery" class="text-xl md:text-2xl font-black text-gray-900 dark:text-white mt-2">-</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                    <div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="font-bold text-gray-700 dark:text-gray-300">오늘 매출 (실적 / 예측)</span>
+                            <span class="text-gray-600 dark:text-gray-400"><span id="pred-today-act-rev" class="font-bold text-gray-900 dark:text-white">0</span> / <span id="pred-today-est-rev">0</span></span>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                            <div id="pred-today-rev-bar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="font-bold text-gray-700 dark:text-gray-300">오늘 배송량 (실적 / 예측)</span>
+                            <span class="text-gray-600 dark:text-gray-400"><span id="pred-today-act-del" class="font-bold text-gray-900 dark:text-white">0</span> / <span id="pred-today-est-del">0</span></span>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                            <div id="pred-today-del-bar" class="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 flex-grow min-h-[350px]">
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex flex-col">
+                        <h4 class="text-md font-bold text-gray-800 dark:text-white mb-4">📈 매출 트렌드 및 AI 예측</h4>
+                        <div class="relative flex-grow min-h-[250px]">
+                            <canvas id="chart-prediction-revenue"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex flex-col">
+                        <h4 class="text-md font-bold text-gray-800 dark:text-white mb-4">📦 배송량 트렌드 및 AI 예측</h4>
+                        <div class="relative flex-grow min-h-[250px]">
+                            <canvas id="chart-prediction-delivery"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="rawdata-panel" class="flex-1 flex flex-col h-full hidden bg-white dark:bg-gray-900">
                 <div class="px-4 md:px-6 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 flex gap-4 shrink-0 overflow-x-auto no-scrollbar w-full">
                     <button data-sub-tab="work" class="rawdata-sub-tab-btn py-3 text-sm font-bold text-gray-800 dark:text-gray-200 border-b-2 border-gray-800 dark:border-gray-200 whitespace-nowrap">업무 이력</button>
@@ -315,7 +391,6 @@
                     </div>
                     
                     <div class="flex-1 flex flex-col overflow-hidden relative">
-                        
                         <div id="work-history-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto z-10">
                             <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0 gap-3">
                                 <div id="history-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
