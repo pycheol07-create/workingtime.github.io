@@ -8,7 +8,13 @@ export function renderDashboardTab(filteredData, appConfig) {
     if (!filteredData || filteredData.length === 0) {
         document.getElementById('ai-dashboard-comment').textContent = "조회된 기간에 이력 데이터가 없습니다.";
         document.getElementById('kpi-total-time').innerHTML = `0<span class="text-sm font-medium text-gray-500 ml-1">h</span>`;
-        document.getElementById('kpi-total-cost').innerHTML = `0<span class="text-sm font-medium text-gray-500 ml-1">원</span>`;
+        
+        // 새로 추가된 지표 초기화
+        const avgWorkDaysEl = document.getElementById('kpi-avg-work-days');
+        if(avgWorkDaysEl) avgWorkDaysEl.innerHTML = `0.0<span class="text-sm font-medium text-gray-500 ml-1">일</span>`;
+        const totalQtyEl = document.getElementById('kpi-total-qty');
+        if(totalQtyEl) totalQtyEl.innerHTML = `0<span class="text-sm font-medium text-gray-500 ml-1">건</span>`;
+
         document.getElementById('kpi-avg-uph').innerHTML = `0.0<span class="text-sm font-medium text-blue-400 ml-1">개/시</span>`;
         document.getElementById('kpi-total-oee').innerHTML = `0<span class="text-sm font-medium text-green-400 ml-1">%</span>`;
         
@@ -26,9 +32,12 @@ export function renderDashboardTab(filteredData, appConfig) {
 
     let totalDurationMin = 0;
     let totalActualDurationMin = 0; 
-    let totalCost = 0;
     let totalQty = 0;
     
+    // 평균 근무일수 계산용 변수 추가
+    const uniqueMembersAllTime = new Set();
+    let totalWorkerDays = 0;
+
     const trendLabels = [];
     const uphTrendData = [];
     const timeTrendData = [];
@@ -61,21 +70,24 @@ export function renderDashboardTab(filteredData, appConfig) {
         });
 
         let dayDuration = 0;
-        let dayCost = 0;
         let dayQty = 0;
         const uniqueMembers = new Set();
 
         (day.workRecords || []).forEach(r => {
             dayDuration += (r.duration || 0);
-            if (r.member) uniqueMembers.add(r.member);
-            const wage = wageMap[r.member] || 0;
-            dayCost += ((r.duration || 0) / 60) * wage;
+            if (r.member) {
+                uniqueMembers.add(r.member);
+                uniqueMembersAllTime.add(r.member); // 전체 기간 중 활동한 고유 인원 수집
+            }
             
             const matchedType = taskTypes.find(t => (r.taskType && r.taskType.includes(t)) || (r.task && r.task.includes(t)));
             if (matchedType) partSummary[matchedType].duration += (r.duration || 0);
             
             aggregatedWorkRecords.push({ ...r, date: day.id });
         });
+
+        // 하루 동안 투입된 총 인원수를 더함 (연인원 개념)
+        totalWorkerDays += uniqueMembers.size;
 
         Object.entries(day.taskQuantities || {}).forEach(([taskKey, qty]) => {
             const numQty = Number(qty) || 0;
@@ -100,7 +112,6 @@ export function renderDashboardTab(filteredData, appConfig) {
         
         totalDurationMin += dayDuration;
         totalActualDurationMin += dayActualDuration; 
-        totalCost += dayCost;
         totalQty += dayQty;
 
         const dayUph = dayDuration > 0 ? (dayQty / (dayDuration / 60)) : 0;
@@ -128,16 +139,25 @@ export function renderDashboardTab(filteredData, appConfig) {
     const avgInventoryAmt = daysWithInventory > 0 ? (totalInventoryAmt / daysWithInventory) : 0;
     const turnoverRate = avgInventoryAmt > 0 ? (totalRevenue / avgInventoryAmt) : 0;
     
+    // 평균 근무일수 계산 (총 투입 연인원 / 전체 기간 중 일한 고유 인원)
+    const avgWorkDays = uniqueMembersAllTime.size > 0 ? (totalWorkerDays / uniqueMembersAllTime.size) : 0;
+
     const TARGET_UPH = 200; 
     const oee = Math.min(100, Math.max(0, (avgUph / TARGET_UPH) * 100)); 
 
-    // KPI 업데이트: 총 시간 + 인당 평균(실제 소요시간) 표시
+    // KPI 렌더링 업데이트
     document.getElementById('kpi-total-time').innerHTML = `
         ${Math.round(totalHours).toLocaleString()}<span class="text-sm font-medium text-gray-500 ml-1">h</span>
         <div class="text-sm font-bold text-blue-600 mt-1 bg-blue-50/50 inline-block px-1.5 py-0.5 rounded">인당 평균: ${Math.round(totalActualHours).toLocaleString()}h</div>
     `;
     
-    document.getElementById('kpi-total-cost').innerHTML = `${Math.round(totalCost).toLocaleString()}<span class="text-sm font-medium text-gray-500 ml-1">원</span>`;
+    // 새로 추가된 KPI 렌더링
+    const avgWorkDaysEl = document.getElementById('kpi-avg-work-days');
+    if(avgWorkDaysEl) avgWorkDaysEl.innerHTML = `${avgWorkDays.toFixed(1)}<span class="text-sm font-medium text-gray-500 ml-1">일</span>`;
+    
+    const totalQtyEl = document.getElementById('kpi-total-qty');
+    if(totalQtyEl) totalQtyEl.innerHTML = `${Math.round(totalQty).toLocaleString()}<span class="text-sm font-medium text-gray-500 ml-1">건</span>`;
+
     document.getElementById('kpi-avg-uph').innerHTML = `${avgUph.toFixed(1)}<span class="text-sm font-medium text-blue-400 ml-1">개/시</span>`;
     document.getElementById('kpi-total-oee').innerHTML = `${oee.toFixed(1)}<span class="text-sm font-medium text-green-400 ml-1">%</span>`;
     
@@ -199,7 +219,6 @@ export function renderDashboardTab(filteredData, appConfig) {
     if (!ctx) return;
     if (dashboardChartInstance) { dashboardChartInstance.destroy(); }
 
-    // 그래프에도 '인당 소요 시간' Bar 추가
     dashboardChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
