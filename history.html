@@ -18,7 +18,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <style>
-        /* 💡 탭 전환 시 hidden 클래스가 충돌하는 문제 방지 (모바일 레이아웃 겹침/증발의 핵심 원인) */
+        /* 💡 탭 전환 시 hidden 클래스가 충돌하는 문제 방지 */
         .hidden { display: none !important; }
 
         /* HTML/Body 스크롤 꼬임 및 모바일 높이 무너짐 방지 */
@@ -30,6 +30,7 @@
         }
         body { 
             background-color: #f9fafb; 
+            height: 100vh !important; /* 구형 기기 호환용 폴백(Fallback) */
             height: 100dvh !important; 
             display: flex; 
             flex-direction: column; 
@@ -44,7 +45,7 @@
             flex-direction: column !important; 
         }
         
-        /* 💡 화면 깜빡임 방지: opacity를 0으로 시작해서 데이터 로딩 과정을 완전히 가립니다 */
+        /* 💡 화면 깜빡임 방지: 페이드인 효과 */
         #history-modal { 
             position: fixed !important; 
             inset: 0 !important;
@@ -52,16 +53,16 @@
             flex-direction: column !important;
             background: #f9fafb !important; 
             width: 100vw !important; 
+            height: 100vh !important; 
             height: 100dvh !important; 
             padding: 0 !important; 
             margin: 0 !important;
-            z-index: 40 !important;
+            z-index: 50 !important; 
             opacity: 0; 
             pointer-events: none;
-            transition: opacity 0.4s ease-out; /* 부드러운 페이드인 효과 */
+            transition: opacity 0.4s ease-out; 
         }
         
-        /* 세팅이 완료되면 자바스크립트에서 이 클래스를 추가하여 나타나게 합니다 */
         #history-modal.ready-show {
             opacity: 1 !important;
             pointer-events: auto !important;
@@ -81,7 +82,6 @@
             flex-direction: column !important;
         }
         
-        /* 💡 모바일 빈 화면 방지: 플렉스 자식 영역이 축소되어 높이가 0이 되는 버그 차단 (min-height: 0) */
         #history-modal-content-box > .flex-grow {
             min-height: 0 !important; 
             flex: 1 1 auto !important;
@@ -89,11 +89,17 @@
             flex-direction: column !important;
         }
 
+        /* 💡 패널별 속성 분리 (rawdata-panel은 스크롤이 되면 안됩니다!) */
         #dashboard-panel, #productivity-panel, #staffing-panel, #rawdata-panel {
             min-height: 0 !important;
             flex: 1 1 auto !important;
+        }
+        #dashboard-panel, #productivity-panel, #staffing-panel {
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch !important;
+        }
+        #rawdata-panel {
+            overflow: hidden !important; 
         }
         
         #toggle-history-fullscreen-btn, #close-history-btn, #history-modal-header { display: none !important; }
@@ -135,6 +141,15 @@
                 const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js');
 
                 const triggerInitialUI = () => {
+                    // 💡 [안전장치 추가] 0.3초 뒤 무조건 화면을 표시하여 투명한 상태에 영원히 갇히는 현상 방지
+                    setTimeout(() => {
+                        const modal = document.getElementById('history-modal');
+                        if (modal) {
+                            modal.classList.remove('hidden');
+                            modal.classList.add('ready-show');
+                        }
+                    }, 300);
+
                     let uiAttempts = 0;
                     const triggerInterval = setInterval(() => {
                         uiAttempts++;
@@ -149,7 +164,6 @@
                             clearInterval(triggerInterval);
                             
                             try {
-                                // 1. 화면이 투명한(보이지 않는) 상태에서 로우 데이터를 미리 눌러 데이터를 동기화합니다.
                                 rawdataMainTabBtn.click();
                                 dailyTabBtn.click();
                                 if (typeof switchHistoryView === 'function') switchHistoryView('daily'); 
@@ -157,11 +171,9 @@
                                 setTimeout(() => {
                                     if (firstDateItem) firstDateItem.click();
                                     
-                                    // 2. 동기화가 끝나면 대시보드로 돌아옵니다. (아직까지 사용자 화면은 투명합니다)
                                     setTimeout(() => {
                                         if (dashboardMainTabBtn) dashboardMainTabBtn.click();
                                         
-                                        // 3. 짠! 모든 준비가 끝나면 페이드인(Fade-in)하며 종합 대시보드 화면을 자연스럽게 띄웁니다.
                                         setTimeout(() => {
                                             const modal = document.getElementById('history-modal');
                                             if (modal) {
@@ -210,7 +222,6 @@
                                     clearInterval(waitForData);
                                     await loadAndRenderHistoryList();
                                     
-                                    // 투명도(opacity: 0)는 유지한 채 hidden만 해제합니다.
                                     const modal = document.getElementById('history-modal');
                                     if (modal) modal.classList.remove('hidden');
 
