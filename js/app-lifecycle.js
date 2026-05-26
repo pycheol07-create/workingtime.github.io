@@ -35,25 +35,35 @@ export const updateElapsedTimes = async () => {
     const currentUserLower = (State.appState.currentUser || '').toLowerCase();
     const isAdmin = State.appConfig?.memberRoles?.[currentUserLower] === 'admin';
     
-    // ✨ 핵심 방어막 1: 여러 관리자가 동시 접속해 있을 때 중복 쓰기(Write) 폭탄이 발생하는 것을 막기 위해 글로벌 상태 교차 검증
-    if (isTodayWeekday && now === '12:30' && !localLunchPauseExecuted) {
-        localLunchPauseExecuted = true; 
-        if (isAdmin && !State.appState.lunchPauseExecuted && State.context.autoPauseForLunch) {
-            try {
-                const tasksPaused = await State.context.autoPauseForLunch();
-                if (tasksPaused > 0) showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
-            } catch (e) { console.error("Error during auto-pause: ", e); }
-        }
-    }
+    // ✨ 개선: 12:30분 정각이 아니더라도(예: 12:32분 접속) 범위 내라면 안전하게 감지
+    const isLunchTime = now >= '12:30' && now < '13:30';
+    const isAfterLunch = now >= '13:30';
 
-    if (isTodayWeekday && now === '13:30' && !localLunchResumeExecuted) {
-        localLunchResumeExecuted = true;
-        // ✨ 핵심 방어막 2: 동일하게 글로벌 재개 상태 확인
-        if (isAdmin && !State.appState.lunchResumeExecuted && State.context.autoResumeFromLunch) {
-            try {
-                const tasksResumed = await State.context.autoResumeFromLunch();
-                if (tasksResumed > 0) showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
-            } catch (e) { console.error("Error during auto-resume: ", e); }
+    if (isTodayWeekday) {
+        // --- 1. 점심시간 일시정지 (12:30 ~ 13:29) ---
+        // ✨ 개선: 관리자(isAdmin) 조건 삭제! 누구나 접속해 있으면 서버 동기화를 통해 1회만 안전하게 실행
+        if (isLunchTime && !localLunchPauseExecuted && !State.appState.lunchPauseExecuted) {
+            localLunchPauseExecuted = true; 
+            
+            if (State.context.autoPauseForLunch) {
+                try {
+                    const tasksPaused = await State.context.autoPauseForLunch();
+                    if (tasksPaused > 0) showToast(`점심시간입니다. 진행 중인 ${tasksPaused}개의 업무를 자동 일시정지합니다.`, false);
+                } catch (e) { console.error("Error during auto-pause: ", e); }
+            }
+        }
+
+        // --- 2. 점심시간 재개 (13:30 이후) ---
+        // ✨ 개선: 역시 관리자 조건 삭제. 누군가 13:30 이후에 접속해 있다면 자동 재개
+        if (isAfterLunch && !localLunchResumeExecuted && !State.appState.lunchResumeExecuted) {
+            localLunchResumeExecuted = true;
+            
+            if (State.context.autoResumeFromLunch) {
+                try {
+                    const tasksResumed = await State.context.autoResumeFromLunch();
+                    if (tasksResumed > 0) showToast(`점심시간 종료. ${tasksResumed}개의 업무를 자동 재개합니다.`, false);
+                } catch (e) { console.error("Error during auto-resume: ", e); }
+            }
         }
     }
 
@@ -143,7 +153,7 @@ export const updateElapsedTimes = async () => {
 };
 
 export const autoSaveProgress = async () => {
-    // ✨ 핵심 개선 3: 변경사항이 무시되는 버그를 고치고, 데이터가 실제로 변했을 때만 안전하게 저장 연동
+    // 변경사항이 무시되는 버그를 고치고, 데이터가 실제로 변했을 때만 안전하게 저장 연동
     if (State.isDataDirty) {
         await saveStateToFirestore();
     }
