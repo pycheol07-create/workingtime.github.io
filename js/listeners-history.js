@@ -382,3 +382,31 @@ export const requestHistoryDeletion = (dateKey) => {
     if (msgEl) msgEl.innerHTML = `정말로 이 날짜의 <span class="text-red-600 font-bold">${targetName}</span> 데이터를 삭제하시겠습니까?`;
     if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.remove('hidden');
 };
+
+// 전역 보기 모드 (일별/주별/월별/연간) 클릭 이벤트
+document.querySelectorAll('.global-mode-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+        // 1. 버튼 UI 활성화 통일
+        document.querySelectorAll('.global-mode-btn').forEach(b => {
+            b.classList.remove('bg-white', 'dark:bg-gray-600', 'shadow-sm', 'text-blue-600', 'dark:text-blue-400', 'font-bold');
+            b.classList.add('text-gray-500', 'font-medium');
+        });
+        e.target.classList.remove('text-gray-500', 'font-medium');
+        e.target.classList.add('bg-white', 'dark:bg-gray-600', 'shadow-sm', 'text-blue-600', 'dark:text-blue-400', 'font-bold');
+
+        // 2. 모드 가져오기 ('day', 'week', 'month', 'year')
+        const mode = e.target.dataset.mode;
+        
+        // 3. 좌측 트리 구조 날짜 리스트 리렌더링 (모든 탭 공통)
+        await renderHistoryDateListByMode(mode);
+        
+        // 4. (선택) 로우데이터 내부 패널들의 뷰 전환 트리거
+        // 현재 선택된 서브 탭에 따라 내부 화면도 맞게 켜주기 (예: report-daily-view -> report-weekly-view)
+        const activeSubTab = document.querySelector('.rawdata-sub-tab-btn.font-bold')?.dataset?.subTab;
+        if(activeSubTab) {
+            let viewName = `${activeSubTab}-${mode === 'day' ? 'daily' : mode + 'ly'}`;
+            if(activeSubTab === 'work') viewName = mode === 'day' ? 'daily' : mode + 'ly';
+            // switchHistoryView(viewName); // 기존의 뷰 전환 함수 호출
+        }
+    });
+});
