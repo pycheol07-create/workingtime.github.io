@@ -6,6 +6,8 @@ import { showToast, getTodayDateString } from './utils.js';
 import { renderDashboardTab } from './ui-history-dashboard.js';
 import { renderProductivityTab } from './ui-history-productivity.js';
 import { renderStaffingTab } from './ui-history-staffing.js';
+// 💡 실적 예측 함수 불러오기 추가
+import { renderPredictionTab } from './ui-history-prediction.js';
 import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js';
 import * as UILeave from './ui-history-leave.js';
 import { switchHistoryView, renderHistoryDateListByMode } from './app-history-logic.js';
@@ -148,15 +150,20 @@ export function setupHistoryTabsListeners() {
                     : 'history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap';
             });
 
+            // 💡 실적 예측 패널 토글 추가
             document.getElementById('dashboard-panel').classList.toggle('hidden', tabName !== 'dashboard');
             document.getElementById('productivity-panel').classList.toggle('hidden', tabName !== 'productivity');
             document.getElementById('staffing-panel').classList.toggle('hidden', tabName !== 'staffing');
+            document.getElementById('prediction-panel').classList.toggle('hidden', tabName !== 'prediction');
             document.getElementById('rawdata-panel').classList.toggle('hidden', tabName !== 'rawdata');
 
             const filteredData = getFilteredHistoryData();
+            
+            // 💡 실적 예측 렌더링 호출 추가
             if (tabName === 'dashboard') renderDashboardTab(filteredData, State.appConfig);
             else if (tabName === 'productivity') renderProductivityTab(filteredData, State.appConfig);
             else if (tabName === 'staffing') renderStaffingTab(filteredData, State.appConfig);
+            else if (tabName === 'prediction') renderPredictionTab(filteredData);
             else if (tabName === 'rawdata') {
                 const firstSub = document.querySelector('.rawdata-sub-tab-btn[data-sub-tab="work"]');
                 if (firstSub) firstSub.click();
