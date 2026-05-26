@@ -114,27 +114,37 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <p class="text-xs font-bold text-gray-500 dark:text-gray-400">총 업무시간</p>
                         <p class="text-xl md:text-2xl font-black text-gray-800 dark:text-white mt-1" id="kpi-total-time">0<span class="text-sm font-medium text-gray-500 ml-1">h</span></p>
                     </div>
+                    
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">총 인건비 (추정)</p>
-                        <p class="text-xl md:text-2xl font-black text-gray-800 dark:text-white mt-1" id="kpi-total-cost">0<span class="text-sm font-medium text-gray-500 ml-1">원</span></p>
+                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">평균 근무일수</p>
+                        <p class="text-xl md:text-2xl font-black text-gray-800 dark:text-white mt-1" id="kpi-avg-work-days">0.0<span class="text-sm font-medium text-gray-500 ml-1">일</span></p>
                     </div>
+
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">총 처리량</p>
+                        <p class="text-xl md:text-2xl font-black text-gray-800 dark:text-white mt-1" id="kpi-total-qty">0<span class="text-sm font-medium text-gray-500 ml-1">건</span></p>
+                    </div>
+
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <p class="text-xs font-bold text-gray-500 dark:text-gray-400">종합 UPH</p>
                         <p class="text-xl md:text-2xl font-black text-blue-600 dark:text-blue-400 mt-1" id="kpi-avg-uph">0.0<span class="text-[10px] md:text-sm font-medium text-blue-400 ml-1">개/시</span></p>
                     </div>
+                    
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <p class="text-xs font-bold text-gray-500 dark:text-gray-400">종합 OEE</p>
                         <p class="text-xl md:text-2xl font-black text-green-600 dark:text-green-400 mt-1" id="kpi-total-oee">0<span class="text-sm font-medium text-green-400 ml-1">%</span></p>
                     </div>
+                    
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <p class="text-xs font-bold text-gray-500 dark:text-gray-400">출고원가 (건당)</p>
                         <p class="text-xl md:text-2xl font-black text-purple-600 dark:text-purple-400 mt-1" id="kpi-unit-cost">0<span class="text-sm font-medium text-purple-400 ml-1">원</span></p>
                     </div>
+                    
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <p class="text-xs font-bold text-gray-500 dark:text-gray-400">재고회전율 (추정)</p>
                         <p class="text-xl md:text-2xl font-black text-orange-600 dark:text-orange-400 mt-1" id="kpi-inventory-turnover">0.0<span class="text-sm font-medium text-orange-400 ml-1">회</span></p>
