@@ -8,9 +8,11 @@ import { setupHistoryRecordListeners } from './listeners-history-records.js';
 import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js';
 import { setupHistoryInspectionListeners } from './listeners-history-inspection.js';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
+// 💡 수정됨: renderHistoryDateListByMode를 app-history-logic.js에서 불러옵니다.
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave, renderHistoryDateListByMode } from './app-history-logic.js';
 import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderPredictionTab } from './ui-history.js';
-import { syncTodayToHistory, saveManagementData, renderHistoryDateListByMode } from './history-data-manager.js';
+// 💡 수정됨: history-data-manager에서는 필요한 것만 불러옵니다.
+import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
 import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData } from './listeners-history-tabs.js';
@@ -115,10 +117,7 @@ export function setupHistoryModalListeners() {
         const listModeMap = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' };
         
         // 1. 좌측 폴더 리스트 형태(일/주/월/년) 즉각 변경
-        if (typeof import('./app-history-logic.js').then === 'function') {
-            const module = await import('./app-history-logic.js');
-            await module.renderHistoryDateListByMode(listModeMap[viewMode]);
-        }
+        renderHistoryDateListByMode(listModeMap[viewMode]);
 
         // 2. 우측 패널이 로우 데이터라면 뷰 전환 트리거
         const activeTopTab = document.querySelector('.history-main-tab-btn.text-blue-600')?.dataset.mainTab;
