@@ -1,52 +1,56 @@
 <style>
     @media (max-width: 768px) {
-        /* 💡 [핵심 수정] .hidden 클래스가 없을 때만 강제로 꽉 차게 렌더링! */
-        #history-modal:not(.hidden) {
-            display: flex !important;
-            padding: 0 !important;
-        }
+        /* 모달 배경: 열렸을 때만 블록 처리 */
+        #history-modal:not(.hidden) { display: block !important; padding: 0 !important; }
         
-        /* 콘텐츠 박스가 화면 전체를 덮도록 강제 */
+        /* 모달 메인 창: 모바일 화면 100% 꽉 채우기 (절대 찌그러지지 않음) */
         #history-modal-content-box {
-            position: fixed !important;
-            inset: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            height: 100dvh !important; /* 최신 모바일 브라우저 대응 */
-            max-height: none !important;
-            border-radius: 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
+            position: fixed !important; inset: 0 !important;
+            width: 100vw !important; height: 100vh !important; height: 100dvh !important;
+            max-height: none !important; margin: 0 !important; border-radius: 0 !important;
+            display: flex !important; flex-direction: column !important;
+            background-color: #f9fafb !important; z-index: 9999 !important;
         }
         
-        /* 내용물이 들어가는 패널 컨테이너의 높이가 0이 되는 현상 방지 */
+        /* 상단 헤더와 탭 영역 크기 고정 (스크롤 시 밀려 올라감 방지) */
+        #history-modal-header { flex: 0 0 auto !important; }
+        #history-modal-content-box > div.px-4.border-b { flex: 0 0 auto !important; }
+        
+        /* 메인 데이터 영역: 남은 공간 모두 차지하되 높이 0px 버그 원천 차단 */
         #history-modal-content-box > .flex-grow {
             flex: 1 1 auto !important;
-            height: 0 !important; /* flex-grow가 작동하기 위한 필수 속성 */
             min-height: 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            width: 100% !important;
+            height: auto !important; /* 💡 높이 증발 버그 해결의 핵심! */
+            display: flex !important; flex-direction: column !important;
         }
         
-        /* 각 탭별 패널 영역 강제 확장 */
-        #dashboard-panel, #productivity-panel, #staffing-panel, #rawdata-panel {
+        /* 각 탭별 패널: 숨겨지지 않았을 때만 화면 꽉 채우기 */
+        #dashboard-panel:not(.hidden), #productivity-panel:not(.hidden), #staffing-panel:not(.hidden), #rawdata-panel:not(.hidden) {
             flex: 1 1 auto !important;
-            height: 100% !important;
-            min-height: 0 !important;
-            width: 100% !important;
+            min-height: 0 !important; height: 100% !important;
+            display: flex !important; flex-direction: column !important;
         }
         
-        /* 로우 데이터 패널 내부 가로 쪼개짐을 세로 구조로 변경 */
+        /* 내부 스크롤 허용 */
+        #dashboard-panel, #productivity-panel, #staffing-panel {
+            overflow-y: auto !important; -webkit-overflow-scrolling: touch !important;
+        }
+        
+        /* 로우 데이터 패널 레이아웃 세로 분할로 강제 변경 */
         #rawdata-panel > .flex-grow {
-            flex-direction: column !important;
+            flex: 1 1 auto !important; flex-direction: column !important; min-height: 0 !important;
         }
         
-        /* 상단 탭 스크롤 영역이 찌그러지지 않도록 보호 */
-        #history-modal-content-box > div.px-4.border-b {
-            flex-shrink: 0 !important;
-            width: 100% !important;
+        /* 가로 스크롤 날짜 리스트 강제 고정 (찌그러짐 방지) */
+        #history-date-list-container {
+            flex: 0 0 auto !important; height: 55px !important; min-height: 55px !important; width: 100% !important;
+            overflow-x: auto !important; overflow-y: hidden !important;
+            white-space: nowrap !important; border-bottom: 1px solid #e5e7eb !important;
         }
+        #history-date-list { display: flex !important; flex-direction: row !important; padding: 0.5rem !important; gap: 0.5rem !important; }
+        
+        /* 내부 Absolute 패널들 높이 보호 */
+        #rawdata-panel .relative { flex: 1 1 auto !important; min-height: 0 !important; }
     }
 </style>
 
