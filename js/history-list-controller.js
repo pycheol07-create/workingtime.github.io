@@ -1,5 +1,5 @@
 // === js/history-list-controller.js ===
-// 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
+// 설명: 이력 모달의 좌측 날짜 목록 관리, 단위 전환, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
@@ -36,7 +36,7 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
-    // ✨ 신규: 통합 단위 버튼 이벤트 리스너 등록 (최초 1회만 등록)
+    // 신규: 통합 단위 버튼 이벤트 리스너 등록 (최초 1회만 등록)
     if (!DOM.historyDateList.dataset.periodBound) {
         document.querySelectorAll('.period-toggle-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -68,7 +68,7 @@ export const loadAndRenderHistoryList = async () => {
         btn.classList.add('font-medium', 'text-gray-500');
     });
 
-    // 하위 탭 스타일 초기화 (기존 코드 유지)
+    // 하위 탭 스타일 초기화
     document.querySelectorAll('#history-tabs button[data-view="daily"]').forEach(btn => {
         btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
         btn.classList.remove('text-gray-500');
@@ -115,7 +115,6 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
         await syncTodayToHistory(); 
         augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
 
-        // 원본의 기간 필터 로직 완벽 복구
         const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
             ? State.allHistoryData.filter(d => {
                 const date = d.id;
@@ -130,7 +129,6 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
 
         let keys = [];
 
-        // 원본의 키 추출 로직
         if (mode === 'day') {
             keys = filteredData.map(d => d.id);
         } else if (mode === 'week') {
@@ -143,10 +141,10 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
             const yearSet = new Set(filteredData.map(d => d.id.substring(0, 4)));
             keys = Array.from(yearSet);
         }
-        
-        keys = [...new Set(keys)].sort((a, b) => b.localeCompare(a));
 
-        // ✨ 단위 버튼 하이라이트 동기화
+        keys = [...new Set(keys)].sort((a, b) => b.localeCompare(a)); // 내림차순 정렬
+
+        // 단위 버튼 하이라이트 동기화
         document.querySelectorAll('.period-toggle-btn').forEach(btn => {
             if (btn.dataset.period === mode) {
                 btn.classList.add('bg-blue-50', 'text-blue-600', 'font-bold', 'border-blue-200');
@@ -162,7 +160,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
             return;
         }
 
-        // ✨ 3단계(연 > 월 > 일) 트리 데이터 구조화
+        // 3단계 트리 데이터 구조화 (연도 > 월 > 데이터)
         const tree = {};
         keys.forEach(key => {
             let year, month, displayKey;
@@ -171,7 +169,8 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                 month = key.substring(5, 7) + '월';
                 const d = new Date(key);
                 const days = ['일', '월', '화', '수', '목', '금', '토'];
-                displayKey = `${key.substring(8, 10)}일 (${days[d.getDay()]})`;
+                const dayStr = isNaN(d.getDay()) ? '' : ` (${days[d.getDay()]})`;
+                displayKey = `${key.substring(8, 10)}일${dayStr}`;
             } else if (mode === 'week') {
                 year = key.substring(0, 4) + '년';
                 month = '주간 요약';
@@ -191,7 +190,6 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
             tree[year][month].push({ key, displayKey });
         });
 
-        // HTML 문자열 생성 (연도 아코디언 > 월 아코디언 > 아이템)
         let htmlContent = '';
         let isFirstYear = true;
 
@@ -218,7 +216,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                         <span class="folder-icon text-[14px]">${isYearOpen ? '📂' : '📁'}</span>
                         <span class="font-bold text-[13px] text-gray-800 dark:text-gray-200 whitespace-nowrap">${year}</span>
                     </div>
-                    <svg class="w-4 h-4 text-gray-500 transform transition-transform ${isYearOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <svg class="w-4 h-4 text-gray-500 transform transition-transform duration-200 ${isYearOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
                 <ul class="accordion-content mt-1 ml-3 pl-2 border-l-2 border-gray-200 dark:border-gray-700 space-y-1 overflow-hidden transition-all duration-300 ${isYearOpen ? 'block' : 'hidden'}">
             `;
@@ -236,7 +234,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                             <span class="folder-icon text-[13px]">${isMonthOpen ? '📂' : '📁'}</span>
                             <span class="font-semibold text-[12px] text-gray-700 dark:text-gray-300 whitespace-nowrap">${month}</span>
                         </div>
-                        <svg class="w-3.5 h-3.5 text-gray-400 transform transition-transform ${isMonthOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        <svg class="w-3.5 h-3.5 text-gray-400 transform transition-transform duration-200 ${isMonthOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     <ul class="accordion-content mt-1 ml-3 pl-2 border-l-2 border-gray-100 dark:border-gray-700 space-y-0.5 overflow-hidden transition-all duration-300 ${isMonthOpen ? 'block' : 'hidden'}">
                 `;
@@ -245,14 +243,14 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
 
                 sortedItems.forEach(item => {
                     const isSelected = item.key === selectedKey;
+                    // ✨ 핵심: 선택된 버튼에 식별하기 쉬운 active-date-btn 클래스 추가 (탭 클릭 시 데이터 필터링 기준이 됨)
                     const baseClass = isSelected 
-                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold' 
+                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold active-date-btn' 
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50';
 
                     let hasWarning = false;
                     let titleAttr = '';
-                    
-                    // 원본의 누락 데이터 검사 로직 복구
+
                     if (mode === 'day') {
                         const dayData = filteredData.find(d => d.id === item.key);
                         if (dayData) {
@@ -266,9 +264,9 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
 
                     htmlContent += `
                         <li>
-                            <button data-key="${item.key}" class="history-date-btn w-full text-left py-1.5 px-2 text-[12px] rounded transition-colors flex items-center gap-2 ${baseClass} ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>
+                            <button data-key="${item.key}" class="history-date-btn w-full text-left py-1.5 px-2 text-[12px] rounded transition-colors flex items-center gap-2 shrink-0 ${baseClass} ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>
                                 <span class="inline-block w-1.5 h-1.5 rounded-full shrink-0 ${hasWarning ? 'bg-red-500' : (isSelected ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600')}"></span>
-                                <span class="whitespace-nowrap">${item.displayKey}</span>
+                                <span class="whitespace-nowrap tracking-tight">${item.displayKey}</span>
                             </button>
                         </li>
                     `;
@@ -282,7 +280,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
 
         DOM.historyDateList.innerHTML = htmlContent;
 
-        // 원본의 아코디언 토글 이벤트
+        // 아코디언 토글 이벤트
         const toggleBtns = DOM.historyDateList.querySelectorAll('.accordion-toggle');
         toggleBtns.forEach(btn => {
             btn.addEventListener('click', function() {
@@ -302,7 +300,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
             });
         });
 
-        // 원본의 자동 선택 스크롤 기능
+        // 자동 선택 (사용자가 클릭한 버튼이 없다면 최상단 값)
         let targetBtn = null;
         if (selectedKey) {
             targetBtn = DOM.historyDateList.querySelector(`button[data-key="${selectedKey}"]`);
@@ -312,7 +310,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
         }
 
         if (targetBtn) {
-            targetBtn.click();
+            targetBtn.click(); // 이 클릭 이벤트가 listeners-history.js에서 화면 데이터를 그립니다.
             if (selectedKey) {
                 targetBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
             }
@@ -329,7 +327,6 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
 };
 
 export const switchHistoryView = async (view, preserveKey = null) => {
-    // 원본의 뷰 초기화 배열 완벽 복구
     const allViews = [
         document.getElementById('history-daily-view'),
         document.getElementById('history-weekly-view'),
@@ -340,7 +337,9 @@ export const switchHistoryView = async (view, preserveKey = null) => {
         document.getElementById('report-daily-view'),
         document.getElementById('report-weekly-view'),
         document.getElementById('report-monthly-view'),
-        document.getElementById('report-yearly-view')
+        document.getElementById('report-yearly-view'),
+        document.getElementById('personal-report-content'),
+        document.getElementById('management-view-container')
     ];
     allViews.forEach(v => v && v.classList.add('hidden'));
 
@@ -355,6 +354,10 @@ export const switchHistoryView = async (view, preserveKey = null) => {
     resetTabs(DOM.historyTabs);
     resetTabs(DOM.attendanceHistoryTabs);
     resetTabs(DOM.reportTabs);
+    const personalTabs = document.getElementById('personal-report-tabs');
+    resetTabs(personalTabs);
+    const managementTabs = document.getElementById('management-tabs');
+    resetTabs(managementTabs);
 
     const dateListContainer = document.getElementById('history-date-list-container');
     if (dateListContainer) {
@@ -365,7 +368,6 @@ export const switchHistoryView = async (view, preserveKey = null) => {
     let tabToActivate = null;
     let listMode = 'day';
 
-    // 원본의 뷰 매핑 로직 완벽 복구
     switch (view) {
         case 'daily':
             listMode = 'day';
@@ -417,16 +419,22 @@ export const switchHistoryView = async (view, preserveKey = null) => {
             viewToShow = document.getElementById('report-yearly-view');
             tabToActivate = DOM.reportTabs?.querySelector('button[data-view="report-yearly"]');
             break;
-    }
-
-    // ✨ 신규 뷰 지원 로직 (개인/경영 지표)
-    if (view.includes('personal-')) {
-        listMode = view.split('-')[1] === 'yearly' ? 'year' : (view.split('-')[1] === 'monthly' ? 'month' : (view.split('-')[1] === 'weekly' ? 'week' : 'day'));
-        viewToShow = document.getElementById('personal-report-content');
-    }
-    else if (view.includes('management-')) {
-        listMode = view.split('-')[1] === 'yearly' ? 'year' : (view.split('-')[1] === 'monthly' ? 'month' : (view.split('-')[1] === 'weekly' ? 'week' : 'day'));
-        viewToShow = document.getElementById('management-view-container');
+        case 'personal-daily':
+            listMode = 'day'; viewToShow = document.getElementById('personal-report-content'); tabToActivate = personalTabs?.querySelector('button[data-view="personal-daily"]'); break;
+        case 'personal-weekly':
+            listMode = 'week'; viewToShow = document.getElementById('personal-report-content'); tabToActivate = personalTabs?.querySelector('button[data-view="personal-weekly"]'); break;
+        case 'personal-monthly':
+            listMode = 'month'; viewToShow = document.getElementById('personal-report-content'); tabToActivate = personalTabs?.querySelector('button[data-view="personal-monthly"]'); break;
+        case 'personal-yearly':
+            listMode = 'year'; viewToShow = document.getElementById('personal-report-content'); tabToActivate = personalTabs?.querySelector('button[data-view="personal-yearly"]'); break;
+        case 'management-daily':
+            listMode = 'day'; viewToShow = document.getElementById('management-view-container'); tabToActivate = managementTabs?.querySelector('button[data-view="management-daily"]'); break;
+        case 'management-weekly':
+            listMode = 'week'; viewToShow = document.getElementById('management-view-container'); tabToActivate = managementTabs?.querySelector('button[data-view="management-weekly"]'); break;
+        case 'management-monthly':
+            listMode = 'month'; viewToShow = document.getElementById('management-view-container'); tabToActivate = managementTabs?.querySelector('button[data-view="management-monthly"]'); break;
+        case 'management-yearly':
+            listMode = 'year'; viewToShow = document.getElementById('management-view-container'); tabToActivate = managementTabs?.querySelector('button[data-view="management-yearly"]'); break;
     }
 
     await renderHistoryDateListByMode(listMode, preserveKey);
@@ -441,7 +449,6 @@ export const switchHistoryView = async (view, preserveKey = null) => {
 };
 
 export const openHistoryQuantityModal = (dateKey) => {
-    // 원본의 데이터 체크 로직 완벽 복구
     const todayDateString = getTodayDateString();
 
     if (dateKey === todayDateString) {
@@ -489,7 +496,6 @@ export const openHistoryQuantityModal = (dateKey) => {
 
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
 
-            // 원본의 세션 스토리지 초기화 완벽 복구
             sessionStorage.removeItem('historyDataCache');
             sessionStorage.removeItem('historyDataCacheTime');
             sessionStorage.removeItem('unverifiedDataCache');
@@ -501,12 +507,15 @@ export const openHistoryQuantityModal = (dateKey) => {
             }
 
             if (DOM.historyModal && !DOM.historyModal.classList.contains('hidden')) {
-                // 수정 완료 후 바뀐 UI(단위 버튼)에 맞게 새로고침 로직
+                // 저장 후 UI 리프레시 처리
                 const activePeriodBtn = document.querySelector('.period-toggle-btn.font-bold');
                 if (activePeriodBtn) {
-                    activePeriodBtn.click(); 
+                    activePeriodBtn.click();
                 } else {
-                    await switchHistoryView('daily', dateKey); 
+                    const activeSubTabBtn = document.querySelector('#history-tabs button.font-semibold')
+                                         || document.querySelector('#report-tabs button.font-semibold');
+                    const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
+                    await switchHistoryView(currentView, dateKey);
                 }
             }
 
@@ -524,7 +533,6 @@ export const openHistoryQuantityModal = (dateKey) => {
 };
 
 export const requestHistoryDeletion = (dateKey) => {
-    // 원본의 삭제 타겟 판별 로직 완벽 복구
     State.context.historyKeyToDelete = dateKey;
     const activeTab = State.context.activeMainHistoryTab || 'work';
     let targetName = '모든';
