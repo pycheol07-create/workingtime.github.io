@@ -57,7 +57,6 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    // ✨ 핵심 수정: 새롭게 적용된 active-date-btn 클래스를 기준으로 선택된 키를 가져옵니다.
     const getSelectedDateKey = () => DOM.historyDateList.querySelector('.history-date-btn.active-date-btn')?.dataset.key || null;
 
     const refreshAttendanceView = async () => {
@@ -131,7 +130,6 @@ export function setupHistoryModalListeners() {
                 if (typeof switchHistoryView === 'function') switchHistoryView('daily');
                 
                 setTimeout(() => {
-                    // ✨ 첫 번째 항목 렌더링 클릭 트리거 수정
                     const firstDateItem = document.querySelector('.history-date-btn');
                     if (firstDateItem) firstDateItem.click();
                     
@@ -167,7 +165,6 @@ export function setupHistoryModalListeners() {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
             if (btn) {
-                // ✨ 핵심 수정: 클릭 시 새로운 디자인의 클래스를 토글하여 스타일을 유지합니다.
                 DOM.historyDateList.querySelectorAll('.history-date-btn').forEach(b => {
                     b.classList.remove('bg-blue-50', 'dark:bg-blue-900/40', 'text-blue-700', 'dark:text-blue-400', 'font-bold', 'active-date-btn');
                     b.classList.add('text-gray-600', 'dark:text-gray-400', 'hover:bg-gray-100', 'dark:hover:bg-gray-700/50');
