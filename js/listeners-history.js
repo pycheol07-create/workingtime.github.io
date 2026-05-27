@@ -8,9 +8,7 @@ import { setupHistoryRecordListeners } from './listeners-history-records.js';
 import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js';
 import { setupHistoryInspectionListeners } from './listeners-history-inspection.js';
 
-import { renderHistoryDetail, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
-import { loadAndRenderHistoryList, switchHistoryView, openHistoryQuantityModal } from './history-list-controller.js';
-
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
 import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderPredictionTab } from './ui-history.js';
 import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
 import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -57,7 +55,7 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    const getSelectedDateKey = () => DOM.historyDateList.querySelector('.history-date-btn.active-date-btn')?.dataset.key || null;
+    const getSelectedDateKey = () => DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100')?.dataset.key || null;
 
     const refreshAttendanceView = async () => {
         const dateKey = getSelectedDateKey();
@@ -99,6 +97,7 @@ export function setupHistoryModalListeners() {
         else renderManagementSummary(viewMode, dateKey, State.allHistoryData);
     };
 
+    // 💡 핵심 수정 파트: 데이터를 다 불러온 후에 UI를 순차적으로 깨웁니다.
     const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
@@ -120,6 +119,7 @@ export function setupHistoryModalListeners() {
             try { 
                 await loadAndRenderHistoryList(); 
                 
+                // 모바일 환경에서 데이터가 빈 화면으로 뜨는 것을 방지하기 위한 강제 렌더링 트리거
                 const rawdataMainTabBtn = document.querySelector('[data-main-tab="rawdata"]');
                 const dashboardMainTabBtn = document.querySelector('[data-main-tab="dashboard"]');
                 const tabButtons = Array.from(document.querySelectorAll('.history-tab-btn, button'));
@@ -130,7 +130,7 @@ export function setupHistoryModalListeners() {
                 if (typeof switchHistoryView === 'function') switchHistoryView('daily');
                 
                 setTimeout(() => {
-                    const firstDateItem = document.querySelector('.history-date-btn');
+                    const firstDateItem = document.querySelector('#history-date-list li');
                     if (firstDateItem) firstDateItem.click();
                     
                     setTimeout(() => {
@@ -165,13 +165,8 @@ export function setupHistoryModalListeners() {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
             if (btn) {
-                DOM.historyDateList.querySelectorAll('.history-date-btn').forEach(b => {
-                    b.classList.remove('bg-blue-50', 'dark:bg-blue-900/40', 'text-blue-700', 'dark:text-blue-400', 'font-bold', 'active-date-btn');
-                    b.classList.add('text-gray-600', 'dark:text-gray-400', 'hover:bg-gray-100', 'dark:hover:bg-gray-700/50');
-                });
-                btn.classList.add('bg-blue-50', 'dark:bg-blue-900/40', 'text-blue-700', 'dark:text-blue-400', 'font-bold', 'active-date-btn');
-                btn.classList.remove('text-gray-600', 'dark:text-gray-400', 'hover:bg-gray-100', 'dark:hover:bg-gray-700/50');
-                
+                DOM.historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
+                btn.classList.add('bg-blue-100', 'font-bold');
                 const dateKey = btn.dataset.key;
 
                 let activeMainTab = State.context.activeMainHistoryTab || 'work';
