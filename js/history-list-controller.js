@@ -263,7 +263,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
 
 // 좌측 사이드바의 일/주/월/년 단위 버튼 활성 상태를 갱신합니다.
 export const updateGranularityButtons = (mode) => {
-    const base = 'history-gran-btn py-1.5 rounded-lg text-xs md:text-sm font-bold transition border';
+    const base = 'history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border';
     document.querySelectorAll('.history-gran-btn').forEach(btn => {
         const isActive = btn.dataset.granularity === mode;
         btn.className = isActive
