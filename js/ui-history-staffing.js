@@ -16,20 +16,15 @@ export function renderStaffingTab(filteredData, appConfig) {
     const stdHours = (appConfig && appConfig.standardDailyWorkHours) || { weekday: 8, weekend: 4 };
     const utilization = (appConfig && typeof appConfig.utilizationRate === 'number') ? appConfig.utilizationRate : 0.8;
 
-    // ── 1단계: 기간 전체에서 바스켓 기준 실측 UPH 산출 ──
-    let sumBasketQty = 0;
-    let sumBasketMinutes = 0;
+    // ── 1단계: 기간 전체 종합 UPH 산출 (대시보드 종합 UPH와 동일한 정의) ──
+    // 분모에는 전체 작업시간을 모두 포함해 검수·교환반품·재작업 등 지원 작업까지 반영합니다.
+    let sumAllQty = 0;
+    let sumAllMinutes = 0;
     filteredData.forEach(day => {
-        Object.entries(day.taskQuantities || {}).forEach(([task, q]) => {
-            if (STAFFING_THROUGHPUT_TASKS.has(task)) sumBasketQty += (Number(q) || 0);
-        });
-        (day.workRecords || []).forEach(r => {
-            if (r && r.task && STAFFING_THROUGHPUT_TASKS.has(r.task)) {
-                sumBasketMinutes += (r.duration || 0);
-            }
-        });
+        Object.values(day.taskQuantities || {}).forEach(q => { sumAllQty += (Number(q) || 0); });
+        (day.workRecords || []).forEach(r => { sumAllMinutes += (r.duration || 0); });
     });
-    const basketUPH = (sumBasketMinutes > 0) ? (sumBasketQty / (sumBasketMinutes / 60)) : 0;
+    const overallUPH = (sumAllMinutes > 0) ? (sumAllQty / (sumAllMinutes / 60)) : 0;
 
     // ── 2단계: 일별 필요 FTE 계산 ──
     let sumActualStaff = 0;
@@ -55,9 +50,9 @@ export function renderStaffingTab(filteredData, appConfig) {
         const dow = dateObj && !isNaN(dateObj.getTime()) ? dateObj.getDay() : 1;
         const dailyHours = (dow === 0 || dow === 6) ? (Number(stdHours.weekend) || 4) : (Number(stdHours.weekday) || 8);
 
-        // 필요 FTE = 바스켓 수량 ÷ UPH ÷ 1일 표준시간 ÷ 가동률
-        if (basketUPH > 0 && dailyHours > 0 && utilization > 0) {
-            const requiredHours = dayBasketQty / basketUPH;
+        // 필요 FTE = 바스켓 수요 ÷ 종합 UPH ÷ 1일 표준시간 ÷ 가동률
+        if (overallUPH > 0 && dailyHours > 0 && utilization > 0) {
+            const requiredHours = dayBasketQty / overallUPH;
             sumRequiredStaff += requiredHours / dailyHours / utilization;
         }
 
@@ -71,14 +66,14 @@ export function renderStaffingTab(filteredData, appConfig) {
 
     // UI 반영
     document.getElementById('staff-actual').textContent = `${avgActual.toFixed(1)} 명 / 일`;
-    document.getElementById('staff-required').textContent = (basketUPH > 0) ? `${avgRequired.toFixed(1)} 명 / 일` : '— 명 / 일';
+    document.getElementById('staff-required').textContent = (overallUPH > 0) ? `${avgRequired.toFixed(1)} 명 / 일` : '— 명 / 일';
     document.getElementById('staff-total-loss').textContent = Math.round(totalLossMinutes).toLocaleString();
 
     const commentEl = document.getElementById('staff-fte-comment');
     if (commentEl) {
-        const meta = `<span class="block mt-1 text-gray-400 dark:text-gray-500">기준 UPH ${basketUPH.toFixed(1)}개/시 · 가동률 ${Math.round(utilization * 100)}% · 바스켓: 출고성+채우기</span>`;
-        if (basketUPH <= 0) {
-            commentEl.innerHTML = `📉 선택 기간에 표준 UPH 산출용 작업 데이터(출고성·채우기)가 부족해 필요 인원을 계산할 수 없습니다.`;
+        const meta = `<span class="block mt-1 text-gray-400 dark:text-gray-500">기준 UPH ${overallUPH.toFixed(1)}개/시 (= 종합 UPH) · 가동률 ${Math.round(utilization * 100)}% · 수요 바스켓: 출고성+채우기</span>`;
+        if (overallUPH <= 0) {
+            commentEl.innerHTML = `📉 선택 기간에 종합 UPH 산출용 데이터가 부족해 필요 인원을 계산할 수 없습니다.`;
         } else {
             const diff = avgActual - avgRequired;
             if (diff > 0.8) {
