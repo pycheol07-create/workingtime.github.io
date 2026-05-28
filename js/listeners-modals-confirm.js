@@ -121,8 +121,8 @@ export function setupConfirmationModalListeners() {
                         
                         showToast(`${recordToDelete.member}님의 '${recordToDelete.type}' 기록이 삭제되었습니다.`);
                         
-                        const activeAttendanceTab = document.querySelector('#attendance-history-tabs button.font-semibold');
-                        const view = activeAttendanceTab ? activeAttendanceTab.dataset.view : 'attendance-daily';
+                        const gran = State.context.globalGranularity || 'day';
+                        const view = { day: 'attendance-daily', week: 'attendance-weekly', month: 'attendance-monthly', year: 'attendance-yearly' }[gran];
                         await switchHistoryView(view);
 
                     } catch (e) {

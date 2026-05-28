@@ -23,32 +23,45 @@
             height: auto !important; /* 💡 높이 증발 버그 해결의 핵심! */
             display: flex !important; flex-direction: column !important;
         }
-        
+
+        /* 공용 좌측 사이드바: 모바일에서는 상단 가로 스트립으로 */
+        #history-global-sidebar {
+            flex: 0 0 auto !important; width: 100% !important;
+            border-right: none !important; border-bottom: 1px solid #e5e7eb !important;
+        }
+        #history-granularity-controls { width: 100% !important; }
+
+        /* 메인 콘텐츠 영역이 남은 높이를 모두 차지 */
+        #history-main-content {
+            flex: 1 1 auto !important; min-height: 0 !important;
+            display: flex !important; flex-direction: column !important;
+        }
+
         /* 각 탭별 패널: 숨겨지지 않았을 때만 화면 꽉 채우기 */
         #dashboard-panel:not(.hidden), #productivity-panel:not(.hidden), #staffing-panel:not(.hidden), #prediction-panel:not(.hidden), #rawdata-panel:not(.hidden) {
             flex: 1 1 auto !important;
             min-height: 0 !important; height: 100% !important;
             display: flex !important; flex-direction: column !important;
         }
-        
+
         /* 내부 스크롤 허용 */
         #dashboard-panel, #productivity-panel, #staffing-panel, #prediction-panel {
             overflow-y: auto !important; -webkit-overflow-scrolling: touch !important;
         }
-        
+
         /* 로우 데이터 패널 레이아웃 세로 분할로 강제 변경 */
         #rawdata-panel > .flex-grow {
             flex: 1 1 auto !important; flex-direction: column !important; min-height: 0 !important;
         }
-        
+
         /* 가로 스크롤 날짜 리스트 강제 고정 (찌그러짐 방지) */
         #history-date-list-container {
             flex: 0 0 auto !important; height: 55px !important; min-height: 55px !important; width: 100% !important;
             overflow-x: auto !important; overflow-y: hidden !important;
-            white-space: nowrap !important; border-bottom: 1px solid #e5e7eb !important;
+            white-space: nowrap !important;
         }
         #history-date-list { display: flex !important; flex-direction: row !important; padding: 0.5rem !important; gap: 0.5rem !important; }
-        
+
         /* 내부 Absolute 패널들 높이 보호 */
         #rawdata-panel .relative { flex: 1 1 auto !important; min-height: 0 !important; }
     }
@@ -80,30 +93,30 @@
                 <button data-main-tab="rawdata" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">📁 로우 데이터 및 추출</button>
             </div>
 
-            <div id="global-date-range-controls" class="flex flex-wrap items-center gap-2 md:gap-3 pb-3 w-full md:w-auto">
-                <div class="flex items-center gap-1 md:gap-2 bg-white dark:bg-gray-800 px-2 md:px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors overflow-x-auto no-scrollbar w-full md:w-auto">
-                    <span class="text-[11px] md:text-xs font-bold text-gray-600 dark:text-gray-300 whitespace-nowrap">조회:</span>
-                    <select id="global-period-preset" class="p-1 bg-transparent border-none text-[11px] md:text-xs font-bold text-blue-600 dark:text-blue-400 focus:ring-0 outline-none cursor-pointer">
-                        <option value="today">오늘</option>
-                        <option value="week" selected>이번 주</option>
-                        <option value="month">이번 달</option>
-                        <option value="custom">직접 지정</option>
-                    </select>
-                    <div class="w-px h-3 md:h-4 bg-gray-300 dark:bg-gray-600 mx-1"></div>
-                    <input type="date" id="global-start-date" class="p-0.5 md:p-1 bg-transparent border border-gray-300 dark:border-gray-600 rounded text-[11px] md:text-xs focus:ring-blue-500 focus:border-blue-500 h-6 md:h-7 text-gray-700 dark:text-white outline-none">
-                    <span class="text-gray-400 dark:text-gray-500 text-[11px] md:text-xs">~</span>
-                    <input type="date" id="global-end-date" class="p-0.5 md:p-1 bg-transparent border border-gray-300 dark:border-gray-600 rounded text-[11px] md:text-xs focus:ring-blue-500 focus:border-blue-500 h-6 md:h-7 text-gray-700 dark:text-white outline-none">
-                    <button id="global-filter-btn" class="ml-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold text-[11px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded transition whitespace-nowrap">조회 적용</button>
-                </div>
+            <div id="global-date-range-controls" class="flex flex-wrap items-center gap-2 md:gap-3 pb-3 w-full md:w-auto justify-end">
                 <button id="global-download-excel-btn" class="hidden md:flex bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs shadow-sm items-center gap-1.5 transition h-[34px]">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    통합 엑셀 다운로드
+                    선택 기간 엑셀 다운로드
                 </button>
             </div>
         </div>
 
-        <div class="flex-grow flex overflow-hidden bg-gray-100/80 dark:bg-gray-900 transition-colors">
-            
+        <div class="flex-grow flex overflow-hidden bg-gray-100/80 dark:bg-gray-900 transition-colors flex-col md:flex-row">
+
+            <aside id="history-global-sidebar" class="w-full md:w-[230px] flex flex-col border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/30 flex-shrink-0 transition-colors">
+                <div id="history-granularity-controls" class="grid grid-cols-4 gap-1 p-2 md:p-3 border-b border-gray-200 dark:border-gray-800 shrink-0">
+                    <button data-granularity="day" class="history-gran-btn py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">일</button>
+                    <button data-granularity="week" class="history-gran-btn py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">주</button>
+                    <button data-granularity="month" class="history-gran-btn py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">월</button>
+                    <button data-granularity="year" class="history-gran-btn py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">년</button>
+                </div>
+                <div id="history-date-list-container" class="flex-1 overflow-y-auto">
+                    <ul id="history-date-list" class="p-2 md:p-3 space-y-0 md:space-y-1"></ul>
+                </div>
+            </aside>
+
+            <div id="history-main-content" class="flex-1 flex flex-col overflow-hidden relative">
+
             <div id="dashboard-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6">
                 <div class="bg-indigo-50 dark:bg-indigo-900/30 border-l-4 border-indigo-500 p-4 rounded-r-xl shadow-sm">
                     <div class="flex items-center gap-2 mb-1">
@@ -384,19 +397,16 @@
                     <button data-sub-tab="weekend" class="rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap">주말 통계</button>
                 </div>
 
-                <div class="flex-grow flex flex-col md:flex-row overflow-hidden">
-                    
-                    <div id="history-date-list-container" class="w-full md:w-[230px] h-[140px] md:h-auto border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800 overflow-y-auto bg-gray-50 dark:bg-gray-800/30 flex-shrink-0 transition-colors">
-                        <ul id="history-date-list" class="p-2 md:p-3 space-y-0 md:space-y-1"></ul>
-                    </div>
-                    
+                <div class="flex-grow flex flex-col overflow-hidden">
+
                     <div class="flex-1 flex flex-col overflow-hidden relative">
                         <div id="work-history-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto z-10">
                             <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0 gap-3">
-                                <div id="history-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                <div id="history-tabs" class="hidden gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
                                     <button data-view="daily" class="history-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 상세</button>
                                     <button data-view="weekly" class="history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">주별 요약</button>
                                     <button data-view="monthly" class="history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">월별 요약</button>
+                                    <button data-view="yearly" class="history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">연간 요약</button>
                                 </div>
                                 <button id="history-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 shadow-sm whitespace-nowrap">
                                      엑셀
@@ -406,15 +416,17 @@
                                 <div id="history-daily-view" class="hidden"></div>
                                 <div id="history-weekly-view" class="hidden space-y-6"></div>
                                 <div id="history-monthly-view" class="hidden space-y-6"></div>
+                                <div id="history-yearly-view" class="hidden space-y-6"></div>
                             </div>
                         </div>
 
                         <div id="attendance-history-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
                             <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0 gap-3">
-                                <div id="attendance-history-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                <div id="attendance-history-tabs" class="hidden gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
                                     <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 상세</button>
                                     <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">주별 요약</button>
                                     <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">월별 요약</button>
+                                    <button data-view="attendance-yearly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">연간 요약</button>
                                 </div>
                                 <button id="attendance-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 shadow-sm whitespace-nowrap">
                                      엑셀
@@ -424,12 +436,13 @@
                                 <div id="history-attendance-daily-view" class="hidden space-y-4"></div>
                                 <div id="history-attendance-weekly-view" class="hidden space-y-4"></div>
                                 <div id="history-attendance-monthly-view" class="hidden space-y-4"></div>
+                                <div id="history-attendance-yearly-view" class="hidden space-y-4"></div>
                             </div>
                         </div>
 
                         <div id="report-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
                             <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 bg-white dark:bg-gray-800">
-                                <div id="report-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                <div id="report-tabs" class="hidden gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
                                     <button data-view="report-daily" class="report-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 리포트</button>
                                     <button data-view="report-weekly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">주별 리포트</button>
                                     <button data-view="report-monthly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">월별 리포트</button>
@@ -450,7 +463,7 @@
                                     <option value="">직원 선택...</option>
                                 </select>
                                 <div class="h-6 w-px bg-gray-200 hidden md:block"></div>
-                                <div id="personal-report-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                <div id="personal-report-tabs" class="hidden gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
                                     <button data-view="personal-daily" class="personal-report-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별</button>
                                     <button data-view="personal-weekly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">주별</button>
                                     <button data-view="personal-monthly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">월별</button>
@@ -466,7 +479,7 @@
 
                         <div id="management-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
                             <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 flex justify-between bg-white dark:bg-gray-800 gap-3">
-                                <div id="management-tabs" class="flex gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                <div id="management-tabs" class="hidden gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
                                     <button data-view="management-daily" class="management-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 입력</button>
                                     <button data-view="management-weekly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">주별 요약</button>
                                     <button data-view="management-monthly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">월별 요약</button>
@@ -558,6 +571,8 @@
 
                     </div>
                 </div>
+            </div>
+
             </div>
 
         </div>

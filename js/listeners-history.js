@@ -9,11 +9,11 @@ import { setupHistoryAttendanceListeners } from './listeners-history-attendance.
 import { setupHistoryInspectionListeners } from './listeners-history-inspection.js';
 
 import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderPredictionTab } from './ui-history.js';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js';
 import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
 import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData } from './listeners-history-tabs.js';
+import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js';
 import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js';
 
 let isHistoryMaximized = false;
@@ -64,34 +64,38 @@ export function setupHistoryModalListeners() {
             augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
         }
         const filteredData = getFilteredHistoryData();
-        const view = DOM.attendanceHistoryTabs?.querySelector('button.font-semibold')?.dataset.view || 'attendance-daily';
+        const gran = State.context.globalGranularity || 'day';
+        if (!dateKey) return;
 
-        if (view === 'attendance-daily') { if (dateKey) renderAttendanceDailyHistory(dateKey, filteredData); } 
-        else if (view === 'attendance-weekly') { if (dateKey) renderAttendanceWeeklyHistory(dateKey, filteredData); } 
-        else if (view === 'attendance-monthly') { if (dateKey) renderAttendanceMonthlyHistory(dateKey, filteredData); }
+        if (gran === 'day') renderAttendanceDailyHistory(dateKey, filteredData);
+        else if (gran === 'week') renderAttendanceWeeklyHistory(dateKey, filteredData);
+        else if (gran === 'month') renderAttendanceMonthlyHistory(dateKey, filteredData);
+        else if (gran === 'year') renderAttendanceYearlyHistory(dateKey, filteredData);
     };
 
     const refreshReportView = () => {
         const dateKey = getSelectedDateKey();
         const filteredData = getFilteredHistoryData();
-        const view = DOM.reportTabs?.querySelector('button.font-semibold')?.dataset.view || 'report-daily';
+        const gran = State.context.globalGranularity || 'day';
 
-        if (view === 'report-daily') renderReportDaily(dateKey, filteredData, State.appConfig, State.context);
-        else if (view === 'report-weekly') renderReportWeekly(dateKey, filteredData, State.appConfig, State.context);
-        else if (view === 'report-monthly') renderReportMonthly(dateKey, filteredData, State.appConfig, State.context);
-        else if (view === 'report-yearly') renderReportYearly(dateKey, filteredData, State.appConfig, State.context);
+        if (gran === 'day') renderReportDaily(dateKey, filteredData, State.appConfig, State.context);
+        else if (gran === 'week') renderReportWeekly(dateKey, filteredData, State.appConfig, State.context);
+        else if (gran === 'month') renderReportMonthly(dateKey, filteredData, State.appConfig, State.context);
+        else if (gran === 'year') renderReportYearly(dateKey, filteredData, State.appConfig, State.context);
     };
-    
+
     const refreshPersonalView = () => {
         const dateKey = getSelectedDateKey();
-        const viewMode = DOM.personalReportTabs?.querySelector('button.font-semibold')?.dataset.view || 'personal-daily';
+        const gran = State.context.globalGranularity || 'day';
+        const viewMode = { day: 'personal-daily', week: 'personal-weekly', month: 'personal-monthly', year: 'personal-yearly' }[gran];
         const memberName = DOM.personalReportMemberSelect?.value;
         if (dateKey && memberName) renderPersonalReport('personal-report-content', viewMode, dateKey, memberName, State.allHistoryData);
     };
 
     const refreshManagementView = () => {
         const dateKey = getSelectedDateKey();
-        const viewMode = managementTabs?.querySelector('button.font-semibold')?.dataset.view || 'management-daily';
+        const gran = State.context.globalGranularity || 'day';
+        const viewMode = { day: 'management-daily', week: 'management-weekly', month: 'management-monthly', year: 'management-yearly' }[gran];
         if (!dateKey) return;
         if (viewMode === 'management-daily') renderManagementDaily(dateKey, State.allHistoryData);
         else renderManagementSummary(viewMode, dateKey, State.allHistoryData);
@@ -164,31 +168,41 @@ export function setupHistoryModalListeners() {
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
-            if (btn) {
-                DOM.historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
-                btn.classList.add('bg-blue-100', 'font-bold');
-                const dateKey = btn.dataset.key;
+            if (!btn) return;
 
-                let activeMainTab = State.context.activeMainHistoryTab || 'work';
-                State.context.activeFilterDropdown = null; 
+            DOM.historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
+            btn.classList.add('bg-blue-100', 'font-bold');
+            const dateKey = btn.dataset.key;
 
-                if (activeMainTab === 'attendance') { refreshAttendanceView(); return; }
-                else if (activeMainTab === 'management') { refreshManagementView(); return; }
+            State.context.activeFilterDropdown = null;
 
-                const filteredData = getFilteredHistoryData();
-                State.context.reportSortState = {};
+            const mainView = State.context.activeHistoryView || 'rawdata';
+            const gran = State.context.globalGranularity || 'day';
 
-                if (activeMainTab === 'work') {
-                    const activeView = DOM.historyTabs?.querySelector('button.font-semibold')?.dataset.view || 'daily';
-                    if (activeView === 'daily') {
-                        const currentIndex = filteredData.findIndex(d => d.id === dateKey);
-                        const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length) ? filteredData[currentIndex + 1] : null;
-                        renderHistoryDetail(dateKey, previousDayData);
-                    } else if (activeView === 'weekly') renderWeeklyHistory(dateKey, filteredData, State.appConfig);
-                    else if (activeView === 'monthly') renderMonthlyHistory(dateKey, filteredData, State.appConfig);
-                } else if (activeMainTab === 'report') refreshReportView();
-                else if (activeMainTab === 'personal') refreshPersonalView();
+            // 분석 탭(대시보드/생산성/인력/예측)은 선택 기간 데이터로 렌더링
+            if (mainView !== 'rawdata') {
+                renderAnalyticsTab(mainView, getPeriodFilteredData(gran, dateKey));
+                return;
             }
+
+            // 로우 데이터 탭은 활성 서브탭별로 분기
+            const sub = State.context.activeMainHistoryTab || 'work';
+
+            if (sub === 'attendance') { refreshAttendanceView(); return; }
+            if (sub === 'management') { refreshManagementView(); return; }
+            if (sub === 'report') { refreshReportView(); return; }
+            if (sub === 'personal') { refreshPersonalView(); return; }
+
+            // work
+            const filteredData = getFilteredHistoryData();
+            State.context.reportSortState = {};
+            if (gran === 'day') {
+                const currentIndex = filteredData.findIndex(d => d.id === dateKey);
+                const previousDayData = (currentIndex > -1 && currentIndex + 1 < filteredData.length) ? filteredData[currentIndex + 1] : null;
+                renderHistoryDetail(dateKey, previousDayData);
+            } else if (gran === 'week') renderWeeklyHistory(dateKey, filteredData, State.appConfig);
+            else if (gran === 'month') renderMonthlyHistory(dateKey, filteredData, State.appConfig);
+            else if (gran === 'year') renderYearlyHistory(dateKey, filteredData, State.appConfig);
         });
     }
 

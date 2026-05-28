@@ -74,9 +74,12 @@ export const loadAndRenderHistoryList = async () => {
     document.getElementById('report-yearly-view')?.classList.add('hidden');
 
     State.context.activeMainHistoryTab = 'work';
+    State.context.activeHistoryView = 'rawdata';
+    State.context.globalGranularity = 'day';
     State.context.reportSortState = {};
     State.context.currentReportParams = null;
 
+    updateGranularityButtons('day');
     await renderHistoryDateListByMode('day');
 };
 
@@ -258,102 +261,61 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
     }
 };
 
+// 좌측 사이드바의 일/주/월/년 단위 버튼 활성 상태를 갱신합니다.
+export const updateGranularityButtons = (mode) => {
+    const base = 'history-gran-btn py-1.5 rounded-lg text-xs md:text-sm font-bold transition border';
+    document.querySelectorAll('.history-gran-btn').forEach(btn => {
+        const isActive = btn.dataset.granularity === mode;
+        btn.className = isActive
+            ? `${base} bg-blue-600 text-white border-blue-600 shadow-sm`
+            : `${base} bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600`;
+    });
+};
+
+// view: daily/weekly/monthly/yearly, attendance-*, report-*, personal-*, management-*
 export const switchHistoryView = async (view, preserveKey = null) => {
+    if (!view) return;
+
     const allViews = [
-        document.getElementById('history-daily-view'),
-        document.getElementById('history-weekly-view'),
-        document.getElementById('history-monthly-view'),
-        document.getElementById('history-attendance-daily-view'),
-        document.getElementById('history-attendance-weekly-view'),
-        document.getElementById('history-attendance-monthly-view'),
-        document.getElementById('report-daily-view'),
-        document.getElementById('report-weekly-view'),
-        document.getElementById('report-monthly-view'),
-        document.getElementById('report-yearly-view')
-    ];
+        'history-daily-view', 'history-weekly-view', 'history-monthly-view', 'history-yearly-view',
+        'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view', 'history-attendance-yearly-view',
+        'report-daily-view', 'report-weekly-view', 'report-monthly-view', 'report-yearly-view'
+    ].map(id => document.getElementById(id));
     allViews.forEach(v => v && v.classList.add('hidden'));
 
-    const resetTabs = (container) => {
-        if (container) {
-            container.querySelectorAll('button').forEach(btn => {
-                btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-                btn.classList.add('text-gray-500');
-            });
-        }
-    };
-    resetTabs(DOM.historyTabs);
-    resetTabs(DOM.attendanceHistoryTabs);
-    resetTabs(DOM.reportTabs);
-
-    const dateListContainer = document.getElementById('history-date-list-container');
-    if (dateListContainer) {
-        dateListContainer.style.display = 'block';
-    }
+    // 공용 사이드바 노출 (검수/연차/주말 탭에서만 숨기며, 그 처리는 서브탭 핸들러가 담당)
+    const sidebar = document.getElementById('history-global-sidebar');
+    if (sidebar) sidebar.style.display = '';
 
     let viewToShow = null;
-    let tabToActivate = null;
     let listMode = 'day';
 
     switch (view) {
-        case 'daily':
-            listMode = 'day';
-            viewToShow = document.getElementById('history-daily-view');
-            tabToActivate = DOM.historyTabs?.querySelector('button[data-view="daily"]');
-            break;
-        case 'weekly':
-            listMode = 'week';
-            viewToShow = document.getElementById('history-weekly-view');
-            tabToActivate = DOM.historyTabs?.querySelector('button[data-view="weekly"]');
-            break;
-        case 'monthly':
-            listMode = 'month';
-            viewToShow = document.getElementById('history-monthly-view');
-            tabToActivate = DOM.historyTabs?.querySelector('button[data-view="monthly"]');
-            break;
-        case 'attendance-daily':
-            listMode = 'day';
-            viewToShow = document.getElementById('history-attendance-daily-view');
-            tabToActivate = DOM.attendanceHistoryTabs?.querySelector('button[data-view="attendance-daily"]');
-            break;
-        case 'attendance-weekly':
-            listMode = 'week';
-            viewToShow = document.getElementById('history-attendance-weekly-view');
-            tabToActivate = DOM.attendanceHistoryTabs?.querySelector('button[data-view="attendance-weekly"]');
-            break;
-        case 'attendance-monthly':
-            listMode = 'month';
-            viewToShow = document.getElementById('history-attendance-monthly-view');
-            tabToActivate = DOM.attendanceHistoryTabs?.querySelector('button[data-view="attendance-monthly"]');
-            break;
-        case 'report-daily':
-            listMode = 'day';
-            viewToShow = document.getElementById('report-daily-view');
-            tabToActivate = DOM.reportTabs?.querySelector('button[data-view="report-daily"]');
-            break;
-        case 'report-weekly':
-            listMode = 'week';
-            viewToShow = document.getElementById('report-weekly-view');
-            tabToActivate = DOM.reportTabs?.querySelector('button[data-view="report-weekly"]');
-            break;
-        case 'report-monthly':
-            listMode = 'month';
-            viewToShow = document.getElementById('report-monthly-view');
-            tabToActivate = DOM.reportTabs?.querySelector('button[data-view="report-monthly"]');
-            break;
-        case 'report-yearly':
-            listMode = 'year';
-            viewToShow = document.getElementById('report-yearly-view');
-            tabToActivate = DOM.reportTabs?.querySelector('button[data-view="report-yearly"]');
-            break;
+        case 'daily': listMode = 'day'; viewToShow = document.getElementById('history-daily-view'); break;
+        case 'weekly': listMode = 'week'; viewToShow = document.getElementById('history-weekly-view'); break;
+        case 'monthly': listMode = 'month'; viewToShow = document.getElementById('history-monthly-view'); break;
+        case 'yearly': listMode = 'year'; viewToShow = document.getElementById('history-yearly-view'); break;
+        case 'attendance-daily': listMode = 'day'; viewToShow = document.getElementById('history-attendance-daily-view'); break;
+        case 'attendance-weekly': listMode = 'week'; viewToShow = document.getElementById('history-attendance-weekly-view'); break;
+        case 'attendance-monthly': listMode = 'month'; viewToShow = document.getElementById('history-attendance-monthly-view'); break;
+        case 'attendance-yearly': listMode = 'year'; viewToShow = document.getElementById('history-attendance-yearly-view'); break;
+        case 'report-daily': listMode = 'day'; viewToShow = document.getElementById('report-daily-view'); break;
+        case 'report-weekly': listMode = 'week'; viewToShow = document.getElementById('report-weekly-view'); break;
+        case 'report-monthly': listMode = 'month'; viewToShow = document.getElementById('report-monthly-view'); break;
+        case 'report-yearly': listMode = 'year'; viewToShow = document.getElementById('report-yearly-view'); break;
+        // 개인/경영 지표는 단일 컨테이너에 렌더링되므로 별도 뷰 토글이 없습니다.
+        case 'personal-daily': case 'management-daily': listMode = 'day'; break;
+        case 'personal-weekly': case 'management-weekly': listMode = 'week'; break;
+        case 'personal-monthly': case 'management-monthly': listMode = 'month'; break;
+        case 'personal-yearly': case 'management-yearly': listMode = 'year'; break;
     }
+
+    State.context.globalGranularity = listMode;
+    updateGranularityButtons(listMode);
 
     await renderHistoryDateListByMode(listMode, preserveKey);
 
     if (viewToShow) viewToShow.classList.remove('hidden');
-    if (tabToActivate) {
-        tabToActivate.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-        tabToActivate.classList.remove('text-gray-500');
-    }
 };
 
 export const openHistoryQuantityModal = (dateKey) => {
@@ -415,10 +377,14 @@ export const openHistoryQuantityModal = (dateKey) => {
             }
 
             if (DOM.historyModal && !DOM.historyModal.classList.contains('hidden')) {
-                const activeSubTabBtn = document.querySelector('#history-tabs button.font-semibold')
-                                     || document.querySelector('#report-tabs button.font-semibold');
-                const currentView = activeSubTabBtn ? activeSubTabBtn.dataset.view : 'daily';
-                
+                const gran = State.context.globalGranularity || 'day';
+                const sub = State.context.activeMainHistoryTab || 'work';
+                const viewMap = {
+                    work: { day: 'daily', week: 'weekly', month: 'monthly', year: 'yearly' },
+                    report: { day: 'report-daily', week: 'report-weekly', month: 'report-monthly', year: 'report-yearly' }
+                };
+                const currentView = (viewMap[sub] || viewMap.work)[gran] || 'daily';
+
                 await switchHistoryView(currentView, dateKey);
             }
 

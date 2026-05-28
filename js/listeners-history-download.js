@@ -52,23 +52,24 @@ const executeDownload = async (format) => {
     const { targetType } = ctx;
 
     if (targetType === 'work') {
-        const activeTabBtn = DOM.historyTabs.querySelector('button.font-semibold');
-        const view = activeTabBtn ? activeTabBtn.dataset.view : 'daily';
+        const gran = State.context.globalGranularity || 'day';
         const key = getSelectedDateKey();
 
         if (!key) return showToast('날짜를 선택해주세요.', true);
 
-        if (view === 'daily') await downloadHistoryAsExcel(key, format);
-        else if (view === 'weekly') await downloadWeeklyHistoryAsExcel(key, format);
-        else if (view === 'monthly') await downloadMonthlyHistoryAsExcel(key, format);
+        if (gran === 'day') await downloadHistoryAsExcel(key, format);
+        else if (gran === 'week') await downloadWeeklyHistoryAsExcel(key, format);
+        else if (gran === 'month') await downloadMonthlyHistoryAsExcel(key, format);
+        else return showToast('연간 엑셀은 상단의 "선택 기간 엑셀 다운로드"를 이용해주세요.', true);
     }
     else if (targetType === 'attendance') {
-        const activeTabBtn = DOM.attendanceHistoryTabs.querySelector('button.font-semibold');
-        const viewFull = activeTabBtn ? activeTabBtn.dataset.view : 'attendance-daily';
-        const viewMode = viewFull.replace('attendance-', ''); 
+        const gran = State.context.globalGranularity || 'day';
         const key = getSelectedDateKey();
 
         if (!key) return showToast('날짜를 선택해주세요.', true);
+        if (gran === 'year') return showToast('연간 근태 엑셀은 상단의 "선택 기간 엑셀 다운로드"를 이용해주세요.', true);
+
+        const viewMode = gran === 'week' ? 'weekly' : (gran === 'month' ? 'monthly' : 'daily');
         downloadAttendanceExcel(viewMode, key, format);
     }
     else if (targetType === 'report') {

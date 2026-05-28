@@ -82,11 +82,23 @@
             flex-direction: column !important;
         }
         
+        /* 본문: 좌측 공용 사이드바 | 우측 콘텐츠 (좌우 배치) */
         #history-modal-content-box > .flex-grow {
-            min-height: 0 !important; 
+            min-height: 0 !important;
             flex: 1 1 auto !important;
             display: flex !important;
+            flex-direction: row !important;
+        }
+        #history-global-sidebar {
+            flex: 0 0 auto !important;
+        }
+        #history-main-content {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            display: flex !important;
             flex-direction: column !important;
+            overflow: hidden !important;
         }
 
         /* 💡 패널별 속성 분리 (rawdata-panel은 스크롤이 되면 안됩니다!) */

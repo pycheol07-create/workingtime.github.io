@@ -158,8 +158,9 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
         </div>
     </div>`;
 
+    const prevLabel = mode === 'weekly' ? '전주' : (mode === 'yearly' ? '전년' : '전월');
     html += `<h4 class="text-lg font-semibold mb-3 text-gray-700">업무별 평균 (
-                ${previousPeriodDataset ? (mode === 'weekly' ? '전주' : '전월') + ' 대비' : '이전 데이터 없음'}
+                ${previousPeriodDataset ? prevLabel + ' 대비' : '이전 데이터 없음'}
             )</h4>`;
     
     html += `<div class="overflow-x-auto max-h-[60vh]">
@@ -338,5 +339,60 @@ export const renderMonthlyHistory = (selectedMonthKey, allHistoryData, appConfig
     } catch (error) {
         console.error("Error in renderMonthlyHistory:", error);
         view.innerHTML = '<div class="text-center text-red-500 p-4">월별 데이터를 표시하는 중 오류가 발생했습니다. 개발자 콘솔을 확인하세요.</div>';
+    }
+};
+
+export const renderYearlyHistory = (selectedYearKey, allHistoryData, appConfig) => {
+    const view = document.getElementById('history-yearly-view');
+    if (!view) return;
+    view.innerHTML = '<div class="text-center text-gray-500">연간 데이터 집계 중...</div>';
+
+    try {
+        const historyWageMap = {};
+        (allHistoryData || []).forEach(dayData => {
+            (dayData.partTimers || []).forEach(pt => {
+                if (pt && pt.name && !historyWageMap[pt.name]) {
+                     historyWageMap[pt.name] = pt.wage || 0;
+                }
+            });
+        });
+        const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
+
+        const yearlyData = (allHistoryData || []).reduce((acc, day) => {
+            if (!day || !day.id || !day.workRecords || typeof day.id !== 'string' || day.id.length < 4) return acc;
+            try {
+                const yearKey = day.id.substring(0, 4);
+                if (!/^\d{4}$/.test(yearKey)) return acc;
+
+                if (!acc[yearKey]) acc[yearKey] = { workRecords: [], taskQuantities: {} };
+                acc[yearKey].workRecords.push(...(day.workRecords || []).map(r => ({ ...r, date: day.id })));
+                Object.entries(day.taskQuantities || {}).forEach(([task, qty]) => {
+                    acc[yearKey].taskQuantities[task] = (acc[yearKey].taskQuantities[task] || 0) + (Number(qty) || 0);
+                });
+            } catch (e) {
+                console.error("Error processing day in yearly aggregation:", day.id, e);
+            }
+            return acc;
+        }, {});
+
+        const sortedYears = Object.keys(yearlyData).sort((a, b) => b.localeCompare(a));
+
+        const currentData = yearlyData[selectedYearKey];
+        if (!currentData) {
+            view.innerHTML = `<div class="text-center text-gray-500">${selectedYearKey}년에 해당하는 데이터가 없습니다.</div>`;
+            return;
+        }
+
+        const currentIndex = sortedYears.indexOf(selectedYearKey);
+        const prevYearKey = (currentIndex > -1 && currentIndex + 1 < sortedYears.length)
+                             ? sortedYears[currentIndex + 1]
+                             : null;
+        const prevData = prevYearKey ? yearlyData[prevYearKey] : null;
+
+        view.innerHTML = renderSummaryView('yearly', currentData, selectedYearKey, combinedWageMap, prevData);
+
+    } catch (error) {
+        console.error("Error in renderYearlyHistory:", error);
+        view.innerHTML = '<div class="text-center text-red-500 p-4">연간 데이터를 표시하는 중 오류가 발생했습니다. 개발자 콘솔을 확인하세요.</div>';
     }
 };

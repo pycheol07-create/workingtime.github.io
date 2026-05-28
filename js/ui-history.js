@@ -13,7 +13,8 @@ import {
 import {
     renderAttendanceDailyHistory,
     renderAttendanceWeeklyHistory,
-    renderAttendanceMonthlyHistory
+    renderAttendanceMonthlyHistory,
+    renderAttendanceYearlyHistory
 } from './ui-history-attendance.js';
 
 // 3. 트렌드 분석 관련 함수 (차트)
@@ -24,7 +25,8 @@ import {
 // 4. 업무 이력 요약 관련 함수 (주별/월별 요약)
 import {
     renderWeeklyHistory,
-    renderMonthlyHistory
+    renderMonthlyHistory,
+    renderYearlyHistory
 } from './ui-history-summary.js';
 
 // 5. 개인 리포트 관련 함수
@@ -65,13 +67,15 @@ export {
     renderAttendanceDailyHistory,
     renderAttendanceWeeklyHistory,
     renderAttendanceMonthlyHistory,
-    
+    renderAttendanceYearlyHistory,
+
     // 트렌드 분석
     renderTrendAnalysisCharts,
-    
+
     // 업무 이력 요약
     renderWeeklyHistory,
     renderMonthlyHistory,
+    renderYearlyHistory,
 
     // 개인 리포트
     renderPersonalReport,

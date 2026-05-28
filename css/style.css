@@ -390,11 +390,27 @@ html.dark .depth-panel {
 /* =========================================================================
    데이터 관리 모달(공통) 패널 높이 붕괴 방지 (index.html 모바일 인라인 오픈 대비)
    ========================================================================= */
+/* 데스크톱: 좌측 공용 사이드바 | 우측 콘텐츠 (좌우 배치).
+   모바일(<=768px)에서는 위 미디어쿼리의 .flex-grow.flex.overflow-hidden 규칙이
+   더 높은 명시도로 column을 강제하므로 상하 구조가 유지됩니다. */
 #history-modal-content-box > .flex-grow {
-    min-height: 0 !important; 
+    min-height: 0 !important;
     flex: 1 1 auto !important;
     display: flex !important;
+    flex-direction: row !important;
+}
+
+#history-global-sidebar {
+    flex: 0 0 auto !important;
+}
+
+#history-main-content {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    display: flex !important;
     flex-direction: column !important;
+    overflow: hidden !important;
 }
 
 #dashboard-panel, #productivity-panel, #staffing-panel, #rawdata-panel {

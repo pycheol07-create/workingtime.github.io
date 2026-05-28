@@ -447,3 +447,38 @@ export const renderAttendanceMonthlyHistory = (selectedMonthKey, allHistoryData)
 
     renderAggregatedAttendanceSummary(view, monthlyData, selectedMonthKey, 'monthly');
 };
+
+export const renderAttendanceYearlyHistory = (selectedYearKey, allHistoryData) => {
+    const view = document.getElementById('history-attendance-yearly-view');
+    if (!view) return;
+    view.innerHTML = '<div class="text-center text-gray-500">연간 근태 데이터 집계 중...</div>';
+
+    const yearlyData = (allHistoryData || []).reduce((acc, day) => {
+        if (!day || !day.id || !day.onLeaveMembers || day.onLeaveMembers.length === 0 || typeof day.id !== 'string' || day.id.length < 4) return acc;
+        try {
+            const yearKey = day.id.substring(0, 4);
+            if (!/^\d{4}$/.test(yearKey)) return acc;
+
+            if (!acc[yearKey]) acc[yearKey] = { leaveEntries: [], dateKeys: new Set() };
+
+            day.onLeaveMembers.forEach(entry => {
+                if (entry && entry.type && entry.member) {
+                    if (entry.startDate) {
+                        const currentDate = day.id;
+                        const startDate = entry.startDate;
+                        const endDate = entry.endDate || entry.startDate;
+                        if (currentDate >= startDate && currentDate <= endDate) {
+                            acc[yearKey].leaveEntries.push({ ...entry, date: day.id });
+                        }
+                    } else {
+                        acc[yearKey].leaveEntries.push({ ...entry, date: day.id });
+                    }
+                }
+            });
+            acc[yearKey].dateKeys.add(day.id);
+        } catch (e) { console.error("Error processing day in attendance yearly aggregation:", day.id, e); }
+        return acc;
+    }, {});
+
+    renderAggregatedAttendanceSummary(view, yearlyData, selectedYearKey, 'yearly');
+};

@@ -68,6 +68,10 @@ export const context = {
     memberToSetLeave: null,
     memberToCancelLeave: null,
     activeMainHistoryTab: 'work',
+    // 데이터 관리 창의 활성 메인 탭 (dashboard|productivity|staffing|prediction|rawdata)
+    activeHistoryView: 'rawdata',
+    // 좌측 트리/전체 탭 공용 기간 단위 (day|week|month|year)
+    globalGranularity: 'day',
     attendanceRecordToDelete: null,
     isMobileTaskViewExpanded: false,
     isMobileMemberViewExpanded: false,
@@ -90,12 +94,14 @@ export const context = {
     attendanceSortState: {
         daily: { key: 'member', dir: 'asc' },
         weekly: { key: 'member', dir: 'asc' },
-        monthly: { key: 'member', dir: 'asc' }
+        monthly: { key: 'member', dir: 'asc' },
+        yearly: { key: 'member', dir: 'asc' }
     },
     attendanceFilterState: {
         daily: { member: '', type: '' },
         weekly: { member: '' },
-        monthly: { member: '' }
+        monthly: { member: '' },
+        yearly: { member: '' }
     },
     
     // 2. 업무 리포트 상태

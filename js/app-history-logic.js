@@ -10,6 +10,7 @@ export {
     loadAndRenderHistoryList,
     renderHistoryDateListByMode,
     switchHistoryView,
+    updateGranularityButtons,
     openHistoryQuantityModal,
     requestHistoryDeletion
 } from './history-list-controller.js';
