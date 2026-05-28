@@ -242,18 +242,21 @@ html.dark .depth-panel {
         align-items: flex-start !important; 
     }
 
-    /* 2. 데이터관리 모달창 1400px 하드코딩 무력화 및 화면 100% 꽉 채우기 */
+    /* 2. 데이터관리 모달창 1400px 하드코딩 무력화 및 화면 100% 꽉 채우기
+       ⚠️ '.fixed.inset-0 > div' 선택자는 의도적으로 제거함.
+       setHistoryMaximized(true)가 #history-modal-content-box 에 'fixed inset-0'
+       클래스를 더하면서 그 직속 자식들(헤더·탭 행·본문)까지 100dvh + flex-column
+       으로 잡혀 헤더 하나가 전체 화면을 차지해 본문이 가려지는 버그가 있었음. */
     #history-modal-content-box,
-    .fixed.inset-0 > div,
     div[class*="w-[1400px]"],
     div[class*="w-[1000px]"] {
         width: 100vw !important;
         max-width: 100vw !important;
         height: 100vh !important; /* 구형 모바일 기기 대비 Fallback */
-        height: 100dvh !important; 
+        height: 100dvh !important;
         max-height: 100vh !important;
         max-height: 100dvh !important;
-        border-radius: 0 !important; 
+        border-radius: 0 !important;
         margin: 0 !important;
         display: flex !important;
         flex-direction: column !important;
