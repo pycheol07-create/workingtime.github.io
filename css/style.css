@@ -263,10 +263,27 @@ html.dark .depth-panel {
         min-height: 0 !important; /* 💡 플렉스 붕괴 방지 */
     }
 
-    /* 3. [핵심] 데이터 관리 창 좌우 분할 구조를 상하 구조로 강제 변경 */
+    /* 3. [핵심] 데이터 관리 창 좌우 분할 구조를 상하 구조로 강제 변경
+       ⚠️ min-width: 0 / width: 100% 강제는 절대 빼지 말 것.
+       빠지면 자식의 wide content(rawdata 서브탭 8개 ~600px 등)에 본문이 부풀어
+       탭/날짜 가로 스크롤이 동작하지 않음. */
     #history-modal-content-box > .flex-grow.flex.overflow-hidden {
-        flex-direction: column !important; 
-        min-height: 0 !important; 
+        flex-direction: column !important;
+        min-height: 0 !important;
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    /* 사이드바·메인콘텐츠도 부모 폭에 강제 클램프 */
+    #history-global-sidebar,
+    #history-main-content {
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    /* 메인 패널들도 자체 내용에 부풀지 않도록 min-width:0 */
+    #dashboard-panel, #productivity-panel, #staffing-panel, #prediction-panel, #rawdata-panel {
+        min-width: 0 !important;
     }
 
     /* 4. 모바일 공용 사이드바: 상단 세로 트리(높이 제한) — 가로 스트립 ❌ */
@@ -363,30 +380,51 @@ html.dark .depth-panel {
         gap: 0.75rem !important;
     }
 
-    /* 10. 상단 탭 메뉴(이력, 근태 등) 가로 스와이프
-       iOS Safari에서 가로 pan 제스처 인식 보장을 위해 touch-action: pan-x 명시 */
+    /* 10. 상단 탭 메뉴 가로 스와이프
+       ⚠️ 부모/자식 모두 min-width:0 + width:100% 강제로 부모 폭(=뷰포트)에 클램프해야
+       내부 콘텐츠가 비로소 오버플로우 → 스크롤됨. 이게 빠지면 컨테이너가 자식 폭만큼
+       부풀어 scrollWidth==clientWidth가 되어 스와이프가 작동하지 않음. */
+
+    /* 메인 탭 행 wrapper (header 아래 div.px-4.border-b) */
+    #history-modal-content-box > div.px-4.border-b {
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important; /* 이중 스크롤 컨테이너 방지 — 내부 #history-main-tabs가 스크롤 */
+    }
+
+    /* 실제 가로 스크롤이 일어나는 탭 컨테이너들 */
     #history-tabs, #history-main-tabs, #attendance-history-tabs,
-    #report-tabs, #personal-report-tabs, #management-tabs,
-    .rawdata-sub-tab-btn, .flex.border-b {
+    #report-tabs, #personal-report-tabs, #management-tabs {
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
         overflow-x: auto !important;
         flex-wrap: nowrap !important;
         -webkit-overflow-scrolling: touch !important;
         scrollbar-width: none;
         touch-action: pan-x !important;
     }
-    /* sub-tab의 부모(가로 스크롤 컨테이너)에도 touch-action 보장 */
+
+    /* rawdata 서브탭 부모 행도 동일하게 클램프 */
     #rawdata-panel > div:first-child {
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
         overflow-x: auto !important;
+        flex-wrap: nowrap !important;
         -webkit-overflow-scrolling: touch !important;
         touch-action: pan-x !important;
     }
 
     #history-tabs::-webkit-scrollbar,
     #history-main-tabs::-webkit-scrollbar,
+    #rawdata-panel > div:first-child::-webkit-scrollbar,
     .flex.border-b::-webkit-scrollbar { display: none; }
 
     #history-tabs button,
     #history-main-tabs button,
+    #rawdata-panel > div:first-child button,
     .flex.border-b button {
         flex-shrink: 0 !important;
         white-space: nowrap !important;
