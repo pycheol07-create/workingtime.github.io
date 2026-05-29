@@ -619,35 +619,45 @@ export const resumeWorkIndividual = async (recordId) => {
     }
 };
 
+// 점심시간 경계 (app-lifecycle.js의 판정 시각과 일치)
+const LUNCH_START_HHMM = '12:30';
+const LUNCH_END_HHMM = '13:30';
+
 // ✨ 완벽 개선된 점심시간 자동 정지 로직 (일괄 처리 + 글로벌 잠금)
+// - 휴식 시작은 항상 LUNCH_START_HHMM. 단 그 이후에 만들어진 업무는 그 업무의 시작 시각.
+// - 중복 방지는 "이미 열린 lunch pause가 있는가"로 판정 (함수 호출 시각이 늦어져도 안전)
 export const autoPauseForLunch = async () => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
         const dailyDocRef = getDailyDocRef();
         const batch = writeBatch(db);
-        const currentTime = getCurrentTime();
         let tasksPaused = 0;
 
-        // DB에서 읽지 않고, 브라우저 화면에 떠있는 실시간 메모리 데이터만 딱 집어서 처리!
         const ongoingRecords = (appState.workRecords || []).filter(r => r.status === 'ongoing');
 
         ongoingRecords.forEach(record => {
             const docRef = doc(workRecordsColRef, record.id);
             const newPauses = record.pauses ? [...record.pauses] : [];
-            
-            const hasLunchPause = newPauses.some(p => p.type === 'lunch' && p.start === currentTime);
-            if (!hasLunchPause) {
-                newPauses.push({ start: currentTime, end: null, type: 'lunch' });
-                batch.update(docRef, {
-                    status: 'paused',
-                    pauses: newPauses
-                });
-                
-                // 로컬 상태 즉시 반영으로 화면 갱신
-                record.status = 'paused';
-                record.pauses = newPauses;
-                tasksPaused++;
-            }
+
+            // 이미 열려 있는 lunch pause가 있으면 스킵 (재실행/시간 차이에 안전)
+            const hasActiveLunchPause = newPauses.some(p => p.type === 'lunch' && p.end === null);
+            if (hasActiveLunchPause) return;
+
+            // 휴식 시작 시각: 점심 시작(12:30). 단 업무가 그 이후에 시작됐다면 업무 시작 시각.
+            const pauseStart = (record.startTime && record.startTime > LUNCH_START_HHMM)
+                ? record.startTime
+                : LUNCH_START_HHMM;
+
+            newPauses.push({ start: pauseStart, end: null, type: 'lunch' });
+            batch.update(docRef, {
+                status: 'paused',
+                pauses: newPauses
+            });
+
+            // 로컬 상태 즉시 반영으로 화면 갱신
+            record.status = 'paused';
+            record.pauses = newPauses;
+            tasksPaused++;
         });
 
         // 진행 중이던 업무가 있거나, 아무도 점심시간 잠금을 켜지 않았을 때 실행
@@ -667,12 +677,12 @@ export const autoPauseForLunch = async () => {
 };
 
 // ✨ 완벽 개선된 점심시간 자동 재개 로직 (일괄 처리 + 글로벌 잠금)
+// - 마감 시각은 항상 LUNCH_END_HHMM(13:30). 14:00에 늦게 떠도 13:30으로 마감해야 휴식 시간이 정확.
 export const autoResumeFromLunch = async () => {
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
         const dailyDocRef = getDailyDocRef();
         const batch = writeBatch(db);
-        const currentTime = getCurrentTime();
         let tasksResumed = 0;
 
         const pausedRecords = (appState.workRecords || []).filter(r => r.status === 'paused');
@@ -684,7 +694,7 @@ export const autoResumeFromLunch = async () => {
 
             // 점심시간(lunch)에 의해 멈춘 업무들만 찾아서 재개시킴
             if (lastPause && lastPause.type === 'lunch' && lastPause.end === null) {
-                lastPause.end = currentTime;
+                lastPause.end = LUNCH_END_HHMM;
                 batch.update(docRef, {
                     status: 'ongoing',
                     pauses: pauses
