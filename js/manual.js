@@ -18,7 +18,16 @@ let isAdmin = false;
 
 // ✨ 대분류 Header2(h2), 단계 Header3(h3), 구분선(hr)이 적용된 템플릿
 const MANUAL_TEMPLATE = `
-    <h2 style="color: #1d4ed8;"><strong>1. 🔑 사전 준비 & 참고사항</strong></h2>
+    <h2 style="color: #1d4ed8;"><strong>1. 📝 업무 설명</strong></h2>
+    <ul>
+        <li><strong>이 업무는 무엇인가:</strong> </li>
+        <li><strong>왜 해야 하는가 (목적·중요성):</strong> </li>
+    </ul>
+    <p><br></p>
+    <hr>
+    <p><br></p>
+
+    <h2 style="color: #1d4ed8;"><strong>2. 🔑 사전 준비 & 참고사항</strong></h2>
     <ul>
         <li><strong>필요 권한/계정:</strong> </li>
         <li><strong>접속 링크:</strong> </li>
@@ -28,7 +37,7 @@ const MANUAL_TEMPLATE = `
     <hr>
     <p><br></p>
 
-    <h2 style="color: #1d4ed8;"><strong>2. 🏃‍♂️ 업무 진행 절차</strong></h2>
+    <h2 style="color: #1d4ed8;"><strong>3. 🏃‍♂️ 업무 진행 절차</strong></h2>
     <p><strong style="color: #ef4444;">※ 이미지는 화면 캡처 후 여기에 바로 붙여넣기(Ctrl+V) 하세요.</strong></p>
     <h3><strong>▶ 1단계</strong></h3>
     <p>&nbsp;&nbsp;&nbsp;&nbsp;내용을 입력하세요</p>
@@ -44,7 +53,7 @@ const MANUAL_TEMPLATE = `
     <hr>
     <p><br></p>
 
-    <h2 style="color: #1d4ed8;"><strong>3. 🚨 필수 주의사항 및 예외</strong></h2>
+    <h2 style="color: #1d4ed8;"><strong>4. 🚨 필수 주의사항 및 예외</strong></h2>
     <ul>
         <li>업무 진행 시 주의해야 할 점이나 빈번한 실수 등을 적어주세요.</li>
         <li><strong>문제 발생 시 대처:</strong> </li>
@@ -53,7 +62,7 @@ const MANUAL_TEMPLATE = `
     <hr>
     <p><br></p>
 
-    <h2 style="color: #1d4ed8;"><strong>4. 📎 참고 파일</strong></h2>
+    <h2 style="color: #1d4ed8;"><strong>5. 📎 참고 파일</strong></h2>
     <p>※ 하단의 <strong>'파일 찾기'</strong> 버튼을 눌러 참고할 파일을 첨부해 주세요.</p>
 `;
 
@@ -433,7 +442,8 @@ function renderList() {
     });
 
     Object.keys(grouped).sort().forEach((cat, index) => {
-        const isExpanded = searchTerm !== '' || index === 0;
+        // 기본은 모두 닫힘. 검색어가 있을 때만 자동으로 펼침.
+        const isExpanded = searchTerm !== '';
 
         const folderHeader = document.createElement('div');
         folderHeader.className = 'flex items-center justify-between p-2 mt-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition select-none group';
