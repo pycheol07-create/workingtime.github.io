@@ -412,52 +412,52 @@
                             <div class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2"><span>📦</span> 작업량 입력 (개)</div>
                             <div class="space-y-2 text-sm" id="sim-task-list">
                                 <!-- 기본 표시 -->
-                                <div class="sim-task-row flex items-center gap-2">
+                                <div class="pred-sim-row flex items-center gap-2">
                                     <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">국내배송</span>
                                     <input id="sim-qty-domestic" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
                                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold shrink-0">AI</span>
                                 </div>
-                                <div class="sim-task-row flex items-center gap-2">
+                                <div class="pred-sim-row flex items-center gap-2">
                                     <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">중국제작</span>
                                     <input id="sim-qty-china" type="number" min="0" placeholder="입고예정" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
                                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 font-bold shrink-0">직접</span>
                                 </div>
                                 <!-- 샘플검수: 중국제작 입력 시 자동으로 표시·계산 -->
-                                <div class="sim-task-row hidden items-center gap-2" id="sim-row-sample" data-row-id="sample">
+                                <div class="pred-sim-row hidden items-center gap-2" id="sim-row-sample" data-row-id="sample">
                                     <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">샘플검수</span>
                                     <input id="sim-qty-sample" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
                                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 font-bold shrink-0">중국제작 연동</span>
                                     <button type="button" class="sim-remove-task text-gray-400 hover:text-red-500 text-sm font-bold shrink-0 px-1" data-remove="sample" title="제거">✕</button>
                                 </div>
-                                <div class="sim-task-row flex items-center gap-2">
+                                <div class="pred-sim-row flex items-center gap-2">
                                     <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">직진배송</span>
                                     <input id="sim-qty-direct" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
                                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 font-bold shrink-0">직접</span>
                                 </div>
-                                <div class="sim-task-row flex items-center gap-2">
+                                <div class="pred-sim-row flex items-center gap-2">
                                     <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">채우기</span>
                                     <input id="sim-qty-fill" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
                                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold shrink-0">7일평균</span>
                                 </div>
-                                <div class="sim-task-row flex items-center gap-2">
+                                <div class="pred-sim-row flex items-center gap-2">
                                     <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">교환반품</span>
                                     <input id="sim-qty-return" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
                                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold shrink-0">7일평균</span>
                                 </div>
                                 <!-- 옵션: '+ 추가 선택'에서 선택해야 표시됨 -->
-                                <div class="sim-task-row hidden items-center gap-2" id="sim-row-full" data-row-id="full">
+                                <div class="pred-sim-row hidden items-center gap-2" id="sim-row-full" data-row-id="full">
                                     <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">전량검수</span>
                                     <input id="sim-qty-full" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
                                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold shrink-0">7일평균</span>
                                     <button type="button" class="sim-remove-task text-gray-400 hover:text-red-500 text-sm font-bold shrink-0 px-1" data-remove="full" title="제거">✕</button>
                                 </div>
-                                <div class="sim-task-row hidden items-center gap-2" id="sim-row-other" data-row-id="other">
+                                <div class="pred-sim-row hidden items-center gap-2" id="sim-row-other" data-row-id="other">
                                     <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">국내기타</span>
                                     <input id="sim-qty-other" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
                                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 font-bold shrink-0">직접</span>
                                     <button type="button" class="sim-remove-task text-gray-400 hover:text-red-500 text-sm font-bold shrink-0 px-1" data-remove="other" title="제거">✕</button>
                                 </div>
-                                <div class="sim-task-row hidden items-center gap-2" id="sim-row-localprod" data-row-id="localprod">
+                                <div class="pred-sim-row hidden items-center gap-2" id="sim-row-localprod" data-row-id="localprod">
                                     <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">국내제작</span>
                                     <input id="sim-qty-localprod" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
                                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 font-bold shrink-0">직접</span>
