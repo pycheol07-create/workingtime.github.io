@@ -108,4 +108,47 @@ export function renderStaffingTab(filteredData, appConfig) {
             }
         });
     }
+
+    // ── 차월 목표 매출 → 필요 인원 시뮬레이터 ──
+    // 동작: 목표 매출 ÷ 가정 영업일 22 → 일평균 목표 매출. 현재 일평균 매출 대비
+    // 스케일링 비율(target/현재)을 현재 평균 출근 인원에 곱해 필요 인원 산출.
+    // 추가 알바 = max(0, 필요 인원 − 현재 평균 출근).
+    const simBtn = document.getElementById('staffing-sim-btn');
+    const simInput = document.getElementById('staffing-sim-input');
+    const simResult = document.getElementById('staffing-sim-result');
+    if (simBtn && simInput && simResult) {
+        // 이전 클릭 리스너 제거를 위해 노드 교체 (renderStaffingTab 재호출 시 중복 바인딩 방지)
+        const freshBtn = simBtn.cloneNode(true);
+        simBtn.parentNode.replaceChild(freshBtn, simBtn);
+        freshBtn.addEventListener('click', () => {
+            const target = Number(simInput.value);
+            if (!target || target <= 0) {
+                simResult.innerHTML = '<div class="mt-3 pt-3 border-t border-white/30 text-yellow-100">목표 매출(원)을 입력해주세요.</div>';
+                return;
+            }
+            const totalRev = filteredData.reduce((s, d) => s + (Number(d.management && d.management.revenue) || 0), 0);
+            const revDays = filteredData.filter(d => Number(d.management && d.management.revenue) > 0).length;
+            if (totalRev <= 0 || revDays === 0 || avgActual <= 0) {
+                simResult.innerHTML = '<div class="mt-3 pt-3 border-t border-white/30 text-yellow-100">현재 기간 매출/출근 데이터가 부족해 예측할 수 없습니다.</div>';
+                return;
+            }
+            const dailyRev = totalRev / revDays;
+            const workingDays = 22; // 가정: 월 영업일 22일
+            const targetDailyRev = target / workingDays;
+            const scale = targetDailyRev / dailyRev;
+            const requiredHeadcount = avgActual * scale;
+            const additionalAlba = Math.max(0, requiredHeadcount - avgActual);
+            const KRW = n => Math.round(n).toLocaleString();
+
+            simResult.innerHTML = `
+                <div class="mt-3 pt-3 border-t border-white/30 text-sm space-y-1">
+                    <div>현재 일평균 매출: <strong>${KRW(dailyRev)}원</strong> <span class="text-[11px] text-indigo-100/80">(${revDays}일 기준)</span></div>
+                    <div>목표 일평균 매출: <strong>${KRW(targetDailyRev)}원</strong> <span class="text-[11px] text-indigo-100/80">(월 22일 가정)</span></div>
+                    <div>스케일링 비율: <strong>${scale.toFixed(2)}배</strong></div>
+                    <div>필요 일평균 인원: <strong>${requiredHeadcount.toFixed(1)}명</strong> <span class="text-[11px] text-indigo-100/80">(현재 ${avgActual.toFixed(1)}명 기준 선형)</span></div>
+                    <div class="pt-1 text-yellow-100 font-bold">→ 추가 필요 알바: <strong>${additionalAlba.toFixed(1)}명</strong></div>
+                </div>
+            `;
+        });
+    }
 }

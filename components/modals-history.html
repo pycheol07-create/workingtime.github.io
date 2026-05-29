@@ -93,7 +93,7 @@
                 <button data-main-tab="productivity" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">🚀 생산성 및 효율성</button>
                 <button data-main-tab="staffing" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">👥 인력 운영 및 적정성</button>
                 <button data-main-tab="prediction" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">🔮 실적 예측</button>
-                <button data-main-tab="rawdata" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">📁 로우 데이터 및 추출</button>
+                <button data-main-tab="rawdata" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">📁 업무 기록 및 관리</button>
             </div>
 
             <div id="global-date-range-controls" class="flex flex-wrap items-center gap-2 md:gap-3 pb-3 w-full md:w-auto justify-end">
@@ -306,9 +306,10 @@
                         <div>
                             <h4 class="text-sm md:text-md font-bold mb-2 flex items-center gap-2"><span>🔮</span> 차월 목표 매출 연동 시뮬레이터</h4>
                             <p class="text-[10px] md:text-xs text-indigo-100 mb-4">다음 달 목표 매출을 입력하면 필요 알바 인원을 예측합니다.</p>
-                            <input type="number" placeholder="예: 50000000" class="w-full p-2 rounded text-gray-900 font-bold text-sm bg-white/90 focus:outline-none mb-2">
+                            <input id="staffing-sim-input" type="number" placeholder="예: 50000000" class="w-full p-2 rounded text-gray-900 font-bold text-sm bg-white/90 focus:outline-none mb-2">
                         </div>
-                        <button class="w-full bg-white text-indigo-600 font-bold py-2 rounded shadow hover:bg-gray-50 transition text-sm">필요 인원 계산하기</button>
+                        <button id="staffing-sim-btn" class="w-full bg-white text-indigo-600 font-bold py-2 rounded shadow hover:bg-gray-50 transition text-sm">필요 인원 계산하기</button>
+                        <div id="staffing-sim-result" class="text-sm"></div>
                     </div>
                 </div>
             </div>
