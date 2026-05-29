@@ -431,54 +431,6 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             joinDateEl.innerHTML = `${dateText} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>`;
         }
 
-        // 예정된 근태 (오늘 포함, 모든 유형) — 날짜성 항목만, 끝 날짜가 오늘 이후
-        const upcomingListEl = document.getElementById('status-upcoming-list');
-        const upcomingCountEl = document.getElementById('status-upcoming-count');
-        if (upcomingListEl) {
-            const TYPE_STYLE = {
-                '연차':    'bg-blue-50 text-blue-700 border-blue-200',
-                '출장':    'bg-purple-50 text-purple-700 border-purple-200',
-                '결근':    'bg-red-50 text-red-700 border-red-200',
-                '휴직':    'bg-gray-100 text-gray-700 border-gray-300',
-                '매장근무': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                '재택근무': 'bg-teal-50 text-teal-700 border-teal-200',
-                '외근':    'bg-amber-50 text-amber-700 border-amber-200'
-            };
-            const upcoming = (persistentLeaveSchedule.onLeaveMembers || [])
-                .filter(item => {
-                    if (!item || item.member !== memberName) return false;
-                    if (!item.startDate) return false; // 시간성(외출·조퇴·지각)은 일자 문서에 저장 — 제외
-                    const end = item.endDate || item.startDate;
-                    return end >= today; // 오늘 포함
-                })
-                .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
-
-            if (upcomingCountEl) upcomingCountEl.textContent = upcoming.length > 0 ? `총 ${upcoming.length}건` : '';
-
-            upcomingListEl.innerHTML = '';
-            if (upcoming.length === 0) {
-                upcomingListEl.innerHTML = '<li class="text-center text-gray-400 py-4 text-xs">예정된 근태가 없습니다.</li>';
-            } else {
-                upcoming.forEach(item => {
-                    const endStr = item.endDate || item.startDate;
-                    const days = calculateWorkingDays(item.startDate, endStr);
-                    const rangeText = (endStr && endStr !== item.startDate) ? `${item.startDate} ~ ${endStr}` : item.startDate;
-                    const isToday    = item.startDate <= today && today <= endStr;
-                    const todayBadge = isToday ? '<span class="text-[9px] text-orange-700 font-bold bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">진행중</span>' : '';
-                    const typeStyle  = TYPE_STYLE[item.type] || 'bg-gray-50 text-gray-700 border-gray-200';
-                    upcomingListEl.innerHTML += `
-                        <li class="flex justify-between items-center bg-white p-2 rounded border border-gray-100 shadow-sm">
-                            <div class="flex items-center gap-2 flex-1 min-w-0">
-                                <span class="text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${typeStyle}">${item.type}</span>
-                                <span class="text-xs font-medium text-gray-700 truncate">${rangeText}</span>
-                                ${todayBadge}
-                            </div>
-                            <span class="text-[10px] text-gray-400 shrink-0 ml-2">${days}일</span>
-                        </li>`;
-                });
-            }
-        }
-
         if (historyListEl) {
             historyListEl.innerHTML = '';
             if (stats.history.length === 0) {
@@ -508,36 +460,91 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         }
     };
 
+    // 일정 등록 탭 우측 패널: 해당 멤버의 모든 예정 근태 (오늘 포함, 모든 유형)
+    const updateUpcomingLeaveView = () => {
+        const upcomingListEl = document.getElementById('status-upcoming-list');
+        const upcomingCountEl = document.getElementById('status-upcoming-count');
+        if (!upcomingListEl) return;
+
+        const today = getTodayDateString();
+        const TYPE_STYLE = {
+            '연차':    'bg-blue-50 text-blue-700 border-blue-200',
+            '출장':    'bg-purple-50 text-purple-700 border-purple-200',
+            '결근':    'bg-red-50 text-red-700 border-red-200',
+            '휴직':    'bg-gray-100 text-gray-700 border-gray-300',
+            '매장근무': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            '재택근무': 'bg-teal-50 text-teal-700 border-teal-200',
+            '외근':    'bg-amber-50 text-amber-700 border-amber-200'
+        };
+
+        const upcoming = (persistentLeaveSchedule.onLeaveMembers || [])
+            .filter(item => {
+                if (!item || item.member !== memberName) return false;
+                if (!item.startDate) return false; // 시간성(외출·조퇴·지각)은 일자 문서에 저장 — 제외
+                const end = item.endDate || item.startDate;
+                return end >= today; // 오늘 포함 이후
+            })
+            .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+
+        if (upcomingCountEl) upcomingCountEl.textContent = upcoming.length > 0 ? `총 ${upcoming.length}건` : '';
+
+        upcomingListEl.innerHTML = '';
+        if (upcoming.length === 0) {
+            upcomingListEl.innerHTML = '<li class="text-center text-gray-400 py-8 text-xs">예정된 근태가 없습니다.</li>';
+            return;
+        }
+        upcoming.forEach(item => {
+            const endStr = item.endDate || item.startDate;
+            const days = calculateWorkingDays(item.startDate, endStr);
+            const rangeText = (endStr && endStr !== item.startDate) ? `${item.startDate} ~ ${endStr}` : item.startDate;
+            const isInProgress = item.startDate <= today && today <= endStr;
+            const progressBadge = isInProgress ? '<span class="text-[9px] text-orange-700 font-bold bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">진행중</span>' : '';
+            const typeStyle  = TYPE_STYLE[item.type] || 'bg-gray-50 text-gray-700 border-gray-200';
+            upcomingListEl.innerHTML += `
+                <li class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${typeStyle}">${item.type}</span>
+                        <span class="text-xs font-medium text-gray-700 truncate">${rangeText}</span>
+                        ${progressBadge}
+                    </div>
+                    <span class="text-[10px] text-gray-400 shrink-0 ml-2">${days}일</span>
+                </li>`;
+        });
+    };
+
     const activateTab = (tab) => {
         if (tab === 'status') {
             tabStatus.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
             tabSetting.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
             panelStatus.classList.remove('hidden');
             panelSetting.classList.add('hidden');
-            if(confirmBtn) confirmBtn.classList.add('hidden'); 
+            if(confirmBtn) confirmBtn.classList.add('hidden');
             updateStatusView();
         } else {
             tabSetting.className = "flex-1 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition";
             tabStatus.className = "flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition";
             panelSetting.classList.remove('hidden');
             panelStatus.classList.add('hidden');
-            
+
+            // 우측 예정 근태 리스트 갱신
+            updateUpcomingLeaveView();
+
             // ✅ [추가 로직] 설정 탭으로 올 때 값 초기화 및 기본값 설정
             if(confirmBtn) {
                 confirmBtn.classList.remove('hidden');
                 confirmBtn.textContent = '설정 저장';
                 delete confirmBtn.dataset.editingId;
-                
+
                 const sInput = document.getElementById('leave-start-date-input');
                 const eInput = document.getElementById('leave-end-date-input');
                 const stInput = document.getElementById('leave-start-time-input');
                 const etInput = document.getElementById('leave-end-time-input');
-                
+
                 if(sInput) sInput.value = getTodayDateString(); // 기본값: 오늘 날짜
                 if(eInput) eInput.value = '';
                 if(stInput) stInput.value = getCurrentTime(); // 기본값: 현재 시간
                 if(etInput) etInput.value = '';
-                
+
                 document.querySelectorAll('input[name="leave-type"]').forEach((r,i) => r.checked = i===0);
 
                 // 첫 라디오 버튼 선택 후 체인지 이벤트 발생시켜 화면 갱신
