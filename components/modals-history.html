@@ -316,7 +316,7 @@
 
             <div id="prediction-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6 hidden">
                 <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-2">
-                    <span>🔮</span> AI 실적 및 트렌드 예측
+                    <span>🔮</span> 업무 예측
                 </h3>
                 
                 <div class="flex flex-col md:flex-row md:items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel gap-4">
@@ -373,7 +373,7 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 flex-grow min-h-[350px]">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 min-h-[350px]">
                     <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex flex-col">
                         <h4 class="text-md font-bold text-gray-800 dark:text-white mb-4">📈 매출 트렌드 및 AI 예측</h4>
                         <div class="relative flex-grow min-h-[250px]">
@@ -387,6 +387,101 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ── ② 업무량 시뮬레이션 ── -->
+                <div class="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 p-4 md:p-5 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-800 depth-panel">
+                    <header class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+                        <h4 class="text-md font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                            <span>📐</span> 업무량 시뮬레이션
+                        </h4>
+                        <div class="flex flex-wrap items-center gap-2 text-xs">
+                            <label class="font-bold text-gray-600 dark:text-gray-400">대상일</label>
+                            <input id="sim-target-date" type="date" class="p-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-white">
+                            <label class="font-bold text-gray-600 dark:text-gray-400 ml-1">모드</label>
+                            <select id="sim-mode" class="p-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-white font-medium">
+                                <option value="single">단일 일자</option>
+                                <option value="batch7">대상일부터 7일 일괄</option>
+                            </select>
+                            <button id="sim-autofill-btn" class="px-2 py-1 bg-white dark:bg-gray-700 border border-indigo-300 dark:border-indigo-600 rounded text-indigo-700 dark:text-indigo-300 font-bold hover:bg-indigo-50 dark:hover:bg-gray-600" title="대상일에 맞춰 자동값을 다시 채웁니다">🔄 자동값 채우기</button>
+                        </div>
+                    </header>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                        <!-- 작업량 입력 -->
+                        <div class="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <div class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2"><span>📦</span> 작업량 입력 (개)</div>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">국내배송</span>
+                                    <input id="sim-qty-domestic" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold shrink-0">AI</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">중국제작</span>
+                                    <input id="sim-qty-china" type="number" min="0" placeholder="입고예정" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 font-bold shrink-0">직접</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">직진배송</span>
+                                    <input id="sim-qty-direct" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 font-bold shrink-0">직접</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">채우기</span>
+                                    <input id="sim-qty-fill" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold shrink-0">7일평균</span>
+                                </div>
+                                <details class="text-xs pt-1">
+                                    <summary class="cursor-pointer text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">+ 검수·교환반품 추가</summary>
+                                    <div class="mt-2 space-y-2 pl-2">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">샘플검수</span>
+                                            <input id="sim-qty-sample" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
+                                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold shrink-0">7일평균</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">전량검수</span>
+                                            <input id="sim-qty-full" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
+                                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold shrink-0">7일평균</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">교환반품</span>
+                                            <input id="sim-qty-return" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
+                                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold shrink-0">7일평균</span>
+                                        </div>
+                                    </div>
+                                </details>
+                            </div>
+                        </div>
+
+                        <!-- 가용 인원 -->
+                        <div class="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <div class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2"><span>👥</span> 가용 인원</div>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">정직원</span>
+                                    <input id="sim-staff-fulltime" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold shrink-0">자동</span>
+                                </div>
+                                <div id="sim-on-leave-info" class="text-[11px] text-gray-500 dark:text-gray-400 pl-1 leading-relaxed">대상일을 고르면 휴무자를 차감해서 자동 표시합니다.</div>
+                                <div class="flex items-center gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+                                    <span class="w-20 text-gray-600 dark:text-gray-400 shrink-0">알바 추가</span>
+                                    <input id="sim-staff-parttimer" type="number" min="0" placeholder="0" class="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded text-right bg-white dark:bg-gray-700 dark:text-white">
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 font-bold shrink-0">직접</span>
+                                </div>
+                                <div class="text-[11px] text-gray-500 dark:text-gray-400 pl-1 pt-1">⚙️ 가동률 80% · 주중 8h / 주말 4h (인력 운영 탭과 동일 정책)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 justify-end">
+                        <button id="sim-reset-btn" class="text-xs px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">입력 초기화</button>
+                        <button id="sim-run-btn" class="text-sm px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold shadow-sm">시뮬레이션 실행</button>
+                    </div>
+                </div>
+
+                <!-- ── ③ 결과 컨테이너 ── -->
+                <div id="sim-result-container"></div>
             </div>
 
             <div id="rawdata-panel" class="flex-1 flex flex-col h-full hidden bg-white dark:bg-gray-900">
