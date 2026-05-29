@@ -703,44 +703,96 @@ async function downloadManualAsPdf() {
     const originalText = btn?.textContent;
     if (btn) { btn.disabled = true; btn.textContent = '⏳ PDF 생성 중...'; }
 
-    // 인쇄용 깔끔한 컨테이너 (화면 밖에서 렌더)
+    // 화면 외부 영역에 그대로 배치하면 html2canvas가 빈 캔버스를 캡처하는 경우가 있어,
+    // 사용자에겐 안 보이지만 정상 레이아웃을 갖도록 fixed로 뷰포트 위에 배치 + 가림막으로 가린다.
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.92);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:"Noto Sans KR",sans-serif;color:#4338ca;font-weight:bold;font-size:16px;';
+    overlay.textContent = '⏳ PDF 생성 중입니다...';
+    document.body.appendChild(overlay);
+
     const container = document.createElement('div');
-    container.style.cssText = 'font-family: "Noto Sans KR", sans-serif; padding: 24px 32px; color: #1f2937; background: #ffffff; width: 780px; line-height: 1.6; position: absolute; left: -9999px; top: 0;';
+    container.id = '_pdf_render_target';
+    // 정상 레이아웃 + 흰 배경 + 라이트 색상 강제 (다크모드 영향 차단)
+    container.style.cssText = [
+        'position:fixed',
+        'left:0',
+        'top:0',
+        'width:780px',
+        'z-index:99998',           // 가림막보다 살짝 아래라 사용자 시각엔 숨겨짐
+        'background:#ffffff',
+        'color:#1f2937',
+        'font-family:"Noto Sans KR",sans-serif',
+        'line-height:1.6',
+        'padding:32px 40px',
+        'box-sizing:border-box',
+        'color-scheme:light'
+    ].join(';');
+
     container.innerHTML = `
         <div style="border-bottom: 3px solid #4f46e5; padding-bottom: 16px; margin-bottom: 24px;">
             <div style="display: flex; gap: 12px; font-size: 11px; color: #6b7280; margin-bottom: 8px; align-items: center; flex-wrap: wrap;">
-                <span style="background: #eef2ff; color: #4338ca; padding: 4px 10px; border-radius: 4px; font-weight: bold;">${(item.category || '공통 지침').replace(/</g,'&lt;')}</span>
+                <span style="background: #eef2ff; color: #4338ca; padding: 4px 10px; border-radius: 4px; font-weight: bold;">${escapeHtml(item.category || '공통 지침')}</span>
                 ${item.allowedMembers && item.allowedMembers.length > 0 ? '<span style="background:#fee2e2;color:#b91c1c;padding:4px 10px;border-radius:4px;font-weight:bold;">🔒 비공개</span>' : ''}
-                <span>담당 관리자: <strong style="color: #1f2937;">${(item.manager || '미지정').replace(/</g,'&lt;')}</strong></span>
+                <span style="color:#6b7280;">담당 관리자: <strong style="color: #1f2937;">${escapeHtml(item.manager || '미지정')}</strong></span>
             </div>
-            <h1 style="font-size: 24px; font-weight: 900; color: #111827; margin: 0;">${(item.title || '제목 없음').replace(/</g,'&lt;')}</h1>
+            <h1 style="font-size: 24px; font-weight: 900; color: #111827; margin: 0;">${escapeHtml(item.title || '제목 없음')}</h1>
             <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 10px; color: #9ca3af; font-family: monospace;">
                 <span>최초 작성: ${formatDateTime(item.createdAt)}</span>
                 <span>최종 수정: ${formatDateTime(item.updatedAt || item.createdAt)}</span>
             </div>
         </div>
-        <div class="manual-content">${item.content || ''}</div>
+        <div id="_pdf_render_body" style="color:#1f2937;">${item.content || '<p style="color:#9ca3af">(내용 없음)</p>'}</div>
     `;
-    // 이미지·구분선·헤더 페이지 분할 보호
-    container.querySelectorAll('img').forEach(img => {
+
+    // 본문 내부의 색·이미지·구분선 등 인쇄 친화로 정리
+    const body = container.querySelector('#_pdf_render_body');
+    body.querySelectorAll('*').forEach(el => {
+        // 다크모드 흰글씨 회색배경 등 방지: 텍스트 기본색 강제
+        if (!el.style.color) el.style.color = '#1f2937';
+    });
+    body.querySelectorAll('img').forEach(img => {
         img.style.maxWidth = '100%';
         img.style.height = 'auto';
         img.style.pageBreakInside = 'avoid';
+        img.crossOrigin = 'anonymous';
     });
-    container.querySelectorAll('h1, h2, h3').forEach(h => { h.style.pageBreakAfter = 'avoid'; });
-    container.querySelectorAll('hr').forEach(hr => {
-        hr.style.cssText = 'border: none; border-top: 2px solid #e5e7eb; margin: 24px 0;';
+    body.querySelectorAll('h1, h2, h3').forEach(h => { h.style.pageBreakAfter = 'avoid'; });
+    body.querySelectorAll('hr').forEach(hr => {
+        hr.style.cssText = 'border:none;border-top:2px solid #e5e7eb;margin:24px 0;';
     });
+
     document.body.appendChild(container);
+
+    // 이미지 로드 대기 (외부 이미지가 있을 때 빈 캔버스 방지)
+    await Promise.all(
+        [...container.querySelectorAll('img')].map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(res => {
+                img.onload = res;
+                img.onerror = res; // 실패해도 진행
+            });
+        })
+    );
+    // 폰트 안정화를 위해 한 프레임 양보
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
     const filename = (item.title || '매뉴얼').replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) + '.pdf';
 
     try {
         await html2pdf().from(container).set({
             margin: [10, 10, 10, 10],
-            filename: filename,
+            filename,
             image: { type: 'jpeg', quality: 0.95 },
-            html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' },
+            html2canvas: {
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                windowWidth: 780,
+                scrollX: 0,
+                scrollY: 0,
+                logging: false
+            },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         }).save();
@@ -749,9 +801,12 @@ async function downloadManualAsPdf() {
         alert('PDF 생성 중 오류가 발생했습니다. 콘솔을 확인해주세요.');
     } finally {
         if (container.parentNode) container.parentNode.removeChild(container);
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
         if (btn) { btn.disabled = false; btn.textContent = originalText; }
     }
 }
+
+const escapeHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 async function deleteManual() {
     if (!confirm("이 매뉴얼을 정말로 삭제하시겠습니까?\n(복구할 수 없습니다)")) return;
