@@ -3,6 +3,7 @@ import * as State from './state.js';
 import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js';
 import { saveProgress } from './history-data-manager.js';
 import { saveStateToFirestore } from './app-data.js';
+import { collection, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let localLunchPauseExecuted = false;
 let localLunchResumeExecuted = false;
@@ -68,53 +69,69 @@ export const updateElapsedTimes = async () => {
     }
 
     // ✨ 핵심 방어막 3: 17:30 퇴근 시간 감지 및 야근 확인 팝업 (관리자 전용)
-    if (isAdmin && isTodayWeekday && now === '17:30' && !localAutoClosePromptExecuted) {
+    // 5분 윈도우(17:30~17:34)로 백그라운드 탭의 setInterval throttle에 대응.
+    // 한 명이 먼저 처리하면 onSnapshot으로 동기화돼 다른 관리자에겐 ongoing.length === 0이 되어
+    // 추가 팝업이 뜨지 않음.
+    if (isAdmin && isTodayWeekday && now >= '17:30' && now < '17:35' && !localAutoClosePromptExecuted) {
         localAutoClosePromptExecuted = true;
-        
-        // 현재 진행 중인 업무 찾기
+
         const ongoingRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing');
-        
-        // 진행 중인 업무가 있을 때만 팝업 띄우기
+
         if (ongoingRecords.length > 0) {
             const modal = document.getElementById('overtime-prompt-modal');
             const btnContinue = document.getElementById('btn-continue-overtime');
             const btnCloseNow = document.getElementById('btn-close-now');
-            
+
             if (modal) modal.classList.remove('hidden');
 
-            // 실제 마감을 수행하는 함수 (진행 중인 업무를 17:30으로 마감)
-            const executeAutoClose = () => {
-                ongoingRecords.forEach(rec => {
-                    rec.status = 'completed';
-                    rec.endTime = '17:30';
-                    const totalMins = calcElapsedMinutes(rec.startTime, '17:30', rec.pauses || []);
-                    rec.duration = totalMins > 0 ? totalMins : 0;
-                });
-                
-                markDataAsDirty(); // 데이터 변경 알림 (서버에 딱 1번 저장됨)
-                showToast('응답이 없어 17:30 기준으로 모든 업무가 자동 마감되었습니다.', true);
+            // 실제 마감: Firestore workRecords 서브컬렉션을 batch.update.
+            // (workRecords는 daily_data 문서의 필드가 아니라 별도 서브컬렉션이라
+            //  markDataAsDirty/saveStateToFirestore로는 저장되지 않음)
+            const executeAutoClose = async () => {
+                // 실행 시점에 다시 필터 — 이미 누가 마감했으면 빈 배치(no-op)
+                const ongoing = (State.appState.workRecords || []).filter(r => r.status === 'ongoing');
+                if (ongoing.length === 0) {
+                    if (modal) modal.classList.add('hidden');
+                    return;
+                }
+                try {
+                    const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
+                    const batch = writeBatch(State.db);
+                    ongoing.forEach(rec => {
+                        const recRef = doc(colRef, rec.id);
+                        const duration = Math.max(0, calcElapsedMinutes(rec.startTime, '17:30', rec.pauses || []));
+                        batch.update(recRef, { status: 'completed', endTime: '17:30', duration });
+                        // 화면 즉시 갱신용 로컬 미러
+                        rec.status = 'completed';
+                        rec.endTime = '17:30';
+                        rec.duration = duration;
+                    });
+                    await batch.commit();
+                    showToast(`17:30 기준으로 ${ongoing.length}개 업무가 자동 마감되었습니다.`, false);
+                } catch (e) {
+                    console.error('Auto-close batch error:', e);
+                    showToast('업무 자동 마감 중 오류가 발생했습니다. 콘솔을 확인해주세요.', true);
+                }
                 if (modal) modal.classList.add('hidden');
             };
 
             // 1. 5분(300,000ms) 대기 타이머 시작
-            autoCloseTimer = setTimeout(() => {
-                executeAutoClose();
-            }, 5 * 60 * 1000);
+            autoCloseTimer = setTimeout(() => { executeAutoClose(); }, 5 * 60 * 1000);
 
-            // 2. [연장 근무 계속하기] 버튼 클릭 시
+            // 2. [연장 근무 계속하기]
             if (btnContinue) {
                 btnContinue.onclick = () => {
-                    clearTimeout(autoCloseTimer); // 타이머 폭탄 해제!
+                    clearTimeout(autoCloseTimer);
                     if (modal) modal.classList.add('hidden');
                     showToast('연장 근무가 활성화되었습니다. 퇴근 시 직접 마감해주세요.', false);
                 };
             }
 
-            // 3. [지금 마감하기] 버튼 클릭 시 (기다리지 않고 즉시 마감)
+            // 3. [지금 마감하기]
             if (btnCloseNow) {
-                btnCloseNow.onclick = () => {
+                btnCloseNow.onclick = async () => {
                     clearTimeout(autoCloseTimer);
-                    executeAutoClose();
+                    await executeAutoClose();
                 };
             }
         }
