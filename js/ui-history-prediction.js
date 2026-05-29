@@ -9,13 +9,15 @@ import { getTodayDateString } from './utils.js';
 // 시뮬레이션 상수/헬퍼
 // ───────────────────────────────────────────────────────────
 const SIM_TASKS = [
-    { id: 'domestic', key: '국내배송',  label: '국내배송',  auto: 'ai' },
-    { id: 'china',    key: '중국제작',  label: '중국제작',  auto: 'manual' },
-    { id: 'direct',   key: '직진배송',  label: '직진배송',  auto: 'manual' },
-    { id: 'fill',     key: '채우기',    label: '채우기',    auto: 'rolling7' },
-    { id: 'sample',   key: '샘플검수',  label: '샘플검수',  auto: 'rolling7' },
-    { id: 'full',     key: '전량검수',  label: '전량검수',  auto: 'rolling7' },
-    { id: 'return',   key: '교환반품',  label: '교환반품',  auto: 'rolling7' }
+    { id: 'domestic', key: '국내배송', label: '국내배송', auto: 'ai',           optional: false },
+    { id: 'china',    key: '중국제작', label: '중국제작', auto: 'manual',       optional: false },
+    { id: 'sample',   key: '샘플검수', label: '샘플검수', auto: 'china-linked', optional: true  }, // 중국제작 입고 시 자동 표시
+    { id: 'direct',   key: '직진배송', label: '직진배송', auto: 'manual',       optional: false },
+    { id: 'fill',     key: '채우기',   label: '채우기',   auto: 'rolling7',     optional: false },
+    { id: 'return',   key: '교환반품', label: '교환반품', auto: 'rolling7',     optional: false }, // 기본 표시로 이동
+    { id: 'full',     key: '전량검수', label: '전량검수', auto: 'rolling7',     optional: true  },
+    { id: 'other',    key: '국내기타', label: '국내기타', auto: 'manual',       optional: true  },
+    { id: 'localprod',key: '국내제작', label: '국내제작', auto: 'manual',       optional: true  }
 ];
 const LEAVE_OFF_TYPES = new Set(['연차', '결근', '휴직', '출장', '매장근무']);
 const UTILIZATION = 0.8;
@@ -54,6 +56,22 @@ const computeTaskUPHs = (historyData) => {
         uph[t.key] = dur > 0 ? qty / (dur / 60) : 0;
     });
     return uph;
+};
+
+/** 샘플검수 비율 = 최근 4주에서 중국제작>0인 날들의 (Σ샘플검수 / Σ중국제작) */
+const computeSampleRatio = (historyData) => {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 28);
+    const cutoffStr = ymd(cutoff);
+    const recent = (historyData || []).filter(d => typeof d.id === 'string' && d.id >= cutoffStr);
+    let chinaSum = 0, sampleSum = 0;
+    recent.forEach(d => {
+        const china = Number(d.taskQuantities?.['중국제작']) || 0;
+        if (china > 0) {
+            chinaSum += china;
+            sampleSum += Number(d.taskQuantities?.['샘플검수']) || 0;
+        }
+    });
+    return chinaSum > 0 ? sampleSum / chinaSum : 0;
 };
 
 /** 최근 7일간 해당 작업 수량 평균 (0 또는 빈 일자는 제외) */
@@ -110,6 +128,59 @@ const computeAvailableStaff = (dateStr, appConfig, persistentLeave, historyData)
 };
 
 // ───────────────────────────────────────────────────────────
+// 시뮬레이션 UI 헬퍼
+// ───────────────────────────────────────────────────────────
+const setQty = (id, val) => {
+    const el = document.getElementById(`sim-qty-${id}`);
+    if (!el) return;
+    el.value = (val == null || val === 0 || val === '') ? '' : val;
+};
+
+const isRowVisible = (id) => {
+    const row = document.getElementById(`sim-row-${id}`);
+    return row && !row.classList.contains('hidden');
+};
+
+const showOptionalRow = (id) => {
+    const row = document.getElementById(`sim-row-${id}`);
+    if (row) {
+        row.classList.remove('hidden');
+        row.classList.add('flex'); // ensure flex layout
+    }
+    const addBtn = document.querySelector(`.sim-add-btn[data-add="${id}"]`);
+    if (addBtn) {
+        addBtn.disabled = true;
+        addBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+};
+
+const hideOptionalRow = (id) => {
+    const row = document.getElementById(`sim-row-${id}`);
+    if (row) {
+        row.classList.add('hidden');
+        row.classList.remove('flex');
+    }
+    setQty(id, '');
+    const addBtn = document.querySelector(`.sim-add-btn[data-add="${id}"]`);
+    if (addBtn) {
+        addBtn.disabled = false;
+        addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+};
+
+/** 중국제작 입력값을 반영해 샘플검수 자동 표시·계산 (없으면 row 숨김) */
+const syncSampleFromChina = (historyData) => {
+    const chinaQty = Number(document.getElementById('sim-qty-china')?.value) || 0;
+    if (chinaQty > 0) {
+        const ratio = computeSampleRatio(historyData);
+        setQty('sample', Math.round(ratio * chinaQty));
+        showOptionalRow('sample');
+    } else {
+        hideOptionalRow('sample');
+    }
+};
+
+// ───────────────────────────────────────────────────────────
 // 시뮬레이션 UI 핸들러
 // ───────────────────────────────────────────────────────────
 const autoFillSimInputs = (dateStr) => {
@@ -118,17 +189,17 @@ const autoFillSimInputs = (dateStr) => {
     const config = State.appConfig;
 
     // 국내배송: AI
-    const elDom = document.getElementById('sim-qty-domestic');
-    if (elDom) elDom.value = getAIPredictedDomestic(data, dateStr) || '';
+    setQty('domestic', getAIPredictedDomestic(data, dateStr));
 
-    // 채우기·검수·반품: 7일 평균
-    [
-        ['fill', '채우기'], ['sample', '샘플검수'],
-        ['full', '전량검수'], ['return', '교환반품']
-    ].forEach(([id, key]) => {
-        const el = document.getElementById(`sim-qty-${id}`);
-        if (el) el.value = compute7DayAvg(data, key) || '';
-    });
+    // 채우기·교환반품: 7일 평균 (기본 표시 항상)
+    setQty('fill',   compute7DayAvg(data, '채우기'));
+    setQty('return', compute7DayAvg(data, '교환반품'));
+
+    // 전량검수: row가 활성화된 경우에만 자동값 갱신
+    if (isRowVisible('full'))   setQty('full',   compute7DayAvg(data, '전량검수'));
+
+    // 샘플검수: 중국제작 입력값에 따라 자동 표시·계산
+    syncSampleFromChina(data);
 
     // 가용 인원
     const staffInfo = computeAvailableStaff(dateStr, config, State.persistentLeaveSchedule, data);
@@ -148,6 +219,8 @@ const autoFillSimInputs = (dateStr) => {
 const readSimInputs = () => {
     const tasks = {};
     SIM_TASKS.forEach(t => {
+        // 옵션 항목은 row가 활성화된 경우만 카운트
+        if (t.optional && !isRowVisible(t.id)) { tasks[t.key] = 0; return; }
         const el = document.getElementById(`sim-qty-${t.id}`);
         tasks[t.key] = Number(el?.value) || 0;
     });
@@ -200,12 +273,20 @@ const runSimulation = () => {
         // batch 모드의 2일차 이후: 자동값 기반 inputs
         const autoTasks = {};
         SIM_TASKS.forEach(t => {
-            if (t.auto === 'ai' && t.key === '국내배송') {
+            // 옵션 row가 비활성이면 0 (단, 샘플검수는 중국제작 값에 따라 자동 활성 처리)
+            if (t.optional && !isRowVisible(t.id) && t.id !== 'sample') {
+                autoTasks[t.key] = 0;
+            } else if (t.auto === 'ai' && t.key === '국내배송') {
                 autoTasks[t.key] = getAIPredictedDomestic(State.allHistoryData, d);
             } else if (t.auto === 'rolling7') {
                 autoTasks[t.key] = compute7DayAvg(State.allHistoryData, t.key);
+            } else if (t.auto === 'china-linked' && t.id === 'sample') {
+                // 미래 일자의 중국제작 입고는 알 수 없으므로 사용자가 대상일에 넣은 값 사용
+                const china = baseInputs.tasks['중국제작'] || 0;
+                const ratio = computeSampleRatio(State.allHistoryData);
+                autoTasks[t.key] = Math.round(ratio * china);
             } else {
-                // manual 작업: 사용자가 대상일에 입력한 값을 그대로 가정
+                // manual: 사용자가 대상일에 입력한 값을 그대로 가정
                 autoTasks[t.key] = baseInputs.tasks[t.key];
             }
         });
@@ -357,8 +438,43 @@ const setupSimulationListeners = () => {
     }
     document.getElementById('sim-autofill-btn')?.addEventListener('click', () => autoFillSimInputs(dateEl?.value));
     runBtn.addEventListener('click', runSimulation);
+
+    // 중국제작 input 변경 시 → 샘플검수 자동 표시·계산
+    const chinaEl = document.getElementById('sim-qty-china');
+    if (chinaEl) {
+        chinaEl.addEventListener('input', () => syncSampleFromChina(State.allHistoryData));
+    }
+
+    // '+ 추가 선택' 버튼들 → 해당 row 표시 + 자동값 채움
+    document.querySelectorAll('.sim-add-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.add;
+            if (!id) return;
+            showOptionalRow(id);
+            // 자동 항목은 값 채워주기
+            if (id === 'sample') syncSampleFromChina(State.allHistoryData);
+            else if (id === 'full') setQty('full', compute7DayAvg(State.allHistoryData, '전량검수'));
+            // other / localprod 은 수동 입력 — 빈 채로 둠
+            document.getElementById(`sim-qty-${id}`)?.focus();
+        });
+    });
+
+    // row 안의 ✕ (제거) 버튼들 — 이벤트 위임
+    document.getElementById('sim-task-list')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.sim-remove-task');
+        if (btn) {
+            const id = btn.dataset.remove;
+            if (id) hideOptionalRow(id);
+        }
+    });
+
     document.getElementById('sim-reset-btn')?.addEventListener('click', () => {
-        ['sim-qty-domestic','sim-qty-china','sim-qty-direct','sim-qty-fill','sim-qty-sample','sim-qty-full','sim-qty-return','sim-staff-fulltime','sim-staff-parttimer'].forEach(id => {
+        // 모든 수량/인원 입력 초기화 + 옵션 row 숨김
+        SIM_TASKS.forEach(t => {
+            setQty(t.id, '');
+            if (t.optional) hideOptionalRow(t.id);
+        });
+        ['sim-staff-fulltime','sim-staff-parttimer'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
