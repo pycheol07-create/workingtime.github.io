@@ -332,6 +332,7 @@ function setupEventListeners() {
 
     document.getElementById('btn-save-manual').addEventListener('click', saveManual);
     document.getElementById('btn-delete-manual').addEventListener('click', deleteManual);
+    document.getElementById('btn-download-manual-pdf')?.addEventListener('click', downloadManualAsPdf);
     document.getElementById('btn-edit-manual').addEventListener('click', () => {
         const item = manualList.find(m => m.id === currentEditingId);
         if (item) openEditor(item);
@@ -686,6 +687,70 @@ function viewManual(id) {
 
     document.getElementById('btn-edit-manual').classList.remove('hidden');
     document.getElementById('btn-delete-manual').classList.remove('hidden');
+    document.getElementById('btn-download-manual-pdf')?.classList.remove('hidden');
+}
+
+/** 현재 보고 있는 매뉴얼을 PDF로 다운로드 */
+async function downloadManualAsPdf() {
+    const item = manualList.find(m => m.id === currentEditingId);
+    if (!item) { alert('PDF로 변환할 매뉴얼을 먼저 선택해주세요.'); return; }
+    if (typeof html2pdf === 'undefined') {
+        alert('PDF 생성 라이브러리가 아직 로드되지 않았습니다. 페이지를 새로고침 후 다시 시도해 주세요.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-download-manual-pdf');
+    const originalText = btn?.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ PDF 생성 중...'; }
+
+    // 인쇄용 깔끔한 컨테이너 (화면 밖에서 렌더)
+    const container = document.createElement('div');
+    container.style.cssText = 'font-family: "Noto Sans KR", sans-serif; padding: 24px 32px; color: #1f2937; background: #ffffff; width: 780px; line-height: 1.6; position: absolute; left: -9999px; top: 0;';
+    container.innerHTML = `
+        <div style="border-bottom: 3px solid #4f46e5; padding-bottom: 16px; margin-bottom: 24px;">
+            <div style="display: flex; gap: 12px; font-size: 11px; color: #6b7280; margin-bottom: 8px; align-items: center; flex-wrap: wrap;">
+                <span style="background: #eef2ff; color: #4338ca; padding: 4px 10px; border-radius: 4px; font-weight: bold;">${(item.category || '공통 지침').replace(/</g,'&lt;')}</span>
+                ${item.allowedMembers && item.allowedMembers.length > 0 ? '<span style="background:#fee2e2;color:#b91c1c;padding:4px 10px;border-radius:4px;font-weight:bold;">🔒 비공개</span>' : ''}
+                <span>담당 관리자: <strong style="color: #1f2937;">${(item.manager || '미지정').replace(/</g,'&lt;')}</strong></span>
+            </div>
+            <h1 style="font-size: 24px; font-weight: 900; color: #111827; margin: 0;">${(item.title || '제목 없음').replace(/</g,'&lt;')}</h1>
+            <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 10px; color: #9ca3af; font-family: monospace;">
+                <span>최초 작성: ${formatDateTime(item.createdAt)}</span>
+                <span>최종 수정: ${formatDateTime(item.updatedAt || item.createdAt)}</span>
+            </div>
+        </div>
+        <div class="manual-content">${item.content || ''}</div>
+    `;
+    // 이미지·구분선·헤더 페이지 분할 보호
+    container.querySelectorAll('img').forEach(img => {
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        img.style.pageBreakInside = 'avoid';
+    });
+    container.querySelectorAll('h1, h2, h3').forEach(h => { h.style.pageBreakAfter = 'avoid'; });
+    container.querySelectorAll('hr').forEach(hr => {
+        hr.style.cssText = 'border: none; border-top: 2px solid #e5e7eb; margin: 24px 0;';
+    });
+    document.body.appendChild(container);
+
+    const filename = (item.title || '매뉴얼').replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) + '.pdf';
+
+    try {
+        await html2pdf().from(container).set({
+            margin: [10, 10, 10, 10],
+            filename: filename,
+            image: { type: 'jpeg', quality: 0.95 },
+            html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        }).save();
+    } catch (e) {
+        console.error('PDF 생성 실패:', e);
+        alert('PDF 생성 중 오류가 발생했습니다. 콘솔을 확인해주세요.');
+    } finally {
+        if (container.parentNode) container.parentNode.removeChild(container);
+        if (btn) { btn.disabled = false; btn.textContent = originalText; }
+    }
 }
 
 async function deleteManual() {
