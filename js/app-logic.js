@@ -30,13 +30,29 @@ const getDailyDocRef = () => {
 
 // --- 출퇴근 관련 로직 ---
 
-// 출근 인정 시각(HH:MM). 이 시각을 넘기면 자동 지각 처리.
+// 자동 지각 임계 시각(HH:MM). 평일/주말 분기.
 // 필요시 appConfig.tardyThreshold 형태로 외부화 가능.
-const TARDY_THRESHOLD = '08:30';
+const TARDY_THRESHOLD_WEEKDAY = '08:30';
+const TARDY_THRESHOLD_WEEKEND = '12:00';
+// 출근 후 N분 이내에 퇴근하면 "출근 취소"로 간주해 자동 지각도 함께 제거.
+const CANCEL_WINDOW_MIN = 10;
 
-/** 08:30 이후 출근 시 onLeaveMembers에 지각 항목 자동 추가 (이미 있으면 중복 안 함) */
+const getTardyThreshold = (date = new Date()) => {
+    const dow = date.getDay();
+    return (dow === 0 || dow === 6) ? TARDY_THRESHOLD_WEEKEND : TARDY_THRESHOLD_WEEKDAY;
+};
+
+const timeDiffMin = (startHHMM, endHHMM) => {
+    if (!startHHMM || !endHHMM) return Infinity;
+    const [sh, sm] = startHHMM.split(':').map(Number);
+    const [eh, em] = endHHMM.split(':').map(Number);
+    return (eh * 60 + em) - (sh * 60 + sm);
+};
+
+/** 임계 시각 이후 출근 시 onLeaveMembers에 지각 항목 자동 추가 (이미 있으면 중복 안 함) */
 const maybeRecordTardy = async (memberName, clockInTime) => {
-    if (!clockInTime || clockInTime <= TARDY_THRESHOLD) return;
+    const threshold = getTardyThreshold();
+    if (!clockInTime || clockInTime <= threshold) return;
     const dup = (appState.dailyOnLeaveMembers || []).some(
         e => e && e.member === memberName && e.type === '지각'
     );
@@ -54,9 +70,29 @@ const maybeRecordTardy = async (memberName, clockInTime) => {
         await updateDoc(getDailyDocRef(), { onLeaveMembers: updated });
         appState.dailyOnLeaveMembers = updated;
         await syncTodayToHistory(); // 이력 캐시 즉시 반영
-        showToast(`${TARDY_THRESHOLD} 이후 출근이라 지각이 자동 등록되었습니다.`);
+        showToast(`${threshold} 이후 출근이라 지각이 자동 등록되었습니다.`);
     } catch (e) {
         console.error('Auto-tardy record error:', e);
+    }
+};
+
+/** 퇴근이 출근 직후(CANCEL_WINDOW_MIN분 이내)면 자동 지각 항목 제거 (= 출근 취소로 간주) */
+const maybeRemoveAutoTardyOnCancel = async (memberName) => {
+    const current = appState.dailyOnLeaveMembers || [];
+    const idx = current.findIndex(e => e && e.member === memberName && e.type === '지각' && e.auto);
+    if (idx === -1) return;
+    const inTime = appState.dailyAttendance?.[memberName]?.inTime;
+    const gap = timeDiffMin(inTime, getCurrentTime());
+    if (gap > CANCEL_WINDOW_MIN) return; // 정상 퇴근 — 지각 유지
+
+    const updated = current.filter((_, i) => i !== idx);
+    try {
+        await updateDoc(getDailyDocRef(), { onLeaveMembers: updated });
+        appState.dailyOnLeaveMembers = updated;
+        await syncTodayToHistory();
+        showToast(`출근 취소로 자동 지각 기록도 함께 제거되었습니다.`);
+    } catch (e) {
+        console.error('Auto-tardy remove error:', e);
     }
 };
 
@@ -115,6 +151,8 @@ export const processClockOut = async (memberName, isAdminAction = false) => {
         });
 
         showToast(`${memberName}님 ${isAdminAction ? '관리자에 의해 ' : ''}퇴근 처리되었습니다. (${now})`);
+        // 출근 직후(10분 이내) 퇴근이면 "출근 취소"로 간주해 자동 지각도 함께 제거
+        await maybeRemoveAutoTardyOnCancel(memberName);
         return true;
     } catch (e) {
         console.error("Clock-out error:", e);
