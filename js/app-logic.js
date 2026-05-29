@@ -30,6 +30,36 @@ const getDailyDocRef = () => {
 
 // --- 출퇴근 관련 로직 ---
 
+// 출근 인정 시각(HH:MM). 이 시각을 넘기면 자동 지각 처리.
+// 필요시 appConfig.tardyThreshold 형태로 외부화 가능.
+const TARDY_THRESHOLD = '08:30';
+
+/** 08:30 이후 출근 시 onLeaveMembers에 지각 항목 자동 추가 (이미 있으면 중복 안 함) */
+const maybeRecordTardy = async (memberName, clockInTime) => {
+    if (!clockInTime || clockInTime <= TARDY_THRESHOLD) return;
+    const dup = (appState.dailyOnLeaveMembers || []).some(
+        e => e && e.member === memberName && e.type === '지각'
+    );
+    if (dup) return;
+
+    const entry = {
+        id: `auto-tardy-${memberName}-${Date.now()}`,
+        member: memberName,
+        type: '지각',
+        startTime: clockInTime,
+        auto: true
+    };
+    const updated = [...(appState.dailyOnLeaveMembers || []), entry];
+    try {
+        await updateDoc(getDailyDocRef(), { onLeaveMembers: updated });
+        appState.dailyOnLeaveMembers = updated;
+        await syncTodayToHistory(); // 이력 캐시 즉시 반영
+        showToast(`${TARDY_THRESHOLD} 이후 출근이라 지각이 자동 등록되었습니다.`);
+    } catch (e) {
+        console.error('Auto-tardy record error:', e);
+    }
+};
+
 export const processClockIn = async (memberName, isAdminAction = false) => {
     const now = getCurrentTime();
     if (appState.dailyAttendance?.[memberName]?.status === 'active') {
@@ -42,11 +72,12 @@ export const processClockIn = async (memberName, isAdminAction = false) => {
             [`dailyAttendance.${memberName}`]: {
                 inTime: now,
                 outTime: null,
-                status: 'active' 
+                status: 'active'
             }
         });
 
         showToast(`${memberName}님 ${isAdminAction ? '관리자에 의해 ' : ''}출근 처리되었습니다. (${now})`);
+        await maybeRecordTardy(memberName, now);
         return true;
     } catch (e) {
         console.error("Clock-in error:", e);
@@ -57,6 +88,7 @@ export const processClockIn = async (memberName, isAdminAction = false) => {
                 }
             }, { merge: true });
              showToast(`${memberName}님 첫 출근 처리되었습니다. (${now})`);
+             await maybeRecordTardy(memberName, now);
              return true;
         }
         showToast("출근 처리 중 오류가 발생했습니다.", true);
