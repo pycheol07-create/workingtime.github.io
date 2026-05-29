@@ -300,11 +300,11 @@ export async function fetchAllHistoryData(forceRefresh = false) {
         const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
         try {
             const d = new Date();
-            // 🚨 기존 2개월 -> 1개월로 축소 (기본 읽기 비용 50% 절감)
-            d.setMonth(d.getMonth() - 1); 
-            const oneMonthAgoStr = d.toISOString().split('T')[0];
+            // 이력 조회 범위: 최근 12개월. (세션 캐시 5분이 있어 같은 세션 내 재호출은 추가 read 없음)
+            d.setMonth(d.getMonth() - 12);
+            const oneYearAgoStr = d.toISOString().split('T')[0];
 
-            const q = query(historyCollectionRef, where(documentId(), ">=", oneMonthAgoStr));
+            const q = query(historyCollectionRef, where(documentId(), ">=", oneYearAgoStr));
             const querySnapshot = await getDocs(q);
             
             const dataMap = new Map();
