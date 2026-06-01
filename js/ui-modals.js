@@ -248,9 +248,11 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         ...(appState.dateBasedOnLeaveMembers || [])
     ];
 
+    // 지각은 이벤트성 기록(도착 시각)이라 "현재 휴무 상태"가 아님.
+    // 외출도 endTime이 있으면 이미 복귀한 것.
     const onLeaveMemberMap = new Map(
         combinedOnLeaveMembers
-            .filter(item => !(item.type === '외출' && item.endTime))
+            .filter(item => !(item.type === '외출' && item.endTime) && item.type !== '지각')
             .map(item => [item.member, item])
     );
 

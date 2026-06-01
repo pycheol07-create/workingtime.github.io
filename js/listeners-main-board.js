@@ -44,7 +44,7 @@ const openMemberActionModal = (memberName) => {
     // 근태 상태 확인 (일일 근태 + 기간 근태 병합 확인)
     const combinedOnLeaveMembers = [...(State.appState.dailyOnLeaveMembers || []), ...(State.appState.dateBasedOnLeaveMembers || [])];
     // 외출 중이더라도 종료(복귀) 시간이 있으면 근태 중이 아님
-    const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime));
+    const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime) && m.type !== '지각');
 
     // 상태 배지 & 시간 정보 업데이트
     if (DOM.actionMemberStatusBadge && DOM.actionMemberTimeInfo) {
@@ -410,7 +410,7 @@ export function setupMainBoardListeners() {
                 State.context.memberToCancelLeave = memberName;
                 
                 const combinedOnLeaveMembers = [...(State.appState.dailyOnLeaveMembers || []), ...(State.appState.dateBasedOnLeaveMembers || [])];
-                const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime));
+                const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime) && m.type !== '지각');
                 const leaveType = leaveInfo ? leaveInfo.type : '근태';
                 const actionText = (leaveType === '외출' || leaveType === '조퇴') ? '복귀' : '취소';
 
