@@ -55,27 +55,47 @@ export function renderProductivityTab(filteredData, appConfig) {
         }
     });
 
-    const setProductivityText = (typeId, data) => {
+    // 국내배송은 한 주문에 평균 1.3개 상품이 포함되므로 "개" + "건(=개/1.3)" 병기
+    const DOMESTIC_ITEMS_PER_ORDER = 1.3;
+
+    const setProductivityText = (typeId, data, showCases = false) => {
         const mins = data.duration;
         const hours = mins / 60;
-        
+
         const upm = mins > 0 ? (data.qty / mins) : 0;
         const uph = hours > 0 ? (data.qty / hours) : 0;
-        const upd = uph * 8; 
+        const upd = uph * 8;
 
         const upmEl = document.getElementById(`prod-upm-${typeId}`);
         const uphEl = document.getElementById(`prod-uph-${typeId}`);
         const updEl = document.getElementById(`prod-upd-${typeId}`);
 
-        if (upmEl) upmEl.textContent = upm > 0 ? `${upm.toFixed(2)} 개` : '0';
-        if (uphEl) uphEl.textContent = uph > 0 ? `${uph.toFixed(1)} 개` : '0';
-        if (updEl) updEl.textContent = upd > 0 ? `${Math.round(upd).toLocaleString()} 개` : '0';
+        // 단일 값 포맷터: "X 개" + 옵션 (Y 건)
+        const fmt = (val, digits) => {
+            if (val <= 0) return '0';
+            const itemText = digits === 0
+                ? Math.round(val).toLocaleString()
+                : val.toFixed(digits);
+            let html = `${itemText} 개`;
+            if (showCases) {
+                const cases = val / DOMESTIC_ITEMS_PER_ORDER;
+                const caseText = digits === 0
+                    ? Math.round(cases).toLocaleString()
+                    : cases.toFixed(digits);
+                html += ` <span class="text-[10px] text-gray-400 font-normal">(${caseText} 건)</span>`;
+            }
+            return html;
+        };
+
+        if (upmEl) upmEl.innerHTML = fmt(upm, 2);
+        if (uphEl) uphEl.innerHTML = fmt(uph, 1);
+        if (updEl) updEl.innerHTML = fmt(upd, 0);
     };
 
-    setProductivityText('general', summary['종합']);
-    setProductivityText('domestic', summary['국내배송']);
-    setProductivityText('china', summary['중국제작']);
-    setProductivityText('direct', summary['직진배송']);
+    setProductivityText('general',  summary['종합']);
+    setProductivityText('domestic', summary['국내배송'], true); // 건수 병기
+    setProductivityText('china',    summary['중국제작']);
+    setProductivityText('direct',   summary['직진배송']);
 
     const ctx = document.getElementById('chart-productivity-efficiency');
     if (ctx) {
