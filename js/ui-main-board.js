@@ -63,10 +63,40 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
     
-    const ongoingRecords = (appState.workRecords || []).filter(r => 
+    const ongoingRecords = (appState.workRecords || []).filter(r =>
         (r.status === 'ongoing' || r.status === 'paused') && !onLeaveMemberNames.has(r.member)
     );
-    const tasksToRender = [...new Set([...baseTasks, ...ongoingRecords.map(r => r.task)])];
+
+    // 카드 정렬 — 1) 본인 진행 업무 → 2) 참여 인원 많은 진행 업무 → 3) 기본 순서
+    const allTaskCandidates = [...new Set([...baseTasks, ...ongoingRecords.map(r => r.task)])];
+
+    // task → 고유 참여 멤버 수
+    const taskMemberMap = new Map();
+    ongoingRecords.forEach(r => {
+        if (!taskMemberMap.has(r.task)) taskMemberMap.set(r.task, new Set());
+        taskMemberMap.get(r.task).add(r.member);
+    });
+    const countOf = (task) => (taskMemberMap.get(task)?.size || 0);
+
+    // 현재 사용자가 진행/휴식 중인 업무
+    const userOngoingTasks = new Set(
+        currentUserName
+            ? ongoingRecords.filter(r => r.member === currentUserName).map(r => r.task)
+            : []
+    );
+
+    const tier1 = []; // 본인이 진행 중인 업무
+    const tier2 = []; // 그 외 진행 중인 업무 (참여 인원 많은 순)
+    const tier3 = []; // 진행 없는 기본 업무 (baseTasks 원본 순서 유지)
+    allTaskCandidates.forEach(task => {
+        if (userOngoingTasks.has(task)) tier1.push(task);
+        else if (countOf(task) > 0) tier2.push(task);
+        else tier3.push(task);
+    });
+    tier1.sort((a, b) => countOf(b) - countOf(a));
+    tier2.sort((a, b) => countOf(b) - countOf(a));
+
+    const tasksToRender = [...tier1, ...tier2, ...tier3];
 
     tasksToRender.forEach(task => {
         const card = document.createElement('div');
