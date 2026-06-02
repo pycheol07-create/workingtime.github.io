@@ -5,7 +5,7 @@ import * as State from './state.js';
 export let currentEzadminData = null;
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
-const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff']);
+const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'ongoing-tasks']);
 // 가장 최근에 계산된 상세 데이터 (호버 툴팁용)
 let lastPersonnelDetail = null;
 
@@ -264,6 +264,21 @@ const buildPersonnelDetailData = (appState, appConfig) => {
     workingDetail.sort((a, b) => (a.task || '').localeCompare(b.task || '') || a.member.localeCompare(b.member));
     const workingSet = new Set(workingDetail.map(w => w.member));
 
+    // 진행 업무(태스크) 집계: 업무명 → {총원, 휴식 인원}
+    const taskMap = new Map();
+    workingRecords.forEach(r => {
+        const t = r.task || '(미지정)';
+        if (!taskMap.has(t)) taskMap.set(t, { task: t, members: new Set(), paused: 0 });
+        const g = taskMap.get(t);
+        if (!g.members.has(r.member)) {
+            g.members.add(r.member);
+            if (r.status === 'paused') g.paused++;
+        }
+    });
+    const ongoingTasksDetail = Array.from(taskMap.values())
+        .map(g => ({ task: g.task, count: g.members.size, paused: g.paused }))
+        .sort((a, b) => b.count - a.count || a.task.localeCompare(b.task));
+
     // 대기: 출근(active)이지만 휴무·진행/휴식 모두 아닌 인원
     const attendanceMap = appState.dailyAttendance || {};
     const idleDetail = Object.keys(attendanceMap)
@@ -273,7 +288,8 @@ const buildPersonnelDetailData = (appState, appConfig) => {
     return {
         'leave-staff': leaveDetail,
         'idle-staff': idleDetail,
-        'working-staff': workingDetail
+        'working-staff': workingDetail,
+        'ongoing-tasks': ongoingTasksDetail
     };
 };
 
@@ -301,6 +317,14 @@ const renderDetailListHtml = (key, items) => {
              </div>`
         ).join('') + '</div>';
     }
+    if (key === 'ongoing-tasks') {
+        return '<div class="space-y-0.5 py-1">' + items.map(it =>
+            `<div class="flex items-center justify-between text-[11px] gap-2 text-gray-700 dark:text-gray-300">
+                <span class="font-medium truncate">${it.task}</span>
+                <span class="text-[10px] text-gray-500 dark:text-gray-400 shrink-0">${it.count}명${it.paused > 0 ? ` <span class="text-yellow-700 dark:text-yellow-400">(${it.paused}명 휴식)</span>` : ''}</span>
+             </div>`
+        ).join('') + '</div>';
+    }
     return '';
 };
 
@@ -314,7 +338,7 @@ const paintPersonnelDetailContainers = (data) => {
 
 const buildTooltipHtml = (key) => {
     const items = lastPersonnelDetail && lastPersonnelDetail[key];
-    const title = { 'leave-staff': '📋 휴무 인원', 'idle-staff': '⏸️ 대기 인원', 'working-staff': '🏃 진행 업무' }[key] || '';
+    const title = { 'leave-staff': '📋 휴무 인원', 'idle-staff': '⏸️ 대기 인원', 'working-staff': '🏃 진행 인력', 'ongoing-tasks': '📋 진행 업무' }[key] || '';
     const header = `<div class="font-bold text-yellow-300 mb-1.5">${title}</div>`;
     const footer = '<div class="text-[10px] text-gray-400 mt-2 italic">💡 클릭으로 고정</div>';
     if (!items || items.length === 0) {
@@ -327,6 +351,8 @@ const buildTooltipHtml = (key) => {
         body = items.map(n => `<div>${n}</div>`).join('');
     } else if (key === 'working-staff') {
         body = items.map(it => `<div>${it.member} <span class="text-gray-400">— ${it.task}${it.paused ? ' (휴식)' : ''}</span></div>`).join('');
+    } else if (key === 'ongoing-tasks') {
+        body = items.map(it => `<div>${it.task} <span class="text-gray-400">— ${it.count}명${it.paused > 0 ? ` (${it.paused}명 휴식)` : ''}</span></div>`).join('');
     }
     return header + body + footer;
 };
