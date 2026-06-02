@@ -27,9 +27,14 @@
 </head>
 <body class="text-gray-800 dark:text-gray-200 overflow-hidden flex h-screen">
 
-    <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:flex flex-col z-20 shadow-sm shrink-0 transition-colors">
-        <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+    <div id="admin-sidebar-overlay" class="fixed inset-0 bg-black/40 z-30 hidden md:hidden transition-opacity"></div>
+
+    <aside id="admin-sidebar" class="fixed md:relative inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col z-40 shadow-2xl md:shadow-sm shrink-0 transition-transform duration-300 transform -translate-x-full md:translate-x-0">
+        <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
             <h1 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">⚙️ 관리자 시스템</h1>
+            <button id="admin-sidebar-close" class="md:hidden p-1 text-gray-500 hover:text-gray-800 dark:hover:text-white" aria-label="메뉴 닫기">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
         </div>
         <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
             <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 px-2">설정 메뉴</div>
@@ -76,8 +81,11 @@
 
     <main class="flex-1 flex flex-col h-full overflow-hidden relative w-full">
         <header class="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 md:px-6 shrink-0 transition-colors z-10">
-            <div class="flex items-center gap-3">
-                <a href="index.html" class="md:hidden p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            <div class="flex items-center gap-2">
+                <button id="admin-sidebar-toggle" class="md:hidden p-2 -ml-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg" aria-label="메뉴 열기">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <a href="index.html" class="md:hidden p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg" aria-label="메인 화면으로">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                 </a>
                 <h2 class="text-lg font-bold text-gray-800 dark:text-white hidden md:block">시스템 환경 설정</h2>
@@ -91,7 +99,7 @@
         <div id="admin-content" class="flex-1 overflow-y-auto p-4 md:p-6 hidden bg-gray-50 dark:bg-gray-900 w-full">
             <div class="w-full h-full"> 
 
-                <div class="block md:hidden mb-6 w-full">
+                <div class="hidden mb-6 w-full">
                     <select id="mobile-tab-select" class="w-full p-3.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold shadow-sm outline-none focus:border-blue-500 transition-colors appearance-none">
                         <option value="section-team">🧑‍🤝‍🧑 팀원 관리</option>
                         <option value="section-permission">🔐 권한 관리</option>
@@ -405,6 +413,42 @@
                 });
             }
         });
+    </script>
+
+    <!-- 모바일 사이드바 드로어 토글 -->
+    <script>
+    (function () {
+        const sidebar = document.getElementById('admin-sidebar');
+        const overlay = document.getElementById('admin-sidebar-overlay');
+        const openBtn = document.getElementById('admin-sidebar-toggle');
+        const closeBtn = document.getElementById('admin-sidebar-close');
+        if (!sidebar || !overlay) return;
+
+        const openSidebar = () => {
+            sidebar.classList.remove('-translate-x-full');
+            overlay.classList.remove('hidden');
+        };
+        const closeSidebar = () => {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+        };
+
+        openBtn?.addEventListener('click', openSidebar);
+        closeBtn?.addEventListener('click', closeSidebar);
+        overlay.addEventListener('click', closeSidebar);
+
+        // 메뉴 항목 클릭 시 모바일에선 드로어 자동 닫기
+        sidebar.querySelectorAll('.admin-tab-btn, a').forEach(el => {
+            el.addEventListener('click', () => {
+                if (window.innerWidth < 768) closeSidebar();
+            });
+        });
+
+        // 데스크톱 폭으로 리사이즈되면 강제로 닫힘 상태 해제 (transform이 md:translate-x-0이라 자연스럽지만 overlay 정리)
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 768) overlay.classList.add('hidden');
+        });
+    })();
     </script>
 </body>
 </html>
