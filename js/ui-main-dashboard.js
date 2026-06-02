@@ -4,6 +4,11 @@ import * as State from './state.js';
 
 export let currentEzadminData = null;
 
+// 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
+const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff']);
+// 가장 최근에 계산된 상세 데이터 (호버 툴팁용)
+let lastPersonnelDetail = null;
+
 export const renderNoticeWidget = (appState) => {
     const memoList = document.getElementById('widget-memo-list');
     if (!memoList) return;
@@ -69,6 +74,16 @@ export const renderDashboardLayout = (appConfig) => {
                 <div class="flex justify-between items-center py-2 border-b border-blue-50 dark:border-blue-900/50 last:border-0 hover:bg-blue-50/50 dark:hover:bg-blue-900/30 transition-colors px-2 rounded gap-2 overflow-hidden">
                     <span class="text-sm font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap shrink-0 break-keep tracking-tight">${safeTitle}</span>
                     <span id="${def.valueId}" class="text-sm font-extrabold text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-md shadow-sm border border-blue-100 dark:border-blue-800 transition-all shrink-0">0</span>
+                </div>
+            `;
+        } else if (EXPANDABLE_ITEMS.has(id)) {
+            personnelHtml += `
+                <div class="personnel-row py-2 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors px-2 rounded cursor-pointer select-none" data-detail-key="${id}">
+                    <div class="flex justify-between items-center gap-2 overflow-hidden">
+                        <span class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap shrink-0 break-keep tracking-tight">${safeTitle}</span>
+                        <span id="${def.valueId}" class="text-sm font-extrabold text-gray-800 dark:text-gray-200 transition-all shrink-0">0</span>
+                    </div>
+                    <div class="personnel-detail hidden mt-1.5 pl-2 border-l-2 border-blue-400 dark:border-blue-500" data-detail-content="${id}"></div>
                 </div>
             `;
         } else {
@@ -201,6 +216,193 @@ export const updateSummary = (appState, appConfig) => {
 
     updateEzadminDisplay();
     renderNoticeWidget(appState);
+
+    // 실시간 인원 현황 상세 펼침 데이터 + 인터랙션
+    lastPersonnelDetail = buildPersonnelDetailData(appState, appConfig);
+    paintPersonnelDetailContainers(lastPersonnelDetail);
+    setupPersonnelInteractions();
+};
+
+// ───────────────────────────────────────────────────────────
+// 실시간 인원 현황 상세(펼침/툴팁)
+// ───────────────────────────────────────────────────────────
+const buildPersonnelDetailData = (appState, appConfig) => {
+    const teamGroups = appConfig.teamGroups || [];
+    const allStaffMembers = new Set(teamGroups.flatMap(g => g.members || []));
+    const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
+
+    const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
+    const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
+    const combinedOnLeave = [...dailyLeaves, ...dateLeaves];
+
+    // 휴무: 외출(복귀 완료) + 지각 제외, 중복 제거 (한 사람의 첫 항목 유지)
+    const seenLeave = new Set();
+    const leaveDetail = [];
+    combinedOnLeave.forEach(item => {
+        if (!item || !item.member) return;
+        if (item.type === '외출' && item.endTime) return;
+        if (item.type === '지각') return;
+        if (!(allStaffMembers.has(item.member) || allPartTimers.has(item.member))) return;
+        if (seenLeave.has(item.member)) return;
+        seenLeave.add(item.member);
+        leaveDetail.push({ member: item.member, type: item.type });
+    });
+    leaveDetail.sort((a, b) => a.member.localeCompare(b.member));
+    const onLeaveSet = new Set(leaveDetail.map(l => l.member));
+
+    // 진행 업무: ongoing/paused, 휴무자 제외, 멤버별 첫 업무 채택
+    const workingRecords = (appState.workRecords || []).filter(r =>
+        (r.status === 'ongoing' || r.status === 'paused') && !onLeaveSet.has(r.member)
+    );
+    const seenWorking = new Set();
+    const workingDetail = [];
+    workingRecords.forEach(r => {
+        if (seenWorking.has(r.member)) return;
+        seenWorking.add(r.member);
+        workingDetail.push({ member: r.member, task: r.task || '-', paused: r.status === 'paused' });
+    });
+    workingDetail.sort((a, b) => (a.task || '').localeCompare(b.task || '') || a.member.localeCompare(b.member));
+    const workingSet = new Set(workingDetail.map(w => w.member));
+
+    // 대기: 출근(active)이지만 휴무·진행/휴식 모두 아닌 인원
+    const attendanceMap = appState.dailyAttendance || {};
+    const idleDetail = Object.keys(attendanceMap)
+        .filter(m => attendanceMap[m].status === 'active' && !onLeaveSet.has(m) && !workingSet.has(m))
+        .sort();
+
+    return {
+        'leave-staff': leaveDetail,
+        'idle-staff': idleDetail,
+        'working-staff': workingDetail
+    };
+};
+
+const renderDetailListHtml = (key, items) => {
+    if (!items || items.length === 0) {
+        return '<div class="text-xs text-gray-400 dark:text-gray-500 italic py-1">해당 인원 없음</div>';
+    }
+    if (key === 'leave-staff') {
+        return '<div class="flex flex-wrap gap-1 py-1">' + items.map(it =>
+            `<span class="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-[11px] px-1.5 py-0.5 rounded">
+                <strong>${it.member}</strong><span class="text-[9px] text-gray-500 dark:text-gray-400">${it.type}</span>
+             </span>`
+        ).join('') + '</div>';
+    }
+    if (key === 'idle-staff') {
+        return '<div class="flex flex-wrap gap-1 py-1">' + items.map(name =>
+            `<span class="inline-flex bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-[11px] px-1.5 py-0.5 rounded">${name}</span>`
+        ).join('') + '</div>';
+    }
+    if (key === 'working-staff') {
+        return '<div class="space-y-0.5 py-1">' + items.map(it =>
+            `<div class="flex items-center justify-between text-[11px] gap-2 ${it.paused ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-700 dark:text-gray-300'}">
+                <span class="font-medium shrink-0">${it.member}</span>
+                <span class="text-[10px] text-gray-500 dark:text-gray-400 truncate">${it.task}${it.paused ? ' (휴식)' : ''}</span>
+             </div>`
+        ).join('') + '</div>';
+    }
+    return '';
+};
+
+const paintPersonnelDetailContainers = (data) => {
+    if (!data) return;
+    Object.keys(data).forEach(key => {
+        const el = document.querySelector(`[data-detail-content="${key}"]`);
+        if (el) el.innerHTML = renderDetailListHtml(key, data[key]);
+    });
+};
+
+const buildTooltipHtml = (key) => {
+    const items = lastPersonnelDetail && lastPersonnelDetail[key];
+    const title = { 'leave-staff': '📋 휴무 인원', 'idle-staff': '⏸️ 대기 인원', 'working-staff': '🏃 진행 업무' }[key] || '';
+    const header = `<div class="font-bold text-yellow-300 mb-1.5">${title}</div>`;
+    const footer = '<div class="text-[10px] text-gray-400 mt-2 italic">💡 클릭으로 고정</div>';
+    if (!items || items.length === 0) {
+        return header + '<div class="text-gray-300">해당 인원 없음</div>' + footer;
+    }
+    let body = '';
+    if (key === 'leave-staff') {
+        body = items.map(it => `<div>${it.member} <span class="text-gray-400">(${it.type})</span></div>`).join('');
+    } else if (key === 'idle-staff') {
+        body = items.map(n => `<div>${n}</div>`).join('');
+    } else if (key === 'working-staff') {
+        body = items.map(it => `<div>${it.member} <span class="text-gray-400">— ${it.task}${it.paused ? ' (휴식)' : ''}</span></div>`).join('');
+    }
+    return header + body + footer;
+};
+
+const positionTooltip = (el, x, y) => {
+    const pad = 12;
+    const w = el.offsetWidth || 200;
+    const h = el.offsetHeight || 100;
+    let left = x + pad;
+    let top = y + pad;
+    if (left + w > window.innerWidth - 8) left = Math.max(8, x - w - pad);
+    if (top + h > window.innerHeight - 8) top = Math.max(8, y - h - pad);
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+};
+
+const setupPersonnelInteractions = () => {
+    const container = document.getElementById('summary-personnel');
+    if (!container || container.dataset.interactionsSetup === 'true') return;
+    container.dataset.interactionsSetup = 'true';
+
+    // 글로벌 툴팁 1개 (body에 부착)
+    let tooltipEl = document.getElementById('personnel-hover-tooltip');
+    if (!tooltipEl) {
+        tooltipEl = document.createElement('div');
+        tooltipEl.id = 'personnel-hover-tooltip';
+        tooltipEl.className = 'fixed pointer-events-none z-[200] bg-gray-900 text-white text-xs rounded-lg shadow-xl p-3 max-w-xs leading-relaxed hidden';
+        document.body.appendChild(tooltipEl);
+    }
+
+    let hoverTimer = null;
+    const hideTooltip = () => {
+        clearTimeout(hoverTimer);
+        tooltipEl.classList.add('hidden');
+    };
+
+    container.addEventListener('mouseover', (e) => {
+        const row = e.target.closest('.personnel-row[data-detail-key]');
+        if (!row) return;
+        if (row.dataset.expanded === 'true') return; // 펼친 상태에선 툴팁 생략
+        const key = row.dataset.detailKey;
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => {
+            tooltipEl.innerHTML = buildTooltipHtml(key);
+            tooltipEl.classList.remove('hidden');
+            positionTooltip(tooltipEl, e.clientX, e.clientY);
+        }, 250);
+    });
+
+    container.addEventListener('mousemove', (e) => {
+        if (tooltipEl.classList.contains('hidden')) return;
+        positionTooltip(tooltipEl, e.clientX, e.clientY);
+    });
+
+    container.addEventListener('mouseout', (e) => {
+        if (!e.target.closest('.personnel-row[data-detail-key]')) return;
+        hideTooltip();
+    });
+
+    container.addEventListener('click', (e) => {
+        const row = e.target.closest('.personnel-row[data-detail-key]');
+        if (!row) return;
+        const detailEl = row.querySelector('.personnel-detail');
+        if (!detailEl) return;
+        const isExpanded = row.dataset.expanded === 'true';
+        if (isExpanded) {
+            row.dataset.expanded = 'false';
+            detailEl.classList.add('hidden');
+            row.classList.remove('bg-blue-50/40', 'dark:bg-blue-900/20');
+        } else {
+            row.dataset.expanded = 'true';
+            detailEl.classList.remove('hidden');
+            row.classList.add('bg-blue-50/40', 'dark:bg-blue-900/20');
+            hideTooltip();
+        }
+    });
 };
 
 window.addEventListener('message', (event) => {
