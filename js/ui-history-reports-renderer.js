@@ -163,10 +163,16 @@ const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
     `;
 
     tasks.forEach(task => {
+        // 국내배송은 1건당 평균 1.3개라 건/H 병기
+        const isDomestic = task.label === '국내배송';
+        const caseSuffix = (isDomestic && task.t > 0)
+            ? `<div class="text-xs text-gray-500 mt-0.5">${(task.t / 1.3).toFixed(1)} <span class="text-[10px] text-gray-400">건/H</span></div>`
+            : '';
         html += `
             <div class="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 shadow-sm relative group">
                 <div class="text-sm font-bold text-gray-700 mb-1">${task.label}</div>
                 <div class="text-2xl font-extrabold text-indigo-700">${task.t.toFixed(1)} <span class="text-sm font-medium text-gray-500">개/H</span></div>
+                ${caseSuffix}
                 ${getDiffHtmlForMetric('overallAvgThroughput', task.t, task.p)}
             </div>
         `;
@@ -676,22 +682,33 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     taskData.forEach(d => {
         const stdSpeed = standardThroughputs[d.taskName] || 0;
         const avgDailyStaff = d.avgDailyStaff || 0;
-        
+
+        // 국내배송: 1건당 평균 1.3개 → 처리량/처리속도에 건수 병기
+        const isDomestic = d.taskName === '국내배송';
+        const caseText = (val, digits) => {
+            if (!isDomestic || val <= 0) return '';
+            const cases = val / 1.3;
+            const text = digits === 0 ? Math.round(cases).toLocaleString() : cases.toFixed(digits);
+            return ` <span class="text-[10px] text-gray-400 font-normal">(${text} 건)</span>`;
+        };
+        const qtyCell = `${d.quantity.toLocaleString()}${caseText(d.quantity, 0)}`;
+        const thpCell = `${d.avgThroughput.toFixed(2)}${caseText(d.avgThroughput, 2)}`;
+
         html += createTableRow([
-            { content: d.taskName, class: "font-medium text-gray-900" }, 
-            { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, d.p.duration) }, 
-            { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, d.p.cost) }, 
-            { content: d.quantity.toLocaleString(), diff: getDiffHtmlForMetric('quantity', d.quantity, d.p.quantity) }, 
-            
+            { content: d.taskName, class: "font-medium text-gray-900" },
+            { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, d.p.duration) },
+            { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, d.p.cost) },
+            { content: qtyCell, diff: getDiffHtmlForMetric('quantity', d.quantity, d.p.quantity) },
+
             // ✅ [수정] 진행 일수 데이터 바인딩 (0일이면 - 표시)
             { content: (d.workDays || 0) > 0 ? `${d.workDays}일` : '-', diff: getDiffHtmlForMetric('workDays', d.workDays, d.p.workDays) },
-            
-            { content: d.avgThroughput.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, d.p.avgThroughput) }, 
+
+            { content: thpCell, diff: getDiffHtmlForMetric('avgThroughput', d.avgThroughput, d.p.avgThroughput) },
             { content: stdSpeed > 0 ? stdSpeed.toFixed(2) : '-', class: "text-indigo-600 font-mono bg-indigo-50" },
-            { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, d.p.avgCostPerItem) }, 
+            { content: `${Math.round(d.avgCostPerItem).toLocaleString()} 원`, diff: getDiffHtmlForMetric('avgCostPerItem', d.avgCostPerItem, d.p.avgCostPerItem) },
             { content: avgDailyStaff.toFixed(1), diff: getDiffHtmlForMetric('avgDailyStaff', avgDailyStaff, d.p.avgDailyStaff) },
-            { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, d.p.avgStaff) }, 
-            { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, d.p.avgTime) }, 
+            { content: d.avgStaff.toLocaleString(), diff: getDiffHtmlForMetric('avgStaff', d.avgStaff, d.p.avgStaff) },
+            { content: formatDuration(d.avgTime), diff: getDiffHtmlForMetric('avgTime', d.avgTime, d.p.avgTime) },
             { content: d.efficiency.toFixed(2), diff: getDiffHtmlForMetric('avgThroughput', d.efficiency, d.p.efficiency), class: "font-bold" }
         ]);
     });
