@@ -12,7 +12,7 @@ import {
 } from './state.js';
 
 import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js';
-import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
 import { syncTodayToHistory } from './history-data-manager.js';
@@ -26,6 +26,15 @@ const getWorkRecordsCollectionRef = () => {
 const getDailyDocRef = () => {
     return doc(db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
 };
+
+// 🛡️ 동시 진행 차단용 멤버 잠금(lock) 컬렉션.
+// 한 멤버는 동시에 1개 업무만 ongoing/paused 가능 — 트랜잭션 내부에서 검사.
+// doc id = member name. 종료 시 delete.
+const getActiveLocksCollectionRef = () => {
+    const today = getTodayDateString();
+    return collection(db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'activeLocks');
+};
+const getActiveLockRef = (member) => doc(getActiveLocksCollectionRef(), String(member));
 
 
 // --- 출퇴근 관련 로직 ---
@@ -202,29 +211,49 @@ export const startWorkGroup = async (members, task) => {
 
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
-        const batch = writeBatch(db);
         const groupId = generateId();
         const startTime = getCurrentTime();
 
-        members.forEach(member => {
-            const recordId = generateId(); 
-            const newRecordRef = doc(workRecordsColRef, recordId);
-            const newRecordData = {
-                id: recordId, 
-                member,
-                task,
-                startTime,
-                endTime: null,
-                duration: null,
-                status: 'ongoing',
-                groupId,
-                pauses: []
-            };
-            batch.set(newRecordRef, newRecordData);
-        });
+        // 🛡️ 트랜잭션으로 race condition 차단:
+        // 멤버별 lock doc을 read → 이미 점유돼 있으면 abort → 통과한 경우에만 lock + record 동시 set.
+        await runTransaction(db, async (tx) => {
+            const lockRefs = members.map(m => getActiveLockRef(m));
+            const lockSnaps = await Promise.all(lockRefs.map(ref => tx.get(ref)));
+            const conflicts = members.filter((m, i) => lockSnaps[i].exists());
+            if (conflicts.length > 0) {
+                throw new Error(`ALREADY_WORKING:${conflicts.join(',')}`);
+            }
 
-        await batch.commit();
+            members.forEach((member, i) => {
+                const recordId = generateId();
+                const newRecordRef = doc(workRecordsColRef, recordId);
+                tx.set(newRecordRef, {
+                    id: recordId,
+                    member,
+                    task,
+                    startTime,
+                    endTime: null,
+                    duration: null,
+                    status: 'ongoing',
+                    groupId,
+                    pauses: []
+                });
+                tx.set(lockRefs[i], {
+                    member,
+                    recordId,
+                    task,
+                    startTime,
+                    groupId,
+                    since: Date.now()
+                });
+            });
+        });
     } catch (e) {
+        if (e && e.message && e.message.startsWith('ALREADY_WORKING:')) {
+            const names = e.message.replace('ALREADY_WORKING:', '');
+            showToast(`이미 업무를 진행 중인 팀원이 있습니다: ${names}`, true);
+            return;
+        }
         console.error("Error starting work group: ", e);
         showToast("업무 시작 중 오류가 발생했습니다.", true);
     }
@@ -252,28 +281,47 @@ export const addMembersToWorkGroup = async (members, task, groupId) => {
 
     try {
         const workRecordsColRef = getWorkRecordsCollectionRef();
-        const batch = writeBatch(db);
         const startTime = getCurrentTime();
 
-        members.forEach(member => {
-            const recordId = generateId();
-            const newRecordRef = doc(workRecordsColRef, recordId);
-            const newRecordData = {
-                id: recordId,
-                member,
-                task,
-                startTime,
-                endTime: null,
-                duration: null,
-                status: 'ongoing',
-                groupId,
-                pauses: []
-            };
-            batch.set(newRecordRef, newRecordData);
-        });
+        // 🛡️ 트랜잭션으로 race condition 차단 (시작 흐름과 동일 패턴)
+        await runTransaction(db, async (tx) => {
+            const lockRefs = members.map(m => getActiveLockRef(m));
+            const lockSnaps = await Promise.all(lockRefs.map(ref => tx.get(ref)));
+            const conflicts = members.filter((m, i) => lockSnaps[i].exists());
+            if (conflicts.length > 0) {
+                throw new Error(`ALREADY_WORKING:${conflicts.join(',')}`);
+            }
 
-        await batch.commit();
+            members.forEach((member, i) => {
+                const recordId = generateId();
+                const newRecordRef = doc(workRecordsColRef, recordId);
+                tx.set(newRecordRef, {
+                    id: recordId,
+                    member,
+                    task,
+                    startTime,
+                    endTime: null,
+                    duration: null,
+                    status: 'ongoing',
+                    groupId,
+                    pauses: []
+                });
+                tx.set(lockRefs[i], {
+                    member,
+                    recordId,
+                    task,
+                    startTime,
+                    groupId,
+                    since: Date.now()
+                });
+            });
+        });
     } catch (e) {
+         if (e && e.message && e.message.startsWith('ALREADY_WORKING:')) {
+             const names = e.message.replace('ALREADY_WORKING:', '');
+             showToast(`이미 업무를 진행 중인 팀원이 있습니다: ${names}`, true);
+             return;
+         }
          console.error("Error adding members to work group: ", e);
          showToast("팀원 추가 중 오류가 발생했습니다.", true);
     }
@@ -326,10 +374,13 @@ export const finalizeStopGroup = async (groupId, quantity) => {
                     pauses: pauses
                 });
             }
+
+            // 🛡️ 멤버 잠금 해제 — 다음 업무 시작 가능
+            if (record.member) batch.delete(getActiveLockRef(record.member));
         });
 
         await batch.commit();
-        
+
         if (removedCount > 0) {
              showToast(`${removedCount}건의 기록이 0분 소요로 인해 자동 삭제되었습니다.`);
         }
@@ -364,7 +415,7 @@ export const stopWorkByTask = async (taskName, quantity) => {
         querySnapshot.forEach(docSnap => {
             const record = docSnap.data();
             let pauses = record.pauses || [];
-            
+
             if (record.status === 'paused') {
                 const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
                 if (lastPause && lastPause.end === null) {
@@ -379,10 +430,13 @@ export const stopWorkByTask = async (taskName, quantity) => {
             } else {
                 batch.update(docSnap.ref, { status: 'completed', endTime: endTime, duration: duration, pauses: pauses });
             }
+
+            // 🛡️ 멤버 잠금 해제
+            if (record.member) batch.delete(getActiveLockRef(record.member));
         });
 
         await batch.commit();
-        
+
         if (removedCount > 0) {
              showToast(`${removedCount}건의 기록이 0분 소요로 인해 자동 삭제되었습니다.`);
         }
@@ -492,6 +546,11 @@ export const stopWorkIndividual = async (recordId) => {
                     pauses: pauses
                 });
                 showToast(`${record.member}님의 ${record.task} 업무가 종료되었습니다.`);
+            }
+
+            // 🛡️ 멤버 잠금 해제 (best-effort)
+            if (record.member) {
+                try { await deleteDoc(getActiveLockRef(record.member)); } catch (_) {}
             }
         } else {
             showToast('이미 완료되었거나 찾을 수 없는 기록입니다.', true);

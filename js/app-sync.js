@@ -94,6 +94,9 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         // 🛡️ 무결성 점검: 한 사람이 동시에 2개 이상 ongoing/paused 상태인 경우 감지 및 자동 정리
         try { detectAndCleanupDuplicateOngoing(workRecordsCollectionRef); } catch (e) { console.error('Duplicate check failed:', e); }
 
+        // 🛡️ 마이그레이션: lock doc이 없는 살아있는 레코드에 backfill (1회성, 세션당 1회)
+        try { backfillActiveLocksOnce(workRecordsCollectionRef); } catch (e) { console.error('Lock backfill failed:', e); }
+
         renderCallback();
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (업무)';
     });
@@ -214,6 +217,7 @@ function detectAndCleanupDuplicateOngoing(workRecordsColRef) {
 
 async function cleanupDuplicateOngoing(workRecordsColRef, dupes) {
     const batch = writeBatch(workRecordsColRef.firestore);
+    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
     const now = getCurrentTime();
     let closedCount = 0;
     const closedSummaries = [];
@@ -224,6 +228,7 @@ async function cleanupDuplicateOngoing(workRecordsColRef, dupes) {
             (a.startTime || '').localeCompare(b.startTime || '')
         );
         const keepIdx = sorted.length - 1; // 가장 최근 1건 유지
+        const keep = sorted[keepIdx];
 
         for (let i = 0; i < sorted.length; i++) {
             if (i === keepIdx) continue;
@@ -248,6 +253,19 @@ async function cleanupDuplicateOngoing(workRecordsColRef, dupes) {
             });
             closedCount++;
             closedSummaries.push(`${member}: '${r.task}' (${r.startTime}~${endTime}, ${duration}분)`);
+        }
+
+        // 🛡️ 멤버 잠금을 살아남는 1건으로 정렬 — 후속 종료 흐름이 정확히 해제 가능
+        if (keep && keep.member) {
+            batch.set(doc(lockColRef, String(keep.member)), {
+                member: keep.member,
+                recordId: keep.id,
+                task: keep.task,
+                startTime: keep.startTime,
+                groupId: keep.groupId || null,
+                since: Date.now(),
+                resyncedBy: 'duplicate_ongoing_cleanup'
+            });
         }
     }
 
@@ -275,6 +293,54 @@ function calcDurationMinutes(startHHMM, endHHMM, pauses) {
         if (dur > 0) total -= dur;
     });
     return Math.max(0, total);
+}
+
+// 🛡️ 마이그레이션: 살아있는 record에 대응되는 activeLock이 없으면 만들어준다.
+// 세션당 한 번만 실행 (재배포 후 새로고침 시점에 자동 1회).
+let _lockBackfillDone = false;
+async function backfillActiveLocksOnce(workRecordsColRef) {
+    if (_lockBackfillDone) return;
+    const liveRecords = (State.appState.workRecords || []).filter(r =>
+        r.status === 'ongoing' || r.status === 'paused'
+    );
+    if (liveRecords.length === 0) {
+        _lockBackfillDone = true;
+        return;
+    }
+    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
+
+    // 멤버별 최우선 1건만 lock으로 등록 (중복 시 자동 정리가 이어서 처리함)
+    const byMember = new Map();
+    liveRecords.forEach(r => {
+        if (!r.member) return;
+        const prev = byMember.get(r.member);
+        if (!prev || (r.startTime || '') > (prev.startTime || '')) byMember.set(r.member, r);
+    });
+
+    const batch = writeBatch(State.db);
+    let count = 0;
+    byMember.forEach((rec, member) => {
+        batch.set(doc(lockColRef, String(member)), {
+            member,
+            recordId: rec.id,
+            task: rec.task,
+            startTime: rec.startTime,
+            groupId: rec.groupId || null,
+            since: Date.now(),
+            backfilled: true
+        });
+        count++;
+    });
+
+    if (count > 0) {
+        try {
+            await batch.commit();
+            console.log(`[activeLocks backfill] ${count}개 멤버의 진행 중 lock 등록.`);
+        } catch (e) {
+            console.warn('[activeLocks backfill] commit 실패 — 일부 race 방지가 미가동일 수 있음:', e);
+        }
+    }
+    _lockBackfillDone = true;
 }
 
 // 콘솔에서 즉시 강제 정리하고 싶을 때

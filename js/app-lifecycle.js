@@ -96,11 +96,14 @@ export const updateElapsedTimes = async () => {
                 }
                 try {
                     const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
+                    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
                     const batch = writeBatch(State.db);
                     ongoing.forEach(rec => {
                         const recRef = doc(colRef, rec.id);
                         const duration = Math.max(0, calcElapsedMinutes(rec.startTime, '17:30', rec.pauses || []));
                         batch.update(recRef, { status: 'completed', endTime: '17:30', duration });
+                        // 🛡️ 멤버 잠금 해제
+                        if (rec.member) batch.delete(doc(lockColRef, String(rec.member)));
                         // 화면 즉시 갱신용 로컬 미러
                         rec.status = 'completed';
                         rec.endTime = '17:30';
