@@ -236,12 +236,15 @@ export const renderTodoList = () => {
     const list = State.appState.inspectionList || [];
     const todoArea = document.getElementById('insp-todo-list-area');
     const todoBody = document.getElementById('insp-todo-list-body');
+    const placeholder = document.getElementById('insp-todo-empty-placeholder');
     if (!todoArea || !todoBody) return;
-    
+
     if (list.length > 0) {
         todoArea.classList.remove('hidden');
+        if (placeholder) placeholder.classList.add('hidden');
     } else {
         todoArea.classList.add('hidden');
+        if (placeholder) placeholder.classList.remove('hidden');
         return;
     }
 
