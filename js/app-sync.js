@@ -1,9 +1,9 @@
 // === js/app-sync.js ===
 import * as State from './state.js';
 import * as DOM from './dom-elements.js';
-import { getTodayDateString, showToast } from './utils.js';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js';
 // ✨ limit가 추가되었습니다.
-import { doc, onSnapshot, collection, query, where, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, onSnapshot, collection, query, where, limit, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js';
 import { renderTodoList } from './inspection-logic.js';
 import { renderNotificationList } from './app-notifications.js';
@@ -90,6 +90,10 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         State.appState.workRecords = [];
         querySnapshot.forEach(doc => State.appState.workRecords.push(doc.data()));
         State.appState.workRecords.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+        // 🛡️ 무결성 점검: 한 사람이 동시에 2개 이상 ongoing/paused 상태인 경우 감지 및 자동 정리
+        try { detectAndCleanupDuplicateOngoing(workRecordsCollectionRef); } catch (e) { console.error('Duplicate check failed:', e); }
+
         renderCallback();
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (업무)';
     });
@@ -148,4 +152,153 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
             isInitialLoad = false;
         });
     }
+}
+
+// =====================================================================
+// 🛡️ 동시 진행 업무 중복 방지/정리
+// =====================================================================
+// 한 멤버가 동시에 2개 이상 ongoing/paused 인 상태를 감지.
+// 가장 startTime 이 최근인 1건만 살리고 나머지는 자동 종료(completed)로 마감.
+// - 종료 시각: 다음으로 시작된 업무의 startTime (있으면) → 자연스러운 끊김.
+//   없으면 현재시각.
+// - duration 계산: end - start - sum(pauses)
+// - 한 화면에서 다중 클라이언트가 동시에 정리하지 않도록 5초 디바운스 + 1분 쿨다운.
+
+let _dupCleanupTimer = null;
+let _dupCleanupLastRun = 0;
+const DUP_CLEANUP_COOLDOWN_MS = 60_000;
+
+function detectAndCleanupDuplicateOngoing(workRecordsColRef) {
+    const records = (State.appState.workRecords || []).filter(r =>
+        r.status === 'ongoing' || r.status === 'paused'
+    );
+    if (records.length < 2) return;
+
+    // 멤버별 그룹화
+    const byMember = new Map();
+    records.forEach(r => {
+        if (!r.member) return;
+        if (!byMember.has(r.member)) byMember.set(r.member, []);
+        byMember.get(r.member).push(r);
+    });
+
+    const dupes = [];
+    byMember.forEach((arr, member) => {
+        if (arr.length > 1) dupes.push({ member, records: arr });
+    });
+    if (dupes.length === 0) return;
+
+    // 진단 출력 (항상)
+    console.warn(
+        `[중복 진행 감지] ${dupes.length}명의 멤버가 동시에 여러 업무 중:`,
+        dupes.map(d => ({
+            member: d.member,
+            tasks: d.records.map(r => `${r.task}@${r.startTime}(${r.status})`)
+        }))
+    );
+
+    // 자동 정리 (디바운스 + 쿨다운)
+    if (_dupCleanupTimer) return;
+    if (Date.now() - _dupCleanupLastRun < DUP_CLEANUP_COOLDOWN_MS) return;
+
+    _dupCleanupTimer = setTimeout(async () => {
+        _dupCleanupTimer = null;
+        try {
+            await cleanupDuplicateOngoing(workRecordsColRef, dupes);
+            _dupCleanupLastRun = Date.now();
+        } catch (e) {
+            console.error('자동 중복 정리 실패:', e);
+        }
+    }, 5_000);
+}
+
+async function cleanupDuplicateOngoing(workRecordsColRef, dupes) {
+    const batch = writeBatch(workRecordsColRef.firestore);
+    const now = getCurrentTime();
+    let closedCount = 0;
+    const closedSummaries = [];
+
+    for (const { member, records } of dupes) {
+        // startTime 오름차순으로 정렬: [가장 오래된, ..., 가장 최근]
+        const sorted = [...records].sort((a, b) =>
+            (a.startTime || '').localeCompare(b.startTime || '')
+        );
+        const keepIdx = sorted.length - 1; // 가장 최근 1건 유지
+
+        for (let i = 0; i < sorted.length; i++) {
+            if (i === keepIdx) continue;
+            const r = sorted[i];
+            // 종료 시각: 다음 레코드의 startTime (있으면) — 자연스러운 끊김
+            const nextStart = sorted[i + 1]?.startTime || null;
+            const endTime = (nextStart && nextStart > (r.startTime || '00:00')) ? nextStart : now;
+
+            // pauses 정리: 미종료 pause가 있으면 endTime에서 닫음
+            const pauses = Array.isArray(r.pauses) ? r.pauses.map(p => ({ ...p })) : [];
+            pauses.forEach(p => { if (p && p.end === null) p.end = endTime; });
+
+            const duration = calcDurationMinutes(r.startTime, endTime, pauses);
+
+            const ref = doc(workRecordsColRef, r.id);
+            batch.update(ref, {
+                endTime,
+                duration,
+                status: 'completed',
+                pauses,
+                autoClosedReason: 'duplicate_ongoing_cleanup'
+            });
+            closedCount++;
+            closedSummaries.push(`${member}: '${r.task}' (${r.startTime}~${endTime}, ${duration}분)`);
+        }
+    }
+
+    if (closedCount === 0) return;
+
+    await batch.commit();
+    console.warn(
+        `[중복 진행 자동 정리] ${closedCount}건 종료 처리됨:\n` + closedSummaries.join('\n')
+    );
+    showToast(`동시 진행 중복 ${closedCount}건을 자동 정리했습니다.`);
+}
+
+function calcDurationMinutes(startHHMM, endHHMM, pauses) {
+    if (!startHHMM || !endHHMM) return 0;
+    const toMin = (hhmm) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        return (h || 0) * 60 + (m || 0);
+    };
+    let total = toMin(endHHMM) - toMin(startHHMM);
+    if (total < 0) total = 0;
+    (pauses || []).forEach(p => {
+        if (!p || !p.start) return;
+        const pe = p.end || endHHMM;
+        const dur = toMin(pe) - toMin(p.start);
+        if (dur > 0) total -= dur;
+    });
+    return Math.max(0, total);
+}
+
+// 콘솔에서 즉시 강제 정리하고 싶을 때
+if (typeof window !== 'undefined') {
+    window.__cleanupDupeOngoing = async () => {
+        const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
+        const records = (State.appState.workRecords || []).filter(r =>
+            r.status === 'ongoing' || r.status === 'paused'
+        );
+        const byMember = new Map();
+        records.forEach(r => {
+            if (!r.member) return;
+            if (!byMember.has(r.member)) byMember.set(r.member, []);
+            byMember.get(r.member).push(r);
+        });
+        const dupes = [];
+        byMember.forEach((arr, member) => {
+            if (arr.length > 1) dupes.push({ member, records: arr });
+        });
+        if (dupes.length === 0) {
+            console.log('✅ 중복 진행 업무 없음.');
+            return;
+        }
+        await cleanupDuplicateOngoing(colRef, dupes);
+        _dupCleanupLastRun = Date.now();
+    };
 }
