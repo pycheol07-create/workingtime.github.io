@@ -214,6 +214,9 @@ function getDefaultConfig() {
             { name: '제작파트', members: ['이승운'] },
         ],
         systemAccounts: ['관리자', '시스템'],
+        // 가용인원/총원 산정 시 제외할 ID 명단 (프로그램 전용 계정 등).
+        // teamGroups 안에 있어도 인원 카운트에선 빼고, 멤버 선택 UI 등에는 그대로 노출.
+        headcountExcludedMembers: ['물류팀공용', '정진현 상무이사'],
         memberWages: {},
         memberEmails: {},
         memberRoles: {},

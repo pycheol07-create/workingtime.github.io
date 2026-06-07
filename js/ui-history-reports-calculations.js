@@ -1,5 +1,5 @@
 // === js/ui-history-reports-calculations.js ===
-import { isWeekday, getTodayDateString } from './utils.js';
+import { isWeekday, getTodayDateString, getRegularMembersForCount } from './utils.js';
 import { getAsArray } from './ui-history-reports-utils.js';
 
 export const calculateReportKPIs = (data, appConfig, wageMap) => {
@@ -39,7 +39,7 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
     const overallAvgCostPerItem = totalQuantity > 0 ? (totalCost / totalQuantity) : 0;
     const coqPercentage = (totalCost > 0) ? (totalQualityCost / totalCost) * 100 : 0;
 
-    const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
+    const allRegularMembers = getRegularMembersForCount(appConfig);
     const systemAccounts = new Set(appConfig.systemAccounts || []);
     
     const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);

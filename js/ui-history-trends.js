@@ -1,6 +1,6 @@
 // === ui-history-trends.js (트렌드 분석 차트 렌더링 담당) ===
 
-import { isWeekday, formatDuration } from './utils.js';
+import { isWeekday, formatDuration, getRegularMembersForCount } from './utils.js';
 
 // ✅ [신규] app.js 대신 state.js에서 직접 appConfig를 가져옵니다.
 import { appConfig } from './state.js';
@@ -38,7 +38,7 @@ function calculateDailyKPIs(dayData, appConfig) {
     // 4. KPI: 비업무시간
     let nonWorkTime = 0;
     if (isWeekday(dayData.id)) {
-        const allRegularMembers = new Set((appConfig.teamGroups || []).flatMap(g => g.members));
+        const allRegularMembers = getRegularMembersForCount(appConfig);
         const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
         
         const activeRegularMembers = allRegularMembers.size - onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length;

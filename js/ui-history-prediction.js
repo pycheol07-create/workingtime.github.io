@@ -3,7 +3,7 @@
 
 import { predictFutureTrends } from './analysis-logic.js';
 import * as State from './state.js';
-import { getTodayDateString } from './utils.js';
+import { getTodayDateString, getRegularMembersForCount } from './utils.js';
 
 // ───────────────────────────────────────────────────────────
 // 시뮬레이션 상수/헬퍼
@@ -102,9 +102,12 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
     return Math.round(result.prediction.delivery[diff - 1] || 0);
 };
 
-/** 가용 인원 = 전체 정직원 − 해당일 휴무자(persistentLeave + 그날 onLeaveMembers) */
+/** 가용 인원 = 전체 정직원 − 해당일 휴무자(persistentLeave + 그날 onLeaveMembers)
+ *  - 중복 멤버 제거(Set)
+ *  - 프로그램 전용 ID 등 인원 산정 제외 명단(headcountExcludedMembers) 빼고 계산
+ */
 const computeAvailableStaff = (dateStr, appConfig, persistentLeave, historyData) => {
-    const allStaff = (appConfig?.teamGroups || []).flatMap(g => g.members || []);
+    const allStaff = getRegularMembersForCount(appConfig); // Set
     const onLeave = new Map();
 
     (persistentLeave?.onLeaveMembers || []).forEach(e => {
@@ -122,9 +125,13 @@ const computeAvailableStaff = (dateStr, appConfig, persistentLeave, historyData)
         });
     }
 
-    const onLeaveList = Array.from(onLeave.entries()).map(([m, t]) => ({ member: m, type: t }));
-    const available = allStaff.filter(m => !onLeave.has(m)).length;
-    return { available, total: allStaff.length, onLeaveList };
+    // 휴무 명단 중 정직원 카운트 대상에 들어있는 사람만 유효
+    const onLeaveList = Array.from(onLeave.entries())
+        .filter(([m]) => allStaff.has(m))
+        .map(([m, t]) => ({ member: m, type: t }));
+    let available = 0;
+    allStaff.forEach(m => { if (!onLeave.has(m)) available++; });
+    return { available, total: allStaff.size, onLeaveList };
 };
 
 // ───────────────────────────────────────────────────────────

@@ -1,5 +1,23 @@
 // === js/utils.js ===
 
+/**
+ * 인원 산정용 정직원 명단(중복 제거 + 인원 제외 명단 적용)을 반환.
+ * - 멤버 리스트 표시(선택 모달 등)에는 쓰지 않음. "몇 명?"을 셀 때만 사용.
+ * - 제외 명단: appConfig.headcountExcludedMembers (없으면 빈 배열).
+ * - teamGroups 내에서 한 사람이 여러 그룹에 들어 있어도 1명으로 셈.
+ */
+export const getRegularMembersForCount = (appConfig) => {
+    const flat = (appConfig?.teamGroups || []).flatMap(g => g?.members || []);
+    const excluded = new Set(appConfig?.headcountExcludedMembers || []);
+    const uniq = new Set();
+    flat.forEach(name => {
+        if (!name) return;
+        if (excluded.has(name)) return;
+        uniq.add(name);
+    });
+    return uniq;
+};
+
 export const showToast = (message, isError = false) => {
     const container = document.getElementById('toast-container');
     if (!container) return; 

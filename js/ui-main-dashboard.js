@@ -1,6 +1,7 @@
 // === js/ui-main-dashboard.js ===
 import { getAllDashboardDefinitions } from './ui.js';
 import * as State from './state.js';
+import { getRegularMembersForCount } from './utils.js';
 
 export let currentEzadminData = null;
 
@@ -131,8 +132,8 @@ export const updateSummary = (appState, appConfig) => {
         }
     });
 
-    const teamGroups = appConfig.teamGroups || [];
-    const allStaffMembers = new Set(teamGroups.flatMap(g => g.members));
+    // 정직원 인원 카운트는 (1) 중복 제거, (2) 프로그램 전용 ID 제외 — getRegularMembersForCount 사용.
+    const allStaffMembers = getRegularMembersForCount(appConfig);
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
     const totalStaffCount = allStaffMembers.size;
     const totalPartTimerCount = allPartTimers.size;
@@ -227,8 +228,7 @@ export const updateSummary = (appState, appConfig) => {
 // 실시간 인원 현황 상세(펼침/툴팁)
 // ───────────────────────────────────────────────────────────
 const buildPersonnelDetailData = (appState, appConfig) => {
-    const teamGroups = appConfig.teamGroups || [];
-    const allStaffMembers = new Set(teamGroups.flatMap(g => g.members || []));
+    const allStaffMembers = getRegularMembersForCount(appConfig);
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
 
     const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
