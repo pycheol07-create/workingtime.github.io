@@ -3962,8 +3962,11 @@ window.renderLocationDashboard = function () {
         </div>
         <div class="insight-card">
             <h4>💤 데드 스톡 후보</h4>
-            <div class="ins-big">${deadStockCount}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span></div>
-            <div class="ins-desc">마지막배송일 3개월 이상 경과한 재고. 2F 이동 후보로 검토. <span style="color:#90a4ae;">(pill 클릭: 해당 기간 상품 리스트)</span></div>
+            <div class="ins-big" ${deadStockCount > 0 ? `style="cursor:pointer; transition: color 0.15s;" onclick="window.__dashShowBucketList('dead-all')" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color=''" title="전체 데드스톡 합계 리스트 보기"` : ''}>
+                ${deadStockCount}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span>
+                ${deadStockCount > 0 ? '<span style="font-size:11px; color:#90a4ae; font-weight:normal; margin-left:4px;">▸</span>' : ''}
+            </div>
+            <div class="ins-desc">마지막배송일 3개월 이상 경과한 재고. 2F 이동 후보로 검토. <span style="color:#90a4ae;">(숫자/pill 클릭: 리스트 보기)</span></div>
             <div class="ins-list">
                 <span class="pill" style="cursor:pointer; background:#fff8e1; color:#e65100;" onclick="window.__dashShowBucketList('3개월')" title="3개월 경과 상품 보기">3개월: ${buckets['3개월']}</span>
                 <span class="pill" style="cursor:pointer; background:#ffebee; color:#c62828;" onclick="window.__dashShowBucketList('6개월+')" title="6개월~1년 경과 상품 보기">6개월+: ${buckets['6개월+']}</span>
@@ -4229,12 +4232,17 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
     });
 
     const todayMs = new Date().setHours(0, 0, 0, 0);
+    // bucket이 'dead-all'이면 데드스톡 3종(3개월/6개월+/1년+)을 모두 포함.
+    const DEAD_SET = new Set(['3개월', '6개월+', '1년+']);
+    const isDeadAll = bucket === 'dead-all';
     const items = [];
     codeMap.forEach((arr, code) => {
         const info = __dashInferDelivery(code, arr);
         if (!info.hasStock) return;
         const cat = __dashClassifyDelivery(info, todayMs);
-        if (cat !== bucket) return;
+        if (isDeadAll) {
+            if (!DEAD_SET.has(cat)) return;
+        } else if (cat !== bucket) return;
 
         // 대표 정보 — 같은 코드여도 위치 여러 곳이면 모두 노출
         const rep = arr[0] || {};
@@ -4249,7 +4257,8 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
             stock: totalStock,
             stock2f: totalStock2f,
             lastDelivery: info.lastDelivery || '',
-            hasRecentActivity: info.hasRecentActivity
+            hasRecentActivity: info.hasRecentActivity,
+            cat
         });
     });
 
@@ -4267,24 +4276,51 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
     const scopeLabel = (zoneFilter || dongFilter)
         ? `${zoneFilter || '전체구역'} - ${dongFilter || '전체동'} `
         : '전체 ';
+    const displayBucket = isDeadAll ? '데드스톡 후보 합계' : bucket;
     if (titleEl) {
-        titleEl.querySelector('span').textContent = `📅 ${scopeLabel}[${bucket}] 상품 리스트 (${items.length}종)`;
+        titleEl.querySelector('span').textContent = `📅 ${scopeLabel}[${displayBucket}] 상품 리스트 (${items.length}종)`;
     }
     if (metaEl) {
-        const desc = {
-            '1주': '최근 1주일 내 출고된 상품 (회전 양호)',
-            '1개월': '최근 1개월 내 출고된 상품',
-            '3개월': '1~3개월 내 마지막 출고 — 데드 후보',
-            '6개월+': '3~12개월 내 마지막 출고 — 데드',
-            '1년+': '1년 이상 출고 없는 재고 — 우선 정리 대상',
-            '기록없음': '마지막배송일/입고일 기록이 없는 상품'
-        }[bucket] || '';
+        const desc = isDeadAll
+            ? '3개월 / 6개월+ / 1년+ 합계 — 우선 정리/이동 대상'
+            : ({
+                '1주': '최근 1주일 내 출고된 상품 (회전 양호)',
+                '1개월': '최근 1개월 내 출고된 상품',
+                '3개월': '1~3개월 내 마지막 출고 — 데드 후보',
+                '6개월+': '3~12개월 내 마지막 출고 — 데드',
+                '1년+': '1년 이상 출고 없는 재고 — 우선 정리 대상',
+                '기록없음': '마지막배송일/입고일 기록이 없는 상품'
+            }[bucket] || '');
         metaEl.textContent = desc;
     }
 
+    // dead-all 모드일 때 분류 컬럼 추가
+    const thead = document.querySelector('#dash-bucket-modal thead tr');
+    if (thead) {
+        // 기존 분류 컬럼이 있으면 제거
+        const oldCatTh = thead.querySelector('th[data-cat-col]');
+        if (oldCatTh) oldCatTh.remove();
+        if (isDeadAll) {
+            const th = document.createElement('th');
+            th.setAttribute('data-cat-col', '1');
+            th.style.borderTop = 'none';
+            th.textContent = '분류';
+            thead.insertBefore(th, thead.children[thead.children.length - 2]); // 마지막배송일 앞
+        }
+    }
+
     if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" style="padding:30px; text-align:center; color:#90a4ae;">해당 조건에 맞는 상품이 없습니다.</td></tr>`;
+        const colCount = isDeadAll ? 9 : 8;
+        tbody.innerHTML = `<tr><td colspan="${colCount}" style="padding:30px; text-align:center; color:#90a4ae;">해당 조건에 맞는 상품이 없습니다.</td></tr>`;
     } else {
+        const catBadge = (cat) => {
+            const colors = {
+                '3개월': 'background:#fff8e1; color:#ef6c00;',
+                '6개월+': 'background:#ffebee; color:#c62828;',
+                '1년+': 'background:#fce4ec; color:#880e4f;'
+            };
+            return `<span style="${colors[cat] || 'background:#eceff1; color:#37474f;'} padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold;">${cat}</span>`;
+        };
         tbody.innerHTML = items.map(it => `
             <tr>
                 <td style="font-family:monospace; font-size:11px;">${it.code}</td>
@@ -4293,6 +4329,7 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
                 <td style="font-family:monospace; font-size:11px;">${it.locsStr}</td>
                 <td style="font-weight:bold;">${it.stock.toLocaleString()}</td>
                 <td style="color:#607d8b;">${it.stock2f > 0 ? it.stock2f.toLocaleString() : '<span style=\"color:#cfd8dc;\">·</span>'}</td>
+                ${isDeadAll ? `<td>${catBadge(it.cat)}</td>` : ''}
                 <td>${it.lastDelivery || '<span style=\"color:#c62828;\">기록없음</span>'}</td>
                 <td>${it.hasRecentActivity ? '<span style="background:#e8f5e9; color:#2e7d32; padding:2px 6px; border-radius:8px; font-size:10px; font-weight:bold;">직진 활동</span>' : '<span style=\"color:#cfd8dc;\">·</span>'}</td>
             </tr>
