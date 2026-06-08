@@ -2177,6 +2177,12 @@ function applyFiltersAndSort() {
     });
     window.lastFilteredData = filtered;
     renderTable(filtered);
+
+    // 대시보드 뷰가 표시 중이면 자동 갱신
+    const dashEl = document.getElementById('view-dashboard');
+    if (dashEl && dashEl.style.display !== 'none' && typeof window.renderLocationDashboard === 'function') {
+        window.renderLocationDashboard();
+    }
 }
 
 window.handleRowClick = async function(event, locId) {
@@ -3599,4 +3605,572 @@ function renderCorridor(idx) {
             </div>
         </div>
     `;
+}
+
+// ============================================================
+// 📊 로케이션 현황 대시보드
+// ============================================================
+
+// 마지막배송일 + 직진/주차별 출고 활동을 함께 고려한 분류 헬퍼.
+// 일반배송 기록만 보면 직진배송으로 나간 물건이 데드로 잘못 잡힘 → 두 데이터를 합산.
+function __dashInferDelivery(code, locs) {
+    let lastDelivery = '';
+    let hasStock = false;
+    let hasRecentActivity = false;
+
+    locs.forEach(loc => {
+        if (Number(loc.stock || 0) > 0) hasStock = true;
+        const rd = loc.rawData || {};
+        let val = rd['마지막배송일'] || rd['마지막입고일'] || '';
+        if (!val) {
+            for (const k of Object.keys(rd)) {
+                const norm = k.replace(/[\s ]/g, '');
+                if (norm === '마지막배송일' || norm === '마지막입고일') { val = rd[k]; break; }
+            }
+        }
+        if (val) {
+            const norm = String(val).replace(/\./g, '-');
+            if (norm > lastDelivery) lastDelivery = norm;
+        }
+    });
+
+    // weeklyData YYYYMMDD 키 중 출고수량 > 0 인 가장 최근 날짜를 후보로
+    if (code && weeklyData && weeklyData[code]) {
+        let maxKey = '';
+        for (const wk of Object.keys(weeklyData[code])) {
+            if (/^20\d{6}$/.test(wk) && Number(weeklyData[code][wk] || 0) > 0) {
+                if (wk > maxKey) maxKey = wk;
+            }
+        }
+        if (maxKey) {
+            const ymd = maxKey.slice(0, 4) + '-' + maxKey.slice(4, 6) + '-' + maxKey.slice(6, 8);
+            if (ymd > lastDelivery) lastDelivery = ymd;
+        }
+    }
+
+    // 직진배송 데이터 — 정확한 날짜는 모르지만 활동 사실은 확인 가능
+    if (code && zikjinData && zikjinData[code] && Number(zikjinData[code]['수량'] || 0) > 0) {
+        hasRecentActivity = true;
+    }
+
+    return { lastDelivery, hasStock, hasRecentActivity };
+}
+
+// 구역·동별 데드스톡 표의 정렬 상태 (key: dead|zone|dong|used|w1|m1|m3|m6plus|none, dir: 'asc'|'desc')
+let __dashZdSort = { key: 'dead', dir: 'desc' };
+
+// 구역 우선순위 (낮을수록 먼저). ★ → A → B → … → Z 외 나머지는 99.
+function __zoneRank(z) {
+    if (!z) return 99;
+    if (z === '★') return -1;
+    const code = z.charCodeAt(0);
+    if (code >= 65 && code <= 90) return code - 65; // A=0, B=1, ...
+    return 99;
+}
+// 동 정렬용 — 숫자 추출 후 비교. '미지정'은 항상 맨 뒤.
+function __dongKey(d) {
+    if (!d || d === '미지정') return Number.POSITIVE_INFINITY;
+    const m = String(d).match(/-?\d+(\.\d+)?/);
+    if (m) return Number(m[0]);
+    return Number.POSITIVE_INFINITY - 1; // 숫자 없으면 거의 끝
+}
+
+function __dashSortRows(rows) {
+    const { key, dir } = __dashZdSort;
+    const mul = dir === 'asc' ? 1 : -1;
+    const cmpStr = (a, b) => String(a).localeCompare(String(b)) * mul;
+    const cmpNum = (a, b) => (a - b) * mul;
+    rows.sort((a, b) => {
+        switch (key) {
+            case 'zone': {
+                const z = __zoneRank(a.zone) - __zoneRank(b.zone);
+                if (z !== 0) return z * mul;
+                // 동일 구역 내 동 보조 정렬은 항상 오름차순
+                const d = __dongKey(a.dong) - __dongKey(b.dong);
+                if (d !== 0) return d;
+                return cmpStr(a.dong, b.dong);
+            }
+            case 'dong': {
+                const d = __dongKey(a.dong) - __dongKey(b.dong);
+                if (d !== 0) return d * mul;
+                // 동일 동 내 구역 보조 정렬은 항상 오름차순
+                const z = __zoneRank(a.zone) - __zoneRank(b.zone);
+                if (z !== 0) return z;
+                return cmpStr(a.zone, b.zone);
+            }
+            case 'used':   return cmpNum(a.usedCount, b.usedCount);
+            case 'w1':     return cmpNum(a.w1, b.w1);
+            case 'm1':     return cmpNum(a.m1, b.m1);
+            case 'm3':     return cmpNum(a.m3, b.m3);
+            case 'm6plus': return cmpNum(a.m6plus, b.m6plus);
+            case 'none':   return cmpNum(a.none, b.none);
+            case 'dead':
+            default:       return cmpNum(a.deadRate, b.deadRate) || cmpNum(a.m6plus, b.m6plus);
+        }
+    });
+}
+
+// 헤더 클릭 핸들러 — 같은 키면 dir 토글, 다른 키면 그 키 + desc(zone/dong은 asc).
+window.__dashZdSortBy = function (key) {
+    if (__dashZdSort.key === key) {
+        __dashZdSort.dir = __dashZdSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        __dashZdSort.key = key;
+        // 이름 정렬은 asc, 숫자 정렬은 desc 기본
+        __dashZdSort.dir = (key === 'zone' || key === 'dong') ? 'asc' : 'desc';
+    }
+    if (typeof window.renderLocationDashboard === 'function') window.renderLocationDashboard();
+};
+
+// 헤더 화살표 HTML 생성
+function __dashSortArrow(key) {
+    if (__dashZdSort.key !== key) return '<span style="color:#cfd8dc; font-size:10px;">↕</span>';
+    return __dashZdSort.dir === 'asc'
+        ? '<span style="color:var(--primary); font-size:11px;">▲</span>'
+        : '<span style="color:var(--primary); font-size:11px;">▼</span>';
+}
+
+// 분류 헬퍼: 마지막배송일 + 직진 활동 여부 → bucket 키 반환.
+// 직진 활동이 있으면 3개월/6개월+/기록없음을 1개월로 끌어올려 데드에서 제외.
+function __dashClassifyDelivery(info, todayMs) {
+    const MS_DAY = 24 * 60 * 60 * 1000;
+    if (!info.lastDelivery) return info.hasRecentActivity ? '1개월' : '기록없음';
+    const d = new Date(info.lastDelivery);
+    if (isNaN(d.getTime())) return info.hasRecentActivity ? '1개월' : '기록없음';
+    const diff = (todayMs - d.getTime()) / MS_DAY;
+    if (diff <= 7) return '1주';
+    if (diff <= 31) return '1개월';
+    if (diff <= 93) return info.hasRecentActivity ? '1개월' : '3개월';
+    return info.hasRecentActivity ? '1개월' : '6개월+';
+}
+
+window.renderLocationDashboard = function () {
+    if (!originalData || originalData.length === 0) {
+        const kpiRow = document.getElementById('dash-kpi-row');
+        if (kpiRow) kpiRow.innerHTML = '<div class="dash-kpi-card" style="grid-column:1/-1;"><div class="kpi-body"><div class="kpi-title">데이터 없음</div><div class="kpi-sub">먼저 일일 최신화 엑셀을 업로드해주세요.</div></div></div>';
+        return;
+    }
+
+    // 3F만 (K로 시작하는 2F 제외) — 사용률 팝업 로직과 동일
+    const locs3F = originalData.filter(d => (d.id || '').charAt(0).toUpperCase() !== 'K');
+    const total = locs3F.length;
+
+    const isUsed = (loc) =>
+        (loc.code && String(loc.code).trim() !== '' && loc.code !== loc.id) ||
+        (loc.name && String(loc.name).trim() !== '');
+
+    // ---- 집계 ----
+    const codeToLocs = new Map();          // 상품코드 → [loc, ...]
+    const zoneStats = {};                  // 구역 → {total, used}
+    let used = 0, preAssigned = 0, todayReserved = 0;
+
+    locs3F.forEach(loc => {
+        const u = isUsed(loc);
+        if (u) used++;
+        if (loc.codeTag === '선지정') preAssigned++;
+        if (loc.codeTag === '당일지정') todayReserved++;
+
+        const zone = (loc.id || '').charAt(0).toUpperCase() || '?';
+        if (!zoneStats[zone]) zoneStats[zone] = { total: 0, used: 0 };
+        zoneStats[zone].total++;
+        if (u) zoneStats[zone].used++;
+
+        if (u && loc.code) {
+            const c = String(loc.code).trim();
+            if (!codeToLocs.has(c)) codeToLocs.set(c, []);
+            codeToLocs.get(c).push(loc);
+        }
+    });
+
+    const uniqueCodes = codeToLocs.size;
+    const multiLocCodes = [...codeToLocs.entries()].filter(([, arr]) => arr.length >= 2);
+    const empty = total - used;
+    const usageRate = total > 0 ? (used / total * 100) : 0;
+
+    // 입고대기
+    const incomingCodes = Object.keys(incomingTotalByCode || {}).filter(c => (incomingTotalByCode[c] || 0) > 0);
+    const incomingQtyTotal = incomingCodes.reduce((a, c) => a + (incomingTotalByCode[c] || 0), 0);
+
+    // 마지막배송일 분포 (정상재고 있는 상품만, 상품코드 기준)
+    const todayMs = new Date().setHours(0, 0, 0, 0);
+    const MS_DAY = 24 * 60 * 60 * 1000;
+    const buckets = { '1주': 0, '1개월': 0, '3개월': 0, '6개월+': 0, '기록없음': 0 };
+    codeToLocs.forEach((arr, code) => {
+        const __info = __dashInferDelivery(code, arr);
+        if (!__info.hasStock) return;
+        buckets[__dashClassifyDelivery(__info, todayMs)]++;
+        return;
+        // (이하 옛 코드는 도달 불가 — 안전상 보존)
+        let lastDelivery = '';
+        let hasStock = false;
+        arr.forEach(loc => {
+            if (Number(loc.stock || 0) > 0) hasStock = true;
+            const rd = loc.rawData || {};
+            let val = rd['마지막배송일'] || rd['마지막입고일'] || '';
+            if (!val) {
+                // 공백/유니코드 변형 처리
+                for (const k of Object.keys(rd)) {
+                    const norm = k.replace(/[\s ]/g, '');
+                    if (norm === '마지막배송일' || norm === '마지막입고일') { val = rd[k]; break; }
+                }
+            }
+            if (val && val > lastDelivery) lastDelivery = val;
+        });
+        if (!hasStock) return;
+        if (!lastDelivery) { buckets['기록없음']++; return; }
+        // lastDelivery는 'YYYY-MM-DD' 또는 'YYYY.MM.DD' 형태로 추정 — 표준 Date 파싱 시도
+        const d = new Date(String(lastDelivery).replace(/\./g, '-'));
+        if (isNaN(d.getTime())) { buckets['기록없음']++; return; }
+        const diff = (todayMs - d.getTime()) / MS_DAY;
+        if (diff <= 7) buckets['1주']++;
+        else if (diff <= 31) buckets['1개월']++;
+        else if (diff <= 93) buckets['3개월']++;
+        else buckets['6개월+']++;
+    });
+
+    // 데드 스톡 (3개월+) 후보 수 = 3개월 + 6개월+
+    const deadStockCount = buckets['3개월'] + buckets['6개월+'];
+
+    // 빈 슬롯 비중 높은 동 Top 3
+    const dongEmptyStats = {};
+    locs3F.forEach(loc => {
+        const dong = (loc.dong || '').toString().trim();
+        if (!dong) return;
+        if (!dongEmptyStats[dong]) dongEmptyStats[dong] = { total: 0, empty: 0 };
+        dongEmptyStats[dong].total++;
+        if (!isUsed(loc)) dongEmptyStats[dong].empty++;
+    });
+    const topEmptyDongs = Object.entries(dongEmptyStats)
+        .filter(([, s]) => s.total >= 10)
+        .map(([d, s]) => ({ dong: d, empty: s.empty, total: s.total, rate: s.empty / s.total }))
+        .sort((a, b) => b.rate - a.rate)
+        .slice(0, 3);
+
+    // 추천 건수 (계산된 경우만 표시 — 없으면 '계산 필요')
+    const recCount = Array.isArray(window.currentRecommendations) ? window.currentRecommendations.length : 0;
+
+    // ---- KPI 카드 렌더 ----
+    const donutSvg = (rate) => {
+        const r = 22, c = 2 * Math.PI * r;
+        const dash = c * (rate / 100);
+        const color = rate >= 80 ? '#ef5350' : rate >= 50 ? '#3d5afe' : '#66bb6a';
+        return `<svg class="kpi-donut" viewBox="0 0 56 56">
+            <circle cx="28" cy="28" r="${r}" fill="none" stroke="#eceff1" stroke-width="7"/>
+            <circle cx="28" cy="28" r="${r}" fill="none" stroke="${color}" stroke-width="7"
+                stroke-dasharray="${dash.toFixed(2)} ${(c - dash).toFixed(2)}"
+                transform="rotate(-90 28 28)" stroke-linecap="round"/>
+            <text x="28" y="32" text-anchor="middle">${rate.toFixed(0)}%</text>
+        </svg>`;
+    };
+
+    const kpiHtml = `
+        <div class="dash-kpi-card">
+            ${donutSvg(usageRate)}
+            <div class="kpi-body">
+                <div class="kpi-title">전체 사용률 (3F)</div>
+                <div class="kpi-value">${usageRate.toFixed(1)}%</div>
+                <div class="kpi-sub">${used.toLocaleString()} / ${total.toLocaleString()} 칸</div>
+            </div>
+        </div>
+        <div class="dash-kpi-card">
+            <div class="kpi-icon green">🟢</div>
+            <div class="kpi-body">
+                <div class="kpi-title">빈 자리</div>
+                <div class="kpi-value">${empty.toLocaleString()}</div>
+                <div class="kpi-sub">전체 대비 ${total > 0 ? (empty / total * 100).toFixed(1) : 0}%</div>
+            </div>
+        </div>
+        <div class="dash-kpi-card">
+            <div class="kpi-icon blue">📦</div>
+            <div class="kpi-body">
+                <div class="kpi-title">등록 상품 (고유)</div>
+                <div class="kpi-value">${uniqueCodes.toLocaleString()}</div>
+                <div class="kpi-sub">평균 ${uniqueCodes > 0 ? (used / uniqueCodes).toFixed(1) : 0} 칸/상품</div>
+            </div>
+        </div>
+        <div class="dash-kpi-card">
+            <div class="kpi-icon amber">📌</div>
+            <div class="kpi-body">
+                <div class="kpi-title">선지정 / 당일지정</div>
+                <div class="kpi-value">${preAssigned} <span style="font-size:14px; color:#90a4ae; font-weight:bold;">/ ${todayReserved}</span></div>
+                <div class="kpi-sub">미입고 찜 ${preAssigned}건, 오늘 작업 ${todayReserved}건</div>
+            </div>
+        </div>
+        <div class="dash-kpi-card">
+            <div class="kpi-icon red">📥</div>
+            <div class="kpi-body">
+                <div class="kpi-title">입고 대기</div>
+                <div class="kpi-value">${incomingCodes.length}<span style="font-size:14px; color:#90a4ae; font-weight:bold;"> 종</span></div>
+                <div class="kpi-sub">총 ${incomingQtyTotal.toLocaleString()} 개 미입고</div>
+            </div>
+        </div>
+    `;
+    document.getElementById('dash-kpi-row').innerHTML = kpiHtml;
+
+    // ---- 구역별 사용률 ----
+    const sortedZones = Object.keys(zoneStats).sort((a, b) => (a === '★' ? -1 : (b === '★' ? 1 : a.localeCompare(b))));
+    const zoneBars = sortedZones.map(z => {
+        const s = zoneStats[z];
+        const rate = s.total > 0 ? (s.used / s.total * 100) : 0;
+        return `<div class="zone-bar-row">
+            <div class="zb-label">${z} 구역</div>
+            <div class="zb-track"><div class="zb-fill" style="width:${rate.toFixed(1)}%;"></div></div>
+            <div class="zb-text">${s.used} / ${s.total} (${rate.toFixed(1)}%)</div>
+        </div>`;
+    }).join('');
+    document.getElementById('dash-zone-bars').innerHTML = zoneBars || '<div style="color:#90a4ae; font-size:12px;">데이터 없음</div>';
+
+    // ---- 마지막배송일 분포 ----
+    const totalForBuckets = Object.values(buckets).reduce((a, b) => a + b, 0);
+    const bucketDef = [
+        { key: '1주', cls: '' },
+        { key: '1개월', cls: '' },
+        { key: '3개월', cls: 'warn' },
+        { key: '6개월+', cls: 'danger' },
+        { key: '기록없음', cls: 'gray' }
+    ];
+    const deliveryBars = bucketDef.map(b => {
+        const v = buckets[b.key];
+        const rate = totalForBuckets > 0 ? (v / totalForBuckets * 100) : 0;
+        return `<div class="zone-bar-row">
+            <div class="zb-label">${b.key}</div>
+            <div class="zb-track"><div class="zb-fill ${b.cls}" style="width:${rate.toFixed(1)}%;"></div></div>
+            <div class="zb-text">${v.toLocaleString()} 종 (${rate.toFixed(1)}%)</div>
+        </div>`;
+    }).join('');
+    document.getElementById('dash-delivery-bars').innerHTML = deliveryBars;
+
+    // ---- 인사이트 카드 ----
+    const insightHtml = `
+        <div class="insight-card">
+            <h4>🔁 다중 위치 상품</h4>
+            <div class="ins-big">${multiLocCodes.length}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span></div>
+            <div class="ins-desc">한 상품코드가 2곳 이상 분산된 상품. 통합하면 빈 슬롯이 늘어납니다.</div>
+            <div class="ins-list">
+                ${multiLocCodes.slice(0, 5).map(([c, arr]) =>
+                    `<div><span class="pill">${arr.length}곳</span> ${c}</div>`
+                ).join('') || '<div style="color:#90a4ae;">없음</div>'}
+            </div>
+        </div>
+        <div class="insight-card">
+            <h4>💤 데드 스톡 후보</h4>
+            <div class="ins-big">${deadStockCount}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span></div>
+            <div class="ins-desc">마지막배송일 3개월 이상 경과한 재고. 2F 이동 후보로 검토.</div>
+            <div class="ins-list">
+                <span class="pill">3개월: ${buckets['3개월']}</span>
+                <span class="pill">6개월+: ${buckets['6개월+']}</span>
+            </div>
+        </div>
+        <div class="insight-card">
+            <h4>🏚️ 빈 자리 많은 동 Top 3</h4>
+            ${topEmptyDongs.length > 0 ? `
+                <div class="ins-list" style="margin-top: 4px;">
+                    ${topEmptyDongs.map(d => `
+                        <div style="display:flex; align-items:center; gap:8px; padding:4px 0;">
+                            <span class="pill" style="background:#fff3e0; color:#e65100;">${d.dong}동</span>
+                            <span style="color:#37474f; font-weight:bold;">${d.empty}/${d.total}</span>
+                            <span style="color:#90a4ae;">(${(d.rate * 100).toFixed(0)}%)</span>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '<div style="color:#90a4ae; font-size:12px; margin-top: 8px;">동 데이터가 부족합니다.</div>'}
+        </div>
+    `;
+    document.getElementById('dash-insight-row').innerHTML = insightHtml;
+
+    // ---- 빠른 작업 ----
+    const actionsHtml = `
+        <button class="dash-action-btn act-orange" onclick="window.toggleIncomingSidebar()">
+            📦 입고대기 패널 <span class="badge">${incomingCodes.length}건</span>
+        </button>
+        <button class="dash-action-btn act-green" onclick="window.openRecommendModal && window.openRecommendModal()">
+            💡 변경 추천 ${recCount > 0 ? `<span class="badge">${recCount}건</span>` : ''}
+        </button>
+        <button class="dash-action-btn act-purple" onclick="document.getElementById('modal-2f').style.display='flex'; window.calc2FList && window.calc2FList();">
+            🏢 2F 이동 추천 ${deadStockCount > 0 ? `<span class="badge">${deadStockCount}+건</span>` : ''}
+        </button>
+    `;
+    document.getElementById('dash-actions').innerHTML = actionsHtml;
+
+    // ---- 구역·동별 데드스톡 분석 ----
+    renderZoneDongDeadStock(locs3F, isUsed);
+
+    // ---- 데이터 신선도 ----
+    const zikjinKeys = Object.keys(zikjinData || {}).length;
+    const weeklyKeys = Object.keys(weeklyData || {}).length;
+    const freshHtml = `
+        <div>📅 <b>오늘:</b> ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+        <div>📂 <b>직진배송 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
+        <div>📂 <b>주차별 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
+        <div>📦 <b>입고대기 종 수:</b> ${incomingCodes.length.toLocaleString()}</div>
+        <div>🗄️ <b>등록 로케이션:</b> ${originalData.length.toLocaleString()}칸 (3F: ${total.toLocaleString()}, 그 외: ${(originalData.length - total).toLocaleString()})</div>
+    `;
+    document.getElementById('dash-freshness').innerHTML = freshHtml;
+};
+
+// 구역·동별 데드스톡 집계 + 테이블 렌더
+function renderZoneDongDeadStock(locs3F, isUsed) {
+    const tbody = document.getElementById('dash-zonedong-tbody');
+    const thead = document.getElementById('dash-zonedong-thead');
+    const summary = document.getElementById('dash-zonedong-summary');
+    if (!tbody) return;
+
+    // 정렬 헤더 렌더
+    if (thead) {
+        const A = __dashSortArrow;
+        const sortKey = __dashZdSort.key;
+        const cellBase = 'padding:8px; border:1px solid #e0e6ed; cursor:pointer; user-select:none;';
+        const isActive = (k) => sortKey === k;
+        const hl = (k, baseBg) => isActive(k) ? 'background:#e3f2fd;' : (baseBg ? `background:${baseBg};` : '');
+        const zoneSubActive = sortKey === 'zone';
+        const dongSubActive = sortKey === 'dong';
+        thead.innerHTML = `
+            <tr style="background:#f4f4f4;">
+                <th style="${cellBase} ${(zoneSubActive||dongSubActive)?'background:#e3f2fd;':''}" title="구역 또는 동 기준 정렬">
+                    <div style="display:flex; gap:6px; justify-content:center; align-items:center;">
+                        <span onclick="window.__dashZdSortBy('zone')" style="cursor:pointer; padding:2px 6px; border-radius:4px; ${zoneSubActive?'background:white; color:var(--primary); font-weight:900;':'color:#37474f;'}">
+                            구역 ${A('zone')}
+                        </span>
+                        <span style="color:#cfd8dc;">|</span>
+                        <span onclick="window.__dashZdSortBy('dong')" style="cursor:pointer; padding:2px 6px; border-radius:4px; ${dongSubActive?'background:white; color:var(--primary); font-weight:900;':'color:#37474f;'}">
+                            동 ${A('dong')}
+                        </span>
+                    </div>
+                </th>
+                <th style="${cellBase} ${hl('used')}" onclick="window.__dashZdSortBy('used')">사용중 ${A('used')}</th>
+                <th style="${cellBase} ${hl('w1', '#e8f5e9')}" onclick="window.__dashZdSortBy('w1')">1주 ${A('w1')}</th>
+                <th style="${cellBase} ${hl('m1', '#f1f8e9')}" onclick="window.__dashZdSortBy('m1')">1개월 ${A('m1')}</th>
+                <th style="${cellBase} ${hl('m3', '#fff8e1')}" onclick="window.__dashZdSortBy('m3')">3개월 ${A('m3')}</th>
+                <th style="${cellBase} ${hl('m6plus', '#ffebee')}" onclick="window.__dashZdSortBy('m6plus')">6개월+ ${A('m6plus')}</th>
+                <th style="${cellBase} ${hl('none', '#eceff1')}" onclick="window.__dashZdSortBy('none')">기록없음 ${A('none')}</th>
+                <th style="${cellBase} ${hl('dead')} min-width: 180px;" onclick="window.__dashZdSortBy('dead')">데드율 (3개월+) ${A('dead')}</th>
+            </tr>
+        `;
+    }
+
+    const includeNone = !!document.getElementById('dash-zd-include-none')?.checked;
+    const minSlots = Math.max(0, Number(document.getElementById('dash-zd-min-slots')?.value || 10));
+
+    const todayMs = new Date().setHours(0, 0, 0, 0);
+    const MS_DAY = 24 * 60 * 60 * 1000;
+
+    // (zone, dong) → 상품코드 Map → bucket
+    const groupMap = new Map(); // key 'A-1' → { codeMap: Map<code,locs[]>, zone, dong }
+
+    locs3F.forEach(loc => {
+        if (!isUsed(loc)) return;
+        const code = String(loc.code || '').trim();
+        if (!code) return;
+        const zone = (loc.id || '').charAt(0).toUpperCase() || '?';
+        const dong = String(loc.dong || '').trim() || '미지정';
+        const key = `${zone}-${dong}`;
+        if (!groupMap.has(key)) groupMap.set(key, { zone, dong, codeMap: new Map() });
+        const grp = groupMap.get(key);
+        if (!grp.codeMap.has(code)) grp.codeMap.set(code, []);
+        grp.codeMap.get(code).push(loc);
+    });
+
+    // 상품코드 단위로 bucket 분류 (전체 차트와 동일한 방법)
+    const lastDeliveryOfCode = (locs) => {
+        let lastDelivery = '';
+        let hasStock = false;
+        locs.forEach(loc => {
+            if (Number(loc.stock || 0) > 0) hasStock = true;
+            const rd = loc.rawData || {};
+            let val = rd['마지막배송일'] || rd['마지막입고일'] || '';
+            if (!val) {
+                for (const k of Object.keys(rd)) {
+                    const norm = k.replace(/[\s ]/g, '');
+                    if (norm === '마지막배송일' || norm === '마지막입고일') { val = rd[k]; break; }
+                }
+            }
+            if (val && val > lastDelivery) lastDelivery = val;
+        });
+        return { lastDelivery, hasStock };
+    };
+
+    const rows = [];
+    groupMap.forEach(grp => {
+        let usedCount = 0, w1 = 0, m1 = 0, m3 = 0, m6plus = 0, none = 0;
+        grp.codeMap.forEach((arr, code) => {
+            // 🛡️ 직진/주차 출고 활동 보강 헬퍼 사용 (전체 차트와 동일)
+            const info = __dashInferDelivery(code, arr);
+            if (!info.hasStock) return;
+            usedCount++;
+            const cat = __dashClassifyDelivery(info, todayMs);
+            if (cat === '1주') w1++;
+            else if (cat === '1개월') m1++;
+            else if (cat === '3개월') m3++;
+            else if (cat === '6개월+') m6plus++;
+            else none++;
+            return;
+            // (이하 구버전 로직 — 안전상 보존, 도달 불가)
+            const { lastDelivery, hasStock } = lastDeliveryOfCode(arr);
+            if (!hasStock) return;
+            usedCount++;
+            if (!lastDelivery) { none++; return; }
+            const d = new Date(String(lastDelivery).replace(/\./g, '-'));
+            if (isNaN(d.getTime())) { none++; return; }
+            const diff = (todayMs - d.getTime()) / MS_DAY;
+            if (diff <= 7) w1++;
+            else if (diff <= 31) m1++;
+            else if (diff <= 93) m3++;
+            else m6plus++;
+        });
+        if (usedCount < minSlots) return;
+        const deadBase = includeNone ? (m3 + m6plus + none) : (m3 + m6plus);
+        const deadRate = usedCount > 0 ? (deadBase / usedCount * 100) : 0;
+        rows.push({ ...grp, usedCount, w1, m1, m3, m6plus, none, deadRate });
+    });
+
+    __dashSortRows(rows);
+
+    if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="padding:20px; color:#90a4ae;">조건에 맞는 구역-동이 없습니다. (최소 사용 슬롯 ${minSlots} 기준)</td></tr>`;
+        if (summary) summary.innerHTML = '';
+        return;
+    }
+
+    const cellFmt = (v) => v > 0 ? v.toLocaleString() : '<span style="color:#cfd8dc;">·</span>';
+    // 데드율 내림차순 정렬일 때만 1~3위 강조 (다른 정렬에선 의미 없으므로 끔)
+    const isDefaultDeadSort = __dashZdSort.key === 'dead' && __dashZdSort.dir === 'desc';
+    const html = rows.map((r, idx) => {
+        const barColor = r.deadRate >= 50 ? '#c62828' : r.deadRate >= 30 ? '#ef6c00' : r.deadRate >= 15 ? '#fbc02d' : '#66bb6a';
+        const showRank = isDefaultDeadSort && idx < 3;
+        const rankBadge = showRank ? `<span style="display:inline-block; background:${idx===0?'#c62828':idx===1?'#ef6c00':'#fbc02d'}; color:white; font-weight:900; font-size:10px; padding:2px 6px; border-radius:10px; margin-right:6px;">${idx+1}위</span>` : '';
+        return `
+        <tr style="${showRank ? 'background: #fff3e0;' : ''}">
+            <td style="padding:8px; border:1px solid #e0e6ed; font-weight:bold; text-align:left;">${rankBadge}${r.zone} 구역 - ${r.dong} 동</td>
+            <td style="padding:8px; border:1px solid #e0e6ed;">${r.usedCount.toLocaleString()}</td>
+            <td style="padding:8px; border:1px solid #e0e6ed; color:#2e7d32;">${cellFmt(r.w1)}</td>
+            <td style="padding:8px; border:1px solid #e0e6ed; color:#558b2f;">${cellFmt(r.m1)}</td>
+            <td style="padding:8px; border:1px solid #e0e6ed; color:#ef6c00; font-weight:bold;">${cellFmt(r.m3)}</td>
+            <td style="padding:8px; border:1px solid #e0e6ed; color:#c62828; font-weight:bold;">${cellFmt(r.m6plus)}</td>
+            <td style="padding:8px; border:1px solid #e0e6ed; color:#78909c;">${cellFmt(r.none)}</td>
+            <td style="padding:8px; border:1px solid #e0e6ed;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <div style="flex:1; background:#eceff1; height:14px; border-radius:7px; overflow:hidden;">
+                        <div style="height:100%; width:${r.deadRate.toFixed(1)}%; background:${barColor}; transition: width 0.4s;"></div>
+                    </div>
+                    <span style="font-weight:bold; color:${barColor}; min-width: 42px; text-align:right;">${r.deadRate.toFixed(1)}%</span>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+    tbody.innerHTML = html;
+
+    // 요약: 가중 평균 / 최악 / 최상
+    const totalUsed = rows.reduce((a, r) => a + r.usedCount, 0);
+    const totalDead = rows.reduce((a, r) => a + (includeNone ? r.m3 + r.m6plus + r.none : r.m3 + r.m6plus), 0);
+    const avgRate = totalUsed > 0 ? (totalDead / totalUsed * 100) : 0;
+    const worst = rows[0];
+    const best = rows[rows.length - 1];
+    if (summary) {
+        summary.innerHTML = `
+            📊 표시된 ${rows.length}개 구역-동의 평균 데드율: <b style="color:#37474f;">${avgRate.toFixed(1)}%</b>
+            &nbsp;|&nbsp; 최악: <b style="color:#c62828;">${worst.zone}-${worst.dong}동 (${worst.deadRate.toFixed(1)}%)</b>
+            &nbsp;|&nbsp; 최상: <b style="color:#2e7d32;">${best.zone}-${best.dong}동 (${best.deadRate.toFixed(1)}%)</b>
+            ${includeNone ? ' &nbsp;<span style="color:#90a4ae;">(기록없음 포함)</span>' : ''}
+        `;
+    }
 }
