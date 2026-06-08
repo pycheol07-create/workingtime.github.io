@@ -4030,7 +4030,7 @@ window.renderLocationDashboard = function () {
             💡 변경 추천 ${recCount > 0 ? `<span class="badge">${recCount}건</span>` : ''}
         </button>
         <button class="dash-action-btn act-purple" onclick="document.getElementById('modal-2f').style.display='flex'; window.calc2FList && window.calc2FList();">
-            🏢 2F 이동 추천 ${deadStockCount > 0 ? `<span class="badge">${deadStockCount}+건</span>` : ''}
+            🏢 데드 스톡 앵글 이동 추천 ${deadStockCount > 0 ? `<span class="badge">${deadStockCount}+건</span>` : ''}
         </button>
     `;
     document.getElementById('dash-actions').innerHTML = actionsHtml;
