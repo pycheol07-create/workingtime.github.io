@@ -830,21 +830,13 @@ window.showRecommendation = function() {
                     moveBadge = `<span style="display:inline-block; background:#ffebee; color:#b71c1c; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔺 전진</span>`;
                     moveText = '🔺전진';
                 } else if (targetScore > bestCurrentScore) {
-                    // 🛡️ 후퇴 가드: X가 ★ 자리를 비울 때, 그 자리를 더 잘 채울
-                    // 다른 상품(점수 더 높고 현재 X의 best loc보다 안 좋은 위치에 있는)이
-                    // 있을 때만 후퇴 추천. 없으면 X는 현재 자리 유지 → 추천 스킵.
-                    const hasReplacement = scoredItems.some(other =>
-                        other !== item &&
-                        other.score > item.score &&
-                        other.__bestCurrentLocScore > bestCurrentScore
-                    );
-                    if (!hasReplacement) {
-                        // 빈 자리 점유 취소 — 다른 item이 사용 가능하게
-                        usedEmptyIndices.delete(j);
-                        break; // 이 item 추천 종료 (자리 유지)
-                    }
-                    moveBadge = `<span style="display:inline-block; background:#eceff1; color:#37474f; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔻 후퇴</span>`;
-                    moveText = '🔻후퇴';
+                    // 🛡️ 후퇴 추천 완전 차단:
+                    // 매칭 알고리즘은 빈 자리(emptyLocs)에만 새 상품을 추천한다.
+                    // X가 ★-1을 비워도 그 자리는 점유 해제 시점에 emptyLocs에 없었으므로
+                    // 어떤 Y도 ★-1을 추천받지 못함 → 다음 계산까지 ★-1은 빈 채로 남음.
+                    // 결과적으로 후퇴는 동선 손실만 발생시키므로 항상 스킵.
+                    usedEmptyIndices.delete(j); // 빈 자리 점유 취소 — 다른 item이 사용 가능
+                    break; // 이 item 추천 종료 (현재 자리 유지)
                 } else {
                     moveBadge = `<span style="display:inline-block; background:#f5f5f5; color:#616161; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">➖ 수평</span>`;
                     moveText = '➖수평';
