@@ -748,7 +748,7 @@ window.showRecommendation = function() {
             return a.id.localeCompare(b.id);
         });
 
-        // 🛡️ 후퇴 가드용: 각 item이 현재 점유한 최고 자리의 우선순위 점수 캐시
+        // 🛡️ 사전 캐시: 각 item이 현재 점유한 최고 자리의 우선순위 점수
         scoredItems.forEach(it => {
             const locs = originalData.filter(d => d.code === it.code);
             let bestScore = Infinity;
@@ -759,102 +759,141 @@ window.showRecommendation = function() {
             it.__bestCurrentLocScore = bestScore;
         });
 
+        // 🔁 회전형 재배치:
+        // 빈 자리만 후보로 두는 게 아니라 "점수 있는 상품들이 점유한 자리"도 후보 풀에 포함.
+        // 점수 높은 Y가 X의 좋은 자리를 받으면 X는 다음 좋은 자리로 자연스럽게 밀려난다.
+        // 이렇게 하면 X의 후퇴는 더 가치 있는 상품이 그 자리를 채우는 정당한 교환이 됨.
+        const scoredCodes = new Set(scoredItems.map(it => it.code));
+        const allCandidateLocs = [...emptyLocs];
+        originalData.forEach(d => {
+            const hasContent = (d.code && d.code !== d.id && String(d.code).trim() !== '') || (d.name && String(d.name).trim() !== '');
+            if (!hasContent) return; // 이미 emptyLocs로 들어감
+            if (!scoredCodes.has(d.code)) return; // 점수 없는 상품의 자리는 풀지 않음
+            if (d.preAssigned) return;
+            if (d.codeTag === '당일지정' || d.codeTag === '선지정') return;
+            const excludeCombos = window.recommendPriorities.excludeCombos || [];
+            if (excludeCombos.length > 0) {
+                const prefix = (d.id || '').charAt(0).toUpperCase();
+                const dong = (d.dong || '').toString().trim();
+                const combo = `${prefix}-${dong}`;
+                if (excludeCombos.includes(combo)) return;
+            }
+            allCandidateLocs.push(d);
+        });
+        allCandidateLocs.sort((a, b) => {
+            let zA = getZoneRank(a.id); let zB = getZoneRank(b.id);
+            if (zA !== zB) return zA - zB;
+            let dA = getDongRank(a.dong); let dB = getDongRank(b.dong);
+            if (dA !== dB) return dA - dB;
+            let pA = getPosRank(a.pos); let pB = getPosRank(b.pos);
+            if (pA !== pB) return pA - pB;
+            return a.id.localeCompare(b.id);
+        });
+
+        // Pass 1: 매칭 — assignedTo[locId] = code (해당 자리에 새로 들어올 상품)
+        const assignedTo = new Map();
+        scoredItems.forEach(item => {
+            const currentLocsObjs = originalData.filter(d => d.code === item.code);
+            const currentLocIds = new Set(currentLocsObjs.map(d => d.id));
+            const currentDongs = currentLocsObjs.map(d => (d.dong || '').toString().trim());
+
+            for (let j = 0; j < allCandidateLocs.length; j++) {
+                const loc = allCandidateLocs[j];
+                if (assignedTo.has(loc.id)) continue;
+
+                // 자기 점유 자리 만남 — 현재 위치 유지로 처리하고 자기 점유 자리들 모두 self-lock
+                if (currentLocIds.has(loc.id)) {
+                    currentLocsObjs.forEach(c => { if (!assignedTo.has(c.id)) assignedTo.set(c.id, item.code); });
+                    item.__recommendedLoc = null; // 추천 없음 (유지)
+                    return;
+                }
+
+                // 같은 동 제약 — 더 좋은 자리에 자기 동이 있으면 거기서 멈춤 = 현재 유지
+                const targetDong = (loc.dong || '').toString().trim();
+                if (currentDongs.includes(targetDong)) {
+                    currentLocsObjs.forEach(c => { if (!assignedTo.has(c.id)) assignedTo.set(c.id, item.code); });
+                    item.__recommendedLoc = null;
+                    return;
+                }
+
+                // 할당
+                assignedTo.set(loc.id, item.code);
+                item.__recommendedLoc = loc;
+                return;
+            }
+            // 후보 풀 소진
+            item.__recommendedLoc = null;
+        });
+
+        // Pass 2: HTML 빌드 (점수 순)
         const tbody = document.getElementById('recommend-tbody');
-        let html = ''; 
+        let html = '';
         let matchCount = 0;
-        let usedEmptyIndices = new Set();
         let displayRank = 1;
 
         for (let i = 0; i < scoredItems.length; i++) {
-            let item = scoredItems[i];
-            
-            let currentLocsObjs = originalData.filter(d => d.code === item.code);
-            let currentDongsList = currentLocsObjs.map(d => (d.dong || '').toString().trim());
+            const item = scoredItems[i];
+            const eLoc = item.__recommendedLoc;
+            if (!eLoc) continue; // 추천 없음 (현재 자리 유지)
 
-            for (let j = 0; j < emptyLocs.length; j++) {
-                if (usedEmptyIndices.has(j)) continue;
-                
-                let eLoc = emptyLocs[j];
-                let targetDong = (eLoc.dong || '').toString().trim();
+            const currentLocsObjs = originalData.filter(d => d.code === item.code);
+            let totalStock = 0;
+            let totalStock2f = 0;
+            let itemOption = '';
+            currentLocsObjs.forEach(d => {
+                totalStock += Number(d.stock || 0);
+                totalStock2f += Number(d.stock2f || 0);
+                if (d.option && !itemOption) itemOption = d.option;
+            });
+            if (!itemOption || itemOption.trim() === '') {
+                let fallbackOption = '';
+                if (zikjinData[item.code] && zikjinData[item.code]['옵션']) fallbackOption = zikjinData[item.code]['옵션'];
+                else if (weeklyData[item.code] && weeklyData[item.code]['옵션']) fallbackOption = weeklyData[item.code]['옵션'];
+                else if (incomingData[item.code] && incomingData[item.code]['옵션']) fallbackOption = incomingData[item.code]['옵션'];
+                itemOption = fallbackOption;
+            }
+            const moveQty = totalStock - totalStock2f;
 
-                if (currentDongsList.includes(targetDong)) {
-                    break; 
+            const bestCurrentScore = item.__bestCurrentLocScore;
+            const targetScore = _scoreOfLoc(eLoc, getZoneRank, getDongRank, getPosRank);
+
+            // 후퇴 케이스 추가 정보: 그 자리에 어떤 상품이 들어오는지
+            let moveBadge = '';
+            let moveText = '';
+            let retreatReplacementInfo = '';
+            if (currentLocsObjs.length === 0) {
+                moveBadge = `<span style="display:inline-block; background:#e3f2fd; color:#1565c0; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">✨ 신규</span>`;
+                moveText = '✨신규';
+            } else if (targetScore < bestCurrentScore) {
+                moveBadge = `<span style="display:inline-block; background:#ffebee; color:#b71c1c; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔺 전진</span>`;
+                moveText = '🔺전진';
+            } else if (targetScore > bestCurrentScore) {
+                moveBadge = `<span style="display:inline-block; background:#eceff1; color:#37474f; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔻 후퇴</span>`;
+                moveText = '🔻후퇴';
+                // 비워주는 자리에 어떤 코드가 채워지는지 표시 (회전 체인 가시화)
+                const vacatedLoc = currentLocsObjs.find(c => assignedTo.get(c.id) && assignedTo.get(c.id) !== item.code);
+                if (vacatedLoc) {
+                    const fillerCode = assignedTo.get(vacatedLoc.id);
+                    retreatReplacementInfo = `<div style="font-size:10px; color:#558b2f; margin-top:3px;">↪ ${vacatedLoc.id}는 <b>${fillerCode}</b>가 채움</div>`;
                 }
+            } else {
+                moveBadge = `<span style="display:inline-block; background:#f5f5f5; color:#616161; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">➖ 수평</span>`;
+                moveText = '➖수평';
+            }
 
-                usedEmptyIndices.add(j);
-                
-                let totalStock = 0;
-                let totalStock2f = 0;
-                let itemOption = '';
-                
-                currentLocsObjs.forEach(d => {
-                    totalStock += Number(d.stock || 0);
-                    totalStock2f += Number(d.stock2f || 0);
-                    if (d.option && !itemOption) itemOption = d.option; 
-                });
-                
-                if (!itemOption || itemOption.trim() === '') {
-                    let fallbackOption = '';
-                    if (zikjinData[item.code] && zikjinData[item.code]['옵션']) fallbackOption = zikjinData[item.code]['옵션'];
-                    else if (weeklyData[item.code] && weeklyData[item.code]['옵션']) fallbackOption = weeklyData[item.code]['옵션'];
-                    else if (incomingData[item.code] && incomingData[item.code]['옵션']) fallbackOption = incomingData[item.code]['옵션'];
-                    
-                    itemOption = fallbackOption;
-                }
+            window.currentRecommendations.push({
+                moveQty: moveQty,
+                currentLocs: item.currentLocs,
+                targetLoc: eLoc.id,
+                name: item.name,
+                option: itemOption,
+                code: item.code,
+                moveDirection: moveText
+            });
 
-                let moveQty = totalStock - totalStock2f;
-                
-                // ✨ [방향 지시등 로직] 우선순위 점수 비교 계산
-                let bestCurrentScore = 999999;
-                if (currentLocsObjs.length > 0) {
-                    currentLocsObjs.forEach(loc => {
-                        let z = getZoneRank(loc.id);
-                        let d = getDongRank(loc.dong);
-                        let p = getPosRank(loc.pos);
-                        let score = (z * 10000) + (d * 100) + p;
-                        if (score < bestCurrentScore) bestCurrentScore = score;
-                    });
-                }
-
-                let targetZ = getZoneRank(eLoc.id);
-                let targetD = getDongRank(eLoc.dong);
-                let targetP = getPosRank(eLoc.pos);
-                let targetScore = (targetZ * 10000) + (targetD * 100) + targetP;
-
-                let moveBadge = '';
-                let moveText = '';
-                if (currentLocsObjs.length === 0) {
-                    moveBadge = `<span style="display:inline-block; background:#e3f2fd; color:#1565c0; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">✨ 신규</span>`;
-                    moveText = '✨신규';
-                } else if (targetScore < bestCurrentScore) {
-                    moveBadge = `<span style="display:inline-block; background:#ffebee; color:#b71c1c; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔺 전진</span>`;
-                    moveText = '🔺전진';
-                } else if (targetScore > bestCurrentScore) {
-                    // 🛡️ 후퇴 추천 완전 차단:
-                    // 매칭 알고리즘은 빈 자리(emptyLocs)에만 새 상품을 추천한다.
-                    // X가 ★-1을 비워도 그 자리는 점유 해제 시점에 emptyLocs에 없었으므로
-                    // 어떤 Y도 ★-1을 추천받지 못함 → 다음 계산까지 ★-1은 빈 채로 남음.
-                    // 결과적으로 후퇴는 동선 손실만 발생시키므로 항상 스킵.
-                    usedEmptyIndices.delete(j); // 빈 자리 점유 취소 — 다른 item이 사용 가능
-                    break; // 이 item 추천 종료 (현재 자리 유지)
-                } else {
-                    moveBadge = `<span style="display:inline-block; background:#f5f5f5; color:#616161; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">➖ 수평</span>`;
-                    moveText = '➖수평';
-                }
-                
-                window.currentRecommendations.push({
-                    moveQty: moveQty,
-                    currentLocs: item.currentLocs,
-                    targetLoc: eLoc.id,
-                    name: item.name,
-                    option: itemOption,
-                    code: item.code,
-                    moveDirection: moveText // 엑셀용
-                });
-
-                const isEven = displayRank % 2 === 0;
-                const rowBg = isEven ? '#f9fafb' : '#ffffff';
-                const moveQtyDisplay = moveQty > 0 ? `<span style="color:#e65100; font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:#888;">개</span>` : `<span style="color:#bbb; font-size:12px;">-</span>`;
+            const isEven = displayRank % 2 === 0;
+            const rowBg = isEven ? '#f9fafb' : '#ffffff';
+            const moveQtyDisplay = moveQty > 0 ? `<span style="color:#e65100; font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:#888;">개</span>` : `<span style="color:#bbb; font-size:12px;">-</span>`;
 
                 // ★ 점수 세부 툴팁 HTML (html += 윗줄에 선언)
                 const scoreTipHtml = `<span class="info-tip" data-tip-key="rec-score-detail" style="margin-left:3px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 직진배송: ${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.zQty||0).toLocaleString()})</span><br>• 주차별: ${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: 직진 ${window.recommendRatios.zikjin}% / 주차 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
@@ -873,13 +912,12 @@ window.showRecommendation = function() {
                             <span style="color:#1b5e20; font-weight:900; font-size:16px;">${eLoc.id}</span><br>
                             ${moveBadge}<br>
                             <span style="font-size:11px; color:#555; margin-top:3px; display:inline-block;">${eLoc.dong}동 ${eLoc.pos}위치</span>
+                            ${retreatReplacementInfo}
                         </td>
                     </tr>
                 `;
                 displayRank++;
                 matchCount++;
-                break; 
-            }
         }
 
         if (matchCount === 0) {
