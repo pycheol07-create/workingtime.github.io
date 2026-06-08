@@ -698,6 +698,13 @@ window.showRecommendation = function() {
         });
         scoredItems.sort((a, b) => b.score - a.score);
 
+        // 🛡️ 후퇴 가드용 사전 캐시: 각 item의 현재 best loc 우선순위 점수.
+        // (낮을수록 좋은 자리. 현재 위치 없으면 Infinity)
+        const _scoreOfLoc = (loc, getZR, getDR, getPR) => {
+            const z = getZR(loc.id); const d = getDR(loc.dong); const p = getPR(loc.pos);
+            return (z * 10000) + (d * 100) + p;
+        };
+
         let emptyLocs = originalData.filter(d => {
             const hasContent = (d.code && d.code !== d.id && d.code.trim() !== "") || (d.name && d.name.trim() !== "");
             if (hasContent || d.preAssigned) return false;
@@ -738,7 +745,18 @@ window.showRecommendation = function() {
             if (dRankA !== dRankB) return dRankA - dRankB;
             let pRankA = getPosRank(a.pos); let pRankB = getPosRank(b.pos);
             if (pRankA !== pRankB) return pRankA - pRankB;
-            return a.id.localeCompare(b.id); 
+            return a.id.localeCompare(b.id);
+        });
+
+        // 🛡️ 후퇴 가드용: 각 item이 현재 점유한 최고 자리의 우선순위 점수 캐시
+        scoredItems.forEach(it => {
+            const locs = originalData.filter(d => d.code === it.code);
+            let bestScore = Infinity;
+            locs.forEach(loc => {
+                const s = _scoreOfLoc(loc, getZoneRank, getDongRank, getPosRank);
+                if (s < bestScore) bestScore = s;
+            });
+            it.__bestCurrentLocScore = bestScore;
         });
 
         const tbody = document.getElementById('recommend-tbody');
@@ -812,6 +830,19 @@ window.showRecommendation = function() {
                     moveBadge = `<span style="display:inline-block; background:#ffebee; color:#b71c1c; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔺 전진</span>`;
                     moveText = '🔺전진';
                 } else if (targetScore > bestCurrentScore) {
+                    // 🛡️ 후퇴 가드: X가 ★ 자리를 비울 때, 그 자리를 더 잘 채울
+                    // 다른 상품(점수 더 높고 현재 X의 best loc보다 안 좋은 위치에 있는)이
+                    // 있을 때만 후퇴 추천. 없으면 X는 현재 자리 유지 → 추천 스킵.
+                    const hasReplacement = scoredItems.some(other =>
+                        other !== item &&
+                        other.score > item.score &&
+                        other.__bestCurrentLocScore > bestCurrentScore
+                    );
+                    if (!hasReplacement) {
+                        // 빈 자리 점유 취소 — 다른 item이 사용 가능하게
+                        usedEmptyIndices.delete(j);
+                        break; // 이 item 추천 종료 (자리 유지)
+                    }
                     moveBadge = `<span style="display:inline-block; background:#eceff1; color:#37474f; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔻 후퇴</span>`;
                     moveText = '🔻후퇴';
                 } else {
