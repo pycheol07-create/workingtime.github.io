@@ -744,6 +744,38 @@
         </div>
     </div>
 
+    <!-- 📊 대시보드 — bucket 클릭 시 상품 리스트 모달 -->
+    <div id="dash-bucket-modal" class="modal-overlay" onclick="if(event.target.id==='dash-bucket-modal') document.getElementById('dash-bucket-modal').style.display='none'">
+        <div class="modal-content" onclick="event.stopPropagation()" style="width: 1200px; max-width: 96vw; max-height: 92vh; padding: 22px 20px; display:flex; flex-direction:column;">
+            <div class="modal-header" id="dash-bucket-title" style="display:flex; align-items:center; justify-content:space-between;">
+                <span>📅 상품 리스트</span>
+                <button onclick="document.getElementById('dash-bucket-modal').style.display='none'" style="background:none; border:none; font-size:24px; cursor:pointer;">×</button>
+            </div>
+            <div id="dash-bucket-meta" style="font-size:12px; color:#607d8b; margin-bottom: 12px;"></div>
+            <div style="flex:1; min-height:0; overflow-y:auto; border:1px solid #ccc; border-radius:8px;">
+                <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none; font-size:12px;">
+                    <thead style="position:sticky; top:0; box-shadow:0 2px 4px rgba(0,0,0,0.1); z-index:1;">
+                        <tr>
+                            <th style="border-top:none;">상품코드</th>
+                            <th style="border-top:none;">상품명</th>
+                            <th style="border-top:none;">옵션</th>
+                            <th style="border-top:none;">현재 위치</th>
+                            <th style="border-top:none;">정상재고</th>
+                            <th style="border-top:none;">2층재고</th>
+                            <th style="border-top:none;">마지막배송일</th>
+                            <th style="border-top:none;">최근활동</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dash-bucket-tbody"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between; margin-top: 12px;">
+                <button onclick="window.__dashDownloadBucketExcel && window.__dashDownloadBucketExcel()" style="padding:8px 15px; background:#1976d2; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px;">📥 엑셀 다운로드</button>
+                <button class="btn-modal-cancel" style="background:#555; width:100px;" onclick="document.getElementById('dash-bucket-modal').style.display='none'">닫기</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast"></div>
 
     <!-- 2F 이동 추천 모달 -->

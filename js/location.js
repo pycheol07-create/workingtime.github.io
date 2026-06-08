@@ -3703,6 +3703,7 @@ function __dashSortRows(rows) {
             case 'm1':     return cmpNum(a.m1, b.m1);
             case 'm3':     return cmpNum(a.m3, b.m3);
             case 'm6plus': return cmpNum(a.m6plus, b.m6plus);
+            case 'y1plus': return cmpNum(a.y1plus, b.y1plus);
             case 'none':   return cmpNum(a.none, b.none);
             case 'dead':
             default:       return cmpNum(a.deadRate, b.deadRate) || cmpNum(a.m6plus, b.m6plus);
@@ -3741,7 +3742,8 @@ function __dashClassifyDelivery(info, todayMs) {
     if (diff <= 7) return '1주';
     if (diff <= 31) return '1개월';
     if (diff <= 93) return info.hasRecentActivity ? '1개월' : '3개월';
-    return info.hasRecentActivity ? '1개월' : '6개월+';
+    if (diff <= 365) return info.hasRecentActivity ? '1개월' : '6개월+';
+    return info.hasRecentActivity ? '1개월' : '1년+';
 }
 
 window.renderLocationDashboard = function () {
@@ -3794,7 +3796,7 @@ window.renderLocationDashboard = function () {
     // 마지막배송일 분포 (정상재고 있는 상품만, 상품코드 기준)
     const todayMs = new Date().setHours(0, 0, 0, 0);
     const MS_DAY = 24 * 60 * 60 * 1000;
-    const buckets = { '1주': 0, '1개월': 0, '3개월': 0, '6개월+': 0, '기록없음': 0 };
+    const buckets = { '1주': 0, '1개월': 0, '3개월': 0, '6개월+': 0, '1년+': 0, '기록없음': 0 };
     codeToLocs.forEach((arr, code) => {
         const __info = __dashInferDelivery(code, arr);
         if (!__info.hasStock) return;
@@ -3828,8 +3830,8 @@ window.renderLocationDashboard = function () {
         else buckets['6개월+']++;
     });
 
-    // 데드 스톡 (3개월+) 후보 수 = 3개월 + 6개월+
-    const deadStockCount = buckets['3개월'] + buckets['6개월+'];
+    // 데드 스톡 (3개월+) 후보 수 = 3개월 + 6개월+ + 1년+
+    const deadStockCount = buckets['3개월'] + buckets['6개월+'] + buckets['1년+'];
 
     // 빈 슬롯 비중 높은 동 Top 3
     const dongEmptyStats = {};
@@ -3927,12 +3929,18 @@ window.renderLocationDashboard = function () {
         { key: '1개월', cls: '' },
         { key: '3개월', cls: 'warn' },
         { key: '6개월+', cls: 'danger' },
+        { key: '1년+', cls: 'danger' },
         { key: '기록없음', cls: 'gray' }
     ];
     const deliveryBars = bucketDef.map(b => {
         const v = buckets[b.key];
         const rate = totalForBuckets > 0 ? (v / totalForBuckets * 100) : 0;
-        return `<div class="zone-bar-row">
+        const cursor = v > 0 ? 'cursor:pointer;' : '';
+        const clickAttr = v > 0 ? `onclick="window.__dashShowBucketList('${b.key}')"` : '';
+        return `<div class="zone-bar-row" style="${cursor} transition: background 0.15s;" ${clickAttr}
+                    onmouseover="if(${v})this.style.background='#f5f7ff';"
+                    onmouseout="this.style.background='';"
+                    title="${v > 0 ? '클릭: 이 기간 상품 리스트 보기' : ''}">
             <div class="zb-label">${b.key}</div>
             <div class="zb-track"><div class="zb-fill ${b.cls}" style="width:${rate.toFixed(1)}%;"></div></div>
             <div class="zb-text">${v.toLocaleString()} 종 (${rate.toFixed(1)}%)</div>
@@ -3955,10 +3963,11 @@ window.renderLocationDashboard = function () {
         <div class="insight-card">
             <h4>💤 데드 스톡 후보</h4>
             <div class="ins-big">${deadStockCount}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span></div>
-            <div class="ins-desc">마지막배송일 3개월 이상 경과한 재고. 2F 이동 후보로 검토.</div>
+            <div class="ins-desc">마지막배송일 3개월 이상 경과한 재고. 2F 이동 후보로 검토. <span style="color:#90a4ae;">(pill 클릭: 해당 기간 상품 리스트)</span></div>
             <div class="ins-list">
-                <span class="pill">3개월: ${buckets['3개월']}</span>
-                <span class="pill">6개월+: ${buckets['6개월+']}</span>
+                <span class="pill" style="cursor:pointer; background:#fff8e1; color:#e65100;" onclick="window.__dashShowBucketList('3개월')" title="3개월 경과 상품 보기">3개월: ${buckets['3개월']}</span>
+                <span class="pill" style="cursor:pointer; background:#ffebee; color:#c62828;" onclick="window.__dashShowBucketList('6개월+')" title="6개월~1년 경과 상품 보기">6개월+: ${buckets['6개월+']}</span>
+                <span class="pill" style="cursor:pointer; background:#fce4ec; color:#880e4f;" onclick="window.__dashShowBucketList('1년+')" title="1년 이상 경과 상품 보기">1년+: ${buckets['1년+']}</span>
             </div>
         </div>
         <div class="insight-card">
@@ -4042,6 +4051,7 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
                 <th style="${cellBase} ${hl('m1', '#f1f8e9')}" onclick="window.__dashZdSortBy('m1')">1개월 ${A('m1')}</th>
                 <th style="${cellBase} ${hl('m3', '#fff8e1')}" onclick="window.__dashZdSortBy('m3')">3개월 ${A('m3')}</th>
                 <th style="${cellBase} ${hl('m6plus', '#ffebee')}" onclick="window.__dashZdSortBy('m6plus')">6개월+ ${A('m6plus')}</th>
+                <th style="${cellBase} ${hl('y1plus', '#fce4ec')}" onclick="window.__dashZdSortBy('y1plus')">1년+ ${A('y1plus')}</th>
                 <th style="${cellBase} ${hl('none', '#eceff1')}" onclick="window.__dashZdSortBy('none')">기록없음 ${A('none')}</th>
                 <th style="${cellBase} ${hl('dead')} min-width: 180px;" onclick="window.__dashZdSortBy('dead')">데드율 (3개월+) ${A('dead')}</th>
             </tr>
@@ -4091,7 +4101,7 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
 
     const rows = [];
     groupMap.forEach(grp => {
-        let usedCount = 0, w1 = 0, m1 = 0, m3 = 0, m6plus = 0, none = 0;
+        let usedCount = 0, w1 = 0, m1 = 0, m3 = 0, m6plus = 0, y1plus = 0, none = 0;
         grp.codeMap.forEach((arr, code) => {
             // 🛡️ 직진/주차 출고 활동 보강 헬퍼 사용 (전체 차트와 동일)
             const info = __dashInferDelivery(code, arr);
@@ -4102,6 +4112,7 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
             else if (cat === '1개월') m1++;
             else if (cat === '3개월') m3++;
             else if (cat === '6개월+') m6plus++;
+            else if (cat === '1년+') y1plus++;
             else none++;
             return;
             // (이하 구버전 로직 — 안전상 보존, 도달 불가)
@@ -4118,9 +4129,9 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
             else m6plus++;
         });
         if (usedCount < minSlots) return;
-        const deadBase = includeNone ? (m3 + m6plus + none) : (m3 + m6plus);
+        const deadBase = includeNone ? (m3 + m6plus + y1plus + none) : (m3 + m6plus + y1plus);
         const deadRate = usedCount > 0 ? (deadBase / usedCount * 100) : 0;
-        rows.push({ ...grp, usedCount, w1, m1, m3, m6plus, none, deadRate });
+        rows.push({ ...grp, usedCount, w1, m1, m3, m6plus, y1plus, none, deadRate });
     });
 
     __dashSortRows(rows);
@@ -4138,15 +4149,25 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
         const barColor = r.deadRate >= 50 ? '#c62828' : r.deadRate >= 30 ? '#ef6c00' : r.deadRate >= 15 ? '#fbc02d' : '#66bb6a';
         const showRank = isDefaultDeadSort && idx < 3;
         const rankBadge = showRank ? `<span style="display:inline-block; background:${idx===0?'#c62828':idx===1?'#ef6c00':'#fbc02d'}; color:white; font-weight:900; font-size:10px; padding:2px 6px; border-radius:10px; margin-right:6px;">${idx+1}위</span>` : '';
+        // 클릭 셀 빌더 (값 > 0 이고 bucket 있을 때만 클릭 가능)
+        const clickCell = (bucket, value, baseStyle) => {
+            if (value > 0) {
+                const safeZ = String(r.zone).replace(/'/g, "\\'");
+                const safeD = String(r.dong).replace(/'/g, "\\'");
+                return `<td style="${baseStyle} cursor:pointer;" onclick="window.__dashShowBucketList('${bucket}','${safeZ}','${safeD}')" title="${r.zone}-${r.dong} ${bucket} 상품 보기" onmouseover="this.style.background='#eef1ff';" onmouseout="this.style.background='';">${cellFmt(value)}</td>`;
+            }
+            return `<td style="${baseStyle}">${cellFmt(value)}</td>`;
+        };
         return `
         <tr style="${showRank ? 'background: #fff3e0;' : ''}">
             <td style="padding:8px; border:1px solid #e0e6ed; font-weight:bold; text-align:left;">${rankBadge}${r.zone} 구역 - ${r.dong} 동</td>
             <td style="padding:8px; border:1px solid #e0e6ed;">${r.usedCount.toLocaleString()}</td>
-            <td style="padding:8px; border:1px solid #e0e6ed; color:#2e7d32;">${cellFmt(r.w1)}</td>
-            <td style="padding:8px; border:1px solid #e0e6ed; color:#558b2f;">${cellFmt(r.m1)}</td>
-            <td style="padding:8px; border:1px solid #e0e6ed; color:#ef6c00; font-weight:bold;">${cellFmt(r.m3)}</td>
-            <td style="padding:8px; border:1px solid #e0e6ed; color:#c62828; font-weight:bold;">${cellFmt(r.m6plus)}</td>
-            <td style="padding:8px; border:1px solid #e0e6ed; color:#78909c;">${cellFmt(r.none)}</td>
+            ${clickCell('1주', r.w1, 'padding:8px; border:1px solid #e0e6ed; color:#2e7d32;')}
+            ${clickCell('1개월', r.m1, 'padding:8px; border:1px solid #e0e6ed; color:#558b2f;')}
+            ${clickCell('3개월', r.m3, 'padding:8px; border:1px solid #e0e6ed; color:#ef6c00; font-weight:bold;')}
+            ${clickCell('6개월+', r.m6plus, 'padding:8px; border:1px solid #e0e6ed; color:#c62828; font-weight:bold;')}
+            ${clickCell('1년+', r.y1plus, 'padding:8px; border:1px solid #e0e6ed; color:#880e4f; font-weight:bold; background:#fce4ec;')}
+            ${clickCell('기록없음', r.none, 'padding:8px; border:1px solid #e0e6ed; color:#78909c;')}
             <td style="padding:8px; border:1px solid #e0e6ed;">
                 <div style="display:flex; align-items:center; gap:8px;">
                     <div style="flex:1; background:#eceff1; height:14px; border-radius:7px; overflow:hidden;">
@@ -4161,7 +4182,7 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
 
     // 요약: 가중 평균 / 최악 / 최상
     const totalUsed = rows.reduce((a, r) => a + r.usedCount, 0);
-    const totalDead = rows.reduce((a, r) => a + (includeNone ? r.m3 + r.m6plus + r.none : r.m3 + r.m6plus), 0);
+    const totalDead = rows.reduce((a, r) => a + (includeNone ? r.m3 + r.m6plus + r.y1plus + r.none : r.m3 + r.m6plus + r.y1plus), 0);
     const avgRate = totalUsed > 0 ? (totalDead / totalUsed * 100) : 0;
     const worst = rows[0];
     const best = rows[rows.length - 1];
@@ -4174,3 +4195,135 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
         `;
     }
 }
+
+// ============================================================
+// 📅 bucket 클릭 → 상품 리스트 모달
+// ============================================================
+let __dashLastBucketList = []; // 엑셀 다운로드용 캐시
+
+window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
+    const modal = document.getElementById('dash-bucket-modal');
+    const titleEl = document.getElementById('dash-bucket-title');
+    const metaEl = document.getElementById('dash-bucket-meta');
+    const tbody = document.getElementById('dash-bucket-tbody');
+    if (!modal || !tbody) return;
+
+    // 3F만, isUsed (코드+name) 인 로케이션만
+    const locs3F = originalData.filter(d => (d.id || '').charAt(0).toUpperCase() !== 'K');
+    const isUsed = (loc) =>
+        (loc.code && String(loc.code).trim() !== '' && loc.code !== loc.id) ||
+        (loc.name && String(loc.name).trim() !== '');
+
+    // zone/dong 필터 적용 후 상품코드 단위 그룹화
+    const codeMap = new Map();
+    locs3F.forEach(loc => {
+        if (!isUsed(loc)) return;
+        const zone = (loc.id || '').charAt(0).toUpperCase() || '?';
+        const dong = String(loc.dong || '').trim() || '미지정';
+        if (zoneFilter && zone !== zoneFilter) return;
+        if (dongFilter && dong !== dongFilter) return;
+        const code = String(loc.code || '').trim();
+        if (!code) return;
+        if (!codeMap.has(code)) codeMap.set(code, []);
+        codeMap.get(code).push(loc);
+    });
+
+    const todayMs = new Date().setHours(0, 0, 0, 0);
+    const items = [];
+    codeMap.forEach((arr, code) => {
+        const info = __dashInferDelivery(code, arr);
+        if (!info.hasStock) return;
+        const cat = __dashClassifyDelivery(info, todayMs);
+        if (cat !== bucket) return;
+
+        // 대표 정보 — 같은 코드여도 위치 여러 곳이면 모두 노출
+        const rep = arr[0] || {};
+        const name = rep.name || (zikjinData[code]?.['상품명']) || (weeklyData[code]?.['상품명']) || '';
+        const option = rep.option || '';
+        const locsStr = arr.map(l => l.id).join(', ');
+        const totalStock = arr.reduce((a, l) => a + Number(l.stock || 0), 0);
+        const totalStock2f = arr.reduce((a, l) => a + Number(l.stock2f || 0), 0);
+        items.push({
+            code, name, option,
+            locsStr,
+            stock: totalStock,
+            stock2f: totalStock2f,
+            lastDelivery: info.lastDelivery || '',
+            hasRecentActivity: info.hasRecentActivity
+        });
+    });
+
+    // 정렬: 마지막배송일 오래된 순 (기록없음 맨 위)
+    items.sort((a, b) => {
+        if (!a.lastDelivery && !b.lastDelivery) return 0;
+        if (!a.lastDelivery) return -1;
+        if (!b.lastDelivery) return 1;
+        return a.lastDelivery.localeCompare(b.lastDelivery);
+    });
+
+    __dashLastBucketList = { bucket, zoneFilter, dongFilter, items };
+
+    // 헤더 텍스트
+    const scopeLabel = (zoneFilter || dongFilter)
+        ? `${zoneFilter || '전체구역'} - ${dongFilter || '전체동'} `
+        : '전체 ';
+    if (titleEl) {
+        titleEl.querySelector('span').textContent = `📅 ${scopeLabel}[${bucket}] 상품 리스트 (${items.length}종)`;
+    }
+    if (metaEl) {
+        const desc = {
+            '1주': '최근 1주일 내 출고된 상품 (회전 양호)',
+            '1개월': '최근 1개월 내 출고된 상품',
+            '3개월': '1~3개월 내 마지막 출고 — 데드 후보',
+            '6개월+': '3~12개월 내 마지막 출고 — 데드',
+            '1년+': '1년 이상 출고 없는 재고 — 우선 정리 대상',
+            '기록없음': '마지막배송일/입고일 기록이 없는 상품'
+        }[bucket] || '';
+        metaEl.textContent = desc;
+    }
+
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="padding:30px; text-align:center; color:#90a4ae;">해당 조건에 맞는 상품이 없습니다.</td></tr>`;
+    } else {
+        tbody.innerHTML = items.map(it => `
+            <tr>
+                <td style="font-family:monospace; font-size:11px;">${it.code}</td>
+                <td style="text-align:left; padding-left:8px;">${it.name || '<span style=\"color:#cfd8dc;\">-</span>'}</td>
+                <td>${it.option || '<span style=\"color:#cfd8dc;\">-</span>'}</td>
+                <td style="font-family:monospace; font-size:11px;">${it.locsStr}</td>
+                <td style="font-weight:bold;">${it.stock.toLocaleString()}</td>
+                <td style="color:#607d8b;">${it.stock2f > 0 ? it.stock2f.toLocaleString() : '<span style=\"color:#cfd8dc;\">·</span>'}</td>
+                <td>${it.lastDelivery || '<span style=\"color:#c62828;\">기록없음</span>'}</td>
+                <td>${it.hasRecentActivity ? '<span style="background:#e8f5e9; color:#2e7d32; padding:2px 6px; border-radius:8px; font-size:10px; font-weight:bold;">직진 활동</span>' : '<span style=\"color:#cfd8dc;\">·</span>'}</td>
+            </tr>
+        `).join('');
+    }
+
+    modal.style.display = 'flex';
+};
+
+// 엑셀 다운로드 (XLSX는 페이지에 이미 로드됨)
+window.__dashDownloadBucketExcel = function () {
+    if (!__dashLastBucketList || !__dashLastBucketList.items || __dashLastBucketList.items.length === 0) {
+        alert('다운로드할 데이터가 없습니다.');
+        return;
+    }
+    const { bucket, zoneFilter, dongFilter, items } = __dashLastBucketList;
+    const sheetData = items.map(it => ({
+        '상품코드': it.code,
+        '상품명': it.name,
+        '옵션': it.option,
+        '현재위치': it.locsStr,
+        '정상재고': it.stock,
+        '2층재고': it.stock2f,
+        '마지막배송일': it.lastDelivery || '',
+        '직진활동': it.hasRecentActivity ? 'O' : ''
+    }));
+    const ws = XLSX.utils.json_to_sheet(sheetData);
+    const wb = XLSX.utils.book_new();
+    const scope = (zoneFilter || 'ALL') + '_' + (dongFilter || 'ALL');
+    const sheetName = `${bucket}_${scope}`.slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const fname = `데드스톡_${bucket}_${scope}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fname);
+};
