@@ -71,6 +71,7 @@ function renderList() {
             const tagHtml = (m.tags || []).map(t => `<span class="inline-block bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-[10px] px-2 py-0.5 rounded-full">${escapeHtml(t)}</span>`).join('');
             const taskHtml = (m.affectedTasks || []).map(t => `<span class="inline-block bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] px-2 py-0.5 rounded">${escapeHtml(t)}</span>`).join('');
             const descPreview = (m.description || '').slice(0, 100) + ((m.description || '').length > 100 ? '...' : '');
+            const previewBar = renderInlinePreview(m, 14);
             return `
                 <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition">
                     <div class="flex justify-between items-start gap-3 flex-wrap">
@@ -89,11 +90,80 @@ function renderList() {
                             <button data-action="edit" data-id="${m.id}" class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold py-1.5 px-3 rounded-lg">✏️</button>
                         </div>
                     </div>
+                    ${previewBar}
                 </div>
             `;
         }).join('');
     }
     renderTypeFilters();
+}
+
+// 카드에 들어가는 인라인 요약 — 14일 윈도우 기본
+function renderInlinePreview(m, windowDays) {
+    const summary = computeMilestoneSummary(m, windowDays);
+    if (!summary.hasEnoughData) {
+        return `
+            <div class="mt-3 pt-3 border-t border-dashed border-gray-300 dark:border-gray-600 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                <span>⏳ ${summary.statusLabel}</span>
+                <span class="text-gray-400">(Before ${summary.before.dayCount}일 / After ${summary.after.dayCount}일 — 데이터 누적 중)</span>
+            </div>
+        `;
+    }
+    const uphChip = makeChangeChip('UPH', summary.before.uph, summary.after.uph, 1, true);
+    const qtyChip = makeChangeChip('일평균 처리량', summary.before.avgQtyPerDay, summary.after.avgQtyPerDay, 0, true);
+    const durChip = makeChangeChip('일평균 작업시간', summary.before.avgDurationPerDay, summary.after.avgDurationPerDay, 0, false, '분');
+    return `
+        <div class="mt-3 pt-3 border-t border-dashed border-gray-300 dark:border-gray-600">
+            <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+                <div class="text-[11px] font-bold text-gray-600 dark:text-gray-300">📈 ${windowDays}일 전·후 요약</div>
+                <div class="text-[10px] text-gray-500">관측 Before ${summary.before.dayCount}일 / After ${summary.after.dayCount}일</div>
+            </div>
+            <div class="flex flex-wrap gap-2">${uphChip}${qtyChip}${durChip}</div>
+        </div>
+    `;
+}
+
+// 변화율 칩 — 라벨 + 변화 + 색상
+function makeChangeChip(label, beforeVal, afterVal, digits = 1, betterIfHigh = true, suffix = '') {
+    const pct = beforeVal === 0 ? (afterVal > 0 ? Infinity : 0) : ((afterVal - beforeVal) / beforeVal) * 100;
+    const sign = pct >= 0 ? '+' : '';
+    const pctText = isFinite(pct) ? `${sign}${pct.toFixed(1)}%` : '∞';
+    const good = (betterIfHigh && pct > 0) || (!betterIfHigh && pct < 0);
+    const flat = Math.abs(pct) < 0.5;
+    const cls = flat ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' : (good ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700');
+    const icon = flat ? '—' : (good ? '✅' : '⚠️');
+    const b = digits === 0 ? Math.round(beforeVal).toLocaleString() : beforeVal.toFixed(digits);
+    const a = digits === 0 ? Math.round(afterVal).toLocaleString() : afterVal.toFixed(digits);
+    return `
+        <div class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border ${cls}">
+            <span class="text-[10px] font-bold opacity-80">${label}</span>
+            <span class="text-[11px] font-mono">${b}${suffix}→${a}${suffix}</span>
+            <span class="text-[11px] font-bold">${icon} ${pctText}</span>
+        </div>
+    `;
+}
+
+// 마일스톤 1건의 요약 계산 (전/후 N일 평균 + 충분한 데이터 여부)
+function computeMilestoneSummary(m, windowDays = 14) {
+    const beforeEnd = addDaysStr(m.date, -1);
+    const beforeStart = addDaysStr(m.date, -windowDays);
+    const afterStart = m.date;
+    const afterEnd = addDaysStr(m.date, windowDays - 1);
+
+    const taskFilter = m.affectedTasks && m.affectedTasks.length > 0 ? m.affectedTasks : [];
+    const before = computeKpiWindow(beforeStart, beforeEnd, taskFilter);
+    const after = computeKpiWindow(afterStart, afterEnd, taskFilter);
+
+    const minDaysEach = Math.max(3, Math.floor(windowDays / 4)); // 최소 일수 (윈도우의 1/4, 최소 3일)
+    const hasBeforeData = before.dayCount >= minDaysEach;
+    const hasAfterData = after.dayCount >= minDaysEach;
+    const hasEnoughData = hasBeforeData && hasAfterData;
+
+    let statusLabel = '관측 진행 중';
+    if (!hasBeforeData) statusLabel = '이전 데이터 부족';
+    else if (!hasAfterData) statusLabel = '이후 데이터 누적 중';
+
+    return { before, after, hasBeforeData, hasAfterData, hasEnoughData, statusLabel, windowDays, taskFilter, milestone: m };
 }
 
 function renderTypeFilters() {
@@ -457,6 +527,109 @@ export function bindMilestoneListeners() {
             b.classList.add('bg-blue-600', 'text-white');
             renderCompareResults();
         });
+    });
+}
+
+// ============================================================
+// 📊 종합 인사이트 탭용 위젯 (마일스톤별 효과 요약)
+// ============================================================
+// 호출 시 firestore에 있는 마일스톤을 1회 가져와 컨테이너 채움.
+// 이미 milestones 탭이 열려있어 _milestones에 데이터가 있으면 그걸 그대로 활용.
+export async function renderMilestonesInsightWidget(containerEl) {
+    if (!containerEl) return;
+    // 캐시가 비어있으면 1회 조회
+    if (!_milestones || _milestones.length === 0) {
+        try {
+            const snap = await getDocs(colRef());
+            _milestones = [];
+            snap.forEach(d => _milestones.push({ id: d.id, ...d.data() }));
+            _milestones.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        } catch (e) {
+            containerEl.innerHTML = `<div class="text-xs text-red-500">마일스톤 로드 실패: ${escapeHtml(e.message || e)}</div>`;
+            return;
+        }
+    }
+
+    if (_milestones.length === 0) {
+        containerEl.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-200">📍 마일스톤별 효과 요약</h3>
+                </div>
+                <div class="text-center py-6 text-gray-400 text-xs">
+                    <div class="text-3xl mb-2">📍</div>
+                    <div>아직 등록된 마일스톤이 없습니다.</div>
+                    <div class="mt-1">변경사항이 발생하면 "📍 운영 마일스톤" 탭에서 등록하세요.</div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // 최근 6건만 표시 (기본 14일 윈도우)
+    const recentMilestones = _milestones.slice(0, 6);
+    const summaries = recentMilestones.map(m => computeMilestoneSummary(m, 14));
+
+    const cardHtml = summaries.map(s => {
+        const m = s.milestone;
+        const typeInfo = TYPE_LABELS[m.type] || TYPE_LABELS.memo;
+        const uphPct = s.before.uph === 0 ? 0 : ((s.after.uph - s.before.uph) / s.before.uph) * 100;
+        const qtyPct = s.before.avgQtyPerDay === 0 ? 0 : ((s.after.avgQtyPerDay - s.before.avgQtyPerDay) / s.before.avgQtyPerDay) * 100;
+
+        let verdict = '';
+        if (!s.hasEnoughData) {
+            verdict = `<div class="text-[11px] text-gray-500 dark:text-gray-400">⏳ ${s.statusLabel}</div>`;
+        } else {
+            const goodCount = (uphPct > 0.5 ? 1 : 0) + (qtyPct > 0.5 ? 1 : 0);
+            const badCount = (uphPct < -0.5 ? 1 : 0) + (qtyPct < -0.5 ? 1 : 0);
+            const tone = goodCount > badCount ? 'text-emerald-600 dark:text-emerald-400' : (badCount > goodCount ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400');
+            const tag = goodCount > badCount ? '✅ 효과 양호' : (badCount > goodCount ? '⚠️ 부정적 변화' : '— 변화 미미');
+            verdict = `<div class="text-[11px] font-bold ${tone}">${tag}</div>`;
+        }
+
+        const uphChip = s.hasEnoughData ? makeChangeChip('UPH', s.before.uph, s.after.uph, 1, true) : '';
+        const qtyChip = s.hasEnoughData ? makeChangeChip('처리량/일', s.before.avgQtyPerDay, s.after.avgQtyPerDay, 0, true) : '';
+
+        return `
+            <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 bg-gray-50 dark:bg-gray-800/60 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition" data-milestone-id="${m.id}">
+                <div class="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="inline-block ${typeInfo.color} border text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">${typeInfo.label}</span>
+                        <span class="text-[10px] text-gray-500 font-mono">${m.date || '-'}</span>
+                    </div>
+                    ${verdict}
+                </div>
+                <div class="text-xs font-bold text-gray-800 dark:text-gray-100 truncate mb-2" title="${escapeHtml(m.title || '')}">${escapeHtml(m.title || '(제목 없음)')}</div>
+                <div class="flex flex-wrap gap-1.5">${uphChip}${qtyChip}</div>
+            </div>
+        `;
+    }).join('');
+
+    containerEl.innerHTML = `
+        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div>
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-200 flex items-center gap-1.5">📍 마일스톤별 효과 요약</h3>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">최근 6건 · 14일 전/후 평균 비교</p>
+                </div>
+                <button id="goto-milestones-tab-btn" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">전체 보기 →</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">${cardHtml}</div>
+        </div>
+    `;
+
+    // 카드 클릭 → 마일스톤 탭으로 이동 + 비교 모달 자동 열기
+    containerEl.querySelectorAll('[data-milestone-id]').forEach(el => {
+        el.addEventListener('click', () => {
+            const id = el.dataset.milestoneId;
+            const mTab = document.querySelector('button[data-main-tab="milestones"]');
+            if (mTab) mTab.click();
+            setTimeout(() => openCompareModal(id), 400);
+        });
+    });
+    containerEl.querySelector('#goto-milestones-tab-btn')?.addEventListener('click', () => {
+        const mTab = document.querySelector('button[data-main-tab="milestones"]');
+        if (mTab) mTab.click();
     });
 }
 

@@ -95,6 +95,14 @@ const getBaselinePeriod = (granularity, selectedKey, allHistoryData) => {
 };
 
 export function renderDashboardTab(filteredData, appConfig) {
+    // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
+    const milestoneWidget = document.getElementById('dashboard-milestones-widget');
+    if (milestoneWidget) {
+        import('./ui-history-milestones.js').then(mod => {
+            mod.renderMilestonesInsightWidget(milestoneWidget);
+        }).catch(e => console.warn('milestones widget load failed:', e));
+    }
+
     if (!filteredData || filteredData.length === 0) {
         document.getElementById('ai-dashboard-comment').textContent = "조회된 기간에 이력 데이터가 없습니다.";
         document.getElementById('kpi-total-time').innerHTML = `0<span class="text-sm font-medium text-gray-500 ml-1">h</span>`;
