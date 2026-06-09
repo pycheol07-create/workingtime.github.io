@@ -3,7 +3,7 @@ import * as State from './state.js';
 import * as DOM from './dom-elements.js';
 import { getTodayDateString, getCurrentTime, showToast } from './utils.js';
 // ✨ limit가 추가되었습니다.
-import { doc, onSnapshot, collection, query, where, limit, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js';
 import { renderTodoList } from './inspection-logic.js';
 import { renderNotificationList } from './app-notifications.js';
@@ -96,6 +96,9 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
 
         // 🛡️ 마이그레이션: lock doc이 없는 살아있는 레코드에 backfill (1회성, 세션당 1회)
         try { backfillActiveLocksOnce(workRecordsCollectionRef); } catch (e) { console.error('Lock backfill failed:', e); }
+
+        // 🛡️ stale lock 정리: workRecords에 ongoing/paused가 없는데 lock이 남아있으면 자동 삭제
+        try { reconcileActiveLocksDebounced(); } catch (e) { console.error('Stale lock reconcile failed:', e); }
 
         renderCallback();
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (업무)';
@@ -343,8 +346,67 @@ async function backfillActiveLocksOnce(workRecordsColRef) {
     _lockBackfillDone = true;
 }
 
+// 🛡️ Stale lock 정리:
+// workRecords에 ongoing/paused 상태 레코드가 없는데도 activeLock이 남아있으면
+// 그 멤버는 "이미 진행 중" 으로 오인되어 새 업무 시작이 차단됨.
+// 디바운스 + 쿨다운으로 read 비용 최소화.
+let _staleLockTimer = null;
+let _staleLockLastRun = 0;
+const STALE_LOCK_COOLDOWN_MS = 30_000;
+
+async function reconcileActiveLocksNow() {
+    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
+    const snap = await getDocs(lockColRef);
+    const aliveMembers = new Set(
+        (State.appState.workRecords || [])
+            .filter(r => r.status === 'ongoing' || r.status === 'paused')
+            .map(r => r.member)
+    );
+    const stales = [];
+    snap.forEach(d => {
+        if (!aliveMembers.has(d.id)) stales.push({ ref: d.ref, id: d.id });
+    });
+    if (stales.length === 0) return { removed: 0 };
+    const batch = writeBatch(State.db);
+    stales.forEach(s => batch.delete(s.ref));
+    await batch.commit();
+    console.warn(`[stale lock cleanup] ${stales.length}건 정리: ${stales.map(s => s.id).join(', ')}`);
+    showToast(`종료된 멤버 잠금 ${stales.length}건 자동 정리`);
+    return { removed: stales.length, members: stales.map(s => s.id) };
+}
+
+function reconcileActiveLocksDebounced() {
+    if (_staleLockTimer) return;
+    if (Date.now() - _staleLockLastRun < STALE_LOCK_COOLDOWN_MS) return;
+    _staleLockTimer = setTimeout(async () => {
+        _staleLockTimer = null;
+        try {
+            await reconcileActiveLocksNow();
+            _staleLockLastRun = Date.now();
+        } catch (e) {
+            console.error('Stale lock reconcile failed:', e);
+        }
+    }, 5_000);
+}
+
 // 콘솔에서 즉시 강제 정리하고 싶을 때
 if (typeof window !== 'undefined') {
+    // 즉시 stale lock 전체 정리 (디바운스/쿨다운 무시)
+    window.__reconcileLocks = async () => {
+        const r = await reconcileActiveLocksNow();
+        _staleLockLastRun = Date.now();
+        return r;
+    };
+
+    // 특정 멤버 lock 강제 삭제 (긴급용)
+    window.__forceUnlockMember = async (memberName) => {
+        const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        const lockRef = doc(collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks'), String(memberName));
+        await deleteDoc(lockRef);
+        console.log(`[force unlock] ${memberName} lock 삭제 완료`);
+        showToast(`${memberName} 잠금 강제 해제 완료`);
+    };
+
     window.__cleanupDupeOngoing = async () => {
         const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
         const records = (State.appState.workRecords || []).filter(r =>
