@@ -1,10 +1,8 @@
 // === js/widget-incoming-schedule.js ===
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
-// 구글 시트(공개 export)에서 CSV를 받아 도착일이 당일 이후인 행을 표시.
+// Apps Script Web App에서 JSON을 받아 도착일이 당일 이후인 행을 표시.
 
-const SHEET_ID = '1k6qa9X96RPr8bRf0fUTk7p3RS5HuhOaDz6kXSGSlQgc';
-const GID = '606554960';
-const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw8ZaiYF8McexD_ZWXWoOZ0F4UQKgQVBH3w8XLiTxW3bPSMoOcptXnb2N-gW_hRJW4-Xw/exec';
 
 // 컬럼 인덱스 (0-based). A=0 ... B=1 ... Q=16 ... R=17 ... AC=28
 const COL_PACK_DATE = 1;   // B열 — 패킹 일자
@@ -12,37 +10,12 @@ const COL_BOXES = 16;      // Q열 — 박스 수
 const COL_QTY = 17;        // R열 — 수량
 const COL_ARRIVAL = 28;    // AC열 — 도착일
 
-const REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30분
+const REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2시간
 const CACHE_KEY = 'incoming_schedule_cache_v1';
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1시간 (오프라인 fallback)
+const CACHE_TTL_MS = 3 * 60 * 60 * 1000; // 3시간 (오프라인 fallback)
 
 let _refreshTimer = null;
 let _lastFetchAt = 0;
-
-// ────────────────────────────────────────
-// CSV 파싱 (RFC 4180 단순화 — 쉼표/줄바꿈/이중인용 처리)
-// ────────────────────────────────────────
-function parseCSV(text) {
-    const rows = [];
-    let row = [], cell = '', inQuote = false;
-    for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        if (inQuote) {
-            if (ch === '"') {
-                if (text[i + 1] === '"') { cell += '"'; i++; }
-                else inQuote = false;
-            } else cell += ch;
-        } else {
-            if (ch === '"') inQuote = true;
-            else if (ch === ',') { row.push(cell); cell = ''; }
-            else if (ch === '\r') { /* skip */ }
-            else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
-            else cell += ch;
-        }
-    }
-    if (cell !== '' || row.length > 0) { row.push(cell); rows.push(row); }
-    return rows;
-}
 
 // ────────────────────────────────────────
 // 날짜 파서 — "6/15", "06/15", "2026-06-15", "6/15(월)" 등 다양한 형식 처리
@@ -129,11 +102,11 @@ async function fetchIncomingSchedule() {
 
     try {
         if (statusEl) statusEl.textContent = '조회 중...';
-        const res = await fetch(CSV_URL, { cache: 'no-store' });
+        const res = await fetch(SCRIPT_URL, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const csvText = await res.text();
-        const rows = parseCSV(csvText);
-        // 첫 행은 헤더로 가정 — 데이터부터
+        const json = await res.json();
+        if (json.error) throw new Error(json.error);
+        const rows = json.data; // 2D array (첫 행은 헤더)
         const today = new Date(); today.setHours(0, 0, 0, 0);
 
         const items = [];
@@ -188,7 +161,7 @@ async function fetchIncomingSchedule() {
                 return;
             }
         } catch (_) {}
-        listEl.innerHTML = `<li class="text-[10px] text-red-500">⚠️ 시트 조회 실패. 시트가 "링크가 있는 모든 사람이 보기" 권한인지 확인.</li>`;
+        listEl.innerHTML = `<li class="text-[10px] text-red-500">⚠️ 입고 데이터 조회 실패. Apps Script URL 또는 권한을 확인하세요.</li>`;
         if (statusEl) statusEl.textContent = '오류';
     }
 }
