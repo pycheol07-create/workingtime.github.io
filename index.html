@@ -192,13 +192,30 @@
                         <div class="absolute top-0 left-0 w-1 h-full bg-yellow-400 dark:bg-yellow-600"></div>
                         <div class="p-4 border-b border-yellow-100/50 dark:border-yellow-800/50 flex justify-between items-center bg-yellow-50/80 dark:bg-yellow-900/40 shrink-0">
                             <h3 class="text-sm font-bold text-yellow-800 dark:text-yellow-400 flex items-center gap-2">
-                                <span>📌</span> 중요 알림
+                                <span>📅</span> 주요 일정 및 알림
                             </h3>
-                            <button id="open-notice-modal-btn" class="text-[10px] bg-yellow-200 dark:bg-yellow-700 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded font-bold hover:bg-yellow-300 dark:hover:bg-yellow-600 transition cursor-pointer shadow-sm">관리</button>
+                            <div class="flex items-center gap-1">
+                                <button id="refresh-incoming-btn" class="text-[10px] bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 px-2 py-1 rounded font-bold hover:bg-amber-300 dark:hover:bg-amber-600 transition cursor-pointer shadow-sm" title="입고 일정 새로고침">🔄</button>
+                                <button id="open-notice-modal-btn" class="text-[10px] bg-yellow-200 dark:bg-yellow-700 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded font-bold hover:bg-yellow-300 dark:hover:bg-yellow-600 transition cursor-pointer shadow-sm">관리</button>
+                            </div>
                         </div>
-                        <div class="p-4 flex-1 overflow-y-auto text-sm text-yellow-900 dark:text-yellow-200 leading-relaxed font-medium">
-                            <ul id="widget-memo-list" class="list-disc pl-4 space-y-1">
-                            </ul>
+                        <div class="flex-1 overflow-y-auto">
+                            <!-- 🚚 입고 예정 (구글 시트 자동) -->
+                            <div class="px-4 pt-3 pb-2">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <h4 class="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">🚚 입고 예정</h4>
+                                    <span id="widget-incoming-status" class="text-[9px] text-amber-600 dark:text-amber-400"></span>
+                                </div>
+                                <ul id="widget-incoming-list" class="text-[12px] text-amber-900 dark:text-amber-200 space-y-1 leading-tight">
+                                    <li class="text-[10px] text-gray-400 italic">데이터 불러오는 중...</li>
+                                </ul>
+                            </div>
+                            <!-- 📌 중요 알림 -->
+                            <div class="px-4 pt-2 pb-3 border-t border-yellow-200/60 dark:border-yellow-700/50">
+                                <h4 class="text-xs font-bold text-yellow-800 dark:text-yellow-300 flex items-center gap-1 mb-1.5">📌 중요 알림</h4>
+                                <ul id="widget-memo-list" class="list-disc pl-4 space-y-1 text-sm text-yellow-900 dark:text-yellow-200 leading-relaxed font-medium">
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -530,8 +547,11 @@
         import { appState } from './js/state.js';
         import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js';
         import { renderNoticeWidget } from './js/ui-main.js';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js';
 
         loadAdminTodos();
+        // 🚚 입고 예정 위젯 시작 (구글 시트에서 자동 가져옴 + 30분 주기 갱신)
+        initIncomingScheduleWidget();
 
         document.addEventListener('click', function(e) {
             if (e.target && e.target.id === 'open-notice-modal-btn') {
