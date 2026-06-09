@@ -725,12 +725,12 @@
                 <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
                     <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                         <tr>
-                            <th style="width: 80px; border-top:none; font-size:13px;">순위(점수)<span class="info-tip" data-tip-key="rec-score">i<span class="info-tip-content">📊 <b>점수 계산 방식</b><br>세 가지 데이터의 가중 평균입니다:<br>• <b>직진배송</b>: 최근 직진배송 수량<br>• <b>주차별</b>: 기간 배송/발주 수량<br>• <b>상승세</b>: 최근 3주 vs 이전 3주 증가분<br><br>⚙️ <b>점수반영비율 설정</b>에서 각 비율을 조정할 수 있습니다.<br>마우스를 각 상품의 점수 위에 올리면 세부 내역이 보입니다.</span></span></th>
-                            <th style="width: 120px; border-top:none; font-size:13px;">상품코드</th>
-                            <th style="border-top:none; font-size:13px;">상품명</th>
-                            <th style="width: 80px; border-top:none; font-size:13px; background:#fff8e1; color:#e65100;">이동수량<span class="info-tip" data-tip-key="rec-move-qty">i<span class="info-tip-content">📦 <b>3층에서 옮길 수량</b><br>= 정상재고 - 2층창고재고<br>(같은 상품코드의 모든 로케이션 합계)</span></span></th>
-                            <th style="width: 130px; border-top:none; font-size:13px;">현재 위치</th>
-                            <th style="width: 180px; background:#e8f5e9; color:#2e7d32; border-top:none; font-size:13px;">➡️ 추천 로케이션<span class="info-tip" data-tip-key="rec-target-loc">i<span class="info-tip-content">🎯 <b>우선순위 알고리즘</b>으로 추천된 빈 자리입니다.<br>• 구역(★→A→B...) 우선<br>• 동 우선순위 (설정 가능)<br>• 위치 우선순위 (설정 가능)<br><br>뱃지 의미:<br>🔺<b>전진</b>: 더 좋은 위치로 이동<br>🔻<b>후퇴</b>: 덜 좋은 위치 (빈자리 부족)<br>➖<b>수평</b>: 비슷한 우선순위<br>✨<b>신규</b>: 처음 배치되는 상품</span></span></th>
+                            <th style="width: 90px; border-top:none; font-size:12px; padding:6px 8px;">순위(점수)<span class="info-tip" data-tip-key="rec-score">i<span class="info-tip-content">📊 <b>점수 계산 방식</b><br>세 가지 데이터의 가중 평균입니다:<br>• <b>직진배송</b>: 최근 직진배송 수량<br>• <b>주차별</b>: 기간 배송/발주 수량<br>• <b>상승세</b>: 최근 3주 vs 이전 3주 증가분<br><br>⚙️ <b>점수반영비율 설정</b>에서 각 비율을 조정할 수 있습니다.<br>마우스를 각 상품의 점수 위에 올리면 세부 내역이 보입니다.</span></span></th>
+                            <th style="width: 110px; border-top:none; font-size:12px; padding:6px 8px;">상품코드</th>
+                            <th style="border-top:none; font-size:12px; padding:6px 8px;">상품명 (옵션)</th>
+                            <th style="width: 70px; border-top:none; font-size:12px; background:#fff8e1; color:#e65100; padding:6px 6px;">이동수량<span class="info-tip" data-tip-key="rec-move-qty">i<span class="info-tip-content">📦 <b>3층에서 옮길 수량</b><br>= 정상재고 - 2층창고재고<br>(같은 상품코드의 모든 로케이션 합계)</span></span></th>
+                            <th style="width: 130px; border-top:none; font-size:12px; padding:6px 8px;">현재 위치</th>
+                            <th style="width: 280px; background:#e8f5e9; color:#2e7d32; border-top:none; font-size:12px; padding:6px 10px;">➡️ 추천 로케이션 (방향/체인)<span class="info-tip" data-tip-key="rec-target-loc">i<span class="info-tip-content">🎯 <b>우선순위 알고리즘</b>으로 추천된 자리입니다.<br>• 구역(★→A→B...) 우선<br>• 동 우선순위 (설정 가능)<br>• 위치 우선순위 (설정 가능)<br><br>뱃지 의미:<br>🔺<b>전진</b>: 더 좋은 위치로 이동<br>🔻<b>후퇴</b>: 덜 좋은 위치 (대체 상품이 그 자리를 채움 — 체인 표시)<br>➖<b>수평</b>: 비슷한 우선순위<br>✨<b>신규</b>: 처음 배치되는 상품</span></span></th>
                         </tr>
                     </thead>
                     <tbody id="recommend-tbody"></tbody>

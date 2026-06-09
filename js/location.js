@@ -857,27 +857,27 @@ window.showRecommendation = function() {
             const bestCurrentScore = item.__bestCurrentLocScore;
             const targetScore = _scoreOfLoc(eLoc, getZoneRank, getDongRank, getPosRank);
 
-            // 후퇴 케이스 추가 정보: 그 자리에 어떤 상품이 들어오는지
+            // 콤팩트 뱃지: padding/font 줄임, margin-top 제거 → 인라인 사용
+            const BADGE = (bg, fg, label) => `<span style="display:inline-block; background:${bg}; color:${fg}; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold; vertical-align:middle;">${label}</span>`;
             let moveBadge = '';
             let moveText = '';
             let retreatReplacementInfo = '';
             if (currentLocsObjs.length === 0) {
-                moveBadge = `<span style="display:inline-block; background:#e3f2fd; color:#1565c0; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">✨ 신규</span>`;
+                moveBadge = BADGE('#e3f2fd', '#1565c0', '✨신규');
                 moveText = '✨신규';
             } else if (targetScore < bestCurrentScore) {
-                moveBadge = `<span style="display:inline-block; background:#ffebee; color:#b71c1c; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔺 전진</span>`;
+                moveBadge = BADGE('#ffebee', '#b71c1c', '🔺전진');
                 moveText = '🔺전진';
             } else if (targetScore > bestCurrentScore) {
-                moveBadge = `<span style="display:inline-block; background:#eceff1; color:#37474f; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔻 후퇴</span>`;
+                moveBadge = BADGE('#eceff1', '#37474f', '🔻후퇴');
                 moveText = '🔻후퇴';
-                // 비워주는 자리에 어떤 코드가 채워지는지 표시 (회전 체인 가시화)
                 const vacatedLoc = currentLocsObjs.find(c => assignedTo.get(c.id) && assignedTo.get(c.id) !== item.code);
                 if (vacatedLoc) {
                     const fillerCode = assignedTo.get(vacatedLoc.id);
-                    retreatReplacementInfo = `<div style="font-size:10px; color:#558b2f; margin-top:3px;">↪ ${vacatedLoc.id}는 <b>${fillerCode}</b>가 채움</div>`;
+                    retreatReplacementInfo = ` <span style="font-size:10px; color:#558b2f;">↪ ${vacatedLoc.id}←${fillerCode}</span>`;
                 }
             } else {
-                moveBadge = `<span style="display:inline-block; background:#f5f5f5; color:#616161; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">➖ 수평</span>`;
+                moveBadge = BADGE('#f5f5f5', '#616161', '➖수평');
                 moveText = '➖수평';
             }
 
@@ -893,31 +893,32 @@ window.showRecommendation = function() {
 
             const isEven = displayRank % 2 === 0;
             const rowBg = isEven ? '#f9fafb' : '#ffffff';
-            const moveQtyDisplay = moveQty > 0 ? `<span style="color:#e65100; font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:#888;">개</span>` : `<span style="color:#bbb; font-size:12px;">-</span>`;
+            const moveQtyDisplay = moveQty > 0
+                ? `<span style="color:#e65100; font-weight:900; font-size:13px;">${moveQty.toLocaleString()}</span><span style="font-size:9px; color:#888; margin-left:1px;">개</span>`
+                : `<span style="color:#bbb; font-size:11px;">-</span>`;
 
-                // ★ 점수 세부 툴팁 HTML (html += 윗줄에 선언)
-                const scoreTipHtml = `<span class="info-tip" data-tip-key="rec-score-detail" style="margin-left:3px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 직진배송: ${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.zQty||0).toLocaleString()})</span><br>• 주차별: ${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: 직진 ${window.recommendRatios.zikjin}% / 주차 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+            // 점수 세부 툴팁 HTML
+            const scoreTipHtml = `<span class="info-tip" data-tip-key="rec-score-detail" style="margin-left:2px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 직진배송: ${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.zQty||0).toLocaleString()})</span><br>• 주차별: ${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: 직진 ${window.recommendRatios.zikjin}% / 주차 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
-                html += `
-                    <tr style="background:${rowBg};">
-                        <td style="color:var(--primary); font-weight:900; font-size:15px; border-left:none; padding:14px 10px;">
-                            ${displayRank}위
-                            <br><span style="font-size:11px; color:#e65100; font-weight:bold;">${item.score.toFixed(1)}점${scoreTipHtml}</span>
-                        </td>
-                        <td style="font-weight:bold; color:#1a237e; font-size:13px; letter-spacing:0.3px;">${item.code}</td>
-                        <td style="text-align:left; font-size:14px; font-weight:bold; color:#212121; padding:14px 12px; line-height:1.5;">${item.name}</td>
-                        <td style="text-align:center; padding:14px 8px;">${moveQtyDisplay}</td>
-                        <td style="color:#555; font-size:12px; padding:14px 10px;">${item.currentLocs}</td>
-                        <td style="background:#f1f8e9; border-right:none; padding:14px 12px; text-align:center;">
-                            <span style="color:#1b5e20; font-weight:900; font-size:16px;">${eLoc.id}</span><br>
-                            ${moveBadge}<br>
-                            <span style="font-size:11px; color:#555; margin-top:3px; display:inline-block;">${eLoc.dong}동 ${eLoc.pos}위치</span>
-                            ${retreatReplacementInfo}
-                        </td>
-                    </tr>
-                `;
-                displayRank++;
-                matchCount++;
+            // 콤팩트 한 줄 레이아웃 — padding 14px → 5~6px, 글꼴 13~16px → 11~13px, br 제거
+            html += `
+                <tr style="background:${rowBg}; line-height:1.3;">
+                    <td style="color:var(--primary); font-weight:900; font-size:12px; border-left:none; padding:5px 8px; white-space:nowrap;">
+                        ${displayRank}위 <span style="font-size:10px; color:#e65100; font-weight:bold;">(${item.score.toFixed(1)}${scoreTipHtml})</span>
+                    </td>
+                    <td style="font-weight:bold; color:#1a237e; font-size:11px; letter-spacing:0.2px; padding:5px 8px; white-space:nowrap;">${item.code}</td>
+                    <td style="text-align:left; font-size:12px; font-weight:600; color:#212121; padding:5px 10px;">${item.name}${item.option ? `<span style="color:#90a4ae; font-size:10px; margin-left:6px;">(${item.option})</span>` : ''}</td>
+                    <td style="text-align:center; padding:5px 6px; white-space:nowrap;">${moveQtyDisplay}</td>
+                    <td style="color:#555; font-size:11px; padding:5px 8px; white-space:nowrap;">${item.currentLocs}</td>
+                    <td style="background:#f1f8e9; border-right:none; padding:5px 10px; text-align:center; white-space:nowrap;">
+                        <span style="color:#1b5e20; font-weight:900; font-size:13px;">${eLoc.id}</span>
+                        <span style="font-size:10px; color:#777; margin-left:4px;">${eLoc.dong}동·${eLoc.pos}위치</span>
+                        <span style="margin-left:6px;">${moveBadge}</span>${retreatReplacementInfo}
+                    </td>
+                </tr>
+            `;
+            displayRank++;
+            matchCount++;
         }
 
         if (matchCount === 0) {
