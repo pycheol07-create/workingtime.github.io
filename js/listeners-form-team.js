@@ -4,7 +4,8 @@
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
-import { generateId, debouncedSaveState } from './app-data.js';
+import { generateId, debouncedSaveState, updateDailyData } from './app-data.js';
+import { markDataAsDirty } from './app-lifecycle.js';
 import { renderTeamSelectionModalContent } from './ui-modals.js';
 import { startWorkGroup, addMembersToWorkGroup } from './app-logic.js';
 import { collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -132,7 +133,8 @@ export function setupFormTeamListeners() {
                 const newPartTimer = {
                     id: generateId(),
                     name: newName,
-                    wage: State.appConfig.defaultPartTimerWage || 10000
+                    wage: State.appConfig.defaultPartTimerWage || 10000,
+                    isPartTimer: true // 자동 지각 등 분기용 메타데이터
                 };
 
                 if (!State.appState.dailyAttendance) State.appState.dailyAttendance = {};
@@ -142,12 +144,25 @@ export function setupFormTeamListeners() {
                     status: 'active'
                 };
                 State.appState.partTimers.push(newPartTimer);
-                
-                debouncedSaveState(); 
+
+                // 🛡️ 즉시 firestore에 영구 저장 (debounce 우회).
+                // 이전엔 debouncedSaveState만 호출했는데, isDataDirty 플래그가
+                // 안 켜져 있어 saveStateToFirestore가 일찍 return → 다른 사람의
+                // daily_data sync에 의해 알바가 메모리에서도 사라지는 문제 발생.
+                try {
+                    await updateDailyData({
+                        partTimers: State.appState.partTimers,
+                        dailyAttendance: State.appState.dailyAttendance
+                    });
+                } catch (e) {
+                    console.error('알바 추가 저장 실패:', e);
+                    // 실패 시 dirty 플래그라도 켜서 다음 디바운스 저장이 작동하도록
+                    markDataAsDirty();
+                }
 
                 renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
                 showToast(`'${newName}'이(가) 추가되고 출근 처리되었습니다.`);
-                return; 
+                return;
             }
 
             // F. 업무 시작 / 추가 확인 버튼

@@ -58,10 +58,17 @@ const timeDiffMin = (startHHMM, endHHMM) => {
     return (eh * 60 + em) - (sh * 60 + sm);
 };
 
-/** 임계 시각 이후 출근 시 onLeaveMembers에 지각 항목 자동 추가 (이미 있으면 중복 안 함) */
+/** 임계 시각 이후 출근 시 onLeaveMembers에 지각 항목 자동 추가 (이미 있으면 중복 안 함)
+ *  - 알바(partTimers)는 출근 시간이 정직원과 달라 자동 지각 대상에서 제외.
+ */
 const maybeRecordTardy = async (memberName, clockInTime) => {
     const threshold = getTardyThreshold();
     if (!clockInTime || clockInTime <= threshold) return;
+
+    // 🛡️ 알바는 자동 지각 제외 (출근 시간이 정직원과 다름)
+    const isPartTimer = (appState.partTimers || []).some(p => p && p.name === memberName);
+    if (isPartTimer) return;
+
     const dup = (appState.dailyOnLeaveMembers || []).some(
         e => e && e.member === memberName && e.type === '지각'
     );
