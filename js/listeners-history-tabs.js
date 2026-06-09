@@ -167,6 +167,23 @@ export function setupHistoryTabsListeners() {
             document.getElementById('staffing-panel').classList.toggle('hidden', tabName !== 'staffing');
             document.getElementById('prediction-panel').classList.toggle('hidden', tabName !== 'prediction');
             document.getElementById('rawdata-panel').classList.toggle('hidden', tabName !== 'rawdata');
+            const milestonesPanel = document.getElementById('milestones-panel');
+            if (milestonesPanel) milestonesPanel.classList.toggle('hidden', tabName !== 'milestones');
+
+            // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
+            if (tabName === 'milestones') {
+                try {
+                    const mod = await import('./ui-history-milestones.js');
+                    mod.subscribeMilestones();
+                    mod.bindMilestoneListeners();
+                    // 사이드바 숨김 (마일스톤은 자체 리스트 사용)
+                    const sidebar = document.getElementById('history-global-sidebar');
+                    if (sidebar) sidebar.style.display = 'none';
+                } catch (err) {
+                    console.error('milestones module load failed:', err);
+                }
+                return; // 아래의 분석 탭 폴백 로직 스킵
+            }
 
             const gran = State.context.globalGranularity || 'day';
 

@@ -89,11 +89,12 @@
 
         <div class="px-4 md:px-6 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pt-2 shrink-0 transition-colors z-20 overflow-x-auto no-scrollbar">
             <div id="history-main-tabs" class="flex gap-4 md:gap-6 -mb-px overflow-x-auto no-scrollbar w-full md:w-auto">
-                <button data-main-tab="dashboard" class="history-main-tab-btn py-3 md:py-4 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap text-sm md:text-base">📊 종합 대시보드</button>
+                <button data-main-tab="dashboard" class="history-main-tab-btn py-3 md:py-4 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap text-sm md:text-base">📊 종합 인사이트</button>
                 <button data-main-tab="productivity" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">🚀 생산성 및 효율성</button>
                 <button data-main-tab="staffing" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">👥 인력 운영 및 적정성</button>
                 <button data-main-tab="prediction" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">🔮 실적 예측</button>
                 <button data-main-tab="rawdata" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">📁 업무 기록 및 관리</button>
+                <button data-main-tab="milestones" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">📍 운영 마일스톤</button>
             </div>
 
             <div id="global-date-range-controls" class="flex flex-wrap items-center gap-2 md:gap-3 pb-3 w-full md:w-auto justify-end">
@@ -703,6 +704,109 @@
                             </div>
                         </div>
 
+                    </div>
+                </div>
+            </div>
+
+            <!-- 📍 운영 마일스톤 패널 -->
+            <div id="milestones-panel" class="flex-1 flex flex-col h-full hidden bg-white dark:bg-gray-900 overflow-y-auto p-4 md:p-6 space-y-4">
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">📍 운영 마일스톤</h2>
+                        <p class="text-xs text-gray-500 mt-1">운영상의 변경사항을 기록하고, 그 전후 KPI를 자동 비교합니다.</p>
+                    </div>
+                    <button id="milestone-add-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition flex items-center gap-2 text-sm">
+                        ➕ 새 마일스톤 등록
+                    </button>
+                </div>
+
+                <!-- 분류 필터 -->
+                <div id="milestone-type-filters" class="flex flex-wrap gap-2 text-xs"></div>
+
+                <!-- 리스트 -->
+                <div id="milestone-list" class="flex flex-col gap-3"></div>
+
+                <div id="milestone-empty-state" class="hidden text-center py-16 text-gray-400">
+                    <div class="text-4xl mb-3">📍</div>
+                    <div class="text-sm">아직 등록된 마일스톤이 없습니다.</div>
+                    <div class="text-xs mt-1">운영 변경사항이 발생하면 "+ 새 마일스톤 등록"으로 추가하세요.</div>
+                </div>
+            </div>
+
+            <!-- 마일스톤 등록/수정 모달 -->
+            <div id="milestone-edit-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-[80] p-4">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+                    <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100" id="milestone-edit-title">📍 새 마일스톤 등록</h3>
+                        <button class="text-gray-400 hover:text-gray-700" onclick="document.getElementById('milestone-edit-modal').classList.add('hidden'); document.getElementById('milestone-edit-modal').classList.remove('flex');">✕</button>
+                    </div>
+                    <div class="p-5 overflow-y-auto flex-1 space-y-4">
+                        <input type="hidden" id="milestone-edit-id">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">📅 효과 발생 기준일</label>
+                                <input type="date" id="milestone-edit-date" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-900">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">🏷️ 분류</label>
+                                <select id="milestone-edit-type" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-900">
+                                    <option value="location_change">🗺️ 로케이션 변경</option>
+                                    <option value="staffing">👥 인력 변화</option>
+                                    <option value="process">🔧 프로세스</option>
+                                    <option value="inflow">📦 입출고 패턴</option>
+                                    <option value="policy">🎯 정책</option>
+                                    <option value="system">⚙️ 시스템/장비</option>
+                                    <option value="memo">📝 기타 메모</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">제목</label>
+                            <input type="text" id="milestone-edit-title-input" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-900" placeholder="예: ★구역 재배치 완료">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">상세 설명</label>
+                            <textarea id="milestone-edit-description" rows="4" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-900" placeholder="구체적인 변경 내용, 예상 효과, 메모 등"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">태그 (쉼표 구분)</label>
+                            <input type="text" id="milestone-edit-tags" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-900" placeholder="예: 로케이션, 동선최적화">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">영향 받는 업무</label>
+                            <div id="milestone-edit-tasks" class="flex flex-wrap gap-2 text-xs"></div>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 flex justify-between gap-2">
+                        <button id="milestone-edit-delete-btn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg text-sm">🗑️ 삭제</button>
+                        <div class="flex gap-2 ml-auto">
+                            <button class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold py-2 px-4 rounded-lg text-sm" onclick="document.getElementById('milestone-edit-modal').classList.add('hidden'); document.getElementById('milestone-edit-modal').classList.remove('flex');">취소</button>
+                            <button id="milestone-edit-save-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm">💾 저장</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 마일스톤 비교 모달 -->
+            <div id="milestone-compare-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-[80] p-4">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col" onclick="event.stopPropagation()">
+                    <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100" id="milestone-compare-title">📊 효과 비교</h3>
+                            <p class="text-xs text-gray-500 mt-1" id="milestone-compare-subtitle"></p>
+                        </div>
+                        <button class="text-gray-400 hover:text-gray-700" onclick="document.getElementById('milestone-compare-modal').classList.add('hidden'); document.getElementById('milestone-compare-modal').classList.remove('flex');">✕</button>
+                    </div>
+                    <div class="p-5 overflow-y-auto flex-1 space-y-4">
+                        <div class="flex flex-wrap items-center gap-3 text-sm">
+                            <span class="font-bold text-gray-600 dark:text-gray-300">비교 기간:</span>
+                            <div class="inline-flex rounded-md overflow-hidden border border-gray-300 dark:border-gray-600">
+                                <button class="milestone-compare-window-btn px-3 py-1 text-xs font-bold" data-window="7">전·후 7일</button>
+                                <button class="milestone-compare-window-btn px-3 py-1 text-xs font-bold bg-blue-600 text-white" data-window="14">전·후 14일</button>
+                                <button class="milestone-compare-window-btn px-3 py-1 text-xs font-bold" data-window="30">전·후 30일</button>
+                            </div>
+                        </div>
+                        <div id="milestone-compare-results" class="text-sm"></div>
                     </div>
                 </div>
             </div>

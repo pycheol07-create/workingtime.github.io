@@ -968,8 +968,37 @@ window.downloadRecommendationExcel = function() {
     
     const today = new Date();
     const dateString = today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
-    
+
     XLSX.writeFile(wb, `로케이션변경추천리스트_${dateString}.xlsx`);
+
+    // 📍 운영 마일스톤 자동 등록 제안 (다운로드 직후)
+    const recCount = window.currentRecommendations.length;
+    setTimeout(async () => {
+        const proceed = confirm(`✅ 추천 리스트 (${recCount}건)를 다운받았습니다.\n\n이 변경을 "📍 운영 마일스톤"으로 자동 등록하시겠습니까?\n\n(메인 앱 → 데이터관리 → 운영 마일스톤 에서 변경 전/후 KPI 비교 가능)`);
+        if (!proceed) return;
+        try {
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const colRefMilestones = collection(db, 'artifacts', 'team-work-logger-v2', 'operationMilestones');
+            const id = `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            await setDoc(doc(colRefMilestones, id), {
+                date: todayStr,
+                type: 'location_change',
+                title: `🗺️ 로케이션 변경 적용 (${recCount}건)`,
+                description: `로케이션 변경 추천 ${recCount}건을 다운로드 → 실제 시스템에 반영했습니다.`,
+                tags: ['로케이션', '동선최적화'],
+                affectedTasks: ['국내배송', '직진배송', '채우기'],
+                source: 'auto_recommend_apply',
+                relatedData: { recommendCount: recCount },
+                createdAt: new Date().toISOString(),
+                createdBy: currentUserName || 'unknown'
+            });
+            window.showToast && window.showToast(`마일스톤 등록 완료 (${todayStr})`);
+            alert(`📍 마일스톤이 등록되었습니다 (${todayStr}).\n\n2~4주 후 메인 앱 → 데이터관리 → 운영 마일스톤에서 효과 비교를 확인하세요.`);
+        } catch (e) {
+            console.error('milestone auto-register failed:', e);
+            alert('마일스톤 자동 등록에 실패했습니다.\n메인 앱에서 수동으로 등록해주세요.');
+        }
+    }, 600);
 };
 
 // ========================================
