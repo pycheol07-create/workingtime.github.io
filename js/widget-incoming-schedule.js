@@ -105,8 +105,9 @@ async function fetchIncomingSchedule() {
         const res = await fetch(SCRIPT_URL, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        if (json.error) throw new Error(json.error);
-        const rows = json.data; // 2D array (첫 행은 헤더)
+        if (json && json.error) throw new Error(json.error);
+        // Apps Script가 { data: [[...]] } 또는 직접 [[...]] 둘 다 처리
+        const rows = Array.isArray(json) ? json : json.data;
         const today = new Date(); today.setHours(0, 0, 0, 0);
 
         const items = [];
