@@ -107,16 +107,26 @@ export function setupFormTeamListeners() {
                     if(!confirm(`'${partTimer.name}' 님을 삭제하시겠습니까?`)) return;
 
                     State.appState.partTimers = State.appState.partTimers.filter(p => p.id !== partTimerId);
-                    
+
                     if (State.appState.dailyAttendance && State.appState.dailyAttendance[partTimer.name]) {
                         delete State.appState.dailyAttendance[partTimer.name];
                     }
 
-                    debouncedSaveState();
+                    // 🛡️ 즉시 firestore에 영구 저장 (추가/수정 핸들러와 동일 패턴)
+                    try {
+                        await updateDailyData({
+                            partTimers: State.appState.partTimers,
+                            dailyAttendance: State.appState.dailyAttendance
+                        });
+                    } catch (e) {
+                        console.error('알바 삭제 저장 실패:', e);
+                        markDataAsDirty();
+                    }
+
                     renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
                     showToast(`${partTimer.name}님이 삭제되었습니다.`);
                 }
-                return; 
+                return;
             }
 
             // E. 알바 추가 버튼
@@ -236,7 +246,7 @@ export function setupFormTeamListeners() {
                     delete State.appState.dailyAttendance[oldName];
                 }
 
-                // DB 업데이트 (workRecords 내의 member 이름 변경)
+                // DB 업데이트 (workRecords 내의 member 이름 변경 + daily_data partTimers/dailyAttendance 즉시 저장)
                 try {
                     const today = getTodayDateString();
                     const workRecordsColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
@@ -247,12 +257,38 @@ export function setupFormTeamListeners() {
                         querySnapshot.forEach(doc => batch.update(doc.ref, { member: newName }));
                         await batch.commit();
                     }
-                    debouncedSaveState(); 
+
+                    // 🛡️ 즉시 firestore에 영구 저장 (debounce 우회).
+                    // 이전엔 debouncedSaveState만 호출했는데 isDataDirty 플래그가
+                    // 안 켜져 있어 partTimers/dailyAttendance 저장이 누락됨 →
+                    // 다른 사람의 daily_data sync로 옛 이름이 다시 메모리에 덮어쓰여
+                    // "업무카드는 새 이름, 인원 현황은 옛 이름" 불일치 발생.
+                    await updateDailyData({
+                        partTimers: State.appState.partTimers,
+                        dailyAttendance: State.appState.dailyAttendance
+                    });
+
+                    // 🛡️ activeLock(트랜잭션 락) doc id가 oldName이라면 그것도 갱신 필요.
+                    try {
+                        const { doc: fbDoc, deleteDoc, setDoc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+                        const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'activeLocks');
+                        const oldLockRef = fbDoc(lockColRef, oldName);
+                        const oldLockSnap = await getDoc(oldLockRef);
+                        if (oldLockSnap.exists()) {
+                            const data = oldLockSnap.data();
+                            await setDoc(fbDoc(lockColRef, newName), { ...data, member: newName });
+                            await deleteDoc(oldLockRef);
+                        }
+                    } catch (e) {
+                        console.warn('activeLock 이름 갱신 실패 (자동 복구로 처리):', e);
+                    }
+
                     showToast(`'${oldName}'님을 '${newName}'(으)로 수정했습니다.`);
                 } catch (e) {
                     console.error("알바 이름 변경 중 DB 오류: ", e);
                     showToast("이름 변경 중 DB 저장에 실패했습니다.", true);
                     partTimer.name = oldName; // 롤백
+                    markDataAsDirty();
                 }
             }
             document.getElementById('edit-part-timer-modal').classList.add('hidden');
