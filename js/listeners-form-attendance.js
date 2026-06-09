@@ -229,10 +229,25 @@ export function setupFormAttendanceListeners() {
                     };
                     
                     currentDailyLeaves.push(newDailyEntry);
-                    
+
                     // 1. 서버에 안전하게 병합 저장 (await로 1초 딜레이 제거)
                     await setDoc(todayDocRef, { onLeaveMembers: currentDailyLeaves }, { merge: true });
                     State.appState.dailyOnLeaveMembers = currentDailyLeaves;
+
+                    // 🛡️ 외출/조퇴 등록 시점에 진행 중 workRecord가 있으면 외출 시작 시각으로 강제 종료.
+                    // 종료 누락된 record가 외출 시간까지 끌고 가는 사고 방지.
+                    if (type === '외출' || type === '조퇴') {
+                        try {
+                            const { forceEndMemberWork } = await import('./app-sync.js');
+                            const r = await forceEndMemberWork(memberName, newDailyEntry.startTime);
+                            if (r.ended > 0) {
+                                console.warn(`[외출/조퇴 자동 종료] ${memberName}: ${r.ended}건`, r.summaries);
+                                showToast(`진행 중이던 업무 ${r.ended}건이 ${newDailyEntry.startTime}로 자동 종료되었습니다.`);
+                            }
+                        } catch (e) {
+                            console.error('forceEndMemberWork on leave register failed:', e);
+                        }
+                    }
 
                     // 2. 이력(데이터 관리) 화면에 새로고침 없이 즉각 표시되도록 메모리 반영
                     let dayData = State.allHistoryData.find(d => d.id === today);

@@ -389,8 +389,67 @@ function reconcileActiveLocksDebounced() {
     }, 5_000);
 }
 
+// 🛡️ 멤버의 ongoing/paused workRecord를 지정 시각(또는 현재 시각)으로 강제 종료.
+// 외출/조퇴 등록 시점에 호출되어 비정상 진행 중 record가 외출 시간까지 끌고 가는 것을 방지.
+export async function forceEndMemberWork(memberName, endHHMM) {
+    if (!memberName) return { ended: 0 };
+    const now = getCurrentTime();
+    const cutTime = endHHMM || now;
+
+    const colRefWR = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
+    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
+
+    const targets = (State.appState.workRecords || []).filter(r =>
+        r.member === memberName && (r.status === 'ongoing' || r.status === 'paused')
+    );
+    if (targets.length === 0) return { ended: 0 };
+
+    const batch = writeBatch(State.db);
+    const summaries = [];
+    targets.forEach(rec => {
+        // 시작 시각이 cutTime 이후이면 0분 → 아예 삭제
+        const startMins = hhmmToMin(rec.startTime);
+        const endMins = hhmmToMin(cutTime);
+        const finalEnd = endMins < startMins ? rec.startTime : cutTime;
+
+        const pauses = Array.isArray(rec.pauses) ? rec.pauses.map(p => ({ ...p })) : [];
+        pauses.forEach(p => { if (p && p.end === null) p.end = finalEnd; });
+        const duration = calcDurationMinutes(rec.startTime, finalEnd, pauses);
+
+        const recRef = doc(colRefWR, rec.id);
+        if (duration <= 0) {
+            batch.delete(recRef);
+            summaries.push(`${rec.task}@${rec.startTime} (0분 → 삭제)`);
+        } else {
+            batch.update(recRef, {
+                status: 'completed',
+                endTime: finalEnd,
+                duration,
+                pauses,
+                autoClosedReason: 'leave_register'
+            });
+            summaries.push(`${rec.task}@${rec.startTime}~${finalEnd} (${duration}분)`);
+        }
+        // lock 해제
+        batch.delete(doc(lockColRef, memberName));
+    });
+
+    await batch.commit();
+    console.warn(`[forceEndMemberWork] ${memberName}: ${targets.length}건 종료 — ${summaries.join(', ')}`);
+    return { ended: targets.length, summaries };
+}
+
+function hhmmToMin(hhmm) {
+    if (!hhmm || typeof hhmm !== 'string') return 0;
+    const [h, m] = hhmm.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+}
+
 // 콘솔에서 즉시 강제 정리하고 싶을 때
 if (typeof window !== 'undefined') {
+    // 멤버 진행 중 업무 강제 종료
+    window.__forceEndMemberWork = forceEndMemberWork;
+
     // 즉시 stale lock 전체 정리 (디바운스/쿨다운 무시)
     window.__reconcileLocks = async () => {
         const r = await reconcileActiveLocksNow();

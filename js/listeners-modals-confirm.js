@@ -286,6 +286,28 @@ export function setupConfirmationModalListeners() {
                     dailyEntry.endTime = getCurrentTime();
                     dailyChanged = true;
                     actionMessage = '복귀 완료';
+
+                    // 🛡️ 외출 시작 전부터 ongoing/paused로 남아있던 workRecord 보호막:
+                    // 외출 시작 시각으로 자동 종료. 정상 흐름에서는 외출 등록 시점에 이미
+                    // 정리되었어야 하지만 누락된 경우 복귀 시 한 번 더 점검.
+                    try {
+                        const stale = (State.appState.workRecords || []).filter(r =>
+                            r.member === memberName &&
+                            (r.status === 'ongoing' || r.status === 'paused') &&
+                            r.startTime && dailyEntry.startTime &&
+                            r.startTime < dailyEntry.startTime
+                        );
+                        if (stale.length > 0) {
+                            const { forceEndMemberWork } = await import('./app-sync.js');
+                            const r = await forceEndMemberWork(memberName, dailyEntry.startTime);
+                            if (r.ended > 0) {
+                                console.warn(`[외출 복귀 보호막] ${memberName}: 외출 전부터 진행 중이던 ${r.ended}건을 ${dailyEntry.startTime}로 정리`, r.summaries);
+                                showToast(`외출 전부터 진행 중이던 업무 ${r.ended}건이 ${dailyEntry.startTime}로 자동 종료됨`);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('return-from-leave guard failed:', e);
+                    }
                 } else {
                     State.appState.dailyOnLeaveMembers = State.appState.dailyOnLeaveMembers.filter(entry => entry !== dailyEntry);
                     dailyChanged = true;
