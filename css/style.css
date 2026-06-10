@@ -468,5 +468,23 @@ html.dark .depth-panel {
 }
 
 #rawdata-panel {
-    overflow: hidden !important; 
+    overflow: hidden !important;
+}
+
+/* ───────── 정밀검수 매니저: 모바일 레이아웃 정리 ─────────
+   전역 모달 규칙(.fixed.inset-0 …) · grid 2단 · aside sticky 가 얽혀
+   모바일에서 검색영역과 검수 대기 리스트가 겹치던 문제 →
+   단순 세로(flex column) 흐름으로 강제하여 겹침 차단. PC(>768px)는 영향 없음. */
+@media (max-width: 768px) {
+    #inspection-manager-modal #insp-modal-content {
+        align-items: stretch !important; /* 전역 .fixed.inset-0 의 align-items:flex-start 무력화 */
+    }
+    #inspection-manager-modal #insp-modal-content > div.grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1rem !important;
+    }
+    #inspection-manager-modal aside {
+        position: static !important; /* sticky 무력화 (모바일에선 일반 흐름) */
+    }
 }
