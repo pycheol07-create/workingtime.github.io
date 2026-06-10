@@ -5758,11 +5758,9 @@ window.showSingleRecommendation = function() {
                 html += `
                     <tr style="background:${rowBg};">
                         <td style="text-align:center; color:var(--primary); font-weight:900; font-size:13px; padding:5px 6px;">${matchCount + 1}</td>
-                        <td style="padding:5px 8px; font-size:12px; line-height:1.35;">
-                            <span style="font-weight:bold; color:#1976d2;">${item.code}</span>
-                            <span style="color:#333;"> · ${item.name}</span>
-                            ${option ? `<span style="color:#999; font-size:11px;"> (${option})</span>` : ''}
-                        </td>
+                        <td style="padding:5px 8px; font-size:12px; font-family:monospace; font-weight:bold; color:#1976d2; white-space:nowrap;">${item.code}</td>
+                        <td style="padding:5px 8px; font-size:12px; text-align:left; color:#333;">${item.name}</td>
+                        <td style="padding:5px 8px; font-size:11px; color:#777;">${option || '-'}</td>
                         <td style="text-align:center; padding:5px 6px; white-space:nowrap;">
                             <span style="font-weight:bold; color:#555; font-size:12px;">${currentInfo.id}</span>
                             <span style="font-size:10px; color:#999;"> ${currentInfo.dong}동</span>
@@ -5806,7 +5804,7 @@ window.showSingleRecommendation = function() {
             console.log('[v4.1] 단독 추천 종료: 성공', matchCount, '개 / 건너뜀(현재자리없음)', skipNoCurrentLoc, '개 / 건너뜀(이미최적)', skipNoBetterSlot, '개 / 엑셀 데이터', window.currentSingleRecommendations.length, '개');
             
             if (matchCount === 0) {
-                html += '<tr><td colspan="4" style="padding:40px; text-align:center; color:#666;">표시할 추천이 없습니다.<br>(모든 상품이 이미 최적 자리에 있거나, 더 좋은 빈 자리가 없습니다)</td></tr>';
+                html += '<tr><td colspan="6" style="padding:40px; text-align:center; color:#666;">표시할 추천이 없습니다.<br>(모든 상품이 이미 최적 자리에 있거나, 더 좋은 빈 자리가 없습니다)</td></tr>';
             }
             
             tbody.innerHTML = html;
