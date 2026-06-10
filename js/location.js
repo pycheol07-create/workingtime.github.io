@@ -34,13 +34,18 @@ window.isPreAssignMode = false;
 window.selectedPreAssignItem = null;
 
 window.currentRecommendations = [];
+// v4.1: 단독 추천용 별도 데이터 변수
+window.currentSingleRecommendations = [];
 
 window.recommendRatios = { zikjin: 50, weekly: 30, trend: 20 };
 window.recommendPriorities = {
     zones: { 0: ['★'], 1: ['A','B','C','D','E','F','G','H','I'], 2: ['Z'], 3: ['L','M','N','O','P','Q','R','S','T'] },
-    dongs: ['1', '2', '3', '4', '5', '6'],
-    poses: ['2', '3', '4', '1', '5']
+    dongs: ['★', '1', '2', '3', '4', '5', '6'],
+    poses: ['★', '2', '3', '4', '1', '5']
 };
+
+// [2단계] 입고대기 신규 상품 전용 추천 우선순위 (null이면 openSheetModal에서 recommendPriorities를 fallback으로 사용)
+window.incomingRecommendPriorities = null;
 
 const getZoneDocId = (locId) => {
     if (!locId) return 'ZONE_ETC';
@@ -186,6 +191,23 @@ function setupRealtimeListenerA() {
             }
             if (conf.recommendPriorities) {
                 window.recommendPriorities = conf.recommendPriorities;
+                // v4.1: 기존 설정에 ★이 없으면 자동으로 1순위에 추가 (호환성 보강)
+                if (Array.isArray(window.recommendPriorities.dongs) && !window.recommendPriorities.dongs.includes('★')) {
+                    window.recommendPriorities.dongs = ['★', ...window.recommendPriorities.dongs];
+                }
+                if (Array.isArray(window.recommendPriorities.poses) && !window.recommendPriorities.poses.includes('★')) {
+                    window.recommendPriorities.poses = ['★', ...window.recommendPriorities.poses];
+                }
+            }
+            // [2단계] 입고대기 신규 상품용 우선순위 로드
+            if (conf.incomingRecommendPriorities) {
+                window.incomingRecommendPriorities = conf.incomingRecommendPriorities;
+                if (Array.isArray(window.incomingRecommendPriorities.dongs) && !window.incomingRecommendPriorities.dongs.includes('★')) {
+                    window.incomingRecommendPriorities.dongs = ['★', ...window.incomingRecommendPriorities.dongs];
+                }
+                if (Array.isArray(window.incomingRecommendPriorities.poses) && !window.incomingRecommendPriorities.poses.includes('★')) {
+                    window.incomingRecommendPriorities.poses = ['★', ...window.incomingRecommendPriorities.poses];
+                }
             }
             // ★ v3.53: 사용자 정의 툴팁 로드
             if (conf.customTooltips) {
@@ -255,6 +277,15 @@ window.onload = () => {
     injectPuzzleStyle();
     setupRealtimeListenerA();
     setupRealtimeListenerB();
+    // v4.0a-fix4: 페이지 로드 시 페어 캐시 자동 로드 (페어 쌍 추천에 필수)
+    if (typeof window.loadOrderPairsCache === 'function') {
+        window.loadOrderPairsCache();
+    }
+    // v4.4: 종합 대시보드 + 재고 스냅샷 초기화 (history 리스너 + 사후 보정)
+    if (typeof window._v44_init === 'function') {
+        // 다른 리스너들이 먼저 초기화될 시간을 주기 위해 약간 지연
+        setTimeout(() => { window._v44_init(); }, 1500);
+    }
 };
 
 window.handleDragStart = (e) => {
@@ -475,8 +506,8 @@ window.openRatioModal = function(e) {
         });
     };
 
-    renderSortBlocks('sort-dongs', window.recommendPriorities.dongs || [], ['1','2','3','4','5','6']);
-    renderSortBlocks('sort-poses', window.recommendPriorities.poses || [], ['1','2','3','4','5']);
+    renderSortBlocks('sort-dongs', window.recommendPriorities.dongs || [], ['★','1','2','3','4','5','6']);
+    renderSortBlocks('sort-poses', window.recommendPriorities.poses || [], ['★','1','2','3','4','5']);
 
     // ★ 제외 조합 입력창 로드
     const excludeCombos = window.recommendPriorities.excludeCombos || [];
@@ -519,7 +550,7 @@ window.saveMasterSettingsModal = async function() {
         showToast("✅ 마스터 설정이 저장되었습니다.");
         
         const recModal = document.getElementById('recommend-modal');
-        if (recModal && recModal.style.display === 'flex') window.showRecommendation();
+        if (recModal && recModal.style.display === 'flex') window.showPairRecommendation();
     } catch(e) { console.error(e); alert("설정 저장 중 오류가 발생했습니다."); }
 };
 
@@ -637,7 +668,9 @@ ${dataRows}
 
 window.openRecommendModal = function() {
     document.getElementById('recommend-modal').style.display = 'flex';
+    if (typeof window._initRecLimitUI === 'function') window._initRecLimitUI(); // v3.97e
 };
+
 
 window.showRecommendation = function() {
     window.showLoading("💡 우선순위 알고리즘을 분석하여 최적의 로케이션을 매칭 중입니다...");
@@ -698,13 +731,6 @@ window.showRecommendation = function() {
         });
         scoredItems.sort((a, b) => b.score - a.score);
 
-        // 🛡️ 후퇴 가드용 사전 캐시: 각 item의 현재 best loc 우선순위 점수.
-        // (낮을수록 좋은 자리. 현재 위치 없으면 Infinity)
-        const _scoreOfLoc = (loc, getZR, getDR, getPR) => {
-            const z = getZR(loc.id); const d = getDR(loc.dong); const p = getPR(loc.pos);
-            return (z * 10000) + (d * 100) + p;
-        };
-
         let emptyLocs = originalData.filter(d => {
             const hasContent = (d.code && d.code !== d.id && d.code.trim() !== "") || (d.name && d.name.trim() !== "");
             if (hasContent || d.preAssigned) return false;
@@ -745,180 +771,263 @@ window.showRecommendation = function() {
             if (dRankA !== dRankB) return dRankA - dRankB;
             let pRankA = getPosRank(a.pos); let pRankB = getPosRank(b.pos);
             if (pRankA !== pRankB) return pRankA - pRankB;
-            return a.id.localeCompare(b.id);
+            return a.id.localeCompare(b.id); 
         });
 
-        // 🛡️ 사전 캐시: 각 item이 현재 점유한 최고 자리의 우선순위 점수
-        scoredItems.forEach(it => {
-            const locs = originalData.filter(d => d.code === it.code);
-            let bestScore = Infinity;
-            locs.forEach(loc => {
-                const s = _scoreOfLoc(loc, getZoneRank, getDongRank, getPosRank);
-                if (s < bestScore) bestScore = s;
-            });
-            it.__bestCurrentLocScore = bestScore;
-        });
-
-        // 🔁 회전형 재배치:
-        // 빈 자리만 후보로 두는 게 아니라 "점수 있는 상품들이 점유한 자리"도 후보 풀에 포함.
-        // 점수 높은 Y가 X의 좋은 자리를 받으면 X는 다음 좋은 자리로 자연스럽게 밀려난다.
-        // 이렇게 하면 X의 후퇴는 더 가치 있는 상품이 그 자리를 채우는 정당한 교환이 됨.
-        const scoredCodes = new Set(scoredItems.map(it => it.code));
-        const allCandidateLocs = [...emptyLocs];
-        originalData.forEach(d => {
-            const hasContent = (d.code && d.code !== d.id && String(d.code).trim() !== '') || (d.name && String(d.name).trim() !== '');
-            if (!hasContent) return; // 이미 emptyLocs로 들어감
-            if (!scoredCodes.has(d.code)) return; // 점수 없는 상품의 자리는 풀지 않음
-            if (d.preAssigned) return;
-            if (d.codeTag === '당일지정' || d.codeTag === '선지정') return;
-            const excludeCombos = window.recommendPriorities.excludeCombos || [];
-            if (excludeCombos.length > 0) {
-                const prefix = (d.id || '').charAt(0).toUpperCase();
-                const dong = (d.dong || '').toString().trim();
-                const combo = `${prefix}-${dong}`;
-                if (excludeCombos.includes(combo)) return;
-            }
-            allCandidateLocs.push(d);
-        });
-        allCandidateLocs.sort((a, b) => {
-            let zA = getZoneRank(a.id); let zB = getZoneRank(b.id);
-            if (zA !== zB) return zA - zB;
-            let dA = getDongRank(a.dong); let dB = getDongRank(b.dong);
-            if (dA !== dB) return dA - dB;
-            let pA = getPosRank(a.pos); let pB = getPosRank(b.pos);
-            if (pA !== pB) return pA - pB;
-            return a.id.localeCompare(b.id);
-        });
-
-        // Pass 1: 매칭 — assignedTo[locId] = code (해당 자리에 새로 들어올 상품)
-        const assignedTo = new Map();
-        scoredItems.forEach(item => {
-            const currentLocsObjs = originalData.filter(d => d.code === item.code);
-            const currentLocIds = new Set(currentLocsObjs.map(d => d.id));
-            const currentDongs = currentLocsObjs.map(d => (d.dong || '').toString().trim());
-
-            for (let j = 0; j < allCandidateLocs.length; j++) {
-                const loc = allCandidateLocs[j];
-                if (assignedTo.has(loc.id)) continue;
-
-                // 자기 점유 자리 만남 — 현재 위치 유지로 처리하고 자기 점유 자리들 모두 self-lock
-                if (currentLocIds.has(loc.id)) {
-                    currentLocsObjs.forEach(c => { if (!assignedTo.has(c.id)) assignedTo.set(c.id, item.code); });
-                    item.__recommendedLoc = null; // 추천 없음 (유지)
-                    return;
+        // ===== v3.98: 페어 동선 보정 데이터 준비 =====
+        const pairMap = {};      
+        const codeToLocs = {};   
+        let pairDataReady = false;
+        let pairWeightMax = 0;   
+        
+        const includePairOfPair = document.getElementById('rec-include-pair-of-pair')?.checked || false;
+        
+        try {
+            if (window._cachedOrderPairs && window._cachedOrderStats && window._cachedOrderMeta) {
+                const pairs = window._cachedOrderPairs;
+                const stats = window._cachedOrderStats;
+                const meta = window._cachedOrderMeta;
+                const N = meta.totalProcessedOrders || 1;
+                
+                pairs.forEach(p => {
+                    const cA = (stats[p.codeA] || {}).count || 0;
+                    const cB = (stats[p.codeB] || {}).count || 0;
+                    if (cA === 0 || cB === 0) return;
+                    const lift = (p.count * N) / (cA * cB);
+                    if (p.count < 5 || lift < 2.0) return;
+                    const weight = lift * p.count;
+                    if (weight > pairWeightMax) pairWeightMax = weight;
+                    if (!pairMap[p.codeA]) pairMap[p.codeA] = [];
+                    if (!pairMap[p.codeB]) pairMap[p.codeB] = [];
+                    pairMap[p.codeA].push({ partner: p.codeB, weight });
+                    pairMap[p.codeB].push({ partner: p.codeA, weight });
+                });
+                
+                for (const code in pairMap) {
+                    pairMap[code].sort((a, b) => b.weight - a.weight);
+                    pairMap[code] = pairMap[code].slice(0, 5);
                 }
-
-                // 같은 동 제약 — 더 좋은 자리에 자기 동이 있으면 거기서 멈춤 = 현재 유지
-                const targetDong = (loc.dong || '').toString().trim();
-                if (currentDongs.includes(targetDong)) {
-                    currentLocsObjs.forEach(c => { if (!assignedTo.has(c.id)) assignedTo.set(c.id, item.code); });
-                    item.__recommendedLoc = null;
-                    return;
-                }
-
-                // 할당
-                assignedTo.set(loc.id, item.code);
-                item.__recommendedLoc = loc;
-                return;
+                
+                originalData.forEach(d => {
+                    if (d.code && d.code !== d.id && d.code.trim() !== '') {
+                        if (!codeToLocs[d.code]) codeToLocs[d.code] = [];
+                        codeToLocs[d.code].push(d.id);
+                    }
+                });
+                pairDataReady = true;
             }
-            // 후보 풀 소진
-            item.__recommendedLoc = null;
-        });
+        } catch (e) {
+            console.warn('[v3.98] 페어 데이터 캐시 사용 실패, 페어 보정 비활성화:', e);
+        }
+        
+        const calcPairScore = (code, eLoc) => {
+            if (!pairDataReady) return 0;
+            const directPairs = pairMap[code] || [];
+            if (directPairs.length === 0) return 0;
+            
+            let targetPairs = directPairs.slice();
+            if (includePairOfPair) {
+                const seen = new Set([code, ...directPairs.map(p => p.partner)]);
+                for (const dp of directPairs) {
+                    const subPairs = pairMap[dp.partner] || [];
+                    for (const sp of subPairs) {
+                        if (seen.has(sp.partner)) continue;
+                        seen.add(sp.partner);
+                        targetPairs.push({ partner: sp.partner, weight: sp.weight * 0.5 });
+                    }
+                }
+            }
+            
+            const eZone = (eLoc.id || '').charAt(0).toUpperCase();
+            const eDong = (eLoc.dong || '').toString().trim();
+            const ePos = (eLoc.pos || '').toString().trim();
+            
+            let totalScore = 0;
+            for (const tp of targetPairs) {
+                const partnerLocs = codeToLocs[tp.partner] || [];
+                if (partnerLocs.length === 0) continue;
+                
+                let bestCoeff = 0;
+                for (const pLocId of partnerLocs) {
+                    const pLoc = originalData.find(d => d.id === pLocId);
+                    if (!pLoc) continue;
+                    const pZone = (pLoc.id || '').charAt(0).toUpperCase();
+                    const pDong = (pLoc.dong || '').toString().trim();
+                    const pPos = (pLoc.pos || '').toString().trim();
+                    
+                    let coeff = 0;
+                    if (eZone === pZone && eDong === pDong) {
+                        const ePosNum = parseInt(ePos, 10);
+                        const pPosNum = parseInt(pPos, 10);
+                        if (!isNaN(ePosNum) && !isNaN(pPosNum)) {
+                            const diff = Math.abs(ePosNum - pPosNum);
+                            if (diff === 0) coeff = 1.0;
+                            else if (diff === 1) coeff = 0.9;
+                            else if (diff === 2) coeff = 0.8;
+                            else coeff = 0.7;
+                        } else {
+                            coeff = 0.7;
+                        }
+                    }
+                    if (coeff > bestCoeff) bestCoeff = coeff;
+                }
+                totalScore += tp.weight * bestCoeff;
+            }
+            return totalScore;
+        };
 
-        // Pass 2: HTML 빌드 (점수 순)
         const tbody = document.getElementById('recommend-tbody');
-        let html = '';
+        let html = ''; 
         let matchCount = 0;
+        let usedEmptyIndices = new Set();
         let displayRank = 1;
 
+        // v3.97e: 사용자 지정 추천 갯수 가져오기
+        const limitVal = (typeof window._getRecommendLimit === 'function') ? window._getRecommendLimit() : 10;
+
         for (let i = 0; i < scoredItems.length; i++) {
-            const item = scoredItems[i];
-            const eLoc = item.__recommendedLoc;
-            if (!eLoc) continue; // 추천 없음 (현재 자리 유지)
+            // v3.97e: 사용자 지정 갯수 도달 시 종료
+            if (limitVal > 0 && matchCount >= limitVal) break;
+            
+            let item = scoredItems[i];
+            
+            let currentLocsObjs = originalData.filter(d => d.code === item.code);
+            let currentDongsList = currentLocsObjs.map(d => (d.dong || '').toString().trim());
 
-            const currentLocsObjs = originalData.filter(d => d.code === item.code);
-            let totalStock = 0;
-            let totalStock2f = 0;
-            let itemOption = '';
-            currentLocsObjs.forEach(d => {
-                totalStock += Number(d.stock || 0);
-                totalStock2f += Number(d.stock2f || 0);
-                if (d.option && !itemOption) itemOption = d.option;
-            });
-            if (!itemOption || itemOption.trim() === '') {
-                let fallbackOption = '';
-                if (zikjinData[item.code] && zikjinData[item.code]['옵션']) fallbackOption = zikjinData[item.code]['옵션'];
-                else if (weeklyData[item.code] && weeklyData[item.code]['옵션']) fallbackOption = weeklyData[item.code]['옵션'];
-                else if (incomingData[item.code] && incomingData[item.code]['옵션']) fallbackOption = incomingData[item.code]['옵션'];
-                itemOption = fallbackOption;
+            let candidateIndices = [];
+            for (let j = 0; j < emptyLocs.length; j++) {
+                if (usedEmptyIndices.has(j)) continue;
+                const eLoc = emptyLocs[j];
+                const targetDong = (eLoc.dong || '').toString().trim();
+                if (currentDongsList.includes(targetDong)) continue;
+                
+                const pairScore = calcPairScore(item.code, eLoc);
+                candidateIndices.push({ j, pairScore, originalIdx: j });
             }
-            const moveQty = totalStock - totalStock2f;
+            
+            candidateIndices.sort((a, b) => {
+                if (b.pairScore !== a.pairScore) return b.pairScore - a.pairScore;
+                return a.originalIdx - b.originalIdx;
+            });
+            
+            let matched = false;
+            for (const cand of candidateIndices) {
+                const j = cand.j;
+                if (usedEmptyIndices.has(j)) continue;
+                
+                let eLoc = emptyLocs[j];
+                let targetDong = (eLoc.dong || '').toString().trim();
 
-            const bestCurrentScore = item.__bestCurrentLocScore;
-            const targetScore = _scoreOfLoc(eLoc, getZoneRank, getDongRank, getPosRank);
-
-            // 콤팩트 뱃지: padding/font 줄임, margin-top 제거 → 인라인 사용
-            const BADGE = (bg, fg, label) => `<span style="display:inline-block; background:${bg}; color:${fg}; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold; vertical-align:middle;">${label}</span>`;
-            let moveBadge = '';
-            let moveText = '';
-            let retreatReplacementInfo = '';
-            if (currentLocsObjs.length === 0) {
-                moveBadge = BADGE('#e3f2fd', '#1565c0', '✨신규');
-                moveText = '✨신규';
-            } else if (targetScore < bestCurrentScore) {
-                moveBadge = BADGE('#ffebee', '#b71c1c', '🔺전진');
-                moveText = '🔺전진';
-            } else if (targetScore > bestCurrentScore) {
-                moveBadge = BADGE('#eceff1', '#37474f', '🔻후퇴');
-                moveText = '🔻후퇴';
-                const vacatedLoc = currentLocsObjs.find(c => assignedTo.get(c.id) && assignedTo.get(c.id) !== item.code);
-                if (vacatedLoc) {
-                    const fillerCode = assignedTo.get(vacatedLoc.id);
-                    retreatReplacementInfo = ` <span style="font-size:10px; color:#558b2f;">↪ ${vacatedLoc.id}←${fillerCode}</span>`;
+                if (currentDongsList.includes(targetDong)) {
+                    continue; 
                 }
-            } else {
-                moveBadge = BADGE('#f5f5f5', '#616161', '➖수평');
-                moveText = '➖수평';
+
+                usedEmptyIndices.add(j);
+                matched = true;
+                const matchedPairScore = cand.pairScore;
+                // ===== v3.98 페어 보정 끝, 기존 매칭 로직 진입 =====
+                
+                let totalStock = 0;
+                let totalStock2f = 0;
+                let itemOption = '';
+                
+                currentLocsObjs.forEach(d => {
+                    totalStock += Number(d.stock || 0);
+                    totalStock2f += Number(d.stock2f || 0);
+                    if (d.option && !itemOption) itemOption = d.option; 
+                });
+                
+                if (!itemOption || itemOption.trim() === '') {
+                    let fallbackOption = '';
+                    if (zikjinData[item.code] && zikjinData[item.code]['옵션']) fallbackOption = zikjinData[item.code]['옵션'];
+                    else if (weeklyData[item.code] && weeklyData[item.code]['옵션']) fallbackOption = weeklyData[item.code]['옵션'];
+                    else if (incomingData[item.code] && incomingData[item.code]['옵션']) fallbackOption = incomingData[item.code]['옵션'];
+                    
+                    itemOption = fallbackOption;
+                }
+
+                let moveQty = totalStock - totalStock2f;
+                
+                // ✨ [방향 지시등 로직] 우선순위 점수 비교 계산
+                let bestCurrentScore = 999999;
+                if (currentLocsObjs.length > 0) {
+                    currentLocsObjs.forEach(loc => {
+                        let z = getZoneRank(loc.id);
+                        let d = getDongRank(loc.dong);
+                        let p = getPosRank(loc.pos);
+                        let score = (z * 10000) + (d * 100) + p;
+                        if (score < bestCurrentScore) bestCurrentScore = score;
+                    });
+                }
+
+                let targetZ = getZoneRank(eLoc.id);
+                let targetD = getDongRank(eLoc.dong);
+                let targetP = getPosRank(eLoc.pos);
+                let targetScore = (targetZ * 10000) + (targetD * 100) + targetP;
+
+                let moveBadge = '';
+                let moveText = '';
+                if (currentLocsObjs.length === 0) {
+                    moveBadge = `<span style="display:inline-block; background:#e3f2fd; color:#1565c0; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">✨ 신규</span>`;
+                    moveText = '✨신규';
+                } else if (targetScore < bestCurrentScore) {
+                    moveBadge = `<span style="display:inline-block; background:#ffebee; color:#b71c1c; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔺 전진</span>`;
+                    moveText = '🔺전진';
+                } else if (targetScore > bestCurrentScore) {
+                    moveBadge = `<span style="display:inline-block; background:#eceff1; color:#37474f; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔻 후퇴</span>`;
+                    moveText = '🔻후퇴';
+                } else {
+                    moveBadge = `<span style="display:inline-block; background:#f5f5f5; color:#616161; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">➖ 수평</span>`;
+                    moveText = '➖수평';
+                }
+                
+                window.currentRecommendations.push({
+                    moveQty: moveQty,
+                    currentLocs: item.currentLocs,
+                    targetLoc: eLoc.id,
+                    name: item.name,
+                    option: itemOption,
+                    code: item.code,
+                    moveDirection: moveText, // 엑셀용
+                    pairScore: matchedPairScore || 0 // v3.98: 페어 점수
+                });
+
+                const isEven = displayRank % 2 === 0;
+                const rowBg = isEven ? '#f9fafb' : '#ffffff';
+                const moveQtyDisplay = moveQty > 0 ? `<span style="color:#e65100; font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:#888;">개</span>` : `<span style="color:#bbb; font-size:12px;">-</span>`;
+
+                // ★ 점수 세부 툴팁 HTML (html += 윗줄에 선언)
+                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 직진배송: ${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.zQty||0).toLocaleString()})</span><br>• 주차별: ${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: 직진 ${window.recommendRatios.zikjin}% / 주차 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+
+                // v3.98: 페어 보정 배지
+                let pairBadgeHtml = '';
+                if (matchedPairScore > 0 && pairWeightMax > 0) {
+                    const normScore = Math.min(100, (matchedPairScore / pairWeightMax) * 100);
+                    const partnerCount = (pairMap[item.code] || []).length;
+                    pairBadgeHtml = `<br><span style="display:inline-block; background:#fff3e0; color:#e65100; padding:3px 7px; border-radius:4px; font-size:10px; font-weight:bold; margin-top:3px; border:1px solid #ffcc80;" title="페어 가중치: ${matchedPairScore.toFixed(2)} (정규화 ${normScore.toFixed(0)}점, 페어 ${partnerCount}개)">🔗 페어 ${partnerCount}개와 가까이</span>`;
+                }
+
+                html += `
+                    <tr style="background:${rowBg};">
+                        <td style="color:var(--primary); font-weight:900; font-size:15px; border-left:none; padding:14px 10px;">
+                            ${displayRank}위
+                            <br><span style="font-size:11px; color:#e65100; font-weight:bold; display:inline-block; line-height:18px; vertical-align:middle;">${item.score.toFixed(1)}점${scoreTipHtml}</span>
+                        </td>
+                        <td style="font-weight:bold; color:#1a237e; font-size:13px; letter-spacing:0.3px;">${item.code}</td>
+                        <td style="text-align:left; font-size:14px; font-weight:bold; color:#212121; padding:14px 12px; line-height:1.5;">${item.name}</td>
+                        <td style="text-align:center; padding:14px 8px;">${moveQtyDisplay}</td>
+                        <td style="color:#555; font-size:12px; padding:14px 10px;">${item.currentLocs}</td>
+                        <td style="background:#f1f8e9; border-right:none; padding:14px 12px; text-align:center;">
+                            <span style="color:#1b5e20; font-weight:900; font-size:16px;">${eLoc.id}</span><br>
+                            ${moveBadge}${pairBadgeHtml}<br>
+                            <span style="font-size:11px; color:#555; margin-top:3px; display:inline-block;">${eLoc.dong}동 ${eLoc.pos}위치</span>
+                        </td>
+                    </tr>
+                `;
+                displayRank++;
+                matchCount++;
+                break; 
             }
-
-            window.currentRecommendations.push({
-                moveQty: moveQty,
-                currentLocs: item.currentLocs,
-                targetLoc: eLoc.id,
-                name: item.name,
-                option: itemOption,
-                code: item.code,
-                moveDirection: moveText
-            });
-
-            const isEven = displayRank % 2 === 0;
-            const rowBg = isEven ? '#f9fafb' : '#ffffff';
-            const moveQtyDisplay = moveQty > 0
-                ? `<span style="color:#e65100; font-weight:900; font-size:13px;">${moveQty.toLocaleString()}</span><span style="font-size:9px; color:#888; margin-left:1px;">개</span>`
-                : `<span style="color:#bbb; font-size:11px;">-</span>`;
-
-            // 점수 세부 툴팁 HTML
-            const scoreTipHtml = `<span class="info-tip" data-tip-key="rec-score-detail" style="margin-left:2px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 직진배송: ${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.zQty||0).toLocaleString()})</span><br>• 주차별: ${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: 직진 ${window.recommendRatios.zikjin}% / 주차 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
-
-            // 콤팩트 한 줄 레이아웃 — padding 14px → 5~6px, 글꼴 13~16px → 11~13px, br 제거
-            html += `
-                <tr style="background:${rowBg}; line-height:1.3;">
-                    <td style="color:var(--primary); font-weight:900; font-size:12px; border-left:none; padding:5px 8px; white-space:nowrap;">
-                        ${displayRank}위 <span style="font-size:10px; color:#e65100; font-weight:bold;">(${item.score.toFixed(1)}${scoreTipHtml})</span>
-                    </td>
-                    <td style="font-weight:bold; color:#1a237e; font-size:11px; letter-spacing:0.2px; padding:5px 8px; white-space:nowrap;">${item.code}</td>
-                    <td style="text-align:left; font-size:12px; font-weight:600; color:#212121; padding:5px 10px;">${item.name}${item.option ? `<span style="color:#90a4ae; font-size:10px; margin-left:6px;">(${item.option})</span>` : ''}</td>
-                    <td style="text-align:center; padding:5px 6px; white-space:nowrap;">${moveQtyDisplay}</td>
-                    <td style="color:#555; font-size:11px; padding:5px 8px; white-space:nowrap;">${item.currentLocs}</td>
-                    <td style="background:#f1f8e9; border-right:none; padding:5px 10px; text-align:center; white-space:nowrap;">
-                        <span style="color:#1b5e20; font-weight:900; font-size:13px;">${eLoc.id}</span>
-                        <span style="font-size:10px; color:#777; margin-left:4px;">${eLoc.dong}동·${eLoc.pos}위치</span>
-                        <span style="margin-left:6px;">${moveBadge}</span>${retreatReplacementInfo}
-                    </td>
-                </tr>
-            `;
-            displayRank++;
-            matchCount++;
         }
 
         if (matchCount === 0) {
@@ -932,17 +1041,32 @@ window.showRecommendation = function() {
     }, 500); 
 };
 
-// ✨ [엑셀 다운로드 함수]
 window.downloadRecommendationExcel = function() {
-    if (!window.currentRecommendations || window.currentRecommendations.length === 0) {
+    // v4.1: 활성 탭에 따라 다른 데이터 사용
+    const singleTab = document.getElementById('rec-tab-single');
+    const singleActive = singleTab && singleTab.style.display !== 'none';
+    
+    let sourceData = null;
+    let sheetName = '';
+    let fileSuffix = '';
+    
+    if (singleActive) {
+        sourceData = window.currentSingleRecommendations;
+        sheetName = '단독추천';
+        fileSuffix = '단독';
+    } else {
+        sourceData = window.currentRecommendations;
+        sheetName = '페어추천';
+        fileSuffix = '페어';
+    }
+    
+    if (!sourceData || sourceData.length === 0) {
         alert("다운로드할 추천 데이터가 없습니다.");
         return;
     }
-
-    const excelData = window.currentRecommendations.map(item => {
+    
+    const excelData = sourceData.map(item => {
         return {
-            "이동방향": item.moveDirection,
-            "이동수량": item.moveQty,
             "현재로케이션": item.currentLocs,
             "변경로케이션": item.targetLoc,
             "상품명": item.name,
@@ -953,9 +1077,8 @@ window.downloadRecommendationExcel = function() {
 
     const ws = XLSX.utils.json_to_sheet(excelData);
     
+    // v4.1: ws['!cols']를 실제 5개 컬럼에 맞게 정리
     ws['!cols'] = [
-        { wch: 12 }, // 이동방향
-        { wch: 10 }, // 이동수량
         { wch: 20 }, // 현재로케이션
         { wch: 15 }, // 변경로케이션
         { wch: 40 }, // 상품명
@@ -964,41 +1087,12 @@ window.downloadRecommendationExcel = function() {
     ];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "로케이션변경추천");
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
     
     const today = new Date();
     const dateString = today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
-
-    XLSX.writeFile(wb, `로케이션변경추천리스트_${dateString}.xlsx`);
-
-    // 📍 운영 마일스톤 자동 등록 제안 (다운로드 직후)
-    const recCount = window.currentRecommendations.length;
-    setTimeout(async () => {
-        const proceed = confirm(`✅ 추천 리스트 (${recCount}건)를 다운받았습니다.\n\n이 변경을 "📍 운영 마일스톤"으로 자동 등록하시겠습니까?\n\n(메인 앱 → 데이터관리 → 운영 마일스톤 에서 변경 전/후 KPI 비교 가능)`);
-        if (!proceed) return;
-        try {
-            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-            const colRefMilestones = collection(db, 'artifacts', 'team-work-logger-v2', 'operationMilestones');
-            const id = `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-            await setDoc(doc(colRefMilestones, id), {
-                date: todayStr,
-                type: 'location_change',
-                title: `🗺️ 로케이션 변경 적용 (${recCount}건)`,
-                description: `로케이션 변경 추천 ${recCount}건을 다운로드 → 실제 시스템에 반영했습니다.`,
-                tags: ['로케이션', '동선최적화'],
-                affectedTasks: ['국내배송', '직진배송', '채우기'],
-                source: 'auto_recommend_apply',
-                relatedData: { recommendCount: recCount },
-                createdAt: new Date().toISOString(),
-                createdBy: currentUserName || 'unknown'
-            });
-            window.showToast && window.showToast(`마일스톤 등록 완료 (${todayStr})`);
-            alert(`📍 마일스톤이 등록되었습니다 (${todayStr}).\n\n2~4주 후 메인 앱 → 데이터관리 → 운영 마일스톤에서 효과 비교를 확인하세요.`);
-        } catch (e) {
-            console.error('milestone auto-register failed:', e);
-            alert('마일스톤 자동 등록에 실패했습니다.\n메인 앱에서 수동으로 등록해주세요.');
-        }
-    }, 600);
+    
+    XLSX.writeFile(wb, `로케이션변경추천리스트_${fileSuffix}_${dateString}.xlsx`);
 };
 
 // ========================================
@@ -1285,12 +1379,444 @@ window.saveHeaderSettings = async () => {
     } catch(e) { console.error(e); alert("저장 실패"); }
 };
 
+// [1단계] 입고대기 설정 모달 내 탭 전환 함수
+window.switchIncomingSettingsTab = function(tab) {
+    const tabBtnSheet = document.getElementById('incoming-tab-btn-sheet');
+    const tabBtnPriority = document.getElementById('incoming-tab-btn-priority');
+    const contentSheet = document.getElementById('incoming-tab-content-sheet');
+    const contentPriority = document.getElementById('incoming-tab-content-priority');
+    if (!tabBtnSheet || !tabBtnPriority || !contentSheet || !contentPriority) return;
+    
+    if (tab === 'sheet') {
+        contentSheet.style.display = 'block';
+        contentPriority.style.display = 'none';
+        tabBtnSheet.style.background = '#607d8b';
+        tabBtnSheet.style.color = 'white';
+        tabBtnPriority.style.background = '#eee';
+        tabBtnPriority.style.color = '#555';
+    } else if (tab === 'priority') {
+        contentSheet.style.display = 'none';
+        contentPriority.style.display = 'block';
+        tabBtnSheet.style.background = '#eee';
+        tabBtnSheet.style.color = '#555';
+        tabBtnPriority.style.background = '#607d8b';
+        tabBtnPriority.style.color = 'white';
+        
+        // 2단계에서 우선순위 UI 렌더링 함수 호출 예정
+    }
+};
+
 window.openSheetModal = (e) => {
-    if(e) e.stopPropagation();
+    if (e) e.stopPropagation();
     if (typeof window.closeAllPopups === 'function') window.closeAllPopups();
-    document.getElementById('modal-sheet-url-order').value = window.sheetUrlOrder || '';
-    document.getElementById('modal-sheet-url-buy').value = window.sheetUrlBuy || '';
-    document.getElementById('sheet-modal').style.display = 'flex';
+    
+    // 시트 링크 값 설정 (시스템 전체에서 window.sheetUrlOrder/Buy 사용)
+    const urlOrder = document.getElementById('modal-sheet-url-order');
+    const urlBuy = document.getElementById('modal-sheet-url-buy');
+    if (urlOrder) urlOrder.value = window.sheetUrlOrder || '';
+    if (urlBuy) urlBuy.value = window.sheetUrlBuy || '';
+
+    // [1단계] 모달 오픈 시 기본 탭 초기화
+    if (typeof window.switchIncomingSettingsTab === 'function') {
+        window.switchIncomingSettingsTab('sheet');
+    }
+    
+    // [2단계] 우선순위 탭 UI 데이터 채우기 (incomingRecommendPriorities 우선, 없으면 recommendPriorities를 기본값으로)
+    try {
+        const source = window.incomingRecommendPriorities || window.recommendPriorities || { zones:{0:[],1:[],2:[],3:[]}, dongs:[], poses:[], excludeCombos:[] };
+        
+        // 구역 퍼즐 채우기
+        const allAlphabets = ['★', 'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
+        const priZones = source.zones || {0:[], 1:[], 2:[], 3:[]};
+        for(let i=0; i<=3; i++) {
+            const el = document.getElementById(`incoming-pz-${i}`);
+            if (el) el.innerHTML = '';
+        }
+        const noneEl = document.getElementById('incoming-pz-none');
+        if (noneEl) noneEl.innerHTML = '';
+        allAlphabets.forEach(alpha => {
+            let placedRank = -1;
+            for(let i=0; i<=3; i++) { 
+                if(priZones[i] && priZones[i].includes(alpha)) { placedRank = i; break; } 
+            }
+            const block = document.createElement('div');
+            block.className = 'puzzle-block';
+            block.innerText = alpha;
+            block.draggable = true;
+            block.ondragstart = window.handleDragStart;
+            block.ondragend = window.handleDragEnd;
+            const target = placedRank !== -1 
+                ? document.getElementById(`incoming-pz-${placedRank}`)
+                : document.getElementById('incoming-pz-none');
+            if (target) target.appendChild(block);
+        });
+        
+        // 동/위치 정렬 블록 채우기
+        const renderIncomingSortBlocks = (containerId, items, defaultItems) => {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            const finalItems = [...new Set([...items, ...defaultItems])];
+            finalItems.forEach(item => {
+                const block = document.createElement('div');
+                block.className = 'puzzle-sort-block';
+                block.innerText = item;
+                block.draggable = true;
+                block.ondragstart = window.handleDragStart;
+                block.ondragend = window.handleDragEnd;
+                container.appendChild(block);
+            });
+        };
+        renderIncomingSortBlocks('incoming-sort-dongs', source.dongs || [], ['★','1','2','3','4','5','6']);
+        renderIncomingSortBlocks('incoming-sort-poses', source.poses || [], ['★','2','3','4','1','5']);
+        
+        // 제외 조합 입력값 채우기
+        const excludeInput = document.getElementById('incoming-exclude-combos-input');
+        if (excludeInput) {
+            const excludeCombos = source.excludeCombos || [];
+            excludeInput.value = excludeCombos.join(', ');
+        }
+    } catch (err) {
+        console.warn('[입고대기 우선순위 탭 초기화 실패]', err);
+    }
+
+    const modal = document.getElementById('sheet-modal');
+    if (modal) modal.style.display = 'flex';
+};
+
+// [2단계] 입고대기 신규 상품용 우선순위 저장
+window.saveIncomingPriorities = async function() {
+    try {
+        // 1) 구역 퍼즐 수집
+        const newZones = {};
+        for(let i=0; i<=3; i++){
+            const pz = document.getElementById(`incoming-pz-${i}`);
+            if (!pz) { 
+                console.warn(`[saveIncomingPriorities] incoming-pz-${i} 엘리먼트 없음`); 
+                return alert("⚠️ 우선순위 UI를 찾을 수 없습니다. 페이지를 새로고침 해주세요.");
+            }
+            const blocks = pz.querySelectorAll('.puzzle-block');
+            newZones[i] = Array.from(blocks).map(b => b.innerText.trim());
+        }
+        
+        // 2) 동/위치 정렬 블록 수집
+        const dongsEl = document.getElementById('incoming-sort-dongs');
+        const posesEl = document.getElementById('incoming-sort-poses');
+        if (!dongsEl || !posesEl) {
+            return alert("⚠️ 동/위치 우선순위 UI를 찾을 수 없습니다. 페이지를 새로고침 해주세요.");
+        }
+        const newDongs = Array.from(dongsEl.querySelectorAll('.puzzle-sort-block')).map(b => b.innerText.trim());
+        const newPoses = Array.from(posesEl.querySelectorAll('.puzzle-sort-block')).map(b => b.innerText.trim());
+        
+        // 3) 제외 조합 수집
+        const excludeEl = document.getElementById('incoming-exclude-combos-input');
+        const excludeCombos = excludeEl 
+            ? excludeEl.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+            : [];
+        
+        // 4) 데이터 객체 구성 (recommendPriorities와 동일한 스키마)
+        const newPriorities = { zones: newZones, dongs: newDongs, poses: newPoses, excludeCombos };
+        
+        // 5) Firestore 저장 + 메모리 동기화
+        await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { 
+            incomingRecommendPriorities: newPriorities
+        }, { merge: true });
+        
+        window.incomingRecommendPriorities = newPriorities;
+        
+        if (typeof showToast === 'function') {
+            showToast("✅ 입고 추천 우선순위가 저장되었습니다.");
+        } else {
+            alert("✅ 입고 추천 우선순위가 저장되었습니다.");
+        }
+        
+        if (typeof window.closeSheetModal === 'function') window.closeSheetModal();
+    } catch(e) {
+        console.error("[saveIncomingPriorities] 저장 실패:", e);
+        alert("⚠️ 입고 추천 우선순위 저장 중 오류가 발생했습니다.");
+    }
+};
+
+// [3단계] 입고대기 상품용 추천 자리 계산 함수
+// 반환값: { case: 'A'|'B', loc: <originalData 원소>, score: number, partnerCount: number } 또는 null
+// - Case A: 주문 데이터의 신뢰 페어(count≥5, lift≥2.0) 발견 → 페어 위치 점수 최고 빈칸
+// - Case B: 신뢰 페어 0개(또는 모든 partner가 시스템에 미배치) → incomingRecommendPriorities 기준 1순위 빈칸
+// - 빈칸 없거나 입력 오류 → null
+// [5단계] 두 번째 인자 excludeLocIds (Set): 이 자리 ID들은 빈칸 후보에서 제외 (일괄적용 충돌 처리)
+window.calcIncomingRecommend = function(code, excludeLocIds) {
+    // 입력/시스템 상태 검증
+    if (!code || typeof code !== 'string') return null;
+    if (!Array.isArray(originalData) || originalData.length === 0) return null;
+    
+    // 우선순위 선택 (incomingRecommendPriorities 우선, 없으면 recommendPriorities를 fallback)
+    const priorities = window.incomingRecommendPriorities || window.recommendPriorities || {
+        zones: { 0: [], 1: [], 2: [], 3: [] },
+        dongs: [],
+        poses: [],
+        excludeCombos: []
+    };
+    
+    // 현재 이 code가 이미 배치된 동들 (같은 동 중복 배치 방지용)
+    const currentDongsSet = new Set(
+        originalData
+            .filter(d => d.code === code)
+            .map(d => (d.dong || '').toString().trim())
+    );
+    
+    // 빈칸 추출 (선지정 제외 + 같은 동 제외 + 제외 조합 제외 + 일괄적용 시 이미 사용된 자리 제외)
+    const excludeCombos = priorities.excludeCombos || [];
+    const hasExclude = excludeLocIds && typeof excludeLocIds.has === 'function';
+    const emptyLocs = originalData.filter(d => {
+        const hasContent = (d.code && d.code !== d.id && d.code.trim() !== '') 
+                        || (d.name && d.name.trim() !== '');
+        if (hasContent || d.preAssigned) return false;
+        
+        // [5단계] 일괄적용 시 이미 다른 카드가 가져간 자리 제외
+        if (hasExclude && excludeLocIds.has(d.id)) return false;
+        
+        const targetDong = (d.dong || '').toString().trim();
+        if (currentDongsSet.has(targetDong)) return false;
+        
+        if (excludeCombos.length > 0) {
+            const prefix = (d.id || '').charAt(0).toUpperCase();
+            const dong = (d.dong || '').toString().trim();
+            const combo = `${prefix}-${dong}`;
+            if (excludeCombos.includes(combo)) return false;
+        }
+        return true;
+    });
+    
+    if (emptyLocs.length === 0) return null;
+    
+    // Case A 판정: 주문 데이터에서 신뢰 페어 검색
+    const trustedPartners = []; // [{ partner, weight }, ...]
+    try {
+        if (window._cachedOrderPairs && window._cachedOrderStats && window._cachedOrderMeta) {
+            const pairs = window._cachedOrderPairs;
+            const stats = window._cachedOrderStats;
+            const N = window._cachedOrderMeta.totalProcessedOrders || 1;
+            
+            for (const p of pairs) {
+                let partner = null;
+                if (p.codeA === code) partner = p.codeB;
+                else if (p.codeB === code) partner = p.codeA;
+                else continue;
+                
+                const cA = (stats[p.codeA] || {}).count || 0;
+                const cB = (stats[p.codeB] || {}).count || 0;
+                if (cA === 0 || cB === 0) continue;
+                
+                const lift = (p.count * N) / (cA * cB);
+                if (p.count < 5 || lift < 2.0) continue;
+                
+                trustedPartners.push({ partner, weight: lift * p.count });
+            }
+        }
+    } catch (e) {
+        console.warn('[calcIncomingRecommend] 페어 데이터 조회 실패:', e);
+    }
+    
+    // Case A: 신뢰 페어 있음 → 위치 점수로 최고 빈칸 선택
+    if (trustedPartners.length > 0) {
+        // partner들의 현재 위치 캐시 (중복 조회 방지)
+        const partnerLocsCache = {};
+        for (const tp of trustedPartners) {
+            if (!partnerLocsCache[tp.partner]) {
+                partnerLocsCache[tp.partner] = originalData.filter(d => d.code === tp.partner);
+            }
+        }
+        
+        let bestEmpty = null;
+        let bestScore = -1;
+        
+        for (const eLoc of emptyLocs) {
+            const eZone = (eLoc.id || '').charAt(0).toUpperCase();
+            const eDong = (eLoc.dong || '').toString().trim();
+            const ePos = (eLoc.pos || '').toString().trim();
+            
+            let totalScore = 0;
+            for (const tp of trustedPartners) {
+                const partnerLocs = partnerLocsCache[tp.partner] || [];
+                if (partnerLocs.length === 0) continue;
+                
+                let bestCoeff = 0;
+                for (const pLoc of partnerLocs) {
+                    const pZone = (pLoc.id || '').charAt(0).toUpperCase();
+                    const pDong = (pLoc.dong || '').toString().trim();
+                    const pPos = (pLoc.pos || '').toString().trim();
+                    
+                    let coeff = 0;
+                    if (eZone === pZone && eDong === pDong) {
+                        const ePosNum = parseInt(ePos, 10);
+                        const pPosNum = parseInt(pPos, 10);
+                        if (!isNaN(ePosNum) && !isNaN(pPosNum)) {
+                            const diff = Math.abs(ePosNum - pPosNum);
+                            if (diff === 0) coeff = 1.0;
+                            else if (diff === 1) coeff = 0.9;
+                            else if (diff === 2) coeff = 0.8;
+                            else coeff = 0.7;
+                        } else {
+                            coeff = 0.7;
+                        }
+                    }
+                    if (coeff > bestCoeff) bestCoeff = coeff;
+                }
+                totalScore += tp.weight * bestCoeff;
+            }
+            
+            if (totalScore > bestScore) {
+                bestScore = totalScore;
+                bestEmpty = eLoc;
+            }
+        }
+        
+        // 점수가 0보다 크면 Case A 결과 반환
+        // (점수 0인 경우 = 신뢰 페어는 있으나 partner가 시스템에 미배치 → Case B로 폴백)
+        if (bestEmpty && bestScore > 0) {
+            return { case: 'A', loc: bestEmpty, score: bestScore, partnerCount: trustedPartners.length };
+        }
+    }
+    
+    // Case B: 신뢰 페어 없거나 점수 0 → 우선순위 기반 1순위 빈칸 선택
+    const getZoneRank = (locId) => {
+        const prefix = (locId || '').charAt(0).toUpperCase();
+        const zones = priorities.zones || {};
+        for (let i = 0; i <= 3; i++) {
+            if (zones[i] && zones[i].includes(prefix)) return i;
+        }
+        return 99;
+    };
+    const getDongRank = (dong) => {
+        const str = (dong || '').toString().trim();
+        const arr = priorities.dongs || [];
+        const idx = arr.indexOf(str);
+        return idx !== -1 ? idx : 99;
+    };
+    const getPosRank = (pos) => {
+        const str = (pos || '').toString().trim();
+        const arr = priorities.poses || [];
+        const idx = arr.indexOf(str);
+        return idx !== -1 ? idx : 99;
+    };
+    
+    const sortedEmpty = emptyLocs.slice().sort((a, b) => {
+        const zA = getZoneRank(a.id), zB = getZoneRank(b.id);
+        if (zA !== zB) return zA - zB;
+        const dA = getDongRank(a.dong), dB = getDongRank(b.dong);
+        if (dA !== dB) return dA - dB;
+        const pA = getPosRank(a.pos), pB = getPosRank(b.pos);
+        if (pA !== pB) return pA - pB;
+        return (a.id || '').localeCompare(b.id || '');
+    });
+    
+    return { case: 'B', loc: sortedEmpty[0], score: 0, partnerCount: 0 };
+};
+
+// [5단계] 입고대기 추천 자리 일괄 적용
+// - 정렬: 출고예상일 빠른 순 → 같으면 미입고수량 많은 순
+// - 충돌 처리: 우선순위 높은 카드가 먼저 자리를 차지, 후순위 카드는 해당 자리를 제외하고 차순위 자리 재계산
+// - Firestore 저장 패턴은 기존 단일 선지정과 동일 (preAssigned, preAssignedCode 등)
+window.applyAllRecommendations = async function() {
+    try {
+        // 1) 현재 입고대기 목록 (renderIncomingQueue와 같은 필터 적용)
+        const filterSource = document.getElementById('filter-source')?.value || 'all';
+        
+        const existingLocMap = {};
+        originalData.forEach(loc => {
+            if (loc.preAssigned && loc.preAssignedCode) existingLocMap[loc.preAssignedCode] = true;
+            if (loc.code && loc.code !== loc.id) existingLocMap[loc.code] = true;
+        });
+        
+        const _today = new Date().toISOString().slice(0, 10);
+        
+        let list = [];
+        for (const code in incomingData) { list.push(incomingData[code]); }
+        
+        list = list.filter(item => {
+            if (filterSource !== 'all' && item.source !== filterSource) return false;
+            if (existingLocMap[item['상품코드']]) return false;
+            if (!item['표시날짜'] || item['표시날짜'].toString().trim() === '') return false;
+            const arrivalDate = (item['도착예상일'] || item['표시날짜'] || '').toString().trim();
+            if (arrivalDate && arrivalDate < _today) return false;
+            return true;
+        });
+        
+        if (list.length === 0) {
+            return alert("일괄 적용할 입고대기 상품이 없습니다.");
+        }
+        
+        // 2) 충돌 처리용 정렬: 출고예상일 빠른 순 → 같으면 미입고수량 많은 순
+        list.sort((a, b) => {
+            const dA = (a['표시날짜'] || '9999-99-99').toString();
+            const dB = (b['표시날짜'] || '9999-99-99').toString();
+            if (dA !== dB) return dA.localeCompare(dB);
+            return Number(b['입고대기수량'] || 0) - Number(a['입고대기수량'] || 0);
+        });
+        
+        // 3) 각 카드의 추천 자리 계산 (이미 사용된 자리는 제외하고 재계산)
+        const usedLocIds = new Set();
+        const assignments = [];
+        const skipped = [];
+        
+        for (const item of list) {
+            const code = item['상품코드'];
+            const rec = window.calcIncomingRecommend(code, usedLocIds);
+            if (rec && rec.loc && rec.loc.id) {
+                usedLocIds.add(rec.loc.id);
+                assignments.push({ item, locId: rec.loc.id, rec });
+            } else {
+                skipped.push(item);
+            }
+        }
+        
+        if (assignments.length === 0) {
+            return alert("추천 가능한 자리가 없습니다. (3층 빈칸이 부족할 수 있습니다.)");
+        }
+        
+        // 4) 사용자 확인
+        const msg = `📍 추천 자리 일괄 적용\n\n` +
+                    `대상: ${assignments.length}개 상품\n` +
+                    (skipped.length > 0 ? `추천 불가로 제외: ${skipped.length}개\n` : '') +
+                    `\n계속 진행하시겠습니까?`;
+        if (!confirm(msg)) return;
+        
+        // 5) zone 별로 묶어서 Firestore 일괄 저장
+        const zoneUpdates = {};
+        const now = Date.now();
+        for (const { item, locId } of assignments) {
+            const zoneDocId = getZoneDocId(locId);
+            if (!zoneUpdates[zoneDocId]) zoneUpdates[zoneDocId] = {};
+            zoneUpdates[zoneDocId][locId] = {
+                preAssigned: true,
+                preAssignedCode: item['상품코드'],
+                preAssignedName: item['상품명'] || '',
+                preAssignedQty: item['입고대기수량'] || 0,
+                preAssignedAt: now,
+                code: item['상품코드'],
+                name: item['상품명'] || '',
+                option: item['옵션'] || '',
+                stock: (item['입고대기수량'] || 0).toString(),
+                reserved: false, reservedBy: '', reservedAt: 0,
+                codeTag: '선지정', codeTagAt: now,
+                updatedAt: new Date()
+            };
+        }
+        
+        const savePromises = [];
+        for (const zoneDocId in zoneUpdates) {
+            savePromises.push(setDoc(doc(db, LOC_COLLECTION, zoneDocId), zoneUpdates[zoneDocId], { merge: true }));
+        }
+        await Promise.all(savePromises);
+        
+        // 6) 사이드바 갱신 (적용된 카드는 자동으로 사라짐)
+        // ※ Firestore 실시간 리스너가 originalData를 갱신하므로 일반적으로 자동 갱신되나, 명시적 호출로 안정성 확보
+        if (typeof window.renderIncomingQueue === 'function') {
+            window.renderIncomingQueue();
+        }
+    } catch (e) {
+        console.error('[applyAllRecommendations] 실패:', e);
+        alert('⚠️ 일괄 적용 중 오류가 발생했습니다: ' + (e && e.message ? e.message : e));
+    }
 };
 
 window.saveSheetUrl = async () => {
@@ -1390,6 +1916,16 @@ window.syncIncomingData = async () => {
 
         combinedData = [...orderData, ...buyData];
 
+        // ★ v3.96: '오더취소' 상품코드 수집
+        const cancelledCodes = new Set();
+        combinedData.forEach(row => {
+            const status = (row['상태'] || '').toString().trim();
+            if (status === '오더취소') {
+                const code = (row['어드민상품코드'] || row['상품코드'] || '').toString().trim();
+                if (code) cancelledCodes.add(code);
+            }
+        });
+
         const finalJson = combinedData.map(row => {
             let code = row['어드민상품코드'] || row['상품코드'] || '';
             let name = row['상품명'] || row['공급처상품명'] || '';
@@ -1421,9 +1957,15 @@ window.syncIncomingData = async () => {
                 '검수창고도착일': row.source === '사입' ? formatExcelDate(rawArrivalDate) : '',
                 '도착예상일': formatExcelDate(row['도착예상일'] || ''),
                 '표시날짜': date,
-                'source': row.source || '기타'
+                'source': row.source || '기타',
+                '상태': (row['상태'] || '').toString().trim()
             };
-        }).filter(row => row['상품코드'] && row['상품코드'].toString().trim() !== '' && Number(row['입고대기수량']) > 0 && row['표시날짜'] && row['표시날짜'].toString().trim() !== '');
+        }).filter(row => 
+            row['상품코드'] && row['상품코드'].toString().trim() !== '' && 
+            Number(row['입고대기수량']) > 0 && 
+            row['표시날짜'] && row['표시날짜'].toString().trim() !== '' &&
+            row['상태'] !== '오더취소'  // ★ v3.96: 오더취소 상품은 IncomingData에서 제외
+        );
 
         if (finalJson.length > 0) {
             await updateDatabaseB(finalJson, 'IncomingData', null, true);
@@ -1433,10 +1975,158 @@ window.syncIncomingData = async () => {
             window.hideLoading(); 
             alert("입고 대기(수량 1개 이상) 상품이 없거나 데이터를 찾지 못했습니다."); 
         }
+
+        // ★ v3.96: 오더취소된 상품 중 선지정된 자리 찾기 → 모달 자동 표시
+        if (cancelledCodes.size > 0) {
+            const cancelledPreAssigns = originalData.filter(loc => 
+                loc.preAssigned === true && 
+                loc.preAssignedCode && 
+                cancelledCodes.has(loc.preAssignedCode.toString().trim())
+            );
+            
+            if (cancelledPreAssigns.length > 0) {
+                window.showCancelledPreAssignModal(cancelledPreAssigns);
+            }
+        }
     } catch (error) { 
         window.hideLoading(); 
         alert(`🚨 연결 실패!\n데이터를 가져오지 못했습니다.\n(${error.message})`); 
         console.error("데이터 동기화 실패:", error);
+    }
+};
+
+// ★ v3.96: 오더취소 선지정 모달 표시
+window.showCancelledPreAssignModal = function(items) {
+    if (!items || items.length === 0) return;
+    
+    // 전역 변수로 보관 (해제 함수에서 참조)
+    window._cancelledPreAssignItems = items;
+    
+    const tbody = document.getElementById('cancelled-preassign-tbody');
+    if (!tbody) return;
+    
+    let html = '';
+    items.forEach((loc, idx) => {
+        const rowBg = idx % 2 === 0 ? '#ffffff' : '#fff5f5';
+        const code = loc.preAssignedCode || '';
+        const name = loc.preAssignedName || '';
+        const option = loc.option || '';
+        const source = loc.preAssignedSource || '-';
+        
+        html += `
+            <tr style="background:${rowBg};">
+                <td style="font-weight:bold; color:#d32f2f;">${idx + 1}</td>
+                <td style="font-weight:bold; color:#1a237e; font-size:14px;">${loc.id}</td>
+                <td style="font-weight:bold; color:#1a237e;">${code}</td>
+                <td style="text-align:left; font-size:13px;">${name}</td>
+                <td style="font-size:12px;">${option}</td>
+                <td style="font-size:11px; color:#666;">${source}</td>
+                <td style="background:#ffebee;">
+                    <button onclick="window.releasePreAssign('${loc.id}')" style="padding:5px 10px; background:#d32f2f; color:white; border:none; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;">🗑️ 해제</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    document.getElementById('cancelled-preassign-modal').style.display = 'flex';
+};
+
+// ★ v3.96: 개별 선지정 해제
+window.releasePreAssign = async function(locId) {
+    if (!locId) return;
+    if (!confirm(`[${locId}] 자리의 선지정을 해제하시겠습니까?`)) return;
+    
+    try {
+        const zoneDocId = getZoneDocId(locId);
+        await setDoc(doc(db, LOC_COLLECTION, zoneDocId), {
+            [locId]: {
+                preAssigned: false,
+                preAssignedCode: '',
+                preAssignedName: '',
+                preAssignedQty: '',
+                preAssignedAt: 0,
+                codeTag: '',
+                codeTagAt: 0,
+                code: '',
+                name: '',
+                option: '',
+                stock: '0',
+                updatedAt: new Date()
+            }
+        }, { merge: true });
+        
+        showToast(`[${locId}] 선지정 해제 완료`);
+        
+        // 모달의 해당 행 제거
+        if (window._cancelledPreAssignItems) {
+            window._cancelledPreAssignItems = window._cancelledPreAssignItems.filter(item => item.id !== locId);
+            
+            // 모두 해제됐으면 모달 닫기
+            if (window._cancelledPreAssignItems.length === 0) {
+                document.getElementById('cancelled-preassign-modal').style.display = 'none';
+                showToast(`✅ 모든 취소된 선지정 자리가 해제되었습니다.`);
+            } else {
+                // 남은 항목으로 모달 다시 그리기
+                window.showCancelledPreAssignModal(window._cancelledPreAssignItems);
+            }
+        }
+    } catch (e) {
+        console.error("선지정 해제 오류:", e);
+        alert("선지정 해제 중 오류가 발생했습니다.");
+    }
+};
+
+// ★ v3.96: 일괄 선지정 해제
+window.releaseAllCancelledPreAssigns = async function() {
+    const items = window._cancelledPreAssignItems || [];
+    if (items.length === 0) return;
+    if (!confirm(`총 ${items.length}건의 선지정을 모두 해제하시겠습니까?\n\n해제된 자리는 다시 빈 자리로 돌아갑니다.`)) return;
+    
+    window.showLoading(`${items.length}건의 선지정을 일괄 해제 중...`);
+    
+    try {
+        let batch = writeBatch(db);
+        let batchCount = 0;
+        
+        for (const loc of items) {
+            const zoneDocId = getZoneDocId(loc.id);
+            batch.set(doc(db, LOC_COLLECTION, zoneDocId), {
+                [loc.id]: {
+                    preAssigned: false,
+                    preAssignedCode: '',
+                    preAssignedName: '',
+                    preAssignedQty: '',
+                    preAssignedAt: 0,
+                    codeTag: '',
+                    codeTagAt: 0,
+                    code: '',
+                    name: '',
+                    option: '',
+                    stock: '0',
+                    updatedAt: new Date()
+                }
+            }, { merge: true });
+            batchCount++;
+            
+            // 400개마다 커밋
+            if (batchCount >= 400) {
+                await batch.commit();
+                batch = writeBatch(db);
+                batchCount = 0;
+            }
+        }
+        
+        if (batchCount > 0) await batch.commit();
+        
+        window.hideLoading();
+        document.getElementById('cancelled-preassign-modal').style.display = 'none';
+        window._cancelledPreAssignItems = [];
+        alert(`✅ 총 ${items.length}건의 선지정이 일괄 해제되었습니다.`);
+    } catch (e) {
+        window.hideLoading();
+        console.error("일괄 해제 오류:", e);
+        alert("일괄 해제 중 오류가 발생했습니다.");
     }
 };
 
@@ -1716,16 +2406,16 @@ function setupFilterPopups() {
     
     const isReservedOnly = filters.reserved.includes('only');
     const isPreassignedOnly = filters.preassigned.includes('only');
-    const isDesignatedOnly = filters.code.includes('designated-only');
+    const isDesignatedOnly = filters.code.includes('designated-only'); // 신규
     const isEmpty = filters.code.includes('empty');
     const isNotEmpty = filters.code.includes('not-empty');
     const codeAll = filters.code.length === 0 && !isReservedOnly && !isPreassignedOnly && !isDesignatedOnly;
-    let codeHtml = window.getFilterSearchHtml('pop-code') + getSortButtonsHtml('code') +
-       `<div class="filter-option ${codeAll ? 'selected' : ''}" onclick="setCodeTagFilter('all')">${codeAll ? '✔️ ' : ''}🔄 전체선택/해제</div>` +
+    let codeHtml = window.getFilterSearchHtml('pop-code') + getSortButtonsHtml('code') + 
+      `<div class="filter-option ${codeAll ? 'selected' : ''}" onclick="setCodeTagFilter('all')">${codeAll ? '✔️ ' : ''}🔄 전체선택/해제</div>` +
         `<div class="filter-option ${isEmpty ? 'selected' : ''}" onclick="setCodeTagFilter('empty')">${isEmpty ? '✔️ ' : ''}빈칸</div>` +
         `<div class="filter-option ${isNotEmpty ? 'selected' : ''}" onclick="setCodeTagFilter('not-empty')">${isNotEmpty ? '✔️ ' : ''}내용있음</div>` +
-        `<div class="filter-option ${isDesignatedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('designated-only')">${isDesignatedOnly ? '✔️ ' : ''}📝 지정값만 보기</div>` +
         `<div class="filter-divider"></div>` +
+        `<div class="filter-option ${isDesignatedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('designated-only')">${isDesignatedOnly ? '✔️ ' : ''}📝 지정값만 보기</div>` + // 추가
         `<div class="filter-option ${isReservedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('당일지정')">${isReservedOnly ? '✔️ ' : ''}📌 당일지정</div>` +
         `<div class="filter-option ${isPreassignedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('선지정')">${isPreassignedOnly ? '✔️ ' : ''}📦 선지정</div>`;
     if(codePop) codePop.innerHTML = codeHtml;
@@ -2148,7 +2838,6 @@ window.setCodeTagFilter = (mode) => {
     if (mode === 'all') {
         filters.code = []; filters.reserved = []; filters.preassigned = [];
     } else if (mode === 'empty') {
-        // empty ↔ not-empty ↔ designated-only 상호 배제
         filters.code = filters.code.filter(v => v !== 'not-empty' && v !== 'designated-only');
         if (filters.code.includes('empty')) filters.code = filters.code.filter(v => v !== 'empty');
         else filters.code.push('empty');
@@ -2157,7 +2846,7 @@ window.setCodeTagFilter = (mode) => {
         if (filters.code.includes('not-empty')) filters.code = filters.code.filter(v => v !== 'not-empty');
         else filters.code.push('not-empty');
     } else if (mode === 'designated-only') {
-        // 지정값만 보기는 empty/not-empty/당일지정/선지정과 상호 배제
+        // 지정값만 보기는 empty, not-empty, 당일지정, 선지정과 상호 배제
         filters.code = filters.code.filter(v => v !== 'empty' && v !== 'not-empty');
         filters.reserved = []; filters.preassigned = [];
         if (filters.code.includes('designated-only')) filters.code = filters.code.filter(v => v !== 'designated-only');
@@ -2269,9 +2958,9 @@ function applyFiltersAndSort() {
     window.lastFilteredData = filtered;
     renderTable(filtered);
 
-    // 대시보드 뷰가 표시 중이면 자동 갱신
-    const dashEl = document.getElementById('view-dashboard');
-    if (dashEl && dashEl.style.display !== 'none' && typeof window.renderLocationDashboard === 'function') {
+    // ── 병합(v4.4+대시보드): 로케이션 현황 대시보드 탭이 표시 중이면 자동 갱신 ──
+    const __locdashEl = document.getElementById('view-locdash');
+    if (__locdashEl && __locdashEl.style.display !== 'none' && typeof window.renderLocationDashboard === 'function') {
         window.renderLocationDashboard();
     }
 }
@@ -2528,6 +3217,24 @@ const smartParseToJSON = function(rawData) {
 
 const universalExcelReader = (file) => {
     return new Promise((resolve) => {
+        // ★ v3.95: 진단 헬퍼 - 텍스트에서 어떤 케이스인지 판단
+        const diagnoseText = (text, parsedJson) => {
+            if (!text) return 'unknown';
+            // A. 프레임셋 HTML 감지
+            if (text.includes('c_rgszSh') || text.includes('Excel Workbook Frameset') || /\.files\/sheet\d+\.htm/.test(text)) {
+                return 'frameset';
+            }
+            // 데이터 행 분석
+            if (parsedJson && parsedJson.length === 0) {
+                return 'empty-table';
+            }
+            if (parsedJson && parsedJson.length > 0) {
+                const isValid = parsedJson.some(row => row['상품코드'] || row['어드민상품코드'] || row['대표상품코드'] || row['로케이션'] || row['품목코드'] || row['바코드']);
+                if (!isValid) return 'no-required-header';
+            }
+            return 'unknown';
+        };
+
         const bufferReader = new FileReader();
         bufferReader.onload = (eBuf) => {
             let json = [];
@@ -2540,7 +3247,7 @@ const universalExcelReader = (file) => {
 
             const isValid = json.some(row => row['상품코드'] || row['어드민상품코드'] || row['대표상품코드'] || row['로케이션'] || row['품목코드'] || row['바코드']);
             if (json.length > 0 && isValid) {
-                return resolve(json);
+                return resolve({ rows: json, diagnosis: 'ok' });
             }
 
             const textReader = new FileReader();
@@ -2552,7 +3259,11 @@ const universalExcelReader = (file) => {
                         const utfJson = smartParseToJSON(rawData);
                         const isValidUtf = utfJson.some(row => row['상품코드'] || row['어드민상품코드'] || row['대표상품코드'] || row['로케이션'] || row['품목코드'] || row['바코드']);
                         if (utfJson.length > 0 && isValidUtf) {
-                            return resolve(utfJson);
+                            return resolve({ rows: utfJson, diagnosis: 'ok' });
+                        }
+                        const utfDiag = diagnoseText(text, utfJson);
+                        if (utfDiag !== 'unknown') {
+                            return resolve({ rows: [], diagnosis: utfDiag });
                         }
                     } catch(err) {}
                 }
@@ -2562,9 +3273,18 @@ const universalExcelReader = (file) => {
                     try {
                         let eucText = eEuc.target.result;
                         const rawData = extractDataFromHTML(eucText); 
-                        resolve(smartParseToJSON(rawData));
+                        const eucJson = smartParseToJSON(rawData);
+                        const isValidEuc = eucJson.some(row => row['상품코드'] || row['어드민상품코드'] || row['대표상품코드'] || row['로케이션'] || row['품목코드'] || row['바코드']);
+                        if (eucJson.length > 0 && isValidEuc) {
+                            return resolve({ rows: eucJson, diagnosis: 'ok' });
+                        }
+                        const eucDiag = diagnoseText(text, eucJson);
+                        if (eucDiag !== 'unknown') {
+                            return resolve({ rows: [], diagnosis: eucDiag });
+                        }
+                        resolve({ rows: [], diagnosis: 'unknown' });
                     } catch(err) {
-                        resolve([]);
+                        resolve({ rows: [], diagnosis: 'unknown' });
                     }
                 };
                 eucReader.readAsText(file, 'euc-kr');
@@ -2575,15 +3295,52 @@ const universalExcelReader = (file) => {
     });
 };
 
+// ★ v3.95: 업로드별 필수 헤더 안내 + 진단 코드별 alert 메시지 헬퍼
+const _uploadHeaderGuide = {
+    'permanent': '로케이션, 동, 위치, 칸수',
+    'daily':     '로케이션, 상품코드, 상품명, 옵션, 정상재고, 2층창고재고',
+    'zikjin':    '상품코드(또는 어드민상품코드/대표상품코드 등), 수량',
+    'weekly':    '상품코드(또는 어드민상품코드/대표상품코드 등), 기간배송수량 또는 기간발주수량'
+};
+
+function _showUploadDiagnosisAlert(diagnosis, uploadType) {
+    const headers = _uploadHeaderGuide[uploadType] || '';
+    let msg = '';
+    if (diagnosis === 'frameset') {
+        msg = "🚨 잘못된 파일 형식입니다.\n\n" +
+              "이 파일은 Excel에서 '웹 페이지(*.htm)' 형식으로 저장된 파일입니다.\n" +
+              "실제 데이터가 별도 폴더에 분리되어 있어 시스템에서 읽을 수 없습니다.\n\n" +
+              "✅ 해결 방법:\n" +
+              "1. 파일을 Excel로 엽니다\n" +
+              "2. [다른 이름으로 저장] → 형식을 'Excel 통합 문서(*.xlsx)' 로 선택\n" +
+              "3. 다시 업로드해주세요";
+    } else if (diagnosis === 'empty-table') {
+        msg = "⚠️ 파일에 데이터 행이 없습니다.\n\n" +
+              "헤더(첫 행)는 있지만 실제 데이터가 입력되지 않은 빈 파일입니다.\n" +
+              "데이터가 입력된 파일을 업로드해주세요.";
+    } else if (diagnosis === 'no-required-header') {
+        msg = "⚠️ 파일에서 필수 컬럼을 찾을 수 없습니다.\n\n" +
+              "이 업로드에 필요한 헤더: " + headers + "\n\n" +
+              "✅ 해결 방법:\n" +
+              "- 파일의 첫 행에 위 헤더가 정확히 입력되어 있는지 확인\n" +
+              "- 한글이 깨져 보이면 UTF-8 또는 EUC-KR로 다시 저장";
+    } else {
+        msg = "⚠️ 데이터가 없습니다.\n\n" +
+              "파일 형식 또는 내용을 다시 확인해주세요.\n" +
+              "(예상 헤더: " + headers + ")";
+    }
+    alert(msg);
+}
+
 const fileInputZikjin = document.getElementById('excel-upload-zikjin');
 if (fileInputZikjin) {
     fileInputZikjin.addEventListener('change', async function(e) {
         const file = e.target.files[0]; if (!file) return;
         window.showLoading('직진배송 데이터를 분석 중입니다...');
         try {
-            const json = await universalExcelReader(file);
-            if(json.length > 0) await updateDatabaseB(json, 'ZikjinData', e.target, false);
-            else { window.hideLoading(); alert("데이터가 없습니다. (파일 형식 또는 헤더 확인)"); e.target.value=''; }
+            const result = await universalExcelReader(file);
+            if(result.rows.length > 0) await updateDatabaseB(result.rows, 'ZikjinData', e.target, false);
+            else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'zikjin'); e.target.value=''; }
         } catch(err) { window.hideLoading(); alert("오류 발생"); e.target.value=''; }
     });
 }
@@ -2594,9 +3351,9 @@ if (fileInputWeekly) {
         const file = e.target.files[0]; if (!file) return;
         window.showLoading('주차별 데이터를 분석 중입니다...');
         try {
-            const json = await universalExcelReader(file);
-            if(json.length > 0) await updateDatabaseB(json, 'WeeklyData', e.target, false);
-            else { window.hideLoading(); alert("데이터가 없습니다. (파일 형식 또는 헤더 확인)"); e.target.value=''; }
+            const result = await universalExcelReader(file);
+            if(result.rows.length > 0) await updateDatabaseB(result.rows, 'WeeklyData', e.target, false);
+            else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'weekly'); e.target.value=''; }
         } catch(err) { window.hideLoading(); alert("오류 발생"); e.target.value=''; }
     });
 }
@@ -2607,9 +3364,9 @@ if (fileInputA) {
         const file = e.target.files[0]; if (!file) return;
         window.showLoading('일일 재고/상품 데이터를 최신화 중입니다...');
         try {
-            const json = await universalExcelReader(file);
-            if(json.length > 0) await updateDatabaseA(json, 'daily');
-            else { window.hideLoading(); alert("데이터가 없습니다."); }
+            const result = await universalExcelReader(file);
+            if(result.rows.length > 0) await updateDatabaseA(result.rows, 'daily');
+            else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'daily'); }
         } catch(err) { window.hideLoading(); alert("오류 발생"); }
         finally { e.target.value=''; }
     });
@@ -2621,13 +3378,412 @@ if (fileInputPerm) {
         const file = e.target.files[0]; if (!file) return;
         window.showLoading('도면(동/위치) 영구 데이터를 덮어쓰기 세팅 중입니다...');
         try {
-            const json = await universalExcelReader(file);
-            if(json.length > 0) await updateDatabaseA(json, 'permanent');
-            else { window.hideLoading(); alert("데이터가 없습니다."); }
+            const result = await universalExcelReader(file);
+            if(result.rows.length > 0) await updateDatabaseA(result.rows, 'permanent');
+            else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'permanent'); }
         } catch(err) { window.hideLoading(); alert("오류 발생"); }
         finally { e.target.value=''; }
     });
 }
+
+// ===== v3.97a: 주문 페어 분석 (청크 압축 + 중복 방지) =====
+const ORDER_PAIRS_COLL = 'OrderPairsChunks';
+const ORDER_STATS_COLL = 'OrderStatsChunks';
+const PROCESSED_ORDERS_COLL = 'ProcessedOrders';
+const CHUNK_SIZE_PAIRS = 200;
+const CHUNK_SIZE_STATS = 200;
+
+// 주문 데이터 파일 업로드 핸들러
+const fileInputOrders = document.getElementById('excel-upload-orders');
+if (fileInputOrders) {
+    fileInputOrders.addEventListener('change', async function(e) {
+        const file = e.target.files[0]; if (!file) return;
+        window.showLoading('📦 주문 데이터를 분석 중입니다...');
+        try {
+            const result = await universalExcelReader(file);
+            if (result.rows.length > 0) {
+                await window.processOrderData(result.rows);
+            } else {
+                window.hideLoading();
+                _showUploadDiagnosisAlert(result.diagnosis, 'orders');
+                e.target.value = '';
+            }
+        } catch (err) {
+            window.hideLoading();
+            console.error('주문 파일 처리 오류:', err);
+            alert('오류 발생: ' + err.message);
+            e.target.value = '';
+        } finally {
+            e.target.value = '';
+        }
+    });
+}
+
+// 주문 데이터 처리: 중복 검사 → 신규만 자동 누적 저장
+window.processOrderData = async function(rows) {
+    try {
+        window.showLoading('🔍 주문번호별로 그룹화 중...');
+        // 1. 주문번호별 그룹화
+        const orderMap = {};
+        for (const row of rows) {
+            const orderNo = (row['주문번호'] || '').toString().trim();
+            const code = (row['상품코드'] || row['바코드'] || '').toString().trim();
+            const orderDate = (row['주문일'] || '').toString().trim();
+            if (!orderNo || !code) continue;
+            if (!orderMap[orderNo]) orderMap[orderNo] = { codes: new Set(), date: orderDate };
+            orderMap[orderNo].codes.add(code);
+        }
+
+        const orderNos = Object.keys(orderMap);
+        if (orderNos.length === 0) {
+            window.hideLoading();
+            alert('처리할 주문 데이터가 없습니다.');
+            return;
+        }
+
+        // 2. 기존 ProcessedOrders 조회 (중복 업로드 방지)
+        window.showLoading('💾 중복 주문 검사 중...');
+        const processedSet = new Set();
+        const processedSnap = await getDocs(collection(db, PROCESSED_ORDERS_COLL));
+        processedSnap.forEach(d => { processedSet.add(d.id); });
+
+        // 3. 신규 주문만 필터링
+        const targetOrderNos = orderNos.filter(ono => !processedSet.has(ono));
+        const dupCount = orderNos.length - targetOrderNos.length;
+
+        if (targetOrderNos.length === 0) {
+            window.hideLoading();
+            alert(`⚠️ 모든 주문이 이미 처리되었습니다.\n\n파일 총 주문: ${orderNos.length.toLocaleString()}건\n이미 처리됨: ${dupCount.toLocaleString()}건\n\n이전에 같은 파일을 업로드했을 가능성이 큽니다.`);
+            return;
+        }
+
+        // 4. 페어/단독 카운트 집계 (신규분만)
+        window.showLoading('📊 페어 통계 계산 중...');
+        const newPairCounts = {};
+        const newCodeCounts = {};
+        let latestDate = '';
+
+        for (const ono of targetOrderNos) {
+            const obj = orderMap[ono];
+            if (!obj) continue;
+            const codes = [...obj.codes].sort();
+            const date = obj.date;
+            if (date > latestDate) latestDate = date;
+
+            // 단독 카운트
+            for (const c of codes) {
+                if (!newCodeCounts[c]) newCodeCounts[c] = { count: 0, lastDate: '' };
+                newCodeCounts[c].count++;
+                if (date > newCodeCounts[c].lastDate) newCodeCounts[c].lastDate = date;
+            }
+
+            // 페어 카운트
+            if (codes.length >= 2) {
+                for (let i = 0; i < codes.length; i++) {
+                    for (let j = i + 1; j < codes.length; j++) {
+                        const pairId = codes[i] + '__' + codes[j];
+                        if (!newPairCounts[pairId]) newPairCounts[pairId] = { count: 0, lastDate: '' };
+                        newPairCounts[pairId].count++;
+                        if (date > newPairCounts[pairId].lastDate) newPairCounts[pairId].lastDate = date;
+                    }
+                }
+            }
+        }
+
+        // 5. 기존 청크 로드 + 병합
+        window.showLoading('💾 기존 누적 데이터와 병합 중...');
+        const existingPairs = {};
+        const existingStats = {};
+
+        const pairsSnap = await getDocs(collection(db, ORDER_PAIRS_COLL));
+        pairsSnap.forEach(d => {
+            try {
+                const arr = JSON.parse(d.data().dataStr || '[]');
+                arr.forEach(p => {
+                    const pid = p.cA + '__' + p.cB;
+                    existingPairs[pid] = { codeA: p.cA, codeB: p.cB, count: p.c, lastDate: p.d };
+                });
+            } catch (e) {}
+        });
+
+        const statsSnap = await getDocs(collection(db, ORDER_STATS_COLL));
+        statsSnap.forEach(d => {
+            try {
+                const arr = JSON.parse(d.data().dataStr || '[]');
+                arr.forEach(s => {
+                    existingStats[s.c] = { code: s.c, count: s.n, lastDate: s.d };
+                });
+            } catch (e) {}
+        });
+
+        // 병합
+        for (const code in newCodeCounts) {
+            const nd = newCodeCounts[code];
+            if (existingStats[code]) {
+                existingStats[code].count += nd.count;
+                if (nd.lastDate > existingStats[code].lastDate) existingStats[code].lastDate = nd.lastDate;
+            } else {
+                existingStats[code] = { code, count: nd.count, lastDate: nd.lastDate };
+            }
+        }
+        for (const pid in newPairCounts) {
+            const nd = newPairCounts[pid];
+            const [codeA, codeB] = pid.split('__');
+            if (existingPairs[pid]) {
+                existingPairs[pid].count += nd.count;
+                if (nd.lastDate > existingPairs[pid].lastDate) existingPairs[pid].lastDate = nd.lastDate;
+            } else {
+                existingPairs[pid] = { codeA, codeB, count: nd.count, lastDate: nd.lastDate };
+            }
+        }
+
+        // 6. 청크 압축 저장 (기존 청크 삭제 후 다시 작성)
+        window.showLoading('💾 Firebase에 청크 압축 저장 중...');
+
+        let batch = writeBatch(db);
+        let bc = 0;
+        pairsSnap.forEach(d => { batch.delete(d.ref); bc++; if (bc >= 400) { batch.commit(); batch = writeBatch(db); bc = 0; } });
+        if (bc > 0) await batch.commit();
+
+        batch = writeBatch(db);
+        bc = 0;
+        statsSnap.forEach(d => { batch.delete(d.ref); bc++; if (bc >= 400) { batch.commit(); batch = writeBatch(db); bc = 0; } });
+        if (bc > 0) await batch.commit();
+
+        // 새 청크 작성 (페어)
+        const allPairs = Object.values(existingPairs).map(p => ({ cA: p.codeA, cB: p.codeB, c: p.count, d: p.lastDate }));
+        batch = writeBatch(db);
+        bc = 0;
+        let chunkIdx = 0;
+        for (let i = 0; i < allPairs.length; i += CHUNK_SIZE_PAIRS) {
+            const chunk = allPairs.slice(i, i + CHUNK_SIZE_PAIRS);
+            const docRef = doc(db, ORDER_PAIRS_COLL, `CHUNK_${chunkIdx}`);
+            batch.set(docRef, { dataStr: JSON.stringify(chunk), updatedAt: new Date() });
+            chunkIdx++;
+            bc++;
+            if (bc >= 400) { await batch.commit(); batch = writeBatch(db); bc = 0; }
+        }
+        if (bc > 0) await batch.commit();
+
+        // 새 청크 작성 (단독)
+        const allStats = Object.values(existingStats).map(s => ({ c: s.code, n: s.count, d: s.lastDate }));
+        batch = writeBatch(db);
+        bc = 0;
+        chunkIdx = 0;
+        for (let i = 0; i < allStats.length; i += CHUNK_SIZE_STATS) {
+            const chunk = allStats.slice(i, i + CHUNK_SIZE_STATS);
+            const docRef = doc(db, ORDER_STATS_COLL, `CHUNK_${chunkIdx}`);
+            batch.set(docRef, { dataStr: JSON.stringify(chunk), updatedAt: new Date() });
+            chunkIdx++;
+            bc++;
+            if (bc >= 400) { await batch.commit(); batch = writeBatch(db); bc = 0; }
+        }
+        if (bc > 0) await batch.commit();
+
+        // 7. ProcessedOrders 추가 (처리한 주문번호)
+        window.showLoading('💾 처리 이력 저장 중...');
+        batch = writeBatch(db);
+        bc = 0;
+        for (const ono of targetOrderNos) {
+            const obj = orderMap[ono];
+            const docRef = doc(db, PROCESSED_ORDERS_COLL, ono);
+            batch.set(docRef, { date: obj.date || latestDate, at: Date.now() }, { merge: true });
+            bc++;
+            if (bc >= 400) { await batch.commit(); batch = writeBatch(db); bc = 0; }
+        }
+        if (bc > 0) await batch.commit();
+
+        // 8. 메타정보 갱신 (누적 처리 주문수 더하기)
+        let prevTotal = 0;
+        try {
+            const cfgSnap = await getDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'));
+            if (cfgSnap.exists()) {
+                const prevMeta = cfgSnap.data().orderAnalysisMeta || {};
+                prevTotal = prevMeta.totalProcessedOrders || 0;
+            }
+        } catch (e) {}
+        const metaUpdate = {
+            orderAnalysisMeta: {
+                lastUploadDate: latestDate || new Date().toISOString().slice(0, 10),
+                lastUploadAt: Date.now(),
+                totalProcessedOrders: prevTotal + targetOrderNos.length,
+                totalPairs: Object.keys(existingPairs).length,
+                totalCodes: Object.keys(existingStats).length
+            }
+        };
+        await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), metaUpdate, { merge: true });
+
+        window.hideLoading();
+
+        // 9. 결과 alert + 자동 리포트 표시
+        let msg = `✅ 주문 데이터 분석 완료!\n\n`;
+        msg += `파일 총 주문: ${orderNos.length.toLocaleString()}건\n`;
+        msg += `✨ 신규 처리: ${targetOrderNos.length.toLocaleString()}건\n`;
+        if (dupCount > 0) msg += `🔄 이미 처리됨 (건너뜀): ${dupCount.toLocaleString()}건\n`;
+        msg += `\n누적 페어: ${Object.keys(existingPairs).length.toLocaleString()}개\n`;
+        msg += `누적 상품: ${Object.keys(existingStats).length.toLocaleString()}개\n\n`;
+        msg += `자세한 리포트는 [📊 페어 분석 리포트 보기]에서 확인하세요.`;
+        alert(msg);
+        
+        // v3.98: 페어 캐시 갱신
+        if (typeof window.loadOrderPairsCache === 'function') {
+            window.loadOrderPairsCache();
+        }
+        
+        // v4.4 v3: 주문 업로드 후 자동 팝업 호출 삭제
+        // 사용자가 [📊 페어 분석 리포트 보기] 버튼을 직접 클릭해서 열도록 변경
+        // window.openOrderAnalysisReport();
+    } catch (e) {
+        window.hideLoading();
+        console.error('processOrderData 오류:', e);
+        alert('주문 데이터 처리 중 오류가 발생했습니다.\n' + e.message);
+    }
+};
+
+// 분석 리포트 모달 열기
+window.openOrderAnalysisReport = async function() {
+    document.getElementById('order-analysis-modal').style.display = 'flex';
+    document.getElementById('order-analysis-summary').innerHTML = '<div style="text-align:center; color:#666;">데이터 로딩 중...</div>';
+    document.getElementById('order-analysis-tbody').innerHTML = '';
+    window.showLoading('📊 분석 리포트 로딩 중...');
+
+    try {
+        let meta = {};
+        const cfgSnap = await getDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'));
+        if (cfgSnap.exists()) meta = cfgSnap.data().orderAnalysisMeta || {};
+
+        const pairs = [];
+        const stats = {};
+        const pairsSnap = await getDocs(collection(db, ORDER_PAIRS_COLL));
+        pairsSnap.forEach(d => {
+            try {
+                const arr = JSON.parse(d.data().dataStr || '[]');
+                arr.forEach(p => pairs.push({ codeA: p.cA, codeB: p.cB, count: p.c, lastDate: p.d }));
+            } catch (e) {}
+        });
+
+        const statsSnap = await getDocs(collection(db, ORDER_STATS_COLL));
+        statsSnap.forEach(d => {
+            try {
+                const arr = JSON.parse(d.data().dataStr || '[]');
+                arr.forEach(s => { stats[s.c] = { code: s.c, count: s.n, lastDate: s.d }; });
+            } catch (e) {}
+        });
+
+        const totalOrdersEstimate = meta.totalProcessedOrders || 1;
+        const pairsWithLift = pairs.map(p => {
+            const cntA = (stats[p.codeA] && stats[p.codeA].count) || 1;
+            const cntB = (stats[p.codeB] && stats[p.codeB].count) || 1;
+            const lift = (p.count * totalOrdersEstimate) / (cntA * cntB);
+            return { ...p, lift };
+        });
+
+        const trustedPairs = pairsWithLift
+            .filter(p => p.count >= 5 && p.lift >= 2.0)
+            .sort((a, b) => (b.lift * b.count) - (a.lift * a.count));
+
+        let summaryHtml = `
+            <div style="display:flex; justify-content:space-around; flex-wrap:wrap; gap:15px;">
+                <div style="text-align:center;">
+                    <div style="font-size:11px; color:#666;">최근 업로드</div>
+                    <div style="font-size:14px; color:#4a148c; font-weight:bold;">${meta.lastUploadDate || '-'}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:11px; color:#666;">처리한 주문 건수</div>
+                    <div style="font-size:18px; color:#4a148c; font-weight:900;">${(meta.totalProcessedOrders || 0).toLocaleString()}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:11px; color:#666;">분석된 상품 종류</div>
+                    <div style="font-size:18px; color:#4a148c; font-weight:900;">${Object.keys(stats).length.toLocaleString()}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:11px; color:#666;">함께 팔린 상품 조합</div>
+                    <div style="font-size:18px; color:#4a148c; font-weight:900;">${pairs.length.toLocaleString()}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:11px; color:#666;">🏆 자주 함께 팔리는 조합</div>
+                    <div style="font-size:22px; color:#7b1fa2; font-weight:900;">${trustedPairs.length.toLocaleString()}</div>
+                </div>
+            </div>
+        `;
+        document.getElementById('order-analysis-summary').innerHTML = summaryHtml;
+
+        const top30 = trustedPairs.slice(0, 30);
+        let html = '';
+        if (top30.length === 0) {
+            html = '<tr><td colspan="7" style="padding:40px; color:#888;">데이터를 더 누적하면 페어가 생성됩니다.</td></tr>';
+        } else {
+            // v3.99: 상품 상세 정보 HTML 생성 헬퍼
+            const buildProductCell = (code) => {
+                const matches = originalData.filter(d => d.code === code);
+                if (matches.length === 0) {
+                    return `<div style="font-weight:bold; color:#7b1fa2;">${code}</div>` +
+                           `<div style="font-size:11px; color:#999; margin-top:2px;">⚠️ 로케이션 없음</div>`;
+                }
+                const loc = matches[0];
+                const name = (loc.name || '').toString().trim();
+                const option = (loc.option || '').toString().trim();
+                const locId = (loc.id || '').toString().trim();
+                const dupBadge = matches.length > 1
+                    ? `<span style="display:inline-block; background:#fff3e0; color:#e65100; padding:1px 5px; border-radius:3px; font-size:9px; font-weight:bold; margin-left:4px;" title="같은 상품코드가 ${matches.length}개 자리에 있습니다 (데이터 이상)">⚠️ ${matches.length}자리</span>`
+                    : '';
+                const optionHtml = option ? `<span style="color:#666; font-weight:normal; font-size:11px; margin-left:4px;">[${option}]</span>` : '';
+                const locHtml = locId ? `<div style="font-size:11px; color:#1b5e20; margin-top:2px;">📍 ${locId}${dupBadge}</div>` : `<div style="font-size:11px; color:#999; margin-top:2px;">📍 자리 없음${dupBadge}</div>`;
+                const nameHtml = name ? `<div style="font-size:11px; color:#555; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:190px;" title="${name}">${name}</div>` : '';
+                return `<div style="font-weight:bold; color:#7b1fa2;">${code}${optionHtml}</div>` + locHtml + nameHtml;
+            };
+            
+            top30.forEach((p, idx) => {
+                const locA = originalData.find(d => d.code === p.codeA);
+                const locB = originalData.find(d => d.code === p.codeB);
+                let distance = (locA && locB && locA.dong === locB.dong && locA.dong !== '') 
+                    ? `<span style="color:#2e7d32; font-weight:bold;">같은 동</span>` 
+                    : `<span style="color:#d32f2f; font-weight:bold;">다른 동</span>`;
+                html += `<tr style="background:${idx % 2 === 0 ? '#ffffff' : '#faf5fc'};">
+                    <td style="font-weight:bold; color:#7b1fa2;">${idx+1}</td>
+                    <td style="text-align:left; padding:8px 10px;">${buildProductCell(p.codeA)}</td>
+                    <td style="text-align:left; padding:8px 10px;">${buildProductCell(p.codeB)}</td>
+                    <td style="font-weight:bold; color:#7b1fa2;">${p.count}회</td>
+                    <td style="font-weight:bold; color:#e65100;">${p.lift.toFixed(2)}</td>
+                    <td style="font-size:11px;">${p.lastDate || '-'}</td><td>${distance}</td></tr>`;
+            });
+        }
+        document.getElementById('order-analysis-tbody').innerHTML = html;
+    } catch (e) {
+        console.error('리포트 로드 오류:', e);
+        document.getElementById('order-analysis-summary').innerHTML = `<div style="color:#d32f2f;">로드 실패: ${e.message}</div>`;
+    } finally {
+        window.hideLoading();
+    }
+};
+
+// 누적 데이터 전체 초기화
+window.resetOrderAnalysis = async function() {
+    if (!confirm('함께 팔리는 상품 분석 데이터를 전체 삭제하시겠습니까?\n\n(주문 데이터, 상품 조합, 통계가 모두 초기화됩니다)')) return;
+    if (!confirm('OrderPairsChunks, OrderStatsChunks, ProcessedOrders가 모두 삭제됩니다. 계속하시겠습니까?')) return;
+    window.showLoading('🗑️ 누적 데이터 삭제 중...');
+    try {
+        const colls = [ORDER_PAIRS_COLL, ORDER_STATS_COLL, PROCESSED_ORDERS_COLL];
+        for (const collName of colls) {
+            const snap = await getDocs(collection(db, collName));
+            let batch = writeBatch(db); let bc = 0;
+            snap.forEach(d => { batch.delete(d.ref); bc++; if (bc >= 400) { batch.commit(); batch = writeBatch(db); bc = 0; } });
+            if (bc > 0) await batch.commit();
+        }
+        await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { orderAnalysisMeta: deleteField() }, { merge: true });
+        window.hideLoading();
+        alert('✅ 누적 데이터가 모두 삭제되었습니다.');
+        document.getElementById('order-analysis-modal').style.display = 'none';
+        
+        // v3.98: 페어 캐시 초기화
+        window._cachedOrderPairs = [];
+        window._cachedOrderStats = {};
+        window._cachedOrderMeta = {};
+    } catch (e) {
+        window.hideLoading(); console.error('초기화 오류:', e);
+        alert('초기화 오류: ' + e.message);
+    }
+};
 
 async function updateDatabaseB(rows, collectionName, inputElement, silent = false) {
     let label = collectionName === 'ZikjinData' ? '직진배송' : (collectionName === 'WeeklyData' ? '주차별' : '데이터');
@@ -2707,6 +3863,10 @@ async function updateDatabaseA(rows, mode = 'daily') {
         let skipCount = 0;
         let zoneUpdates = {};
         
+        // v4.4: 2F SKU 카운트 (로케이션이 "2F-..." 형태인 행의 고유 상품코드 수)
+        const twoFloorCodes = new Set();
+        let twoFloorStockSum = 0;
+        
         let existingLocMap = {};
         originalData.forEach(d => { existingLocMap[d.id] = d; });
         
@@ -2746,6 +3906,39 @@ async function updateDatabaseA(rows, mode = 'daily') {
 
             const rawLoc = row['로케이션']?.toString().trim();
             if (rawLoc) {
+                // v4.4: 2F 로케이션 감지 ("2F-..." 형태)
+                // 예: "2F-S614130 I-49"
+                if (rawLoc.toUpperCase().startsWith('2F-')) {
+                    // 2F 행: 상품코드 추출
+                    // "2F-S614130 I-49" → "S614130"
+                    const afterPrefix = rawLoc.substring(3).trim(); // "S614130 I-49"
+                    let twoFCode = '';
+                    // S로 시작하는 첫 토큰 추출
+                    const tokens = afterPrefix.split(/\s+/);
+                    for (const tk of tokens) {
+                        const trimmed = tk.trim();
+                        if (trimmed && trimmed.charAt(0).toUpperCase() === 'S') {
+                            twoFCode = trimmed;
+                            break;
+                        }
+                    }
+                    // S로 시작하는 토큰이 없으면 row['상품코드'] 사용
+                    if (!twoFCode) {
+                        twoFCode = (row['상품코드'] || '').toString().trim();
+                    }
+                    if (twoFCode) {
+                        twoFloorCodes.add(twoFCode);
+                        // 2F 재고 수량 누적 (정상재고 또는 2층창고재고 컬럼 사용)
+                        const stockVal = Number(row['정상재고'] || row['2층창고재고'] || 0);
+                        if (!isNaN(stockVal) && stockVal > 0) {
+                            twoFloorStockSum += stockVal;
+                        }
+                    }
+                    // 2F 행은 3층 로케이션 시스템에 저장하지 않음 (계속 skip)
+                    skipCount++;
+                    continue;
+                }
+                
                 let cleanLocId = ''; let extractedCode = '';
                 if (rawLoc.includes('(')) {
                     cleanLocId = rawLoc.split('(')[0].trim();
@@ -2881,12 +4074,55 @@ async function updateDatabaseA(rows, mode = 'daily') {
             await batch.commit();
         }
         
+        // v4.4: 2F SKU 데이터 Firestore에 저장 (daily 모드에서만)
+        let twoFloorMsgPart = '';
+        if (mode === 'daily') {
+            try {
+                const twoFloorData = {
+                    skuCount: twoFloorCodes.size,
+                    totalStock: twoFloorStockSum,
+                    codes: Array.from(twoFloorCodes), // 디버그/검증용
+                    savedAt: new Date(),
+                    sourceDate: window._v44_getTodayDateString ? window._v44_getTodayDateString() : new Date().toISOString().slice(0, 10)
+                };
+                await setDoc(doc(db, 'artifacts', 'team-work-logger-v2', 'locationStock', 'twoFloorLatest'), twoFloorData);
+                console.log('[v4.4] 2F SKU 데이터 저장 완료: SKU', twoFloorCodes.size, '개 / 총 재고', twoFloorStockSum);
+                twoFloorMsgPart = `\n(2F 상품 ${twoFloorCodes.size}종 / 재고 ${twoFloorStockSum.toLocaleString()}장도 별도 집계됨)`;
+                
+                // 메모리 캐시 갱신 (대시보드 즉시 반영용)
+                window._cached2FloorStock = twoFloorData;
+            } catch (e) {
+                console.error('[v4.4] 2F SKU 저장 실패:', e);
+            }
+            
+            // v4.4 v2: 재고 스냅샷 저장 (회전율 계산용)
+            // 트리거 시점: 일일 최신화 업로드 직후 (마감 트리거 대체)
+            // originalData는 batch.commit() 이후 onSnapshot으로 비동기 갱신되므로 잠시 대기
+            setTimeout(() => {
+                if (typeof window._v44_saveStockSnapshot === 'function') {
+                    window._v44_saveStockSnapshot().then(ok => {
+                        if (ok) {
+                            // 대시보드 보고 있으면 자동 새로고침
+                            const dashView = document.getElementById('view-dashboard');
+                            if (dashView && dashView.style.display !== 'none' && typeof window._v44_renderDashboard === 'function') {
+                                window._v44_renderDashboard();
+                            }
+                        }
+                    });
+                }
+            }, 2000);  // onSnapshot으로 originalData 반영될 시간 확보
+        }
+        
         if (mode === 'permanent') {
             alert(`✅ 완료! ${updateCount}개 로케이션의 랙 구조(동/위치) 영구 세팅이 완료되었습니다.`);
         } else {
             let msg = `✅ 스마트 클린 업데이트 완료!\n과거 유령 재고는 완벽히 비워졌고, 엑셀의 최신 데이터 ${updateCount}건만 정확하게 반영되었습니다.`;
-            if(skipCount > 0) msg += `\n(※ 기존 도면에 없는 낯선 로케이션 ${skipCount}건 무시됨)`;
+            if(skipCount > 0) msg += `\n(※ 기존 도면에 없거나 2F 로케이션 ${skipCount}건은 3층 시스템에서 무시됨)`;
+            if(twoFloorMsgPart) msg += twoFloorMsgPart;
             alert(msg);
+            
+            // v3.97b: 일일 최신화 완료 후 단종 페어 자동 정리 (비동기, alert 차단 안 함)
+            setTimeout(() => { window.cleanupDeprecatedPairs().catch(e => console.error('[cleanup] 오류:', e)); }, 100);
         }
         
     } catch (error) { 
@@ -2898,6 +4134,336 @@ async function updateDatabaseA(rows, mode = 'daily') {
         window.hideLoading(); 
     }
 }
+
+// ===== v3.97b: 단종 상품 페어 자동 정리 =====
+// 호출 시점: 일일 최신화(updateDatabaseA mode='daily') 완료 직후
+// 단종 판정 조건 (3개 모두 만족):
+//   1. 마지막배송일 30일+ 경과 (빈칸은 제외 = 신규 상품 보호)
+//   2. 재고 0
+//   3. 입고대기 0
+// 동작:
+//   - 한쪽이라도 단종이면 OrderPairsChunks의 페어 삭제 (엄격)
+//   - 단종 상품의 OrderStatsChunks 단독 통계도 삭제
+//   - 결과는 console.log만 (조용히)
+//   - 상세 로그는 DeprecatedLog 컬렉션에 저장
+window.cleanupDeprecatedPairs = async function() {
+    console.log('[cleanup] 단종 페어 정리 시작...');
+    
+    try {
+        // 1. 안전장치: OrderPairsChunks 비어있으면 종료
+        const pairsSnap = await getDocs(collection(db, ORDER_PAIRS_COLL));
+        if (pairsSnap.empty) {
+            console.log('[cleanup] 페어 데이터 없음. 정리 건너뜀.');
+            return;
+        }
+        
+        // 2. 마지막배송일 컬럼 존재 확인 (rawData에 한 번이라도 나타나는지)
+        const getRawVal = (rd, targetKey) => {
+            if (!rd) return '';
+            if (rd[targetKey]) return rd[targetKey];
+            const norm = targetKey.replace(/[\s\u00A0]/g, '');
+            for (const k of Object.keys(rd)) {
+                if (k.replace(/[\s\u00A0]/g, '') === norm) return rd[k];
+            }
+            return '';
+        };
+        
+        let hasLastDeliveryColumn = false;
+        for (const loc of originalData) {
+            if (getRawVal(loc.rawData, '마지막배송일')) {
+                hasLastDeliveryColumn = true;
+                break;
+            }
+        }
+        if (!hasLastDeliveryColumn) {
+            console.warn('[cleanup] 마지막배송일 컬럼이 데이터에 없음. 잘못된 정리를 방지하기 위해 건너뜀.');
+            return;
+        }
+        
+        // 3. incomingTotalByCode 상태 점검 (경고만)
+        if (!incomingTotalByCode || Object.keys(incomingTotalByCode).length === 0) {
+            console.warn('[cleanup] incomingTotalByCode가 비어있음. 시트 동기화를 먼저 수행하지 않았다면 단종 판정이 부정확할 수 있음.');
+        }
+        
+        // 4. 30일 cutoff 날짜 계산
+        const now = new Date();
+        const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+        const cutoffStr = cutoff.toISOString().slice(0, 10);
+        
+        // 5. 상품코드별로 그룹핑 (마지막배송일, 재고 합계 집계)
+        const codeMap = {}; // { code: { lastDelivery, totalStock, locIds: [] } }
+        originalData.forEach(loc => {
+            const code = (loc.code || '').toString().trim();
+            if (!code || code === loc.id) return;
+            
+            if (!codeMap[code]) codeMap[code] = { lastDelivery: '', totalStock: 0, locIds: [] };
+            
+            // 마지막배송일: 가장 최근 값 (마지막배송일 우선, 없으면 마지막입고일 fallback)
+            let val = getRawVal(loc.rawData, '마지막배송일');
+            if (!val) val = getRawVal(loc.rawData, '마지막입고일');
+            if (val && val > codeMap[code].lastDelivery) codeMap[code].lastDelivery = val;
+            
+            codeMap[code].totalStock += Number(loc.stock || 0);
+            codeMap[code].locIds.push(loc.id);
+        });
+        
+        // 6. 단종 상품 판정
+        const deprecatedSet = new Set();
+        const deprecatedDetail = []; // [{code, lastDelivery, totalStock, incomingQty, locIds}]
+        
+        for (const code in codeMap) {
+            const info = codeMap[code];
+            
+            // 조건 1: 마지막배송일 빈칸 → 신규 상품으로 간주, 제외
+            if (!info.lastDelivery) continue;
+            
+            // 조건 1: 마지막배송일 30일+ 경과
+            if (info.lastDelivery >= cutoffStr) continue;
+            
+            // 조건 2: 재고 0
+            if (info.totalStock > 0) continue;
+            
+            // 조건 3: 입고대기 0
+            const incomingQty = Number(incomingTotalByCode[code] || 0);
+            if (incomingQty > 0) continue;
+            
+            // 모두 만족 → 단종으로 판정
+            deprecatedSet.add(code);
+            deprecatedDetail.push({
+                code,
+                lastDelivery: info.lastDelivery,
+                totalStock: info.totalStock,
+                incomingQty,
+                locIds: info.locIds.join(', ')
+            });
+        }
+
+        // ===== v3.97c: 자리 없는 페어 정리 (사각지대 해결) =====
+        // 페어 데이터에는 있지만 originalData에 자리 없는 상품 검사
+        // 조건: 입고대기 0 AND lastDate(페어 최근 함께 산 날) 30일+ 경과
+        const allPairCodes = new Set();
+        const codeLastDate = {}; // 상품코드별 페어/통계 lastDate 중 최대값
+        
+        // 페어 데이터에서 모든 상품코드 + lastDate 수집
+        try {
+            const pairsSnapForOrphan = await getDocs(collection(db, ORDER_PAIRS_COLL));
+            pairsSnapForOrphan.forEach(d => {
+                try {
+                    const arr = JSON.parse(d.data().dataStr || '[]');
+                    arr.forEach(p => {
+                        if (p.cA) {
+                            allPairCodes.add(p.cA);
+                            if (!codeLastDate[p.cA] || (p.d && p.d > codeLastDate[p.cA])) {
+                                codeLastDate[p.cA] = p.d || '';
+                            }
+                        }
+                        if (p.cB) {
+                            allPairCodes.add(p.cB);
+                            if (!codeLastDate[p.cB] || (p.d && p.d > codeLastDate[p.cB])) {
+                                codeLastDate[p.cB] = p.d || '';
+                            }
+                        }
+                    });
+                } catch (e) {}
+            });
+            
+            const statsSnapForOrphan = await getDocs(collection(db, ORDER_STATS_COLL));
+            statsSnapForOrphan.forEach(d => {
+                try {
+                    const arr = JSON.parse(d.data().dataStr || '[]');
+                    arr.forEach(s => {
+                        if (s.c) {
+                            allPairCodes.add(s.c);
+                            if (!codeLastDate[s.c] || (s.d && s.d > codeLastDate[s.c])) {
+                                codeLastDate[s.c] = s.d || '';
+                            }
+                        }
+                    });
+                } catch (e) {}
+            });
+        } catch (e) {
+            console.warn('[cleanup-v3.97c] 페어/통계 lastDate 수집 실패:', e);
+        }
+        
+        // 자리 없는 상품 = 페어 데이터에 있지만 codeMap(originalData)에 없음
+        let orphanCount = 0;
+        for (const code of allPairCodes) {
+            if (codeMap[code]) continue; // 자리 있는 상품은 위에서 이미 처리됨
+            if (deprecatedSet.has(code)) continue; // 이미 단종 판정된 경우 스킵
+            
+            // 자리 없는 상품의 단종 조건
+            const incomingQty = Number(incomingTotalByCode[code] || 0);
+            if (incomingQty > 0) continue; // 입고대기 있으면 보호 (재입고 예정)
+            
+            const lastDate = codeLastDate[code] || '';
+            if (!lastDate) continue; // lastDate 없으면 판단 불가, 보호
+            if (lastDate >= cutoffStr) continue; // 최근 30일 이내 함께 팔림 = 보호
+            
+            // 자리 없음 + 입고대기 0 + lastDate 30일+ 경과 → 단종 판정
+            deprecatedSet.add(code);
+            deprecatedDetail.push({
+                code,
+                lastDelivery: '(자리 없음)',
+                totalStock: 0,
+                incomingQty,
+                locIds: '(없음, 페어 lastDate: ' + lastDate + ')'
+            });
+            orphanCount++;
+        }
+        
+        if (orphanCount > 0) {
+            console.log(`[cleanup-v3.97c] 자리 없는 단종 상품 ${orphanCount}개 추가 발견`);
+        }
+        // ===== v3.97c 끝 =====
+        
+        if (deprecatedSet.size === 0) {
+            console.log('[cleanup] 단종 상품 없음. 정리 종료.');
+            return;
+        }
+        
+        console.log(`[cleanup] 단종 상품 ${deprecatedSet.size}개 발견:`, [...deprecatedSet]);
+        
+        // 7. OrderPairsChunks 로드 → 단종 페어 필터링 → 다시 쓰기
+        const allPairs = [];
+        pairsSnap.forEach(d => {
+            try {
+                const arr = JSON.parse(d.data().dataStr || '[]');
+                arr.forEach(p => allPairs.push(p));
+            } catch (e) {}
+        });
+        
+        const survivingPairs = allPairs.filter(p => 
+            !deprecatedSet.has(p.cA) && !deprecatedSet.has(p.cB)
+        );
+        const deletedPairCount = allPairs.length - survivingPairs.length;
+        
+        // 8. OrderStatsChunks 로드 → 단종 상품 통계 필터링 → 다시 쓰기
+        const statsSnap = await getDocs(collection(db, ORDER_STATS_COLL));
+        const allStats = [];
+        statsSnap.forEach(d => {
+            try {
+                const arr = JSON.parse(d.data().dataStr || '[]');
+                arr.forEach(s => allStats.push(s));
+            } catch (e) {}
+        });
+        
+        const survivingStats = allStats.filter(s => !deprecatedSet.has(s.c));
+        const deletedStatCount = allStats.length - survivingStats.length;
+        
+        // 9. 기존 청크 모두 삭제 후 새로 작성 (페어)
+        let batch = writeBatch(db);
+        let bc = 0;
+        pairsSnap.forEach(d => { batch.delete(d.ref); bc++; if (bc >= 400) { batch.commit(); batch = writeBatch(db); bc = 0; } });
+        if (bc > 0) await batch.commit();
+        
+        batch = writeBatch(db);
+        bc = 0;
+        let chunkIdx = 0;
+        for (let i = 0; i < survivingPairs.length; i += CHUNK_SIZE_PAIRS) {
+            const chunk = survivingPairs.slice(i, i + CHUNK_SIZE_PAIRS);
+            const docRef = doc(db, ORDER_PAIRS_COLL, `CHUNK_${chunkIdx}`);
+            batch.set(docRef, { dataStr: JSON.stringify(chunk), updatedAt: new Date() });
+            chunkIdx++;
+            bc++;
+            if (bc >= 400) { await batch.commit(); batch = writeBatch(db); bc = 0; }
+        }
+        if (bc > 0) await batch.commit();
+        
+        // 10. 기존 청크 모두 삭제 후 새로 작성 (단독 통계)
+        batch = writeBatch(db);
+        bc = 0;
+        statsSnap.forEach(d => { batch.delete(d.ref); bc++; if (bc >= 400) { batch.commit(); batch = writeBatch(db); bc = 0; } });
+        if (bc > 0) await batch.commit();
+        
+        batch = writeBatch(db);
+        bc = 0;
+        chunkIdx = 0;
+        for (let i = 0; i < survivingStats.length; i += CHUNK_SIZE_STATS) {
+            const chunk = survivingStats.slice(i, i + CHUNK_SIZE_STATS);
+            const docRef = doc(db, ORDER_STATS_COLL, `CHUNK_${chunkIdx}`);
+            batch.set(docRef, { dataStr: JSON.stringify(chunk), updatedAt: new Date() });
+            chunkIdx++;
+            bc++;
+            if (bc >= 400) { await batch.commit(); batch = writeBatch(db); bc = 0; }
+        }
+        if (bc > 0) await batch.commit();
+        
+        // 11. DeprecatedLog 컬렉션에 상세 로그 저장 (날짜별 1문서)
+        const logDocId = new Date().toISOString().slice(0, 10) + '_' + Date.now();
+        await setDoc(doc(db, 'DeprecatedLog', logDocId), {
+            cleanedAt: Date.now(),
+            cleanedAtDate: new Date().toISOString().slice(0, 10),
+            cutoffDate: cutoffStr,
+            deprecatedCount: deprecatedSet.size,
+            deletedPairCount,
+            deletedStatCount,
+            details: JSON.stringify(deprecatedDetail)
+        });
+        
+        // 12. INFO_CONFIG의 orderAnalysisMeta 갱신 (페어/상품 카운트 동기화)
+        await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), {
+            orderAnalysisMeta: {
+                lastCleanupAt: Date.now(),
+                lastCleanupDate: new Date().toISOString().slice(0, 10),
+                totalPairs: survivingPairs.length,
+                totalCodes: survivingStats.length
+            }
+        }, { merge: true });
+        
+        console.log(`[cleanup] 완료: 단종 ${deprecatedSet.size}건 정리, 페어 ${deletedPairCount}개 삭제, 통계 ${deletedStatCount}개 삭제.`);
+        console.log(`[cleanup] 상세 로그: DeprecatedLog/${logDocId}`);
+        
+        // v3.98: 페어 캐시 갱신
+        if (typeof window.loadOrderPairsCache === 'function') {
+            window.loadOrderPairsCache();
+        }
+    } catch (e) {
+        console.error('[cleanup] 단종 정리 중 오류:', e);
+    }
+};
+
+// ===== v3.98: 페어 데이터 캐시 로드 (showRecommendation에서 사용) =====
+window.loadOrderPairsCache = async function() {
+    try {
+        const pairsSnap = await getDocs(collection(db, ORDER_PAIRS_COLL));
+        const statsSnap = await getDocs(collection(db, ORDER_STATS_COLL));
+        
+        const pairs = [];
+        pairsSnap.forEach(d => {
+            try {
+                const arr = JSON.parse(d.data().dataStr || '[]');
+                arr.forEach(p => pairs.push({ codeA: p.cA, codeB: p.cB, count: p.c, lastDate: p.d }));
+            } catch (e) {}
+        });
+        
+        const stats = {};
+        statsSnap.forEach(d => {
+            try {
+                const arr = JSON.parse(d.data().dataStr || '[]');
+                arr.forEach(s => { stats[s.c] = { code: s.c, count: s.n, lastDate: s.d }; });
+            } catch (e) {}
+        });
+        
+        let meta = {};
+        try {
+            const cfgSnap = await getDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'));
+            if (cfgSnap.exists()) {
+                meta = cfgSnap.data().orderAnalysisMeta || {};
+            }
+        } catch (e) {}
+        
+        window._cachedOrderPairs = pairs;
+        window._cachedOrderStats = stats;
+        window._cachedOrderMeta = meta;
+        
+        console.log(`[v3.98] 페어 캐시 로드 완료: ${pairs.length}개 페어, ${Object.keys(stats).length}개 상품`);
+    } catch (e) {
+        console.warn('[v3.98] 페어 캐시 로드 실패:', e);
+        window._cachedOrderPairs = [];
+        window._cachedOrderStats = {};
+        window._cachedOrderMeta = {};
+    }
+};
 
 window.copyLocationToClipboard = async (event, locId) => {
     event.stopPropagation(); 
@@ -3028,6 +4594,23 @@ window.renderIncomingQueue = function() {
         let src = item.source || '-';
         let date = src === '제작' ? (item['공장출고예상일'] || item['표시날짜'] || '-') : (item['검수창고도착일'] || item['표시날짜'] || '-');
         let option = item['옵션'] || '';
+        
+        // [4단계] 추천 자리 계산 (실패해도 카드는 그대로 표시)
+        let recHtml = '';
+        try {
+            if (typeof window.calcIncomingRecommend === 'function') {
+                const rec = window.calcIncomingRecommend(code);
+                if (rec && rec.loc && rec.loc.id) {
+                    const caseLabel = rec.case === 'A' 
+                        ? `<span style="font-size:10px; color:#7b1fa2; font-weight:normal;">(페어 ${rec.partnerCount}개)</span>` 
+                        : `<span style="font-size:10px; color:#777; font-weight:normal;">(우선순위)</span>`;
+                    recHtml = `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed #ddd; font-size:11px; color:#1976d2;">📍 추천: <b>${rec.loc.id}</b> ${caseLabel}</div>`;
+                }
+            }
+        } catch (e) {
+            console.warn('[renderIncomingQueue] 추천 계산 실패:', code, e);
+        }
+        
         html += `
             <div class="incoming-item" onclick="activatePreAssignMode('${code}', '${name.replace(/'/g, "\\'")}', '${qty}', '${option.replace(/'/g, "\\'")}')">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
@@ -3040,6 +4623,7 @@ window.renderIncomingQueue = function() {
                     <span style="color:#555;">${src==='제작'?'출고일':'도착일'}: <b style="color:#d32f2f;">${date}</b></span>
                     <span style="color:#e65100; font-weight:bold; font-size:12px;">대기: ${qty}개</span>
                 </div>
+                ${recHtml}
             </div>
         `;
     });
@@ -3083,6 +4667,7 @@ window.applyCustomTooltips = function() {
     document.querySelectorAll('.info-tip[data-tip-key]').forEach(tip => {
         const key = tip.getAttribute('data-tip-key');
         if (!key) return;
+        if (key.startsWith('dyn-')) return; // v3.98a-fix2: 동적 콘텐츠 툴팁은 캐싱 안 함
         const content = tip.querySelector('.info-tip-content');
         if (!content) return;
         if (content.querySelector('.tt-tabs')) return;
@@ -3364,6 +4949,17 @@ function _ttOpenTip(tip) {
     if (y < 8) y = r.bottom + 10;
     if (x < 8) x = 8;
     if (x + cw > window.innerWidth - 8) x = window.innerWidth - cw - 8;
+
+    // v3.97c: 모달 안의 툴팁이면 모달 컨테이너 경계 내로 추가 보정
+    const modalContent = tip.closest('.modal-content');
+    if (modalContent) {
+        const mr = modalContent.getBoundingClientRect();
+        if (x < mr.left + 8) x = mr.left + 8;
+        if (x + cw > mr.right - 8) x = mr.right - cw - 8;
+        // 모달 자체가 cw보다 좁은 경우 보호
+        if (x < 8) x = 8;
+    }
+
     content.style.left = x + 'px';
     content.style.top = y + 'px';
 }
@@ -3375,6 +4971,7 @@ function _ttResetTab(tip) {
     if (!content) return;
     const key = tip.getAttribute('data-tip-key');
     if (!key) return;
+    if (key.startsWith('dyn-')) return; // v3.98a-fix2: 동적 콘텐츠는 리셋하지 않음
     // 설명 탭으로 리셋
     _ttRenderTabs(tip, key, 'desc');
 }
@@ -3404,11 +5001,16 @@ document.addEventListener('click', function(e) {
         // 초기화 로직 (기존 유지)
         if (!tip.querySelector('.tt-tabs')) {
             const key = tip.getAttribute('data-tip-key');
-            if (!_ttDefaults[key]) {
-                const innerContent = tip.querySelector('.info-tip-content');
-                if (innerContent) _ttDefaults[key] = innerContent.innerHTML;
+            // v3.98a-fix2: 동적 콘텐츠 툴팁은 초기화/캐싱 없이 토글만 처리
+            if (key && key.startsWith('dyn-')) {
+                // 토글 동작으로 바로 이동 (탭 구조 주입 안 함)
+            } else {
+                if (!_ttDefaults[key]) {
+                    const innerContent = tip.querySelector('.info-tip-content');
+                    if (innerContent) _ttDefaults[key] = innerContent.innerHTML;
+                }
+                _ttRenderTabs(tip, key);
             }
-            _ttRenderTabs(tip, key);
         }
 
         // 토글 동작
@@ -3442,9 +5044,46 @@ document.addEventListener('click', function(e) {
 // =============================
 let currentCorridorIdx = 0;
 let svCorridorList = [];
+// 도면보기 범례 필터: null | 'empty' | 'content' | 'reserved' | 'preassigned'
+let _mapLegendFilter = null;
+// 범례 ON 시 모든 구역 표시 모드 (true: 모든 구역 순회, false: currentCorridorIdx 한 구역만)
+let _mapShowAllZones = false;
 
 window.updateMapCellSize = function(val) {
     document.getElementById('map-cell-size-label').innerText = val + 'px';
+    renderCorridor(currentCorridorIdx);
+};
+
+// 도면보기 범례 클릭 → 필터 토글
+window.setMapLegendFilter = function(filterType) {
+    if (_mapLegendFilter === filterType) {
+        _mapLegendFilter = null; // 같은 거 다시 클릭 → 해제
+        _mapShowAllZones = false; // 모든 구역 모드도 해제
+    } else {
+        _mapLegendFilter = filterType;
+        _mapShowAllZones = true; // 범례 켜면 모든 구역 표시 모드 진입
+    }
+    // 범례 UI 활성 표시 업데이트
+    const legendMap = {
+        'empty': 'map-legend-empty',
+        'content': 'map-legend-content',
+        'reserved': 'map-legend-reserved',
+        'preassigned': 'map-legend-preassigned'
+    };
+    Object.keys(legendMap).forEach(key => {
+        const el = document.getElementById(legendMap[key]);
+        if (!el) return;
+        if (_mapLegendFilter === key) {
+            el.style.outline = '2px solid #3d5afe';
+            el.style.outlineOffset = '2px';
+            el.style.fontWeight = '900';
+        } else {
+            el.style.outline = '';
+            el.style.outlineOffset = '';
+            el.style.fontWeight = '';
+        }
+    });
+    // 도면 재렌더링 (opacity 반영)
     renderCorridor(currentCorridorIdx);
 };
 
@@ -3482,6 +5121,7 @@ window.renderMap = function() {
         btn.innerText = item.label;
         btn.style.cssText = `padding:6px 14px; border-radius:20px; font-size:13px; font-weight:bold; border:1.5px solid #ccc; background:#f5f5f5; color:#333; cursor:pointer; transition:0.2s;`;
         btn.onclick = () => {
+            _mapShowAllZones = false; // 구역 탭 클릭 → 단일 구역 모드로 전환
             currentCorridorIdx = i;
             renderCorridor(i);
             document.querySelectorAll('#map-zone-tabs button').forEach(b => {
@@ -3498,22 +5138,30 @@ window.renderMap = function() {
 
 function renderCorridor(idx) {
     const mapBody = document.getElementById('map-body');
-    const item = svCorridorList[idx];
-    if (!item) return;
-
-    const isStarZone = item.zone === '★';
     const cellSize = document.getElementById('map-cell-size') ? Number(document.getElementById('map-cell-size').value) : 54;
 
     // 셀 공통 함수
     function hasContent(loc) {
         return loc && ((loc.code && loc.code !== loc.id && loc.code.trim() !== '') || (loc.name && loc.name.trim() !== ''));
     }
+    // 도면 범례 필터 매칭 검사 (cellStyle 우선순위와 동일: preAssigned > reserved > hasContent > empty)
+    function matchesLegendFilter(loc) {
+        if (!_mapLegendFilter) return true; // 필터 없음 → 모두 매칭
+        if (!loc) return false; // 필터 ON 시 null 셀(격자 placeholder)도 숨김
+        if (_mapLegendFilter === 'preassigned') return loc.preAssigned === true;
+        if (_mapLegendFilter === 'reserved') return loc.reserved === true && !loc.preAssigned;
+        if (_mapLegendFilter === 'content') return hasContent(loc) && !loc.preAssigned && !loc.reserved;
+        if (_mapLegendFilter === 'empty') return !hasContent(loc) && !loc.preAssigned && !loc.reserved;
+        return true;
+    }
     function cellStyle(loc) {
         if (!loc) return 'background:#f0f0f0; border:1px dashed #ddd;';
-        if (loc.preAssigned) return 'background:#ffe0b2; border:1.5px solid #fb8c00;';
-        if (loc.reserved) return 'background:#fff9c4; border:1.5px solid #f9a825;';
-        if (hasContent(loc)) return 'background:#c8e6c9; border:1.5px solid #66bb6a;';
-        return 'background:#f0f0f0; border:1px solid #ccc;';
+        let s;
+        if (loc.preAssigned) s = 'background:#ffe0b2; border:1.5px solid #fb8c00;';
+        else if (loc.reserved) s = 'background:#fff9c4; border:1.5px solid #f9a825;';
+        else if (hasContent(loc)) s = 'background:#c8e6c9; border:1.5px solid #66bb6a;';
+        else s = 'background:#f0f0f0; border:1px solid #ccc;';
+        return s;
     }
     function cellInner(loc) {
         if (!loc) return '';
@@ -3552,23 +5200,45 @@ function renderCorridor(idx) {
     }
 
     function buildRackSection(locs, numsByPos, posLabels, posKey, cellSize) {
+        // 필터 ON 시: 전체 매칭 슬롯 0개면 섹션 통째로 빈 문자열 반환
+        if (_mapLegendFilter) {
+            const anyMatch = posLabels.some(pos => {
+                const posNums = (numsByPos[pos] && numsByPos[pos][posKey]) || [];
+                return posNums.some(num => {
+                    const loc = getCell(locs, pos, num);
+                    return loc && matchesLegendFilter(loc);
+                });
+            });
+            if (!anyMatch) return '';
+        }
         let html = `<div style="padding:8px 8px;display:flex;flex-direction:column;gap:4px;">`;
         posLabels.forEach(pos => {
             const posNums = (numsByPos[pos] && numsByPos[pos][posKey]) || [];
+            // 필터 ON 시: 이 pos 라인에 매칭 슬롯 0개면 라인 통째로 건너뜀 (pos 라벨도 안 그림)
+            if (_mapLegendFilter) {
+                const hasMatch = posNums.some(num => {
+                    const loc = getCell(locs, pos, num);
+                    return loc && matchesLegendFilter(loc);
+                });
+                if (!hasMatch) return;
+            }
             html += `<div style="display:flex;flex-direction:row;align-items:center;gap:3px;">
                 <div style="font-size:10px;font-weight:bold;color:#bbb;min-width:18px;text-align:center;">${pos}</div>`;
             posNums.forEach(num => {
                 const loc = getCell(locs, pos, num);
                 if (!loc) {
+                    if (_mapLegendFilter) return; // 필터 ON → null 셀(placeholder)도 숨김 (옆이 당겨옴)
                     html += `<div style="width:${cellSize}px;height:${cellSize + 6}px;${cellStyle(null)}border-radius:4px;"></div>`;
                     return;
                 }
+                if (!matchesLegendFilter(loc)) return; // 미매칭 셀은 출력 안 함
                 const tid = 'tip-' + (loc.id || '').replace(/[^a-zA-Z0-9]/g, '_');
                 html += `<div style="position:relative;"
                     onmouseenter="(function(e){var t=document.getElementById('${tid}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
                     onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
                     <div style="width:${cellSize}px;height:${cellSize + 6}px;${cellStyle(loc)}border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
-                        onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'">
+                        onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
+                        onclick="window.copyLocationToClipboard(event, '${loc.id}')">
                         ${cellInner(loc)}
                     </div>${tooltipHtml(loc)}</div>`;
             });
@@ -3580,21 +5250,34 @@ function renderCorridor(idx) {
 
     let bodyHtml = '';
 
-    if (isStarZone) {
-        const allLocs = originalData.filter(d => d.id.charAt(0) === '★')
-            .sort((a, b) => parseInt((a.id.match(/\d+$/) || [0])[0]) - parseInt((b.id.match(/\d+$/) || [0])[0]));
-        const half = Math.ceil(allLocs.length / 2);
+    // 모든 구역 모드(범례 ON) vs 단일 구역 모드 분기
+    const itemsToRender = (_mapShowAllZones && _mapLegendFilter)
+        ? svCorridorList
+        : (svCorridorList[idx] ? [svCorridorList[idx]] : []);
+
+    itemsToRender.forEach(item => {
+        const isStarZone = item.zone === '★';
+
+        if (isStarZone) {
+            const allLocs = originalData.filter(d => d.id.charAt(0) === '★')
+                .sort((a, b) => parseInt((a.id.match(/\d+$/) || [0])[0]) - parseInt((b.id.match(/\d+$/) || [0])[0]));
+            // 필터 ON 시 ★구역에 매칭 슬롯 0개면 통째로 건너뜀
+            if (_mapLegendFilter && !allLocs.some(l => matchesLegendFilter(l))) return;
+            const half = Math.ceil(allLocs.length / 2);
         const topLocs = allLocs.slice(0, half);
         const botLocs = allLocs.slice(half);
 
         // ★★구역 cellSize는 슬라이더 값 사용
 
         function starRow(locs) {
+            // 필터 ON 시: 매칭 슬롯 0개면 빈 문자열 반환
+            if (_mapLegendFilter && !locs.some(l => matchesLegendFilter(l))) return '';
             const idFontSize = Math.max(7, Math.floor(cellSize / 8));
             const nameFontSize = Math.max(10, Math.floor(cellSize / 5));
             const maxChars = Math.max(4, Math.floor((cellSize - 6) / (nameFontSize * 0.55)));
             let h = `<div style="padding:8px;display:flex;flex-wrap:wrap;gap:3px;">`;
             locs.forEach(loc => {
+                if (!matchesLegendFilter(loc)) return; // 미매칭 셀은 출력 안 함
                 const tid = 'tip-' + (loc.id || '').replace(/[^a-zA-Z0-9]/g, '_');
                 const nameText = hasContent(loc) ? (loc.name || loc.code || '') : '';
                 const nameColor = hasContent(loc) ? '#1b5e20' : '#999';
@@ -3603,7 +5286,8 @@ function renderCorridor(idx) {
                     onmouseenter="(function(e){var t=document.getElementById('${tid}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
                     onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
                     <div style="width:${cellSize}px;height:${cellSize+6}px;${cellStyle(loc)}border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
-                        onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'">
+                        onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
+                        onclick="window.copyLocationToClipboard(event, '${loc.id}')">
                         <div style="font-size:${idFontSize}px;color:#bbb;line-height:1.1;">${loc.id}</div>
                         <div style="font-size:${nameFontSize}px;font-weight:bold;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize-4}px;text-align:center;line-height:1.3;">${displayName}</div>
                     </div>${tooltipHtml(loc)}</div>`;
@@ -3612,15 +5296,15 @@ function renderCorridor(idx) {
             return h;
         }
 
-        bodyHtml = `
+        bodyHtml += `
             <div style="border:1px solid #ddd;border-radius:10px;overflow:hidden;">
                 <div style="background:#f4f4f4;padding:6px 16px;font-size:13px;font-weight:bold;color:#3d5afe;border-bottom:1px solid #ddd;">★★ 구역</div>
                 ${starRow(topLocs)}
-                <div style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fafafa;padding:7px 16px;border-top:1px solid #eee;border-bottom:1px solid #eee;">
+                ${_mapLegendFilter ? '' : `<div style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fafafa;padding:7px 16px;border-top:1px solid #eee;border-bottom:1px solid #eee;">
                     <div style="font-size:11px;color:#ccc;letter-spacing:4px;">← ← ←</div>
                     <div style="font-size:11px;color:#bbb;font-weight:bold;">★★ 통로</div>
                     <div style="font-size:11px;color:#ccc;letter-spacing:4px;">→ → →</div>
-                </div>
+                </div>`}
                 ${starRow(botLocs)}
             </div>`;
     } else {
@@ -3638,6 +5322,8 @@ function renderCorridor(idx) {
                 d.id.charAt(0).toUpperCase() === item.zone &&
                 (d.dong || '').toString().trim() === dong
             );
+            // 필터 ON 시 이 동에 매칭 슬롯 0개면 동 통째로 건너뜀
+            if (_mapLegendFilter && !allLocs.some(l => matchesLegendFilter(l))) return;
 
             const posSet = new Set();
             allLocs.forEach(d => { if (d.pos) posSet.add((d.pos || '').toString().trim()); });
@@ -3675,14 +5361,19 @@ function renderCorridor(idx) {
                         <div style="font-size:13px;font-weight:bold;color:#3d5afe;">${item.zone}구역 ${dong}동</div>
                     </div>
                     ${buildRackSection(leftLocs, numsByPos, posLabels, 'left', cellSize)}
-                    <div style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fafafa;padding:5px 16px;border-top:1px solid #eee;border-bottom:1px solid #eee;">
+                    ${_mapLegendFilter ? '' : `<div style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fafafa;padding:5px 16px;border-top:1px solid #eee;border-bottom:1px solid #eee;">
                         <div style="font-size:11px;color:#ccc;letter-spacing:4px;">← ← ←</div>
                         <div style="font-size:11px;color:#bbb;font-weight:bold;">${dong}동 통로</div>
                         <div style="font-size:11px;color:#ccc;letter-spacing:4px;">→ → →</div>
-                    </div>
+                    </div>`}
                     ${buildRackSection(rightLocs, numsByPos, posLabels, 'right', cellSize)}
                 </div>`;
         });
+    }
+    }); // itemsToRender.forEach 닫기
+
+    if (!bodyHtml.trim()) {
+        bodyHtml = '<div style="text-align:center;padding:60px;color:#aaa;font-size:14px;">📭 선택한 필터에 매칭되는 자리가 없습니다.</div>';
     }
 
     mapBody.innerHTML = `
@@ -3697,6 +5388,1117 @@ function renderCorridor(idx) {
         </div>
     `;
 }
+// ===== v4.3: 추천 갯수 드롭다운 + 우선순위 선택 UI =====
+// 변경: 라디오 → 드롭다운, 사용자지정은 prompt() 1회성 (저장 안 함)
+//      우선순위 선택 추가 (동 이동 / 위치 이동)
+(function setupRecLimitUI() {
+    // v4.3: 사용자지정 값은 메모리에만 저장 (localStorage 사용 안 함, 1회성)
+    let _customLimitValue = null; // 마지막 사용자지정 값 (페이지 세션 동안 유지)
+    let _lastNonCustomMode = '10'; // prompt 취소 시 되돌아갈 직전 값
+    
+    window._getRecommendLimit = function() {
+        const select = document.getElementById('rec-limit-select');
+        if (!select) return 10;
+        const mode = select.value;
+        if (mode === 'custom') {
+            if (_customLimitValue && _customLimitValue >= 1) return _customLimitValue;
+            return 10;
+        }
+        return parseInt(mode, 10) || 10;
+    };
+    
+    // v4.3: 단독 추천 우선순위 모드 ('dong' = 동 이동, 'pos' = 위치 이동)
+    window._getRecPriorityMode = function() {
+        const select = document.getElementById('rec-priority-mode');
+        if (!select) return 'dong';
+        return select.value || 'dong';
+    };
+    
+    window._initRecLimitUI = function() {
+        const select = document.getElementById('rec-limit-select');
+        const prioritySelect = document.getElementById('rec-priority-mode');
+        const editBtn = document.getElementById('rec-limit-edit-btn');
+        if (!select) return;
+        
+        const panel = document.getElementById('rec-limit-panel');
+        if (panel && !panel.dataset.bound) {
+            panel.dataset.bound = '1';
+            
+            // 추천 갯수 드롭다운 change 이벤트
+            select.addEventListener('change', () => {
+                if (select.value === 'custom') {
+                    _promptCustomLimit(select);
+                } else {
+                    // 일반 옵션 선택: 직전 값 기록 후 재계산
+                    _lastNonCustomMode = select.value;
+                    updateCustomDisplay();
+                    triggerRecalcIfNeeded();
+                }
+            });
+            
+            // v4.4 v3: 사용자지정 값 변경 버튼 (사용자지정 선택 시에만 표시됨)
+            // 사용자지정으로 N개 적용 후 다른 N개로 바꿀 때 사용
+            if (editBtn) {
+                editBtn.addEventListener('click', () => {
+                    _promptCustomLimit(select);
+                });
+            }
+        }
+        
+        // 우선순위 드롭다운 change 이벤트
+        if (prioritySelect && !prioritySelect.dataset.bound) {
+            prioritySelect.dataset.bound = '1';
+            prioritySelect.addEventListener('change', () => {
+                triggerRecalcIfNeeded();
+            });
+        }
+        
+        updateCustomDisplay();
+    };
+    
+    // v4.4 v3: 사용자지정 prompt 로직을 별도 함수로 분리
+    function _promptCustomLimit(select) {
+        const promptDefault = _customLimitValue ? String(_customLimitValue) : '';
+        const input = window.prompt('추천 갯수를 입력하세요 (1 이상)', promptDefault);
+        
+        if (input === null) {
+            // 취소: select.value가 'custom'이 아니면 직전 값으로 되돌림
+            // (변경 버튼에서 호출된 경우엔 이미 'custom' 상태이므로 그대로 유지)
+            if (select.value !== 'custom') {
+                select.value = _lastNonCustomMode;
+            }
+            updateCustomDisplay();
+            return; // 재계산 안 함
+        }
+        
+        const num = parseInt(input.trim(), 10);
+        if (isNaN(num) || num < 1) {
+            alert('올바른 숫자를 입력하세요 (1 이상)');
+            if (select.value !== 'custom') {
+                select.value = _lastNonCustomMode;
+            }
+            updateCustomDisplay();
+            return;
+        }
+        
+        _customLimitValue = num;
+        // select.value는 'custom'으로 유지 (이미 그렇거나, 변경 버튼 경유)
+        updateCustomDisplay();
+        triggerRecalcIfNeeded();
+    }
+    
+    function updateCustomDisplay() {
+        const select = document.getElementById('rec-limit-select');
+        const display = document.getElementById('rec-limit-custom-display');
+        const numSpan = document.getElementById('rec-limit-custom-num');
+        const editBtn = document.getElementById('rec-limit-edit-btn');
+        if (!select || !display || !numSpan) return;
+        if (select.value === 'custom' && _customLimitValue) {
+            display.style.display = 'inline';
+            numSpan.textContent = String(_customLimitValue);
+            // v4.4 v3: 사용자지정 선택 시 변경 버튼 표시
+            if (editBtn) editBtn.style.display = 'inline-block';
+        } else {
+            display.style.display = 'none';
+            // v4.4 v3: 사용자지정 아닐 때 변경 버튼 숨김
+            if (editBtn) editBtn.style.display = 'none';
+        }
+    }
+    
+    function triggerRecalcIfNeeded() {
+        // v4.1: 활성 탭 기준으로 재계산
+        const pairTbody = document.getElementById('recommend-tbody');
+        const singleTbody = document.getElementById('recommend-single-tbody');
+        const pairTab = document.getElementById('rec-tab-pair');
+        const singleTab = document.getElementById('rec-tab-single');
+        
+        // 어떤 탭이 활성화되어 있고 결과가 있는지 확인
+        const singleActive = singleTab && singleTab.style.display !== 'none';
+        const pairActive = pairTab && pairTab.style.display !== 'none';
+        
+        if (singleActive && singleTbody && singleTbody.children.length > 0 && typeof window.showSingleRecommendation === 'function') {
+            window.showSingleRecommendation();
+        } else if (pairActive && pairTbody && pairTbody.children.length > 0 && typeof window.showPairRecommendation === 'function') {
+            window.showPairRecommendation();
+        }
+    }
+})();
+
+// ===== v4.1: 단독 추천 기능 =====
+window.switchRecTab = function(tabName) {
+    const singleTab = document.getElementById('rec-tab-single');
+    const pairTab = document.getElementById('rec-tab-pair');
+    const singleBtn = document.getElementById('rec-tab-btn-single');
+    const pairBtn = document.getElementById('rec-tab-btn-pair');
+    if (!singleTab || !pairTab || !singleBtn || !pairBtn) return;
+    
+    if (tabName === 'single') {
+        singleTab.style.display = '';
+        pairTab.style.display = 'none';
+        singleBtn.style.background = '#4caf50';
+        singleBtn.style.color = 'white';
+        pairBtn.style.background = '#e0e0e0';
+        pairBtn.style.color = '#555';
+    } else if (tabName === 'pair') {
+        singleTab.style.display = 'none';
+        pairTab.style.display = '';
+        singleBtn.style.background = '#e0e0e0';
+        singleBtn.style.color = '#555';
+        pairBtn.style.background = '#4caf50';
+        pairBtn.style.color = 'white';
+    }
+};
+
+window.runActiveRecommendation = function() {
+    // 활성 탭에 맞는 계산 실행
+    const singleTab = document.getElementById('rec-tab-single');
+    const singleActive = singleTab && singleTab.style.display !== 'none';
+    if (singleActive) {
+        window.showSingleRecommendation();
+    } else {
+        window.showPairRecommendation();
+    }
+};
+
+// 1. [v4.2-fix1] showSingleRecommendation 함수 수정 부분
+window.showSingleRecommendation = function() {
+    window.showLoading("📦 단독 추천을 계산 중입니다...");
+    
+    setTimeout(() => {
+        try {
+            window.currentSingleRecommendations = [];
+            
+            // ===== 1. 점수 계산 (페어 추천과 동일한 정규화 방식) =====
+            const allCodes = new Set(
+                originalData
+                    .filter(d => d.code && d.code.trim() !== '' && d.code !== d.id)
+                    .filter(d => !(incomingTotalByCode[d.code.trim()] > 0))
+                    .map(d => d.code.trim())
+            );
+            
+            let maxZQty = 0;
+            let maxWQty = 0;
+            let maxTrend = 0;
+            let itemDataList = [];
+            
+            allCodes.forEach(code => {
+                let zItem = zikjinData[code] || {};
+                let wItem = weeklyData[code] || {};
+                let locItem = originalData.find(d => d.code === code);
+                let name = (locItem && locItem.name) || zItem['상품명'] || wItem['상품명'] || '알 수 없음';
+                let zQty = Number(zItem['수량'] || 0);
+                let wQty = Number(wItem['기간배송수량'] || wItem['기간발주수량'] || 0);
+                let trendVal = 0;
+                let dates = Object.keys(wItem).filter(k => /^20\d{6}$/.test(k)).sort();
+                if (dates.length >= 6) {
+                    let recent3 = dates.slice(-3).reduce((sum, d) => sum + Number(wItem[d] || 0), 0);
+                    let prev3 = dates.slice(-6, -3).reduce((sum, d) => sum + Number(wItem[d] || 0), 0);
+                    trendVal = Math.max(0, recent3 - prev3);
+                }
+                if (zQty > maxZQty) maxZQty = zQty;
+                if (wQty > maxWQty) maxWQty = wQty;
+                if (trendVal > maxTrend) maxTrend = trendVal;
+                itemDataList.push({ code, name, zQty, wQty, trendVal });
+            });
+            
+            const scoredItems = [];
+            itemDataList.forEach(item => {
+                let zScore = maxZQty > 0 ? (item.zQty / maxZQty) * 100 : 0;
+                let wScore = maxWQty > 0 ? (item.wQty / maxWQty) * 100 : 0;
+                let tScore = maxTrend > 0 ? (item.trendVal / maxTrend) * 100 : 0;
+                let finalScore = (zScore * (window.recommendRatios.zikjin / 100)) + (wScore * (window.recommendRatios.weekly / 100)) + (tScore * (window.recommendRatios.trend / 100));
+                
+                if (finalScore > 0) {
+                    const currentLocs = originalData.filter(d => d.code === item.code).map(d => d.id);
+                    scoredItems.push({
+                        code: item.code,
+                        name: item.name,
+                        score: finalScore,
+                        currentLocs: currentLocs
+                    });
+                }
+            });
+            scoredItems.sort((a, b) => b.score - a.score);
+            
+            // ===== 2. 빈 자리 준비 =====
+            let emptyLocs = originalData.filter(d => {
+                const hasContent = (d.code && d.code !== d.id && d.code.trim() !== "") || (d.name && d.name.trim() !== "");
+                if (hasContent || d.preAssigned) return false;
+                const excludeCombos = window.recommendPriorities.excludeCombos || [];
+                if (excludeCombos.length > 0) {
+                    const prefix = (d.id || '').charAt(0).toUpperCase();
+                    const dong = (d.dong || '').toString().trim();
+                    const combo = `${prefix}-${dong}`;
+                    if (excludeCombos.includes(combo)) return false;
+                }
+                return true;
+            });
+            
+            // ===== 3. 헬퍼: 등급/동/위치 순위 =====
+            const getZoneRank = (locId) => {
+                const prefix = (locId || '').charAt(0).toUpperCase();
+                const zones = window.recommendPriorities.zones || {};
+                for (let i = 0; i <= 3; i++) {
+                    if (zones[i] && zones[i].includes(prefix)) return i;
+                }
+                return 99;
+            };
+            const getDongRank = (dong) => {
+                const str = (dong || '').toString().trim();
+                const idx = window.recommendPriorities.dongs.indexOf(str);
+                return idx !== -1 ? idx : 99;
+            };
+            const getPosRank = (pos) => {
+                const str = (pos || '').toString().trim();
+                const idx = window.recommendPriorities.poses.indexOf(str);
+                return idx !== -1 ? idx : 99;
+            };
+            
+            // ===== 4. 빈 자리 정렬: 동 > 위치 > 구역 (사전순) =====
+            emptyLocs.sort((a, b) => {
+                const dRankA = getDongRank(a.dong);
+                const dRankB = getDongRank(b.dong);
+                if (dRankA !== dRankB) return dRankA - dRankB;
+                const pRankA = getPosRank(a.pos);
+                const pRankB = getPosRank(b.pos);
+                if (pRankA !== pRankB) return pRankA - pRankB;
+                return getZoneRank(a.id) - getZoneRank(b.id);
+            });
+            console.log('[v4.1] 단독 추천: 빈 자리 총', emptyLocs.length, '개 / 점수 있는 상품', scoredItems.length, '개');
+            
+            // ===== 5. 갯수 제한 =====
+            const limitVal = (typeof window._getRecommendLimit === 'function') ? window._getRecommendLimit() : 10;
+            
+            // ===== 6. 점수 1위부터 순서대로 자리 배정 =====
+            const tbody = document.getElementById('recommend-single-tbody');
+            let html = '';
+            let matchCount = 0;
+            let skipNoCurrentLoc = 0;
+            let skipNoBetterSlot = 0;
+            const usedEmptyKeys = new Set();
+            
+            // v4.3: 우선순위 모드 ('dong' = 동 이동, 'pos' = 위치 이동)
+            const priorityMode = (typeof window._getRecPriorityMode === 'function') ? window._getRecPriorityMode() : 'dong';
+            
+            // v4.3: isBetterSlot을 우선순위 모드에 따라 분기
+            //   - 'dong' 모드: 새 자리 동이 현재보다 앞 동이어야만 더 좋은 자리 (같은 동은 제외)
+            //   - 'pos'  모드: 같은 동 내에서 새 위치가 현재보다 앞 위치여야만 더 좋은 자리
+            //                  (동 이동 제외, 같은 위치에서 구역만 변경되는 것도 제외)
+            const isBetterSlot = (slotInfo, currentInfo) => {
+                if (priorityMode === 'pos') {
+                    // 위치 이동 모드: 같은 동 + 더 앞 위치만
+                    if (slotInfo.dongRank !== currentInfo.dongRank) return false; // 동 다르면 제외
+                    return slotInfo.posRank < currentInfo.posRank; // 위치만 비교 (같은 위치/구역만 다른 경우 제외)
+                }
+                // 'dong' 모드 (기본): 더 앞 동만
+                return slotInfo.dongRank < currentInfo.dongRank;
+            };
+            
+            const getLocInfo = (locId) => {
+                const locData = originalData.find(d => d.id === locId);
+                if (!locData) return null;
+                return {
+                    id: locId,
+                    dongRank: getDongRank(locData.dong),
+                    posRank: getPosRank(locData.pos),
+                    zoneRank: getZoneRank(locId),
+                    dong: (locData.dong || '').toString().trim()
+                };
+            };
+            const getEmptyLocInfo = (eLoc) => {
+                return {
+                    id: eLoc.id,
+                    dongRank: getDongRank(eLoc.dong),
+                    posRank: getPosRank(eLoc.pos),
+                    zoneRank: getZoneRank(eLoc.id),
+                    dong: (eLoc.dong || '').toString().trim()
+                };
+            };
+            
+            const getOptionByCode = (code) => {
+                const locData = originalData.find(d => d.code === code);
+                return (locData && locData.option) ? locData.option : '';
+            };
+            
+            for (let i = 0; i < scoredItems.length; i++) {
+                if (limitVal > 0 && matchCount >= limitVal) break;
+                
+                const item = scoredItems[i];
+                
+                const currentLocId = item.currentLocs && item.currentLocs[0];
+                if (!currentLocId) {
+                    skipNoCurrentLoc++;
+                    continue;
+                }
+                const currentInfo = getLocInfo(currentLocId);
+                if (!currentInfo) {
+                    skipNoCurrentLoc++;
+                    continue;
+                }
+                
+                let foundSlot = null;
+                for (let j = 0; j < emptyLocs.length; j++) {
+                    const eLoc = emptyLocs[j];
+                    if (usedEmptyKeys.has(eLoc.id)) continue;
+                    const slotInfo = getEmptyLocInfo(eLoc);
+                    if (isBetterSlot(slotInfo, currentInfo)) {
+                        foundSlot = eLoc;
+                        break;
+                    }
+                }
+                
+                if (!foundSlot) {
+                    skipNoBetterSlot++;
+                    continue;
+                }
+                
+                const option = getOptionByCode(item.code);
+                const rowBg = matchCount % 2 === 0 ? '#ffffff' : '#fafafa';
+                
+                html += `
+                    <tr style="background:${rowBg};">
+                        <td style="text-align:center; color:var(--primary); font-weight:900; font-size:14px; padding:12px 6px;">
+                            ${matchCount + 1}위
+                        </td>
+                        <td style="padding:10px 8px; font-size:12px;">
+                            <div style="font-weight:bold; color:#1976d2;">${item.code}</div>
+                            <div style="color:#333; margin-top:2px;">${item.name}</div>
+                            <div style="color:#888; font-size:11px; margin-top:2px;">옵션: ${option || '-'}</div>
+                        </td>
+                        <td style="text-align:center; padding:10px 6px;">
+                            <div style="font-weight:bold; color:#555; font-size:13px;">${currentInfo.id}</div>
+                            <div style="font-size:10px; color:#777; margin-top:2px;">${currentInfo.dong}동</div>
+                        </td>
+                        <td style="text-align:center; padding:10px 6px; background:#e8f5e9;">
+                            <div style="font-weight:bold; color:#2e7d32; font-size:13px;">${foundSlot.id}</div>
+                            <div style="font-size:10px; color:#555; margin-top:2px;">${(foundSlot.dong || '').toString().trim()}동</div>
+                        </td>
+                    </tr>
+                `;
+                
+                usedEmptyKeys.add(foundSlot.id);
+                
+                // v4.2-fix1: 페어 추천에서 사용할 정보 추가 저장
+                const slotInfo = getEmptyLocInfo(foundSlot);
+                window.currentSingleRecommendations.push({
+                    currentLocs: currentInfo.id,
+                    targetLoc: foundSlot.id,
+                    name: item.name,
+                    option: option,
+                    code: item.code,
+                    // v4.2-fix1 추가 필드
+                    score: item.score,
+                    currentInfo: currentInfo,
+                    targetInfo: slotInfo
+                });
+                
+                matchCount++;
+            }
+            
+            // v4.2-fix1: 페어 추천에서 사용할 추가 데이터 보관
+            window._lastSingleRecContext = {
+                emptyLocs: emptyLocs,
+                usedEmptyKeys: new Set(usedEmptyKeys),
+                getZoneRank: getZoneRank,
+                getDongRank: getDongRank,
+                getPosRank: getPosRank,
+                getEmptyLocInfo: getEmptyLocInfo
+            };
+            
+            console.log('[v4.1] 단독 추천 종료: 성공', matchCount, '개 / 건너뜀(현재자리없음)', skipNoCurrentLoc, '개 / 건너뜀(이미최적)', skipNoBetterSlot, '개 / 엑셀 데이터', window.currentSingleRecommendations.length, '개');
+            
+            if (matchCount === 0) {
+                html += '<tr><td colspan="4" style="padding:40px; text-align:center; color:#666;">표시할 추천이 없습니다.<br>(모든 상품이 이미 최적 자리에 있거나, 더 좋은 빈 자리가 없습니다)</td></tr>';
+            }
+            
+            tbody.innerHTML = html;
+            window.hideLoading();
+            document.getElementById('recommend-modal').style.display = 'flex';
+            
+        } catch (err) {
+            console.error('[v4.1] showSingleRecommendation 에러:', err);
+            window.hideLoading();
+            alert('단독 추천 계산 중 오류가 발생했습니다. 콘솔(F12)을 확인해주세요.');
+        }
+    }, 500);
+};
+
+// ===== v4.2-fix1: 페어 추천 (단독 추천 기반, 자리 재배정 포함) =====
+// 알고리즘:
+//   1. 단독 추천 결과(currentSingleRecommendations)와 컨텍스트(_lastSingleRecContext) 사용
+//   2. 단독 추천이 없으면 안내 메시지 후 종료
+//   3. 페어 데이터 로드 (lift >= 2.0, count >= 5, 상위 5개 partner)
+//   4. 단독 추천 결과를 1위부터 순회하며 페어 묶기 (weight 높은 partner 우선)
+//   5. 자리 재배정:
+//      - 더 위 순위 상품(base) = 단독 추천 자리 그대로 유지
+//      - 파트너 = base 근처(같은 동, 같은 구역 우선)로 끌어옴
+//      - 파트너의 원래 단독 자리는 비워짐 (페어 탭 표시 전용)
+//      - 근처 빈 자리 없으면 페어 매칭 포기
+//   6. 자리 변동 없는 페어(케이스 A) = 표시 안 함
+window.showPairRecommendation = function() {
+    window.showLoading("🔗 페어 추천을 계산 중입니다...");
+    
+    setTimeout(() => {
+        try {
+            window.currentRecommendations = [];
+            
+            // ===== 1. 단독 추천 결과 확인 =====
+            const singleRecs = window.currentSingleRecommendations || [];
+            const ctx = window._lastSingleRecContext || null;
+            
+            if (singleRecs.length === 0 || !ctx) {
+                window.hideLoading();
+                const tbody = document.getElementById('recommend-tbody');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding:40px; text-align:center; color:#666;">먼저 단독 추천을 실행해주세요.<br>(페어 추천은 단독 추천 결과를 기반으로 동작합니다)</td></tr>';
+                }
+                document.getElementById('recommend-modal').style.display = 'flex';
+                console.warn('[v4.2-fix1] 단독 추천 결과 없음 또는 컨텍스트 없음');
+                return;
+            }
+            
+            console.log('[v4.2-fix1] 페어 추천 시작: 단독 추천 결과', singleRecs.length, '개');
+            
+            // ===== 2. 페어 데이터 준비 (신뢰 페어만 추출) =====
+            const pairMap = {};
+            let pairDataReady = false;
+            
+            try {
+                if (window._cachedOrderPairs && window._cachedOrderStats && window._cachedOrderMeta) {
+                    const pairs = window._cachedOrderPairs;
+                    const stats = window._cachedOrderStats;
+                    const meta = window._cachedOrderMeta;
+                    const N = meta.totalProcessedOrders || 1;
+                    
+                    pairs.forEach(p => {
+                        const cA = (stats[p.codeA] || {}).count || 0;
+                        const cB = (stats[p.codeB] || {}).count || 0;
+                        if (cA === 0 || cB === 0) return;
+                        const lift = (p.count * N) / (cA * cB);
+                        if (p.count < 5 || lift < 2.0) return;
+                        const weight = lift * p.count;
+                        if (!pairMap[p.codeA]) pairMap[p.codeA] = [];
+                        if (!pairMap[p.codeB]) pairMap[p.codeB] = [];
+                        pairMap[p.codeA].push({ partner: p.codeB, weight: weight });
+                        pairMap[p.codeB].push({ partner: p.codeA, weight: weight });
+                    });
+                    
+                    for (const code in pairMap) {
+                        pairMap[code].sort((a, b) => b.weight - a.weight);
+                        pairMap[code] = pairMap[code].slice(0, 5);
+                    }
+                    pairDataReady = true;
+                    console.log('[v4.2-fix1] 페어 데이터 로드 완료: pairMap 상품 수 =', Object.keys(pairMap).length);
+                }
+            } catch (e) {
+                console.warn('[v4.2-fix1] 페어 데이터 캐시 사용 실패:', e);
+            }
+            
+            if (!pairDataReady) {
+                window.hideLoading();
+                const tbody = document.getElementById('recommend-tbody');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding:40px; text-align:center; color:#666;">페어 데이터가 준비되지 않았습니다.<br>(주문 데이터를 업로드하거나 페어 분석을 먼저 실행해주세요)</td></tr>';
+                }
+                document.getElementById('recommend-modal').style.display = 'flex';
+                return;
+            }
+            
+            // ===== 3. 단독 추천 결과를 빠르게 조회하기 위한 맵 =====
+            const singleByCode = {};
+            singleRecs.forEach((s, idx) => {
+                singleByCode[s.code] = Object.assign({}, s, { singleRank: idx });
+            });
+            
+            // ===== 4. 페어 묶기 (단독 추천 결과 안에서) =====
+            const matchedPairs = []; // [{ baseItem, partnerItem, partnerNewSlot }]
+            const usedCodes = new Set();
+            const usedNewSlots = new Set(); // 페어 재배정으로 사용된 자리 (중복 방지)
+            
+            for (let i = 0; i < singleRecs.length; i++) {
+                const base = singleRecs[i];
+                if (usedCodes.has(base.code)) continue;
+                
+                const partners = pairMap[base.code] || [];
+                if (partners.length === 0) continue;
+                
+                // partner를 weight 높은 순으로 검색 (pairMap이 이미 정렬됨)
+                let foundPartner = null;
+                for (let p = 0; p < partners.length; p++) {
+                    const partnerCode = partners[p].partner;
+                    if (usedCodes.has(partnerCode)) continue;
+                    if (!singleByCode[partnerCode]) continue; // 단독 추천 결과 안에 없으면 제외
+                    foundPartner = singleByCode[partnerCode];
+                    break;
+                }
+                
+                if (!foundPartner) continue;
+                
+                // ===== 5. 자리 재배정: 파트너를 base 근처로 끌어옴 =====
+                // base의 단독 추천 자리 정보
+                const baseTargetInfo = base.targetInfo;
+                if (!baseTargetInfo) continue; // 안전장치
+                
+                const baseDong = baseTargetInfo.dong;
+                const baseZone = (base.targetLoc || '').charAt(0).toUpperCase();
+                const basePosRank = baseTargetInfo.posRank;
+                
+                // 점유된 자리 집합 구성:
+                // - 단독 추천에서 쓰인 모든 자리 (단, 파트너 자신의 자리는 비워짐)
+                // - 이미 페어로 재배정된 자리들
+                // - base 자신의 자리도 점유 중
+                const occupiedKeys = new Set(ctx.usedEmptyKeys);
+                occupiedKeys.delete(foundPartner.targetLoc); // 파트너의 단독 자리는 비워짐
+                usedNewSlots.forEach(k => occupiedKeys.add(k));
+                occupiedKeys.add(base.targetLoc); // base 자신의 자리는 점유 유지
+                
+                // 같은 동의 빈 자리 후보 (점유 안 된 것만)
+                const sameDongSlots = ctx.emptyLocs.filter(eLoc => {
+                    if (occupiedKeys.has(eLoc.id)) return false;
+                    const eDong = (eLoc.dong || '').toString().trim();
+                    return eDong === baseDong;
+                });
+                
+                if (sameDongSlots.length === 0) {
+                    // 근처 빈 자리 없음 → 페어 매칭 포기
+                    continue;
+                }
+                
+                // 우선순위: 같은 동 + 같은 구역 우선, 그 다음 같은 동의 다른 구역
+                const sameZoneInSameDong = sameDongSlots.filter(eLoc => {
+                    return (eLoc.id || '').charAt(0).toUpperCase() === baseZone;
+                });
+                const otherZoneInSameDong = sameDongSlots.filter(eLoc => {
+                    return (eLoc.id || '').charAt(0).toUpperCase() !== baseZone;
+                });
+                
+                // 각 그룹 안에서 위치(pos)가 base와 가까운 순으로 정렬
+                const posDistSort = (a, b) => {
+                    const aDist = Math.abs(ctx.getPosRank(a.pos) - basePosRank);
+                    const bDist = Math.abs(ctx.getPosRank(b.pos) - basePosRank);
+                    return aDist - bDist;
+                };
+                sameZoneInSameDong.sort(posDistSort);
+                otherZoneInSameDong.sort(posDistSort);
+                
+                const candidateOrder = sameZoneInSameDong.concat(otherZoneInSameDong);
+                const partnerNewSlot = candidateOrder[0]; // 가장 가까운 빈 자리
+                
+                if (!partnerNewSlot) continue; // 안전장치
+                
+                // ===== 6. 케이스 A 제외: 자리 변동 없으면 표시 안 함 =====
+                // 파트너의 단독 추천 자리와 새 자리가 같으면 변동 없음 (케이스 A)
+                if (partnerNewSlot.id === foundPartner.targetLoc) {
+                    // 변동 없음 → 페어 추천에서 제외
+                    continue;
+                }
+                
+                matchedPairs.push({
+                    baseItem: base,
+                    partnerItem: foundPartner,
+                    partnerNewSlot: partnerNewSlot
+                });
+                
+                usedCodes.add(base.code);
+                usedCodes.add(foundPartner.code);
+                usedNewSlots.add(partnerNewSlot.id);
+            }
+            
+            console.log('[v4.2-fix1] 페어 매칭 완료:', matchedPairs.length, '쌍');
+            
+            // ===== 7. 화면 출력 =====
+            const tbody = document.getElementById('recommend-tbody');
+            let html = '';
+            
+            for (let i = 0; i < matchedPairs.length; i++) {
+                const mp = matchedPairs[i];
+                const itemA = mp.baseItem;       // 더 위 순위, 자리 유지
+                const itemB = mp.partnerItem;     // 파트너, 자리 재배정됨
+                
+                // A는 단독 추천 자리 그대로, B는 새로 재배정된 자리
+                const slotA_id = itemA.targetLoc;
+                const slotA_dong = (itemA.targetInfo && itemA.targetInfo.dong) || '';
+                const slotB_id = mp.partnerNewSlot.id;
+                const slotB_dong = (mp.partnerNewSlot.dong || '').toString().trim();
+                
+                const aCurrentLoc = itemA.currentLocs || '-';
+                const bCurrentLoc = itemB.currentLocs || '-';
+                const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
+                
+                html += `
+                    <tr style="background:${rowBg};">
+                        <td style="text-align:center; color:var(--primary); font-weight:900; font-size:14px; padding:12px 6px;">
+                            ${i + 1}위
+                        </td>
+                        <td style="padding:10px 8px; font-size:12px;">
+                            <div style="font-weight:bold; color:#1976d2;">${itemA.code}</div>
+                            <div style="color:#333; margin-top:2px;">${itemA.name}</div>
+                            <div style="color:#888; font-size:11px; margin-top:2px;">옵션: ${itemA.option || '-'}</div>
+                            <div style="color:#777; font-size:11px; margin-top:3px;">현재: ${aCurrentLoc}</div>
+                        </td>
+                        <td style="text-align:center; padding:10px 6px; background:#e8f5e9;">
+                            <div style="font-weight:bold; color:#2e7d32; font-size:13px;">${slotA_id}</div>
+                            <div style="font-size:10px; color:#555; margin-top:2px;">${slotA_dong}동</div>
+                        </td>
+                        <td style="padding:10px 8px; font-size:12px;">
+                            <div style="font-weight:bold; color:#1976d2;">${itemB.code}</div>
+                            <div style="color:#333; margin-top:2px;">${itemB.name}</div>
+                            <div style="color:#888; font-size:11px; margin-top:2px;">옵션: ${itemB.option || '-'}</div>
+                            <div style="color:#777; font-size:11px; margin-top:3px;">현재: ${bCurrentLoc}</div>
+                        </td>
+                        <td style="text-align:center; padding:10px 6px; background:#e8f5e9;">
+                            <div style="font-weight:bold; color:#2e7d32; font-size:13px;">${slotB_id}</div>
+                            <div style="font-size:10px; color:#555; margin-top:2px;">${slotB_dong}동</div>
+                        </td>
+                    </tr>
+                `;
+                
+                // 엑셀 데이터 저장
+                window.currentRecommendations.push({
+                    currentLocs: aCurrentLoc,
+                    targetLoc: slotA_id,
+                    name: itemA.name,
+                    option: itemA.option,
+                    code: itemA.code
+                });
+                window.currentRecommendations.push({
+                    currentLocs: bCurrentLoc,
+                    targetLoc: slotB_id,
+                    name: itemB.name,
+                    option: itemB.option,
+                    code: itemB.code
+                });
+            }
+            
+            console.log('[v4.2-fix1] 페어 추천 종료: 표시', matchedPairs.length, '쌍 / 엑셀 데이터', window.currentRecommendations.length, '개');
+            
+            if (matchedPairs.length === 0) {
+                html = '<tr><td colspan="5" style="padding:40px; text-align:center; color:#666;">표시할 페어 쌍이 없습니다.<br>(단독 추천 결과 안에 페어로 묶일 상품이 없거나, 근처에 빈 자리가 부족합니다)</td></tr>';
+            }
+            
+            if (tbody) tbody.innerHTML = html;
+            window.hideLoading();
+            document.getElementById('recommend-modal').style.display = 'flex';
+            
+        } catch (err) {
+            console.error('[v4.2-fix1] showPairRecommendation 에러:', err);
+            window.hideLoading();
+            alert('페어 추천 계산 중 오류가 발생했습니다. 콘솔(F12)을 확인해주세요.');
+        }
+    }, 500);
+};
+// ====================================================================
+// ===== v4.4: 종합 대시보드 + 전일 재고 스냅샷 (메인 시스템 연동) =====
+// ====================================================================
+// 알고리즘:
+//   1. 메인 시스템의 artifacts/team-work-logger-v2/history 컬렉션 감시
+//   2. 새 문서(YYYY-MM-DD) 추가 = 업무 마감 발생 → 재고 스냅샷 저장
+//   3. 페이지 로드 시 사후 보정: 마지막 history 날짜 vs 저장된 재고 날짜 비교
+//      - 다르면 마감 후 미저장 상태 → 현재 시점에 사후 저장
+//   4. 저장 구조: artifacts/team-work-logger-v2/locationStock/latest
+//      { current: {...}, previous: {...} } 형태로 직전 1개만 유지
+//   5. 종합 대시보드 탭: 사용률 팝업 내용 + SKU + 재고회전율 통합
+(function v44Module() {
+    // ===== 유틸: 오늘 날짜 문자열 (메인 시스템과 동일 KST 보정 방식) =====
+    window._v44_getTodayDateString = function() {
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        const localDate = new Date(now - offset);
+        return localDate.toISOString().slice(0, 10);
+    };
+    
+    // ===== 현재 재고 집계 =====
+    // 3층은 originalData에서 stock 합산, 2F는 캐시된 데이터에서 가져옴
+    window._v44_calculateCurrentStock = function() {
+        let stock3F = 0;
+        const codes3F = new Set();
+        // v4.4 추가: 2층 창고재고 SKU (stock2f > 0인 셀의 고유 상품코드)
+        const codes2층 = new Set();
+        try {
+            (originalData || []).forEach(loc => {
+                const s = Number(loc.stock || 0);
+                if (!isNaN(s) && s > 0) stock3F += s;
+                const c = (loc.code || '').toString().trim();
+                if (c && c !== loc.id) codes3F.add(c);
+                // 2층창고재고 값이 0이 아닌 셀의 상품코드 모음
+                const s2 = Number(loc.stock2f || 0);
+                if (!isNaN(s2) && s2 > 0 && c && c !== loc.id) {
+                    codes2층.add(c);
+                }
+            });
+        } catch (e) {
+            console.warn('[v4.4] 3층 재고 집계 오류:', e);
+        }
+        
+        const cached2F = window._cached2FloorStock || {};
+        const stock2F = Number(cached2F.totalStock || 0);
+        const sku2F = Number(cached2F.skuCount || 0);
+        
+        return {
+            stock3F: stock3F,
+            stock2F: stock2F,
+            sku3F: codes3F.size,
+            sku2F: sku2F,
+            sku2층: codes2층.size, // v4.4 추가: 2층 창고재고 SKU
+            date: window._v44_getTodayDateString()
+        };
+    };
+    
+    // ===== 2F 캐시 로드 =====
+    window._v44_load2FloorCache = async function() {
+        try {
+            const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'locationStock', 'twoFloorLatest');
+            const snap = await getDoc(docRef);
+            if (snap.exists()) {
+                window._cached2FloorStock = snap.data();
+                console.log('[v4.4] 2F 캐시 로드 완료: SKU', window._cached2FloorStock.skuCount, '개');
+            } else {
+                window._cached2FloorStock = { skuCount: 0, totalStock: 0 };
+                console.log('[v4.4] 2F 캐시 없음 (첫 적용)');
+            }
+        } catch (e) {
+            console.warn('[v4.4] 2F 캐시 로드 실패:', e);
+            window._cached2FloorStock = { skuCount: 0, totalStock: 0 };
+        }
+    };
+    
+    // ===== 재고 스냅샷 로드 =====
+    window._v44_loadStockSnapshot = async function() {
+        try {
+            const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'locationStock', 'latest');
+            const snap = await getDoc(docRef);
+            if (snap.exists()) {
+                window._cachedStockSnapshot = snap.data();
+                console.log('[v4.4] 재고 스냅샷 로드: current.date =', (window._cachedStockSnapshot.current || {}).date, '/ previous.date =', (window._cachedStockSnapshot.previous || {}).date);
+            } else {
+                window._cachedStockSnapshot = { current: null, previous: null };
+                console.log('[v4.4] 재고 스냅샷 없음 (첫 적용)');
+            }
+        } catch (e) {
+            console.warn('[v4.4] 재고 스냅샷 로드 실패:', e);
+            window._cachedStockSnapshot = { current: null, previous: null };
+        }
+    };
+    
+    // ===== 재고 스냅샷 저장 (v4.4 v2: 일일 최신화 업로드 시 호출) =====
+    // 변경 이유: 마감 시점 트리거 → 일일 최신화 트리거로 변경
+    //   - 마감 시점은 그날의 originalData 변동이 없을 수 있어 회전율 0% 문제 발생
+    //   - 일일 최신화는 실제 새 재고 데이터가 들어오는 시점이라 의미 있음
+    // 흐름:
+    //   - current.date < 오늘 → 새 영업일 시작: 이전 current를 previous로 이동, 새 current 저장
+    //   - current.date == 오늘 → 당일 내 업데이트: previous 유지, current만 덮어쓰기
+    //   - current 없음 → 첫 적용: current만 저장
+    window._v44_saveStockSnapshot = async function() {
+        const newCurrent = window._v44_calculateCurrentStock();
+        const today = window._v44_getTodayDateString();
+        newCurrent.date = today;
+        newCurrent.savedAt = new Date();
+        
+        const existing = window._cachedStockSnapshot || { current: null, previous: null };
+        const oldCurrent = existing.current;
+        const oldCurrentDate = oldCurrent?.date || '';
+        
+        let newPrevious;
+        let logMode;
+        if (oldCurrentDate && oldCurrentDate < today) {
+            // 새 영업일 시작 → 어제 마지막 값을 previous로 이동
+            newPrevious = oldCurrent;
+            logMode = `새 영업일 시작 (이전 current[${oldCurrentDate}] → previous로 이동)`;
+        } else if (oldCurrentDate === today) {
+            // 당일 내 업데이트 → previous 그대로, current만 갱신
+            newPrevious = existing.previous || null;
+            logMode = `당일 내 갱신 (previous 유지)`;
+        } else {
+            // 첫 적용 (current 없음)
+            newPrevious = existing.previous || null;
+            logMode = `첫 저장`;
+        }
+        
+        const newSnapshot = {
+            current: newCurrent,
+            previous: newPrevious
+        };
+        
+        try {
+            const docRef = doc(db, 'artifacts', 'team-work-logger-v2', 'locationStock', 'latest');
+            await setDoc(docRef, newSnapshot);
+            window._cachedStockSnapshot = newSnapshot;
+            console.log(`[v4.4] 재고 스냅샷 저장 완료: ${logMode} / 3층 ${newCurrent.stock3F} / 2층 ${newCurrent.stock2F}`);
+            return true;
+        } catch (e) {
+            console.error('[v4.4] 재고 스냅샷 저장 실패:', e);
+            return false;
+        }
+    };
+    
+    // ===== v4.4 v2: history 리스너 제거됨 =====
+    // 이전 v4.4: 메인 시스템의 history 컬렉션 onSnapshot 감지 → 마감 시점에 재고 저장
+    // 변경 이유: 마감 시점 originalData가 그날 일일 최신화 결과와 같으면 회전율 0% 문제
+    // 새 방식: 일일 최신화 업로드 시점에 저장 (updateDatabaseA 함수가 _v44_saveStockSnapshot 직접 호출)
+    // 사용자 운영 패턴상 마감 후 일일 최신화 없음 → 의미 있는 회전율 자연스럽게 나옴
+    window._v44_setupHistoryListener = function() {
+        console.log('[v4.4] history 리스너는 사용하지 않음 (일일 최신화 업로드 트리거 방식)');
+    };
+    
+    // ===== v4.4 v2: 사후 보정 제거됨 =====
+    // 이전 v4.4: 페이지 로드 시 history 최신 문서 vs 저장된 재고 날짜 비교 → 사후 저장
+    // 변경 이유: history 리스너 제거에 따라 사후 보정 불필요
+    // 일일 최신화 업로드가 명시적 트리거이므로 사후 보정 개념 자체가 없음
+    window._v44_postLoadCheck = async function() {
+        // No-op
+    };
+    
+    // ===== 재고회전율 계산 =====
+    // 산출식: (전일 - 오늘) / 전일 × 100 (음수도 그대로 표시)
+    window._v44_calculateTurnover = function() {
+        const snap = window._cachedStockSnapshot || {};
+        const current = snap.current;
+        const previous = snap.previous;
+        
+        // 데이터 부족
+        if (!current || !previous) {
+            return {
+                sufficient: false,
+                message: '데이터 부족 (다음 일일 최신화 후 계산 가능)'
+            };
+        }
+        
+        // v4.4 v2: 부호 반전. 증가=양수, 감소=음수
+        // 산출식: (current - previous) / previous × 100
+        const calc = (prev, curr) => {
+            if (!prev || prev === 0) return null; // 0 나누기 방지
+            return ((curr - prev) / prev) * 100;
+        };
+        
+        const rate3F = calc(previous.stock3F || 0, current.stock3F || 0);
+        const rate2F = calc(previous.stock2F || 0, current.stock2F || 0);
+        const prevTotal = (previous.stock3F || 0) + (previous.stock2F || 0);
+        const currTotal = (current.stock3F || 0) + (current.stock2F || 0);
+        const rateAll = calc(prevTotal, currTotal);
+        
+        return {
+            sufficient: true,
+            previousDate: previous.date || previous.triggerDate,
+            currentDate: current.date || current.triggerDate,
+            rate3F: rate3F,
+            rate2F: rate2F,
+            rateAll: rateAll,
+            previousStock3F: previous.stock3F,
+            previousStock2F: previous.stock2F,
+            currentStock3F: current.stock3F,
+            currentStock2F: current.stock2F
+        };
+    };
+    
+    // ===== 대시보드 렌더링 =====
+    window._v44_renderDashboard = function() {
+        const container = document.getElementById('dashboard-content');
+        if (!container) return;
+        
+        // 1. 요약 카드용 데이터
+        const currentStock = window._v44_calculateCurrentStock();
+        const turnover = window._v44_calculateTurnover();
+        
+        // 당일지정수량 / 선지정수량 (기존 사용률 팝업과 동일 계산)
+        let codeTagCount = 0;
+        let preAssignCount = 0;
+        try {
+            (originalData || []).forEach(loc => {
+                if (loc.codeTag && loc.codeTag.trim() !== '') codeTagCount++;
+                if (loc.preAssigned) preAssignCount++;
+            });
+        } catch (e) {}
+        
+        const sku3F = currentStock.sku3F;
+        const sku2F = currentStock.sku2F;
+        const sku2층 = currentStock.sku2층 || 0; // v4.4: 2층 창고재고 SKU
+        // v4.4: 총 SKU = 3층 SKU + 2층 SKU (2F SKU는 별도 표시)
+        const skuTotal = sku3F + sku2층;
+        
+        // 카드 렌더링 헬퍼
+        const card = (icon, title, value, sub, color) => {
+            return `<div style="background:white; border:1px solid #e0e0e0; border-radius:8px; padding:12px 16px; min-width:140px; flex:1; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:4px;">${icon} ${title}</div>
+                <div style="font-size:22px; font-weight:900; color:${color || '#333'};">${value}</div>
+                ${sub ? `<div style="font-size:11px; color:#999; margin-top:3px;">${sub}</div>` : ''}
+            </div>`;
+        };
+        
+        const formatRate = (rate) => {
+            if (rate === null || rate === undefined) return '-';
+            const sign = rate > 0 ? '+' : '';
+            const color = rate > 0 ? '#e65100' : (rate < 0 ? '#1976d2' : '#666');
+            return `<span style="color:${color};">${sign}${rate.toFixed(1)}%</span>`;
+        };
+        
+        // 첫째 줄: 지정 + SKU
+        // v4.4 v3: 2F SKU 카드 삭제 - 순서 = 당일지정 / 선지정 / 3층 SKU / 2층 SKU / 총 SKU
+        let cardsRow1 = '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">';
+        cardsRow1 += card('📌', '당일지정수량', codeTagCount.toLocaleString());
+        cardsRow1 += card('🔒', '선지정수량', preAssignCount.toLocaleString());
+        cardsRow1 += card('📦', '3층 SKU', sku3F.toLocaleString(), '고유 상품코드');
+        cardsRow1 += card('🏬', '2층 SKU', sku2층.toLocaleString(), '2층창고재고 보유');
+        cardsRow1 += card('🎯', '총 SKU', skuTotal.toLocaleString(), '3층 + 2층');
+        cardsRow1 += '</div>';
+        
+        // 둘째 줄: 재고회전율
+        // v4.4 v3: 재고회전율(2F) 삭제 - 3층 + 합산만 표시
+        let cardsRow2 = '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px;">';
+        if (!turnover.sufficient) {
+            cardsRow2 += `<div style="background:#fff8e1; border:1px solid #ffd54f; border-radius:8px; padding:12px 16px; flex:1; font-size:12px; color:#a36800;">
+                ⚠️ ${turnover.message}<br>
+                <span style="font-size:11px; color:#999;">일일 최신화 업로드를 2영업일 이상 반복하면 회전율이 계산됩니다</span>
+            </div>`;
+        } else {
+            // v4.4 v2: 날짜+수량을 두 줄로 표시
+            const sub3F = `${turnover.previousDate}: ${(turnover.previousStock3F || 0).toLocaleString()}<br>${turnover.currentDate}: ${(turnover.currentStock3F || 0).toLocaleString()}`;
+            const prevTotal = (turnover.previousStock3F || 0) + (turnover.previousStock2F || 0);
+            const currTotal = (turnover.currentStock3F || 0) + (turnover.currentStock2F || 0);
+            const subAll = `${turnover.previousDate}: ${prevTotal.toLocaleString()}<br>${turnover.currentDate}: ${currTotal.toLocaleString()}`;
+            cardsRow2 += card('🔄', '재고회전율 (3층)', formatRate(turnover.rate3F), sub3F);
+            cardsRow2 += card('🔄', '재고회전율 (합산)', formatRate(turnover.rateAll), subAll);
+        }
+        cardsRow2 += '</div>';
+        
+        // 2. 기존 사용률 데이터 통합 (3층 + 2층)
+        // 기존 calculateAndRenderUsage 결과를 가져오기 위해 임시로 popup div 사용
+        // → 더 깔끔하게 직접 계산
+        const usage3FHtml = window._v44_renderUsage3F();
+        const usage2FHtml = window._v44_renderUsage2F();
+        
+        const sectionTitle = (text) => `<div style="font-size:14px; font-weight:bold; color:var(--primary); margin:12px 0 8px 0; padding-bottom:4px; border-bottom:2px solid #e0e0e0;">${text}</div>`;
+        
+        container.innerHTML = `
+            <div style="padding: 8px 12px;">
+                ${sectionTitle('📊 요약 정보')}
+                ${cardsRow1}
+                ${cardsRow2}
+                
+                ${sectionTitle('🏢 3층 로케이션 사용률')}
+                <div style="margin-bottom:18px;">${usage3FHtml}</div>
+                
+                ${sectionTitle('🏬 2층 창고 사용률')}
+                <div>${usage2FHtml}</div>
+            </div>
+        `;
+    };
+    
+    // ===== 3층 사용률 렌더링 (기존 calculateAndRenderUsage의 3F 부분 재사용) =====
+    window._v44_renderUsage3F = function() {
+        // 기존 사용률 팝업과 동일한 계산 로직을 임시로 호출
+        // → 가장 간단: 기존 함수를 호출 후 그 결과 HTML을 추출
+        // 그러나 popup div는 별도 영역이므로, 여기서는 임시로 hidden div 사용
+        const tempDiv = document.createElement('div');
+        tempDiv.id = '_v44_temp_usage';
+        tempDiv.style.display = 'none';
+        document.body.appendChild(tempDiv);
+        
+        const prevTab = window.currentUsageTab;
+        window.currentUsageTab = '3F';
+        
+        // 기존 사용률 함수가 usage-popup에 출력하므로 임시로 그 div를 대체
+        const popupEl = document.getElementById('usage-popup');
+        const fakePopup = document.createElement('div');
+        fakePopup.id = 'usage-popup';
+        if (popupEl && popupEl.parentNode) {
+            popupEl.id = '_v44_real_popup';
+        }
+        tempDiv.appendChild(fakePopup);
+        
+        let html = '';
+        try {
+            window.calculateAndRenderUsage();
+            // 첫 줄(탭 버튼)은 제거
+            const inner = fakePopup.innerHTML;
+            // 탭 버튼 div를 제거하기 위해 첫 </div> 이후만 사용
+            const firstDivEnd = inner.indexOf('</div>');
+            if (firstDivEnd >= 0) {
+                html = inner.substring(firstDivEnd + 6);
+            } else {
+                html = inner;
+            }
+        } catch (e) {
+            console.warn('[v4.4] 3층 사용률 렌더링 실패:', e);
+            html = '<div style="padding:20px; text-align:center; color:#999;">사용률 정보를 불러올 수 없습니다.</div>';
+        }
+        
+        // 원복
+        window.currentUsageTab = prevTab;
+        if (document.getElementById('_v44_real_popup')) {
+            document.getElementById('_v44_real_popup').id = 'usage-popup';
+        }
+        tempDiv.remove();
+        
+        return html;
+    };
+    
+    // ===== 2층 사용률 렌더링 (기존 함수 재사용) =====
+    window._v44_renderUsage2F = function() {
+        const tempDiv = document.createElement('div');
+        tempDiv.id = '_v44_temp_usage2';
+        tempDiv.style.display = 'none';
+        document.body.appendChild(tempDiv);
+        
+        const prevTab = window.currentUsageTab;
+        window.currentUsageTab = '2F';
+        
+        const popupEl = document.getElementById('usage-popup');
+        const fakePopup = document.createElement('div');
+        fakePopup.id = 'usage-popup';
+        if (popupEl && popupEl.parentNode) {
+            popupEl.id = '_v44_real_popup2';
+        }
+        tempDiv.appendChild(fakePopup);
+        
+        let html = '';
+        try {
+            window.calculateAndRenderUsage();
+            const inner = fakePopup.innerHTML;
+            const firstDivEnd = inner.indexOf('</div>');
+            if (firstDivEnd >= 0) {
+                html = inner.substring(firstDivEnd + 6);
+            } else {
+                html = inner;
+            }
+        } catch (e) {
+            console.warn('[v4.4] 2F 사용률 렌더링 실패:', e);
+            html = '<div style="padding:20px; text-align:center; color:#999;">2F 사용률 정보를 불러올 수 없습니다.</div>';
+        }
+        
+        window.currentUsageTab = prevTab;
+        if (document.getElementById('_v44_real_popup2')) {
+            document.getElementById('_v44_real_popup2').id = 'usage-popup';
+        }
+        tempDiv.remove();
+        
+        return html;
+    };
+    
+    // ===== 초기화 (페이지 로드 후 호출됨) =====
+    window._v44_init = async function() {
+        try {
+            console.log('[v4.4] 초기화 시작');
+            // 1. 2F 캐시 + 재고 스냅샷 로드
+            await window._v44_load2FloorCache();
+            await window._v44_loadStockSnapshot();
+            
+            // 2. 사후 보정 체크
+            await window._v44_postLoadCheck();
+            
+            // 3. history 리스너 설정 (이후 업무 마감 자동 감지)
+            window._v44_setupHistoryListener();
+            
+            console.log('[v4.4] 초기화 완료');
+        } catch (e) {
+            console.warn('[v4.4] 초기화 오류:', e);
+        }
+    };
+})();
+
+// ════════════════════════════════════════════════════════════
+// 📍 [병합] 로케이션 현황 대시보드 (배포본 v3.94에서 이식)
+//    별도 탭 'view-locdash'에서 렌더. v44 종합 대시보드와 독립.
+// ════════════════════════════════════════════════════════════
 
 // ============================================================
 // 📊 로케이션 현황 대시보드
