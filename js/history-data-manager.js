@@ -13,12 +13,17 @@ let lastUnverifiedCheckTime = 0;
 let historyFetchPromise = null;
 let unverifiedFetchPromise = null;
 
+// 이력 캐시 TTL. 과거 이력은 변하지 않으므로 길게 캐싱(읽기 요금 절감).
+// 오늘 데이터는 실시간 동기화(syncTodayToHistory)로 별도 갱신되므로 영향 없음.
+const HISTORY_CACHE_TTL_MS = 30 * 60 * 1000; // 30분
+
 // ✨ 데이터가 변경되었을 때 로컬 캐시를 초기화하는 헬퍼 함수 (읽기 요금 방어용)
+// localStorage 사용: 탭 간 공유 + 새로고침/재시작 후에도 유지되어 중복 읽기 최소화.
 const clearLocalCache = () => {
-    sessionStorage.removeItem('historyDataCache');
-    sessionStorage.removeItem('historyDataCacheTime');
-    sessionStorage.removeItem('unverifiedDataCache');
-    sessionStorage.removeItem('unverifiedDataCacheTime');
+    localStorage.removeItem('historyDataCache');
+    localStorage.removeItem('historyDataCacheTime');
+    localStorage.removeItem('unverifiedDataCache');
+    localStorage.removeItem('unverifiedDataCacheTime');
 };
 
 export const getWorkRecordsCollectionRef = () => {
@@ -276,17 +281,18 @@ export async function fetchAllHistoryData(forceRefresh = false) {
         return State.allHistoryData;
     }
 
-    // ✨ 브라우저 세션 스토리지 확인 (새로고침 시 DB 읽기 요금 방어)
+    // ✨ 로컬 스토리지 확인 (새로고침·새 탭 시 DB 읽기 요금 방어). 과거 이력은 변하지 않으므로 길게 캐싱.
     if (!forceRefresh) {
-        const cached = sessionStorage.getItem('historyDataCache');
-        const cacheTime = sessionStorage.getItem('historyDataCacheTime');
+        const cached = localStorage.getItem('historyDataCache');
+        const cacheTime = localStorage.getItem('historyDataCacheTime');
         const now = Date.now();
-        // 5분(300,000ms) 이내의 캐시가 있다면 통신 없이 바로 재사용!
-        if (cached && cacheTime && (now - parseInt(cacheTime) < 300000)) {
+        if (cached && cacheTime && (now - parseInt(cacheTime) < HISTORY_CACHE_TTL_MS)) {
             try {
                 State.allHistoryData.length = 0;
                 State.allHistoryData.push(...JSON.parse(cached));
                 isHistoryCached = true;
+                // 🛡️ 오늘 행은 캐시 값이 오래됐을 수 있으므로 실시간 메모리 상태로 덮어써 항상 최신 유지
+                try { syncTodayToHistory(); } catch (e) {}
                 return State.allHistoryData;
             } catch(e) {}
         }
@@ -344,9 +350,14 @@ export async function fetchAllHistoryData(forceRefresh = false) {
             
             isHistoryCached = true; 
             
-            // ✨ 성공적으로 가져왔다면 브라우저 메모리에 캐싱
-            sessionStorage.setItem('historyDataCache', JSON.stringify(State.allHistoryData));
-            sessionStorage.setItem('historyDataCacheTime', Date.now().toString());
+            // ✨ 성공적으로 가져왔다면 로컬 스토리지에 캐싱 (용량 초과 시 안전하게 스킵)
+            try {
+                localStorage.setItem('historyDataCache', JSON.stringify(State.allHistoryData));
+                localStorage.setItem('historyDataCacheTime', Date.now().toString());
+            } catch (e) {
+                console.warn('[history cache] localStorage 저장 실패(용량 초과 가능) — 캐시 없이 진행:', e);
+                try { localStorage.removeItem('historyDataCache'); localStorage.removeItem('historyDataCacheTime'); } catch (_) {}
+            }
 
             return State.allHistoryData;
         } catch (error) {
@@ -530,9 +541,9 @@ export async function checkUnverifiedRecords(forceRefresh = false) {
 
     // ✨ 브라우저 세션 스토리지 캐시 확인
     if (!forceRefresh) {
-        const cached = sessionStorage.getItem('unverifiedDataCache');
-        const cacheTime = sessionStorage.getItem('unverifiedDataCacheTime');
-        if (cached && cacheTime && (now - parseInt(cacheTime) < 300000)) { // 5분
+        const cached = localStorage.getItem('unverifiedDataCache');
+        const cacheTime = localStorage.getItem('unverifiedDataCacheTime');
+        if (cached && cacheTime && (now - parseInt(cacheTime) < HISTORY_CACHE_TTL_MS)) {
             try {
                 cachedUnverifiedDates = JSON.parse(cached);
                 lastUnverifiedCheckTime = now;
@@ -572,8 +583,10 @@ export async function checkUnverifiedRecords(forceRefresh = false) {
             cachedUnverifiedDates = unverifiedDates;
             lastUnverifiedCheckTime = Date.now();
             
-            sessionStorage.setItem('unverifiedDataCache', JSON.stringify(unverifiedDates));
-            sessionStorage.setItem('unverifiedDataCacheTime', Date.now().toString());
+            try {
+                localStorage.setItem('unverifiedDataCache', JSON.stringify(unverifiedDates));
+                localStorage.setItem('unverifiedDataCacheTime', Date.now().toString());
+            } catch (e) { /* 용량 초과 시 캐시 스킵 */ }
 
             return unverifiedDates; 
         } catch (e) {

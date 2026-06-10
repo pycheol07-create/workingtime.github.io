@@ -366,10 +366,10 @@ export const openHistoryQuantityModal = (dateKey) => {
 
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
 
-            sessionStorage.removeItem('historyDataCache');
-            sessionStorage.removeItem('historyDataCacheTime');
-            sessionStorage.removeItem('unverifiedDataCache');
-            sessionStorage.removeItem('unverifiedDataCacheTime');
+            localStorage.removeItem('historyDataCache');
+            localStorage.removeItem('historyDataCacheTime');
+            localStorage.removeItem('unverifiedDataCache');
+            localStorage.removeItem('unverifiedDataCacheTime');
 
             if (dateKey === getTodayDateString()) {
                  const dailyDocRef = getDailyDocRef();
