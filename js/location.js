@@ -281,10 +281,11 @@ window.onload = () => {
     if (typeof window.loadOrderPairsCache === 'function') {
         window.loadOrderPairsCache();
     }
-    // [삭제됨] v4.4 종합 대시보드 제거 — _v44_init 백그라운드 초기화(history 리스너/스냅샷) 비활성화
-    // if (typeof window._v44_init === 'function') {
-    //     setTimeout(() => { window._v44_init(); }, 1500);
-    // }
+    // v4.4 종합 대시보드 UI는 제거됐으나, 대시보드의 '재고 회전율' 지표를 위해
+    // 재고 스냅샷 파이프라인(load/snapshot)은 유지한다.
+    if (typeof window._v44_init === 'function') {
+        setTimeout(() => { window._v44_init(); }, 1500);
+    }
 };
 
 window.handleDragStart = (e) => {
@@ -5756,21 +5757,19 @@ window.showSingleRecommendation = function() {
                 
                 html += `
                     <tr style="background:${rowBg};">
-                        <td style="text-align:center; color:var(--primary); font-weight:900; font-size:14px; padding:12px 6px;">
-                            ${matchCount + 1}위
+                        <td style="text-align:center; color:var(--primary); font-weight:900; font-size:13px; padding:5px 6px;">${matchCount + 1}</td>
+                        <td style="padding:5px 8px; font-size:12px; line-height:1.35;">
+                            <span style="font-weight:bold; color:#1976d2;">${item.code}</span>
+                            <span style="color:#333;"> · ${item.name}</span>
+                            ${option ? `<span style="color:#999; font-size:11px;"> (${option})</span>` : ''}
                         </td>
-                        <td style="padding:10px 8px; font-size:12px;">
-                            <div style="font-weight:bold; color:#1976d2;">${item.code}</div>
-                            <div style="color:#333; margin-top:2px;">${item.name}</div>
-                            <div style="color:#888; font-size:11px; margin-top:2px;">옵션: ${option || '-'}</div>
+                        <td style="text-align:center; padding:5px 6px; white-space:nowrap;">
+                            <span style="font-weight:bold; color:#555; font-size:12px;">${currentInfo.id}</span>
+                            <span style="font-size:10px; color:#999;"> ${currentInfo.dong}동</span>
                         </td>
-                        <td style="text-align:center; padding:10px 6px;">
-                            <div style="font-weight:bold; color:#555; font-size:13px;">${currentInfo.id}</div>
-                            <div style="font-size:10px; color:#777; margin-top:2px;">${currentInfo.dong}동</div>
-                        </td>
-                        <td style="text-align:center; padding:10px 6px; background:#e8f5e9;">
-                            <div style="font-weight:bold; color:#2e7d32; font-size:13px;">${foundSlot.id}</div>
-                            <div style="font-size:10px; color:#555; margin-top:2px;">${(foundSlot.dong || '').toString().trim()}동</div>
+                        <td style="text-align:center; padding:5px 6px; background:#e8f5e9; white-space:nowrap;">
+                            <span style="font-weight:bold; color:#2e7d32; font-size:12px;">${foundSlot.id}</span>
+                            <span style="font-size:10px; color:#777;"> ${(foundSlot.dong || '').toString().trim()}동</span>
                         </td>
                     </tr>
                 `;
@@ -6026,28 +6025,26 @@ window.showPairRecommendation = function() {
                 
                 html += `
                     <tr style="background:${rowBg};">
-                        <td style="text-align:center; color:var(--primary); font-weight:900; font-size:14px; padding:12px 6px;">
-                            ${i + 1}위
+                        <td style="text-align:center; color:var(--primary); font-weight:900; font-size:13px; padding:5px 6px;">${i + 1}</td>
+                        <td style="padding:5px 8px; font-size:12px; line-height:1.35;">
+                            <span style="font-weight:bold; color:#1976d2;">${itemA.code}</span>
+                            <span style="color:#333;"> · ${itemA.name}</span>
+                            ${itemA.option ? `<span style="color:#999; font-size:11px;"> (${itemA.option})</span>` : ''}
+                            <span style="color:#777; font-size:11px;"> · 현재 ${aCurrentLoc}</span>
                         </td>
-                        <td style="padding:10px 8px; font-size:12px;">
-                            <div style="font-weight:bold; color:#1976d2;">${itemA.code}</div>
-                            <div style="color:#333; margin-top:2px;">${itemA.name}</div>
-                            <div style="color:#888; font-size:11px; margin-top:2px;">옵션: ${itemA.option || '-'}</div>
-                            <div style="color:#777; font-size:11px; margin-top:3px;">현재: ${aCurrentLoc}</div>
+                        <td style="text-align:center; padding:5px 6px; background:#e8f5e9; white-space:nowrap;">
+                            <span style="font-weight:bold; color:#2e7d32; font-size:12px;">${slotA_id}</span>
+                            <span style="font-size:10px; color:#777;"> ${slotA_dong}동</span>
                         </td>
-                        <td style="text-align:center; padding:10px 6px; background:#e8f5e9;">
-                            <div style="font-weight:bold; color:#2e7d32; font-size:13px;">${slotA_id}</div>
-                            <div style="font-size:10px; color:#555; margin-top:2px;">${slotA_dong}동</div>
+                        <td style="padding:5px 8px; font-size:12px; line-height:1.35;">
+                            <span style="font-weight:bold; color:#1976d2;">${itemB.code}</span>
+                            <span style="color:#333;"> · ${itemB.name}</span>
+                            ${itemB.option ? `<span style="color:#999; font-size:11px;"> (${itemB.option})</span>` : ''}
+                            <span style="color:#777; font-size:11px;"> · 현재 ${bCurrentLoc}</span>
                         </td>
-                        <td style="padding:10px 8px; font-size:12px;">
-                            <div style="font-weight:bold; color:#1976d2;">${itemB.code}</div>
-                            <div style="color:#333; margin-top:2px;">${itemB.name}</div>
-                            <div style="color:#888; font-size:11px; margin-top:2px;">옵션: ${itemB.option || '-'}</div>
-                            <div style="color:#777; font-size:11px; margin-top:3px;">현재: ${bCurrentLoc}</div>
-                        </td>
-                        <td style="text-align:center; padding:10px 6px; background:#e8f5e9;">
-                            <div style="font-weight:bold; color:#2e7d32; font-size:13px;">${slotB_id}</div>
-                            <div style="font-size:10px; color:#555; margin-top:2px;">${slotB_dong}동</div>
+                        <td style="text-align:center; padding:5px 6px; background:#e8f5e9; white-space:nowrap;">
+                            <span style="font-weight:bold; color:#2e7d32; font-size:12px;">${slotB_id}</span>
+                            <span style="font-size:10px; color:#777;"> ${slotB_dong}동</span>
                         </td>
                     </tr>
                 `;
@@ -6488,6 +6485,11 @@ window.showPairRecommendation = function() {
             window._v44_setupHistoryListener();
             
             console.log('[v4.4] 초기화 완료');
+            // 재고 회전율은 스냅샷 로드 후에 계산 가능 → 로케이션 대시보드가 떠 있으면 즉시 갱신
+            const __locdashEl = document.getElementById('view-locdash');
+            if (__locdashEl && __locdashEl.style.display !== 'none' && typeof window.renderLocationDashboard === 'function') {
+                window.renderLocationDashboard();
+            }
         } catch (e) {
             console.warn('[v4.4] 초기화 오류:', e);
         }
@@ -6743,6 +6745,16 @@ window.renderLocationDashboard = function () {
     // 추천 건수 (계산된 경우만 표시 — 없으면 '계산 필요')
     const recCount = Array.isArray(window.currentRecommendations) ? window.currentRecommendations.length : 0;
 
+    // ---- 재고 회전율 (v4.4 스냅샷 기반: 전일 대비 재고 증감률) ----
+    const __turnover = (typeof window._v44_calculateTurnover === 'function')
+        ? window._v44_calculateTurnover() : { sufficient: false };
+    const __fmtRate = (rate) => {
+        if (rate === null || rate === undefined) return '-';
+        const sign = rate > 0 ? '+' : '';
+        const color = rate > 0 ? '#e65100' : (rate < 0 ? '#1976d2' : '#666');
+        return `<span style="color:${color};">${sign}${rate.toFixed(1)}%</span>`;
+    };
+
     // ---- KPI 카드 렌더 ----
     const donutSvg = (rate) => {
         const r = 22, c = 2 * Math.PI * r;
@@ -6766,10 +6778,11 @@ window.renderLocationDashboard = function () {
                 <div class="kpi-sub">${used.toLocaleString()} / ${total.toLocaleString()} 칸</div>
             </div>
         </div>
-        <div class="dash-kpi-card">
+        <div class="dash-kpi-card" style="cursor:pointer;" onclick="window.__dashShowLocList('empty')" title="클릭: 빈 자리 리스트 보기"
+            onmouseover="this.style.boxShadow='0 2px 10px rgba(61,90,254,0.25)';" onmouseout="this.style.boxShadow='';">
             <div class="kpi-icon green">🟢</div>
             <div class="kpi-body">
-                <div class="kpi-title">빈 자리</div>
+                <div class="kpi-title">빈 자리 <span style="font-size:11px; color:#90a4ae;">▸</span></div>
                 <div class="kpi-value">${empty.toLocaleString()}</div>
                 <div class="kpi-sub">전체 대비 ${total > 0 ? (empty / total * 100).toFixed(1) : 0}%</div>
             </div>
@@ -6782,10 +6795,11 @@ window.renderLocationDashboard = function () {
                 <div class="kpi-sub">평균 ${uniqueCodes > 0 ? (used / uniqueCodes).toFixed(1) : 0} 칸/상품</div>
             </div>
         </div>
-        <div class="dash-kpi-card">
+        <div class="dash-kpi-card" style="cursor:pointer;" onclick="window.__dashShowLocList('preassigned')" title="클릭: 선지정/당일지정 리스트 보기"
+            onmouseover="this.style.boxShadow='0 2px 10px rgba(230,81,0,0.25)';" onmouseout="this.style.boxShadow='';">
             <div class="kpi-icon amber">📌</div>
             <div class="kpi-body">
-                <div class="kpi-title">선지정 / 당일지정</div>
+                <div class="kpi-title">선지정 / 당일지정 <span style="font-size:11px; color:#90a4ae;">▸</span></div>
                 <div class="kpi-value">${preAssigned} <span style="font-size:14px; color:#90a4ae; font-weight:bold;">/ ${todayReserved}</span></div>
                 <div class="kpi-sub">미입고 찜 ${preAssigned}건, 오늘 작업 ${todayReserved}건</div>
             </div>
@@ -6796,6 +6810,17 @@ window.renderLocationDashboard = function () {
                 <div class="kpi-title">입고 대기</div>
                 <div class="kpi-value">${incomingCodes.length}<span style="font-size:14px; color:#90a4ae; font-weight:bold;"> 종</span></div>
                 <div class="kpi-sub">총 ${incomingQtyTotal.toLocaleString()} 개 미입고</div>
+            </div>
+        </div>
+        <div class="dash-kpi-card">
+            <div class="kpi-icon blue">🔄</div>
+            <div class="kpi-body">
+                <div class="kpi-title">재고 회전 (전일 대비)</div>
+                ${__turnover.sufficient
+                    ? `<div class="kpi-value">${__fmtRate(__turnover.rateAll)}</div>
+                       <div class="kpi-sub">3층 ${__fmtRate(__turnover.rate3F)} · ${__turnover.previousDate}→${__turnover.currentDate}</div>`
+                    : `<div class="kpi-value" style="font-size:15px; color:#a36800;">데이터 부족</div>
+                       <div class="kpi-sub">일일 최신화 2회 이상 누적 시 계산</div>`}
             </div>
         </div>
     `;
@@ -6844,8 +6869,11 @@ window.renderLocationDashboard = function () {
     const insightHtml = `
         <div class="insight-card">
             <h4>🔁 다중 위치 상품</h4>
-            <div class="ins-big">${multiLocCodes.length}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span></div>
-            <div class="ins-desc">한 상품코드가 2곳 이상 분산된 상품. 통합하면 빈 슬롯이 늘어납니다.</div>
+            <div class="ins-big" ${multiLocCodes.length > 0 ? `style="cursor:pointer; transition: color 0.15s;" onclick="window.__dashShowLocList('multiloc')" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color=''" title="전체 다중 위치 상품 리스트 보기"` : ''}>
+                ${multiLocCodes.length}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span>
+                ${multiLocCodes.length > 0 ? '<span style="font-size:11px; color:#90a4ae; font-weight:normal; margin-left:4px;">▸</span>' : ''}
+            </div>
+            <div class="ins-desc">한 상품코드가 2곳 이상 분산된 상품. 통합하면 빈 슬롯이 늘어납니다. <span style="color:#90a4ae;">(숫자 클릭: 전체 리스트)</span></div>
             <div class="ins-list">
                 ${multiLocCodes.slice(0, 5).map(([c, arr]) =>
                     `<div><span class="pill">${arr.length}곳</span> ${c}</div>`
@@ -7226,6 +7254,84 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
                 <td>${it.hasRecentActivity ? '<span style="background:#e8f5e9; color:#2e7d32; padding:2px 6px; border-radius:8px; font-size:10px; font-weight:bold;">직진 활동</span>' : '<span style=\"color:#cfd8dc;\">·</span>'}</td>
             </tr>
         `).join('');
+    }
+
+    modal.style.display = 'flex';
+};
+
+// ============================================================
+// 📍 KPI 카드 클릭 → 상세 리스트 모달 (빈자리 / 선지정·당일지정 / 다중위치)
+// ============================================================
+window.__dashShowLocList = function (type) {
+    const modal = document.getElementById('dash-loc-modal');
+    const titleEl = document.getElementById('dash-loc-title');
+    const metaEl = document.getElementById('dash-loc-meta');
+    const thead = document.getElementById('dash-loc-thead');
+    const tbody = document.getElementById('dash-loc-tbody');
+    if (!modal || !tbody || !thead) return;
+
+    const locs3F = originalData.filter(d => (d.id || '').charAt(0).toUpperCase() !== 'K');
+    const isUsed = (loc) =>
+        (loc.code && String(loc.code).trim() !== '' && loc.code !== loc.id) ||
+        (loc.name && String(loc.name).trim() !== '');
+    const setTitle = (t) => { if (titleEl) titleEl.querySelector('span').textContent = t; };
+    const th = (cols) => `<tr>${cols.map(c => `<th style="border-top:none; font-size:12px;${c.w ? `width:${c.w};` : ''}">${c.t}</th>`).join('')}</tr>`;
+
+    if (type === 'empty') {
+        const rows = locs3F.filter(l => !isUsed(l)).sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+        setTitle(`🟢 빈 자리 리스트 (${rows.length}칸)`);
+        if (metaEl) metaEl.textContent = '현재 비어 있는 3층 로케이션 — 입고/이동 배치에 사용 가능';
+        thead.innerHTML = th([{ t: '로케이션', w: '130px' }, { t: '구역', w: '80px' }, { t: '동', w: '80px' }, { t: '위치' }]);
+        tbody.innerHTML = rows.length ? rows.map(l => `<tr>
+            <td style="font-family:monospace; font-weight:bold;">${l.id}</td>
+            <td>${(l.id || '').charAt(0).toUpperCase() || '-'}</td>
+            <td>${String(l.dong || '').trim() || '-'}</td>
+            <td>${String(l.pos || '').trim() || '-'}</td></tr>`).join('')
+            : `<tr><td colspan="4" style="padding:30px; text-align:center; color:#90a4ae;">빈 자리가 없습니다.</td></tr>`;
+    } else if (type === 'preassigned') {
+        const rows = locs3F.filter(l => l.codeTag === '선지정' || l.codeTag === '당일지정')
+            .sort((a, b) => (a.codeTag || '').localeCompare(b.codeTag || '') || (a.id || '').localeCompare(b.id || ''));
+        setTitle(`📌 선지정 / 당일지정 리스트 (${rows.length}건)`);
+        if (metaEl) metaEl.textContent = '선지정(미입고 찜) · 당일지정(오늘 작업) 상태인 로케이션';
+        thead.innerHTML = th([{ t: '로케이션', w: '130px' }, { t: '구분', w: '90px' }, { t: '상품코드', w: '120px' }, { t: '상품명' }, { t: '동', w: '70px' }]);
+        const tagBadge = (tag) => tag === '선지정'
+            ? '<span style="background:#fff3e0; color:#e65100; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold;">선지정</span>'
+            : '<span style="background:#e3f2fd; color:#1565c0; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold;">당일지정</span>';
+        tbody.innerHTML = rows.length ? rows.map(l => `<tr>
+            <td style="font-family:monospace; font-weight:bold;">${l.id}</td>
+            <td>${tagBadge(l.codeTag)}</td>
+            <td style="font-family:monospace; font-size:11px;">${l.preAssignedCode || l.code || '-'}</td>
+            <td style="text-align:left; padding-left:8px;">${l.name || '-'}</td>
+            <td>${String(l.dong || '').trim() || '-'}</td></tr>`).join('')
+            : `<tr><td colspan="5" style="padding:30px; text-align:center; color:#90a4ae;">선지정/당일지정 항목이 없습니다.</td></tr>`;
+    } else if (type === 'multiloc') {
+        const codeMap = new Map();
+        locs3F.forEach(l => {
+            if (!isUsed(l) || !l.code) return;
+            const c = String(l.code).trim();
+            if (!codeMap.has(c)) codeMap.set(c, []);
+            codeMap.get(c).push(l);
+        });
+        const rows = [...codeMap.entries()].filter(([, arr]) => arr.length >= 2)
+            .map(([code, arr]) => ({
+                code, name: arr[0].name || '',
+                locs: arr.map(l => l.id).join(', '),
+                count: arr.length,
+                stock: arr.reduce((a, l) => a + Number(l.stock || 0), 0)
+            }))
+            .sort((a, b) => b.count - a.count || b.stock - a.stock);
+        setTitle(`🔁 다중 위치 상품 (${rows.length}종)`);
+        if (metaEl) metaEl.textContent = '한 상품코드가 2곳 이상에 분산된 상품 — 통합 시 빈 슬롯 확보 가능';
+        thead.innerHTML = th([{ t: '상품코드', w: '120px' }, { t: '상품명' }, { t: '분산 위치' }, { t: '칸수', w: '70px' }, { t: '정상재고', w: '90px' }]);
+        tbody.innerHTML = rows.length ? rows.map(r => `<tr>
+            <td style="font-family:monospace; font-size:11px; font-weight:bold; color:#1976d2;">${r.code}</td>
+            <td style="text-align:left; padding-left:8px;">${r.name || '-'}</td>
+            <td style="font-family:monospace; font-size:11px;">${r.locs}</td>
+            <td style="font-weight:bold;">${r.count}곳</td>
+            <td>${r.stock.toLocaleString()}</td></tr>`).join('')
+            : `<tr><td colspan="5" style="padding:30px; text-align:center; color:#90a4ae;">다중 위치 상품이 없습니다.</td></tr>`;
+    } else {
+        return;
     }
 
     modal.style.display = 'flex';

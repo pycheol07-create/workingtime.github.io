@@ -684,6 +684,26 @@
         </div>
     </div>
 
+    <!-- KPI 카드 클릭(빈자리/선지정·당일지정/다중위치) 상세 리스트 모달 -->
+    <div id="dash-loc-modal" class="modal-overlay" onclick="if(event.target.id==='dash-loc-modal') document.getElementById('dash-loc-modal').style.display='none'">
+        <div class="modal-content" onclick="event.stopPropagation()" style="width: 1000px; max-width: 96vw; max-height: 90vh; padding: 22px 20px; display:flex; flex-direction:column;">
+            <div class="modal-header" id="dash-loc-title" style="display:flex; align-items:center; justify-content:space-between;">
+                <span>리스트</span>
+                <button onclick="document.getElementById('dash-loc-modal').style.display='none'" style="background:none; border:none; font-size:24px; cursor:pointer;">×</button>
+            </div>
+            <div id="dash-loc-meta" style="font-size:12px; color:#607d8b; margin-bottom: 12px;"></div>
+            <div style="flex:1; min-height:0; overflow-y:auto; border:1px solid #ccc; border-radius:8px;">
+                <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none; font-size:12px; text-align:center;">
+                    <thead id="dash-loc-thead" style="position:sticky; top:0; box-shadow:0 2px 4px rgba(0,0,0,0.1); z-index:1;"></thead>
+                    <tbody id="dash-loc-tbody"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer" style="justify-content: flex-end; margin-top: 12px;">
+                <button class="btn-modal-cancel" style="background:#555; width:100px;" onclick="document.getElementById('dash-loc-modal').style.display='none'">닫기</button>
+            </div>
+        </div>
+    </div>
+
     <div id="dynamic-popups"></div>
 
     <div id="settings-modal" class="modal-overlay" onclick="closeSettingsModal(event)">
@@ -821,7 +841,7 @@
     </div>
 
     <div id="recommend-modal" class="modal-overlay" onclick="closeRecommendModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()" style="width: 980px; max-width: 96vw; padding: 25px 20px;">
+        <div class="modal-content" onclick="event.stopPropagation()" style="width: 1280px; max-width: 97vw; padding: 22px 20px;">
             <div class="modal-header" style="color: #4caf50; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
                 💡 로케이션 변경 리스트
                 <button onclick="window.runActiveRecommendation()" style="padding:6px 12px; font-size:13px; background:#4caf50; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🔍 계산</button>
@@ -860,7 +880,7 @@
                 <button id="rec-tab-btn-pair" onclick="window.switchRecTab('pair')" style="padding:8px 18px; font-size:13px; background:#e0e0e0; color:#555; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:bold; margin-left:2px;">🔗 페어 추천</button>
             </div>
             
-            <div id="rec-tab-single" class="modal-body" style="max-height: 55vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
+            <div id="rec-tab-single" class="modal-body" style="max-height: 72vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
                 <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
                     <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                         <tr>
@@ -874,7 +894,7 @@
                 </table>
             </div>
             
-            <div id="rec-tab-pair" class="modal-body" style="max-height: 55vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0; display:none;">
+            <div id="rec-tab-pair" class="modal-body" style="max-height: 72vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0; display:none;">
                 <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
                     <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                         <tr>
