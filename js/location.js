@@ -281,11 +281,10 @@ window.onload = () => {
     if (typeof window.loadOrderPairsCache === 'function') {
         window.loadOrderPairsCache();
     }
-    // v4.4: 종합 대시보드 + 재고 스냅샷 초기화 (history 리스너 + 사후 보정)
-    if (typeof window._v44_init === 'function') {
-        // 다른 리스너들이 먼저 초기화될 시간을 주기 위해 약간 지연
-        setTimeout(() => { window._v44_init(); }, 1500);
-    }
+    // [삭제됨] v4.4 종합 대시보드 제거 — _v44_init 백그라운드 초기화(history 리스너/스냅샷) 비활성화
+    // if (typeof window._v44_init === 'function') {
+    //     setTimeout(() => { window._v44_init(); }, 1500);
+    // }
 };
 
 window.handleDragStart = (e) => {
