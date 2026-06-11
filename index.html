@@ -248,8 +248,17 @@
                                 </h3>
                                 <button id="toggle-all-members-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">전체보기</button>
                             </div>
-                            <div id="member-status-board">
+                            <div class="grid grid-cols-1 xl:grid-cols-[1fr,290px] gap-5">
+                                <div id="member-status-board"></div>
+                                <div class="xl:border-l border-gray-100 dark:border-gray-700 xl:pl-5 pt-4 xl:pt-0 border-t xl:border-t-0">
+                                    <div class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
+                                        🗓️ 근태 예정 <span class="text-[10px] font-normal text-gray-400 dark:text-gray-500">(당일 포함)</span>
+                                    </div>
+                                    <div id="leave-schedule-widget" class="space-y-1 max-h-[360px] overflow-y-auto pr-1">
+                                        <div class="text-xs text-gray-400 italic py-2 text-center">불러오는 중…</div>
+                                    </div>
                                 </div>
+                            </div>
                         </div>
                     </div>
 

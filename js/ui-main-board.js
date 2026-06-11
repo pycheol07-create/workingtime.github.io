@@ -1,5 +1,5 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes } from './utils.js';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString } from './utils.js';
 import * as State from './state.js';
 import { getLeaveDisplayLabel } from './ui-main-utils.js';
 
@@ -401,6 +401,54 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     memberStatusBoard.appendChild(allMembersContainer);
 
     renderAttendanceToggle(appState);
+    renderLeaveScheduleWidget();
+};
+
+// 🗓️ 근태 예정 리스트 위젯 (전체 팀원 현황 옆) — 당일 포함 예정된 근태만 표시
+export const renderLeaveScheduleWidget = () => {
+    const el = document.getElementById('leave-schedule-widget');
+    if (!el) return;
+    const today = getTodayDateString();
+    const leaves = (State.persistentLeaveSchedule && State.persistentLeaveSchedule.onLeaveMembers) || [];
+
+    const items = leaves.map(l => {
+        const start = l.startDate || l.date || (l.startTime ? String(l.startTime).substring(0, 10) : '');
+        const end = l.endDate || start;
+        return { member: l.member || l.name || '', type: l.type || '', start, end };
+    }).filter(l => l.start && l.end >= today)
+      .sort((a, b) => (a.start || '').localeCompare(b.start || '') || (a.member || '').localeCompare(b.member || ''));
+
+    if (!items.length) {
+        el.innerHTML = '<div class="text-xs text-gray-400 dark:text-gray-500 italic py-3 text-center">예정된 근태가 없습니다.</div>';
+        return;
+    }
+
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    const mk = (ds) => { const p = String(ds).split('-'); return `${Number(p[1])}/${Number(p[2])}`; };
+    const dLabel = (start, end) => {
+        const diff = Math.round((new Date(start) - new Date(today)) / 86400000);
+        let head = diff === 0 ? '오늘' : (diff === 1 ? '내일' : mk(start));
+        if (end && end !== start) head += `~${mk(end)}`;
+        return head;
+    };
+    const tone = (t) => {
+        if (t.includes('연차') || t.includes('반차')) return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+        if (t.includes('출장') || t.includes('외근') || t.includes('외출')) return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300';
+        if (t.includes('결근')) return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
+        if (t.includes('재택')) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
+        if (t.includes('매장')) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+        if (t.includes('휴직')) return 'bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-200';
+        return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+    };
+
+    el.innerHTML = items.map(l => {
+        const isToday = l.start <= today && l.end >= today;
+        return `<div class="flex items-center gap-2 px-2 py-1.5 rounded-lg ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'} transition-colors">
+            <span class="text-[11px] font-bold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'} w-[56px] shrink-0">${esc(dLabel(l.start, l.end))}</span>
+            <span class="text-xs font-bold text-gray-800 dark:text-gray-200 flex-1 truncate" title="${esc(l.member)}">${esc(l.member)}</span>
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${tone(l.type)}">${esc(l.type)}</span>
+        </div>`;
+    }).join('');
 };
 
 export const renderCompletedWorkLog = (appState) => {
