@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>업무 시트 대시보드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class' }</script>
+    <style>
+        body { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
+        .data-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+        .data-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 6px 10px; border: 1px solid #e2e8f0; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+        .data-table td { padding: 5px 10px; border: 1px solid #eef2f7; color: #334155; white-space: nowrap; }
+        .data-table tr:nth-child(even) td { background: #fafcff; }
+        .num { text-align: right; font-variant-numeric: tabular-nums; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <!-- 상단 바 -->
+    <header class="bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+        <h1 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">📊 업무 시트 대시보드</h1>
+        <div class="flex items-center gap-2">
+            <button id="btn-settings" class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition">⚙️ 설정</button>
+            <button id="btn-add" class="text-xs font-bold px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition">➕ 시트 추가</button>
+            <button id="btn-refresh-all" class="text-xs font-bold px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition">🔄 전체 새로고침</button>
+        </div>
+    </header>
+
+    <!-- 로그인 안내 게이트 -->
+    <div id="auth-gate" class="hidden max-w-md mx-auto mt-24 text-center p-8 bg-white rounded-2xl shadow">
+        <div class="text-4xl mb-3">🔒</div>
+        <div class="font-bold text-slate-800 mb-1">로그인이 필요합니다</div>
+        <div class="text-sm text-slate-500">메인 앱(업무관리)에서 먼저 로그인한 뒤<br>이 페이지를 열어주세요.</div>
+    </div>
+
+    <!-- 본문 -->
+    <main id="main" class="hidden max-w-7xl mx-auto px-4 py-5 space-y-5">
+        <div id="no-config" class="hidden text-center p-10 bg-white rounded-2xl border border-dashed border-slate-300 text-slate-500">
+            먼저 <b>⚙️ 설정</b>에서 Apps Script URL을 등록하고, <b>➕ 시트 추가</b>로 요약할 시트를 등록하세요.
+        </div>
+        <div id="sheets-container" class="space-y-5"></div>
+    </main>
+
+    <!-- 설정 모달 -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+            <h2 class="text-base font-bold mb-1">⚙️ 설정</h2>
+            <p class="text-xs text-slate-500 mb-4">시트를 읽어오는 Apps Script Web App URL을 입력하세요. (키는 저장되지 않으며 이 URL만 사용)</p>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Apps Script Web App URL</label>
+            <input id="inp-script-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm mb-4">
+            <div class="flex justify-end gap-2">
+                <button data-close class="px-4 py-2 text-sm rounded-lg bg-slate-100 hover:bg-slate-200">취소</button>
+                <button id="btn-save-settings" class="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 시트 추가/편집 모달 -->
+    <div id="sheet-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+            <h2 id="sheet-modal-title" class="text-base font-bold mb-4">➕ 시트 추가</h2>
+            <input type="hidden" id="inp-sheet-localid">
+            <label class="block text-xs font-bold text-slate-600 mb-1">이름 (표시용)</label>
+            <input id="inp-sheet-name" type="text" placeholder="예: 발주 현황" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm mb-3">
+            <label class="block text-xs font-bold text-slate-600 mb-1">스프레드시트 URL 또는 ID</label>
+            <input id="inp-sheet-url" type="text" placeholder="https://docs.google.com/spreadsheets/d/...." class="w-full p-2.5 border border-slate-300 rounded-lg text-sm mb-1">
+            <p class="text-[11px] text-slate-400 mb-4">붙여넣으면 시트 ID를 자동 추출합니다. 항상 <b>첫 번째 탭</b>을 읽습니다.</p>
+            <div class="flex justify-between items-center">
+                <button id="btn-delete-sheet" class="hidden px-3 py-2 text-xs rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold">삭제</button>
+                <div class="flex gap-2 ml-auto">
+                    <button data-close class="px-4 py-2 text-sm rounded-lg bg-slate-100 hover:bg-slate-200">취소</button>
+                    <button id="btn-save-sheet" class="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 컬럼 선택 모달 -->
+    <div id="cols-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h2 class="text-base font-bold mb-1">표시할 컬럼 선택</h2>
+            <p class="text-xs text-slate-500 mb-3">대시보드에 보일 컬럼만 체크하세요.</p>
+            <input type="hidden" id="inp-cols-localid">
+            <div id="cols-list" class="max-h-72 overflow-y-auto space-y-1.5 mb-4 border border-slate-200 rounded-lg p-3"></div>
+            <div class="flex justify-end gap-2">
+                <button data-close class="px-4 py-2 text-sm rounded-lg bg-slate-100 hover:bg-slate-200">취소</button>
+                <button id="btn-save-cols" class="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold">적용</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/sheets-dashboard.js"></script>
+</body>
+</html>
