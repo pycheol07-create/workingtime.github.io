@@ -33,6 +33,7 @@ onAuthStateChanged(auth, async (user) => {
     $('main').classList.remove('hidden');
     await loadConfig();
     renderAll();
+    loadFxRate().then(rerenderKpiCards); // 환율 로드되면 ₩ 반영해 KPI 다시 렌더
 });
 
 // ───────── 설정 로드/저장 (Firestore) ─────────
@@ -128,6 +129,46 @@ function dateInPeriod(dStr, period, today) {
 }
 
 const fmtMoney = (n) => '$' + Math.round(n || 0).toLocaleString();
+const fmtKrw = (n) => '₩' + Math.round(n || 0).toLocaleString();
+
+// ───────── 환율 (USD→KRW, 자동, 6시간 캐시) ─────────
+let usdKrw = null, fxUpdated = '';
+async function loadFxRate() {
+    const KEY = 'usdkrw_fx_v1', TTL = 6 * 60 * 60 * 1000;
+    try {
+        const c = JSON.parse(localStorage.getItem(KEY) || 'null');
+        if (c && Date.now() - c.at < TTL && c.rate) { usdKrw = c.rate; fxUpdated = c.upd || ''; return; }
+    } catch (_) {}
+    // 1차: open.er-api.com (무키/CORS)
+    try {
+        const r = await fetch('https://open.er-api.com/v6/latest/USD', { cache: 'no-store' });
+        const j = await r.json();
+        if (j && j.rates && j.rates.KRW) {
+            usdKrw = j.rates.KRW;
+            fxUpdated = j.time_last_update_unix ? (() => { const d = new Date(j.time_last_update_unix * 1000); return `${d.getMonth() + 1}/${d.getDate()}`; })() : '';
+            try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), rate: usdKrw, upd: fxUpdated })); } catch (_) {}
+            return;
+        }
+    } catch (_) {}
+    // 2차: jsdelivr currency-api
+    try {
+        const r = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', { cache: 'no-store' });
+        const j = await r.json();
+        if (j && j.usd && j.usd.krw) {
+            usdKrw = j.usd.krw; fxUpdated = j.date ? j.date.slice(5).replace('-', '/') : '';
+            try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), rate: usdKrw, upd: fxUpdated })); } catch (_) {}
+        }
+    } catch (_) {}
+}
+// 환율 로드 후 KPI 카드들 다시 렌더(₩ 반영)
+function rerenderKpiCards() {
+    config.sheets.forEach(cfg => {
+        const d = cardData[cfg.localId];
+        if (!d) return;
+        const ix = detectOrderCols(d.headers);
+        if (ix) renderKpi(cfg, d, ix);
+    });
+}
 
 function renderKpi(cfg, data, idx) {
     const body = $('body-' + cfg.localId);
@@ -152,23 +193,27 @@ function renderKpi(cfg, data, idx) {
 
     const pBtns = [['today','오늘'],['week','이번주'],['month','이번달'],['year','올해']]
         .map(([k, l]) => `<button data-period="${cfg.localId}:${k}" class="px-3 py-1.5 text-xs font-bold rounded-lg ${period === k ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${l}</button>`).join('');
-    const kcard = (label, val, sub, tone) => `<div class="rounded-xl border border-slate-200 p-3.5 bg-white"><div class="text-[11px] font-bold text-slate-400 mb-1">${label}</div><div class="text-xl font-extrabold ${tone || 'text-slate-800'}">${val}</div>${sub ? `<div class="text-[11px] text-slate-400 mt-0.5">${sub}</div>` : ''}</div>`;
+    const fxLine = (usd) => usdKrw ? `<div class="text-[12px] font-bold text-slate-500 mt-0.5">${fmtKrw(usd * usdKrw)}</div>` : '';
+    const kcard = (label, usd, note, tone) => `<div class="rounded-xl border border-slate-200 p-3.5 bg-white"><div class="text-[11px] font-bold text-slate-400 mb-1">${label}</div><div class="text-xl font-extrabold ${tone || 'text-slate-800'}">${fmtMoney(usd)}</div>${fxLine(usd)}${note ? `<div class="text-[11px] text-slate-400 mt-0.5">${note}</div>` : ''}</div>`;
+    const fxCap = usdKrw
+        ? `<span class="text-[11px] text-slate-400 ml-auto">💱 1 USD ≈ ₩${Math.round(usdKrw).toLocaleString()}${fxUpdated ? ` · ${esc(fxUpdated)} 기준` : ''}</span>`
+        : `<span class="text-[11px] text-slate-300 ml-auto">환율 불러오는 중…</span>`;
 
     body.style.maxHeight = 'none';
     body.innerHTML = `
         <div class="p-4 space-y-4">
-            <div class="flex items-center gap-1.5 flex-wrap">${pBtns}<span class="text-[11px] text-slate-400 ml-1">기간별 합계</span></div>
+            <div class="flex items-center gap-1.5 flex-wrap"><span class="text-[11px] text-slate-400 mr-1">기간:</span>${pBtns}${fxCap}</div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                ${kcard('오더 총합', fmtMoney(orderTotal), '리오더 + 신상', 'text-indigo-700')}
-                ${kcard('오더 (리오더)', fmtMoney(reorder), '', 'text-slate-800')}
-                ${kcard('오더 (신상)', fmtMoney(newp), '', 'text-slate-800')}
-                ${kcard('결제 (송금)', fmtMoney(pay), '', 'text-emerald-700')}
+                ${kcard('오더 총합', orderTotal, '리오더 + 신상', 'text-indigo-700')}
+                ${kcard('오더 (리오더)', reorder, '', 'text-slate-800')}
+                ${kcard('오더 (신상)', newp, '', 'text-slate-800')}
+                ${kcard('결제 (송금)', pay, '', 'text-emerald-700')}
             </div>
             <div class="text-[11px] font-bold text-slate-400 pt-1">현재 상태${cur ? ` · 기준일 ${esc(dOf(cur))}` : ''}</div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                ${kcard('출고 예정금액 (오늘 및 이후)', fmtMoney(shipFuture), '', 'text-amber-700')}
-                ${kcard('미출고 잔액', fmtMoney(unship), '', 'text-rose-700')}
-                ${kcard('패킹 잔액', fmtMoney(pack), '', 'text-slate-800')}
+                ${kcard('출고 예정금액 (오늘 및 이후)', shipFuture, '', 'text-amber-700')}
+                ${kcard('미출고 잔액', unship, '', 'text-rose-700')}
+                ${kcard('패킹 잔액', pack, '', 'text-slate-800')}
             </div>
             <details class="pt-1">
                 <summary class="text-xs font-bold text-slate-500 cursor-pointer select-none">📋 원본 데이터 보기 (최근순)</summary>
