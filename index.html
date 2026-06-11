@@ -240,34 +240,20 @@
                                 </div>
                         </div>
 
-                        <!-- 팀원 현황 + 근태 예정(별도 위젯) 나란히 배치 -->
-                        <div class="grid grid-cols-1 xl:grid-cols-[1fr,300px] gap-6 lg:gap-8 items-start">
-                            <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 md:p-6 depth-panel transition-colors">
-                                <div class="flex justify-between items-center mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
-                                    <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                                        <span class="text-xl">🧑‍🤝‍🧑</span> 전체 팀원 현황
-                                        <span class="text-xs font-normal text-gray-400 dark:text-gray-500 hidden md:inline ml-2">(클릭하여 근태 설정/수정)</span>
-                                    </h3>
-                                    <button id="toggle-all-members-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">전체보기</button>
-                                </div>
-                                <div id="member-status-board"></div>
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 md:p-6 depth-panel transition-colors">
+                            <div class="flex justify-between items-center mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+                                <h3 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                    <span class="text-xl">🧑‍🤝‍🧑</span> 전체 팀원 현황
+                                    <span class="text-xs font-normal text-gray-400 dark:text-gray-500 hidden md:inline ml-2">(클릭하여 근태 설정/수정)</span>
+                                </h3>
+                                <button id="toggle-all-members-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">전체보기</button>
                             </div>
-
-                            <!-- 🗓️ 근태 예정 (별도 위젯, 팀원 현황 옆) -->
-                            <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 md:p-6 depth-panel transition-colors">
-                                <div class="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100 dark:border-gray-700">
-                                    <span class="text-xl">🗓️</span>
-                                    <h3 class="text-lg font-bold text-gray-800 dark:text-white">근태 예정</h3>
-                                    <span class="text-xs font-normal text-gray-400 dark:text-gray-500">(당일 포함)</span>
-                                </div>
-                                <div id="leave-schedule-widget" class="space-y-1 max-h-[420px] overflow-y-auto pr-1">
-                                    <div class="text-xs text-gray-400 italic py-2 text-center">불러오는 중…</div>
-                                </div>
-                            </div>
+                            <div id="member-status-board"></div>
                         </div>
                     </div>
 
-                    <div class="lg:col-span-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col h-fit md:max-h-[800px] transition-colors depth-panel">
+                    <div class="lg:col-span-1 space-y-8">
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col h-fit md:max-h-[800px] transition-colors depth-panel">
                         <div class="p-4 md:p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50 rounded-t-2xl shrink-0">
                             <div id="toggle-completed-log" class="flex items-center gap-2 cursor-pointer md:cursor-auto group flex-1">
                                 <h3 class="text-md font-bold text-gray-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">최근 완료된 업무</h3>
@@ -285,6 +271,19 @@
                             <div id="work-log-body" class="space-y-2 p-2"></div>
                         </div>
                     </div>
+
+                    <!-- 🗓️ 근태 예정 (우측 컬럼 — 최근 완료된 업무와 동일 위치·폭) -->
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors depth-panel">
+                        <div class="p-4 md:p-5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2 bg-gray-50/50 dark:bg-gray-800/50 rounded-t-2xl">
+                            <span class="text-lg">🗓️</span>
+                            <h3 class="text-md font-bold text-gray-800 dark:text-white">근태 예정</h3>
+                            <span class="text-xs font-normal text-gray-400 dark:text-gray-500">(당일 포함)</span>
+                        </div>
+                        <div id="leave-schedule-widget" class="p-3 space-y-1 max-h-[420px] overflow-y-auto">
+                            <div class="text-xs text-gray-400 italic py-2 text-center">불러오는 중…</div>
+                        </div>
+                    </div>
+                </div>
                 </div>
 
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mt-8 overflow-hidden transition-colors depth-panel">
