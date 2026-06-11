@@ -5614,7 +5614,12 @@ window.showSingleRecommendation = function() {
                         code: item.code,
                         name: item.name,
                         score: finalScore,
-                        currentLocs: currentLocs
+                        currentLocs: currentLocs,
+                        // v3.94 결과 양식 복원: 점수 내역(툴팁용)
+                        zContrib: zScore * (window.recommendRatios.zikjin / 100),
+                        wContrib: wScore * (window.recommendRatios.weekly / 100),
+                        tContrib: tScore * (window.recommendRatios.trend / 100),
+                        zQty: item.zQty, wQty: item.wQty, trendVal: item.trendVal
                     });
                 }
             });
@@ -5755,19 +5760,32 @@ window.showSingleRecommendation = function() {
                 const option = getOptionByCode(item.code);
                 const rowBg = matchCount % 2 === 0 ? '#ffffff' : '#fafafa';
                 
+                // v3.94 결과 양식: 이동수량(정상재고-2층재고) + 방향 뱃지 + 점수 툴팁
+                let _ts = 0, _ts2 = 0;
+                originalData.forEach(d => { if (d.code === item.code) { _ts += Number(d.stock || 0); _ts2 += Number(d.stock2f || 0); } });
+                const moveQty = _ts - _ts2;
+                const moveQtyDisplay = moveQty > 0
+                    ? `<span style="color:#e65100; font-weight:900; font-size:13px;">${moveQty.toLocaleString()}</span><span style="font-size:9px; color:#888; margin-left:1px;">개</span>`
+                    : `<span style="color:#bbb; font-size:11px;">-</span>`;
+                const _badge = (bg, fg, label) => `<span style="display:inline-block; background:${bg}; color:${fg}; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold; vertical-align:middle;">${label}</span>`;
+                const _slot = getEmptyLocInfo(foundSlot);
+                let moveBadge;
+                if (!currentLocId) moveBadge = _badge('#e3f2fd', '#1565c0', '✨신규');
+                else if (_slot.dongRank < currentInfo.dongRank || (_slot.dongRank === currentInfo.dongRank && _slot.posRank < currentInfo.posRank)) moveBadge = _badge('#ffebee', '#b71c1c', '🔺전진');
+                else moveBadge = _badge('#f5f5f5', '#616161', '➖수평');
+                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 직진배송: ${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.zQty||0).toLocaleString()})</span><br>• 주차별: ${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: 직진 ${window.recommendRatios.zikjin}% / 주차 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+
                 html += `
-                    <tr style="background:${rowBg};">
-                        <td style="text-align:center; color:var(--primary); font-weight:900; font-size:13px; padding:5px 6px;">${matchCount + 1}</td>
-                        <td style="padding:5px 8px; font-size:12px; font-family:monospace; font-weight:bold; color:#1976d2; white-space:nowrap;">${item.code}</td>
-                        <td style="padding:5px 8px; font-size:12px; text-align:left; color:#333;">${item.name}</td>
-                        <td style="padding:5px 8px; font-size:11px; color:#777;">${option || '-'}</td>
-                        <td style="text-align:center; padding:5px 6px; white-space:nowrap;">
-                            <span style="font-weight:bold; color:#555; font-size:12px;">${currentInfo.id}</span>
-                            <span style="font-size:10px; color:#999;"> ${currentInfo.dong}동</span>
-                        </td>
-                        <td style="text-align:center; padding:5px 6px; background:#e8f5e9; white-space:nowrap;">
-                            <span style="font-weight:bold; color:#2e7d32; font-size:12px;">${foundSlot.id}</span>
-                            <span style="font-size:10px; color:#777;"> ${(foundSlot.dong || '').toString().trim()}동</span>
+                    <tr style="background:${rowBg}; line-height:1.3;">
+                        <td style="color:var(--primary); font-weight:900; font-size:12px; padding:5px 8px; white-space:nowrap;">${matchCount + 1}위 <span style="font-size:10px; color:#e65100; font-weight:bold;">(${item.score.toFixed(1)}${scoreTip})</span></td>
+                        <td style="font-weight:bold; color:#1a237e; font-size:11px; padding:5px 8px; white-space:nowrap;">${item.code}</td>
+                        <td style="text-align:left; font-size:12px; font-weight:600; color:#212121; padding:5px 10px;">${item.name}${option ? `<span style="color:#90a4ae; font-size:10px; margin-left:6px;">(${option})</span>` : ''}</td>
+                        <td style="text-align:center; padding:5px 6px; white-space:nowrap;">${moveQtyDisplay}</td>
+                        <td style="color:#555; font-size:11px; padding:5px 8px; white-space:nowrap;">${currentInfo.id} <span style="color:#999;">${currentInfo.dong}동</span></td>
+                        <td style="background:#f1f8e9; padding:5px 10px; text-align:center; white-space:nowrap;">
+                            <span style="color:#1b5e20; font-weight:900; font-size:13px;">${foundSlot.id}</span>
+                            <span style="font-size:10px; color:#777; margin-left:4px;">${(foundSlot.dong || '').toString().trim()}동·${(foundSlot.pos || '').toString().trim()}위치</span>
+                            <span style="margin-left:6px;">${moveBadge}</span>
                         </td>
                     </tr>
                 `;
