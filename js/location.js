@@ -4578,6 +4578,27 @@ window.renderIncomingQueue = function() {
         return true;
     });
 
+    // 추천 자리 미리 배정 (일괄 적용과 동일 순서: 출고예상일 빠른 순 → 미입고수량 많은 순)
+    // → 표시 정렬과 무관하게 상품마다 서로 다른 자리, 그리고 실제 일괄적용 결과와 일치
+    const recLocMap = {};
+    if (typeof window.calcIncomingRecommend === 'function') {
+        const _usedRec = new Set();
+        const _canon = list.slice().sort((a, b) => {
+            const dA = (a['표시날짜'] || '9999-99-99').toString();
+            const dB = (b['표시날짜'] || '9999-99-99').toString();
+            if (dA !== dB) return dA.localeCompare(dB);
+            return Number(b['입고대기수량'] || 0) - Number(a['입고대기수량'] || 0);
+        });
+        for (const _it of _canon) {
+            const _c = _it['상품코드'];
+            if (!_c || recLocMap[_c]) continue;
+            try {
+                const _r = window.calcIncomingRecommend(_c, _usedRec);
+                if (_r && _r.loc && _r.loc.id) { _usedRec.add(_r.loc.id); recLocMap[_c] = _r; }
+            } catch (_e) { /* 카드는 그대로 표시 */ }
+        }
+    }
+
     list.sort((a, b) => {
         if(sortType === 'qty-desc') return Number(b['입고대기수량'] || 0) - Number(a['입고대기수량'] || 0);
         else if(sortType === 'date-asc') {
@@ -4594,21 +4615,15 @@ window.renderIncomingQueue = function() {
         let src = item.source || '-';
         let date = src === '제작' ? (item['공장출고예상일'] || item['표시날짜'] || '-') : (item['검수창고도착일'] || item['표시날짜'] || '-');
         let option = item['옵션'] || '';
-        
-        // [4단계] 추천 자리 계산 (실패해도 카드는 그대로 표시)
+
+        // [4단계] 추천 자리 (미리 배정된 맵에서 조회 — 일괄 적용과 동일 결과)
         let recHtml = '';
-        try {
-            if (typeof window.calcIncomingRecommend === 'function') {
-                const rec = window.calcIncomingRecommend(code);
-                if (rec && rec.loc && rec.loc.id) {
-                    const caseLabel = rec.case === 'A' 
-                        ? `<span style="font-size:10px; color:#7b1fa2; font-weight:normal;">(페어 ${rec.partnerCount}개)</span>` 
-                        : `<span style="font-size:10px; color:#777; font-weight:normal;">(우선순위)</span>`;
-                    recHtml = `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed #ddd; font-size:11px; color:#1976d2;">📍 추천: <b>${rec.loc.id}</b> ${caseLabel}</div>`;
-                }
-            }
-        } catch (e) {
-            console.warn('[renderIncomingQueue] 추천 계산 실패:', code, e);
+        const rec = recLocMap[code];
+        if (rec && rec.loc && rec.loc.id) {
+            const caseLabel = rec.case === 'A'
+                ? `<span style="font-size:10px; color:#7b1fa2; font-weight:normal;">(페어 ${rec.partnerCount}개)</span>`
+                : `<span style="font-size:10px; color:#777; font-weight:normal;">(우선순위)</span>`;
+            recHtml = `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed #ddd; font-size:11px; color:#1976d2;">📍 추천: <b>${rec.loc.id}</b> ${caseLabel}</div>`;
         }
         
         html += `
