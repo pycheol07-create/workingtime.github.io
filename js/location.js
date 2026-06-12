@@ -174,10 +174,22 @@ function setupRealtimeListenerB() {
     }, (error) => console.error("입고예정데이터 오류:", error));
 }
 
+// 🕒 마지막 데이터 최신화 시각 표시 (상단 헤더)
+function updateLastUpdateDisplay(ts) {
+    const el = document.getElementById('last-data-update');
+    if (!el) return;
+    if (!ts) { el.textContent = '🕒 최신화: 기록 없음'; return; }
+    const d = new Date(ts);
+    const p = n => String(n).padStart(2, '0');
+    el.textContent = `🕒 최신화: ${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    el.title = '마지막 데이터 최신화: ' + d.toLocaleString('ko-KR');
+}
+
 function setupRealtimeListenerA() {
     onSnapshot(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), (docSnap) => {
         if(docSnap.exists()) {
             const conf = docSnap.data();
+            updateLastUpdateDisplay(conf.lastDataUpdate);
             if (conf.capacity2F) window.capacity2F = conf.capacity2F;
             if (conf.sheetUrlOrder) window.sheetUrlOrder = conf.sheetUrlOrder;
             if (conf.sheetUrlBuy) window.sheetUrlBuy = conf.sheetUrlBuy;
@@ -3365,7 +3377,11 @@ if (fileInputA) {
         window.showLoading('일일 재고/상품 데이터를 최신화 중입니다...');
         try {
             const result = await universalExcelReader(file);
-            if(result.rows.length > 0) await updateDatabaseA(result.rows, 'daily');
+            if(result.rows.length > 0) {
+                await updateDatabaseA(result.rows, 'daily');
+                // 🕒 데이터 최신화 시각 기록 (헤더 표시용)
+                try { await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { lastDataUpdate: Date.now() }, { merge: true }); } catch(_) {}
+            }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'daily'); }
         } catch(err) { window.hideLoading(); alert("오류 발생"); }
         finally { e.target.value=''; }
