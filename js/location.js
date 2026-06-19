@@ -1579,10 +1579,12 @@ window.calcIncomingRecommend = function(code, excludeLocIds) {
     const excludeCombos = priorities.excludeCombos || [];
     const hasExclude = excludeLocIds && typeof excludeLocIds.has === 'function';
     const emptyLocs = originalData.filter(d => {
-        const hasContent = (d.code && d.code !== d.id && d.code.trim() !== '') 
-                        || (d.name && d.name.trim() !== '');
-        if (hasContent || d.preAssigned) return false;
-        
+        const hasContent = (d.code && d.code !== d.id && String(d.code).trim() !== '')
+                        || (d.name && String(d.name).trim() !== '');
+        // 점유(상품 배치)·선지정·당일지정·예약된 자리는 추천에서 제외
+        if (hasContent || d.preAssigned || d.reserved) return false;
+        if (d.codeTag && String(d.codeTag).trim() !== '') return false; // 선지정/당일지정 등 태그된 자리
+
         // [5단계] 일괄적용 시 이미 다른 카드가 가져간 자리 제외
         if (hasExclude && excludeLocIds.has(d.id)) return false;
         
