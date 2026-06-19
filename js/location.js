@@ -6859,17 +6859,6 @@ window.renderLocationDashboard = function () {
                 <div class="kpi-sub">총 ${incomingQtyTotal.toLocaleString()} 개 미입고</div>
             </div>
         </div>
-        <div class="dash-kpi-card">
-            <div class="kpi-icon blue">🔄</div>
-            <div class="kpi-body">
-                <div class="kpi-title">재고 회전 (전일 대비)</div>
-                ${__turnover.sufficient
-                    ? `<div class="kpi-value">${__fmtRate(__turnover.rateAll)}</div>
-                       <div class="kpi-sub">3층 ${__fmtRate(__turnover.rate3F)} · ${__turnover.previousDate}→${__turnover.currentDate}</div>`
-                    : `<div class="kpi-value" style="font-size:15px; color:#a36800;">데이터 부족</div>
-                       <div class="kpi-sub">일일 최신화 2회 이상 누적 시 계산</div>`}
-            </div>
-        </div>
     `;
     document.getElementById('dash-kpi-row').innerHTML = kpiHtml;
 
@@ -6914,6 +6903,14 @@ window.renderLocationDashboard = function () {
 
     // ---- 인사이트 카드 ----
     const insightHtml = `
+        <div class="insight-card">
+            <h4>🔄 재고 회전 (전일 대비)</h4>
+            ${__turnover.sufficient
+                ? `<div class="ins-big">${__fmtRate(__turnover.rateAll)}</div>
+                   <div class="ins-desc">3층 ${__fmtRate(__turnover.rate3F)} · ${__turnover.previousDate} → ${__turnover.currentDate}</div>`
+                : `<div class="ins-big" style="font-size:18px; color:#a36800;">데이터 부족</div>
+                   <div class="ins-desc">일일 최신화 2회 이상 누적 시 계산됩니다.</div>`}
+        </div>
         <div class="insight-card">
             <h4>🔁 다중 위치 상품</h4>
             <div class="ins-big" ${multiLocCodes.length > 0 ? `style="cursor:pointer; transition: color 0.15s;" onclick="window.__dashShowLocList('multiloc')" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color=''" title="전체 다중 위치 상품 리스트 보기"` : ''}>
