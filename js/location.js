@@ -190,6 +190,7 @@ function setupRealtimeListenerA() {
         if(docSnap.exists()) {
             const conf = docSnap.data();
             updateLastUpdateDisplay(conf.lastDataUpdate);
+            if (Array.isArray(conf.dupLocations)) window.__dupLocations = conf.dupLocations;
             if (conf.capacity2F) window.capacity2F = conf.capacity2F;
             if (conf.sheetUrlOrder) window.sheetUrlOrder = conf.sheetUrlOrder;
             if (conf.sheetUrlBuy) window.sheetUrlBuy = conf.sheetUrlBuy;
@@ -3845,6 +3846,28 @@ async function updateDatabaseB(rows, collectionName, inputElement, silent = fals
 
 async function updateDatabaseA(rows, mode = 'daily') {
     const totalRows = rows.length;
+
+    // 🔎 '한 로케이션에 2+ 상품' 충돌 감지 (업로드 행 기준; 저장 시 같은 로케이션은 마지막 행만 남아 충돌이 사라지므로 여기서 포착)
+    if (mode === 'daily') {
+        try {
+            const _locCodes = {};
+            rows.forEach(row => {
+                const raw = (row['로케이션'] || '').toString().trim();
+                if (!raw) return;
+                const loc = raw.includes('(') ? raw.split('(')[0].trim() : raw;
+                let code = '';
+                if (raw.includes('(')) { const af = raw.substring(raw.indexOf('(')); const si = af.indexOf('S'); if (si !== -1) code = af.substring(si).trim(); }
+                if (!code) code = (row['상품코드'] || '').toString().trim();
+                if (!loc || !code) return;
+                (_locCodes[loc] = _locCodes[loc] || new Set()).add(code);
+            });
+            window.__dupLocations = Object.entries(_locCodes)
+                .filter(([, s]) => s.size >= 2)
+                .map(([loc, s]) => ({ loc, codes: [...s] }));
+            setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { dupLocations: window.__dupLocations, dupLocationsAt: Date.now() }, { merge: true }).catch(() => {});
+        } catch (e) { console.warn('[dupLoc] 충돌 감지 실패:', e); }
+    }
+
     try {
         // ★ 모든 행의 키를 합쳐서 전체 헤더 추출 (첫 행에 빈 값이면 키가 누락되는 문제 해결)
         const allHeadersSet = new Set();
@@ -6925,6 +6948,11 @@ window.renderLocationDashboard = function () {
                     `<div><span class="pill">${arr.length}곳</span> ${c}</div>`
                 ).join('') || '<div style="color:#90a4ae;">없음</div>'}
             </div>
+            <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #e0e0e0; font-size:12px;">
+                <span style="color:#37474f; font-weight:700;">⚠️ 한 자리 2+ 상품</span>
+                <span ${(window.__dupLocations || []).length > 0 ? `style="cursor:pointer; color:#c62828; font-weight:900; margin-left:4px;" onclick="window.__dashShowLocList('duploc')" title="중복 지정된 로케이션 보기"` : 'style="color:#90a4ae; margin-left:4px;"'}>${(window.__dupLocations || []).length}건${(window.__dupLocations || []).length > 0 ? ' ▸' : ''}</span>
+                <div style="color:#90a4ae; font-size:11px; margin-top:2px;">최근 데이터 최신화에서 같은 로케이션에 다른 상품이 들어온 경우</div>
+            </div>
         </div>
         <div class="insight-card">
             <h4>💤 데드 스톡 후보</h4>
@@ -7376,6 +7404,16 @@ window.__dashShowLocList = function (type) {
             <td style="font-weight:bold;">${r.count}곳</td>
             <td>${r.stock.toLocaleString()}</td></tr>`).join('')
             : `<tr><td colspan="5" style="padding:30px; text-align:center; color:#90a4ae;">다중 위치 상품이 없습니다.</td></tr>`;
+    } else if (type === 'duploc') {
+        const dups = window.__dupLocations || [];
+        setTitle(`⚠️ 한 로케이션 2+ 상품 (${dups.length}건)`);
+        if (metaEl) metaEl.textContent = '최근 데이터 최신화 시 같은 로케이션에 서로 다른 상품코드가 들어온 경우 — 저장 시 마지막 행만 남으므로 원본 엑셀을 확인하세요.';
+        thead.innerHTML = th([{ t: '로케이션', w: '160px' }, { t: '지정된 상품코드들' }, { t: '개수', w: '70px' }]);
+        tbody.innerHTML = dups.length ? dups.map(d => `<tr>
+            <td style="font-family:monospace; font-weight:bold;">${esc(d.loc)}</td>
+            <td style="text-align:left; padding-left:8px; font-family:monospace; font-size:11px;">${esc((d.codes || []).join(', '))}</td>
+            <td style="font-weight:bold; color:#c62828;">${(d.codes || []).length}</td></tr>`).join('')
+            : `<tr><td colspan="3" style="padding:30px; text-align:center; color:#90a4ae;">중복 지정된 로케이션이 없습니다.</td></tr>`;
     } else {
         return;
     }
