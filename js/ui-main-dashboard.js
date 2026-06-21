@@ -452,7 +452,21 @@ window.addEventListener('message', (event) => {
     }
 });
 
-// 사이드바 동적 필터링 및 재배치 (매뉴얼 새 창 열기 포함)
+// 외부 페이지(별도 창으로 열려야 하는 링크)별 아이콘 + 창 타겟 매핑.
+// 관리자 페이지에서 메뉴 이름을 다르게 등록해도 '링크' 기준으로 적용되므로
+// 항상 페이지에 맞는 아이콘이 표시되고, 같은 named target으로 별도 창에서 열린다.
+const EXTERNAL_LINK_META = [
+    { match: 'manual.html',   icon: '📖', target: '_blank' },          // 업무 매뉴얼
+    { match: 'sheets.html',   icon: '📊', target: 'sheets_window' },   // 업무시트 대시보드
+    { match: 'location.html', icon: '📍', target: 'location_window' }, // 로케이션 관리
+    { match: 'admin.html',    icon: '⚙️', target: 'admin_window' },    // 관리자 페이지
+];
+const resolveLinkMeta = (link) => {
+    if (!link) return null;
+    return EXTERNAL_LINK_META.find(m => link.includes(m.match)) || null;
+};
+
+// 사이드바 동적 필터링 및 재배치 (매뉴얼/대시보드 등 별도 창 열기 포함)
 export const applyDynamicSidebar = (appConfig) => {
     if (!appConfig || !appConfig.dashboardMenu) return;
 
@@ -526,23 +540,24 @@ export const applyDynamicSidebar = (appConfig) => {
         }
 
         visibleItems.forEach(item => {
-            // ✨ 신규: 해당 메뉴가 매뉴얼(manual.html)인지 판단
-            const isManualLink = item.link && item.link.includes('manual.html');
+            // ✨ 외부 페이지 링크별 아이콘/창 타겟 결정 (메뉴 이름이 달라도 링크 기준 적용)
+            const meta = resolveLinkMeta(item.link);
 
             if (pcNav) {
                 const pcEl = pcElements[item.name];
                 if (pcEl) {
                     if (pcEl.tagName === 'A' && item.link && item.link !== '#') {
                         pcEl.href = item.link;
-                        if(isManualLink) pcEl.target = '_blank'; // 새 탭
+                        if (meta) pcEl.target = meta.target; // 별도 창 / 새 탭
                     }
+                    if (meta) { const ic = pcEl.querySelector('span'); if (ic) ic.textContent = meta.icon; }
                     pcNav.appendChild(pcEl);
                 } else {
                     const newPc = document.createElement('a');
                     newPc.href = item.link || '#';
-                    if(isManualLink) newPc.target = '_blank'; // 새 탭
+                    if (meta) newPc.target = meta.target; // 별도 창 / 새 탭
                     newPc.className = "w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition";
-                    newPc.innerHTML = `<span class="text-lg">🔗</span> ${item.name}`;
+                    newPc.innerHTML = `<span class="text-lg">${meta ? meta.icon : '🔗'}</span> ${item.name}`;
                     pcNav.appendChild(newPc);
                 }
             }
@@ -552,16 +567,17 @@ export const applyDynamicSidebar = (appConfig) => {
                 if (mobEl) {
                     if (mobEl.tagName === 'A' && item.link && item.link !== '#') {
                         mobEl.href = item.link;
-                        if(isManualLink) mobEl.target = '_blank'; // 새 탭
+                        if (meta) mobEl.target = meta.target; // 별도 창 / 새 탭
                     }
+                    if (meta) { const ic = mobEl.querySelector('span'); if (ic) ic.textContent = meta.icon; }
                     if (logoutBtn) mobileNav.insertBefore(mobEl, logoutBtn);
                     else mobileNav.appendChild(mobEl);
                 } else {
                     const newMob = document.createElement('a');
                     newMob.href = item.link || '#';
-                    if(isManualLink) newMob.target = '_blank'; // 새 탭
+                    if (meta) newMob.target = meta.target; // 별도 창 / 새 탭
                     newMob.className = "text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2";
-                    newMob.innerHTML = `<span class="text-lg">🔗</span> ${item.name}`;
+                    newMob.innerHTML = `<span class="text-lg">${meta ? meta.icon : '🔗'}</span> ${item.name}`;
                     if (logoutBtn) mobileNav.insertBefore(newMob, logoutBtn);
                     else mobileNav.appendChild(newMob);
                 }

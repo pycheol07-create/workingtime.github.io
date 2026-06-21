@@ -345,6 +345,12 @@ $('sheets-container').addEventListener('input', (e) => {
 
 $('btn-refresh-all').onclick = () => config.sheets.forEach(cfg => loadCard(cfg, true));
 
+// 창 닫기 — 별도 창/탭으로 열린 경우 닫고, 브라우저가 막으면 메인으로 복귀
+$('btn-close').onclick = () => {
+    window.close();
+    setTimeout(() => { window.location.href = 'index.html'; }, 200);
+};
+
 // 설정 모달
 $('btn-settings').onclick = () => { $('inp-script-url').value = config.scriptUrl || ''; show('settings-modal'); };
 $('btn-save-settings').onclick = async () => { config.scriptUrl = $('inp-script-url').value.trim(); await saveConfig(); hide('settings-modal'); renderAll(); };
