@@ -457,7 +457,7 @@ window.addEventListener('message', (event) => {
 // 항상 페이지에 맞는 아이콘이 표시되고, 같은 named target으로 별도 창에서 열린다.
 const EXTERNAL_LINK_META = [
     { match: 'manual.html',   icon: '📖', target: '_blank' },          // 업무 매뉴얼
-    { match: 'sheets.html',   icon: '📊', target: 'sheets_window' },   // 업무시트 대시보드
+    { match: 'sheets.html',   icon: '🗂️', target: 'sheets_window' },   // 업무시트 대시보드 (메인 대시보드 📊와 구분)
     { match: 'location.html', icon: '📍', target: 'location_window' }, // 로케이션 관리
     { match: 'admin.html',    icon: '⚙️', target: 'admin_window' },    // 관리자 페이지
 ];
