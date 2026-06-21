@@ -16,6 +16,8 @@ let sortConfig = { key: 'id', direction: 'asc' };
 // loc: 구역 prefix, code: ['empty','not-empty'] 중복 불가
 // reserved/preassigned: ['only'] 또는 [] (토글)
 let filters = { loc: [], code: [], stock: [], stock2f: [], dong: [], pos: [], reserved: [], preassigned: [] };
+// 헤더 검색창 입력으로 테이블을 부분일치 필터링 (컬럼키 → 검색어)
+let colTextSearch = {};
 
 const RESERVE_EXPIRE_MS = Infinity; 
 
@@ -2771,6 +2773,11 @@ window.updateFilterSearch = function(popId, query) {
         // 구분선은 항상 표시
         pop.querySelectorAll('.filter-divider').forEach(d => { d.style.display = ''; });
     }
+
+    // ★ 검색창 입력으로 테이블 본문도 해당 컬럼 부분일치 필터링
+    const colKey = popId.replace('pop-', '');
+    colTextSearch[colKey] = (query || '').trim();
+    applyFiltersAndSort();
 };
 
 // 날짜 필터 평탄화 렌더링 (검색 모드)
@@ -2900,6 +2907,7 @@ window.clearAllFilters = function(e) {
     
     // 검색 쿼리도 초기화
     if (window._filterSearchQuery) window._filterSearchQuery = {};
+    colTextSearch = {};
     
     // 팝업/메뉴 모두 닫기
     if (typeof window.closeAllPopups === 'function') window.closeAllPopups();
@@ -2955,6 +2963,31 @@ function applyFiltersAndSort() {
                 if (matched) break;
             }
             if (!matched) return false;
+        }
+
+        // ★ 헤더 검색창 텍스트 필터 (각 컬럼 부분일치, 대소문자 무시)
+        for (const ck in colTextSearch) {
+            const q = (colTextSearch[ck] || '').toLowerCase();
+            if (!q) continue;
+            let cv = '';
+            if (ck === 'id') cv = item.id || '';
+            else if (ck === 'code') cv = (item.code && item.code !== item.id) ? item.code : '';
+            else if (ck === 'name') cv = item.name || '';
+            else if (ck === 'option') cv = item.option || '';
+            else if (ck === 'dong') cv = item.dong != null ? item.dong : '';
+            else if (ck === 'pos') cv = item.pos != null ? item.pos : '';
+            else if (ck === 'stock') cv = item.stock != null ? item.stock : '';
+            else if (ck === 'stock2f') cv = item.stock2f != null ? item.stock2f : '';
+            else if (ck.startsWith('cus_')) {
+                const key = ck.replace('cus_', '');
+                if (key === '입고대기') {
+                    const c = (item.code && item.code !== item.id) ? item.code : '';
+                    cv = c && incomingTotalByCode[c] ? incomingTotalByCode[c].toString() : '';
+                } else {
+                    cv = (item.rawData && item.rawData[key] != null) ? item.rawData[key] : '';
+                }
+            }
+            if (!String(cv).toLowerCase().includes(q)) return false;
         }
         return true;
     });
