@@ -237,7 +237,8 @@ export function renderWeekendList(year, month) {
                 });
 
                 store.requestsByDate[dateStr]
-                    .filter(req => isAdmin || req.member === State.appState.currentUser) // 일반 직원은 본인 신청만 표시
+                    // 신청 받는 중(열린 일자)은 본인 것만. 마감(blocked)·지난 일자는 최종 확정본이므로 전체 공개
+                    .filter(req => isAdmin || isBlocked || isPast || req.member === State.appState.currentUser)
                     .forEach(req => {
                         addBadgeToCalendar(dateStr, req, isAdmin && !isPast);
                     });
@@ -348,7 +349,8 @@ export function renderWeekendGrid(year, month) {
                     });
 
                     store.requestsByDate[dateStr]
-                        .filter(req => isAdmin || req.member === State.appState.currentUser) // 일반 직원은 본인 신청만 표시
+                        // 신청 받는 중(열린 일자)은 본인 것만. 마감(blocked)·지난 일자는 최종 확정본이므로 전체 공개
+                        .filter(req => isAdmin || isBlocked || isPast || req.member === State.appState.currentUser)
                         .forEach(req => {
                             addBadgeToGrid(dateStr, req, isAdmin && !isPast);
                         });
