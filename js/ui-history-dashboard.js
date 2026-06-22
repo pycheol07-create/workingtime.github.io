@@ -132,9 +132,17 @@ export function renderDashboardTab(filteredData, appConfig) {
     let totalActualDurationMin = 0; 
     let totalQty = 0;
     
-    // 평균 근무일수 계산용 변수 추가
-    const uniqueMembersAllTime = new Set();
-    let totalWorkerDays = 0;
+    // 평균 근무일수 계산용 (출근=dailyAttendance 기준, 정규 팀원만 집계)
+    const _excludedForHeadcount = new Set([
+        ...(appConfig.systemAccounts || []),
+        ...(appConfig.headcountExcludedMembers || [])
+    ]);
+    const regularMembers = new Set();
+    (appConfig.teamGroups || []).forEach(g => (g.members || []).forEach(m => {
+        if (m && !_excludedForHeadcount.has(m)) regularMembers.add(m);
+    }));
+    const attendedRegularMembers = new Set(); // 기간 내 1번이라도 출근한 정규 팀원 (분모)
+    let totalAttendanceDays = 0;              // 정규 팀원 출근 연인원 (분자)
 
     const trendLabels = [];
     const uphTrendData = [];
@@ -175,7 +183,6 @@ export function renderDashboardTab(filteredData, appConfig) {
             dayDuration += (r.duration || 0);
             if (r.member) {
                 uniqueMembers.add(r.member);
-                uniqueMembersAllTime.add(r.member); // 전체 기간 중 활동한 고유 인원 수집
             }
             
             const matchedType = taskTypes.find(t => (r.taskType && r.taskType.includes(t)) || (r.task && r.task.includes(t)));
@@ -184,8 +191,14 @@ export function renderDashboardTab(filteredData, appConfig) {
             aggregatedWorkRecords.push({ ...r, date: day.id });
         });
 
-        // 하루 동안 투입된 총 인원수를 더함 (연인원 개념)
-        totalWorkerDays += uniqueMembers.size;
+        // 평균 근무일수: 출근(dailyAttendance) 기준으로 그날 출근한 정규 팀원 집계
+        const dayAttendance = day.dailyAttendance || {};
+        Object.keys(dayAttendance).forEach(name => {
+            if (!regularMembers.has(name)) return;                            // 정규 팀원만
+            if (!dayAttendance[name] || !dayAttendance[name].inTime) return;  // 실제 출근(inTime)만
+            totalAttendanceDays++;
+            attendedRegularMembers.add(name);
+        });
 
         Object.entries(day.taskQuantities || {}).forEach(([taskKey, qty]) => {
             const numQty = Number(qty) || 0;
@@ -237,8 +250,9 @@ export function renderDashboardTab(filteredData, appConfig) {
     const avgInventoryAmt = daysWithInventory > 0 ? (totalInventoryAmt / daysWithInventory) : 0;
     const turnoverRate = avgInventoryAmt > 0 ? (totalRevenue / avgInventoryAmt) : 0;
     
-    // 평균 근무일수 계산 (총 투입 연인원 / 전체 기간 중 일한 고유 인원)
-    const avgWorkDays = uniqueMembersAllTime.size > 0 ? (totalWorkerDays / uniqueMembersAllTime.size) : 0;
+    // 평균 근무일수 = 정규 팀원 출근 연인원 / 기간 내 출근한 정규 팀원 고유 인원
+    // (출근=dailyAttendance.inTime 기준, 시스템/제외계정·파트타이머 제외)
+    const avgWorkDays = attendedRegularMembers.size > 0 ? (totalAttendanceDays / attendedRegularMembers.size) : 0;
 
     // 하이브리드 기준치: 단위에 따라 롤링/전년 동기 선택
     const granularity = State.context?.globalGranularity || 'day';
