@@ -488,3 +488,67 @@ html.dark .depth-panel {
         position: static !important; /* sticky 무력화 (모바일에선 일반 흐름) */
     }
 }
+/* ===== 업무현황: 좌측 커버플로우 + 우측 빠른시작 리스트 ===== */
+.task-board-layout { display: flex; flex-direction: column; gap: 16px; }
+@media (min-width: 1024px) { .task-board-layout { flex-direction: row; align-items: stretch; } }
+.task-board-layout > .task-carousel { flex: 1 1 auto; min-width: 0; }
+
+/* 커버플로우 무대 — 가운데 1개 선명, 양옆 흐리게 뒤로 */
+.task-carousel { position: relative; }
+.task-coverflow { position: relative; height: 360px; overflow: hidden; }
+.task-coverflow > .cf-card {
+    position: absolute; left: 50%; top: 50%;
+    height: 320px;
+    transform: translate(-50%, -50%);
+    transition: transform .5s cubic-bezier(.22,.61,.36,1), opacity .5s, filter .5s;
+    will-change: transform, opacity, filter;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+}
+.task-coverflow > .cf-card.is-center { box-shadow: 0 12px 32px rgba(0,0,0,0.18); }
+
+/* 좌우 이동 버튼 */
+.task-carousel-arrow {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 40px; height: 40px; border-radius: 9999px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.96); color: #334155;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18); border: 1px solid #e2e8f0;
+    cursor: pointer; z-index: 200; transition: background .15s, transform .15s;
+}
+.task-carousel-arrow:hover { background: #fff; transform: translateY(-50%) scale(1.08); }
+.task-carousel-arrow.prev { left: 2px; }
+.task-carousel-arrow.next { right: 2px; }
+.task-carousel-arrow[hidden] { display: none; }
+.dark .task-carousel-arrow { background: rgba(31,41,55,0.96); color: #e2e8f0; border-color: #374151; }
+
+/* 하단 점 인디케이터 */
+.task-cf-dots { display: flex; gap: 6px; justify-content: center; margin-top: 12px; }
+.task-cf-dot { width: 7px; height: 7px; border-radius: 9999px; background: #cbd5e1; border: none; padding: 0; cursor: pointer; transition: all .25s; }
+.task-cf-dot.on { background: #3b82f6; width: 18px; }
+.dark .task-cf-dot { background: #475569; }
+.dark .task-cf-dot.on { background: #60a5fa; }
+
+/* 우측 빠른시작 리스트 */
+.task-quick-list { display: flex; flex-direction: column; gap: 8px; }
+@media (min-width: 1024px) {
+    .task-quick-list { width: 184px; flex: 0 0 184px; border-left: 1px solid #f1f5f9; padding-left: 16px; }
+}
+.dark .task-quick-list { border-left-color: #374151; }
+.task-quick-title { font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 2px; }
+.task-quick-empty { font-size: 12px; color: #9ca3af; text-align: center; padding: 10px; border: 1px dashed #e5e7eb; border-radius: 12px; }
+.dark .task-quick-empty { border-color: #374151; }
+.task-quick-card { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border-radius: 12px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; transition: border-color .15s, background .15s, transform .15s; }
+.task-quick-card:hover { border-color: #93c5fd; background: #f8fafc; transform: translateX(-2px); }
+.dark .task-quick-card { background: #1f2937; border-color: #374151; }
+.dark .task-quick-card:hover { border-color: #3b82f6; background: #243140; }
+.task-quick-dot { width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0; }
+.task-quick-dot.is-on { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.15); }
+.task-quick-dot.is-paused { background: #eab308; box-shadow: 0 0 0 3px rgba(234,179,8,0.15); }
+.task-quick-name { flex: 1; font-weight: 700; font-size: 14px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dark .task-quick-name { color: #e5e7eb; }
+.task-quick-badge { font-size: 11px; font-weight: 800; color: #1d4ed8; background: #dbeafe; padding: 1px 8px; border-radius: 9999px; }
+.dark .task-quick-badge { color: #bfdbfe; background: #1e3a5f; }
+.task-quick-other { border-style: dashed; justify-content: center; }
+.task-quick-other .task-quick-name { flex: none; color: #6b7280; }
+.dark .task-quick-other .task-quick-name { color: #9ca3af; }
+.task-quick-plus { font-size: 16px; font-weight: 800; color: #9ca3af; line-height: 1; }

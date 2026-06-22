@@ -3,6 +3,127 @@ import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateStr
 import * as State from './state.js';
 import { getLeaveDisplayLabel } from './ui-main-utils.js';
 
+// ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
+// 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러나 좌우로 롤링.
+// - 자동 롤링 4초, 마우스 올리면 일시정지(가운데 카드 버튼 조작 보장)
+// - 좌우 화살표/하단 점/양옆 카드 클릭으로 이동, 클릭한 카드가 가운데로
+// - _cfIndex(가운데 카드 위치)는 30초 전체 재렌더에도 유지
+let _cfIndex = 0;
+let _cfPaused = false;
+let _cfTimer = null;
+let _cfResizeBound = false;
+const CF_INTERVAL_MS = 4000;
+
+function _cfCards() {
+    const stage = document.getElementById('task-coverflow');
+    return stage ? Array.from(stage.querySelectorAll(':scope > .cf-card')) : [];
+}
+
+function _cfLayout() {
+    const stage = document.getElementById('task-coverflow');
+    if (!stage) return;
+    const cards = _cfCards();
+    const n = cards.length;
+    if (n === 0) return;
+    _cfIndex = Math.max(0, Math.min(_cfIndex, n - 1));
+
+    const W = stage.clientWidth || 1;
+    const cw = Math.min(440, Math.max(260, W * 0.42)); // 가운데 카드 폭
+    cards.forEach((card, i) => {
+        card.style.width = cw + 'px';
+        const off = i - _cfIndex;
+        const a = Math.abs(off);
+        const tx = off * (cw * 0.5);
+        const sc = off === 0 ? 1 : (a === 1 ? 0.84 : 0.7);
+        const op = off === 0 ? 1 : (a === 1 ? 0.5 : 0.24);
+        const bl = off === 0 ? 0 : (a === 1 ? 1.5 : 3);
+        card.style.transform = `translate(-50%,-50%) translateX(${tx}px) scale(${sc})`;
+        card.style.opacity = a >= 3 ? 0 : op;
+        card.style.filter = bl ? `blur(${bl}px)` : 'none';
+        card.style.zIndex = String(100 - a);
+        card.style.pointerEvents = a >= 3 ? 'none' : 'auto';
+        card.style.cursor = off === 0 ? '' : 'pointer';
+        card.classList.toggle('is-center', off === 0);
+    });
+
+    const dotsWrap = document.getElementById('task-cf-dots');
+    if (dotsWrap) Array.from(dotsWrap.children).forEach((d, i) => d.classList.toggle('on', i === _cfIndex));
+
+    const container = document.getElementById('task-carousel');
+    if (container) {
+        const show = n > 1;
+        const prev = container.querySelector('.task-carousel-arrow.prev');
+        const next = container.querySelector('.task-carousel-arrow.next');
+        if (prev) prev.hidden = !show;
+        if (next) next.hidden = !show;
+    }
+}
+
+function _cfGo(i) {
+    const n = _cfCards().length;
+    if (n === 0) return;
+    _cfIndex = ((i % n) + n) % n;
+    _cfLayout();
+}
+
+function mountTaskCarousel() {
+    const container = document.getElementById('task-carousel');
+    const stage = document.getElementById('task-coverflow');
+    if (!container || !stage) return;
+    const cards = _cfCards();
+    const n = cards.length;
+
+    if (_cfIndex >= n) _cfIndex = Math.max(0, n - 1); // 재렌더로 카드 수 변동 시 보정
+
+    // 하단 점 인디케이터
+    const dotsWrap = document.getElementById('task-cf-dots');
+    if (dotsWrap) {
+        dotsWrap.innerHTML = '';
+        for (let i = 0; i < n; i++) {
+            const d = document.createElement('button');
+            d.type = 'button';
+            d.className = 'task-cf-dot';
+            d.setAttribute('aria-label', `${i + 1}번 업무로 이동`);
+            d.addEventListener('click', () => _cfGo(i));
+            dotsWrap.appendChild(d);
+        }
+    }
+
+    // 마우스 오버 중 자동 롤링 일시정지
+    stage.addEventListener('mouseenter', () => { _cfPaused = true; });
+    stage.addEventListener('mouseleave', () => { _cfPaused = false; });
+
+    // 좌우 화살표
+    const prev = container.querySelector('.task-carousel-arrow.prev');
+    const next = container.querySelector('.task-carousel-arrow.next');
+    if (prev) prev.onclick = () => _cfGo(_cfIndex - 1);
+    if (next) next.onclick = () => _cfGo(_cfIndex + 1);
+
+    // 가운데가 아닌 카드를 클릭하면 그 카드를 가운데로 (버튼 동작은 막고 포커스만)
+    // 캡처 단계에서 처리해 task-status-board의 위임 클릭보다 먼저 가로챈다.
+    stage.addEventListener('click', (e) => {
+        const card = e.target.closest('.cf-card');
+        if (!card) return;
+        const idx = _cfCards().indexOf(card);
+        if (idx !== -1 && idx !== _cfIndex) {
+            e.preventDefault();
+            e.stopPropagation();
+            _cfGo(idx);
+        }
+    }, true);
+
+    _cfLayout();
+
+    if (!_cfResizeBound) {
+        _cfResizeBound = true;
+        window.addEventListener('resize', () => _cfLayout());
+    }
+
+    if (!_cfTimer) {
+        _cfTimer = setInterval(() => { if (!_cfPaused) _cfGo(_cfIndex + 1); }, CF_INTERVAL_MS);
+    }
+}
+
 export const renderAttendanceToggle = (appState) => {
     const currentUser = appState.currentUser;
     if (!currentUser) return;
@@ -41,7 +162,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const taskStatusBoard = document.getElementById('task-status-board');
     const memberStatusBoard = document.getElementById('member-status-board');
     if (!taskStatusBoard || !memberStatusBoard) return;
-    
+
     taskStatusBoard.innerHTML = '';
     memberStatusBoard.innerHTML = '';
 
@@ -57,9 +178,19 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const onLeaveMemberNames = new Set(onLeaveStatusMap.keys());
 
     const presetTaskContainer = document.createElement('div');
+    presetTaskContainer.className = 'task-carousel relative';
+    presetTaskContainer.id = 'task-carousel';
+    presetTaskContainer.innerHTML = `
+        <button type="button" class="task-carousel-arrow prev" aria-label="이전 업무" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <button type="button" class="task-carousel-arrow next" aria-label="다음 업무" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        </button>`;
+
     const presetGrid = document.createElement('div');
-    presetGrid.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5';
-    if (isMobileTaskViewExpanded) presetGrid.classList.add('mobile-expanded');
+    presetGrid.className = 'task-coverflow';
+    presetGrid.id = 'task-coverflow';
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
     
@@ -104,7 +235,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         const isCurrentUserWorkingOnThisTask = groupRecords.some(r => r.member === currentUserName);
         const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
         const isOngoing = groupRecords.some(r => r.status === 'ongoing');
-        const mobileVisibilityClass = (isCurrentUserWorkingOnThisTask || isMobileTaskViewExpanded) ? 'flex' : 'hidden md:flex mobile-task-hidden';
+        const mobileVisibilityClass = 'flex'; // 캐러셀: 모든 카드를 트랙에 포함하고 롤링으로 노출 제한
         
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
@@ -200,11 +331,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 font-medium">클릭하여 인원 선택</p>
             `;
         }
+        card.classList.add('cf-card'); // 커버플로우 카드 (className 할당 이후에 추가)
         presetGrid.appendChild(card);
     });
 
     const otherTaskCard = document.createElement('div');
     otherTaskCard.className = `flex flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all group`;
+    otherTaskCard.classList.add('cf-card');
     otherTaskCard.dataset.action = 'other';
     otherTaskCard.innerHTML = `
         <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 transition-all mb-4 text-xl">
@@ -215,8 +348,51 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     `;
     presetGrid.appendChild(otherTaskCard);
     presetTaskContainer.appendChild(presetGrid);
-    
-    taskStatusBoard.appendChild(presetTaskContainer);
+
+    // 하단 점 인디케이터
+    const cfDots = document.createElement('div');
+    cfDots.className = 'task-cf-dots';
+    cfDots.id = 'task-cf-dots';
+    presetTaskContainer.appendChild(cfDots);
+
+    // ── 우측 빠른시작 리스트: 진행중 업무(이름카드) + 기타 업무 ──
+    const quickList = document.createElement('div');
+    quickList.className = 'task-quick-list';
+    const ongoingTasks = [...tier1, ...tier2]; // 진행 중인 업무 (본인 → 참여 많은 순)
+    let quickHtml = `<div class="task-quick-title">진행중 업무</div>`;
+    if (ongoingTasks.length === 0) {
+        quickHtml += `<div class="task-quick-empty">진행 중인 업무가 없습니다</div>`;
+    }
+    ongoingTasks.forEach(task => {
+        const grp = ongoingRecords.filter(r => r.task === task);
+        const gid = grp[0]?.groupId || '';
+        const cnt = new Set(grp.map(r => r.member)).size;
+        const paused = grp.length > 0 && grp.every(r => r.status === 'paused');
+        // 진행중 카드 클릭 → 해당 업무에 '인원 추가' (data-group-id + data-task 위임 핸들러 재사용)
+        quickHtml += `
+            <div class="task-quick-card" data-group-id="${gid}" data-task="${task}" title="'${task}' 인원 추가">
+                <span class="task-quick-dot ${paused ? 'is-paused' : 'is-on'}"></span>
+                <span class="task-quick-name">${task}</span>
+                <span class="task-quick-badge">${cnt}</span>
+            </div>`;
+    });
+    // 기타 업무(새 업무 시작) — data-action="other" 위임 핸들러 재사용
+    quickHtml += `
+        <div class="task-quick-card task-quick-other" data-action="other" title="새 업무 시작">
+            <span class="task-quick-plus">+</span>
+            <span class="task-quick-name">기타 업무</span>
+        </div>`;
+    quickList.innerHTML = quickHtml;
+
+    // ── 좌(커버플로우) + 우(빠른시작) 레이아웃 ──
+    const boardLayout = document.createElement('div');
+    boardLayout.className = 'task-board-layout';
+    boardLayout.appendChild(presetTaskContainer);
+    boardLayout.appendChild(quickList);
+
+    taskStatusBoard.appendChild(boardLayout);
+
+    mountTaskCarousel();
 
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container';
