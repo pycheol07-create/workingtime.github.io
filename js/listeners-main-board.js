@@ -346,16 +346,7 @@ export function setupMainBoardListeners() {
     // 하위 호환성 (혹시라도 예전 아이디가 있으면 붙여둠)
     if (DOM.teamStatusBoard) DOM.teamStatusBoard.addEventListener('click', handleBoardClick);
 
-    // 모바일에서의 '전체보기' 토글 버튼들 (박스 바깥으로 이동되었으므로 직접 연결)
-    const toggleTaskBtn = document.getElementById('toggle-all-tasks-mobile');
-    if (toggleTaskBtn) {
-        toggleTaskBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            State.context.isMobileTaskViewExpanded = !State.context.isMobileTaskViewExpanded;
-            render();
-        });
-    }
-
+    // 모바일에서의 '전체보기' 토글 버튼 (팀원 현황 전용 — 업무 현황은 커버플로우로 대체되어 토글 없음)
     const toggleMemberBtn = document.getElementById('toggle-all-members-mobile');
     if (toggleMemberBtn) {
         toggleMemberBtn.addEventListener('click', (e) => {

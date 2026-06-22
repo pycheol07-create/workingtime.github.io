@@ -234,7 +234,6 @@
                                     <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
                                     업무 현황
                                 </h3>
-                                <button id="toggle-all-tasks-mobile" class="md:hidden bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs py-1.5 px-3 rounded-lg transition shadow-sm">전체보기</button>
                             </div>
                             <div id="task-status-board">
                                 </div>
@@ -531,20 +530,6 @@
         setupWidgetToggle('toggle-workload', 'summary-workload', 'workload-arrow');
         
         document.addEventListener('click', function(e) {
-            if (e.target && e.target.id === 'toggle-all-tasks-mobile') {
-                const isExpanded = e.target.textContent === '간략히';
-                e.target.textContent = isExpanded ? '전체보기' : '간략히';
-                document.querySelectorAll('.mobile-task-hidden').forEach(el => {
-                    if (isExpanded) {
-                        el.classList.add('hidden', 'md:flex');
-                        el.classList.remove('flex');
-                    } else {
-                        el.classList.remove('hidden', 'md:flex');
-                        el.classList.add('flex');
-                    }
-                });
-            }
-            
             if (e.target && e.target.id === 'toggle-all-members-mobile') {
                 const isExpanded = e.target.textContent === '간략히';
                 e.target.textContent = isExpanded ? '전체보기' : '간략히';

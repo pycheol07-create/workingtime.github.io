@@ -146,11 +146,7 @@ export const renderAttendanceToggle = (appState) => {
 };
 
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
-    
-    const taskToggleBtn = document.getElementById('toggle-all-tasks-mobile');
-    if (taskToggleBtn && taskToggleBtn.textContent === '간략히') {
-        isMobileTaskViewExpanded = true;
-    }
+
     const memberToggleBtn = document.getElementById('toggle-all-members-mobile');
     if (memberToggleBtn && memberToggleBtn.textContent === '간략히') {
         isMobileMemberViewExpanded = true;
