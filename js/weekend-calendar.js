@@ -72,6 +72,16 @@ function setViewMode(mode) {
     }
 }
 
+// 모달을 닫을 때 1년치 실시간 리스너를 해제해 백그라운드 읽기 비용을 차단.
+// 다음에 다시 열면 loadWeekendRequests가 새로 구독한다(currentLoadedYear 리셋으로 강제 재구독).
+export function teardownWeekendCalendar() {
+    if (store.unsubscribe) {
+        store.unsubscribe();
+        store.unsubscribe = null;
+    }
+    currentLoadedYear = null;
+}
+
 export function changeMonth(offset) {
     store.currentMonth += offset;
     if (store.currentMonth > 11) {

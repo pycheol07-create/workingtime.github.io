@@ -27,8 +27,10 @@ export function setupWeekendListeners() {
     const closeModal = () => {
         if (modal) {
             modal.classList.add('hidden');
+            // 🔻 읽기 비용 절감: 닫을 때 1년치 실시간 리스너 해제 (다시 열면 재구독)
+            WeekendCalendar.teardownWeekendCalendar();
             if (modalContent) {
-                modalContent.style.transform = ''; 
+                modalContent.style.transform = '';
             }
             if (statsSidebar && window.innerWidth < 768) {
                 statsSidebar.classList.add('hidden');
