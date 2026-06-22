@@ -4,15 +4,11 @@ import * as State from './state.js';
 import { getLeaveDisplayLabel } from './ui-main-utils.js';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
-// 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러나 좌우로 롤링.
-// - 자동 롤링 4초, 마우스 올리면 일시정지(가운데 카드 버튼 조작 보장)
-// - 좌우 화살표/하단 점/양옆 카드 클릭으로 이동, 클릭한 카드가 가운데로
+// 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
+// - 자동 롤링 없음(수동만): 좌우 화살표/하단 점/양옆 카드 클릭으로 이동, 클릭한 카드가 가운데로
 // - _cfIndex(가운데 카드 위치)는 30초 전체 재렌더에도 유지
 let _cfIndex = 0;
-let _cfPaused = false;
-let _cfTimer = null;
 let _cfResizeBound = false;
-const CF_INTERVAL_MS = 4000;
 
 function _cfCards() {
     const stage = document.getElementById('task-coverflow');
@@ -89,10 +85,6 @@ function mountTaskCarousel() {
         }
     }
 
-    // 마우스 오버 중 자동 롤링 일시정지
-    stage.addEventListener('mouseenter', () => { _cfPaused = true; });
-    stage.addEventListener('mouseleave', () => { _cfPaused = false; });
-
     // 좌우 화살표
     const prev = container.querySelector('.task-carousel-arrow.prev');
     const next = container.querySelector('.task-carousel-arrow.next');
@@ -117,10 +109,6 @@ function mountTaskCarousel() {
     if (!_cfResizeBound) {
         _cfResizeBound = true;
         window.addEventListener('resize', () => _cfLayout());
-    }
-
-    if (!_cfTimer) {
-        _cfTimer = setInterval(() => { if (!_cfPaused) _cfGo(_cfIndex + 1); }, CF_INTERVAL_MS);
     }
 }
 
