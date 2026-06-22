@@ -41,8 +41,13 @@ export function renderWeekendStats(memberStats, yearlyStatsMap) {
     if (!sidebar || !list) return;
 
     const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
-    
-    const filteredMembers = [...memberStats.entries()].filter(([name, counts]) => !excludedMembers.includes(name));
+    const isAdmin = (State.appState.currentUserRole === 'admin');
+
+    let filteredMembers = [...memberStats.entries()].filter(([name, counts]) => !excludedMembers.includes(name));
+    // 일반 직원은 본인 신청 현황만 표시 (다른 팀원 내역 비공개)
+    if (!isAdmin) {
+        filteredMembers = filteredMembers.filter(([name]) => name === State.appState.currentUser);
+    }
 
     if (filteredMembers.length === 0) {
         sidebar.classList.add('!hidden');
@@ -231,9 +236,11 @@ export function renderWeekendList(year, month) {
                     return timeA.localeCompare(timeB);
                 });
 
-                store.requestsByDate[dateStr].forEach(req => {
-                    addBadgeToCalendar(dateStr, req, isAdmin && !isPast); 
-                });
+                store.requestsByDate[dateStr]
+                    .filter(req => isAdmin || req.member === State.appState.currentUser) // 일반 직원은 본인 신청만 표시
+                    .forEach(req => {
+                        addBadgeToCalendar(dateStr, req, isAdmin && !isPast);
+                    });
             }
         }
     }
@@ -340,9 +347,11 @@ export function renderWeekendGrid(year, month) {
                         return (a.createdAt || "").localeCompare(b.createdAt || "");
                     });
 
-                    store.requestsByDate[dateStr].forEach(req => {
-                        addBadgeToGrid(dateStr, req, isAdmin && !isPast); 
-                    });
+                    store.requestsByDate[dateStr]
+                        .filter(req => isAdmin || req.member === State.appState.currentUser) // 일반 직원은 본인 신청만 표시
+                        .forEach(req => {
+                            addBadgeToGrid(dateStr, req, isAdmin && !isPast);
+                        });
                 }
             }, 0);
 
