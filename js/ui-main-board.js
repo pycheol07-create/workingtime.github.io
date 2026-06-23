@@ -104,6 +104,28 @@ function mountTaskCarousel() {
         }
     }, true);
 
+    // 모바일 손가락 좌우 스와이프로 카드 넘기기 (세로 스크롤은 유지)
+    let _sx = 0, _sy = 0, _st = 0;
+    stage.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        _sx = e.touches[0].clientX;
+        _sy = e.touches[0].clientY;
+        _st = Date.now();
+    }, { passive: true });
+    stage.addEventListener('touchend', (e) => {
+        const t = e.changedTouches[0];
+        if (!t) return;
+        const dx = t.clientX - _sx;
+        const dy = t.clientY - _sy;
+        const dt = Date.now() - _st;
+        // 가로 이동이 충분하고(40px+) 세로보다 우세하며 빠른 제스처일 때만 스와이프로 처리
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3 && dt < 800) {
+            e.preventDefault(); // 스와이프 직후 클릭(카드 포커스) 발생 방지
+            if (dx < 0) _cfGo(_cfIndex + 1); // 왼쪽으로 밀면 다음
+            else _cfGo(_cfIndex - 1);        // 오른쪽으로 밀면 이전
+        }
+    }, { passive: false });
+
     _cfLayout();
 
     if (!_cfResizeBound) {

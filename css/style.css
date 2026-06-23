@@ -497,7 +497,7 @@ html.dark .depth-panel {
 /* z-index:0 으로 독립 stacking context 생성 → 내부 카드/화살표의 높은 z-index가
    밖으로 새어나가 모달(z-50)을 가리는 문제 차단 */
 .task-carousel { position: relative; z-index: 0; }
-.task-coverflow { position: relative; height: 360px; overflow: hidden; }
+.task-coverflow { position: relative; height: 360px; overflow: hidden; touch-action: pan-y; }
 .task-coverflow > .cf-card {
     position: absolute; left: 50%; top: 50%;
     height: 320px;
