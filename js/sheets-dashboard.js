@@ -112,38 +112,60 @@ function detectOrderCols(headers) {
     return ok ? idx : null;
 }
 
-function dateInPeriod(dStr, period, today) {
-    const d = String(dStr == null ? '' : dStr).slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
-    if (period === 'today') return d === today;
-    if (period === 'year') return d.slice(0, 4) === today.slice(0, 4);
-    if (period === 'month') return d.slice(0, 7) === today.slice(0, 7);
-    if (period === 'week') {
-        const td = new Date(today + 'T00:00:00');
-        const dow = (td.getDay() + 6) % 7; // 월=0
-        const mon = new Date(td); mon.setDate(td.getDate() - dow);
-        const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-        const f = x => x.toISOString().slice(0, 10);
-        return d >= f(mon) && d <= f(sun);
+// period('gran:offset' 또는 'custom')을 실제 날짜 범위 {from,to}로 변환
+// gran=day/week/month/year, offset=-1(전)/0(현)/1(후)
+function resolvePeriodRange(period, today, customRange) {
+    if (period === 'custom') return { from: (customRange && customRange.from) || '', to: (customRange && customRange.to) || '' };
+    const pad = (n) => String(n).padStart(2, '0');
+    const fmt = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const [gran, offStr] = String(period).split(':');
+    const off = parseInt(offStr, 10) || 0;
+    const base = new Date(today + 'T00:00:00');
+    if (gran === 'day') {
+        const d = new Date(base); d.setDate(base.getDate() + off);
+        return { from: fmt(d), to: fmt(d) };
     }
-    return false;
+    if (gran === 'week') {
+        const dow = (base.getDay() + 6) % 7; // 월=0
+        const mon = new Date(base); mon.setDate(base.getDate() - dow + off * 7);
+        const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+        return { from: fmt(mon), to: fmt(sun) };
+    }
+    if (gran === 'month') {
+        const first = new Date(base.getFullYear(), base.getMonth() + off, 1);
+        const last = new Date(base.getFullYear(), base.getMonth() + off + 1, 0);
+        return { from: fmt(first), to: fmt(last) };
+    }
+    if (gran === 'year') {
+        const y = base.getFullYear() + off;
+        return { from: `${y}-01-01`, to: `${y}-12-31` };
+    }
+    return { from: '', to: '' };
 }
 
-// 선택 기간에 해당하는지 판정하는 함수 생성 (custom = from~to 범위)
-function buildInPeriod(period, today, range) {
-    if (period === 'custom') {
-        const from = (range && range.from) || '';
-        const to = (range && range.to) || '';
-        return (dStr) => {
-            const d = String(dStr == null ? '' : dStr).slice(0, 10);
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
-            if (from && d < from) return false;
-            if (to && d > to) return false;
-            return true;
-        };
-    }
-    return (dStr) => dateInPeriod(dStr, period, today);
+// 날짜 문자열이 [from,to] 범위에 드는지
+function inDateRange(dStr, from, to) {
+    const d = String(dStr == null ? '' : dStr).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
 }
+
+// 기간 선택 드롭다운 옵션 (그룹별 전·현·후)
+const PERIOD_GROUPS = [
+    ['일', [['day:-1', '어제'], ['day:0', '오늘'], ['day:1', '내일']]],
+    ['주', [['week:-1', '지난주'], ['week:0', '이번주'], ['week:1', '다음주']]],
+    ['월', [['month:-1', '지난달'], ['month:0', '이번달'], ['month:1', '다음달']]],
+    ['년', [['year:-1', '작년'], ['year:0', '올해'], ['year:1', '내년']]],
+];
+const periodLabelOf = (period) => {
+    for (const [, items] of PERIOD_GROUPS) {
+        const hit = items.find(([v]) => v === period);
+        if (hit) return hit[1];
+    }
+    return '';
+};
 
 const fmtMoney = (n) => '$' + Math.round(n || 0).toLocaleString();
 const fmtKrw = (n) => '₩' + Math.round(n || 0).toLocaleString();
@@ -242,7 +264,7 @@ function renderKpi(cfg, data, idx) {
     if (summary) summary.innerHTML = '';
     if ($('search-' + cfg.localId)) $('search-' + cfg.localId).style.display = 'none';
     const today = getTodayStr();
-    const period = periodState[cfg.localId] || 'month';
+    const period = periodState[cfg.localId] || 'month:0';
     const rows = data.rows || [];
     const dOf = (r) => String(r[idx.date] == null ? '' : r[idx.date]).slice(0, 10);
 
@@ -257,8 +279,8 @@ function renderKpi(cfg, data, idx) {
             };
         }
     }
-    const range = periodRange[cfg.localId] || {};
-    const inPeriod = buildInPeriod(period, today, range);
+    const range = period === 'custom' ? (periodRange[cfg.localId] || {}) : resolvePeriodRange(period, today);
+    const inPeriod = (dStr) => inDateRange(dStr, range.from, range.to);
 
     const sumPeriod = (ci) => ci == null ? 0 : rows.reduce((a, r) => inPeriod(r[idx.date]) ? a + (parseNum(r[ci]) || 0) : a, 0);
     const reorder = sumPeriod(idx.reorder), newp = sumPeriod(idx.newp), pay = sumPeriod(idx.pay);
@@ -271,17 +293,22 @@ function renderKpi(cfg, data, idx) {
     const pack = cur && idx.pack != null ? (parseNum(cur[idx.pack]) || 0) : 0;
     const shipFuture = idx.ship == null ? 0 : rows.reduce((a, r) => { const d = dOf(r); return (/^\d{4}-\d{2}-\d{2}$/.test(d) && d >= today) ? a + (parseNum(r[idx.ship]) || 0) : a; }, 0);
 
-    const presets = [['today','오늘'],['week','이번주'],['month','이번달'],['year','올해'],['custom','기간 지정']];
-    const pBtns = presets
-        .map(([k, l]) => `<button data-period="${cfg.localId}:${k}" class="px-3 py-1.5 text-xs font-bold rounded-lg ${period === k ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${l}</button>`).join('');
+    // 기간 드롭다운 (일/주/월/년 그룹별 전·현·후 + 기간 지정)
+    const optsHtml = PERIOD_GROUPS.map(([grp, items]) =>
+        `<optgroup label="${grp}">` +
+        items.map(([v, l]) => `<option value="${v}"${period === v ? ' selected' : ''}>${l}</option>`).join('') +
+        `</optgroup>`
+    ).join('') + `<option value="custom"${period === 'custom' ? ' selected' : ''}>기간 지정…</option>`;
+    const pSelect = `<select data-period-sel="${cfg.localId}" class="text-xs font-bold border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 cursor-pointer">${optsHtml}</select>`;
     const rangeUI = `<span class="${period === 'custom' ? 'inline-flex' : 'hidden'} items-center gap-1 ml-1">
         <input type="date" data-range="${cfg.localId}:from" value="${range.from || ''}" class="text-xs border border-slate-300 rounded-md px-2 py-1">
         <span class="text-slate-400 text-xs">~</span>
         <input type="date" data-range="${cfg.localId}:to" value="${range.to || ''}" class="text-xs border border-slate-300 rounded-md px-2 py-1">
     </span>`;
+    const rangeStr = range.from ? (range.from === range.to ? esc(range.from) : `${esc(range.from)} ~ ${esc(range.to || '')}`) : '';
     const periodLabel = period === 'custom'
-        ? `${esc(range.from || '')} ~ ${esc(range.to || '')}`
-        : ({ today: '오늘', week: '이번주', month: '이번달', year: '올해' }[period] || '');
+        ? rangeStr
+        : `${periodLabelOf(period)}${rangeStr ? ` · ${rangeStr}` : ''}`;
 
     const fxLine = (usd) => usdKrw ? `<div class="text-[12px] font-bold text-slate-500 mt-0.5">${fmtKrw(usd * usdKrw)}</div>` : '';
     const kcard = (label, usd, note, tone) => `<div class="rounded-xl border border-slate-200 p-3.5 bg-white"><div class="text-[11px] font-bold text-slate-400 mb-1">${label}</div><div class="text-xl font-extrabold ${tone || 'text-slate-800'}">${fmtMoney(usd)}</div>${fxLine(usd)}${note ? `<div class="text-[11px] text-slate-400 mt-0.5">${note}</div>` : ''}</div>`;
@@ -294,7 +321,7 @@ function renderKpi(cfg, data, idx) {
     body.style.maxHeight = 'none';
     body.innerHTML = `
         <div class="p-4 space-y-4">
-            <div class="flex items-center gap-1.5 flex-wrap"><span class="text-[11px] text-slate-400 mr-1">기간:</span>${pBtns}${rangeUI}${fxCap}</div>
+            <div class="flex items-center gap-1.5 flex-wrap"><span class="text-[11px] text-slate-400 mr-1">기간:</span>${pSelect}${rangeUI}${fxCap}</div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 ${kcard('오더 총합', orderTotal, '리오더 + 신상', 'text-indigo-700')}
                 ${kcard('오더 (리오더)', reorder, '', 'text-slate-800')}
@@ -426,8 +453,6 @@ function renderTableAndSummary(cfg, data) {
 
 // ───────── 이벤트 ─────────
 $('sheets-container').addEventListener('click', (e) => {
-    const pb = e.target.closest('[data-period]');
-    if (pb) { const [id, per] = pb.dataset.period.split(':'); periodState[id] = per; const cfg = config.sheets.find(s => s.localId === id); const d = cardData[id]; const ix = d && detectOrderCols(d.headers); if (cfg && ix) renderKpi(cfg, d, ix); return; }
     const c = e.target.closest('[data-cols]'); const ed = e.target.closest('[data-edit]'); const rf = e.target.closest('[data-refresh]');
     if (c) openColsModal(c.dataset.cols);
     else if (ed) openSheetModal(ed.dataset.edit);
@@ -438,18 +463,25 @@ $('sheets-container').addEventListener('input', (e) => {
     if (s) { const id = s.id.replace('search-', ''); const cfg = config.sheets.find(x => x.localId === id);
         if (cfg && cardData[id] && !detectOrderCols(cardData[id].headers)) renderTableAndSummary(cfg, cardData[id]); }
 });
-// 기간(custom) 날짜 입력 변경 → 해당 시트만 다시 렌더
+// 기간 드롭다운/날짜 입력 변경 → 해당 시트만 다시 렌더
 $('sheets-container').addEventListener('change', (e) => {
+    const rerender = (id) => {
+        const cfg = config.sheets.find(s => s.localId === id);
+        const d = cardData[id];
+        const ix = d && detectOrderCols(d.headers);
+        if (cfg && ix) renderKpi(cfg, d, ix);
+    };
+    const sel = e.target.closest('[data-period-sel]');
+    if (sel) { periodState[sel.dataset.periodSel] = sel.value; rerender(sel.dataset.periodSel); return; }
+
     const ri = e.target.closest('[data-range]');
-    if (!ri) return;
-    const [id, which] = ri.dataset.range.split(':');
-    periodRange[id] = periodRange[id] || {};
-    periodRange[id][which] = ri.value;
-    periodState[id] = 'custom';
-    const cfg = config.sheets.find(s => s.localId === id);
-    const d = cardData[id];
-    const ix = d && detectOrderCols(d.headers);
-    if (cfg && ix) renderKpi(cfg, d, ix);
+    if (ri) {
+        const [id, which] = ri.dataset.range.split(':');
+        periodRange[id] = periodRange[id] || {};
+        periodRange[id][which] = ri.value;
+        periodState[id] = 'custom';
+        rerender(id);
+    }
 });
 
 $('btn-refresh-all').onclick = () => config.sheets.forEach(cfg => loadCard(cfg, true));
