@@ -210,7 +210,7 @@ function buildDateBreakdown(rows, idx, inPeriod) {
         if (idx.pack != null)    { const v = parseNum(r[idx.pack]); if (v != null) o.pack = v; }
         byDate.set(d, o);
     });
-    const dates = [...byDate.keys()].sort().reverse(); // 최근순
+    const dates = [...byDate.keys()].sort(); // 날짜 오름차순 (오래된 → 최신)
     if (dates.length === 0) return `<div class="p-4 text-center text-slate-400 text-sm">선택한 기간에 데이터가 없습니다.</div>`;
 
     const tot = { order: 0, pay: 0, ship: 0 };
