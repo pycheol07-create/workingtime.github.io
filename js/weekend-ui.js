@@ -34,6 +34,53 @@ export function getHolidayName(year, month, day) {
     return null;
 }
 
+// 📅 해당 월 주말 근무일 수 + 1인당 적정(공평) 횟수 계산 후 상단 배너에 표시
+// 적정 횟수 = (그 달 주말 근무일들의 정원 합계) ÷ (참여 가능 인원) — 모두가 비슷하게 나눠 맡는 기준
+export function renderWeekendFairness(year, month, capacityMap, blockedDatesSet, eligibleCount) {
+    const el = document.getElementById('weekend-fairness-banner');
+    if (!el) return;
+
+    const mm = String(month + 1).padStart(2, '0');
+    const lastDate = new Date(year, month + 1, 0).getDate();
+
+    let openDays = 0;        // 마감(미운영) 제외한 주말 근무일 수
+    let totalCapacity = 0;   // 정원 합계 = 그 달 주말에 필요한 총 인원(연인원)
+    for (let d = 1; d <= lastDate; d++) {
+        const dow = new Date(year, month, d).getDay();
+        if (dow !== 0 && dow !== 6) continue; // 토(6)·일(0)만
+        const dateStr = `${year}-${mm}-${String(d).padStart(2, '0')}`;
+        if (blockedDatesSet && blockedDatesSet.has(dateStr)) continue; // 마감일 제외
+        openDays++;
+        const cap = Number(capacityMap && capacityMap.get(dateStr)) || 0;
+        if (cap > 0) totalCapacity += cap;
+    }
+
+    if (openDays === 0) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+
+    let rightHtml;
+    if (eligibleCount > 0 && totalCapacity > 0) {
+        const avg = totalCapacity / eligibleCount;
+        const rec = Math.round(avg);
+        rightHtml = `
+            <div class="text-right whitespace-nowrap leading-tight">
+                <div class="text-sm md:text-base font-extrabold text-indigo-700">1인당 적정 <span class="text-indigo-900 text-base md:text-lg">${rec}회</span></div>
+                <div class="text-[10px] md:text-[11px] text-indigo-500">이렇게 하면 가장 공평 (평균 ${avg.toFixed(1)}회)</div>
+            </div>`;
+    } else {
+        rightHtml = `<div class="text-[11px] md:text-xs text-indigo-500 text-right leading-tight">날짜별 <b>정원</b>을 설정하면<br>1인당 적정 횟수가 계산됩니다</div>`;
+    }
+
+    const capText = totalCapacity > 0 ? ` · 필요 <b class="text-indigo-800">${totalCapacity}명</b>` : '';
+    el.innerHTML = `
+        <div class="flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+            <div class="text-[11px] md:text-xs text-indigo-900 leading-snug">
+                <span class="font-bold">📅 ${year}년 ${month + 1}월</span> 주말 근무일 <b class="text-indigo-800">${openDays}일</b>${capText} · 참여 <b class="text-indigo-800">${eligibleCount}명</b>
+            </div>
+            ${rightHtml}
+        </div>`;
+    el.classList.remove('hidden');
+}
+
 export function renderWeekendStats(memberStats, yearlyStatsMap) {
     const sidebar = document.getElementById('weekend-stats-sidebar');
     const list = document.getElementById('weekend-stats-list');

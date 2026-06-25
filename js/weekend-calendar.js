@@ -3,7 +3,7 @@ import * as State from './state.js';
 import { store, currentManageDateStr } from './weekend-store.js';
 import { showToast } from './utils.js';
 import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderWeekendStats, renderWeekendList, renderWeekendGrid } from './weekend-ui.js';
+import { renderWeekendStats, renderWeekendList, renderWeekendGrid, renderWeekendFairness } from './weekend-ui.js';
 import { processSelectedDatesBulkAction, populatePastDateAddSelect, renderPastDateMembers } from './weekend-admin.js';
 
 let currentViewMode = 'list'; 
@@ -151,6 +151,9 @@ function processAndRenderWeekend(year, month) {
 
     store.currentYearlyStats = new Map(yearlyStatsMap);
     store.currentMonthStats = new Map(memberStats);
+
+    // 이번달 주말 근무일 수 + 1인당 적정 횟수 배너
+    renderWeekendFairness(year, month, store.capacityMap, store.blockedDatesSet, memberStats.size);
 
     renderWeekendStats(memberStats, yearlyStatsMap);
     
