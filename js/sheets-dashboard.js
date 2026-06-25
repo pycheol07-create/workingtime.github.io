@@ -94,7 +94,8 @@ function numericColumns(headers, rows) {
 
 // ───────── 주문/결제 장부 KPI (헤더명 자동 매핑) ─────────
 const norm = (h) => String(h == null ? '' : h).replace(/[\s\n]/g, '');
-const periodState = {}; // localId -> 'today'|'week'|'month'|'year'
+const periodState = {}; // localId -> 'today'|'week'|'month'|'year'|'custom'
+const periodRange = {}; // localId -> { from, to }  (custom 기간 조회용)
 
 function detectOrderCols(headers) {
     const find = (pred) => { const i = (headers || []).findIndex(h => pred(norm(h))); return i < 0 ? null : i; };
@@ -126,6 +127,22 @@ function dateInPeriod(dStr, period, today) {
         return d >= f(mon) && d <= f(sun);
     }
     return false;
+}
+
+// 선택 기간에 해당하는지 판정하는 함수 생성 (custom = from~to 범위)
+function buildInPeriod(period, today, range) {
+    if (period === 'custom') {
+        const from = (range && range.from) || '';
+        const to = (range && range.to) || '';
+        return (dStr) => {
+            const d = String(dStr == null ? '' : dStr).slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+            if (from && d < from) return false;
+            if (to && d > to) return false;
+            return true;
+        };
+    }
+    return (dStr) => dateInPeriod(dStr, period, today);
 }
 
 const fmtMoney = (n) => '$' + Math.round(n || 0).toLocaleString();
@@ -170,6 +187,55 @@ function rerenderKpiCards() {
     });
 }
 
+// 선택 기간의 '날짜별 내역' 테이블 HTML (오더/결제/출고예정/미출고/패킹)
+function buildDateBreakdown(rows, idx, inPeriod) {
+    const dOf = (r) => String(r[idx.date] == null ? '' : r[idx.date]).slice(0, 10);
+    const cols = [];
+    if (idx.reorder != null || idx.newp != null) cols.push(['order', '오더', 'text-indigo-700']);
+    if (idx.pay != null)    cols.push(['pay', '결제', 'text-emerald-700']);
+    if (idx.ship != null)   cols.push(['ship', '출고예정', 'text-amber-700']);
+    if (idx.unship != null) cols.push(['unship', '미출고', 'text-rose-600']);
+    if (idx.pack != null)   cols.push(['pack', '패킹', 'text-slate-600']);
+
+    const byDate = new Map();
+    rows.forEach(r => {
+        const d = dOf(r);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !inPeriod(r[idx.date])) return;
+        const o = byDate.get(d) || { order: 0, pay: 0, ship: 0, unship: null, pack: null };
+        if (idx.reorder != null) o.order += parseNum(r[idx.reorder]) || 0;
+        if (idx.newp != null)    o.order += parseNum(r[idx.newp]) || 0;
+        if (idx.pay != null)     o.pay   += parseNum(r[idx.pay]) || 0;
+        if (idx.ship != null)    o.ship  += parseNum(r[idx.ship]) || 0;
+        if (idx.unship != null)  { const v = parseNum(r[idx.unship]); if (v != null) o.unship = v; } // 잔액=스냅샷(마지막값)
+        if (idx.pack != null)    { const v = parseNum(r[idx.pack]); if (v != null) o.pack = v; }
+        byDate.set(d, o);
+    });
+    const dates = [...byDate.keys()].sort().reverse(); // 최근순
+    if (dates.length === 0) return `<div class="p-4 text-center text-slate-400 text-sm">선택한 기간에 데이터가 없습니다.</div>`;
+
+    const tot = { order: 0, pay: 0, ship: 0 };
+    dates.forEach(d => { const o = byDate.get(d); tot.order += o.order; tot.pay += o.pay; tot.ship += o.ship; });
+
+    const th = `<th class="px-2 py-1.5 text-left whitespace-nowrap">날짜</th>` +
+        cols.map(([, l]) => `<th class="px-2 py-1.5 text-right whitespace-nowrap">${l}</th>`).join('');
+    const trs = dates.map(d => {
+        const o = byDate.get(d);
+        const tds = cols.map(([k, , tone]) => {
+            const v = o[k];
+            return `<td class="num ${tone}">${v == null ? '<span class="text-slate-300">-</span>' : fmtMoney(v)}</td>`;
+        }).join('');
+        return `<tr><td class="font-bold text-slate-700 whitespace-nowrap">${esc(d)}</td>${tds}</tr>`;
+    }).join('');
+    const totTds = cols.map(([k, , tone]) =>
+        (k === 'order' || k === 'pay' || k === 'ship')
+            ? `<td class="num font-extrabold ${tone}">${fmtMoney(tot[k])}</td>`
+            : `<td class="num text-slate-300">-</td>`
+    ).join('');
+    const totRow = `<tr style="background:#f1f5f9;"><td class="font-extrabold text-slate-600">합계</td>${totTds}</tr>`;
+
+    return `<table class="data-table"><thead><tr>${th}</tr></thead><tbody>${trs}${totRow}</tbody></table>`;
+}
+
 function renderKpi(cfg, data, idx) {
     const body = $('body-' + cfg.localId);
     const summary = $('summary-' + cfg.localId);
@@ -178,9 +244,23 @@ function renderKpi(cfg, data, idx) {
     const today = getTodayStr();
     const period = periodState[cfg.localId] || 'month';
     const rows = data.rows || [];
-
     const dOf = (r) => String(r[idx.date] == null ? '' : r[idx.date]).slice(0, 10);
-    const sumPeriod = (ci) => ci == null ? 0 : rows.reduce((a, r) => dateInPeriod(r[idx.date], period, today) ? a + (parseNum(r[ci]) || 0) : a, 0);
+
+    // 기간(custom) 기본 범위: 미설정 시 데이터의 최소~최대 날짜
+    if (period === 'custom') {
+        const c = periodRange[cfg.localId] || {};
+        if (!c.from || !c.to) {
+            const ds = rows.map(dOf).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+            periodRange[cfg.localId] = {
+                from: c.from || ds[0] || (today.slice(0, 7) + '-01'),
+                to:   c.to   || ds[ds.length - 1] || today
+            };
+        }
+    }
+    const range = periodRange[cfg.localId] || {};
+    const inPeriod = buildInPeriod(period, today, range);
+
+    const sumPeriod = (ci) => ci == null ? 0 : rows.reduce((a, r) => inPeriod(r[idx.date]) ? a + (parseNum(r[ci]) || 0) : a, 0);
     const reorder = sumPeriod(idx.reorder), newp = sumPeriod(idx.newp), pay = sumPeriod(idx.pay);
     const orderTotal = reorder + newp;
 
@@ -191,18 +271,30 @@ function renderKpi(cfg, data, idx) {
     const pack = cur && idx.pack != null ? (parseNum(cur[idx.pack]) || 0) : 0;
     const shipFuture = idx.ship == null ? 0 : rows.reduce((a, r) => { const d = dOf(r); return (/^\d{4}-\d{2}-\d{2}$/.test(d) && d >= today) ? a + (parseNum(r[idx.ship]) || 0) : a; }, 0);
 
-    const pBtns = [['today','오늘'],['week','이번주'],['month','이번달'],['year','올해']]
+    const presets = [['today','오늘'],['week','이번주'],['month','이번달'],['year','올해'],['custom','기간 지정']];
+    const pBtns = presets
         .map(([k, l]) => `<button data-period="${cfg.localId}:${k}" class="px-3 py-1.5 text-xs font-bold rounded-lg ${period === k ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${l}</button>`).join('');
+    const rangeUI = `<span class="${period === 'custom' ? 'inline-flex' : 'hidden'} items-center gap-1 ml-1">
+        <input type="date" data-range="${cfg.localId}:from" value="${range.from || ''}" class="text-xs border border-slate-300 rounded-md px-2 py-1">
+        <span class="text-slate-400 text-xs">~</span>
+        <input type="date" data-range="${cfg.localId}:to" value="${range.to || ''}" class="text-xs border border-slate-300 rounded-md px-2 py-1">
+    </span>`;
+    const periodLabel = period === 'custom'
+        ? `${esc(range.from || '')} ~ ${esc(range.to || '')}`
+        : ({ today: '오늘', week: '이번주', month: '이번달', year: '올해' }[period] || '');
+
     const fxLine = (usd) => usdKrw ? `<div class="text-[12px] font-bold text-slate-500 mt-0.5">${fmtKrw(usd * usdKrw)}</div>` : '';
     const kcard = (label, usd, note, tone) => `<div class="rounded-xl border border-slate-200 p-3.5 bg-white"><div class="text-[11px] font-bold text-slate-400 mb-1">${label}</div><div class="text-xl font-extrabold ${tone || 'text-slate-800'}">${fmtMoney(usd)}</div>${fxLine(usd)}${note ? `<div class="text-[11px] text-slate-400 mt-0.5">${note}</div>` : ''}</div>`;
     const fxCap = usdKrw
         ? `<span class="text-[11px] text-slate-400 ml-auto">💱 1 USD ≈ ₩${Math.round(usdKrw).toLocaleString()}${fxUpdated ? ` · ${esc(fxUpdated)} 기준` : ''}</span>`
         : `<span class="text-[11px] text-slate-300 ml-auto">환율 불러오는 중…</span>`;
 
+    const breakdownHtml = buildDateBreakdown(rows, idx, inPeriod);
+
     body.style.maxHeight = 'none';
     body.innerHTML = `
         <div class="p-4 space-y-4">
-            <div class="flex items-center gap-1.5 flex-wrap"><span class="text-[11px] text-slate-400 mr-1">기간:</span>${pBtns}${fxCap}</div>
+            <div class="flex items-center gap-1.5 flex-wrap"><span class="text-[11px] text-slate-400 mr-1">기간:</span>${pBtns}${rangeUI}${fxCap}</div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 ${kcard('오더 총합', orderTotal, '리오더 + 신상', 'text-indigo-700')}
                 ${kcard('오더 (리오더)', reorder, '', 'text-slate-800')}
@@ -214,6 +306,10 @@ function renderKpi(cfg, data, idx) {
                 ${kcard('출고 예정금액 (오늘 및 이후)', shipFuture, '', 'text-amber-700')}
                 ${kcard('미출고 잔액', unship, '', 'text-rose-700')}
                 ${kcard('패킹 잔액', pack, '', 'text-slate-800')}
+            </div>
+            <div class="pt-1">
+                <div class="text-xs font-bold text-slate-500 mb-1.5">📅 날짜별 내역${periodLabel ? ` · ${periodLabel}` : ''}</div>
+                <div class="overflow-auto border border-slate-200 rounded-lg" style="max-height:45vh;">${breakdownHtml}</div>
             </div>
             <details class="pt-1">
                 <summary class="text-xs font-bold text-slate-500 cursor-pointer select-none">📋 원본 데이터 보기 (최근순)</summary>
@@ -341,6 +437,19 @@ $('sheets-container').addEventListener('input', (e) => {
     const s = e.target.closest('[id^="search-"]');
     if (s) { const id = s.id.replace('search-', ''); const cfg = config.sheets.find(x => x.localId === id);
         if (cfg && cardData[id] && !detectOrderCols(cardData[id].headers)) renderTableAndSummary(cfg, cardData[id]); }
+});
+// 기간(custom) 날짜 입력 변경 → 해당 시트만 다시 렌더
+$('sheets-container').addEventListener('change', (e) => {
+    const ri = e.target.closest('[data-range]');
+    if (!ri) return;
+    const [id, which] = ri.dataset.range.split(':');
+    periodRange[id] = periodRange[id] || {};
+    periodRange[id][which] = ri.value;
+    periodState[id] = 'custom';
+    const cfg = config.sheets.find(s => s.localId === id);
+    const d = cardData[id];
+    const ix = d && detectOrderCols(d.headers);
+    if (cfg && ix) renderKpi(cfg, d, ix);
 });
 
 $('btn-refresh-all').onclick = () => config.sheets.forEach(cfg => loadCard(cfg, true));
