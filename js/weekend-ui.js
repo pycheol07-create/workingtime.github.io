@@ -39,6 +39,12 @@ export function getHolidayName(year, month, day) {
 //       정원 미설정 날짜는 기본 3명으로 계산.
 //       1인당 적정 = 팀원 몫 합계 ÷ 참여 가능 팀원 수
 const WEEKEND_DEFAULT_CAPACITY = 3; // 별도 설정 없으면 하루 정원 3명
+
+// 날짜별 실제 적용 정원 — 관리자가 따로 설정하지 않은 주말은 기본 3명으로 본다.
+export function getWeekendCapacity(dateStr) {
+    const v = Number(store.capacityMap.get(dateStr)) || 0;
+    return v > 0 ? v : WEEKEND_DEFAULT_CAPACITY;
+}
 export function renderWeekendFairness(year, month, capacityMap, blockedDatesSet, eligibleCount) {
     const el = document.getElementById('weekend-fairness-banner');
     if (!el) return;
@@ -187,7 +193,7 @@ export function renderWeekendList(year, month) {
             
             const isBlocked = store.blockedDatesSet.has(dateStr);
             const isAppliedByMe = store.myRequestsMap.has(dateStr);
-            const capacity = store.capacityMap.get(dateStr); 
+            const capacity = getWeekendCapacity(dateStr); // 미설정 시 기본 3명
             const isPast = dateObj < today;
 
             // 주말 색상만 적용 (공휴일 무시)
@@ -347,7 +353,7 @@ export function renderWeekendGrid(year, month) {
         if (dayOfWeek === 0 || dayOfWeek === 6) {
             const isBlocked = store.blockedDatesSet.has(dateStr);
             const isAppliedByMe = store.myRequestsMap.has(dateStr);
-            const capacity = store.capacityMap.get(dateStr); 
+            const capacity = getWeekendCapacity(dateStr); // 미설정 시 기본 3명
             const isPast = dateObj < today;
 
             if (isPast || isBlocked) {
