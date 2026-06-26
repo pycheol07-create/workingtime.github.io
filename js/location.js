@@ -7383,6 +7383,7 @@ window.__dashShowLocList = function (type) {
         (loc.name && String(loc.name).trim() !== '');
     const setTitle = (t) => { if (titleEl) titleEl.querySelector('span').textContent = t; };
     const th = (cols) => `<tr>${cols.map(c => `<th style="border-top:none; font-size:12px;${c.w ? `width:${c.w};` : ''}">${c.t}</th>`).join('')}</tr>`;
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
     if (type === 'empty') {
         const rows = locs3F.filter(l => !isUsed(l)).sort((a, b) => (a.id || '').localeCompare(b.id || ''));
