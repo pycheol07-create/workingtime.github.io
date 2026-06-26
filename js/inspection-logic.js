@@ -488,7 +488,20 @@ export const searchProductHistory = async () => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             if(DOM.inspReportCount) DOM.inspReportCount.textContent = data.totalInbound || 0;
-            if(DOM.inspReportDate) DOM.inspReportDate.textContent = data.lastInspectionDate || '-';
+            // 최근 검수일 = 당일(오늘)을 제외한 가장 최근 검수 날짜
+            if (DOM.inspReportDate) {
+                const todayStr = getTodayDateString();
+                const logs = Array.isArray(data.logs) ? data.logs : [];
+                const pastDates = logs
+                    .map(l => String(l.date || l.inboundDate || '').slice(0, 10))
+                    .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && d !== todayStr)
+                    .sort();
+                let lastDate = pastDates.length ? pastDates[pastDates.length - 1] : '';
+                if (!lastDate && data.lastInspectionDate && String(data.lastInspectionDate).slice(0, 10) !== todayStr) {
+                    lastDate = data.lastInspectionDate; // 로그가 없어도 과거 검수일이 있으면 사용
+                }
+                DOM.inspReportDate.textContent = lastDate || '-';
+            }
 
             let specialIssues = [];
             
