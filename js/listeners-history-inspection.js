@@ -28,9 +28,36 @@ import {
     clearManualImageState    
 } from './inspection-logic.js';
 
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let cachedInspectionData = [];
+
+// 검수이력 일자별 보기 → 그 날짜의 '대기' 항목을 오늘 검수 대기 리스트에 불러와 이어서 진행.
+// (검수 매니저는 메인 앱에 있으므로, 여기선 오늘 daily_data의 inspectionList에 머지 저장만 하고
+//  사용자는 메인 화면 '샘플검수'에서 이어서 진행한다. 메인 탭은 onSnapshot으로 자동 반영됨.)
+async function resumeInspectionFromDate(date) {
+    const day = (State.allHistoryData || []).find(d => d.id === date);
+    const pending = (day && Array.isArray(day.inspectionList) ? day.inspectionList : [])
+        .filter(it => it.status !== '완료');
+    if (pending.length === 0) { showToast('이어서 할 대기 항목이 없습니다.', true); return; }
+    try {
+        const today = getTodayDateString();
+        const todayRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
+        const snap = await getDoc(todayRef);
+        const current = (snap.exists() && Array.isArray(snap.data().inspectionList)) ? snap.data().inspectionList : [];
+        const keyOf = (it) => `${it.name || ''}|${it.code || ''}|${it.packingDate || ''}`;
+        const seen = new Set(current.map(keyOf));
+        const toAdd = pending.filter(it => !seen.has(keyOf(it))).map(it => ({ ...it, status: '대기' }));
+        if (toAdd.length === 0) { showToast('이미 오늘 검수 대기 리스트에 모두 들어 있습니다.'); return; }
+        const merged = [...current, ...toAdd];
+        await setDoc(todayRef, { inspectionList: merged }, { merge: true });
+        if (State.appState) State.appState.inspectionList = merged;
+        showToast(`검수 대기 리스트에 ${toAdd.length}건을 불러왔습니다. 메인 화면 '샘플검수'에서 이어서 진행하세요.`);
+    } catch (err) {
+        console.error('이어서 검수 불러오기 실패:', err);
+        showToast('이어서 검수 불러오기에 실패했습니다.', true);
+    }
+}
 
 export const fetchAndRenderInspectionHistory = async () => {
     const container = DOM.inspectionHistoryViewContainer;
@@ -170,6 +197,12 @@ export function setupHistoryInspectionListeners() {
                 if (typeSelect && valueSelect) {
                     renderQCStatsMode(cachedInspectionData, typeSelect.value, valueSelect.value);
                 }
+                return;
+            }
+
+            const resumeBtn = e.target.closest('.btn-resume-insp');
+            if (resumeBtn) {
+                await resumeInspectionFromDate(resumeBtn.dataset.date);
                 return;
             }
 

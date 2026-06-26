@@ -189,6 +189,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
     } else {
         let totalInboundQty = 0;
         let totalSampleQty = 0;
+        const pendingCount = filteredSelectedData.filter(it => it.status !== '완료').length;
 
         const rows = filteredSelectedData.map((item, idx) => {
             const isCompleted = item.status === '완료';
@@ -243,10 +244,13 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                             총 샘플검수: <strong class="text-blue-600">${totalSampleQty.toLocaleString()}</strong>개
                         </span>
                     </div>
-                    <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list" 
-                            data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
-                        🗑️ 리스트 삭제
-                    </button>
+                    <div class="flex gap-1.5 shrink-0">
+                        ${pendingCount > 0 ? `<button class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1 px-2.5 rounded shadow-sm transition btn-resume-insp" data-date="${selectedDate}" title="이 날짜의 대기 항목을 오늘 검수 대기 리스트로 불러와 이어서 진행">▶ 이어서 검수 (대기 ${pendingCount}건)</button>` : ''}
+                        <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list"
+                                data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
+                            🗑️ 리스트 삭제
+                        </button>
+                    </div>
                 </div>
                 <div class="flex-grow overflow-y-auto custom-scrollbar relative">
                     <table class="w-full text-left border-collapse">
