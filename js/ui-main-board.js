@@ -371,12 +371,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     }
     ongoingTasks.forEach(task => {
         const grp = ongoingRecords.filter(r => r.task === task);
-        const gid = grp[0]?.groupId || '';
         const cnt = new Set(grp.map(r => r.member)).size;
         const paused = grp.length > 0 && grp.every(r => r.status === 'paused');
-        // 진행중 카드 클릭 → 해당 업무에 '인원 추가' (data-group-id + data-task 위임 핸들러 재사용)
+        // 진행중 카드 클릭 → 왼쪽 커버플로우에서 해당 업무 카드를 가운데로 (인원 선택창 X)
         quickHtml += `
-            <div class="task-quick-card" data-group-id="${gid}" data-task="${task}" title="'${task}' 인원 추가">
+            <div class="task-quick-card" data-cf-focus="${task}" title="'${task}' 업무 카드 보기">
                 <span class="task-quick-dot ${paused ? 'is-paused' : 'is-on'}"></span>
                 <span class="task-quick-name">${task}</span>
                 <span class="task-quick-badge">${cnt}</span>
@@ -389,6 +388,15 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             <span class="task-quick-name">기타 업무</span>
         </div>`;
     quickList.innerHTML = quickHtml;
+
+    // 진행중 항목 클릭 → 왼쪽 커버플로우에서 그 업무 카드를 가운데로
+    quickList.addEventListener('click', (e) => {
+        const item = e.target.closest('[data-cf-focus]');
+        if (!item) return;
+        const task = item.dataset.cfFocus;
+        const idx = _cfCards().findIndex(c => c.dataset.task === task);
+        if (idx >= 0) _cfGo(idx);
+    });
 
     // ── 좌(커버플로우) + 우(빠른시작) 레이아웃 ──
     const boardLayout = document.createElement('div');
