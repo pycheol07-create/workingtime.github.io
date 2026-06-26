@@ -5,6 +5,7 @@
 import { initializeFirebase } from './config.js';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { resolvePeriodRange, inDateRange } from './lib/calc.js';
 
 const { db, auth } = initializeFirebase();
 const CONFIG_REF = doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'sheetDashboard');
@@ -110,46 +111,6 @@ function detectOrderCols(headers) {
     };
     const ok = idx.date != null && (idx.reorder != null || idx.newp != null || idx.pay != null);
     return ok ? idx : null;
-}
-
-// period('gran:offset' 또는 'custom')을 실제 날짜 범위 {from,to}로 변환
-// gran=day/week/month/year, offset=-1(전)/0(현)/1(후)
-function resolvePeriodRange(period, today, customRange) {
-    if (period === 'custom') return { from: (customRange && customRange.from) || '', to: (customRange && customRange.to) || '' };
-    const pad = (n) => String(n).padStart(2, '0');
-    const fmt = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
-    const [gran, offStr] = String(period).split(':');
-    const off = parseInt(offStr, 10) || 0;
-    const base = new Date(today + 'T00:00:00');
-    if (gran === 'day') {
-        const d = new Date(base); d.setDate(base.getDate() + off);
-        return { from: fmt(d), to: fmt(d) };
-    }
-    if (gran === 'week') {
-        const dow = (base.getDay() + 6) % 7; // 월=0
-        const mon = new Date(base); mon.setDate(base.getDate() - dow + off * 7);
-        const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-        return { from: fmt(mon), to: fmt(sun) };
-    }
-    if (gran === 'month') {
-        const first = new Date(base.getFullYear(), base.getMonth() + off, 1);
-        const last = new Date(base.getFullYear(), base.getMonth() + off + 1, 0);
-        return { from: fmt(first), to: fmt(last) };
-    }
-    if (gran === 'year') {
-        const y = base.getFullYear() + off;
-        return { from: `${y}-01-01`, to: `${y}-12-31` };
-    }
-    return { from: '', to: '' };
-}
-
-// 날짜 문자열이 [from,to] 범위에 드는지
-function inDateRange(dStr, from, to) {
-    const d = String(dStr == null ? '' : dStr).slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
-    if (from && d < from) return false;
-    if (to && d > to) return false;
-    return true;
 }
 
 // 기간 선택 드롭다운 옵션 (그룹별 전·현·후)
