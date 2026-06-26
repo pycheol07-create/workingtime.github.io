@@ -40,4 +40,11 @@
     } else {
         update();
     }
+
+    // PWA 서비스워커 등록 (network-first 전략 — 오프라인 대비 + 홈 화면 설치)
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+        });
+    }
 })();
