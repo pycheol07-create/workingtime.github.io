@@ -2162,6 +2162,29 @@ window.saveCapacity2F = async function() {
 
 window.switchUsageTab = function(tab) { window.currentUsageTab = tab; window.calculateAndRenderUsage(); };
 
+// 대시보드 KPI 카드 → 데이터 리스트 뷰로 전환 + 해당 상태 필터 적용 (작업 가능 화면으로 바로 연결)
+window.__dashGoToList = function(state) {
+    filters = { loc: [], code: [], stock: [], stock2f: [], dong: [], pos: [], reserved: [], preassigned: [] };
+    if (state === 'used') filters.code = ['not-empty'];
+    else if (state === 'empty') filters.code = ['empty'];
+    else if (state === 'reserved') filters.reserved = ['only'];
+    else if (state === 'preassigned') filters.preassigned = ['only'];
+    setupFilterPopups();
+    applyFiltersAndSort();
+    if (typeof window.closeAllPopups === 'function') window.closeAllPopups();
+    // 3개 뷰 중 '데이터 리스트'로 전환 (대시보드/도면 숨김 + 탭 활성화)
+    const vList = document.getElementById('view-list');
+    const vMap = document.getElementById('view-map');
+    const vDash = document.getElementById('view-locdash');
+    if (vList) vList.style.display = 'block';
+    if (vMap) vMap.style.display = 'none';
+    if (vDash) vDash.style.display = 'none';
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-btn-list')?.classList.add('active');
+    if (typeof window.showFilterResetBtn === 'function') window.showFilterResetBtn();
+    if (vList && vList.scrollIntoView) vList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
 window.applyUsageFilter = function(zone, state) {
     // ★ v3.57: 모든 필터 배열 초기화
     filters = { loc: [], code: [], stock: [], stock2f: [], dong: [], pos: [], reserved: [], preassigned: [] };
@@ -6883,7 +6906,7 @@ window.renderLocationDashboard = function () {
                 <div class="kpi-sub">${used.toLocaleString()} / ${total.toLocaleString()} 칸</div>
             </div>
         </div>
-        <div class="dash-kpi-card" style="cursor:pointer;" onclick="window.__dashShowLocList('empty')" title="클릭: 빈 자리 리스트 보기"
+        <div class="dash-kpi-card" style="cursor:pointer;" onclick="window.__dashGoToList('empty')" title="클릭: 데이터 리스트에서 빈 자리만 보기 (지정·작업 가능)"
             onmouseover="this.style.boxShadow='0 2px 10px rgba(61,90,254,0.25)';" onmouseout="this.style.boxShadow='';">
             <div class="kpi-icon green">🟢</div>
             <div class="kpi-body">
