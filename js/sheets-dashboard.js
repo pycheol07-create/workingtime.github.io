@@ -6,6 +6,7 @@ import { initializeFirebase } from './config.js';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { resolvePeriodRange, inDateRange } from './lib/calc.js';
+import { showConfirm } from './utils.js';
 
 const { db, auth } = initializeFirebase();
 const CONFIG_REF = doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'sheetDashboard');
@@ -483,7 +484,8 @@ $('btn-save-sheet').onclick = async () => {
 };
 $('btn-delete-sheet').onclick = async () => {
     const localId = $('inp-sheet-localid').value;
-    if (!localId || !confirm('이 시트를 대시보드에서 삭제할까요?')) return;
+    if (!localId) return;
+    if (!await showConfirm('이 시트를 대시보드에서 삭제할까요?', { title: '시트 삭제', okText: '삭제', danger: true })) return;
     config.sheets = config.sheets.filter(s => s.localId !== localId);
     await saveConfig(); hide('sheet-modal'); renderAll();
 };

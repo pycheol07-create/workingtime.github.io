@@ -32,6 +32,38 @@ export const showToast = (message, isError = false) => {
     }, 3000);
 };
 
+// 네이티브 confirm 대체 — 스타일된 모달, Promise<boolean> 반환.
+// 자체 DOM을 생성하므로 어느 페이지에서나 동작(별도 마크업/컨테이너 불필요).
+export const showConfirm = (message, opts = {}) => {
+    const { title = '확인', okText = '확인', cancelText = '취소', danger = false } = opts;
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    return new Promise((resolve) => {
+        const ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(17,24,39,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+        const okColor = danger ? '#dc2626' : '#2563eb';
+        ov.innerHTML = `
+            <div role="dialog" aria-modal="true" style="background:#fff;border-radius:16px;max-width:380px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3);overflow:hidden;font-family:inherit;">
+              <div style="padding:20px 20px 8px;font-weight:800;font-size:16px;color:#111827;">${esc(title)}</div>
+              <div style="padding:0 20px 18px;font-size:14px;color:#374151;line-height:1.55;white-space:pre-line;">${esc(message)}</div>
+              <div style="display:flex;gap:8px;padding:12px 16px;background:#f9fafb;border-top:1px solid #f1f5f9;justify-content:flex-end;">
+                <button data-act="cancel" style="padding:8px 16px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-weight:700;font-size:13px;cursor:pointer;">${esc(cancelText)}</button>
+                <button data-act="ok" style="padding:8px 16px;border-radius:10px;border:none;background:${okColor};color:#fff;font-weight:700;font-size:13px;cursor:pointer;">${esc(okText)}</button>
+              </div>
+            </div>`;
+        const done = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+        const onKey = (e) => { if (e.key === 'Escape') done(false); else if (e.key === 'Enter') done(true); };
+        ov.addEventListener('click', (e) => {
+            if (e.target === ov) return done(false); // 바깥 클릭=취소
+            const b = e.target.closest('[data-act]');
+            if (b) done(b.dataset.act === 'ok');
+        });
+        document.addEventListener('keydown', onKey);
+        document.body.appendChild(ov);
+        const okBtn = ov.querySelector('[data-act="ok"]');
+        if (okBtn) okBtn.focus();
+    });
+};
+
 export const calcElapsedMinutes = (start, end, pauses = []) => {
     if (!start || !end) return 0;
     const s = new Date(`1970-01-01T${start}:00Z`).getTime();
