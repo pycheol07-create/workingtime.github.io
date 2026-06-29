@@ -19,7 +19,7 @@ const HISTORY_CACHE_TTL_MS = 30 * 60 * 1000; // 30분
 
 // ✨ 데이터가 변경되었을 때 로컬 캐시를 초기화하는 헬퍼 함수 (읽기 요금 방어용)
 // localStorage 사용: 탭 간 공유 + 새로고침/재시작 후에도 유지되어 중복 읽기 최소화.
-const clearLocalCache = () => {
+export const clearLocalCache = () => {
     localStorage.removeItem('historyDataCache');
     localStorage.removeItem('historyDataCacheTime');
     localStorage.removeItem('unverifiedDataCache');

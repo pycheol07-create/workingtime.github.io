@@ -5,6 +5,7 @@ import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getTodayDateString, getCurrentTime } from './utils.js';
 import { renderAttendanceDailyHistory } from './ui-history.js';
+import { clearLocalCache } from './history-data-manager.js';
 import { doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 export function setupHistoryAttendanceListeners() {
@@ -184,6 +185,7 @@ function setupAttendanceModalButtons() {
                         if (dayDataIndex > -1) {
                             State.allHistoryData[dayDataIndex].onLeaveMembers = currentLeaves;
                         }
+                        clearLocalCache(); // 캐시 무효화 → 새로고침 시 최신값 재조회(수정 사라짐 방지)
                     } else {
                         showToast('수정할 항목을 찾을 수 없습니다.', true);
                         return;
@@ -297,6 +299,7 @@ function setupAttendanceModalButtons() {
                     });
                     State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
                 }
+                clearLocalCache(); // 캐시 무효화 → 새로고침 시 최신값 재조회
 
                 showToast('근태 기록이 추가되었습니다.');
                 DOM.addAttendanceRecordModal.classList.add('hidden');

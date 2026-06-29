@@ -7,7 +7,7 @@ import { showToast, getTodayDateString, getCurrentTime } from './utils.js';
 import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js';
 import { saveLeaveSchedule } from './config.js';
 import { switchHistoryView } from './app-history-logic.js';
-import { saveDayDataToHistory } from './history-data-manager.js';
+import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js';
 import { saveStateToFirestore } from './app-data.js';
 
 import {
@@ -118,7 +118,8 @@ export function setupConfirmationModalListeners() {
                         }
 
                         await updateDoc(docRef, { onLeaveMembers: dayData.onLeaveMembers });
-                        
+                        clearLocalCache(); // 캐시 무효화 → 새로고침 시 최신값 재조회
+
                         showToast(`${recordToDelete.member}님의 '${recordToDelete.type}' 기록이 삭제되었습니다.`);
                         
                         const gran = State.context.globalGranularity || 'day';
