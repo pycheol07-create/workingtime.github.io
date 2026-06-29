@@ -3,11 +3,62 @@ import * as State from './state.js';
 import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js';
 import { saveProgress } from './history-data-manager.js';
 import { saveStateToFirestore } from './app-data.js';
-import { collection, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, doc, writeBatch, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let localLunchPauseExecuted = false;
 let localLunchResumeExecuted = false;
 let lastCheckedDay = null;
+
+// 💱 매일 아침(09:00 이후) 환율 자동 입력 — 그날 daily_data/history의 management에 usdRate/cnyRate 저장.
+// 첫 접속자(브라우저)만 기록하고 나머지는 스킵(이미 입력됐는지 확인). 하루 1회.
+let _fxFetchedDay = null;
+let _fxFetching = false;
+let _fxLastAttempt = 0;
+async function autoFetchDailyFx(todayKey) {
+    if (_fxFetchedDay === todayKey || _fxFetching) return;
+    if (!State.auth || !State.auth.currentUser) return; // 인증 필요(규칙)
+    const lsKey = 'fxAutoFetched_' + todayKey;
+    if (localStorage.getItem(lsKey)) { _fxFetchedDay = todayKey; return; }
+    if (Date.now() - _fxLastAttempt < 5 * 60 * 1000) return; // 실패 시 5분 쿨다운
+    _fxLastAttempt = Date.now();
+    _fxFetching = true;
+    try {
+        const dailyRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
+        const histRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', todayKey);
+
+        // 이미 오늘 누군가 입력했으면 스킵
+        const snap = await getDoc(dailyRef);
+        if (snap.exists() && snap.data().management && snap.data().management.usdRate) {
+            localStorage.setItem(lsKey, '1'); _fxFetchedDay = todayKey; return;
+        }
+
+        const r = await fetch('https://open.er-api.com/v6/latest/USD', { cache: 'no-store' });
+        const j = await r.json();
+        if (!j || !j.rates || !j.rates.KRW) return;
+        const usdRate = Math.round(j.rates.KRW);                       // 1 USD = ? 원
+        const cnyRate = j.rates.CNY ? Math.round(j.rates.KRW / j.rates.CNY) : 0; // 1 CNY = ? 원
+        const fxAt = Date.now();
+        const payload = { management: { usdRate, cnyRate, fxAt } };
+
+        await Promise.all([
+            setDoc(dailyRef, payload, { merge: true }), // 딥머지: 기존 매출/재고 등 보존
+            setDoc(histRef, payload, { merge: true })
+        ]);
+
+        // 메모리 즉시 반영
+        if (State.appState) State.appState.management = { ...(State.appState.management || {}), usdRate, cnyRate, fxAt };
+        const di = (State.allHistoryData || []).findIndex(d => d.id === todayKey);
+        if (di > -1) State.allHistoryData[di].management = { ...(State.allHistoryData[di].management || {}), usdRate, cnyRate, fxAt };
+
+        localStorage.setItem(lsKey, '1');
+        _fxFetchedDay = todayKey;
+        showToast(`오늘 환율 자동 입력: $${usdRate.toLocaleString()} / ¥${cnyRate.toLocaleString()}원`, false);
+    } catch (e) {
+        console.warn('환율 자동 입력 실패:', e);
+    } finally {
+        _fxFetching = false;
+    }
+}
 
 // ✨ 야근 확인 팝업 및 타이머용 변수 추가
 let localAutoClosePromptExecuted = false;
@@ -26,13 +77,17 @@ export const updateElapsedTimes = async () => {
         localLunchResumeExecuted = false;
         
         // ✨ 다음 날을 위해 야근 팝업 잠금장치 초기화
-        localAutoClosePromptExecuted = false; 
+        localAutoClosePromptExecuted = false;
         if (autoCloseTimer) clearTimeout(autoCloseTimer);
         autoCloseTimer = null;
-        
+        _fxFetchedDay = null; // 환율 자동입력 가드도 초기화
+
         lastCheckedDay = todayDate;
     }
-    
+
+    // 💱 매일 아침 09:00 이후 환율 자동 입력 (하루 1회)
+    if (now >= '09:00') autoFetchDailyFx(todayDate);
+
     const currentUserLower = (State.appState.currentUser || '').toLowerCase();
     const isAdmin = State.appConfig?.memberRoles?.[currentUserLower] === 'admin';
     

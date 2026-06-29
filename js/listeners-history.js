@@ -244,10 +244,18 @@ export function setupHistoryModalListeners() {
             const orderCount = document.getElementById('mgmt-input-orderCount')?.value.replace(/,/g, '') || 0;
             const inventoryQty = document.getElementById('mgmt-input-inventoryQty')?.value.replace(/,/g, '') || 0;
             const inventoryAmt = document.getElementById('mgmt-input-inventoryAmt')?.value.replace(/,/g, '') || 0;
+            const usdRate = document.getElementById('mgmt-input-usdRate')?.value.replace(/,/g, '') || 0;
+            const cnyRate = document.getElementById('mgmt-input-cnyRate')?.value.replace(/,/g, '') || 0;
+            const existingMgmt = (State.allHistoryData.find(d => d.id === dateKey) || {}).management || {};
 
             try {
                 managementSaveBtn.disabled = true; managementSaveBtn.textContent = '저장 중...';
-                await saveManagementData(dateKey, { revenue: Number(revenue), orderCount: Number(orderCount), inventoryQty: Number(inventoryQty), inventoryAmt: Number(inventoryAmt) });
+                await saveManagementData(dateKey, {
+                    revenue: Number(revenue), orderCount: Number(orderCount),
+                    inventoryQty: Number(inventoryQty), inventoryAmt: Number(inventoryAmt),
+                    usdRate: Number(usdRate), cnyRate: Number(cnyRate),
+                    ...(existingMgmt.fxAt ? { fxAt: existingMgmt.fxAt } : {})
+                });
                 showToast('경영 지표가 저장되었습니다.'); refreshManagementView();
             } catch (e) { showToast('저장 중 오류가 발생했습니다.', true); } 
             finally { managementSaveBtn.disabled = false; managementSaveBtn.textContent = '저장'; }

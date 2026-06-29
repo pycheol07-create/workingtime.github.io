@@ -272,7 +272,27 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                     </div>
                 </div>
 
-                <div class="mt-8 p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800">
+                <div class="mt-6 bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
+                    <h4 class="font-bold text-emerald-800 mb-4 flex items-center justify-between">
+                        <span>💱 환율 (원)</span>
+                        <span class="text-[11px] font-medium text-gray-400">${mgmt.fxAt ? '자동입력 ' + new Date(mgmt.fxAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '매일 오전 9시 자동입력'}</span>
+                    </h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">달러 (1 USD = 원)</label>
+                            <input type="text" id="mgmt-input-usdRate" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-right font-bold text-gray-800"
+                                placeholder="0" value="${formatVal(mgmt.usdRate)}" oninput="${onInputHandler}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">위안화 (1 CNY = 원)</label>
+                            <input type="text" id="mgmt-input-cnyRate" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-right font-bold text-gray-800"
+                                placeholder="0" value="${formatVal(mgmt.cnyRate)}" oninput="${onInputHandler}">
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-gray-400 mt-2">매일 오전 9시 그날의 환율이 자동 입력됩니다. 필요 시 직접 수정 후 [저장]하세요.</div>
+                </div>
+
+                <div class="mt-6 p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800">
                     💡 <strong>Tip:</strong> 입력한 데이터는 우측 상단 <strong>[저장]</strong> 버튼을 눌러야 반영됩니다. 저장된 데이터는 주간/월간 리포트에서 합산되어 분석됩니다.
                 </div>
             </div>
