@@ -32,14 +32,16 @@ const aggregateManagementData = (dataList) => {
         inventoryAmtSum: 0,
         daysWithInventory: 0,
         avgInventoryQty: 0,
-        avgInventoryAmt: 0
+        avgInventoryAmt: 0,
+        usdRateSum: 0, cnyRateSum: 0, daysWithFx: 0,
+        avgUsdRate: 0, avgCnyRate: 0
     };
 
     dataList.forEach(day => {
         const mgmt = day.management || {};
         result.revenue += (Number(mgmt.revenue) || 0);
         result.orderCount += (Number(mgmt.orderCount) || 0);
-        
+
         const invQty = Number(mgmt.inventoryQty) || 0;
         const invAmt = Number(mgmt.inventoryAmt) || 0;
 
@@ -48,11 +50,23 @@ const aggregateManagementData = (dataList) => {
             result.inventoryAmtSum += invAmt;
             result.daysWithInventory++;
         }
+
+        const usd = Number(mgmt.usdRate) || 0;
+        const cny = Number(mgmt.cnyRate) || 0;
+        if (usd > 0 || cny > 0) {
+            result.usdRateSum += usd;
+            result.cnyRateSum += cny;
+            result.daysWithFx++;
+        }
     });
 
     if (result.daysWithInventory > 0) {
         result.avgInventoryQty = result.inventoryQtySum / result.daysWithInventory;
         result.avgInventoryAmt = result.inventoryAmtSum / result.daysWithInventory;
+    }
+    if (result.daysWithFx > 0) {
+        result.avgUsdRate = result.usdRateSum / result.daysWithFx;
+        result.avgCnyRate = result.cnyRateSum / result.daysWithFx;
     }
 
     return result;
@@ -347,6 +361,18 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
         }
     }
 
+    // 💱 환율 전기간 비교 (주: 직전 7일, 월/년: 기존 prevStats 재사용)
+    let prevFxStats = prevStats;
+    let fxCompareLabel = prevKey ? `vs ${prevKey}` : '';
+    if (viewMode === 'management-weekly' && filteredData.length > 0) {
+        const earliest = filteredData[0].id;
+        const s = new Date(earliest + 'T00:00:00'); s.setDate(s.getDate() - 7);
+        const e = new Date(earliest + 'T00:00:00'); e.setDate(e.getDate() - 1);
+        const lo = s.toISOString().slice(0, 10), hi = e.toISOString().slice(0, 10);
+        const pd = allHistoryData.filter(d => d.id >= lo && d.id <= hi);
+        if (pd.length > 0) { prevFxStats = aggregateManagementData(pd); fxCompareLabel = 'vs 직전주'; }
+    }
+
     const turnoverRatio = calculateTurnoverRatio(currentStats.revenue, currentStats.avgInventoryAmt);
     const prevTurnoverRatio = prevStats ? calculateTurnoverRatio(prevStats.revenue, prevStats.avgInventoryAmt) : 0;
     
@@ -372,6 +398,8 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                     <td class="px-4 py-3 text-right">${invAmt > 0 ? formatCurrency(invAmt) : '-'}</td>
                     <td class="px-4 py-3 text-right">${invQty > 0 ? formatCurrency(invQty) : '-'}</td>
                     <td class="px-4 py-3 text-right font-mono text-purple-600">${dailyTurnover > 0 ? dailyTurnover.toFixed(1) + '%' : '-'}</td>
+                    <td class="px-4 py-3 text-right text-emerald-700">${(Number(m.usdRate) || 0) > 0 ? formatCurrency(Number(m.usdRate)) : '-'}</td>
+                    <td class="px-4 py-3 text-right text-emerald-700">${(Number(m.cnyRate) || 0) > 0 ? formatCurrency(Number(m.cnyRate)) : '-'}</td>
                 </tr>
             `;
         }).join('');
@@ -393,6 +421,8 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                                 <th class="px-4 py-3 text-right">재고금액</th>
                                 <th class="px-4 py-3 text-right">재고량</th>
                                 <th class="px-4 py-3 text-right">회전율(%)</th>
+                                <th class="px-4 py-3 text-right">달러(원)</th>
+                                <th class="px-4 py-3 text-right">위안(원)</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
@@ -407,6 +437,8 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                                 <td class="px-4 py-3 text-right">${formatCurrency(Math.round(currentStats.avgInventoryAmt))} (평균)</td>
                                 <td class="px-4 py-3 text-right">${formatCurrency(Math.round(currentStats.avgInventoryQty))} (평균)</td>
                                 <td class="px-4 py-3 text-right">-</td>
+                                <td class="px-4 py-3 text-right text-emerald-700">${currentStats.avgUsdRate > 0 ? formatCurrency(Math.round(currentStats.avgUsdRate)) + ' (평균)' : '-'}</td>
+                                <td class="px-4 py-3 text-right text-emerald-700">${currentStats.avgCnyRate > 0 ? formatCurrency(Math.round(currentStats.avgCnyRate)) + ' (평균)' : '-'}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -447,6 +479,16 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     );
 
     let comparisonTitle = prevKey ? `(vs ${prevKey})` : '(이전 데이터 없음)';
+
+    // 환율 증감액 표시 (상승=빨강▲, 하락=파랑▼)
+    const fxDiff = (cur, prev) => {
+        if (!cur || cur <= 0) return '';
+        if (!prev || prev <= 0) return '<span class="text-xs text-gray-400">이전 데이터 없음</span>';
+        const d = Math.round(cur - prev);
+        if (d === 0) return '<span class="text-xs text-gray-500">변동 없음</span>';
+        const up = d > 0;
+        return `<span class="text-xs font-bold ${up ? 'text-red-500' : 'text-blue-500'}">${up ? '▲' : '▼'} ${Math.abs(d).toLocaleString()}원</span>`;
+    };
 
     container.innerHTML = `
         <div class="max-w-6xl mx-auto pb-10">
@@ -496,8 +538,27 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                 </div>
             </div>
 
+            <div class="bg-white rounded-xl border border-emerald-100 shadow-sm mb-8 overflow-hidden">
+                <div class="px-6 py-4 border-b border-emerald-50 bg-emerald-50/50 flex justify-between items-center">
+                    <h4 class="font-bold text-emerald-800 flex items-center gap-2">💱 환율 (기간 평균)</h4>
+                    <span class="text-xs text-gray-500">${currentStats.daysWithFx}일 기록${fxCompareLabel ? ' · ' + fxCompareLabel : ''}</span>
+                </div>
+                <div class="grid grid-cols-2 divide-x divide-gray-100">
+                    <div class="p-5 text-center">
+                        <div class="text-sm text-gray-500 mb-1">달러 (1 USD = 원)</div>
+                        <div class="text-2xl font-extrabold text-gray-800">${currentStats.avgUsdRate > 0 ? Math.round(currentStats.avgUsdRate).toLocaleString() : '-'}<span class="text-sm font-medium text-gray-500 ml-1">원</span></div>
+                        <div class="mt-1">${fxDiff(currentStats.avgUsdRate, prevFxStats?.avgUsdRate)}</div>
+                    </div>
+                    <div class="p-5 text-center">
+                        <div class="text-sm text-gray-500 mb-1">위안화 (1 CNY = 원)</div>
+                        <div class="text-2xl font-extrabold text-gray-800">${currentStats.avgCnyRate > 0 ? Math.round(currentStats.avgCnyRate).toLocaleString() : '-'}<span class="text-sm font-medium text-gray-500 ml-1">원</span></div>
+                        <div class="mt-1">${fxDiff(currentStats.avgCnyRate, prevFxStats?.avgCnyRate)}</div>
+                    </div>
+                </div>
+            </div>
+
             ${generateCostAnalysisHTML(analysis)}
-            
+
             ${dailyTableHtml}
         </div>
     `;
