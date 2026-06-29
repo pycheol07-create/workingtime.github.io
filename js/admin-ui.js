@@ -198,8 +198,13 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
                         </div>
 
                         <div class="flex flex-col">
-                            <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">시급</label>
-                            <input type="number" value="${memberWages[member] || 0}" class="member-wage w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="시급">
+                            <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">기본급 (월)</label>
+                            <input type="number" value="${memberWages[member] || 0}" class="member-wage w-28 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="월 기본급"
+                                oninput="const h=this.closest('.flex.flex-col').nextElementSibling && this.closest('.flex.flex-col').nextElementSibling.querySelector('.member-hourly'); if(h) h.value=Math.round((Number(this.value)||0)/209).toLocaleString();">
+                        </div>
+                        <div class="flex flex-col">
+                            <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">시급 (자동 ÷209)</label>
+                            <input type="text" value="${Math.round((Number(memberWages[member]) || 0) / 209).toLocaleString()}" class="member-hourly w-24 p-2 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 rounded-md text-sm text-gray-500 dark:text-gray-400 outline-none cursor-not-allowed" readonly tabindex="-1" title="기본급 ÷ 209 (자동 계산, 수정 불가)">
                         </div>
                     </div>
                     <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-2 rounded-md transition delete-member-btn" data-m-index="${mIndex}">삭제</button>
