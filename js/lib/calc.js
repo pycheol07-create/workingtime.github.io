@@ -71,6 +71,24 @@ export function calcWorkMinutes(startHHMM, endHHMM, pauses) {
     return Math.max(0, total);
 }
 
+// 월급제 예상급여(세전) 계산.
+//  - monthlyBase: 월 기본급(주휴 포함, 월 209시간 기준). 시급 = base/209, 분급 = 시급/60.
+//  - absentDayCount: 결근한 (평일) 일수 → 1일 8시간분 차감.
+//  - weeksWithAbsence: 결근이 있는 주 수 → 그 주 주휴(8시간분) 차감.
+//  - earlyLeaveMin: 조퇴로 빠진 분, outingMin: 외출 1시간 초과 분 → 분급으로 차감.
+export function computeMonthlySalary({ monthlyBase = 0, absentDayCount = 0, weeksWithAbsence = 0, earlyLeaveMin = 0, outingMin = 0 } = {}) {
+    const STD_HOURS = 209, DAY_HOURS = 8;
+    const hourly = monthlyBase > 0 ? monthlyBase / STD_HOURS : 0;
+    const minute = hourly / 60;
+    const absence = absentDayCount * hourly * DAY_HOURS;          // 결근일 차감
+    const weeklyHoliday = weeksWithAbsence * hourly * DAY_HOURS;  // 결근 주의 주휴 차감
+    const earlyLeave = earlyLeaveMin * minute;                    // 조퇴 차감
+    const outing = outingMin * minute;                            // 외출(1시간 초과) 차감
+    const totalDeduction = absence + weeklyHoliday + earlyLeave + outing;
+    const estimated = Math.max(0, monthlyBase - totalDeduction);
+    return { hourly, minute, absence, weeklyHoliday, earlyLeave, outing, totalDeduction, estimated };
+}
+
 // 주말 근무 적정(공평) 횟수 계산.
 //  - 정원 미설정 날짜는 defaultCap(기본 3) 적용
 //  - 하루 1명은 관리자 고정 → 팀원 몫 = Σ max(0, 정원-1)

@@ -3,6 +3,13 @@
 
 import { formatDuration, getWeekOfYear, formatTimeTo24H, calculateDateDifference, isWeekday } from './utils.js';
 import { appConfig, context, LEAVE_TYPES } from './state.js';
+import { computeMonthlySalary } from './lib/calc.js';
+
+// 급여 차감 기준 근무시간 (가정값 — 회사 규정에 맞게 조정 가능)
+const WORK_END_MIN = 18 * 60;                                   // 종업 18:00
+const LUNCH_START_MIN = 12 * 60 + 30, LUNCH_END_MIN = 13 * 60 + 30; // 점심 12:30~13:30
+const _toMin = (hhmm) => { if (!hhmm) return null; const p = String(hhmm).split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); };
+const _lunchOverlap = (s, e) => Math.max(0, Math.min(e, LUNCH_END_MIN) - Math.max(s, LUNCH_START_MIN));
 
 // --- 헬퍼: 정렬 아이콘 생성 ---
 const getSortIcon = (currentKey, currentDir, targetKey) => {
@@ -74,15 +81,26 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
     // 근태 카운트 초기화
     LEAVE_TYPES.forEach(t => { stats.attendanceCounts[t] = 0; stats.attendanceDays[t] = 0; });
 
-    // 시급 정보
-    let wage = appConfig.memberWages?.[memberName] || 0;
-    if (wage === 0) {
+    // 시급/기본급 정보
+    // memberWages 값 = 월 기본급(월급제). 시급 = 기본급 ÷ 209. 명단에 없으면 파트타이머(시급제).
+    const monthlyBase = appConfig.memberWages?.[memberName] || 0;
+    const isMonthlySalaried = monthlyBase > 0;
+    let wage; // 시급(분/시간 원가·예상급여 계산용)
+    if (isMonthlySalaried) {
+        wage = monthlyBase / 209;
+    } else {
+        wage = 0;
         for (let i = filteredDays.length - 1; i >= 0; i--) {
             const pt = (filteredDays[i].partTimers || []).find(p => p.name === memberName);
             if (pt && pt.wage) { wage = pt.wage; break; }
         }
         if (wage === 0) wage = appConfig.defaultPartTimerWage || 10000;
     }
+
+    // 급여 차감 누적 (월급제 전용)
+    const absentDates = new Set(); // 결근한 평일 날짜
+    let earlyLeaveMin = 0;         // 조퇴로 빠진 분
+    let outingMin = 0;             // 외출 1시간 초과 분
 
     // 3. 순회 집계
     filteredDays.sort((a, b) => a.id.localeCompare(b.id)).forEach(day => {
@@ -126,6 +144,31 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
                 stats.attendanceDays[type] = (stats.attendanceDays[type] || 0) + days;
             }
 
+            // 급여 차감 누적 (월급제) — 결근/조퇴/외출
+            if (isMonthlySalaried) {
+                if (type === '결근' && leave.startDate) {
+                    let d = new Date(leave.startDate + 'T00:00:00');
+                    const end = new Date((leave.endDate || leave.startDate) + 'T00:00:00');
+                    while (d <= end) {
+                        const ds = d.toISOString().slice(0, 10);
+                        if (isWeekday(ds)) absentDates.add(ds);
+                        d.setDate(d.getDate() + 1);
+                    }
+                } else if (type === '조퇴') {
+                    const s = _toMin(leave.startTime);
+                    if (s != null) {
+                        const miss = (WORK_END_MIN - s) - _lunchOverlap(s, WORK_END_MIN);
+                        if (miss > 0) earlyLeaveMin += miss;
+                    }
+                } else if (type === '외출') {
+                    const s = _toMin(leave.startTime), e = _toMin(leave.endTime);
+                    if (s != null && e != null && e > s) {
+                        const dur = (e - s) - _lunchOverlap(s, e);
+                        outingMin += Math.max(0, dur - 60); // 1시간까지는 무차감
+                    }
+                }
+            }
+
             // 로그용 텍스트
             let detail = '';
             if (leave.startTime) {
@@ -159,6 +202,24 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
             outTime: outTime // ✅ 추가
         });
     });
+
+    // 예상급여(세전): 월급제 = 기본급 − 근태 차감, 시급제 = 시급×업무시간(기존 totalWageCost)
+    if (isMonthlySalaried) {
+        const weeks = new Set([...absentDates].map(ds => getWeekOfYear(new Date(ds + 'T00:00:00'))));
+        const sal = computeMonthlySalary({
+            monthlyBase,
+            absentDayCount: absentDates.size,
+            weeksWithAbsence: weeks.size,
+            earlyLeaveMin, outingMin
+        });
+        stats.salary = {
+            isMonthlySalaried: true, monthlyBase,
+            absentDays: absentDates.size, weeksWithAbsence: weeks.size,
+            earlyLeaveMin, outingMin, ...sal
+        };
+    } else {
+        stats.salary = { isMonthlySalaried: false, estimated: stats.totalWageCost, hourly: wage };
+    }
 
     return { stats, filteredDays, wage };
 };
@@ -272,7 +333,7 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                     </button>
                 </div>
             </div>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded mt-2 md:mt-0">적용 시급: ${wage.toLocaleString()}원</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded mt-2 md:mt-0">${stats.salary && stats.salary.isMonthlySalaried ? `기본급 ${Math.round(stats.salary.monthlyBase).toLocaleString()}원 · 시급 ${Math.round(stats.salary.hourly).toLocaleString()}원` : `적용 시급: ${Math.round(wage).toLocaleString()}원`}</span>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
@@ -282,7 +343,9 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                 <div class="text-xs text-gray-500 mb-1">총 업무 시간</div><div class="text-2xl font-extrabold text-blue-600">${formatDuration(stats.totalWorkMinutes)}</div>
             </div>
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
-                <div class="text-xs text-gray-500 mb-1">예상 급여 (세전)</div><div class="text-2xl font-extrabold text-gray-800">${Math.round(stats.totalWageCost).toLocaleString()}원</div>
+                <div class="text-xs text-gray-500 mb-1">예상 급여 (세전)</div>
+                <div class="text-2xl font-extrabold text-gray-800"${stats.salary && stats.salary.isMonthlySalaried ? ` title="기본급 ${Math.round(stats.salary.monthlyBase).toLocaleString()}원 − 결근 ${stats.salary.absentDays}일 / 결근주 주휴 ${stats.salary.weeksWithAbsence}주 / 조퇴 ${stats.salary.earlyLeaveMin}분 / 외출초과 ${stats.salary.outingMin}분"` : ''}>${Math.round((stats.salary && stats.salary.estimated != null) ? stats.salary.estimated : stats.totalWageCost).toLocaleString()}원</div>
+                ${stats.salary && stats.salary.isMonthlySalaried && stats.salary.totalDeduction > 0 ? `<div class="text-[10px] text-red-500 mt-1">근태 차감 −${Math.round(stats.salary.totalDeduction).toLocaleString()}원</div>` : ''}
             </div>
             <div class="bg-white p-4 rounded-xl border border-red-100 shadow-sm text-center">
                 <div class="text-xs text-gray-500 mb-1">특이 근태</div>
