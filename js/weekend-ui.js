@@ -47,34 +47,52 @@ export function getHolidayName(year, month, day) {
 // 규칙: 하루 정원 중 1명은 무조건 관리자 고정 → 팀원 몫 = (정원 - 1).
 //       정원 미설정 날짜는 기본 3명으로 계산.
 //       1인당 적정 = 팀원 몫 합계 ÷ 참여 가능 팀원 수
-const WEEKEND_DEFAULT_CAPACITY = 3; // 별도 설정 없으면 하루 정원 3명
+export const WEEKEND_DEFAULT_CAPACITY = 3; // 별도 설정 없으면 하루 정원 3명
 
 // 날짜별 실제 적용 정원 — 관리자가 따로 설정하지 않은 주말은 기본 3명으로 본다.
 export function getWeekendCapacity(dateStr) {
     const v = Number(store.capacityMap.get(dateStr)) || 0;
     return v > 0 ? v : WEEKEND_DEFAULT_CAPACITY;
 }
-export function renderWeekendFairness(year, month, capacityMap, blockedDatesSet, eligibleCount) {
-    const el = document.getElementById('weekend-fairness-banner');
-    if (!el) return;
 
+// 📌 해당 월 전체 주말의 정원/팀원 몫을 합산한다.
+// ⚠️ 마감(blocked) 여부·확정 인원과 무관하게 "그 달 전체 주말 총 횟수" 기준으로 계산하여
+//    확정이 진행돼도 1인당 적정 횟수가 줄어들지 않는 고정값을 만든다.
+export function getMonthlyWeekendSlots(year, month, capacityMap) {
     const mm = String(month + 1).padStart(2, '0');
     const lastDate = new Date(year, month + 1, 0).getDate();
 
-    let openDays = 0;        // 마감(미운영) 제외한 주말 근무일 수
+    let weekendDays = 0;     // 그 달 전체 주말(토·일) 수
     let totalCapacity = 0;   // 정원 합계 (미설정=기본 3명)
     let teamSlots = 0;       // 팀원 몫 합계 = Σ(정원-1) (관리자 1명 고정 제외)
     for (let d = 1; d <= lastDate; d++) {
         const dow = new Date(year, month, d).getDay();
         if (dow !== 0 && dow !== 6) continue; // 토(6)·일(0)만
         const dateStr = `${year}-${mm}-${String(d).padStart(2, '0')}`;
-        if (blockedDatesSet && blockedDatesSet.has(dateStr)) continue; // 마감일 제외
-        openDays++;
         const setCap = Number(capacityMap && capacityMap.get(dateStr)) || 0;
         const cap = setCap > 0 ? setCap : WEEKEND_DEFAULT_CAPACITY; // 미설정 → 기본 3
+        weekendDays++;
         totalCapacity += cap;
         teamSlots += Math.max(0, cap - 1); // 1명은 관리자 고정
     }
+
+    return { weekendDays, totalCapacity, teamSlots };
+}
+
+// 1인당 적정(공평) 횟수 = 팀원 몫 합계 ÷ 참여 가능 팀원 수 (고정값)
+export function getMonthlyFairCount(year, month, capacityMap, eligibleCount) {
+    const { teamSlots } = getMonthlyWeekendSlots(year, month, capacityMap);
+    if (!eligibleCount || eligibleCount <= 0 || teamSlots <= 0) return { avg: 0, rec: 0, teamSlots };
+    const avg = teamSlots / eligibleCount;
+    return { avg, rec: Math.round(avg), teamSlots };
+}
+
+export function renderWeekendFairness(year, month, capacityMap, blockedDatesSet, eligibleCount) {
+    const el = document.getElementById('weekend-fairness-banner');
+    if (!el) return;
+
+    // ⚠️ 확정/마감과 무관한 고정값: 그 달 전체 주말 기준으로 계산
+    const { weekendDays: openDays, totalCapacity, teamSlots } = getMonthlyWeekendSlots(year, month, capacityMap);
 
     if (openDays === 0) { el.classList.add('hidden'); el.innerHTML = ''; return; }
 
@@ -86,7 +104,7 @@ export function renderWeekendFairness(year, month, capacityMap, blockedDatesSet,
         rightHtml = `
             <div class="text-right whitespace-nowrap leading-tight">
                 <div class="text-sm md:text-base font-extrabold text-indigo-700">1인당 적정 <span class="text-indigo-900 text-base md:text-lg">${rec}회</span></div>
-                <div class="text-[10px] md:text-[11px] text-indigo-500">참여 ${eligibleCount}명 · 가장 공평(평균 ${avg.toFixed(1)})</div>
+                <div class="text-[10px] md:text-[11px] text-indigo-500">참여 ${eligibleCount}명 · 월 고정 기준(평균 ${avg.toFixed(1)})</div>
             </div>`;
     } else {
         rightHtml = `<div class="text-[11px] md:text-xs text-indigo-500 text-right leading-tight">참여 가능 팀원이 없습니다</div>`;
