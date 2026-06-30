@@ -4,6 +4,15 @@ import { store } from './weekend-store.js';
 import { handleDateClick } from './weekend-core.js';
 import { openAdminDatePopup, openPastDateEditPopup, handleAdminBadgeClick } from './weekend-admin.js';
 
+// 주말근무 기준 관리자 명단 (계정 역할이 admin이 아니어도 관리자 권한 부여)
+const WEEKEND_ADMINS = ['박영철', '박호진', '유아라', '이승운'];
+
+// 주말근무 가시성 기준 관리자 여부: 계정 역할 admin 또는 관리 명단 포함
+function isWeekendAdmin() {
+    return State.appState.currentUserRole === 'admin'
+        || WEEKEND_ADMINS.includes(State.appState.currentUser);
+}
+
 // 🔥 법정 공휴일 데이터를 반환하는 헬퍼 함수 (달력 뷰에서만 사용)
 export function getHolidayName(year, month, day) {
     const mm = String(month).padStart(2, '0');
@@ -101,7 +110,7 @@ export function renderWeekendStats(memberStats, yearlyStatsMap) {
     if (!sidebar || !list) return;
 
     const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
-    const isAdmin = (State.appState.currentUserRole === 'admin');
+    const isAdmin = isWeekendAdmin();
 
     let filteredMembers = [...memberStats.entries()].filter(([name, counts]) => !excludedMembers.includes(name));
     // 일반 직원은 본인 신청 현황만 표시 (다른 팀원 내역 비공개)
@@ -166,7 +175,7 @@ export function renderWeekendList(year, month) {
 
     const lastDate = new Date(year, month + 1, 0).getDate();
     let hasWeekend = false;
-    const isAdmin = (State.appState.currentUserRole === 'admin');
+    const isAdmin = isWeekendAdmin();
 
     const bulkBar = document.getElementById('admin-bulk-action-bar');
     if (bulkBar && document.getElementById('weekend-list-view').classList.contains('hidden') === false) {
@@ -328,7 +337,7 @@ export function renderWeekendGrid(year, month) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const isAdmin = (State.appState.currentUserRole === 'admin');
+    const isAdmin = isWeekendAdmin();
 
     for (let i = 0; i < firstDay; i++) {
         const emptyCell = document.createElement('div');
