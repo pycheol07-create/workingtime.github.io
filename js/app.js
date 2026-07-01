@@ -15,6 +15,7 @@ import { setupWeekendListeners } from './listeners-weekend.js';
 import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js';
 import { setupNotificationListeners } from './app-notifications.js';
 import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js';
+import { startPresence, stopPresence, setupPresenceUI } from './presence.js';
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
@@ -112,6 +113,10 @@ async function startAppAfterLogin(user) {
 
     // ✅ 2. Firebase 실시간 동기화 리스너 실행 (분리된 파일 호출)
     setupFirebaseListeners(render, markDataAsDirty);
+
+    // ✅ 3. 현재 접속중 인원 표시(하트비트 + 구독) 시작
+    setupPresenceUI();
+    startPresence();
 }
 
 async function main() {
@@ -134,6 +139,7 @@ async function main() {
             await startAppAfterLogin(user);
         } else {
             // 로그아웃 초기화
+            stopPresence();
             if (State.unsubscribeToday) State.unsubscribeToday();
             if (State.unsubscribeWorkRecords) State.unsubscribeWorkRecords();
             if (unsubscribeNotifications) unsubscribeNotifications();
