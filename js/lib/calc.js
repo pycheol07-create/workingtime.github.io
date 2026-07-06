@@ -71,6 +71,27 @@ export function calcWorkMinutes(startHHMM, endHHMM, pauses) {
     return Math.max(0, total);
 }
 
+// 두 구간 [aStart,aEnd] 와 [bStart,bEnd]의 겹치는 분(minute) 수.
+export function minutesOverlap(aStart, aEnd, bStart, bEnd) {
+    return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+}
+
+// 외출로 인한 급여 차감 분.
+//  - 점심시간(기본 12:30~13:30, 분 단위 750~810) 겹친 부분은 차감하지 않는다.
+//  - graceMin(기본 60분)까지는 무차감. (그 이상 초과분만 차감)
+//  start/end 는 분 단위(0~1440). end<=start 또는 null이면 0.
+export function outingDeductibleMinutes(startMin, endMin, { lunchStart = 750, lunchEnd = 810, graceMin = 60 } = {}) {
+    if (startMin == null || endMin == null || endMin <= startMin) return 0;
+    const net = (endMin - startMin) - minutesOverlap(startMin, endMin, lunchStart, lunchEnd);
+    return Math.max(0, net - graceMin);
+}
+
+// 조퇴로 인한 급여 차감 분. (종업시각까지 빠진 시간 − 점심 겹침)
+export function earlyLeaveDeductibleMinutes(startMin, workEndMin = 1080, { lunchStart = 750, lunchEnd = 810 } = {}) {
+    if (startMin == null || startMin >= workEndMin) return 0;
+    return Math.max(0, (workEndMin - startMin) - minutesOverlap(startMin, workEndMin, lunchStart, lunchEnd));
+}
+
 // 월급제 예상급여(세전) 계산.
 //  - monthlyBase: 월 기본급(주휴 포함, 월 209시간 기준). 시급 = base/209, 분급 = 시급/60.
 //  - absentDayCount: 결근한 (평일) 일수 → 1일 8시간분 차감.

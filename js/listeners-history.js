@@ -15,6 +15,7 @@ import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/
 
 import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js';
 import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js';
+import { preloadWeekendPay } from './ui-history-personal.js';
 
 let isHistoryMaximized = false;
 
@@ -84,12 +85,16 @@ export function setupHistoryModalListeners() {
         else if (gran === 'year') renderReportYearly(dateKey, filteredData, State.appConfig, State.context);
     };
 
-    const refreshPersonalView = () => {
+    const refreshPersonalView = async () => {
         const dateKey = getSelectedDateKey();
         const gran = State.context.globalGranularity || 'day';
         const viewMode = { day: 'personal-daily', week: 'personal-weekly', month: 'personal-monthly', year: 'personal-yearly' }[gran];
         const memberName = DOM.personalReportMemberSelect?.value;
-        if (dateKey && memberName) renderPersonalReport('personal-report-content', viewMode, dateKey, memberName, State.allHistoryData);
+        if (dateKey && memberName) {
+            // 주말근무 급여(회당 11만원) 반영 위해 해당 연도 확정 주말근무 선로드
+            await preloadWeekendPay(String(dateKey).slice(0, 4));
+            renderPersonalReport('personal-report-content', viewMode, dateKey, memberName, State.allHistoryData);
+        }
     };
 
     const refreshManagementView = () => {

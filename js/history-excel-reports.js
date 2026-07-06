@@ -81,9 +81,14 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
             return;
         }
 
+        const _sal = stats.salary || {};
+        const _estimated = (_sal.estimated != null) ? _sal.estimated : stats.totalWageCost;
         const summaryData = [
             { '항목': '이름', '값': memberName }, { '항목': '기간/날짜', '값': dateKey }, { '항목': '총 근무일', '값': `${stats.workDaysCount}일` },
-            { '항목': '총 업무 시간', '값': formatDuration(stats.totalWorkMinutes) }, { '항목': '예상 급여(세전)', '값': `${Math.round(stats.totalWageCost).toLocaleString()} 원` },
+            { '항목': '총 업무 시간', '값': formatDuration(stats.totalWorkMinutes) },
+            ...(_sal.isMonthlySalaried && _sal.totalDeduction > 0 ? [{ '항목': '근태 차감', '값': `-${Math.round(_sal.totalDeduction).toLocaleString()} 원` }] : []),
+            ...(_sal.weekendPay > 0 ? [{ '항목': '주말근무 수당', '값': `${_sal.weekendCount}회 / ${Math.round(_sal.weekendPay).toLocaleString()} 원` }] : []),
+            { '항목': '예상 급여(세전)', '값': `${Math.round(_estimated).toLocaleString()} 원` },
             { '항목': '근태 특이사항', '값': Object.entries(stats.attendanceCounts).filter(([,c])=>c>0).map(([t,c])=>`${t} ${c}회`).join(', ') || '없음' }
         ];
         const wsSummary = XLSX.utils.json_to_sheet(summaryData);
