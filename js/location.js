@@ -1111,31 +1111,84 @@ window.downloadRecommendationExcel = function() {
 };
 
 // ========================================
-// ★ 2F 이동 추천 기능
+// ★ 빈칸확보 기능 (구 2F 이동 추천) — 현재고 0 · 입고대기 0 상품, 공급처 제외 지원
 // ========================================
 window.current2FList = [];
 
 window.show2FRecommendation = function() {
     document.getElementById('modal-2f').style.display = 'flex';
+    window.calc2FList(); // 열자마자 기준(현재고0·입고대기0)으로 조회
 };
 
 window.toggle2FCheckAll = function(source) {
     document.querySelectorAll('.check-2f-item').forEach(cb => cb.checked = source.checked);
 };
 
-window.calc2FList = function() {
-    const periodVal = Number(document.getElementById('2f-period-value').value) || 1;
-    const periodUnit = document.getElementById('2f-period-unit').value;
-    const stockLimit = Number(document.getElementById('2f-stock-limit').value) || 999999;
-
-    const now = new Date();
-    let cutoffDate;
-    if (periodUnit === 'week') {
-        cutoffDate = new Date(now.getTime() - (periodVal * 7 * 24 * 60 * 60 * 1000));
-    } else {
-        cutoffDate = new Date(now.getFullYear(), now.getMonth() - periodVal, now.getDate());
+// rawData에서 키를 유연하게 찾는 헬퍼 (공백/전각공백 무시 — \s 는 NBSP도 매칭)
+function get2FRawVal(rd, targetKey) {
+    if (!rd) return '';
+    if (rd[targetKey]) return rd[targetKey];
+    const norm = targetKey.replace(/\s/g, '');
+    for (const k of Object.keys(rd)) {
+        if (k.replace(/\s/g, '') === norm) return rd[k];
     }
-    const cutoffStr = cutoffDate.toISOString().slice(0, 10).replace(/-/g, '-');
+    return '';
+}
+
+// 상품(로케이션 묶음)의 공급처명을 찾는다. 재고 엑셀 헤더명이 확실치 않아 유연 매칭.
+const SUPPLIER_KEYS = ['공급처', '공급처명', '공급사', '공급업체', '거래처', '거래처명', 'vendor', 'supplier', 'Supplier'];
+function get2FSupplier(locs) {
+    for (const loc of locs) {
+        const rd = loc.rawData;
+        if (!rd) continue;
+        for (const key of SUPPLIER_KEYS) {
+            const v = get2FRawVal(rd, key);
+            if (v) return String(v).trim();
+        }
+        // '공급처'가 들어간 키(단, 상품명/코드류 제외)
+        for (const k of Object.keys(rd)) {
+            const ck = k.replace(/\s/g, '');
+            if (ck.includes('공급처') && !ck.includes('상품') && !ck.includes('코드')) {
+                const v = rd[k];
+                if (v) return String(v).trim();
+            }
+        }
+    }
+    return '';
+}
+
+// 공급처 제외 체크리스트 렌더 (기존 체크 상태 유지)
+window.render2FSupplierList = function(supplierSet, excluded) {
+    const box = document.getElementById('2f-supplier-box');
+    if (!box) return;
+    const suppliers = [...supplierSet].sort((a, b) => a.localeCompare(b, 'ko'));
+    if (suppliers.length === 0) {
+        box.innerHTML = '<span style="font-size:12px; color:#999;">공급처 정보가 있는 상품이 없습니다.</span>';
+        const allCb0 = document.getElementById('2f-supplier-all');
+        if (allCb0) allCb0.checked = false;
+        return;
+    }
+    box.innerHTML = suppliers.map(s => {
+        const checked = excluded.has(s) ? ' checked' : '';
+        const safe = String(s).replace(/"/g, '&quot;');
+        return '<label style="font-size:12px; color:#333; cursor:pointer; user-select:none; white-space:nowrap;">' +
+               '<input type="checkbox" class="f2-supplier-cb" value="' + safe + '"' + checked + ' style="vertical-align:middle;"> ' + s +
+               '</label>';
+    }).join('');
+    const allCb = document.getElementById('2f-supplier-all');
+    if (allCb) allCb.checked = suppliers.every(s => excluded.has(s));
+};
+
+window.toggle2FSupplierAll = function(source) {
+    document.querySelectorAll('.f2-supplier-cb').forEach(cb => cb.checked = source.checked);
+    window.calc2FList();
+};
+
+window.calc2FList = function() {
+    // 재렌더 전에 현재 체크된 '제외 공급처' 수집
+    const excluded = new Set(
+        Array.from(document.querySelectorAll('.f2-supplier-cb:checked')).map(cb => cb.value)
+    );
 
     // 상품코드별로 그룹핑
     const codeMap = {};
@@ -1147,61 +1200,54 @@ window.calc2FList = function() {
     });
 
     window.current2FList = [];
-    const tbody = document.getElementById('2f-tbody');
+    const supplierSet = new Set(); // 조건 통과 후보들의 공급처 (체크리스트용)
 
     for (const code in codeMap) {
-        // ★ v3.53: 입고대기 남은 상품은 2F 이동 추천에서 제외
-        if (incomingTotalByCode[code] > 0) continue;
-        const locs = codeMap[code];
-        const firstLoc = locs[0];
-        
-        // rawData에서 키를 유연하게 찾는 헬퍼
-        const getRawVal = (rd, targetKey) => {
-            if (!rd) return '';
-            if (rd[targetKey]) return rd[targetKey];
-            const norm = targetKey.replace(/[\s\u00A0]/g, '');
-            for (const k of Object.keys(rd)) {
-                if (k.replace(/[\s\u00A0]/g, '') === norm) return rd[k];
-            }
-            return '';
-        };
+        // ★ 기준 1: 입고대기 0개(X) — 입고대기가 남은 상품은 제외
+        if ((incomingTotalByCode[code] || 0) > 0) continue;
 
-        // 마지막배송일 찾기 (마지막배송일 우선, 없으면 마지막입고일)
+        const locs = codeMap[code];
+
+        // ★ 기준 2: 현재고(정상재고) 0개
+        let totalStock = 0;
+        locs.forEach(l => totalStock += Number(l.stock || 0));
+        if (totalStock !== 0) continue;
+
+        const firstLoc = locs[0];
+
+        // 공급처 (제외 판별 + 표시)
+        const supplier = get2FSupplier(locs);
+        if (supplier) supplierSet.add(supplier);
+        if (supplier && excluded.has(supplier)) continue; // ★ 선택한 공급처 제외
+
+        // 마지막배송일 (참고 표시용)
         let lastDelivery = '';
         for (const loc of locs) {
-            let val = getRawVal(loc.rawData, '마지막배송일');
-            if (!val) val = getRawVal(loc.rawData, '마지막입고일');
+            let val = get2FRawVal(loc.rawData, '마지막배송일');
+            if (!val) val = get2FRawVal(loc.rawData, '마지막입고일');
             if (val && val > lastDelivery) lastDelivery = val;
         }
 
-        // 마지막배송일이 없으면 대상에 포함 (배송 기록 없음 = 오래된 것)
-        // 마지막배송일이 있으면 cutoff 이전인지 확인
-        if (lastDelivery && lastDelivery > cutoffStr) continue;
-
-        // 정상재고 합산
-        let totalStock = 0;
-        locs.forEach(l => totalStock += Number(l.stock || 0));
-        if (totalStock > stockLimit) continue;
-
-        // 옵션추가항목1 값 가져오기
+        // 옵션추가항목1 값
         let extraOpt = '';
         for (const loc of locs) {
-            const val = getRawVal(loc.rawData, '옵션추가항목1');
+            const val = get2FRawVal(loc.rawData, '옵션추가항목1');
             if (val) { extraOpt = val; break; }
         }
 
         const locIds = locs.map(l => l.id).join(', ');
         const name = firstLoc.name || '';
         const option = firstLoc.option || '';
-        
-        // 변경값: 2F-코드 옵션추가항목1값
         const changeValue = `2F-${code}${extraOpt ? ' ' + extraOpt : ''}`;
 
         window.current2FList.push({
-            code, name, option, totalStock, lastDelivery: lastDelivery || '기록없음',
+            code, name, option, supplier, totalStock, lastDelivery: lastDelivery || '기록없음',
             locIds, locs, changeValue, extraOpt
         });
     }
+
+    // 공급처 체크리스트 갱신 (선택 상태 유지)
+    window.render2FSupplierList(supplierSet, excluded);
 
     // 마지막배송일 오래된 순 정렬 (기록없음이 맨 위)
     window.current2FSortAsc = true;
@@ -1213,7 +1259,7 @@ window.calc2FList = function() {
 
     const icon = document.getElementById('2f-sort-icon');
     if (icon) icon.textContent = '▲';
-    
+
     window.render2FTable();
 };
 
@@ -1250,6 +1296,7 @@ window.render2FTable = function() {
                 <td style="font-weight:bold; color:#1a237e;">${item.code}</td>
                 <td style="text-align:left; font-size:13px;">${item.name}</td>
                 <td style="font-size:12px;">${item.option}</td>
+                <td style="font-size:12px; color:#555;">${item.supplier || '-'}</td>
                 <td style="font-weight:bold;">${item.totalStock}</td>
                 <td style="font-size:12px; color:${item.lastDelivery === '기록없음' ? '#ff5252' : '#555'};">${item.lastDelivery}</td>
                 <td style="font-size:12px;">${item.locIds}</td>
@@ -1258,7 +1305,7 @@ window.render2FTable = function() {
         `;
     });
     if (window.current2FList.length === 0) {
-        html = '<tr><td colspan="9" style="padding:40px; color:#888;">조건에 해당하는 상품이 없습니다.</td></tr>';
+        html = '<tr><td colspan="10" style="padding:40px; color:#888;">조건에 해당하는 상품이 없습니다.</td></tr>';
     }
     tbody.innerHTML = html;
     document.getElementById('2f-check-all').checked = false;
@@ -1277,10 +1324,10 @@ window.download2FExcel = function() {
     if (checked.length > 0) {
         const indices = Array.from(checked).map(cb => Number(cb.dataset.idx));
         targetList = indices.map(i => window.current2FList[i]).filter(Boolean);
-        fileLabel = `2F이동추천_선택${targetList.length}건`;
+        fileLabel = `빈칸확보_선택${targetList.length}건`;
     } else {
         targetList = window.current2FList;
-        fileLabel = `2F이동추천_전체${targetList.length}건`;
+        fileLabel = `빈칸확보_전체${targetList.length}건`;
     }
 
     const excelData = targetList.map((item, idx) => ({
@@ -1288,6 +1335,7 @@ window.download2FExcel = function() {
         "상품코드": item.code,
         "상품명": item.name,
         "옵션": item.option,
+        "공급처": item.supplier || '',
         "정상재고": item.totalStock,
         "마지막배송일": item.lastDelivery,
         "현재위치": item.locIds,
@@ -1296,11 +1344,11 @@ window.download2FExcel = function() {
 
     const ws = XLSX.utils.json_to_sheet(excelData);
     ws['!cols'] = [
-        { wch: 5 }, { wch: 15 }, { wch: 40 }, { wch: 25 },
+        { wch: 5 }, { wch: 15 }, { wch: 40 }, { wch: 25 }, { wch: 18 },
         { wch: 10 }, { wch: 15 }, { wch: 20 }, { wch: 30 }
     ];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "2F이동추천");
+    XLSX.utils.book_append_sheet(wb, ws, "빈칸확보");
     const today = new Date();
     const dateString = today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
     XLSX.writeFile(wb, `${fileLabel}_${dateString}.xlsx`);
@@ -7049,7 +7097,7 @@ window.renderLocationDashboard = function () {
             💡 변경 추천 ${recCount > 0 ? `<span class="badge">${recCount}건</span>` : ''}
         </button>
         <button class="dash-action-btn act-purple" onclick="document.getElementById('modal-2f').style.display='flex'; window.calc2FList && window.calc2FList();">
-            🏢 데드 스톡 앵글 이동 추천 ${deadStockCount > 0 ? `<span class="badge">${deadStockCount}+건</span>` : ''}
+            📭 빈칸확보
         </button>
     `;
     document.getElementById('dash-actions').innerHTML = actionsHtml;

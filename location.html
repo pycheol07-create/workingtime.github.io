@@ -855,7 +855,7 @@
                 💡 로케이션 변경 리스트
                 <button onclick="window.runActiveRecommendation()" style="padding:6px 12px; font-size:13px; background:#4caf50; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🔍 계산</button>
                 <button onclick="window.openRatioModal()" style="padding:6px 12px; font-size:13px; background:#e65100; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">⚙️ 점수반영비율 설정</button>
-                <button onclick="window.show2FRecommendation()" style="padding:6px 12px; font-size:13px; background:#7b1fa2; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🏢 2F 이동 추천</button>
+                <button onclick="window.show2FRecommendation()" style="padding:6px 12px; font-size:13px; background:#7b1fa2; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">📭 빈칸확보</button>
             </div>
             <div style="font-size:12px; color:#666; margin-bottom:15px; margin-top:-10px;">
                 ※ 선지정으로 찜해둔 자리는 물건이 없더라도 이 추천 목록에서 완벽히 보호(제외)됩니다.
@@ -1001,30 +1001,26 @@
 
     <div id="toast"></div>
 
-    <!-- 2F 이동 추천 모달 -->
+    <!-- 빈칸확보 모달 (구 2F 이동 추천) -->
     <div id="modal-2f" class="modal-overlay" onclick="if(event.target.id==='modal-2f') document.getElementById('modal-2f').style.display='none'">
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 1050px; max-width: 96vw; padding: 25px 20px;">
             <div class="modal-header" style="color: #7b1fa2; display: flex; align-items: center; gap: 10px; flex-wrap:wrap;">
-                🏢 2F 이동 추천 리스트
+                📭 빈칸확보 리스트
                 <button onclick="document.getElementById('modal-2f').style.display='none'" style="margin-left:auto; background:none; border:none; font-size:24px; cursor:pointer;">×</button>
             </div>
             <div style="background:#f3e5f5; border:1px solid #ce93d8; border-radius:8px; padding:12px 15px; margin-bottom:15px;">
-                <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
-                    <label style="font-size:13px; font-weight:bold; color:#4a148c;">📅 기준 기간:<span class="info-tip" data-tip-key="2f-period">i<span class="info-tip-content">⏱️ <b>마지막배송일 기준</b><br>여기서 설정한 기간 <b>이상</b> 배송이 없었던 상품을 2F 이동 대상으로 추천합니다.<br><br>예: "3개월"로 설정하면 3개월 이상 배송 기록이 없는 상품이 표시됩니다.<br><br>※ 마지막배송일이 아예 없는 상품(기록없음)도 포함됩니다.</span></span></label>
-                    <input type="number" id="2f-period-value" value="1" min="1" style="width:50px; padding:5px; text-align:center; border:1px solid #ce93d8; border-radius:4px; font-weight:bold;">
-                    <select id="2f-period-unit" style="padding:5px 10px; border:1px solid #ce93d8; border-radius:4px; font-weight:bold;">
-                        <option value="week">주</option>
-                        <option value="month" selected>개월</option>
-                    </select>
-                    <span style="font-size:12px; color:#666;">이상 배송 없는 상품</span>
-                    <label style="font-size:13px; font-weight:bold; color:#4a148c; margin-left:10px;">📦 재고 기준:</label>
-                    <input type="number" id="2f-stock-limit" value="999999" min="0" style="width:80px; padding:5px; text-align:center; border:1px solid #ce93d8; border-radius:4px; font-weight:bold;">
-                    <span style="font-size:12px; color:#666;">개 이하</span>
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+                    <label style="font-size:13px; font-weight:bold; color:#4a148c;">🏷️ 제외할 공급처 선택<span class="info-tip" data-tip-key="2f-supplier">i<span class="info-tip-content">🏷️ <b>공급처 제외</b><br>체크한 공급처의 상품은 빈칸확보 목록에서 제외됩니다.<br><br>공급처 정보는 업로드한 재고 엑셀의 <b>공급처</b> 컬럼에서 가져옵니다.</span></span></label>
+                    <span style="font-size:11px; color:#666;">체크한 공급처의 상품은 목록에서 제외</span>
+                    <label style="margin-left:auto; font-size:12px; font-weight:bold; color:#4a148c; cursor:pointer; user-select:none;"><input type="checkbox" id="2f-supplier-all" onclick="window.toggle2FSupplierAll(this)" style="vertical-align:middle;"> 전체 선택</label>
                     <button onclick="window.calc2FList()" style="padding:8px 16px; background:#7b1fa2; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">🔍 조회</button>
+                </div>
+                <div id="2f-supplier-box" style="max-height:110px; overflow-y:auto; display:flex; flex-wrap:wrap; gap:6px 16px; background:#fff; border:1px solid #ce93d8; border-radius:6px; padding:8px 10px;">
+                    <span style="font-size:12px; color:#999;">조회하면 공급처 목록이 표시됩니다.</span>
                 </div>
             </div>
             <div style="font-size:11px; color:#666; margin-bottom:10px;">
-                ※ 마지막배송일 기준으로 설정 기간 동안 배송이 없고, 재고가 기준 이하인 상품을 2F 이동 대상으로 추천합니다.
+                ※ <b>현재고 0개</b> · <b>입고대기 0개(X)</b>인 상품을 빈칸확보 대상으로 표시합니다. (체크한 공급처는 제외)
             </div>
             <div class="modal-body" style="max-height: 50vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
                 <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
@@ -1035,6 +1031,7 @@
                             <th style="width:120px; border-top:none; font-size:13px;">상품코드</th>
                             <th style="border-top:none; font-size:13px;">상품명</th>
                             <th style="width:100px; border-top:none; font-size:13px;">옵션</th>
+                            <th style="width:110px; border-top:none; font-size:13px;">공급처</th>
                             <th style="width:70px; border-top:none; font-size:13px;">정상재고</th>
                             <th style="width:100px; border-top:none; font-size:13px; cursor:pointer;" onclick="window.sort2FList()">마지막배송일 <span id="2f-sort-icon">▲</span></th>
                             <th style="width:100px; border-top:none; font-size:13px;">현재위치</th>
