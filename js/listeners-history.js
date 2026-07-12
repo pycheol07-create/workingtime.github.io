@@ -10,7 +10,7 @@ import { setupHistoryInspectionListeners } from './listeners-history-inspection.
 
 import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
 import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js';
-import { syncTodayToHistory, saveManagementData } from './history-data-manager.js';
+import { syncTodayToHistory, saveManagementData, backfillFxRates } from './history-data-manager.js';
 import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js';
@@ -104,6 +104,12 @@ export function setupHistoryModalListeners() {
         if (!dateKey) return;
         if (viewMode === 'management-daily') renderManagementDaily(dateKey, State.allHistoryData);
         else renderManagementSummary(viewMode, dateKey, State.allHistoryData);
+    };
+
+    // 💱 과거 환율 채우기(백필) — 경영지표 표의 버튼에서 호출. 완료 후 화면 갱신.
+    window.__runFxBackfill = async (fromDate = '2026-06-01') => {
+        await backfillFxRates(fromDate);
+        refreshManagementView();
     };
 
     // 💡 핵심 수정 파트: 데이터를 다 불러온 후에 UI를 순차적으로 깨웁니다.

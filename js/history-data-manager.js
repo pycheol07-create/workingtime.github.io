@@ -533,6 +533,56 @@ export async function saveManagementData(dateKey, managementData) {
     }
 }
 
+// 💱 과거 환율 소급 입력(백필).
+// history 문서가 있는 날짜 중 환율이 비어있는 날을 날짜별 조회가 되는 무료 API(frankfurter)로 채운다.
+// - 오늘은 자동입력(autoFetchDailyFx)이 처리하므로 제외.
+// - 주말/휴일은 API가 직전 영업일 환율을 반환.
+// 반환: { ok, fail, skipped }
+export async function backfillFxRates(fromDate = '2026-06-01') {
+    if (!State.auth || !State.auth.currentUser) { showToast('로그인이 필요합니다.', true); return { ok: 0, fail: 0 }; }
+    const todayKey = getTodayDateString();
+
+    const targets = (State.allHistoryData || [])
+        .filter(d => d.id && d.id >= fromDate && d.id < todayKey)
+        .filter(d => !(d.management && Number(d.management.usdRate) > 0))
+        .map(d => d.id)
+        .sort();
+
+    if (targets.length === 0) { showToast('채울 과거 환율이 없습니다. (이미 모두 입력됨)'); return { ok: 0, fail: 0 }; }
+    if (!confirm(`${fromDate}부터 환율이 비어있는 ${targets.length}일을 과거 환율로 채웁니다.\n진행할까요?`)) return { ok: 0, fail: 0, canceled: true };
+
+    let ok = 0, fail = 0;
+    for (const date of targets) {
+        try {
+            const res = await fetch(`https://api.frankfurter.dev/v1/${date}?base=USD&symbols=KRW,CNY`, { cache: 'no-store' });
+            const j = await res.json();
+            const krw = j && j.rates && j.rates.KRW;
+            const cny = j && j.rates && j.rates.CNY;
+            if (!krw) { fail++; continue; }
+
+            const usdRate = Math.round(krw);                 // 1 USD = ? 원
+            const cnyRate = cny ? Math.round(krw / cny) : 0;  // 1 CNY = ? 원
+            const fxAt = Date.now();
+            const payload = { management: { usdRate, cnyRate, fxAt, fxBackfilled: true } };
+
+            const histRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', date);
+            await setDoc(histRef, payload, { merge: true }); // 딥머지: 기존 매출/재고 보존
+
+            const di = State.allHistoryData.findIndex(d => d.id === date);
+            if (di > -1) State.allHistoryData[di].management = { ...(State.allHistoryData[di].management || {}), usdRate, cnyRate, fxAt };
+            ok++;
+        } catch (e) {
+            fail++;
+            console.warn('환율 백필 실패:', date, e);
+        }
+        await new Promise(r => setTimeout(r, 150)); // API 과다호출 방지
+    }
+
+    clearLocalCache(); // 캐시 무효화 → 다음 조회 시 서버 최신값 반영
+    showToast(`과거 환율 채우기 완료: 성공 ${ok}일 / 실패 ${fail}일`);
+    return { ok, fail };
+}
+
 export async function checkUnverifiedRecords(forceRefresh = false) {
     const now = Date.now();
     if (!forceRefresh && cachedUnverifiedDates && (now - lastUnverifiedCheckTime < 3600000)) {

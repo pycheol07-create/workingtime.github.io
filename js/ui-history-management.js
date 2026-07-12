@@ -406,9 +406,14 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
 
         dailyTableHtml = `
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mt-8 shadow-sm">
-                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center gap-2 flex-wrap">
                     <h4 class="font-bold text-gray-800">📅 일자별 상세 내역</h4>
-                    <span class="text-xs text-gray-500">일별 회전율은 (매출/재고금액)% 로 계산됩니다.</span>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="window.__runFxBackfill && window.__runFxBackfill('2026-06-01')"
+                                class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm"
+                                title="환율이 비어있는 과거 날짜를 과거 시세로 일괄 채웁니다 (2026-06-01부터)">💱 과거 환율 채우기</button>
+                        <span class="text-xs text-gray-500">일별 회전율은 (매출/재고금액)% 로 계산됩니다.</span>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left">
