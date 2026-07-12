@@ -130,14 +130,6 @@
                         </label>
                     </div>
                 </div>
-                
-                <div class="presence-indicator px-5 py-3 border-b dark:border-gray-700 hidden">
-                    <div class="flex items-center gap-2 text-sm font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        🟢 현재 접속중 <span class="presence-online-count">0</span>명
-                    </div>
-                    <ul class="presence-users-list max-h-40 overflow-y-auto space-y-0.5 text-sm pl-1"></ul>
-                </div>
 
                 <button id="open-quantity-modal-today-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📊</span> 오늘 처리량 입력</button>
                 <button id="open-history-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📜</span> 데이터 관리</button>
@@ -163,17 +155,6 @@
                         <span id="user-greeting" class="text-sm font-semibold text-gray-700 dark:text-gray-300 hidden"></span>
                         <span id="status-dot" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                         <span id="connection-status" class="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-md">접속됨</span>
-                    </div>
-
-                    <div class="presence-indicator relative hidden">
-                        <button type="button" class="presence-toggle-btn flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 rounded-md border border-emerald-100 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition" aria-label="현재 접속중 인원">
-                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            접속중 <span class="presence-online-count">0</span>명
-                        </button>
-                        <div class="presence-popover hidden absolute left-0 mt-2 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-[400] p-2">
-                            <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 px-1 pb-1 border-b border-gray-100 dark:border-gray-700 mb-1">🟢 현재 접속중</div>
-                            <ul class="presence-users-list max-h-64 overflow-y-auto space-y-0.5 text-sm"></ul>
-                        </div>
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
