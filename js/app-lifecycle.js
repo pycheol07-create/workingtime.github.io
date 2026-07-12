@@ -60,6 +60,70 @@ async function autoFetchDailyFx(todayKey) {
     }
 }
 
+// 💱 앱을 실행하지 않은 날짜(주말·휴일·미접속일)의 환율도 소급 저장.
+// 누군가 앱을 열면, 마지막으로 채운 날 다음부터 '어제'까지 비어있는 날을 과거 시세로 채운다.
+// - 워터마크(fxLastFilledDate)로 매번 조금씩만 처리 → 읽기/쓰기 최소화.
+// - 하루 1회(브라우저당). 과도한 소급 방지를 위해 자동은 최대 60일치까지만(그 이전은 수동 버튼).
+const FX_BACKFILL_START = '2026-06-01';
+let _fxGapDay = null;
+async function autoBackfillMissingFx(todayKey) {
+    if (_fxGapDay === todayKey) return;
+    if (!State.auth || !State.auth.currentUser) return;
+    const lsGuard = 'fxGapFilled_' + todayKey;
+    if (localStorage.getItem(lsGuard)) { _fxGapDay = todayKey; return; }
+    _fxGapDay = todayKey; // 이번 세션 재시도 방지(다음날 새 가드로 재시도)
+
+    // 로컬 시간 기준 날짜 포맷(UTC 변환 시 KST에서 하루 밀리는 문제 방지)
+    const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+
+    const yDate = new Date(todayKey + 'T00:00:00'); yDate.setDate(yDate.getDate() - 1);
+    const yesterday = fmt(yDate);
+
+    // 시작점: 워터마크 다음날(없으면 FX_BACKFILL_START), 단 최근 60일 이내로 제한
+    let start;
+    const wm = localStorage.getItem('fxLastFilledDate');
+    if (wm) { const s = new Date(wm + 'T00:00:00'); s.setDate(s.getDate() + 1); start = fmt(s); }
+    else start = FX_BACKFILL_START;
+    const capDate = new Date(todayKey + 'T00:00:00'); capDate.setDate(capDate.getDate() - 60);
+    const capStr = fmt(capDate);
+    if (start < capStr) start = capStr; // 60일 이전은 수동(과거 환율 채우기 버튼)
+
+    if (start > yesterday) { localStorage.setItem(lsGuard, '1'); return; }
+
+    let ok = 0;
+    try {
+        for (let d = new Date(start + 'T00:00:00'); d <= yDate; d.setDate(d.getDate() + 1)) {
+            const date = fmt(d);
+            const histRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', date);
+            const snap = await getDoc(histRef);
+            if (snap.exists() && snap.data().management && snap.data().management.usdRate) {
+                localStorage.setItem('fxLastFilledDate', date); // 이미 있음 → 전진
+                continue;
+            }
+            const res = await fetch(`https://api.frankfurter.dev/v1/${date}?base=USD&symbols=KRW,CNY`, { cache: 'no-store' });
+            const j = await res.json();
+            const krw = j && j.rates && j.rates.KRW;
+            const cny = j && j.rates && j.rates.CNY;
+            if (!krw) continue; // 값 없음 → 전진하지 않고 다음 날짜
+            const usdRate = Math.round(krw);
+            const cnyRate = cny ? Math.round(krw / cny) : 0;
+            await setDoc(histRef, { management: { usdRate, cnyRate, fxAt: Date.now(), fxBackfilled: true } }, { merge: true });
+            localStorage.setItem('fxLastFilledDate', date);
+            ok++;
+            await new Promise(r => setTimeout(r, 120)); // API 과다호출 방지
+        }
+        localStorage.setItem(lsGuard, '1'); // 오늘치 완료
+    } catch (e) {
+        console.warn('환율 자동 갭필 실패(다음 접속 시 재시도):', e);
+        // 가드 미설정 → 다음날 재시도. 워터마크는 마지막 성공 지점까지 저장돼 있음.
+    }
+
+    if (ok > 0) {
+        try { localStorage.removeItem('historyDataCache'); localStorage.removeItem('historyDataCacheTime'); } catch (_) {}
+        showToast(`앱 미실행일 포함 과거 환율 ${ok}일치를 자동 저장했습니다.`, false);
+    }
+}
+
 // ✨ 야근 확인 팝업 및 타이머용 변수 추가
 let localAutoClosePromptExecuted = false;
 let autoCloseTimer = null;
@@ -81,12 +145,15 @@ export const updateElapsedTimes = async () => {
         if (autoCloseTimer) clearTimeout(autoCloseTimer);
         autoCloseTimer = null;
         _fxFetchedDay = null; // 환율 자동입력 가드도 초기화
+        _fxGapDay = null;     // 환율 자동 갭필 가드도 초기화
 
         lastCheckedDay = todayDate;
     }
 
     // 💱 매일 아침 09:00 이후 환율 자동 입력 (하루 1회)
     if (now >= '09:00') autoFetchDailyFx(todayDate);
+    // 💱 앱 미실행일 포함 과거 환율 자동 갭필 (하루 1회, 시각 무관)
+    autoBackfillMissingFx(todayDate);
 
     const currentUserLower = (State.appState.currentUser || '').toLowerCase();
     const isAdmin = State.appConfig?.memberRoles?.[currentUserLower] === 'admin';
