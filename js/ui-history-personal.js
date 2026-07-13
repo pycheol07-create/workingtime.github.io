@@ -375,7 +375,7 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                     </button>
                 </div>
             </div>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded mt-2 md:mt-0">${stats.salary && stats.salary.isMonthlySalaried ? `기본급 ${Math.round(stats.salary.monthlyBase).toLocaleString()}원 · 시급 ${Math.round(stats.salary.hourly).toLocaleString()}원` : `적용 시급: ${Math.round(wage).toLocaleString()}원`}</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded mt-2 md:mt-0 blur-sm hover:bg-gray-200 cursor-pointer select-none transition" onclick="this.classList.toggle('blur-sm')" title="클릭하여 표시/가리기">${stats.salary && stats.salary.isMonthlySalaried ? `기본급 ${Math.round(stats.salary.monthlyBase).toLocaleString()}원 · 시급 ${Math.round(stats.salary.hourly).toLocaleString()}원` : `적용 시급: ${Math.round(wage).toLocaleString()}원`}</span>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
@@ -385,10 +385,12 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                 <div class="text-xs text-gray-500 mb-1">총 업무 시간</div><div class="text-2xl font-extrabold text-blue-600">${formatDuration(stats.totalWorkMinutes)}</div>
             </div>
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
-                <div class="text-xs text-gray-500 mb-1">예상 급여 (세전)</div>
-                <div class="text-2xl font-extrabold text-gray-800"${stats.salary && stats.salary.isMonthlySalaried ? ` title="기본급 ${Math.round(stats.salary.monthlyBase).toLocaleString()}원 − 결근 ${stats.salary.absentDays}일 / 결근주 주휴 ${stats.salary.weeksWithAbsence}주 / 조퇴 ${stats.salary.earlyLeaveMin}분 / 외출초과 ${stats.salary.outingMin}분${stats.salary.weekendPay > 0 ? ` + 주말근무 ${stats.salary.weekendCount}회 ${stats.salary.weekendPay.toLocaleString()}원` : ''}"` : ''}>${Math.round((stats.salary && stats.salary.estimated != null) ? stats.salary.estimated : stats.totalWageCost).toLocaleString()}원</div>
-                ${stats.salary && stats.salary.isMonthlySalaried && stats.salary.totalDeduction > 0 ? `<div class="text-[10px] text-red-500 mt-1">근태 차감 −${Math.round(stats.salary.totalDeduction).toLocaleString()}원</div>` : ''}
-                ${stats.salary && stats.salary.weekendPay > 0 ? `<div class="text-[10px] text-emerald-600 mt-1">주말근무 ${stats.salary.weekendCount}회 +${stats.salary.weekendPay.toLocaleString()}원</div>` : ''}
+                <div class="text-xs text-gray-500 mb-1">예상 급여 (세전) <span class="text-[10px] text-gray-400">(클릭하여 표시)</span></div>
+                <div class="blur-sm hover:opacity-80 cursor-pointer select-none transition" onclick="this.classList.toggle('blur-sm')" title="클릭하여 표시/가리기">
+                    <div class="text-2xl font-extrabold text-gray-800">${Math.round((stats.salary && stats.salary.estimated != null) ? stats.salary.estimated : stats.totalWageCost).toLocaleString()}원</div>
+                    ${stats.salary && stats.salary.isMonthlySalaried && stats.salary.totalDeduction > 0 ? `<div class="text-[10px] text-red-500 mt-1">근태 차감 −${Math.round(stats.salary.totalDeduction).toLocaleString()}원</div>` : ''}
+                    ${stats.salary && stats.salary.weekendPay > 0 ? `<div class="text-[10px] text-emerald-600 mt-1">주말근무 ${stats.salary.weekendCount}회 +${stats.salary.weekendPay.toLocaleString()}원</div>` : ''}
+                </div>
             </div>
             <div class="bg-white p-4 rounded-xl border border-red-100 shadow-sm text-center">
                 <div class="text-xs text-gray-500 mb-1">특이 근태</div>
