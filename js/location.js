@@ -6838,7 +6838,7 @@ window.renderLocationDashboard = function () {
     // ---- 집계 ----
     const codeToLocs = new Map();          // 상품코드 → [loc, ...]
     const zoneStats = {};                  // 구역 → {total, used}
-    let used = 0, preAssigned = 0, todayReserved = 0;
+    let used = 0, preAssigned = 0, todayReserved = 0, registeredStockSum = 0;
 
     locs3F.forEach(loc => {
         const u = isUsed(loc);
@@ -6855,6 +6855,7 @@ window.renderLocationDashboard = function () {
             const c = String(loc.code).trim();
             if (!codeToLocs.has(c)) codeToLocs.set(c, []);
             codeToLocs.get(c).push(loc);
+            registeredStockSum += Number(loc.stock || 0) || 0;
         }
     });
 
@@ -6871,10 +6872,13 @@ window.renderLocationDashboard = function () {
     const todayMs = new Date().setHours(0, 0, 0, 0);
     const MS_DAY = 24 * 60 * 60 * 1000;
     const buckets = { '1주': 0, '1개월': 0, '3개월': 0, '6개월+': 0, '1년+': 0, '기록없음': 0 };
+    const bucketsQty = { '1주': 0, '1개월': 0, '3개월': 0, '6개월+': 0, '1년+': 0, '기록없음': 0 };
     codeToLocs.forEach((arr, code) => {
         const __info = __dashInferDelivery(code, arr);
         if (!__info.hasStock) return;
-        buckets[__dashClassifyDelivery(__info, todayMs)]++;
+        const __bucketKey = __dashClassifyDelivery(__info, todayMs);
+        buckets[__bucketKey]++;
+        bucketsQty[__bucketKey] += arr.reduce((s, l) => s + (Number(l.stock || 0) || 0), 0);
         return;
         // (이하 옛 코드는 도달 불가 — 안전상 보존)
         let lastDelivery = '';
@@ -6906,6 +6910,7 @@ window.renderLocationDashboard = function () {
 
     // 데드 스톡 (3개월+) 후보 수 = 3개월 + 6개월+ + 1년+
     const deadStockCount = buckets['3개월'] + buckets['6개월+'] + buckets['1년+'];
+    const deadStockQty = bucketsQty['3개월'] + bucketsQty['6개월+'] + bucketsQty['1년+'];
 
     // 빈 슬롯 비중 높은 동 Top 3
     const dongEmptyStats = {};
@@ -6971,8 +6976,8 @@ window.renderLocationDashboard = function () {
             <div class="kpi-icon blue">📦</div>
             <div class="kpi-body">
                 <div class="kpi-title">등록 상품 (고유)</div>
-                <div class="kpi-value">${uniqueCodes.toLocaleString()}</div>
-                <div class="kpi-sub">평균 ${uniqueCodes > 0 ? (used / uniqueCodes).toFixed(1) : 0} 칸/상품</div>
+                <div class="kpi-value">${uniqueCodes.toLocaleString()}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span></div>
+                <div class="kpi-sub">총 재고 ${registeredStockSum.toLocaleString()}개 · 평균 ${uniqueCodes > 0 ? (used / uniqueCodes).toFixed(1) : 0} 칸/상품</div>
             </div>
         </div>
         <div class="dash-kpi-card" style="cursor:pointer;" onclick="window.__dashShowLocList('preassigned')" title="클릭: 선지정/당일지정 리스트 보기"
@@ -7037,10 +7042,10 @@ window.renderLocationDashboard = function () {
     // ---- 인사이트 카드 ----
     const insightHtml = `
         <div class="insight-card">
-            <h4>🔄 재고 회전 (전일 대비)</h4>
+            <h4>🔄 재고 회전</h4>
             ${__turnover.sufficient
-                ? `<div class="ins-big">${__fmtRate(__turnover.rateAll)}</div>
-                   <div class="ins-desc">3층 ${__fmtRate(__turnover.rate3F)} · ${__turnover.previousDate} → ${__turnover.currentDate}</div>`
+                ? `<div class="ins-big">${((__turnover.currentStock3F || 0) + (__turnover.currentStock2F || 0)).toLocaleString()}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 개</span> <span style="font-size:15px;">${__fmtRate(__turnover.rateAll)}</span></div>
+                   <div class="ins-desc">3층 ${(__turnover.currentStock3F || 0).toLocaleString()}개 ${__fmtRate(__turnover.rate3F)} (전일 대비) · ${__turnover.previousDate} → ${__turnover.currentDate}</div>`
                 : `<div class="ins-big" style="font-size:18px; color:#a36800;">데이터 부족</div>
                    <div class="ins-desc">일일 최신화 2회 이상 누적 시 계산됩니다.</div>`}
         </div>
@@ -7066,13 +7071,14 @@ window.renderLocationDashboard = function () {
             <h4>💤 데드 스톡 후보</h4>
             <div class="ins-big" ${deadStockCount > 0 ? `style="cursor:pointer; transition: color 0.15s;" onclick="window.__dashShowBucketList('dead-all')" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color=''" title="전체 데드스톡 합계 리스트 보기"` : ''}>
                 ${deadStockCount}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span>
+                <span style="font-size:14px; color:#90a4ae; font-weight:bold;"> / ${deadStockQty.toLocaleString()}개</span>
                 ${deadStockCount > 0 ? '<span style="font-size:11px; color:#90a4ae; font-weight:normal; margin-left:4px;">▸</span>' : ''}
             </div>
             <div class="ins-desc">마지막배송일 3개월 이상 경과한 재고. 2F 이동 후보로 검토. <span style="color:#90a4ae;">(숫자/pill 클릭: 리스트 보기)</span></div>
             <div class="ins-list">
-                <span class="pill" style="cursor:pointer; background:#fff8e1; color:#e65100;" onclick="window.__dashShowBucketList('3개월')" title="3개월 경과 상품 보기">3개월: ${buckets['3개월']}</span>
-                <span class="pill" style="cursor:pointer; background:#ffebee; color:#c62828;" onclick="window.__dashShowBucketList('6개월+')" title="6개월~1년 경과 상품 보기">6개월+: ${buckets['6개월+']}</span>
-                <span class="pill" style="cursor:pointer; background:#fce4ec; color:#880e4f;" onclick="window.__dashShowBucketList('1년+')" title="1년 이상 경과 상품 보기">1년+: ${buckets['1년+']}</span>
+                <span class="pill" style="cursor:pointer; background:#fff8e1; color:#e65100;" onclick="window.__dashShowBucketList('3개월')" title="3개월 경과 상품 보기">3개월: ${buckets['3개월']}종 / ${bucketsQty['3개월'].toLocaleString()}개</span>
+                <span class="pill" style="cursor:pointer; background:#ffebee; color:#c62828;" onclick="window.__dashShowBucketList('6개월+')" title="6개월~1년 경과 상품 보기">6개월+: ${buckets['6개월+']}종 / ${bucketsQty['6개월+'].toLocaleString()}개</span>
+                <span class="pill" style="cursor:pointer; background:#fce4ec; color:#880e4f;" onclick="window.__dashShowBucketList('1년+')" title="1년 이상 경과 상품 보기">1년+: ${buckets['1년+']}종 / ${bucketsQty['1년+'].toLocaleString()}개</span>
             </div>
         </div>
         <div class="insight-card">
