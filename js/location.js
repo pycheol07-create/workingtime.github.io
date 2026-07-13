@@ -7074,7 +7074,6 @@ window.renderLocationDashboard = function () {
                 <span style="font-size:14px; color:#90a4ae; font-weight:bold;"> / ${deadStockQty.toLocaleString()}개</span>
                 ${deadStockCount > 0 ? '<span style="font-size:11px; color:#90a4ae; font-weight:normal; margin-left:4px;">▸</span>' : ''}
             </div>
-            <div class="ins-desc">마지막배송일 3개월 이상 경과한 재고. 2F 이동 후보로 검토. <span style="color:#90a4ae;">(숫자/pill 클릭: 리스트 보기)</span></div>
             <div class="ins-list">
                 <span class="pill" style="cursor:pointer; background:#fff8e1; color:#e65100;" onclick="window.__dashShowBucketList('3개월')" title="3개월 경과 상품 보기">3개월: ${buckets['3개월']}종 / ${bucketsQty['3개월'].toLocaleString()}개</span>
                 <span class="pill" style="cursor:pointer; background:#ffebee; color:#c62828;" onclick="window.__dashShowBucketList('6개월+')" title="6개월~1년 경과 상품 보기">6개월+: ${buckets['6개월+']}종 / ${bucketsQty['6개월+'].toLocaleString()}개</span>
