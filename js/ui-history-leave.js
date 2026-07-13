@@ -547,7 +547,12 @@ async function fetchLeaveUsage(year) {
                 }
             }
 
-            if (!isMatch) return; 
+            // ★ 연차 사용기한(적용 시작일) 이전 내역은 정리 대상 — 같은 연도라도 집계에서 제외
+            if (isMatch && resetDate && recordDate && recordDate < resetDate) {
+                isMatch = false;
+            }
+
+            if (!isMatch) return;
 
             if (!usage[name]) usage[name] = { count: 0, dates: [] };
 

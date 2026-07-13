@@ -1,5 +1,5 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig } from './config.js';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -181,6 +181,57 @@ function setupEventListeners() {
     setupAllDragListeners();
 }
 
+// ★ 연차 사용기한(적용 시작일/사용 만료일) 변경 감지 → 새 적용 시작일 이전의 연차/반차 내역을 실제로 삭제
+// 대상이 없으면 null, 취소되면 'cancelled', 정리할 게 있으면 { deletedCount, updatedLeaveData } 반환
+async function prepareLeaveCleanup(oldConfig, newConfig) {
+    const oldSettings = oldConfig.memberLeaveSettings || {};
+    const newSettings = newConfig.memberLeaveSettings || {};
+
+    const changedMembers = Object.keys(newSettings).filter(member => {
+        const oldS = oldSettings[member] || {};
+        const newS = newSettings[member] || {};
+        return (oldS.leaveResetDate || '') !== (newS.leaveResetDate || '') ||
+               (oldS.expirationDate || '') !== (newS.expirationDate || '');
+    });
+
+    if (changedMembers.length === 0) return null;
+
+    const leaveData = await loadLeaveSchedule(db);
+    const allLeaves = Array.isArray(leaveData.onLeaveMembers) ? leaveData.onLeaveMembers : [];
+
+    const toDelete = [];
+    changedMembers.forEach(member => {
+        const newResetDate = (newSettings[member] || {}).leaveResetDate || '';
+        if (!newResetDate) return; // 새 적용 시작일이 없으면 정리 대상 없음
+        allLeaves.forEach(l => {
+            if (l.member !== member) return;
+            if (!(l.type && (l.type.includes('연차') || l.type.includes('반차')))) return;
+            const d = l.startDate || l.date || '';
+            if (d && d < newResetDate) toDelete.push(l);
+        });
+    });
+
+    if (toDelete.length === 0) return null;
+
+    const countByMember = {};
+    toDelete.forEach(l => { countByMember[l.member] = (countByMember[l.member] || 0) + 1; });
+    const summary = Object.entries(countByMember).map(([m, c]) => `${m} ${c}건`).join(', ');
+
+    const confirmed = confirm(
+        `연차 사용기한이 변경되어 새 적용 시작일 이전의 연차/반차 내역을 정리합니다.\n\n` +
+        `삭제 대상: ${summary} (총 ${toDelete.length}건)\n\n` +
+        `삭제된 내역은 복구할 수 없습니다. 계속하시겠습니까?`
+    );
+    if (!confirmed) return 'cancelled';
+
+    const updatedLeaves = allLeaves.filter(l => !toDelete.includes(l));
+
+    return {
+        deletedCount: toDelete.length,
+        updatedLeaveData: { ...leaveData, onLeaveMembers: updatedLeaves }
+    };
+}
+
 async function handleSaveAll() {
     const btn = document.getElementById('save-all-btn');
     if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
@@ -188,13 +239,22 @@ async function handleSaveAll() {
     try {
         const newConfig = collectConfigFromDOM(appConfig);
         validateConfig(newConfig);
+
+        const leaveCleanup = await prepareLeaveCleanup(appConfig, newConfig);
+        if (leaveCleanup === 'cancelled') {
+            return;
+        }
+
         await saveAppConfig(db, newConfig);
-        
+        if (leaveCleanup && leaveCleanup.updatedLeaveData) {
+            await saveLeaveSchedule(db, leaveCleanup.updatedLeaveData);
+        }
+
         appConfig = newConfig;
-        alert('✅ 모든 변경사항이 성공적으로 저장되었습니다!');
-        
+        alert('✅ 모든 변경사항이 성공적으로 저장되었습니다!' + (leaveCleanup && leaveCleanup.deletedCount ? `\n(연차 내역 ${leaveCleanup.deletedCount}건 정리됨)` : ''));
+
         renderAdminUI(appConfig);
-        setupAllDragListeners(); 
+        setupAllDragListeners();
 
     } catch (e) {
         console.error("저장 실패:", e);
