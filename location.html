@@ -850,8 +850,8 @@
     </div>
 
     <div id="recommend-modal" class="modal-overlay" onclick="closeRecommendModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()" style="width: 1400px; max-width: 98vw; padding: 22px 20px;">
-            <div class="modal-header" style="color: #4caf50; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div class="modal-content" onclick="event.stopPropagation()" style="width: 1400px; max-width: 98vw; padding: 22px 20px; height: 94vh; max-height: 94vh; box-sizing: border-box; display: flex; flex-direction: column;">
+            <div class="modal-header" style="color: #4caf50; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
                 💡 로케이션 변경 리스트
                 <button onclick="window.runActiveRecommendation()" style="padding:6px 12px; font-size:13px; background:#4caf50; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🔍 계산</button>
                 <button onclick="window.openRatioModal()" style="padding:6px 12px; font-size:13px; background:#e65100; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">⚙️ 점수반영비율 설정</button>
@@ -889,7 +889,7 @@
                 <button id="rec-tab-btn-pair" onclick="window.switchRecTab('pair')" style="padding:8px 18px; font-size:13px; background:#e0e0e0; color:#555; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:bold; margin-left:2px;">🔗 페어 추천</button>
             </div>
             
-            <div id="rec-tab-single" class="modal-body" style="max-height: 72vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
+            <div id="rec-tab-single" class="modal-body" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
                 <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
                     <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                         <tr>
@@ -905,7 +905,7 @@
                 </table>
             </div>
             
-            <div id="rec-tab-pair" class="modal-body" style="max-height: 72vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0; display:none;">
+            <div id="rec-tab-pair" class="modal-body" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0; display:none;">
                 <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
                     <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                         <tr>
@@ -920,7 +920,7 @@
                 </table>
             </div>
             
-            <div class="modal-footer" style="justify-content: space-between; margin-top: 15px;">
+            <div class="modal-footer" style="justify-content: space-between; margin-top: 15px; flex-shrink: 0;">
                 <button onclick="downloadRecommendationExcel()" style="padding:8px 15px; background:#1976d2; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">📥 엑셀 다운로드</button>
                 <button class="btn-modal-cancel" style="background:#555; width:100px;" onclick="closeRecommendModal()">닫기</button>
             </div>
