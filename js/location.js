@@ -1135,6 +1135,21 @@ function get2FRawVal(rd, targetKey) {
     return '';
 }
 
+// 마지막출고.배송일: 마지막배송일/마지막출고일(/마지막입고일) 중 가장 최근 날짜를 반환.
+// 두 날짜는 서로 다른 이벤트(배송 vs 출고)이므로 둘 중 더 최근 값이 실제 마지막 이동일임.
+function __getLastMoveDate(rd) {
+    if (!rd) return '';
+    let result = '';
+    ['마지막배송일', '마지막출고일', '마지막입고일'].forEach(key => {
+        const val = get2FRawVal(rd, key);
+        if (val) {
+            const norm = String(val).replace(/\./g, '-');
+            if (norm > result) result = norm;
+        }
+    });
+    return result;
+}
+
 // 상품(로케이션 묶음)의 공급처명을 찾는다. 재고 엑셀 헤더명이 확실치 않아 유연 매칭.
 const SUPPLIER_KEYS = ['공급처', '공급처명', '공급사', '공급업체', '거래처', '거래처명', 'vendor', 'supplier', 'Supplier'];
 function get2FSupplier(locs) {
@@ -1224,11 +1239,10 @@ window.calc2FList = function() {
         if (supplier) supplierSet.add(supplier);
         if (supplier && excluded.has(supplier)) continue; // ★ 선택한 공급처 제외
 
-        // 마지막배송일 (참고 표시용)
+        // 마지막출고.배송일 (참고 표시용) — 마지막배송일/마지막출고일 중 더 최근 값
         let lastDelivery = '';
         for (const loc of locs) {
-            let val = get2FRawVal(loc.rawData, '마지막배송일');
-            if (!val) val = get2FRawVal(loc.rawData, '마지막입고일');
+            const val = __getLastMoveDate(loc.rawData);
             if (val && val > lastDelivery) lastDelivery = val;
         }
 
@@ -1341,7 +1355,7 @@ window.download2FExcel = function() {
         "옵션": item.option,
         "공급처": item.supplier || '',
         "정상재고": item.totalStock,
-        "마지막배송일": item.lastDelivery,
+        "마지막출고.배송일": item.lastDelivery,
         "현재위치": item.locIds,
         "변경값": item.changeValue
     }));
@@ -6685,7 +6699,7 @@ window.showPairRecommendation = function() {
 // 📊 로케이션 현황 대시보드
 // ============================================================
 
-// 마지막배송일 + 직진/주차별 출고 활동을 함께 고려한 분류 헬퍼.
+// 마지막출고.배송일(배송일/출고일 중 최신) + 직진/주차별 출고 활동을 함께 고려한 분류 헬퍼.
 // 일반배송 기록만 보면 직진배송으로 나간 물건이 데드로 잘못 잡힘 → 두 데이터를 합산.
 function __dashInferDelivery(code, locs) {
     let lastDelivery = '';
@@ -6694,18 +6708,8 @@ function __dashInferDelivery(code, locs) {
 
     locs.forEach(loc => {
         if (Number(loc.stock || 0) > 0) hasStock = true;
-        const rd = loc.rawData || {};
-        let val = rd['마지막배송일'] || rd['마지막입고일'] || '';
-        if (!val) {
-            for (const k of Object.keys(rd)) {
-                const norm = k.replace(/[\s ]/g, '');
-                if (norm === '마지막배송일' || norm === '마지막입고일') { val = rd[k]; break; }
-            }
-        }
-        if (val) {
-            const norm = String(val).replace(/\./g, '-');
-            if (norm > lastDelivery) lastDelivery = norm;
-        }
+        const val = __getLastMoveDate(loc.rawData || {});
+        if (val && val > lastDelivery) lastDelivery = val;
     });
 
     // weeklyData YYYYMMDD 키 중 출고수량 > 0 인 가장 최근 날짜를 후보로
@@ -7396,7 +7400,7 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
                 '3개월': '1~3개월 내 마지막 출고 — 데드 후보',
                 '6개월+': '3~12개월 내 마지막 출고 — 데드',
                 '1년+': '1년 이상 출고 없는 재고 — 우선 정리 대상',
-                '기록없음': '마지막배송일/입고일 기록이 없는 상품'
+                '기록없음': '마지막출고.배송일 기록이 없는 상품'
             }[bucket] || '');
         metaEl.textContent = desc;
     }
@@ -7549,7 +7553,7 @@ window.__dashDownloadBucketExcel = function () {
         '현재위치': it.locsStr,
         '정상재고': it.stock,
         '2층재고': it.stock2f,
-        '마지막배송일': it.lastDelivery || '',
+        '마지막출고.배송일': it.lastDelivery || '',
         '직진활동': it.hasRecentActivity ? 'O' : ''
     }));
     const ws = XLSX.utils.json_to_sheet(sheetData);
