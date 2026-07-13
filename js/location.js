@@ -15,7 +15,7 @@ let sortConfig = { key: 'id', direction: 'asc' };
 // ★ v3.57: 모든 필터를 배열로 통일 (다중 선택 지원)
 // loc: 구역 prefix, code: ['empty','not-empty'] 중복 불가
 // reserved/preassigned: ['only'] 또는 [] (토글)
-let filters = { loc: [], code: [], stock: [], stock2f: [], dong: [], pos: [], reserved: [], preassigned: [] };
+let filters = { loc: [], code: [], stock: [], stock2f: [], category: [], dong: [], pos: [], reserved: [], preassigned: [] };
 // 헤더 검색창 입력으로 테이블을 부분일치 필터링 (컬럼키 → 검색어)
 let colTextSearch = {};
 
@@ -29,7 +29,7 @@ window.capacity2F = 200000;
 window.sheetUrlOrder = ''; 
 window.sheetUrlBuy = ''; 
 
-window.visibleColumns = ['std_dong', 'std_pos', 'std_id', 'std_code', 'std_name', 'std_option', 'std_stock'];
+window.visibleColumns = ['std_dong', 'std_pos', 'std_id', 'std_category', 'std_code', 'std_name', 'std_option', 'std_stock'];
 window.excelHeaders = []; 
 
 window.isPreAssignMode = false;
@@ -1384,6 +1384,7 @@ function renderTableHeader() {
         if (col === 'std_dong') { html += createTh('dong', '동', 80, true); popupHtml += `<div id="pop-dong" class="filter-popup"></div>`; }
         else if (col === 'std_pos') { html += createTh('pos', '위치', 80, true); popupHtml += `<div id="pop-pos" class="filter-popup"></div>`; }
         else if (col === 'std_id') { html += createTh('id', '로케이션', 150, true); popupHtml += `<div id="pop-id" class="filter-popup"></div>`; }
+        else if (col === 'std_category') { html += createTh('category', '대분류', 90, true); popupHtml += `<div id="pop-category" class="filter-popup"></div>`; }
         else if (col === 'std_code') { html += createTh('code', '상품코드', 150, true); popupHtml += `<div id="pop-code" class="filter-popup"></div>`; }
         else if (col === 'std_name') { html += createTh('name', '상품명', 'auto', true); popupHtml += `<div id="pop-name" class="filter-popup"></div>`; }
         else if (col === 'std_option') { html += createTh('option', '옵션', 180, true); popupHtml += `<div id="pop-option" class="filter-popup"></div>`; }
@@ -1423,7 +1424,7 @@ window.openSettingsModal = (e) => {
     let html = '<div style="margin-bottom:15px; font-weight:bold; color:var(--primary);">■ 화면 헤더(컬럼) 설정</div><div style="display:flex; flex-wrap:wrap; gap:5px;">';
     
     const stdCols = [
-        { id: 'std_dong', label: '동' }, { id: 'std_pos', label: '위치' }, { id: 'std_id', label: '로케이션(ID)' },
+        { id: 'std_dong', label: '동' }, { id: 'std_pos', label: '위치' }, { id: 'std_id', label: '로케이션(ID)' }, { id: 'std_category', label: '대분류' },
         { id: 'std_code', label: '상품코드' }, { id: 'std_name', label: '상품명' }, { id: 'std_option', label: '옵션' }, { id: 'std_stock', label: '정상재고' }, { id: 'std_stock2f', label: '2층창고재고' }
     ];
     
@@ -2230,7 +2231,7 @@ window.switchUsageTab = function(tab) { window.currentUsageTab = tab; window.cal
 
 // 대시보드 KPI 카드 → 데이터 리스트 뷰로 전환 + 해당 상태 필터 적용 (작업 가능 화면으로 바로 연결)
 window.__dashGoToList = function(state) {
-    filters = { loc: [], code: [], stock: [], stock2f: [], dong: [], pos: [], reserved: [], preassigned: [] };
+    filters = { loc: [], code: [], stock: [], stock2f: [], category: [], dong: [], pos: [], reserved: [], preassigned: [] };
     if (state === 'used') filters.code = ['not-empty'];
     else if (state === 'empty') filters.code = ['empty'];
     else if (state === 'reserved') filters.reserved = ['only'];
@@ -2253,7 +2254,7 @@ window.__dashGoToList = function(state) {
 
 window.applyUsageFilter = function(zone, state) {
     // ★ v3.57: 모든 필터 배열 초기화
-    filters = { loc: [], code: [], stock: [], stock2f: [], dong: [], pos: [], reserved: [], preassigned: [] };
+    filters = { loc: [], code: [], stock: [], stock2f: [], category: [], dong: [], pos: [], reserved: [], preassigned: [] };
     if (zone !== 'all') filters.loc = [zone];
     if (state === 'used') filters.code = ['not-empty'];
     else if (state === 'empty') filters.code = ['empty'];
@@ -2275,7 +2276,8 @@ window.calculateAndRenderUsage = function() {
     let html = `<div style="display:flex; gap:10px; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px;"><button onclick="switchUsageTab('3F')" style="flex:1; padding:8px; font-weight:bold; border:none; border-radius:5px; cursor:pointer; background:${window.currentUsageTab === '3F' ? 'var(--primary)' : '#eee'}; color:${window.currentUsageTab === '3F' ? 'white' : '#555'}">3층 로케이션</button><button onclick="switchUsageTab('2F')" style="flex:1; padding:8px; font-weight:bold; border:none; border-radius:5px; cursor:pointer; background:${window.currentUsageTab === '2F' ? 'var(--primary)' : '#eee'}; color:${window.currentUsageTab === '2F' ? 'white' : '#555'}">2층 창고재고</button></div>`;
 
     if (window.currentUsageTab === '3F') {
-        const locations = originalData.filter(d => d.id.charAt(0).toUpperCase() !== 'K');
+        // 랙 사용률 통계이므로 '기타'(비축/샘플 등, 실제 피킹 랙이 아님) 위치는 제외
+        const locations = originalData.filter(d => d.id.charAt(0).toUpperCase() !== 'K' && (d.category || '피킹용') !== '기타');
         let total = locations.length;
         if (total === 0) { popup.innerHTML = html + '<div style="padding: 10px;">데이터가 없습니다.</div>'; return; }
         
@@ -2475,7 +2477,7 @@ function updateFilterButtonStates() {
         else btnId.classList.add('active');
     }
     
-    ['code', 'dong', 'pos', 'stock', 'stock2f'].forEach(type => {
+    ['code', 'dong', 'pos', 'stock', 'stock2f', 'category'].forEach(type => {
         const btn = document.getElementById('btn-filter-' + type);
         if (btn) {
             if (type === 'code') {
@@ -2560,6 +2562,16 @@ function setupFilterPopups() {
         stock2fHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock2f', '${s}')">${sel ? '✔️ ' : ''}${s}</div>`; 
     });
     if(stock2fPop) stock2fPop.innerHTML = stock2fHtml;
+
+    const categoryPop = document.getElementById('pop-category');
+    const categories = [...new Set(originalData.map(d => (d.category || '피킹용').toString()))].sort();
+    const categoryAll = !filters.category || filters.category.length === 0;
+    let categoryHtml = window.getFilterSearchHtml('pop-category') + getSortButtonsHtml('category') + `<div class="filter-option ${categoryAll ? 'selected' : ''}" onclick="setFilter('category', 'all')">${categoryAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    categories.forEach(c => {
+        const sel = filters.category && filters.category.includes(c);
+        categoryHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('category', '${c}')">${sel ? '✔️ ' : ''}${c}</div>`;
+    });
+    if(categoryPop) categoryPop.innerHTML = categoryHtml;
 
     updateFilterButtonStates();
 
@@ -2987,7 +2999,7 @@ window.clearAllFilters = function(e) {
     if (e) e.stopPropagation();
     
     // 기본 필터 키 모두 빈 배열로 초기화
-    filters = { loc: [], code: [], stock: [], stock2f: [], dong: [], pos: [], reserved: [], preassigned: [] };
+    filters = { loc: [], code: [], stock: [], stock2f: [], category: [], dong: [], pos: [], reserved: [], preassigned: [] };
     
     // 동적으로 추가된 커스텀 헤더 필터(cus_*)도 모두 제거
     Object.keys(filters).forEach(key => {
@@ -3027,6 +3039,7 @@ function applyFiltersAndSort() {
         
         if (filters.stock.length > 0 && !filters.stock.includes((item.stock || '0').toString())) return false;
         if (filters.stock2f.length > 0 && !filters.stock2f.includes((item.stock2f || '0').toString())) return false;
+        if (filters.category && filters.category.length > 0 && !filters.category.includes((item.category || '피킹용').toString())) return false;
         
         if (filters.reserved.length > 0 && filters.reserved.includes('only') && item.codeTag !== '당일지정') return false;
         if (filters.preassigned.length > 0 && filters.preassigned.includes('only') && item.codeTag !== '선지정') return false;
@@ -3067,6 +3080,7 @@ function applyFiltersAndSort() {
             else if (ck === 'pos') cv = item.pos != null ? item.pos : '';
             else if (ck === 'stock') cv = item.stock != null ? item.stock : '';
             else if (ck === 'stock2f') cv = item.stock2f != null ? item.stock2f : '';
+            else if (ck === 'category') cv = item.category || '피킹용';
             else if (ck.startsWith('cus_')) {
                 const key = ck.replace('cus_', '');
                 if (key === '입고대기') {
@@ -3246,6 +3260,7 @@ function renderVisibleRows() {
             if (col === 'std_dong') html += `<td style="color:#666;">${loc.dong || ''}</td>`;
             else if (col === 'std_pos') html += `<td style="color:#666;">${loc.pos || ''}</td>`;
             else if (col === 'std_id') html += `<td class="loc-copy-cell" onclick="copyLocationToClipboard(event, '${loc.id}')" title="클릭하여 복사 및 예약">${loc.id}</td>`;
+            else if (col === 'std_category') html += `<td style="color:${(loc.category || '피킹용') === '기타' ? '#8d6e63' : '#666'};">${loc.category || '피킹용'}</td>`;
             else if (col === 'std_code') html += `<td style="color:#3d5afe; font-weight:bold;">${loc.code === loc.id ? '' : (loc.code || '')}${codeTagHtml}</td>`;
             else if (col === 'std_name') html += `<td style="text-align:left;">${loc.name || ''}</td>`;
             else if (col === 'std_option') html += `<td style="text-align:left; font-size:12px;">${loc.option || ''}</td>`;
@@ -4065,7 +4080,41 @@ async function updateDatabaseA(rows, mode = 'daily') {
         }
         
         for (let i = 0; i < totalRows; i++) {
-            const row = rows[i]; 
+            const row = rows[i];
+
+            // ★ 커스텀 헤더(원본 데이터) 스냅샷 — '로케이션'/'옵션추가항목1' 두 경로 모두에서 공용으로 사용
+            let cleanRawData = {};
+            customHeaders.forEach(k => {
+                // 엑셀 파싱 키와 customHeader 키 매칭 (공백/특수문자 무시)
+                const normalizeKey = (s) => (s || '').toString().replace(/[\s ​﻿]/g, '');
+                const normK = normalizeKey(k);
+
+                // row에서 직접 매칭 시도
+                let rawVal = row[k];
+                if (rawVal === undefined) rawVal = row[normK];
+
+                // 그래도 없으면 row의 모든 키를 정규화해서 비교
+                if (rawVal === undefined) {
+                    for (const rowKey of Object.keys(row)) {
+                        if (normalizeKey(rowKey) === normK) {
+                            rawVal = row[rowKey];
+                            break;
+                        }
+                    }
+                }
+
+                if(rawVal !== undefined && rawVal !== null && rawVal.toString().trim() !== "") {
+                    const strVal = rawVal.toString().trim();
+                    const numVal = parseFloat(strVal);
+                    if(!isNaN(numVal) && numVal > 40000 && numVal < 60000 && strVal.includes('.')) {
+                        cleanRawData[k] = formatExcelDate(numVal);
+                    } else if(!isNaN(numVal) && Number.isInteger(numVal) && numVal > 40000 && numVal < 60000) {
+                        cleanRawData[k] = formatExcelDate(numVal);
+                    } else {
+                        cleanRawData[k] = strVal;
+                    }
+                }
+            });
 
             const rawLoc = row['로케이션']?.toString().trim();
             if (rawLoc) {
@@ -4114,9 +4163,9 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     if (!existingLocMap[cleanLocId]) {
                         // ★ permanent 모드: 낯선 로케이션도 새로 생성 허용
                         if (mode === 'permanent') {
-                            existingLocMap[cleanLocId] = { 
-                                id: cleanLocId, dong: '', pos: '', code: '', name: '', 
-                                option: '', stock: '0', stock2f: '0' 
+                            existingLocMap[cleanLocId] = {
+                                id: cleanLocId, dong: '', pos: '', code: '', name: '',
+                                option: '', stock: '0', stock2f: '0', category: '피킹용'
                             };
                         } else {
                             skipCount++;
@@ -4130,39 +4179,6 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     const finalCode = extractedCode || row['상품코드']?.toString().trim() || '';
                     const existingData = existingLocMap[cleanLocId] || {};
                     
-                    let cleanRawData = {};
-                    customHeaders.forEach(k => {
-                        // 엑셀 파싱 키와 customHeader 키 매칭 (공백/특수문자 무시)
-                        const normalizeKey = (s) => (s || '').toString().replace(/[\s\u00A0\u200B\uFEFF]/g, '');
-                        const normK = normalizeKey(k);
-                        
-                        // row에서 직접 매칭 시도
-                        let rawVal = row[k];
-                        if (rawVal === undefined) rawVal = row[normK];
-                        
-                        // 그래도 없으면 row의 모든 키를 정규화해서 비교
-                        if (rawVal === undefined) {
-                            for (const rowKey of Object.keys(row)) {
-                                if (normalizeKey(rowKey) === normK) {
-                                    rawVal = row[rowKey];
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        if(rawVal !== undefined && rawVal !== null && rawVal.toString().trim() !== "") {
-                            const strVal = rawVal.toString().trim();
-                            const numVal = parseFloat(strVal);
-                            if(!isNaN(numVal) && numVal > 40000 && numVal < 60000 && strVal.includes('.')) {
-                                cleanRawData[k] = formatExcelDate(numVal);
-                            } else if(!isNaN(numVal) && Number.isInteger(numVal) && numVal > 40000 && numVal < 60000) {
-                                cleanRawData[k] = formatExcelDate(numVal);
-                            } else {
-                                cleanRawData[k] = strVal;
-                            }
-                        }
-                    });
-
                     let updateData = zoneUpdates[zoneDocId][cleanLocId] || { 
                         dong: existingData.dong || '',
                         pos: existingData.pos || '',
@@ -4182,7 +4198,8 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     updateData.updatedAt = new Date();
                     updateData.rawDataStr = JSON.stringify(cleanRawData);
                     updateData.rawData = deleteField();
-                    
+                    updateData.category = '피킹용'; // ★ '로케이션' 헤더 기준 위치 → 대분류: 피킹용
+
                     if (mode === 'permanent') {
                         updateData.dong = ('동' in row || 'dong' in row) ? (row['동'] || row['dong'] || '').toString().trim() : (existingData.dong || '');
                         updateData.pos = ('위치' in row || 'pos' in row) ? (row['위치'] || row['pos'] || '').toString().trim() : (existingData.pos || '');
@@ -4218,8 +4235,65 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     updateCount++;
                 }
             }
+
+            // ★ '옵션추가항목1' 헤더: 로케이션과 별개의 '기타' 위치로 동일 상품을 추가 배정
+            // (비축/샘플 등 텍스트 — 도면에 없어도 자동 등록. 수량은 '2층창고재고' 값을 사용)
+            const rawOpt1 = row['옵션추가항목1']?.toString().trim();
+            if (rawOpt1) {
+                const opt1LocId = rawOpt1;
+                if (!existingLocMap[opt1LocId]) {
+                    existingLocMap[opt1LocId] = {
+                        id: opt1LocId, dong: '', pos: '', code: '', name: '',
+                        option: '', stock: '0', stock2f: '0', category: '기타'
+                    };
+                }
+                const opt1ZoneDocId = getZoneDocId(opt1LocId);
+                if (!zoneUpdates[opt1ZoneDocId]) zoneUpdates[opt1ZoneDocId] = {};
+
+                const opt1ExistingData = existingLocMap[opt1LocId] || {};
+                const opt1Code = (row['상품코드'] || '').toString().trim();
+
+                let opt1UpdateData = zoneUpdates[opt1ZoneDocId][opt1LocId] || {
+                    dong: opt1ExistingData.dong || '',
+                    pos: opt1ExistingData.pos || '',
+                    reserved: false,
+                    reservedAt: 0,
+                    reservedBy: '',
+                    assignedAt: 0,
+                    preAssigned: opt1ExistingData.preAssigned || false,
+                    preAssignedCode: opt1ExistingData.preAssignedCode || '',
+                    preAssignedName: opt1ExistingData.preAssignedName || '',
+                    preAssignedQty: opt1ExistingData.preAssignedQty || '',
+                    preAssignedAt: opt1ExistingData.preAssignedAt || 0,
+                    codeTag: opt1ExistingData.codeTag || '',
+                    codeTagAt: opt1ExistingData.codeTagAt || 0
+                };
+
+                opt1UpdateData.updatedAt = new Date();
+                opt1UpdateData.rawDataStr = JSON.stringify(cleanRawData);
+                opt1UpdateData.rawData = deleteField();
+                opt1UpdateData.category = '기타'; // ★ '옵션추가항목1' 헤더 기준 위치 → 대분류: 기타
+
+                if (mode === 'permanent') {
+                    opt1UpdateData.code = opt1ExistingData.code || '';
+                    opt1UpdateData.name = opt1ExistingData.name || '';
+                    opt1UpdateData.option = opt1ExistingData.option || '';
+                    opt1UpdateData.stock = opt1ExistingData.stock || '0';
+                    opt1UpdateData.stock2f = opt1ExistingData.stock2f || '0';
+                } else {
+                    opt1UpdateData.code = opt1Code || '';
+                    opt1UpdateData.name = row['상품명']?.toString().trim() || '';
+                    opt1UpdateData.option = row['옵션']?.toString().trim() || '';
+                    // 기타칸의 재고수량은 '2층창고재고' 헤더 값을 사용
+                    opt1UpdateData.stock = row['2층창고재고']?.toString().trim() || '0';
+                    opt1UpdateData.stock2f = '0';
+                }
+
+                zoneUpdates[opt1ZoneDocId][opt1LocId] = opt1UpdateData;
+                updateCount++;
+            }
         }
-        
+
         let currentBatchLocCount = 0;
         for (let zoneId in zoneUpdates) {
             const zoneData = zoneUpdates[zoneId];
@@ -6831,20 +6905,21 @@ window.renderLocationDashboard = function () {
         return;
     }
 
-    // 3F만 (K로 시작하는 2F 제외) — 사용률 팝업 로직과 동일
+    // 3F만 (K로 시작하는 2F 제외) — SKU/데드스톡 집계용 (기타 위치 포함) — 사용률 팝업 로직과 동일
     const locs3F = originalData.filter(d => (d.id || '').charAt(0).toUpperCase() !== 'K');
-    const total = locs3F.length;
+    // 랙 사용률/총 칸수 통계용 — '기타'(비축/샘플 등) 위치는 실제 피킹 랙이 아니므로 제외
+    const locsUsage = locs3F.filter(d => (d.category || '피킹용') !== '기타');
+    const total = locsUsage.length;
 
     const isUsed = (loc) =>
         (loc.code && String(loc.code).trim() !== '' && loc.code !== loc.id) ||
         (loc.name && String(loc.name).trim() !== '');
 
-    // ---- 집계 ----
-    const codeToLocs = new Map();          // 상품코드 → [loc, ...]
+    // ---- 집계: 랙 사용률(칸 수 기준) — '기타' 제외 ----
     const zoneStats = {};                  // 구역 → {total, used}
-    let used = 0, preAssigned = 0, todayReserved = 0, registeredStockSum = 0;
+    let used = 0, preAssigned = 0, todayReserved = 0;
 
-    locs3F.forEach(loc => {
+    locsUsage.forEach(loc => {
         const u = isUsed(loc);
         if (u) used++;
         if (loc.codeTag === '선지정') preAssigned++;
@@ -6854,7 +6929,14 @@ window.renderLocationDashboard = function () {
         if (!zoneStats[zone]) zoneStats[zone] = { total: 0, used: 0 };
         zoneStats[zone].total++;
         if (u) zoneStats[zone].used++;
+    });
 
+    // ---- 집계: SKU/재고 (상품코드 기준) — '기타' 포함, locs3F 전체 대상 ----
+    const codeToLocs = new Map();          // 상품코드 → [loc, ...]
+    let registeredStockSum = 0;
+
+    locs3F.forEach(loc => {
+        const u = isUsed(loc);
         if (u && loc.code) {
             const c = String(loc.code).trim();
             if (!codeToLocs.has(c)) codeToLocs.set(c, []);
@@ -6918,7 +7000,7 @@ window.renderLocationDashboard = function () {
 
     // 빈 슬롯 비중 높은 동 Top 3
     const dongEmptyStats = {};
-    locs3F.forEach(loc => {
+    locsUsage.forEach(loc => {
         const dong = (loc.dong || '').toString().trim();
         if (!dong) return;
         if (!dongEmptyStats[dong]) dongEmptyStats[dong] = { total: 0, empty: 0 };
@@ -7462,6 +7544,8 @@ window.__dashShowLocList = function (type) {
     if (!modal || !tbody || !thead) return;
 
     const locs3F = originalData.filter(d => (d.id || '').charAt(0).toUpperCase() !== 'K');
+    // 빈 자리(랙 사용률) 리스트는 '기타'(비축/샘플 등) 위치를 제외한 실제 피킹 랙 기준
+    const locsUsage = locs3F.filter(d => (d.category || '피킹용') !== '기타');
     const isUsed = (loc) =>
         (loc.code && String(loc.code).trim() !== '' && loc.code !== loc.id) ||
         (loc.name && String(loc.name).trim() !== '');
@@ -7470,7 +7554,7 @@ window.__dashShowLocList = function (type) {
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
     if (type === 'empty') {
-        const rows = locs3F.filter(l => !isUsed(l)).sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+        const rows = locsUsage.filter(l => !isUsed(l)).sort((a, b) => (a.id || '').localeCompare(b.id || ''));
         setTitle(`🟢 빈 자리 리스트 (${rows.length}칸)`);
         if (metaEl) metaEl.textContent = '현재 비어 있는 3층 로케이션 — 입고/이동 배치에 사용 가능';
         thead.innerHTML = th([{ t: '로케이션', w: '130px' }, { t: '구역', w: '80px' }, { t: '동', w: '80px' }, { t: '위치' }]);
