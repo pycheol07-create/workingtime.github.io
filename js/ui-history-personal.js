@@ -375,7 +375,11 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                     </button>
                 </div>
             </div>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded mt-2 md:mt-0 blur-sm hover:bg-gray-200 cursor-pointer select-none transition" onclick="this.classList.toggle('blur-sm')" title="클릭하여 표시/가리기">${stats.salary && stats.salary.isMonthlySalaried ? `기본급 ${Math.round(stats.salary.monthlyBase).toLocaleString()}원 · 시급 ${Math.round(stats.salary.hourly).toLocaleString()}원` : `적용 시급: ${Math.round(wage).toLocaleString()}원`}</span>
+            <span class="relative inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded mt-2 md:mt-0 cursor-pointer select-none transition" onclick="const m=this.querySelector('.pay-mask'), r=this.querySelector('.pay-real'), ic=this.querySelector('.pay-eye'); m.classList.toggle('hidden'); r.classList.toggle('hidden'); ic.textContent = m.classList.contains('hidden') ? '👁️' : '🙈';" title="클릭하여 표시/가리기">
+                <span class="pay-mask tracking-wider">${stats.salary && stats.salary.isMonthlySalaried ? `기본급 ●●●,●●●원 · 시급 ●●,●●●원` : `적용 시급: ●●,●●●원`}</span>
+                <span class="pay-real hidden">${stats.salary && stats.salary.isMonthlySalaried ? `기본급 ${Math.round(stats.salary.monthlyBase).toLocaleString()}원 · 시급 ${Math.round(stats.salary.hourly).toLocaleString()}원` : `적용 시급: ${Math.round(wage).toLocaleString()}원`}</span>
+                <span class="pay-eye text-[11px]">🙈</span>
+            </span>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
@@ -385,11 +389,15 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                 <div class="text-xs text-gray-500 mb-1">총 업무 시간</div><div class="text-2xl font-extrabold text-blue-600">${formatDuration(stats.totalWorkMinutes)}</div>
             </div>
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
-                <div class="text-xs text-gray-500 mb-1">예상 급여 (세전) <span class="text-[10px] text-gray-400">(클릭하여 표시)</span></div>
-                <div class="blur-sm hover:opacity-80 cursor-pointer select-none transition" onclick="this.classList.toggle('blur-sm')" title="클릭하여 표시/가리기">
-                    <div class="text-2xl font-extrabold text-gray-800">${Math.round((stats.salary && stats.salary.estimated != null) ? stats.salary.estimated : stats.totalWageCost).toLocaleString()}원</div>
-                    ${stats.salary && stats.salary.isMonthlySalaried && stats.salary.totalDeduction > 0 ? `<div class="text-[10px] text-red-500 mt-1">근태 차감 −${Math.round(stats.salary.totalDeduction).toLocaleString()}원</div>` : ''}
-                    ${stats.salary && stats.salary.weekendPay > 0 ? `<div class="text-[10px] text-emerald-600 mt-1">주말근무 ${stats.salary.weekendCount}회 +${stats.salary.weekendPay.toLocaleString()}원</div>` : ''}
+                <div class="text-xs text-gray-500 mb-1">예상 급여 (세전)</div>
+                <div class="cursor-pointer select-none group" onclick="const m=this.querySelector('.pay-mask'), r=this.querySelector('.pay-real'), ic=this.querySelector('.pay-eye'); m.classList.toggle('hidden'); r.classList.toggle('hidden'); ic.textContent = m.classList.contains('hidden') ? '👁️ 클릭하여 가리기' : '🙈 클릭하여 표시';" title="클릭하여 표시/가리기">
+                    <div class="pay-mask text-2xl font-extrabold text-gray-300 tracking-widest">●,●●●,●●●원</div>
+                    <div class="pay-real hidden">
+                        <div class="text-2xl font-extrabold text-gray-800">${Math.round((stats.salary && stats.salary.estimated != null) ? stats.salary.estimated : stats.totalWageCost).toLocaleString()}원</div>
+                        ${stats.salary && stats.salary.isMonthlySalaried && stats.salary.totalDeduction > 0 ? `<div class="text-[10px] text-red-500 mt-1">근태 차감 −${Math.round(stats.salary.totalDeduction).toLocaleString()}원</div>` : ''}
+                        ${stats.salary && stats.salary.weekendPay > 0 ? `<div class="text-[10px] text-emerald-600 mt-1">주말근무 ${stats.salary.weekendCount}회 +${stats.salary.weekendPay.toLocaleString()}원</div>` : ''}
+                    </div>
+                    <div class="pay-eye text-[10px] text-gray-400 mt-1 group-hover:text-blue-500 transition">🙈 클릭하여 표시</div>
                 </div>
             </div>
             <div class="bg-white p-4 rounded-xl border border-red-100 shadow-sm text-center">
