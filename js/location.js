@@ -1135,12 +1135,12 @@ function get2FRawVal(rd, targetKey) {
     return '';
 }
 
-// 마지막출고.배송일: 마지막배송일/마지막출고일(/마지막입고일) 중 가장 최근 날짜를 반환.
+// 마지막출고.배송일: 마지막배송일/마지막출고일 중 가장 최근 날짜를 반환. (마지막입고일은 미포함)
 // 두 날짜는 서로 다른 이벤트(배송 vs 출고)이므로 둘 중 더 최근 값이 실제 마지막 이동일임.
 function __getLastMoveDate(rd) {
     if (!rd) return '';
     let result = '';
-    ['마지막배송일', '마지막출고일', '마지막입고일'].forEach(key => {
+    ['마지막배송일', '마지막출고일'].forEach(key => {
         const val = get2FRawVal(rd, key);
         if (val) {
             const norm = String(val).replace(/\./g, '-');
