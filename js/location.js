@@ -1202,9 +1202,13 @@ window.calc2FList = function() {
     window.current2FList = [];
     const supplierSet = new Set(); // 조건 통과 후보들의 공급처 (체크리스트용)
 
+    // 입고대기(오더/사입 입고 리스트)에 포함된 상품코드 — 공백 정규화하여 집합화
+    const incomingCodeSet = new Set(Object.keys(incomingData || {}).map(c => String(c).trim()));
+
     for (const code in codeMap) {
-        // ★ 기준 1: 입고대기 0개(X) — 입고대기가 남은 상품은 제외
-        if ((incomingTotalByCode[code] || 0) > 0) continue;
+        // ★ 기준 1: 입고대기에 포함된 상품 제외
+        //   (미입고수량>0 이거나, 오더/사입 입고 리스트에 코드가 존재하면 제외 — 도착일 지남·잔량0도 포함)
+        if (incomingCodeSet.has(String(code).trim()) || (incomingTotalByCode[code] || 0) > 0) continue;
 
         const locs = codeMap[code];
 
@@ -1293,10 +1297,10 @@ window.render2FTable = function() {
             <tr style="background:${rowBg};">
                 <td><input type="checkbox" class="check-2f-item" data-idx="${idx}"></td>
                 <td style="font-weight:bold; color:#7b1fa2;">${idx + 1}</td>
-                <td style="font-weight:bold; color:#1a237e;">${item.code}</td>
-                <td style="text-align:left; font-size:13px;">${item.name}</td>
-                <td style="font-size:12px;">${item.option}</td>
-                <td style="font-size:12px; color:#555;">${item.supplier || '-'}</td>
+                <td style="font-weight:bold; color:#1a237e; white-space:nowrap;">${item.code}</td>
+                <td style="text-align:left; font-size:13px; white-space:nowrap;">${item.name}</td>
+                <td style="font-size:12px; white-space:nowrap;">${item.option}</td>
+                <td style="font-size:12px; color:#555; white-space:nowrap;">${item.supplier || '-'}</td>
                 <td style="font-weight:bold;">${item.totalStock}</td>
                 <td style="font-size:12px; color:${item.lastDelivery === '기록없음' ? '#ff5252' : '#555'};">${item.lastDelivery}</td>
                 <td style="font-size:12px;">${item.locIds}</td>

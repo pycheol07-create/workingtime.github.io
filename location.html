@@ -1003,8 +1003,8 @@
 
     <!-- 빈칸확보 모달 (구 2F 이동 추천) -->
     <div id="modal-2f" class="modal-overlay" onclick="if(event.target.id==='modal-2f') document.getElementById('modal-2f').style.display='none'">
-        <div class="modal-content" onclick="event.stopPropagation()" style="width: 1050px; max-width: 96vw; padding: 25px 20px;">
-            <div class="modal-header" style="color: #7b1fa2; display: flex; align-items: center; gap: 10px; flex-wrap:wrap;">
+        <div class="modal-content" onclick="event.stopPropagation()" style="width: 1500px; max-width: 98vw; padding: 25px 20px; height: 94vh; max-height: 94vh; box-sizing: border-box; display: flex; flex-direction: column;">
+            <div class="modal-header" style="color: #7b1fa2; display: flex; align-items: center; gap: 10px; flex-wrap:wrap; flex-shrink:0;">
                 📭 빈칸확보 리스트
                 <button onclick="document.getElementById('modal-2f').style.display='none'" style="margin-left:auto; background:none; border:none; font-size:24px; cursor:pointer;">×</button>
             </div>
@@ -1020,9 +1020,9 @@
                 </div>
             </div>
             <div style="font-size:11px; color:#666; margin-bottom:10px;">
-                ※ <b>현재고 0개</b> · <b>입고대기 0개(X)</b>인 상품을 빈칸확보 대상으로 표시합니다. (체크한 공급처는 제외)
+                ※ <b>현재고 0개</b>이고 <b>입고대기에 포함되지 않은</b> 상품을 빈칸확보 대상으로 표시합니다. (체크한 공급처는 제외)
             </div>
-            <div class="modal-body" style="max-height: 50vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
+            <div class="modal-body" style="flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
                 <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
                     <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                         <tr>
@@ -1041,7 +1041,7 @@
                     <tbody id="2f-tbody"></tbody>
                 </table>
             </div>
-            <div class="modal-footer" style="justify-content: space-between; margin-top: 15px;">
+            <div class="modal-footer" style="justify-content: space-between; margin-top: 15px; flex-shrink:0;">
                 <div style="display:flex; gap:8px;">
                     <button onclick="window.download2FExcel()" style="padding:8px 15px; background:#1976d2; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">📥 엑셀 다운로드 (체크 시 선택만)</button>
                 </div>
