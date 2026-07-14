@@ -402,26 +402,36 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     carouselStack.appendChild(buildCarouselRow('common', '공통업무', commonTasksToRender, false));
     carouselStack.appendChild(buildCarouselRow('other', '그 외 업무', otherTasksToRender, true));
 
-    // ── 우측 빠른시작 리스트: 진행중 업무(이름카드) + 기타 업무 ──
+    // ── 우측 빠른시작 리스트: 진행중 업무(이름카드, 공통/그외 두 줄) + 기타 업무 ──
     const quickList = document.createElement('div');
     quickList.className = 'task-quick-list';
     const ongoingTasks = [...tier1, ...tier2]; // 진행 중인 업무 (본인 → 참여 많은 순)
-    let quickHtml = `<div class="task-quick-title">진행중 업무</div>`;
-    if (ongoingTasks.length === 0) {
-        quickHtml += `<div class="task-quick-empty">진행 중인 업무가 없습니다</div>`;
-    }
-    ongoingTasks.forEach(task => {
+    const ongoingCommon = ongoingTasks.filter(task => commonTaskSet.has(task));
+    const ongoingOther = ongoingTasks.filter(task => !commonTaskSet.has(task));
+
+    // 빠른시작 항목 1개 HTML (커버플로우 카드 클릭과 동일한 data-cf-focus 위임)
+    const buildQuickItem = (task) => {
         const grp = ongoingRecords.filter(r => r.task === task);
         const cnt = new Set(grp.map(r => r.member)).size;
         const paused = grp.length > 0 && grp.every(r => r.status === 'paused');
-        // 진행중 카드 클릭 → 왼쪽 커버플로우에서 해당 업무 카드를 가운데로 (인원 선택창 X)
-        quickHtml += `
+        return `
             <div class="task-quick-card" data-cf-focus="${task}" title="'${task}' 업무 카드 보기">
                 <span class="task-quick-dot ${paused ? 'is-paused' : 'is-on'}"></span>
                 <span class="task-quick-name">${task}</span>
                 <span class="task-quick-badge">${cnt}</span>
             </div>`;
-    });
+    };
+
+    let quickHtml = `<div class="task-quick-title">공통업무</div>`;
+    quickHtml += ongoingCommon.length > 0
+        ? ongoingCommon.map(buildQuickItem).join('')
+        : `<div class="task-quick-empty">진행 중인 공통업무가 없습니다</div>`;
+
+    quickHtml += `<div class="task-quick-title task-quick-title-second">그 외 업무</div>`;
+    quickHtml += ongoingOther.length > 0
+        ? ongoingOther.map(buildQuickItem).join('')
+        : `<div class="task-quick-empty">진행 중인 업무가 없습니다</div>`;
+
     // 기타 업무(새 업무 시작) — data-action="other" 위임 핸들러 재사용
     quickHtml += `
         <div class="task-quick-card task-quick-other" data-action="other" title="새 업무 시작">
