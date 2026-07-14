@@ -491,7 +491,13 @@ html.dark .depth-panel {
 /* ===== 업무현황: 좌측 커버플로우 + 우측 빠른시작 리스트 ===== */
 .task-board-layout { display: flex; flex-direction: column; gap: 16px; }
 @media (min-width: 1024px) { .task-board-layout { flex-direction: row; align-items: stretch; } }
-.task-board-layout > .task-carousel { flex: 1 1 auto; min-width: 0; }
+.task-board-layout > .task-carousel-stack { flex: 1 1 auto; min-width: 0; }
+
+/* 업무현황 두 줄 분리 — 위: 공통업무, 아래: 그 외 업무 */
+.task-carousel-stack { display: flex; flex-direction: column; gap: 20px; }
+.task-row-label { font-size: 12px; font-weight: 800; color: #94a3b8; letter-spacing: 0.03em; margin-bottom: 6px; }
+.dark .task-row-label { color: #64748b; }
+.task-row-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #94a3b8; font-size: 13px; }
 
 /* 커버플로우 무대 — 가운데 1개 선명, 양옆 흐리게 뒤로 */
 /* z-index:0 으로 독립 stacking context 생성 → 내부 카드/화살표의 높은 z-index가

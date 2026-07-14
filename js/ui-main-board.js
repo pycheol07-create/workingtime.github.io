@@ -7,27 +7,28 @@ import { getLeaveDisplayLabel } from './ui-main-utils.js';
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
 // - 자동 롤링 없음(수동만): 좌우 화살표/하단 점/양옆 카드 클릭으로 이동, 클릭한 카드가 가운데로
 // - _cfIndex(가운데 카드 위치)는 30초 전체 재렌더에도 유지
-let _cfIndex = 0;
+// - v4.5: 공통업무/그 외 업무 두 줄로 분리 — rowId('common'|'other')별로 독립 상태 유지
+let _cfIndex = { common: 0, other: 0 };
 let _cfResizeBound = false;
 
-function _cfCards() {
-    const stage = document.getElementById('task-coverflow');
+function _cfCards(rowId) {
+    const stage = document.getElementById(`task-coverflow-${rowId}`);
     return stage ? Array.from(stage.querySelectorAll(':scope > .cf-card')) : [];
 }
 
-function _cfLayout() {
-    const stage = document.getElementById('task-coverflow');
+function _cfLayout(rowId) {
+    const stage = document.getElementById(`task-coverflow-${rowId}`);
     if (!stage) return;
-    const cards = _cfCards();
+    const cards = _cfCards(rowId);
     const n = cards.length;
     if (n === 0) return;
-    _cfIndex = Math.max(0, Math.min(_cfIndex, n - 1));
+    _cfIndex[rowId] = Math.max(0, Math.min(_cfIndex[rowId] || 0, n - 1));
 
     const W = stage.clientWidth || 1;
     const cw = Math.min(440, Math.max(260, W * 0.42)); // 가운데 카드 폭
     cards.forEach((card, i) => {
         card.style.width = cw + 'px';
-        const off = i - _cfIndex;
+        const off = i - _cfIndex[rowId];
         const a = Math.abs(off);
         const tx = off * (cw * 0.5);
         const sc = off === 0 ? 1 : (a === 1 ? 0.84 : 0.7);
@@ -42,10 +43,10 @@ function _cfLayout() {
         card.classList.toggle('is-center', off === 0);
     });
 
-    const dotsWrap = document.getElementById('task-cf-dots');
-    if (dotsWrap) Array.from(dotsWrap.children).forEach((d, i) => d.classList.toggle('on', i === _cfIndex));
+    const dotsWrap = document.getElementById(`task-cf-dots-${rowId}`);
+    if (dotsWrap) Array.from(dotsWrap.children).forEach((d, i) => d.classList.toggle('on', i === _cfIndex[rowId]));
 
-    const container = document.getElementById('task-carousel');
+    const container = document.getElementById(`task-carousel-${rowId}`);
     if (container) {
         const show = n > 1;
         const prev = container.querySelector('.task-carousel-arrow.prev');
@@ -55,24 +56,24 @@ function _cfLayout() {
     }
 }
 
-function _cfGo(i) {
-    const n = _cfCards().length;
+function _cfGo(rowId, i) {
+    const n = _cfCards(rowId).length;
     if (n === 0) return;
-    _cfIndex = ((i % n) + n) % n;
-    _cfLayout();
+    _cfIndex[rowId] = ((i % n) + n) % n;
+    _cfLayout(rowId);
 }
 
-function mountTaskCarousel() {
-    const container = document.getElementById('task-carousel');
-    const stage = document.getElementById('task-coverflow');
+function mountTaskCarousel(rowId) {
+    const container = document.getElementById(`task-carousel-${rowId}`);
+    const stage = document.getElementById(`task-coverflow-${rowId}`);
     if (!container || !stage) return;
-    const cards = _cfCards();
+    const cards = _cfCards(rowId);
     const n = cards.length;
 
-    if (_cfIndex >= n) _cfIndex = Math.max(0, n - 1); // 재렌더로 카드 수 변동 시 보정
+    if (_cfIndex[rowId] >= n) _cfIndex[rowId] = Math.max(0, n - 1); // 재렌더로 카드 수 변동 시 보정
 
     // 하단 점 인디케이터
-    const dotsWrap = document.getElementById('task-cf-dots');
+    const dotsWrap = document.getElementById(`task-cf-dots-${rowId}`);
     if (dotsWrap) {
         dotsWrap.innerHTML = '';
         for (let i = 0; i < n; i++) {
@@ -80,7 +81,7 @@ function mountTaskCarousel() {
             d.type = 'button';
             d.className = 'task-cf-dot';
             d.setAttribute('aria-label', `${i + 1}번 업무로 이동`);
-            d.addEventListener('click', () => _cfGo(i));
+            d.addEventListener('click', () => _cfGo(rowId, i));
             dotsWrap.appendChild(d);
         }
     }
@@ -88,19 +89,19 @@ function mountTaskCarousel() {
     // 좌우 화살표
     const prev = container.querySelector('.task-carousel-arrow.prev');
     const next = container.querySelector('.task-carousel-arrow.next');
-    if (prev) prev.onclick = () => _cfGo(_cfIndex - 1);
-    if (next) next.onclick = () => _cfGo(_cfIndex + 1);
+    if (prev) prev.onclick = () => _cfGo(rowId, _cfIndex[rowId] - 1);
+    if (next) next.onclick = () => _cfGo(rowId, _cfIndex[rowId] + 1);
 
     // 가운데가 아닌 카드를 클릭하면 그 카드를 가운데로 (버튼 동작은 막고 포커스만)
     // 캡처 단계에서 처리해 task-status-board의 위임 클릭보다 먼저 가로챈다.
     stage.addEventListener('click', (e) => {
         const card = e.target.closest('.cf-card');
         if (!card) return;
-        const idx = _cfCards().indexOf(card);
-        if (idx !== -1 && idx !== _cfIndex) {
+        const idx = _cfCards(rowId).indexOf(card);
+        if (idx !== -1 && idx !== _cfIndex[rowId]) {
             e.preventDefault();
             e.stopPropagation();
-            _cfGo(idx);
+            _cfGo(rowId, idx);
         }
     }, true);
 
@@ -121,16 +122,16 @@ function mountTaskCarousel() {
         // 가로 이동이 충분하고(40px+) 세로보다 우세하며 빠른 제스처일 때만 스와이프로 처리
         if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3 && dt < 800) {
             e.preventDefault(); // 스와이프 직후 클릭(카드 포커스) 발생 방지
-            if (dx < 0) _cfGo(_cfIndex + 1); // 왼쪽으로 밀면 다음
-            else _cfGo(_cfIndex - 1);        // 오른쪽으로 밀면 이전
+            if (dx < 0) _cfGo(rowId, _cfIndex[rowId] + 1); // 왼쪽으로 밀면 다음
+            else _cfGo(rowId, _cfIndex[rowId] - 1);        // 오른쪽으로 밀면 이전
         }
     }, { passive: false });
 
-    _cfLayout();
+    _cfLayout(rowId);
 
     if (!_cfResizeBound) {
         _cfResizeBound = true;
-        window.addEventListener('resize', () => _cfLayout());
+        window.addEventListener('resize', () => { _cfLayout('common'); _cfLayout('other'); });
     }
 }
 
@@ -183,23 +184,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     );
     const onLeaveMemberNames = new Set(onLeaveStatusMap.keys());
 
-    const presetTaskContainer = document.createElement('div');
-    presetTaskContainer.className = 'task-carousel relative';
-    presetTaskContainer.id = 'task-carousel';
-    presetTaskContainer.innerHTML = `
-        <button type="button" class="task-carousel-arrow prev" aria-label="이전 업무" hidden>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-        </button>
-        <button type="button" class="task-carousel-arrow next" aria-label="다음 업무" hidden>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-        </button>`;
-
-    const presetGrid = document.createElement('div');
-    presetGrid.className = 'task-coverflow';
-    presetGrid.id = 'task-coverflow';
-
     const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
-    
+
     const ongoingRecords = (appState.workRecords || []).filter(r =>
         (r.status === 'ongoing' || r.status === 'paused') && !onLeaveMemberNames.has(r.member)
     );
@@ -235,14 +221,23 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
     const tasksToRender = [...tier1, ...tier2, ...tier3];
 
-    tasksToRender.forEach(task => {
+    // v4.5: 공통업무 vs 그 외 업무(담당/기타/남직원/관리 등) 두 줄로 분리
+    // taskGroups(관리자 설정)에서 이름이 '공통'인 그룹의 업무만 위쪽 줄, 나머지는 전부 아래 줄로.
+    const taskGroups = State.appConfig?.taskGroups || [];
+    const commonGroup = taskGroups.find(g => g && g.name === '공통');
+    const commonTaskSet = new Set(commonGroup?.tasks || []);
+    const commonTasksToRender = tasksToRender.filter(task => commonTaskSet.has(task));
+    const otherTasksToRender = tasksToRender.filter(task => !commonTaskSet.has(task));
+
+    // 업무 카드 1개 생성 (공통/그외 두 줄에서 공용으로 사용)
+    const buildTaskCard = (task) => {
         const card = document.createElement('div');
         const groupRecords = ongoingRecords.filter(r => r.task === task);
         const isCurrentUserWorkingOnThisTask = groupRecords.some(r => r.member === currentUserName);
         const isPaused = groupRecords.length > 0 && groupRecords.every(r => r.status === 'paused');
         const isOngoing = groupRecords.some(r => r.status === 'ongoing');
         const mobileVisibilityClass = 'flex'; // 캐러셀: 모든 카드를 트랙에 포함하고 롤링으로 노출 제한
-        
+
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
             const headerColor = isPaused ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800' : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800';
@@ -338,28 +333,74 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             `;
         }
         card.classList.add('cf-card'); // 커버플로우 카드 (className 할당 이후에 추가)
-        presetGrid.appendChild(card);
-    });
+        return card;
+    };
 
-    const otherTaskCard = document.createElement('div');
-    otherTaskCard.className = `flex flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all group`;
-    otherTaskCard.classList.add('cf-card');
-    otherTaskCard.dataset.action = 'other';
-    otherTaskCard.innerHTML = `
-        <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 transition-all mb-4 text-xl">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        </div>
-        <h3 class="font-bold text-lg text-gray-600 dark:text-gray-300">기타 업무</h3>
-        <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 font-medium">새로운 업무 만들기</p>
-    `;
-    presetGrid.appendChild(otherTaskCard);
-    presetTaskContainer.appendChild(presetGrid);
+    const buildOtherTaskCard = () => {
+        const otherTaskCard = document.createElement('div');
+        otherTaskCard.className = `flex flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all group`;
+        otherTaskCard.classList.add('cf-card');
+        otherTaskCard.dataset.action = 'other';
+        otherTaskCard.innerHTML = `
+            <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 transition-all mb-4 text-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <h3 class="font-bold text-lg text-gray-600 dark:text-gray-300">기타 업무</h3>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 font-medium">새로운 업무 만들기</p>
+        `;
+        return otherTaskCard;
+    };
 
-    // 하단 점 인디케이터
-    const cfDots = document.createElement('div');
-    cfDots.className = 'task-cf-dots';
-    cfDots.id = 'task-cf-dots';
-    presetTaskContainer.appendChild(cfDots);
+    // 커버플로우 한 줄(row) 생성 — rowId별 독립 DOM/상태('common'|'other')
+    const buildCarouselRow = (rowId, label, tasks, appendOtherCard) => {
+        const rowWrap = document.createElement('div');
+        rowWrap.className = 'task-carousel-row';
+
+        const rowLabel = document.createElement('div');
+        rowLabel.className = 'task-row-label';
+        rowLabel.textContent = label;
+        rowWrap.appendChild(rowLabel);
+
+        const presetTaskContainer = document.createElement('div');
+        presetTaskContainer.className = 'task-carousel relative';
+        presetTaskContainer.id = `task-carousel-${rowId}`;
+        presetTaskContainer.innerHTML = `
+            <button type="button" class="task-carousel-arrow prev" aria-label="이전 업무" hidden>
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <button type="button" class="task-carousel-arrow next" aria-label="다음 업무" hidden>
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>`;
+
+        const presetGrid = document.createElement('div');
+        presetGrid.className = 'task-coverflow';
+        presetGrid.id = `task-coverflow-${rowId}`;
+
+        tasks.forEach(task => presetGrid.appendChild(buildTaskCard(task)));
+        if (appendOtherCard) presetGrid.appendChild(buildOtherTaskCard());
+
+        if (presetGrid.children.length === 0) {
+            const emptyNote = document.createElement('div');
+            emptyNote.className = 'task-row-empty';
+            emptyNote.textContent = '표시할 업무가 없습니다.';
+            presetGrid.appendChild(emptyNote);
+        }
+
+        presetTaskContainer.appendChild(presetGrid);
+        rowWrap.appendChild(presetTaskContainer);
+
+        const cfDots = document.createElement('div');
+        cfDots.className = 'task-cf-dots';
+        cfDots.id = `task-cf-dots-${rowId}`;
+        rowWrap.appendChild(cfDots);
+
+        return rowWrap;
+    };
+
+    const carouselStack = document.createElement('div');
+    carouselStack.className = 'task-carousel-stack';
+    carouselStack.appendChild(buildCarouselRow('common', '공통업무', commonTasksToRender, false));
+    carouselStack.appendChild(buildCarouselRow('other', '그 외 업무', otherTasksToRender, true));
 
     // ── 우측 빠른시작 리스트: 진행중 업무(이름카드) + 기타 업무 ──
     const quickList = document.createElement('div');
@@ -389,24 +430,26 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         </div>`;
     quickList.innerHTML = quickHtml;
 
-    // 진행중 항목 클릭 → 왼쪽 커버플로우에서 그 업무 카드를 가운데로
+    // 진행중 항목 클릭 → 해당 업무가 속한 줄(공통/그외)의 커버플로우에서 그 업무 카드를 가운데로
     quickList.addEventListener('click', (e) => {
         const item = e.target.closest('[data-cf-focus]');
         if (!item) return;
         const task = item.dataset.cfFocus;
-        const idx = _cfCards().findIndex(c => c.dataset.task === task);
-        if (idx >= 0) _cfGo(idx);
+        const rowId = commonTaskSet.has(task) ? 'common' : 'other';
+        const idx = _cfCards(rowId).findIndex(c => c.dataset.task === task);
+        if (idx >= 0) _cfGo(rowId, idx);
     });
 
-    // ── 좌(커버플로우) + 우(빠른시작) 레이아웃 ──
+    // ── 좌(커버플로우 두 줄) + 우(빠른시작) 레이아웃 ──
     const boardLayout = document.createElement('div');
     boardLayout.className = 'task-board-layout';
-    boardLayout.appendChild(presetTaskContainer);
+    boardLayout.appendChild(carouselStack);
     boardLayout.appendChild(quickList);
 
     taskStatusBoard.appendChild(boardLayout);
 
-    mountTaskCarousel();
+    mountTaskCarousel('common');
+    mountTaskCarousel('other');
 
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container';
