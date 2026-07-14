@@ -4237,10 +4237,13 @@ async function updateDatabaseA(rows, mode = 'daily') {
             }
 
             // ★ '옵션추가항목1' 헤더: 로케이션과 별개의 '기타' 위치로 동일 상품을 추가 배정
-            // (비축/샘플 등 텍스트 — 도면에 없어도 자동 등록. 수량은 '2층창고재고' 값을 사용)
-            const rawOpt1 = row['옵션추가항목1']?.toString().trim();
-            if (rawOpt1) {
-                const opt1LocId = rawOpt1;
+            // (비축/샘플 등 텍스트 — 도면에 없어도 자동 등록. 한 셀에 콤마로 여러 위치가 같이 들어있으면
+            //  각각을 별도의 '기타' 위치로 나눠 등록한다. 비축은 정식 로케이션이 아니므로 수량은 나누지 않고
+            //  '2층창고재고' 헤더 값을 그대로 각 위치의 2층창고재고 필드에 입력한다.)
+            const rawOpt1Full = row['옵션추가항목1']?.toString().trim();
+            const opt1LocIds = rawOpt1Full ? rawOpt1Full.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+            opt1LocIds.forEach(opt1LocId => {
                 if (!existingLocMap[opt1LocId]) {
                     existingLocMap[opt1LocId] = {
                         id: opt1LocId, dong: '', pos: '', code: '', name: '',
@@ -4284,14 +4287,14 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     opt1UpdateData.code = opt1Code || '';
                     opt1UpdateData.name = row['상품명']?.toString().trim() || '';
                     opt1UpdateData.option = row['옵션']?.toString().trim() || '';
-                    // 기타칸의 재고수량은 '2층창고재고' 헤더 값을 사용
-                    opt1UpdateData.stock = row['2층창고재고']?.toString().trim() || '0';
-                    opt1UpdateData.stock2f = '0';
+                    // 기타칸은 '2층창고재고' 헤더 값을 그대로 2층창고재고 필드에 입력 (정상재고는 0)
+                    opt1UpdateData.stock = '0';
+                    opt1UpdateData.stock2f = row['2층창고재고']?.toString().trim() || '0';
                 }
 
                 zoneUpdates[opt1ZoneDocId][opt1LocId] = opt1UpdateData;
                 updateCount++;
-            }
+            });
         }
 
         let currentBatchLocCount = 0;
