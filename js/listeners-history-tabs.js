@@ -169,6 +169,23 @@ export function setupHistoryTabsListeners() {
             document.getElementById('rawdata-panel').classList.toggle('hidden', tabName !== 'rawdata');
             const milestonesPanel = document.getElementById('milestones-panel');
             if (milestonesPanel) milestonesPanel.classList.toggle('hidden', tabName !== 'milestones');
+            const plannerPanel = document.getElementById('planner-panel');
+            if (plannerPanel) plannerPanel.classList.toggle('hidden', tabName !== 'planner');
+            const settlementPanel = document.getElementById('settlement-panel');
+            if (settlementPanel) settlementPanel.classList.toggle('hidden', tabName !== 'settlement');
+
+            // 📅 운영 플래너 탭
+            if (tabName === 'planner') {
+                try {
+                    const mod = await import('./ui-history-planner.js');
+                    await mod.initPlanner();
+                    const sidebar = document.getElementById('history-global-sidebar');
+                    if (sidebar) sidebar.style.display = 'none';
+                } catch (err) {
+                    console.error('planner module load failed:', err);
+                }
+                return;
+            }
 
             // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
             if (tabName === 'milestones') {
@@ -183,6 +200,19 @@ export function setupHistoryTabsListeners() {
                     console.error('milestones module load failed:', err);
                 }
                 return; // 아래의 분석 탭 폴백 로직 스킵
+            }
+
+            // 🧾 팀 결산 보고 탭: 월/분기/년 단위 종합 요약 보고서 (자체 기간 선택 UI 사용)
+            if (tabName === 'settlement') {
+                try {
+                    const mod = await import('./ui-history-settlement.js');
+                    await mod.initSettlementReport();
+                    const sidebar = document.getElementById('history-global-sidebar');
+                    if (sidebar) sidebar.style.display = 'none';
+                } catch (err) {
+                    console.error('settlement module load failed:', err);
+                }
+                return;
             }
 
             const gran = State.context.globalGranularity || 'day';

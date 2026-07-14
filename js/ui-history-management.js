@@ -24,7 +24,7 @@ const calculateTurnoverRatio = (totalRevenue, avgInventoryAmt) => {
 };
 
 // 헬퍼: 데이터 집계 함수
-const aggregateManagementData = (dataList) => {
+export const aggregateManagementData = (dataList) => {
     const result = {
         revenue: 0,
         orderCount: 0,
