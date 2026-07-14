@@ -285,9 +285,11 @@ function computeAttendanceSummary(currentDays) {
             member, counts,
             total: Object.values(counts).reduce((a, b) => a + b, 0),
             absence: counts['결근'] || 0,
-            late: counts['지각'] || 0
+            late: counts['지각'] || 0,
+            outing: counts['외출'] || 0,
+            earlyLeave: counts['조퇴'] || 0
         }))
-        .sort((a, b) => (b.absence - a.absence) || (b.late - a.late) || (b.total - a.total))
+        .sort((a, b) => (b.absence - a.absence) || (b.late - a.late) || (b.outing - a.outing) || (b.earlyLeave - a.earlyLeave) || (b.total - a.total))
         .slice(0, 10);
 
     const totalEvents = Object.values(typeCounts).reduce((a, b) => a + b, 0);
@@ -734,21 +736,23 @@ function renderAttendanceSection(att) {
     const activeTypes = LEAVE_TYPES.filter(t => att.typeCounts[t] > 0);
 
     const body = `
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-            <div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+            <div class="md:col-span-1">
                 <div class="text-xs font-bold text-gray-600 mb-2">📊 근태 유형별 건수</div>
                 <div style="height:${Math.max(140, activeTypes.length * 32)}px;"><canvas id="${chartId}"></canvas></div>
             </div>
-            <div>
-                <div class="text-xs font-bold text-gray-600 mb-2">⚠️ 결근·지각 상위 인원</div>
+            <div class="md:col-span-2">
+                <div class="text-xs font-bold text-gray-600 mb-2">⚠️ 결근·지각·외출·조퇴 상위 인원</div>
                 ${tableShell(
-                    th('이름') + th('결근', 'right') + th('지각', 'right') + th('총 건수', 'right'),
+                    th('이름') + th('결근', 'right') + th('지각', 'right') + th('외출', 'right') + th('조퇴', 'right') + th('총 건수', 'right'),
                     att.memberRows.map(m => `<tr>
                         ${td(esc(m.member))}
                         ${td(m.absence > 0 ? `<span class="text-red-600 font-bold">${m.absence}</span>` : '0', 'right')}
                         ${td(m.late > 0 ? `<span class="text-orange-500 font-bold">${m.late}</span>` : '0', 'right')}
+                        ${td(m.outing > 0 ? `<span class="text-amber-600 font-bold">${m.outing}</span>` : '0', 'right')}
+                        ${td(m.earlyLeave > 0 ? `<span class="text-yellow-600 font-bold">${m.earlyLeave}</span>` : '0', 'right')}
                         ${td(m.total, 'right')}
-                    </tr>`).join('') || '<tr><td colspan="4" class="text-center text-gray-400 py-4">결근·지각 없음</td></tr>',
+                    </tr>`).join('') || '<tr><td colspan="6" class="text-center text-gray-400 py-4">결근·지각·외출·조퇴 없음</td></tr>',
                     'max-h-[260px]'
                 )}
             </div>
@@ -764,11 +768,12 @@ function renderManagementSection(mg) {
     const revenueChangePct = mg.prevMgmt.revenue > 0 ? ((mg.curMgmt.revenue - mg.prevMgmt.revenue) / mg.prevMgmt.revenue * 100) : null;
 
     const body = `
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
             ${heroStat('총 매출', fmt(mg.curMgmt.revenue), '원', changeBadge(revenueChangePct), 'text-emerald-700')}
             ${heroStat('총 발주 건수', fmt(mg.curMgmt.orderCount), '건')}
             ${heroStat('평균 재고금액', fmt(mg.curMgmt.avgInventoryAmt), '원')}
             ${heroStat('평균 환율(USD)', mg.curMgmt.avgUsdRate > 0 ? mg.curMgmt.avgUsdRate.toFixed(1) : '-', '')}
+            ${heroStat('평균 환율(CNY)', mg.curMgmt.avgCnyRate > 0 ? mg.curMgmt.avgCnyRate.toFixed(1) : '-', '')}
         </div>
 
         <div class="mb-5">
@@ -799,7 +804,7 @@ function renderInspectionSection(insp) {
 
     const body = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            ${heroStat('총 검수 수량', fmt(insp.totalInspectedQty), '개', '', 'text-rose-700')}
+            ${heroStat('총 검수 수량', fmt(insp.productTypeCount), 'SKU', `<span class="text-[10px] text-gray-400">총 수량 ${fmt(insp.totalInspectedQty)}개</span>`, 'text-rose-700')}
             ${heroStat('불량 수량', fmt(insp.totalDefectQty), '개')}
             ${heroStat('수량 기준 불량률', insp.qtyDefectRate.toFixed(1), '%', '', insp.qtyDefectRate >= 5 ? 'text-red-600' : 'text-gray-800')}
             ${heroStat('건수 기준 불량률', insp.countDefectRate.toFixed(1), '%', '', insp.countDefectRate >= 5 ? 'text-red-600' : 'text-gray-800')}
@@ -860,6 +865,9 @@ function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp) {
             ['경영지표', '총 매출(원)', Math.round(mg.curMgmt.revenue)],
             ['경영지표', '총 발주 건수', Math.round(mg.curMgmt.orderCount)],
             ['경영지표', '평균 재고금액(원)', Math.round(mg.curMgmt.avgInventoryAmt)],
+            ['경영지표', '평균 환율(USD)', mg.curMgmt.avgUsdRate > 0 ? mg.curMgmt.avgUsdRate.toFixed(1) : ''],
+            ['경영지표', '평균 환율(CNY)', mg.curMgmt.avgCnyRate > 0 ? mg.curMgmt.avgCnyRate.toFixed(1) : ''],
+            ['검수이력', '총 검수 SKU(종)', insp.productTypeCount],
             ['검수이력', '총 검수 수량(개)', Math.round(insp.totalInspectedQty)],
             ['검수이력', '불량 수량(개)', Math.round(insp.totalDefectQty)],
             ['검수이력', '수량기준 불량률(%)', insp.qtyDefectRate.toFixed(1)],
