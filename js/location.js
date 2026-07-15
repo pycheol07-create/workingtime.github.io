@@ -2458,61 +2458,6 @@ window.toggleUsagePopup = function(e) {
     if (pop.style.display !== 'block') { pop.style.display = 'block'; window.calculateAndRenderUsage(); }
 };
 
-// ★ 엑셀 스타일 체크박스 필터 헬퍼 =====================================
-function _jsStrEscape(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
-function _htmlAttrEscape(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-
-// 값 하나짜리 체크박스 행(라벨로 감싸서 행 전체 클릭 가능). data-fval에 원본 값을 보관해 전체 목록 수집에 사용.
-function _renderFilterCheckboxRow(type, popId, value, label, checked) {
-    const onclickRaw = `toggleFilterCheckbox('${type}','${popId}','${_jsStrEscape(value)}')`;
-    return `<label class="filter-option filter-checkbox-row" data-fval="${_htmlAttrEscape(value)}">` +
-        `<input type="checkbox" ${checked ? 'checked' : ''} onclick="${_htmlAttrEscape(onclickRaw)}">` +
-        `<span>${label}</span></label>`;
-}
-
-// 헤더 필터 팝업 상단의 '필터 해제' 버튼 (해당 컬럼을 전체 표시 상태로 즉시 복귀)
-function _filterClearBtnHtml(type, extraTypes) {
-    let extraArg = '';
-    if (Array.isArray(extraTypes) && extraTypes.length > 0) {
-        extraArg = `,[${extraTypes.map(t => `'${t}'`).join(',')}]`;
-    }
-    return `<div class="filter-clear-btn" onclick="clearColumnFilter('${type}'${extraArg})">✕ 필터 해제</div><div class="filter-divider"></div>`;
-}
-
-// 팝업에 현재 렌더링된 체크박스들의 원본 값 목록 수집 (첫 체크해제 시 '그 값만 제외'한 명시적 화이트리스트 구성용)
-function _collectPopupValues(popId) {
-    const pop = document.getElementById(popId);
-    if (!pop) return [];
-    return Array.from(pop.querySelectorAll('[data-fval]')).map(el => el.getAttribute('data-fval'));
-}
-
-// ★ 엑셀처럼: 필터 없음(빈 배열) = 전체 체크 상태로 간주. 하나를 해제하면 '그 값만 제외'한 목록으로 전환하고,
-//   이후엔 개별 토글. 전부 다시 체크되면 빈 배열로 정규화(=필터 없음과 동일 상태 유지).
-window.toggleFilterCheckbox = function(type, popId, value) {
-    if (!Array.isArray(filters[type])) filters[type] = [];
-    const allVals = _collectPopupValues(popId);
-    if (filters[type].length === 0) {
-        filters[type] = allVals.filter(v => v !== value);
-    } else if (filters[type].includes(value)) {
-        filters[type] = filters[type].filter(v => v !== value);
-    } else {
-        const next = [...filters[type], value];
-        filters[type] = (allVals.length > 0 && next.length >= allVals.length) ? [] : next;
-    }
-    setupFilterPopups();
-    applyFiltersAndSort();
-    window.showFilterResetBtn();
-};
-
-// 헤더 필터 개별 해제
-window.clearColumnFilter = function(type, extraTypes) {
-    filters[type] = [];
-    if (Array.isArray(extraTypes)) extraTypes.forEach(k => { filters[k] = []; });
-    setupFilterPopups();
-    applyFiltersAndSort();
-    window.showFilterResetBtn();
-};
-
 function getSortButtonsHtml(key) {
     const isAsc = sortConfig.key === key && sortConfig.direction === 'asc';
     const isDesc = sortConfig.key === key && sortConfig.direction === 'desc';
@@ -2524,11 +2469,10 @@ function updateLocPopupUI() {
     if (!locPop) return;
     let prefixSet = new Set(originalData.map(d => d.id.charAt(0))); prefixSet.add('★');
     const prefixes = [...prefixSet].sort((a, b) => (a === '★' ? -1 : (b === '★' ? 1 : a.localeCompare(b))));
-    let locHtml = window.getFilterSearchHtml('pop-id') + getSortButtonsHtml('id') + _filterClearBtnHtml('loc');
-    prefixes.forEach(p => {
-        const sel = filters.loc.length === 0 || filters.loc.includes(p);
-        locHtml += _renderFilterCheckboxRow('loc', 'pop-id', p, `${p} 구역`, sel);
-    });
+    let locHtml = window.getFilterSearchHtml('pop-id') + getSortButtonsHtml('id');
+    const isAllSelected = filters.loc.length === 0;
+    locHtml += `<div class="filter-option ${isAllSelected ? 'selected' : ''}" onclick="toggleLocFilter('all')">${isAllSelected ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    prefixes.forEach(p => { const isSelected = filters.loc.includes(p); locHtml += `<div class="filter-option ${isSelected ? 'selected' : ''}" onclick="toggleLocFilter('${p}')">${isSelected ? '✔️ ' : ''}${p} 구역</div>`; });
     locPop.innerHTML = locHtml;
 }
 
@@ -2580,8 +2524,8 @@ function setupFilterPopups() {
     const isEmpty = filters.code.includes('empty');
     const isNotEmpty = filters.code.includes('not-empty');
     const codeAll = filters.code.length === 0 && !isReservedOnly && !isPreassignedOnly && !isDesignatedOnly;
-    let codeHtml = window.getFilterSearchHtml('pop-code') + getSortButtonsHtml('code') +
-      `<div class="filter-option ${codeAll ? 'selected' : ''}" onclick="setCodeTagFilter('all')">${codeAll ? '✔️ ' : ''}✕ 필터 해제</div>` +
+    let codeHtml = window.getFilterSearchHtml('pop-code') + getSortButtonsHtml('code') + 
+      `<div class="filter-option ${codeAll ? 'selected' : ''}" onclick="setCodeTagFilter('all')">${codeAll ? '✔️ ' : ''}🔄 전체선택/해제</div>` +
         `<div class="filter-option ${isEmpty ? 'selected' : ''}" onclick="setCodeTagFilter('empty')">${isEmpty ? '✔️ ' : ''}빈칸</div>` +
         `<div class="filter-option ${isNotEmpty ? 'selected' : ''}" onclick="setCodeTagFilter('not-empty')">${isNotEmpty ? '✔️ ' : ''}내용있음</div>` +
         `<div class="filter-divider"></div>` +
@@ -2592,41 +2536,46 @@ function setupFilterPopups() {
     if(namePop) namePop.innerHTML = window.getFilterSearchHtml('pop-name') + getSortButtonsHtml('name');
     if(optionPop) optionPop.innerHTML = window.getFilterSearchHtml('pop-option') + getSortButtonsHtml('option');
     const dongs = [...new Set(originalData.map(d => (d.dong || '').toString()))].filter(Boolean).sort();
-    let dongHtml = window.getFilterSearchHtml('pop-dong') + getSortButtonsHtml('dong') + _filterClearBtnHtml('dong');
-    dongs.forEach(d => {
-        const sel = filters.dong.length === 0 || filters.dong.includes(d);
-        dongHtml += _renderFilterCheckboxRow('dong', 'pop-dong', d, d, sel);
+    const dongAll = filters.dong.length === 0;
+    let dongHtml = window.getFilterSearchHtml('pop-dong') + getSortButtonsHtml('dong') + `<div class="filter-option ${dongAll ? 'selected' : ''}" onclick="setFilter('dong', 'all')">${dongAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    dongs.forEach(d => { 
+        const sel = filters.dong.includes(d);
+        dongHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('dong', '${d}')">${sel ? '✔️ ' : ''}${d}</div>`; 
     });
     if(dongPop) dongPop.innerHTML = dongHtml;
     const poses = [...new Set(originalData.map(d => (d.pos || '').toString()))].filter(Boolean).sort();
-    let posHtml = window.getFilterSearchHtml('pop-pos') + getSortButtonsHtml('pos') + _filterClearBtnHtml('pos');
-    poses.forEach(p => {
-        const sel = filters.pos.length === 0 || filters.pos.includes(p);
-        posHtml += _renderFilterCheckboxRow('pos', 'pop-pos', p, p, sel);
+    const posAll = filters.pos.length === 0;
+    let posHtml = window.getFilterSearchHtml('pop-pos') + getSortButtonsHtml('pos') + `<div class="filter-option ${posAll ? 'selected' : ''}" onclick="setFilter('pos', 'all')">${posAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    poses.forEach(p => { 
+        const sel = filters.pos.includes(p);
+        posHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('pos', '${p}')">${sel ? '✔️ ' : ''}${p}</div>`; 
     });
     if(posPop) posPop.innerHTML = posHtml;
     const stocks = [...new Set(originalData.map(d => (d.stock || '0').toString()))].sort((a, b) => Number(a) - Number(b));
-    let stockHtml = window.getFilterSearchHtml('pop-stock') + getSortButtonsHtml('stock') + _filterClearBtnHtml('stock');
-    stocks.forEach(s => {
-        const sel = filters.stock.length === 0 || filters.stock.includes(s);
-        stockHtml += _renderFilterCheckboxRow('stock', 'pop-stock', s, s, sel);
+    const stockAll = filters.stock.length === 0;
+    let stockHtml = window.getFilterSearchHtml('pop-stock') + getSortButtonsHtml('stock') + `<div class="filter-option ${stockAll ? 'selected' : ''}" onclick="setFilter('stock', 'all')">${stockAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    stocks.forEach(s => { 
+        const sel = filters.stock.includes(s);
+        stockHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock', '${s}')">${sel ? '✔️ ' : ''}${s}</div>`; 
     });
     if(stockPop) stockPop.innerHTML = stockHtml;
    const stock2fPop = document.getElementById('pop-stock2f');
     const stocks2f = [...new Set(originalData.map(d => (d.stock2f || '0').toString()))].sort((a, b) => Number(a) - Number(b));
-    let stock2fHtml = window.getFilterSearchHtml('pop-stock2f') + getSortButtonsHtml('stock2f') + _filterClearBtnHtml('stock2f');
-    stocks2f.forEach(s => {
-        const sel = !filters.stock2f || filters.stock2f.length === 0 || filters.stock2f.includes(s);
-        stock2fHtml += _renderFilterCheckboxRow('stock2f', 'pop-stock2f', s, s, sel);
+    const stock2fAll = !filters.stock2f || filters.stock2f.length === 0;
+    let stock2fHtml = window.getFilterSearchHtml('pop-stock2f') + getSortButtonsHtml('stock2f') + `<div class="filter-option ${stock2fAll ? 'selected' : ''}" onclick="setFilter('stock2f', 'all')">${stock2fAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    stocks2f.forEach(s => { 
+        const sel = filters.stock2f && filters.stock2f.includes(s);
+        stock2fHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock2f', '${s}')">${sel ? '✔️ ' : ''}${s}</div>`; 
     });
     if(stock2fPop) stock2fPop.innerHTML = stock2fHtml;
 
     const categoryPop = document.getElementById('pop-category');
     const categories = [...new Set(originalData.map(d => (d.category || '피킹용').toString()))].sort();
-    let categoryHtml = window.getFilterSearchHtml('pop-category') + getSortButtonsHtml('category') + _filterClearBtnHtml('category');
+    const categoryAll = !filters.category || filters.category.length === 0;
+    let categoryHtml = window.getFilterSearchHtml('pop-category') + getSortButtonsHtml('category') + `<div class="filter-option ${categoryAll ? 'selected' : ''}" onclick="setFilter('category', 'all')">${categoryAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
     categories.forEach(c => {
-        const sel = !filters.category || filters.category.length === 0 || filters.category.includes(c);
-        categoryHtml += _renderFilterCheckboxRow('category', 'pop-category', c, c, sel);
+        const sel = filters.category && filters.category.includes(c);
+        categoryHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('category', '${c}')">${sel ? '✔️ ' : ''}${c}</div>`;
     });
     if(categoryPop) categoryPop.innerHTML = categoryHtml;
 
@@ -2647,7 +2596,7 @@ function setupFilterPopups() {
             const isE = arr.includes('empty');
             const isN = arr.includes('not-empty');
             let html = getSortButtonsHtml(col) +
-                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">${curAll ? '✔️ ' : ''}✕ 필터 해제</div>` +
+                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">${curAll ? '✔️ ' : ''}🔄 전체선택/해제</div>` +
                 `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">${isE ? '✔️ ' : ''}빈칸</div>` +
                 `<div class="filter-option ${isN ? 'selected' : ''}" onclick="setFilter('${col}', 'not-empty')">${isN ? '✔️ ' : ''}내용있음</div>`;
             pop.innerHTML = html;
@@ -2699,9 +2648,9 @@ function setupFilterPopups() {
                 byYear[y] = sortedMonths;
             });
             
-            // 정렬 + 필터 해제
+            // 정렬 + 전체선택/해제
             let html = window.getFilterSearchHtml(`pop-${col}`) + getSortButtonsHtml(col) +
-                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">${curAll ? '✔️ ' : ''}✕ 필터 해제</div>`;
+                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">${curAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
             
             // 빈칸 옵션 (있을 경우만)
             if (hasEmpty) {
@@ -2768,7 +2717,8 @@ function setupFilterPopups() {
             return a.localeCompare(b);
         });
 
-        let html = window.getFilterSearchHtml(`pop-${col}`) + getSortButtonsHtml(col) + _filterClearBtnHtml(col);
+        let html = window.getFilterSearchHtml(`pop-${col}`) + getSortButtonsHtml(col) +
+            `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">${curAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
 
         // ★ 입고대기: 빈칸 옵션 추가
         if (key === '입고대기') {
@@ -2777,14 +2727,25 @@ function setupFilterPopups() {
         }
 
         normalVals.forEach(v => {
-            const sel = curAll || arr.includes(v);
-            html += _renderFilterCheckboxRow(col, `pop-${col}`, v, v, sel);
+            const escaped = v.replace(/'/g, "\\'");
+            const sel = arr.includes(v);
+            html += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('${col}', '${escaped}')">${sel ? '✔️ ' : ''}${v}</div>`;
         });
         pop.innerHTML = html;
     });
 }
 
 window.executeSort = (key, direction) => { sortConfig = { key: key, direction: direction }; setupFilterPopups(); applyFiltersAndSort(); if (typeof window.closeAllPopups === 'function') window.closeAllPopups(); };
+window.toggleLocFilter = (val) => { 
+    if (val === 'all') filters.loc = []; 
+    else { 
+        if (filters.loc.includes(val)) filters.loc = filters.loc.filter(v => v !== val); 
+        else filters.loc.push(val); 
+    } 
+    setupFilterPopups(); 
+    applyFiltersAndSort();
+    window.showFilterResetBtn();
+};
 // ★ v3.57: 모든 필터 배열 토글 방식
 window.setFilter = (type, value) => { 
     if (!Array.isArray(filters[type])) filters[type] = [];
