@@ -13,9 +13,9 @@
         :root { --primary: #3d5afe; --bg: #f8f9fa; --card: #ffffff; }
         body { background: var(--bg); margin: 0; font-family: 'Noto Sans KR', sans-serif; overflow: hidden; } 
         
-        .controls-header { margin: 15px 20px 10px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .tabs { display: flex; background: #eee; padding: 5px; border-radius: 8px; width: fit-content; align-items: center; }
-        .tab-btn { padding: 10px 20px; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; background: none; }
+        .controls-header { margin: 8px 12px 6px 12px; display: flex; justify-content: space-between; align-items: center; }
+        .tabs { display: flex; background: #eee; padding: 3px; border-radius: 8px; width: fit-content; align-items: center; }
+        .tab-btn { padding: 7px 14px; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; font-size: 13px; background: none; }
         .tab-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 
         .usage-container { position: relative; display: inline-block; margin-left: 10px; }
@@ -55,41 +55,42 @@
         .btn-delete-bulk { padding: 6px 12px; background: #ff5252; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
         .btn-delete-bulk:hover { background: #e04848; }
 
-        .list-container { 
-            overflow: auto; 
-            background: white; 
-            margin: 0 20px 10px 20px;
-            padding: 0; 
-            border-radius: 12px; 
-            border: 1px solid #ccc; 
-            height: calc(100vh - 120px); 
+        .list-container {
+            overflow: auto;
+            background: white;
+            margin: 0 8px 6px 8px;
+            padding: 0;
+            border-radius: 12px;
+            border: 1px solid #ccc;
+            height: calc(100vh - 88px);
         }
         .list-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
-        .list-table th, .list-table td { 
-            padding: 12px 15px; 
-            text-align: center; 
-            border: 1px solid #ccc; 
-            font-size: 14px; 
+        .list-table th, .list-table td {
+            padding: 4px 7px;
+            text-align: center;
+            border: 1px solid #ccc;
+            font-size: 12.5px;
+            line-height: 1.35;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        
+
         .list-table tbody tr { cursor: pointer; transition: background 0.2s; }
         .list-table tbody tr:hover { filter: brightness(0.95); }
-        
-        .list-table th { 
-            background: #f4f4f4; 
-            position: sticky; 
-            top: -1px; 
-            z-index: 10; 
+
+        .list-table th {
+            background: #f4f4f4;
+            position: sticky;
+            top: -1px;
+            z-index: 10;
             user-select: none;
-            box-shadow: inset 0 -1px 0 #ccc, inset 0 1px 0 #ccc; 
+            box-shadow: inset 0 -1px 0 #ccc, inset 0 1px 0 #ccc;
         }
-        .th-content { display: flex; justify-content: center; align-items: center; gap: 8px; }
-        .title-text { font-size: 15px; font-weight: 800; color: #222; }
-        
-        .filter-btn { cursor: pointer; padding: 2px 6px; border-radius: 4px; color: #666; font-size: 12px; background: #e0e0e0; transition: 0.2s; }
+        .th-content { display: flex; justify-content: center; align-items: center; gap: 6px; }
+        .title-text { font-size: 12.5px; font-weight: 800; color: #222; }
+
+        .filter-btn { cursor: pointer; padding: 1px 5px; border-radius: 4px; color: #666; font-size: 11px; background: #e0e0e0; transition: 0.2s; }
         .filter-btn:hover { background: #d0d0d0; color: var(--primary); }
         .filter-btn.active { background: var(--primary); color: white; }
 
@@ -98,6 +99,16 @@
         .filter-option:hover { background: #f0f2ff; color: var(--primary); }
         .filter-option.selected { font-weight: bold; color: var(--primary); background: #eef1ff; }
         .filter-divider { height: 1px; background: #ddd; margin: 4px 0; }
+
+        /* ★ 엑셀 스타일 체크박스 필터 */
+        .filter-checkbox-row { padding: 5px 15px; }
+        .filter-checkbox-row input[type="checkbox"] { cursor: pointer; width: 14px; height: 14px; flex-shrink: 0; }
+        .filter-checkbox-row span { overflow: hidden; text-overflow: ellipsis; }
+        .filter-clear-btn {
+            padding: 7px 15px; font-size: 12px; font-weight: bold; cursor: pointer;
+            color: #c62828; display: flex; align-items: center; gap: 5px;
+        }
+        .filter-clear-btn:hover { background: #ffebee; }
 
         .checkbox-cell { width: 40px; }
         .loc-check { cursor: pointer; width: 16px; height: 16px; }
