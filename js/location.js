@@ -3148,8 +3148,12 @@ function applyFiltersAndSort() {
         } else {
             aVal = a[sortConfig.key] || ''; bVal = b[sortConfig.key] || '';
         }
-        if (sortConfig.key === 'stock') return sortConfig.direction === 'asc' ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal);
-        return sortConfig.direction === 'asc' ? aVal.toString().localeCompare(bVal.toString()) : bVal.toString().localeCompare(aVal.toString());
+        // ★ 값이 양쪽 다 순수 숫자면 숫자 정렬 (문자열 정렬 시 "100"이 "11"보다 앞에 오는 문제 방지)
+        const aStr = aVal.toString(), bStr = bVal.toString();
+        const aNum = Number(aStr), bNum = Number(bStr);
+        const bothNumeric = aStr.trim() !== '' && bStr.trim() !== '' && !isNaN(aNum) && !isNaN(bNum);
+        if (bothNumeric) return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+        return sortConfig.direction === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
     });
     window.lastFilteredData = filtered;
     renderTable(filtered);
