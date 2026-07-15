@@ -280,10 +280,22 @@
                         <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white">🧯 채우기 → 오류 영향 분석</h4>
                         <span id="fill-error-summary" class="text-[11px] md:text-xs text-gray-500 font-medium"></span>
                     </div>
-                    <p class="text-[10px] md:text-xs text-gray-500 mb-4">채우기가 진행된 날을 0일차로 두고, 다음 채우기 전까지 경과일수별 평균 오류량 추이 (전체 이력 기준, 기간 선택과 무관)</p>
-                    <div class="relative w-full h-56 md:h-64">
-                        <canvas id="chart-fill-error"></canvas>
-                        <div id="fill-error-empty" class="hidden absolute inset-0 flex items-center justify-center text-sm text-gray-400 text-center px-4">채우기 이벤트가 2회 이상 있어야 분석할 수 있습니다.</div>
+                    <p class="text-[10px] md:text-xs text-gray-500 mb-4">채우기가 진행된 날을 0일차로 두고, 다음 채우기 전까지 경과일수별 오류업무 투입시간·투입인원 추이 (전체 이력 기준, 기간 선택과 무관)</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <div class="text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">⏱️ 평균 투입시간</div>
+                            <div class="relative w-full h-56 md:h-64">
+                                <canvas id="chart-fill-error-duration"></canvas>
+                                <div id="fill-error-empty-duration" class="hidden absolute inset-0 flex items-center justify-center text-sm text-gray-400 text-center px-4">채우기 이벤트가 2회 이상 있어야 분석할 수 있습니다.</div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">👥 평균 투입인원</div>
+                            <div class="relative w-full h-56 md:h-64">
+                                <canvas id="chart-fill-error-headcount"></canvas>
+                                <div id="fill-error-empty-headcount" class="hidden absolute inset-0 flex items-center justify-center text-sm text-gray-400 text-center px-4">채우기 이벤트가 2회 이상 있어야 분석할 수 있습니다.</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

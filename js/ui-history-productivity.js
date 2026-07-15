@@ -171,23 +171,23 @@ export function renderProductivityTab(filteredData, appConfig) {
 
 // ============================================================
 // 🧯 채우기 → 오류 영향 분석
-// "채우기가 진행된 날"을 0일차로 두고, 다음 채우기 전까지 경과일수별 평균 오류량을 집계.
-// 채우기 이후 시간이 지날수록 오류가 늘어나는 경향이 있는지 확인하기 위한 이벤트 스터디.
+// "채우기가 진행된 날"을 0일차로 두고, 다음 채우기 전까지 경과일수별로
+// 오류업무에 투입된 시간·인원을 집계. 수량이 아니라 실제 오류 대응에 들어간
+// 인력/시간(workRecords)을 기준으로 삼는다.
+// 채우기 이후 시간이 지날수록 오류 대응 부담이 늘어나는 경향이 있는지 확인하기 위한 이벤트 스터디.
 // 기간 선택과 무관하게 항상 State.allHistoryData 전체 이력을 사용한다(구간 개수를 충분히 확보하기 위함).
 // ============================================================
-let fillErrorChartInstance = null;
+let fillErrorDurationChartInstance = null;
+let fillErrorHeadcountChartInstance = null;
 
 function computeFillErrorAnalysis(allHistoryData) {
     const sortedDays = [...(allHistoryData || [])]
         .filter(d => d && typeof d.id === 'string')
         .sort((a, b) => a.id.localeCompare(b.id));
 
-    const hasErrorQtyData = sortedDays.some(d => Number(d.taskQuantities?.['오류']) > 0);
-
-    const errorValueOf = (day) => {
-        if (hasErrorQtyData) return Number(day.taskQuantities?.['오류']) || 0;
-        return (day.workRecords || []).filter(r => r.task === '오류').reduce((s, r) => s + (Number(r.duration) || 0), 0);
-    };
+    const errorRecordsOf = (day) => (day.workRecords || []).filter(r => r.task === '오류' && (Number(r.duration) || 0) > 0);
+    const errorDurationOf = (day) => errorRecordsOf(day).reduce((s, r) => s + (Number(r.duration) || 0), 0);
+    const errorHeadcountOf = (day) => new Set(errorRecordsOf(day).map(r => r.member)).size;
 
     const fillHappenedOn = (day) => {
         if ((Number(day.taskQuantities?.['채우기']) || 0) > 0) return true;
@@ -197,14 +197,15 @@ function computeFillErrorAnalysis(allHistoryData) {
     const fillEventIndices = [];
     sortedDays.forEach((day, idx) => { if (fillHappenedOn(day)) fillEventIndices.push(idx); });
 
-    const metricLabel = hasErrorQtyData ? '개' : '분';
     if (fillEventIndices.length < 2) {
-        return { insufficientData: true, metricLabel };
+        return { insufficientData: true };
     }
 
-    // offset(채우기 이후 경과일, 기록 있는 날 기준 순번) → 오류값 목록
-    const offsetBuckets = {};
-    const pairs = []; // 상관계수 계산용
+    // offset(채우기 이후 경과일, 기록 있는 날 기준 순번) → 값 목록
+    const durationBuckets = {};
+    const headcountBuckets = {};
+    const durationPairs = []; // 상관계수 계산용
+    const headcountPairs = [];
     const intervalLengths = [];
 
     for (let k = 0; k < fillEventIndices.length; k++) {
@@ -213,108 +214,123 @@ function computeFillErrorAnalysis(allHistoryData) {
         intervalLengths.push(endIdx - startIdx);
         for (let j = startIdx; j < endIdx; j++) {
             const offset = j - startIdx;
-            const errVal = errorValueOf(sortedDays[j]);
-            if (!offsetBuckets[offset]) offsetBuckets[offset] = [];
-            offsetBuckets[offset].push(errVal);
-            pairs.push({ offset, errVal });
+            const day = sortedDays[j];
+            const durVal = errorDurationOf(day);
+            const hcVal = errorHeadcountOf(day);
+            if (!durationBuckets[offset]) durationBuckets[offset] = [];
+            if (!headcountBuckets[offset]) headcountBuckets[offset] = [];
+            durationBuckets[offset].push(durVal);
+            headcountBuckets[offset].push(hcVal);
+            durationPairs.push({ offset, val: durVal });
+            headcountPairs.push({ offset, val: hcVal });
         }
     }
 
-    // 피어슨 상관계수 (경과일수 vs 오류량) — 채우기 이후 시간이 지날수록 오류가 느는 경향인지 요약
-    const n = pairs.length;
-    const meanOffset = pairs.reduce((s, p) => s + p.offset, 0) / n;
-    const meanErr = pairs.reduce((s, p) => s + p.errVal, 0) / n;
-    let cov = 0, varOffset = 0, varErr = 0;
-    pairs.forEach(p => {
-        cov += (p.offset - meanOffset) * (p.errVal - meanErr);
-        varOffset += (p.offset - meanOffset) ** 2;
-        varErr += (p.errVal - meanErr) ** 2;
-    });
-    const correlation = (varOffset > 0 && varErr > 0) ? (cov / Math.sqrt(varOffset * varErr)) : null;
+    // 피어슨 상관계수 (경과일수 vs 값) — 채우기 이후 시간이 지날수록 오류 대응 부담이 느는 경향인지 요약
+    const pearson = (pairs) => {
+        const n = pairs.length;
+        if (n === 0) return null;
+        const meanX = pairs.reduce((s, p) => s + p.offset, 0) / n;
+        const meanY = pairs.reduce((s, p) => s + p.val, 0) / n;
+        let cov = 0, varX = 0, varY = 0;
+        pairs.forEach(p => {
+            cov += (p.offset - meanX) * (p.val - meanY);
+            varX += (p.offset - meanX) ** 2;
+            varY += (p.val - meanY) ** 2;
+        });
+        return (varX > 0 && varY > 0) ? (cov / Math.sqrt(varX * varY)) : null;
+    };
 
     // 표본이 너무 적은 경과일(마지막 구간들)은 노이즈가 크므로 최소 표본 수 미만은 차트에서 제외
-    const MIN_SAMPLES = 2;
-    const MAX_OFFSET = 21; // 3주 이상은 표본이 지나치게 희소해 상한
-    const offsetLabels = [];
-    const offsetAverages = [];
-    const offsetCounts = [];
-    Object.keys(offsetBuckets).map(Number).sort((a, b) => a - b).forEach(offset => {
-        if (offset > MAX_OFFSET) return;
-        const vals = offsetBuckets[offset];
-        if (vals.length < MIN_SAMPLES) return;
-        offsetLabels.push(offset === 0 ? '채우기 당일' : `+${offset}일`);
-        offsetAverages.push(vals.reduce((a, b) => a + b, 0) / vals.length);
-        offsetCounts.push(vals.length);
-    });
+    const buildSeries = (buckets) => {
+        const MIN_SAMPLES = 2;
+        const MAX_OFFSET = 21; // 3주 이상은 표본이 지나치게 희소해 상한
+        const labels = [], averages = [], counts = [];
+        Object.keys(buckets).map(Number).sort((a, b) => a - b).forEach(offset => {
+            if (offset > MAX_OFFSET) return;
+            const vals = buckets[offset];
+            if (vals.length < MIN_SAMPLES) return;
+            labels.push(offset === 0 ? '채우기 당일' : `+${offset}일`);
+            averages.push(vals.reduce((a, b) => a + b, 0) / vals.length);
+            counts.push(vals.length);
+        });
+        return { labels, averages, counts };
+    };
 
     const avgIntervalLength = intervalLengths.reduce((a, b) => a + b, 0) / intervalLengths.length;
 
     return {
         insufficientData: false,
-        metricLabel,
         fillEventCount: fillEventIndices.length,
         avgIntervalLength,
-        correlation,
-        offsetLabels, offsetAverages, offsetCounts
+        duration: { ...buildSeries(durationBuckets), correlation: pearson(durationPairs) },
+        headcount: { ...buildSeries(headcountBuckets), correlation: pearson(headcountPairs) }
     };
 }
 
-function renderFillErrorAnalysis() {
-    const canvas = document.getElementById('chart-fill-error');
-    const summaryEl = document.getElementById('fill-error-summary');
-    const emptyEl = document.getElementById('fill-error-empty');
-    if (!canvas) return;
+function renderFillErrorSubChart(canvasId, emptyId, series, label, colorHex, unit, existingInstance) {
+    const canvas = document.getElementById(canvasId);
+    const emptyEl = document.getElementById(emptyId);
+    if (existingInstance) existingInstance.destroy();
+    if (!canvas) return null;
 
-    const result = computeFillErrorAnalysis(State.allHistoryData);
-
-    if (fillErrorChartInstance) { fillErrorChartInstance.destroy(); fillErrorChartInstance = null; }
-
-    if (result.insufficientData) {
+    if (!series || series.labels.length === 0) {
         canvas.classList.add('hidden');
         if (emptyEl) emptyEl.classList.remove('hidden');
-        if (summaryEl) summaryEl.textContent = '';
-        return;
+        return null;
     }
     canvas.classList.remove('hidden');
     if (emptyEl) emptyEl.classList.add('hidden');
 
-    if (summaryEl) {
-        let corrText = '상관계수 계산 불가';
-        if (result.correlation !== null) {
-            const r = result.correlation;
-            const trend = r > 0.15 ? '양의 상관 (시간 지날수록 오류 증가 경향)' : r < -0.15 ? '음의 상관' : '뚜렷한 경향 없음';
-            corrText = `상관계수 r=${r.toFixed(2)} (${trend})`;
-        }
-        summaryEl.textContent = `채우기 ${result.fillEventCount}회 · 평균 주기 ${result.avgIntervalLength.toFixed(1)}일 · ${corrText}`;
-    }
-
-    fillErrorChartInstance = new Chart(canvas, {
+    return new Chart(canvas, {
         type: 'bar',
         data: {
-            labels: result.offsetLabels,
-            datasets: [{
-                label: `평균 오류량 (${result.metricLabel})`,
-                data: result.offsetAverages,
-                backgroundColor: '#ef4444',
-                borderRadius: 4,
-                maxBarThickness: 32
-            }]
+            labels: series.labels,
+            datasets: [{ label, data: series.averages, backgroundColor: colorHex, borderRadius: 4, maxBarThickness: 32 }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        afterLabel: (ctx) => `표본 ${result.offsetCounts[ctx.dataIndex]}일`
-                    }
-                }
+                tooltip: { callbacks: { afterLabel: (ctx) => `표본 ${series.counts[ctx.dataIndex]}일` } }
             },
             scales: {
                 x: { title: { display: true, text: '채우기 이후 경과일' }, grid: { display: false } },
-                y: { title: { display: true, text: `평균 오류량 (${result.metricLabel})` }, beginAtZero: true, grid: { borderDash: [4, 4] } }
+                y: { title: { display: true, text: `${label} (${unit})` }, beginAtZero: true, grid: { borderDash: [4, 4] } }
             }
         }
     });
+}
+
+function renderFillErrorAnalysis() {
+    const summaryEl = document.getElementById('fill-error-summary');
+    const result = computeFillErrorAnalysis(State.allHistoryData);
+
+    if (result.insufficientData) {
+        if (fillErrorDurationChartInstance) { fillErrorDurationChartInstance.destroy(); fillErrorDurationChartInstance = null; }
+        if (fillErrorHeadcountChartInstance) { fillErrorHeadcountChartInstance.destroy(); fillErrorHeadcountChartInstance = null; }
+        ['chart-fill-error-duration', 'chart-fill-error-headcount'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+        ['fill-error-empty-duration', 'fill-error-empty-headcount'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+        if (summaryEl) summaryEl.textContent = '';
+        return;
+    }
+
+    const corrText = (r, label) => {
+        if (r === null) return `${label} 상관계수 계산 불가`;
+        const trend = r > 0.15 ? '양의 상관' : r < -0.15 ? '음의 상관' : '경향 미미';
+        return `${label} r=${r.toFixed(2)}(${trend})`;
+    };
+    if (summaryEl) {
+        summaryEl.textContent = `채우기 ${result.fillEventCount}회 · 평균 주기 ${result.avgIntervalLength.toFixed(1)}일 · ${corrText(result.duration.correlation, '투입시간')} · ${corrText(result.headcount.correlation, '투입인원')}`;
+    }
+
+    fillErrorDurationChartInstance = renderFillErrorSubChart(
+        'chart-fill-error-duration', 'fill-error-empty-duration',
+        result.duration, '평균 투입시간', '#ef4444', '분', fillErrorDurationChartInstance
+    );
+    fillErrorHeadcountChartInstance = renderFillErrorSubChart(
+        'chart-fill-error-headcount', 'fill-error-empty-headcount',
+        result.headcount, '평균 투입인원', '#f97316', '명', fillErrorHeadcountChartInstance
+    );
 }
