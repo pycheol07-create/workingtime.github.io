@@ -4237,7 +4237,8 @@ async function updateDatabaseA(rows, mode = 'daily') {
             }
 
             // ★ '옵션추가항목1' 헤더: 로케이션과 별개의 '기타' 위치로 동일 상품을 추가 배정
-            // (비축/샘플 등 텍스트 — 도면에 없어도 자동 등록. 수량은 '2층창고재고' 값을 사용)
+            // (비축/샘플 등 위치 코드. permanent 모드로 사전 등록된 위치만 daily 모드에서 매칭됨 —
+            //  '로케이션' 필드와 동일한 사전등록 규칙 적용)
             // ★ 콤마로 여러 위치가 나열될 수 있음(예: "비축-05,비축-04,R-08") → 개별 위치로 분리해 각각 등록
             const rawOpt1 = row['옵션추가항목1']?.toString().trim();
             if (rawOpt1) {
@@ -4245,11 +4246,17 @@ async function updateDatabaseA(rows, mode = 'daily') {
 
                 for (const opt1LocId of opt1LocIds) {
                     if (!existingLocMap[opt1LocId]) {
+                        // ★ daily 모드: 사전 등록 안 된 위치는 새로 만들지 않고 건너뜀 (로케이션 필드와 동일 규칙)
+                        if (mode !== 'permanent') { skipCount++; continue; }
                         existingLocMap[opt1LocId] = {
                             id: opt1LocId, dong: '', pos: '', code: '', name: '',
                             option: '', stock: '0', stock2f: '0', category: '기타'
                         };
                     }
+                    // ★ 안전장치: 이미 실제 피킹용 위치로 쓰이는 ID는 '기타'로 덮어쓰지 않음
+                    //   (옵션추가항목1 텍스트가 우연히 다른 상품의 실제 로케이션 코드와 겹칠 수 있음)
+                    if (existingLocMap[opt1LocId].category === '피킹용') { skipCount++; continue; }
+
                     const opt1ZoneDocId = getZoneDocId(opt1LocId);
                     if (!zoneUpdates[opt1ZoneDocId]) zoneUpdates[opt1ZoneDocId] = {};
 
