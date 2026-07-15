@@ -5426,8 +5426,12 @@ window.renderMap = function() {
     // ★구역은 동 없이 단독, 일반구역은 구역+동 조합으로 탭 구성
     svCorridorList = [];
 
+    // ★ 기타 로케이션(비축·샘플 등, 대분류='기타')은 첫 글자 구역에서 분리 → 전용 '기타' 탭으로 모음
+    //   (예: '비축-05'가 첫 글자 '비'로 '비구역' 탭에 잘못 묶이던 문제 해결)
+    const isEtcLoc = (d) => (d.category || '피킹용') === '기타';
+
     const zoneSet = new Set();
-    originalData.forEach(d => zoneSet.add(d.id.charAt(0).toUpperCase()));
+    originalData.forEach(d => { if (!isEtcLoc(d)) zoneSet.add(d.id.charAt(0).toUpperCase()); });
     const zones = [...zoneSet].sort((a, b) => {
         if (a === '★') return -1;
         if (b === '★') return 1;
@@ -5437,6 +5441,11 @@ window.renderMap = function() {
     zones.forEach(zone => {
         svCorridorList.push({ zone, label: zone === '★' ? '★★ 구역' : `${zone}구역` });
     });
+
+    // 기타 로케이션이 하나라도 있으면 맨 뒤에 전용 '기타' 탭 추가
+    if (originalData.some(isEtcLoc)) {
+        svCorridorList.push({ zone: '__ETC__', label: '📦 기타' });
+    }
 
     // 탭 렌더링
     tabContainer.innerHTML = '';
@@ -5573,6 +5582,32 @@ function renderCorridor(idx) {
         return html;
     }
 
+    // ★ 기타 로케이션 판별 + 동/위치/번호 없는 로케이션용 단순 격자 렌더러(★구역 starRow와 동일 스타일)
+    const isEtc = (d) => (d.category || '피킹용') === '기타';
+    function simpleGridCells(locs, cs) {
+        const idFontSize = Math.max(7, Math.floor(cs / 8));
+        const nameFontSize = Math.max(10, Math.floor(cs / 5));
+        const maxChars = Math.max(4, Math.floor((cs - 6) / (nameFontSize * 0.55)));
+        let h = '';
+        locs.forEach(loc => {
+            if (!matchesLegendFilter(loc)) return; // 범례 필터 미매칭 셀 숨김
+            const tid = 'tip-' + (loc.id || '').replace(/[^a-zA-Z0-9]/g, '_');
+            const nameText = hasContent(loc) ? (loc.name || loc.code || '') : '';
+            const nameColor = hasContent(loc) ? '#1b5e20' : '#999';
+            const displayName = nameText.substring(0, maxChars) || '빈칸';
+            h += `<div style="position:relative;"
+                onmouseenter="(function(e){var t=document.getElementById('${tid}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
+                onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
+                <div style="width:${cs}px;height:${cs+6}px;${cellStyle(loc)}border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
+                    onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
+                    onclick="window.copyLocationToClipboard(event, '${loc.id}')">
+                    <div style="font-size:${idFontSize}px;color:#bbb;line-height:1.1;">${loc.id}</div>
+                    <div style="font-size:${nameFontSize}px;font-weight:bold;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cs-4}px;text-align:center;line-height:1.3;">${displayName}</div>
+                </div>${tooltipHtml(loc)}</div>`;
+        });
+        return h;
+    }
+
     let bodyHtml = '';
 
     // 모든 구역 모드(범례 ON) vs 단일 구역 모드 분기
@@ -5584,7 +5619,7 @@ function renderCorridor(idx) {
         const isStarZone = item.zone === '★';
 
         if (isStarZone) {
-            const allLocs = originalData.filter(d => d.id.charAt(0) === '★')
+            const allLocs = originalData.filter(d => d.id.charAt(0) === '★' && !isEtc(d))
                 .sort((a, b) => parseInt((a.id.match(/\d+$/) || [0])[0]) - parseInt((b.id.match(/\d+$/) || [0])[0]));
             // 필터 ON 시 ★구역에 매칭 슬롯 0개면 통째로 건너뜀
             if (_mapLegendFilter && !allLocs.some(l => matchesLegendFilter(l))) return;
@@ -5632,21 +5667,33 @@ function renderCorridor(idx) {
                 </div>`}
                 ${starRow(botLocs)}
             </div>`;
-    } else {
-        // 일반구역: 동별로 섹션 나눠서 표시
-        const dongSet = new Set();
-        originalData.forEach(d => {
-            if (d.id.charAt(0).toUpperCase() === item.zone && d.dong) {
-                dongSet.add((d.dong || '').toString().trim());
+    } else if (item.zone === '__ETC__') {
+        // 기타 구역: 대분류='기타' 로케이션 전체를 단순 격자로 표시 (동/위치 없음)
+        const etcLocs = originalData.filter(isEtc)
+            .sort((a, b) => (a.id || '').localeCompare(b.id || '', undefined, {numeric: true}));
+        if (!(_mapLegendFilter && !etcLocs.some(l => matchesLegendFilter(l)))) {
+            const cells = simpleGridCells(etcLocs, cellSize);
+            if (cells) {
+                bodyHtml += `
+                    <div style="border:1px solid #ddd;border-radius:10px;overflow:hidden;margin-bottom:12px;">
+                        <div style="background:#efebe9;padding:6px 16px;font-size:13px;font-weight:bold;color:#8d6e63;border-bottom:1px solid #d7ccc8;">📦 기타 (비축·샘플 등)</div>
+                        <div style="padding:8px;display:flex;flex-wrap:wrap;gap:3px;">${cells}</div>
+                    </div>`;
             }
+        }
+    } else {
+        // 일반구역: 동별로 섹션 나눠서 표시 (기타 로케이션은 전용 탭으로 분리)
+        const zoneLocs = originalData.filter(d => d.id.charAt(0).toUpperCase() === item.zone && !isEtc(d));
+
+        const dongSet = new Set();
+        zoneLocs.forEach(d => {
+            const dongVal = (d.dong || '').toString().trim();
+            if (dongVal) dongSet.add(dongVal);
         });
         const dongs = [...dongSet].sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
 
         dongs.forEach(dong => {
-            const allLocs = originalData.filter(d =>
-                d.id.charAt(0).toUpperCase() === item.zone &&
-                (d.dong || '').toString().trim() === dong
-            );
+            const allLocs = zoneLocs.filter(d => (d.dong || '').toString().trim() === dong);
             // 필터 ON 시 이 동에 매칭 슬롯 0개면 동 통째로 건너뜀
             if (_mapLegendFilter && !allLocs.some(l => matchesLegendFilter(l))) return;
 
@@ -5694,6 +5741,27 @@ function renderCorridor(idx) {
                     ${buildRackSection(rightLocs, numsByPos, posLabels, 'right', cellSize)}
                 </div>`;
         });
+
+        // ★ 동/위치/끝번호가 없어 격자에 배치되지 못한 로케이션 → '미배치' 섹션 (도면 누락 방지)
+        const isPlaced = (d) => {
+            const dongVal = (d.dong || '').toString().trim();
+            const posVal = (d.pos || '').toString().trim();
+            return !!(dongVal && posVal && /\d+$/.test(d.id || ''));
+        };
+        const orphanLocs = zoneLocs.filter(d => !isPlaced(d))
+            .sort((a, b) => (a.id || '').localeCompare(b.id || '', undefined, {numeric: true}));
+        if (orphanLocs.length > 0 && !(_mapLegendFilter && !orphanLocs.some(l => matchesLegendFilter(l)))) {
+            const cells = simpleGridCells(orphanLocs, cellSize);
+            if (cells) {
+                bodyHtml += `
+                    <div style="border:1px solid #ffcc80;border-radius:10px;overflow:hidden;margin-bottom:12px;">
+                        <div style="background:#fff3e0;padding:5px 16px;border-bottom:1px solid #ffe0b2;">
+                            <div style="font-size:13px;font-weight:bold;color:#e65100;">⚠️ ${item.zone}구역 · 미배치 (동/위치 미지정)</div>
+                        </div>
+                        <div style="padding:8px;display:flex;flex-wrap:wrap;gap:3px;">${cells}</div>
+                    </div>`;
+            }
+        }
     }
     }); // itemsToRender.forEach 닫기
 
