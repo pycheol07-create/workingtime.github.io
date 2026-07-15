@@ -3449,7 +3449,7 @@ const universalExcelReader = (file) => {
 
 // ★ v3.95: 업로드별 필수 헤더 안내 + 진단 코드별 alert 메시지 헬퍼
 const _uploadHeaderGuide = {
-    'permanent': '로케이션, 동, 위치, 칸수',
+    'permanent': '로케이션, 동, 위치, 칸수, 대분류(피킹/기타, 선택)',
     'daily':     '로케이션, 상품코드, 상품명, 옵션, 정상재고, 2층창고재고',
     'zikjin':    '상품코드(또는 어드민상품코드/대표상품코드 등), 수량',
     'weekly':    '상품코드(또는 어드민상품코드/대표상품코드 등), 기간배송수량 또는 기간발주수량'
@@ -4010,7 +4010,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
         const allHeadersSet = new Set();
         rows.forEach(row => { Object.keys(row).forEach(k => allHeadersSet.add(k)); });
         const allHeaders = [...allHeadersSet];
-        const excludeRaw = ['동', 'dong', '위치', 'pos', '상품코드', '로케이션', '상품명', '옵션', '정상재고', '2층창고재고'];
+        const excludeRaw = ['동', 'dong', '위치', 'pos', '상품코드', '로케이션', '상품명', '옵션', '정상재고', '2층창고재고', '대분류'];
         // 공백제거 버전도 제외 목록에 포함
         const exclude = [...new Set([...excludeRaw, ...excludeRaw.map(h => h.replace(/\s+/g, ''))])];
         
@@ -4079,6 +4079,15 @@ async function updateDatabaseA(rows, mode = 'daily') {
             });
         }
         
+        // ★ permanent(영구보전) 업로드의 '대분류' 헤더 값 → 위치 카테고리(피킹용/기타) 정규화
+        const normalizeLocCategory = (raw) => {
+            const v = (raw || '').toString().trim();
+            if (!v) return null;
+            if (v.includes('기타')) return '기타';
+            if (v.includes('피킹')) return '피킹용';
+            return null;
+        };
+
         for (let i = 0; i < totalRows; i++) {
             const row = rows[i];
 
@@ -4159,13 +4168,16 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     if (sIndex !== -1) extractedCode = afterParen.substring(sIndex).trim();
                 } else { cleanLocId = rawLoc; }
                 
-                if (cleanLocId) { 
+                if (cleanLocId) {
+                    // ★ permanent 모드: '대분류' 헤더로 피킹용/기타 구분 (없으면 피킹용 기본값)
+                    const rowCategory = mode === 'permanent' ? (normalizeLocCategory(row['대분류']) || '피킹용') : '피킹용';
+
                     if (!existingLocMap[cleanLocId]) {
                         // ★ permanent 모드: 낯선 로케이션도 새로 생성 허용
                         if (mode === 'permanent') {
                             existingLocMap[cleanLocId] = {
                                 id: cleanLocId, dong: '', pos: '', code: '', name: '',
-                                option: '', stock: '0', stock2f: '0', category: '피킹용'
+                                option: '', stock: '0', stock2f: '0', category: rowCategory
                             };
                         } else {
                             skipCount++;
@@ -4198,7 +4210,8 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     updateData.updatedAt = new Date();
                     updateData.rawDataStr = JSON.stringify(cleanRawData);
                     updateData.rawData = deleteField();
-                    updateData.category = '피킹용'; // ★ '로케이션' 헤더 기준 위치 → 대분류: 피킹용
+                    // ★ permanent 모드: '대분류' 헤더 값 반영. daily 모드: 로케이션 필드는 항상 피킹용 취급
+                    updateData.category = (mode === 'permanent') ? rowCategory : '피킹용';
 
                     if (mode === 'permanent') {
                         updateData.dong = ('동' in row || 'dong' in row) ? (row['동'] || row['dong'] || '').toString().trim() : (existingData.dong || '');
