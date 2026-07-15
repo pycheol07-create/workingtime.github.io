@@ -4238,59 +4238,63 @@ async function updateDatabaseA(rows, mode = 'daily') {
 
             // ★ '옵션추가항목1' 헤더: 로케이션과 별개의 '기타' 위치로 동일 상품을 추가 배정
             // (비축/샘플 등 텍스트 — 도면에 없어도 자동 등록. 수량은 '2층창고재고' 값을 사용)
+            // ★ 콤마로 여러 위치가 나열될 수 있음(예: "비축-05,비축-04,R-08") → 개별 위치로 분리해 각각 등록
             const rawOpt1 = row['옵션추가항목1']?.toString().trim();
             if (rawOpt1) {
-                const opt1LocId = rawOpt1;
-                if (!existingLocMap[opt1LocId]) {
-                    existingLocMap[opt1LocId] = {
-                        id: opt1LocId, dong: '', pos: '', code: '', name: '',
-                        option: '', stock: '0', stock2f: '0', category: '기타'
+                const opt1LocIds = rawOpt1.split(',').map(s => s.trim()).filter(Boolean);
+
+                for (const opt1LocId of opt1LocIds) {
+                    if (!existingLocMap[opt1LocId]) {
+                        existingLocMap[opt1LocId] = {
+                            id: opt1LocId, dong: '', pos: '', code: '', name: '',
+                            option: '', stock: '0', stock2f: '0', category: '기타'
+                        };
+                    }
+                    const opt1ZoneDocId = getZoneDocId(opt1LocId);
+                    if (!zoneUpdates[opt1ZoneDocId]) zoneUpdates[opt1ZoneDocId] = {};
+
+                    const opt1ExistingData = existingLocMap[opt1LocId] || {};
+                    const opt1Code = (row['상품코드'] || '').toString().trim();
+
+                    let opt1UpdateData = zoneUpdates[opt1ZoneDocId][opt1LocId] || {
+                        dong: opt1ExistingData.dong || '',
+                        pos: opt1ExistingData.pos || '',
+                        reserved: false,
+                        reservedAt: 0,
+                        reservedBy: '',
+                        assignedAt: 0,
+                        preAssigned: opt1ExistingData.preAssigned || false,
+                        preAssignedCode: opt1ExistingData.preAssignedCode || '',
+                        preAssignedName: opt1ExistingData.preAssignedName || '',
+                        preAssignedQty: opt1ExistingData.preAssignedQty || '',
+                        preAssignedAt: opt1ExistingData.preAssignedAt || 0,
+                        codeTag: opt1ExistingData.codeTag || '',
+                        codeTagAt: opt1ExistingData.codeTagAt || 0
                     };
+
+                    opt1UpdateData.updatedAt = new Date();
+                    opt1UpdateData.rawDataStr = JSON.stringify(cleanRawData);
+                    opt1UpdateData.rawData = deleteField();
+                    opt1UpdateData.category = '기타'; // ★ '옵션추가항목1' 헤더 기준 위치 → 대분류: 기타
+
+                    if (mode === 'permanent') {
+                        opt1UpdateData.code = opt1ExistingData.code || '';
+                        opt1UpdateData.name = opt1ExistingData.name || '';
+                        opt1UpdateData.option = opt1ExistingData.option || '';
+                        opt1UpdateData.stock = opt1ExistingData.stock || '0';
+                        opt1UpdateData.stock2f = opt1ExistingData.stock2f || '0';
+                    } else {
+                        opt1UpdateData.code = opt1Code || '';
+                        opt1UpdateData.name = row['상품명']?.toString().trim() || '';
+                        opt1UpdateData.option = row['옵션']?.toString().trim() || '';
+                        // 기타칸의 재고수량은 '2층창고재고' 헤더 값을 사용 (위치별로 동일 수량 반복 표시)
+                        opt1UpdateData.stock = row['2층창고재고']?.toString().trim() || '0';
+                        opt1UpdateData.stock2f = '0';
+                    }
+
+                    zoneUpdates[opt1ZoneDocId][opt1LocId] = opt1UpdateData;
+                    updateCount++;
                 }
-                const opt1ZoneDocId = getZoneDocId(opt1LocId);
-                if (!zoneUpdates[opt1ZoneDocId]) zoneUpdates[opt1ZoneDocId] = {};
-
-                const opt1ExistingData = existingLocMap[opt1LocId] || {};
-                const opt1Code = (row['상품코드'] || '').toString().trim();
-
-                let opt1UpdateData = zoneUpdates[opt1ZoneDocId][opt1LocId] || {
-                    dong: opt1ExistingData.dong || '',
-                    pos: opt1ExistingData.pos || '',
-                    reserved: false,
-                    reservedAt: 0,
-                    reservedBy: '',
-                    assignedAt: 0,
-                    preAssigned: opt1ExistingData.preAssigned || false,
-                    preAssignedCode: opt1ExistingData.preAssignedCode || '',
-                    preAssignedName: opt1ExistingData.preAssignedName || '',
-                    preAssignedQty: opt1ExistingData.preAssignedQty || '',
-                    preAssignedAt: opt1ExistingData.preAssignedAt || 0,
-                    codeTag: opt1ExistingData.codeTag || '',
-                    codeTagAt: opt1ExistingData.codeTagAt || 0
-                };
-
-                opt1UpdateData.updatedAt = new Date();
-                opt1UpdateData.rawDataStr = JSON.stringify(cleanRawData);
-                opt1UpdateData.rawData = deleteField();
-                opt1UpdateData.category = '기타'; // ★ '옵션추가항목1' 헤더 기준 위치 → 대분류: 기타
-
-                if (mode === 'permanent') {
-                    opt1UpdateData.code = opt1ExistingData.code || '';
-                    opt1UpdateData.name = opt1ExistingData.name || '';
-                    opt1UpdateData.option = opt1ExistingData.option || '';
-                    opt1UpdateData.stock = opt1ExistingData.stock || '0';
-                    opt1UpdateData.stock2f = opt1ExistingData.stock2f || '0';
-                } else {
-                    opt1UpdateData.code = opt1Code || '';
-                    opt1UpdateData.name = row['상품명']?.toString().trim() || '';
-                    opt1UpdateData.option = row['옵션']?.toString().trim() || '';
-                    // 기타칸의 재고수량은 '2층창고재고' 헤더 값을 사용
-                    opt1UpdateData.stock = row['2층창고재고']?.toString().trim() || '0';
-                    opt1UpdateData.stock2f = '0';
-                }
-
-                zoneUpdates[opt1ZoneDocId][opt1LocId] = opt1UpdateData;
-                updateCount++;
             }
         }
 
