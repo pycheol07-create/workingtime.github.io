@@ -5389,7 +5389,9 @@ window.renderMap = function() {
 
     // ★ 기타 로케이션(비축·샘플 등, 대분류='기타')은 첫 글자 구역에서 분리 → 전용 '기타' 탭으로 모음
     //   (예: '비축-05'가 첫 글자 '비'로 '비구역' 탭에 잘못 묶이던 문제 해결)
-    const isEtcLoc = (d) => (d.category || '피킹용') === '기타';
+    // ★ SAM 로케이션은 첫 글자가 'S'라 S구역으로 묶이던 것을 별도 존이 아닌 '기타' 탭으로 편입
+    const isSamLoc = (d) => /^SAM/i.test((d.id || '').trim());
+    const isEtcLoc = (d) => (d.category || '피킹용') === '기타' || isSamLoc(d);
 
     const zoneSet = new Set();
     originalData.forEach(d => { if (!isEtcLoc(d)) zoneSet.add(d.id.charAt(0).toUpperCase()); });
@@ -5544,7 +5546,15 @@ function renderCorridor(idx) {
     }
 
     // ★ 기타 로케이션 판별 + 동/위치/번호 없는 로케이션용 단순 격자 렌더러(★구역 starRow와 동일 스타일)
-    const isEtc = (d) => (d.category || '피킹용') === '기타';
+    const isSamLoc = (d) => /^SAM/i.test((d.id || '').trim());
+    const isEtc = (d) => (d.category || '피킹용') === '기타' || isSamLoc(d);
+    // 기타 탭 내부 세부 분류: 비축 / SAM / 그 외(알파벳-숫자-L,R 등 일반 코드 형태)
+    const isBichukLoc = (d) => /^비축/.test((d.id || '').trim());
+    function classifyEtc(d) {
+        if (isSamLoc(d)) return 'sam';
+        if (isBichukLoc(d)) return 'bichuk';
+        return 'general';
+    }
     function simpleGridCells(locs, cs) {
         const idFontSize = Math.max(7, Math.floor(cs / 8));
         const nameFontSize = Math.max(10, Math.floor(cs / 5));
@@ -5629,19 +5639,27 @@ function renderCorridor(idx) {
                 ${starRow(botLocs)}
             </div>`;
     } else if (item.zone === '__ETC__') {
-        // 기타 구역: 대분류='기타' 로케이션 전체를 단순 격자로 표시 (동/위치 없음)
+        // 기타 구역: 대분류='기타'(+SAM) 로케이션을 비축/SAM/그 외로 나눠서 표시 (동/위치 없음)
         const etcLocs = originalData.filter(isEtc)
             .sort((a, b) => (a.id || '').localeCompare(b.id || '', undefined, {numeric: true}));
-        if (!(_mapLegendFilter && !etcLocs.some(l => matchesLegendFilter(l)))) {
-            const cells = simpleGridCells(etcLocs, cellSize);
+        const etcGroups = [
+            { key: 'bichuk', label: '📦 비축', bg: '#efebe9', color: '#8d6e63', border: '#d7ccc8' },
+            { key: 'general', label: '🧩 기타 (알파벳-숫자-L/R 등)', bg: '#eef2f7', color: '#455a64', border: '#cfd8dc' },
+            { key: 'sam', label: '🏷️ SAM', bg: '#fff3e0', color: '#e65100', border: '#ffe0b2' }
+        ];
+        etcGroups.forEach(g => {
+            const groupLocs = etcLocs.filter(d => classifyEtc(d) === g.key);
+            if (!groupLocs.length) return;
+            if (_mapLegendFilter && !groupLocs.some(l => matchesLegendFilter(l))) return;
+            const cells = simpleGridCells(groupLocs, cellSize);
             if (cells) {
                 bodyHtml += `
                     <div style="border:1px solid #ddd;border-radius:10px;overflow:hidden;margin-bottom:12px;">
-                        <div style="background:#efebe9;padding:6px 16px;font-size:13px;font-weight:bold;color:#8d6e63;border-bottom:1px solid #d7ccc8;">📦 기타 (비축·샘플 등)</div>
+                        <div style="background:${g.bg};padding:6px 16px;font-size:13px;font-weight:bold;color:${g.color};border-bottom:1px solid ${g.border};">${g.label}</div>
                         <div style="padding:8px;display:flex;flex-wrap:wrap;gap:3px;">${cells}</div>
                     </div>`;
             }
-        }
+        });
     } else {
         // 일반구역: 동별로 섹션 나눠서 표시 (기타 로케이션은 전용 탭으로 분리)
         const zoneLocs = originalData.filter(d => d.id.charAt(0).toUpperCase() === item.zone && !isEtc(d));
