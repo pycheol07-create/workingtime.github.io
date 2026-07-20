@@ -162,16 +162,23 @@ async function fetchIncomingSchedule() {
                 return;
             }
         } catch (_) {}
-        listEl.innerHTML = `<li class="text-[10px] text-red-500">⚠️ 입고 데이터 조회 실패. Apps Script URL 또는 권한을 확인하세요.</li>`;
+        setIncomingCount(0);
+        listEl.innerHTML = `<li class="px-3 py-2 text-[10px] text-red-500">⚠️ 입고 데이터 조회 실패. Apps Script URL 또는 권한을 확인하세요.</li>`;
         if (statusEl) statusEl.textContent = '오류';
     }
+}
+
+function setIncomingCount(n) {
+    const countEl = document.getElementById('widget-incoming-count');
+    if (countEl) countEl.textContent = n;
 }
 
 function renderItems(items) {
     const listEl = document.getElementById('widget-incoming-list');
     if (!listEl) return;
+    setIncomingCount(items.length);
     if (items.length === 0) {
-        listEl.innerHTML = `<li class="text-[10px] text-gray-400 italic">표시할 입고 예정이 없습니다.</li>`;
+        listEl.innerHTML = `<li class="px-3 py-2 text-[10px] text-gray-400 italic">표시할 입고 예정이 없습니다.</li>`;
         return;
     }
     listEl.innerHTML = items.map(it => {
@@ -182,11 +189,9 @@ function renderItems(items) {
         const boxText = it.boxes > 0 ? `${numFmt(it.boxes)}박스` : '';
         const detail = [boxText, qtyText.replace(/^,\s*/, '')].filter(Boolean).join(', ');
         return `
-            <li class="flex items-baseline gap-1.5 pl-0">
-                <span class="font-extrabold ${arrTone} whitespace-nowrap">${it.arrivalLabel}</span>
-                <span class="text-amber-700 dark:text-amber-400">-</span>
-                <span class="font-bold">${escapeHtml(it.packDateText)} 패킹:</span>
-                <span class="opacity-95">${escapeHtml(detail)} 입고예정</span>
+            <li class="flex items-baseline gap-2 px-3 py-2">
+                <span class="w-9 shrink-0 text-[11px] font-extrabold ${arrTone} whitespace-nowrap">${it.arrivalLabel}</span>
+                <span class="text-[12px] min-w-0"><span class="font-bold">${escapeHtml(it.packDateText)} 패킹</span> · <span class="opacity-95">${escapeHtml(detail)} 입고예정</span></span>
             </li>
         `;
     }).join('');
