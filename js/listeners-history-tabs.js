@@ -1,7 +1,7 @@
 // === js/listeners-history-tabs.js ===
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast, getTodayDateString, getWeekOfYear } from './utils.js';
+import { showToast, getTodayDateString, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js';
 
 import { renderDashboardTab } from './ui-history-dashboard.js';
 import { renderProductivityTab } from './ui-history-productivity.js';
@@ -77,14 +77,16 @@ export function setupGlobalFilterListeners() {
             let csvContent = "\uFEFF날짜,출근 인원(명),총 업무시간(분),총 인건비(원),총 생산량(개),종합 UPH\n";
             let totalMembers = 0, totalMins = 0, totalCost = 0, totalQty = 0;
             const sortedData = [...filteredData].sort((a, b) => a.id.localeCompare(b.id));
+            // memberWages는 월기본급 → 시급(÷209)로 환산. 명단에 없으면 파트타이머 기본시급 10000.
+            const hourlyWages = buildMemberHourlyWageMap(State.appConfig?.memberWages);
 
             sortedData.forEach(day => {
                 const memCount = new Set((day.workRecords || []).map(r => r.member)).size;
                 let dayMin = 0, dayCost = 0, dayQty = 0;
-                
+
                 (day.workRecords || []).forEach(r => {
                     dayMin += (r.duration || 0);
-                    const wage = State.appConfig?.memberWages?.[r.member] || 10000;
+                    const wage = hourlyWages[r.member] || 10000;
                     dayCost += ((r.duration || 0) / 60) * wage;
                 });
                 Object.values(day.taskQuantities || {}).forEach(q => { dayQty += (Number(q) || 0); });

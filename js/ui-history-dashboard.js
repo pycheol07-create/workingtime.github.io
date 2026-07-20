@@ -1,7 +1,7 @@
 // === js/ui-history-dashboard.js ===
 import * as State from './state.js';
 import { analyzeUnitCost } from './ui-history-reports-logic.js';
-import { getWeekOfYear } from './utils.js';
+import { getWeekOfYear, buildMemberHourlyWageMap } from './utils.js';
 
 let dashboardChartInstance = null;
 
@@ -156,7 +156,7 @@ export function renderDashboardTab(filteredData, appConfig) {
         '직진배송': { duration: 0, qty: 0 }
     };
 
-    const wageMap = { ...(appConfig.memberWages || {}) };
+    const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
 
     const aggregatedWorkRecords = [];
     const aggregatedQuantities = {};

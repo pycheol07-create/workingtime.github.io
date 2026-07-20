@@ -1,6 +1,6 @@
 // === ui-history-trends.js (트렌드 분석 차트 렌더링 담당) ===
 
-import { isWeekday, formatDuration, getRegularMembersForCount } from './utils.js';
+import { isWeekday, formatDuration, getRegularMembersForCount, buildMemberHourlyWageMap } from './utils.js';
 
 // ✅ [신규] app.js 대신 state.js에서 직접 appConfig를 가져옵니다.
 import { appConfig } from './state.js';
@@ -15,8 +15,8 @@ function calculateDailyKPIs(dayData, appConfig) {
     const onLeaveMemberEntries = dayData.onLeaveMembers || [];
     const partTimersFromHistory = dayData.partTimers || [];
 
-    // 1. WageMap 생성 (appConfig + 이력의 알바 정보)
-    const wageMap = { ...(appConfig.memberWages || {}) };
+    // 1. WageMap 생성 (memberWages 월기본급 → 시급 ÷209, + 이력의 알바 시급)
+    const wageMap = buildMemberHourlyWageMap(appConfig.memberWages);
     partTimersFromHistory.forEach(pt => {
         if (pt && pt.name && !wageMap[pt.name]) {
             wageMap[pt.name] = pt.wage || 0;

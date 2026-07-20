@@ -1,5 +1,5 @@
 // === js/ui-history-reports-productivity.js ===
-import { isWeekday, getTodayDateString } from './utils.js';
+import { isWeekday, getTodayDateString, buildMemberHourlyWageMap } from './utils.js';
 import { getAsArray } from './ui-history-reports-utils.js';
 import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js';
 
@@ -13,7 +13,7 @@ export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
     const standardThroughputs = calculateStandardThroughputs(allHistoryData);
 
     recentData.forEach(day => {
-        const wageMap = { ...(appConfig.memberWages || {}) };
+        const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
         getAsArray(day.partTimers).forEach(pt => { if (pt && pt.name && !wageMap[pt.name]) wageMap[pt.name] = pt.wage || 0; });
         const dayAggr = calculateReportAggregations(day, appConfig, wageMap, new Map());
         const productivity = calculateAdvancedProductivity([day], dayAggr, standardThroughputs, appConfig, wageMap);

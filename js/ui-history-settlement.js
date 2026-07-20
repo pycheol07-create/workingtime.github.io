@@ -5,7 +5,7 @@
 
 import * as State from './state.js';
 import { LEAVE_TYPES } from './state.js';
-import { getRegularMembersForCount, formatDuration } from './utils.js';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap } from './utils.js';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import {
@@ -95,7 +95,7 @@ function getPeriodDateRange(granularity, year, sub) {
 // 2. 공용 빌더 헬퍼
 // ============================================================
 function buildWageMap(dayArrays, appConfig) {
-    const wageMap = { ...(appConfig.memberWages || {}) };
+    const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
     dayArrays.flat().forEach(day => {
         (day.partTimers || []).forEach(pt => {
             if (pt && pt.name && !wageMap[pt.name]) wageMap[pt.name] = pt.wage || 0;

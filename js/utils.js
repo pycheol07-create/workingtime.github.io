@@ -18,6 +18,28 @@ export const getRegularMembersForCount = (appConfig) => {
     return uniq;
 };
 
+// 월급제 시급 환산 기준 시간(주휴 포함, 월 209시간). calc.js의 computeMonthlySalary와 동일 기준.
+export const SALARY_STD_HOURS = 209;
+
+/**
+ * 인건비 계산용 "시급" 맵을 생성한다.
+ * ⚠️ appConfig.memberWages 값은 "월 기본급"(월급제)이므로 시급 = 기본급 ÷ 209로 환산해야 한다.
+ *    (예전에 memberWages가 시급이던 흔적으로, 여러 집계 코드가 월기본급을 시급처럼 곱해
+ *     월급제 인건비가 209배 부풀려지는 버그가 있었음 → 이 헬퍼로 일원화)
+ * 파트타이머(시급제) 시급은 이 맵 위에 각 호출부에서 pt.wage로 덮어쓴다(이미 시급이라 환산 대상 아님).
+ * @returns {{[member: string]: number}} 팀원명 → 시급(원)
+ */
+export const buildMemberHourlyWageMap = (memberWages = {}) => {
+    const out = {};
+    const src = memberWages || {};
+    for (const name in src) {
+        if (Object.prototype.hasOwnProperty.call(src, name)) {
+            out[name] = (Number(src[name]) || 0) / SALARY_STD_HOURS;
+        }
+    }
+    return out;
+};
+
 export const showToast = (message, isError = false) => {
     const container = document.getElementById('toast-container');
     if (!container) return; 

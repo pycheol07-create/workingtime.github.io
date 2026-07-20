@@ -1,5 +1,6 @@
 // === js/ui-history-productivity.js ===
 import * as State from './state.js';
+import { buildMemberHourlyWageMap } from './utils.js';
 
 let productivityChartInstance = null;
 
@@ -14,7 +15,7 @@ export function renderProductivityTab(filteredData, appConfig) {
         '직진배송': { duration: 0, qty: 0, members: new Set() }
     };
 
-    const wageMap = { ...(appConfig.memberWages || {}) };
+    const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
     let nonWorkDurationMin = 0;
     let nonWorkActualMin = 0; // 추가: 인당 비업무시간
     let nonWorkCost = 0;

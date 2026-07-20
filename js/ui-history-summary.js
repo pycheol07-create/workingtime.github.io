@@ -1,6 +1,6 @@
 // === ui-history-summary.js ===
 
-import { formatDuration, getWeekOfYear } from './utils.js';
+import { formatDuration, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js';
 import { getDiffHtmlForMetric } from './ui-history-reports-logic.js';
 
 const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPeriodDataset = null) => {
@@ -242,7 +242,7 @@ export const renderWeeklyHistory = (selectedWeekKey, allHistoryData, appConfig) 
                 }
             });
         });
-        const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
+        const combinedWageMap = { ...historyWageMap, ...buildMemberHourlyWageMap(appConfig.memberWages) }; // 월기본급 → 시급(÷209)
 
         const weeklyData = (allHistoryData || []).reduce((acc, day) => {
             if (!day || !day.id || !day.workRecords || typeof day.id !== 'string') return acc;
@@ -301,7 +301,7 @@ export const renderMonthlyHistory = (selectedMonthKey, allHistoryData, appConfig
                 }
             });
         });
-        const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
+        const combinedWageMap = { ...historyWageMap, ...buildMemberHourlyWageMap(appConfig.memberWages) }; // 월기본급 → 시급(÷209)
 
         const monthlyData = (allHistoryData || []).reduce((acc, day) => {
             if (!day || !day.id || !day.workRecords || typeof day.id !== 'string' || day.id.length < 7) return acc;
@@ -356,7 +356,7 @@ export const renderYearlyHistory = (selectedYearKey, allHistoryData, appConfig) 
                 }
             });
         });
-        const combinedWageMap = { ...historyWageMap, ...(appConfig.memberWages || {}) };
+        const combinedWageMap = { ...historyWageMap, ...buildMemberHourlyWageMap(appConfig.memberWages) }; // 월기본급 → 시급(÷209)
 
         const yearlyData = (allHistoryData || []).reduce((acc, day) => {
             if (!day || !day.id || !day.workRecords || typeof day.id !== 'string' || day.id.length < 4) return acc;

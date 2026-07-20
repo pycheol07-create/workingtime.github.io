@@ -3,8 +3,8 @@
 // (수정됨: 현황판과 동일한 기준으로 유효 멤버 필터링 강화, 시스템 계정 제외 및 타입 에러 방어 적용)
 
 import * as State from './state.js';
-import { 
-    formatDuration, isWeekday, calcTotalPauseMinutes, formatTimeTo24H, getTodayDateString
+import {
+    formatDuration, isWeekday, calcTotalPauseMinutes, formatTimeTo24H, getTodayDateString, buildMemberHourlyWageMap
 } from './utils.js';
 import { getDiffHtmlForMetric } from './ui-history-reports-logic.js';
 
@@ -27,8 +27,8 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     const quantities = data.taskQuantities || {};
     const partTimersFromHistory = data.partTimers || [];
 
-    // 1. 시급 정보 매핑
-    const wageMap = { ...State.appConfig.memberWages };
+    // 1. 시급 정보 매핑 (memberWages는 월기본급 → 시급 ÷209 환산)
+    const wageMap = buildMemberHourlyWageMap(State.appConfig.memberWages);
     partTimersFromHistory.forEach(pt => {
         if (pt && pt.name && !wageMap[pt.name]) {
             wageMap[pt.name] = pt.wage || 0;

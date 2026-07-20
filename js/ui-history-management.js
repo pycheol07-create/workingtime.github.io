@@ -1,7 +1,7 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday } from './utils.js';
+import { formatDuration, getWeekOfYear, isWeekday, buildMemberHourlyWageMap } from './utils.js';
 import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js';
 import { appConfig } from './state.js';
 // predictFutureTrends import 제거됨
@@ -182,7 +182,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
     };
     const onInputHandler = "this.value = this.value.replace(/[^0-9]/g, '').replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');";
 
-    const wageMap = { ...appConfig.memberWages };
+    const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
     (dayData?.partTimers || []).forEach(pt => {
         if (pt.name) wageMap[pt.name] = pt.wage || 0;
     });
@@ -455,7 +455,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     // 기간별 원가 분석
     const aggregatedWorkRecords = [];
     const aggregatedQuantities = {};
-    const aggregatedWageMap = { ...appConfig.memberWages };
+    const aggregatedWageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
 
     filteredData.forEach(day => {
         (day.workRecords || []).forEach(r => {

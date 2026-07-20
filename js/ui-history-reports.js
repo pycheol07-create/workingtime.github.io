@@ -1,5 +1,5 @@
 // === js/ui-history-reports.js ===
-import { getWeekOfYear } from './utils.js';
+import { getWeekOfYear, buildMemberHourlyWageMap } from './utils.js';
 
 import {
     calculateReportKPIs,
@@ -20,7 +20,7 @@ import {
 
 
 const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
-    const wageMap = { ...(appConfig.memberWages || {}) };
+    const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
     [...currentDaysData, ...previousDaysData].forEach(day => {
         (day.partTimers || []).forEach(pt => {
             if (pt && pt.name && !wageMap[pt.name]) {
