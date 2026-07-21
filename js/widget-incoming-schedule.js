@@ -219,16 +219,17 @@ function renderItems(items) {
         const totalText = qtyPartsText(g.totalBoxes, g.totalQty);
         const lines = g.entries.map(it => {
             const detail = qtyPartsText(it.boxes, it.qty);
-            return `<div class="text-[11px] leading-snug"><span class="font-bold">${escapeHtml(it.packDateText)} 패킹</span>${detail ? ` · <span class="opacity-90">${escapeHtml(detail)}</span>` : ''}</div>`;
+            return `<div class="text-[12.5px] leading-snug"><span class="font-bold">${escapeHtml(it.packDateText)} 패킹</span>${detail ? ` · <span class="opacity-90">${escapeHtml(detail)}</span>` : ''}</div>`;
         }).join('');
 
+        // 날짜 라벨은 고정 폭(w-14) + gap-2 → 아래 패킹 줄은 같은 offset(pl-16)으로 들여써서 날짜 칸을 침범하지 않게 함
         return `
             <li class="px-3 py-2">
                 <div class="flex items-baseline gap-2">
-                    <span class="shrink-0 text-[11px] font-extrabold ${arrTone} whitespace-nowrap">${g.arrivalLabel}</span>
-                    ${totalText ? `<span class="text-[11px] font-bold">총 ${escapeHtml(totalText)} 입고예정</span>` : ''}
+                    <span class="w-14 shrink-0 text-[12.5px] font-extrabold ${arrTone} whitespace-nowrap">${g.arrivalLabel}</span>
+                    ${totalText ? `<span class="text-[12.5px] font-bold min-w-0">총 ${escapeHtml(totalText)} 입고예정</span>` : ''}
                 </div>
-                <div class="mt-0.5 pl-1 space-y-0.5 opacity-90">${lines}</div>
+                <div class="mt-1 pl-16 space-y-0.5 opacity-90">${lines}</div>
             </li>
         `;
     }).join('');
