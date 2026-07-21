@@ -173,25 +173,62 @@ function setIncomingCount(n) {
     if (countEl) countEl.textContent = n;
 }
 
+/** 도착일이 같은 항목끼리 묶는다. items는 도착일 오름차순 정렬 상태로 들어온다. */
+function groupByArrivalDate(items) {
+    const groups = [];
+    const byKey = new Map();
+    items.forEach(it => {
+        const key = ymd(it.arrivalDate);
+        let g = byKey.get(key);
+        if (!g) {
+            g = { key, arrivalLabel: it.arrivalLabel, entries: [], totalBoxes: 0, totalQty: 0 };
+            byKey.set(key, g);
+            groups.push(g);
+        }
+        g.entries.push(it);
+        g.totalBoxes += Number(it.boxes) || 0;
+        g.totalQty += Number(it.qty) || 0;
+    });
+    return groups;
+}
+
+const qtyPartsText = (boxes, qty) => {
+    const parts = [];
+    if (boxes > 0) parts.push(`${numFmt(boxes)}박스`);
+    if (qty > 0) parts.push(`${numFmt(qty)}개`);
+    return parts.join(', ');
+};
+
 function renderItems(items) {
     const listEl = document.getElementById('widget-incoming-list');
     if (!listEl) return;
-    setIncomingCount(items.length);
     if (items.length === 0) {
+        setIncomingCount(0);
         listEl.innerHTML = `<li class="px-3 py-2 text-[10px] text-gray-400 italic">표시할 입고 예정이 없습니다.</li>`;
         return;
     }
-    listEl.innerHTML = items.map(it => {
-        const arrTone = it.arrivalLabel === '오늘' ? 'text-red-600 dark:text-red-400'
-            : (it.arrivalLabel === '내일' ? 'text-orange-600 dark:text-orange-400'
+
+    // ★ 같은 도착일은 한 칸으로 묶어 표시 (날짜 1회 + 총합, 그 아래 패킹건별 줄)
+    const groups = groupByArrivalDate(items);
+    setIncomingCount(groups.length);
+
+    listEl.innerHTML = groups.map(g => {
+        const arrTone = g.arrivalLabel === '오늘' ? 'text-red-600 dark:text-red-400'
+            : (g.arrivalLabel === '내일' ? 'text-orange-600 dark:text-orange-400'
             : 'text-amber-700 dark:text-amber-300');
-        const qtyText = it.qty > 0 ? `, ${numFmt(it.qty)}개` : '';
-        const boxText = it.boxes > 0 ? `${numFmt(it.boxes)}박스` : '';
-        const detail = [boxText, qtyText.replace(/^,\s*/, '')].filter(Boolean).join(', ');
+        const totalText = qtyPartsText(g.totalBoxes, g.totalQty);
+        const lines = g.entries.map(it => {
+            const detail = qtyPartsText(it.boxes, it.qty);
+            return `<div class="text-[11px] leading-snug"><span class="font-bold">${escapeHtml(it.packDateText)} 패킹</span>${detail ? ` · <span class="opacity-90">${escapeHtml(detail)}</span>` : ''}</div>`;
+        }).join('');
+
         return `
-            <li class="flex items-baseline gap-2 px-3 py-2">
-                <span class="w-9 shrink-0 text-[11px] font-extrabold ${arrTone} whitespace-nowrap">${it.arrivalLabel}</span>
-                <span class="text-[12px] min-w-0"><span class="font-bold">${escapeHtml(it.packDateText)} 패킹</span> · <span class="opacity-95">${escapeHtml(detail)} 입고예정</span></span>
+            <li class="px-3 py-2">
+                <div class="flex items-baseline gap-2">
+                    <span class="shrink-0 text-[11px] font-extrabold ${arrTone} whitespace-nowrap">${g.arrivalLabel}</span>
+                    ${totalText ? `<span class="text-[11px] font-bold">총 ${escapeHtml(totalText)} 입고예정</span>` : ''}
+                </div>
+                <div class="mt-0.5 pl-1 space-y-0.5 opacity-90">${lines}</div>
             </li>
         `;
     }).join('');
