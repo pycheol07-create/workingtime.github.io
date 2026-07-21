@@ -1,9 +1,19 @@
 // === js/ui-history-prediction.js ===
-// 설명: '업무 예측' 탭의 UI 렌더링 및 차트 제어 + 업무량 시뮬레이션.
+// 설명: '실적 예측' 탭(매출/배송 AI 차트) + '업무 예상' 탭(오늘·내일 자동 예측 + 업무량 시뮬레이션).
+//  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
+//  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
 import { predictFutureTrends } from './analysis-logic.js';
 import * as State from './state.js';
 import { getTodayDateString, getRegularMembersForCount } from './utils.js';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js';
+
+/** 대상일(YYYY-MM-DD)에 도착 예정인 입고 수량 = 중국제작 자동값. 캐시에 없으면 0. */
+const getIncomingChinaForDate = (dateStr) => {
+    if (!dateStr) return 0;
+    const map = getIncomingQtyByDateFromCache();
+    return Math.round(Number(map[dateStr]) || 0);
+};
 
 // ───────────────────────────────────────────────────────────
 // 시뮬레이션 상수/헬퍼
@@ -204,6 +214,9 @@ const autoFillSimInputs = (dateStr) => {
 
     // 전량검수: row가 활성화된 경우에만 자동값 갱신
     if (isRowVisible('full'))   setQty('full',   compute7DayAvg(data, '전량검수'));
+
+    // 중국제작: 대시보드 입고일정(도착일 기준) 수량 자동 반영
+    setQty('china', getIncomingChinaForDate(dateStr));
 
     // 샘플검수: 중국제작 입력값에 따라 자동 표시·계산
     syncSampleFromChina(data);
@@ -428,6 +441,103 @@ const renderSimResult = (results, taskUPH, mode) => {
     }
 };
 
+// ───────────────────────────────────────────────────────────
+// 업무 예상 — 오늘·내일 자동 요약 예측
+// ───────────────────────────────────────────────────────────
+/** 대상일의 자동 추정 입력값(DOM 미의존). AI 국내배송 + 7일평균 + 입고일정 중국제작 + 휴무 반영 가용인원. */
+const computeAutoInputsForDate = (dateStr) => {
+    const data = State.allHistoryData;
+    const cfg = State.appConfig;
+    const china = getIncomingChinaForDate(dateStr);
+    const ratio = computeSampleRatio(data);
+    const tasks = {
+        '국내배송': getAIPredictedDomestic(data, dateStr),
+        '중국제작': china,
+        '샘플검수': china > 0 ? Math.round(ratio * china) : 0,
+        '직진배송': compute7DayAvg(data, '직진배송'),
+        '채우기':   compute7DayAvg(data, '채우기'),
+        '교환반품': compute7DayAvg(data, '교환반품'),
+        '전량검수': 0,
+        '국내기타': 0,
+        '국내제작': 0
+    };
+    const staffInfo = computeAvailableStaff(dateStr, cfg, State.persistentLeaveSchedule, data);
+    return { tasks, staffFulltime: staffInfo.available, staffPart: 0, staffInfo };
+};
+
+const forecastCardHtml = (label, r, inputs) => {
+    const gap = r.gap;
+    const toneBox = gap > 1 ? 'border-green-200 dark:border-green-800 bg-green-50/60 dark:bg-green-900/20'
+        : (gap < -1 ? 'border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-900/20'
+        : 'border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/20');
+    const china = inputs.tasks['중국제작'] || 0;
+    const chinaChip = china > 0
+        ? `<span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-100/70 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">🚚 중국제작 입고 ${china.toLocaleString()}개</span>`
+        : '';
+    const staffN = inputs.staffInfo ? inputs.staffInfo.available : r.availableTotal;
+    return `
+    <div class="rounded-xl border ${toneBox} p-4 md:p-5 shadow-sm depth-panel">
+        <div class="flex items-center justify-between mb-3 gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+                <span class="text-sm font-black text-gray-800 dark:text-white shrink-0">${label}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 truncate">${dayLabel(r.date)}</span>
+                ${r.weekend ? '<span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded shrink-0">주말</span>' : ''}
+            </div>
+            <span class="text-xs font-bold ${gapColor(gap)} shrink-0">${gapIcon(gap)} ${gapText(gap)}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+            <div class="bg-white/70 dark:bg-gray-800/60 rounded-lg p-3 text-center border border-gray-100 dark:border-gray-700">
+                <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">필요 인원</div>
+                <div class="text-2xl font-black text-gray-900 dark:text-white mt-0.5">${r.requiredFTE.toFixed(1)}<span class="text-xs font-bold ml-0.5">명</span></div>
+            </div>
+            <div class="bg-white/70 dark:bg-gray-800/60 rounded-lg p-3 text-center border border-gray-100 dark:border-gray-700">
+                <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">가용 인원</div>
+                <div class="text-2xl font-black text-gray-900 dark:text-white mt-0.5">${staffN.toFixed(1)}<span class="text-xs font-bold ml-0.5">명</span></div>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+            <span>총 소요 <b class="text-gray-700 dark:text-gray-200">${fmtH(r.totalHours)}</b></span>
+            <span class="text-gray-300 dark:text-gray-600">·</span>
+            <span>1일 ${r.dailyHours}h · 가동률 ${(UTILIZATION*100)|0}%</span>
+            ${chinaChip ? `<span class="w-full"></span>${chinaChip}` : ''}
+        </div>
+    </div>`;
+};
+
+/** 오늘·내일 자동 예측 2개 카드 렌더 */
+const renderForecastSummary = () => {
+    const el = document.getElementById('forecast-summary-cards');
+    if (!el) return;
+    const taskUPH = computeTaskUPHs(State.allHistoryData);
+    const cfg = State.appConfig;
+    const today = getTodayDateString();
+    const days = [{ label: '오늘', date: today }, { label: '내일', date: addDays(today, 1) }];
+    el.innerHTML = days.map(({ label, date }) => {
+        const inputs = computeAutoInputsForDate(date);
+        const r = simulateOneDay(date, inputs, taskUPH, cfg);
+        return forecastCardHtml(label, r, inputs);
+    }).join('');
+};
+
+/** '업무 예상' 탭 진입 시 호출: 시뮬레이션 리스너 결합 + 오늘/내일 요약 + 상세 자동값 채움 */
+export const renderForecastTab = () => {
+    setupSimulationListeners();
+
+    const dateEl = document.getElementById('sim-target-date');
+    if (dateEl && !dateEl.value) dateEl.value = getTodayDateString();
+    autoFillSimInputs(dateEl?.value);
+    renderForecastSummary();
+
+    const rBtn = document.getElementById('forecast-refresh-btn');
+    if (rBtn && !rBtn.dataset.bound) {
+        rBtn.dataset.bound = 'true';
+        rBtn.addEventListener('click', () => {
+            autoFillSimInputs(document.getElementById('sim-target-date')?.value);
+            renderForecastSummary();
+        });
+    }
+};
+
 const setupSimulationListeners = () => {
     const runBtn = document.getElementById('sim-run-btn');
     if (!runBtn) return; // panel not in DOM yet
@@ -437,9 +547,8 @@ const setupSimulationListeners = () => {
     const dateEl = document.getElementById('sim-target-date');
     if (dateEl) {
         if (!dateEl.value) {
-            // 기본값: 내일
-            const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-            dateEl.value = ymd(tomorrow);
+            // 기본값: 오늘 (요약 카드에서 오늘·내일을 함께 보여주므로 상세는 오늘 기준)
+            dateEl.value = getTodayDateString();
         }
         dateEl.addEventListener('change', () => autoFillSimInputs(dateEl.value));
     }
@@ -506,9 +615,7 @@ const formatDelivery = (val) => {
 };
 
 export const renderPredictionTab = (historyData, daysToPredict = 14) => {
-    // 시뮬레이션 섹션 리스너 결합 (예측 차트 가용 여부와 무관하게 항상 시도)
-    setupSimulationListeners();
-
+    // (업무량 시뮬레이션은 '업무 예상' 탭(renderForecastTab)으로 이동됨)
     const revenueCtx = document.getElementById('chart-prediction-revenue');
     const deliveryCtx = document.getElementById('chart-prediction-delivery');
 

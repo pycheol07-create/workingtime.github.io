@@ -7,7 +7,7 @@ import { renderDashboardTab } from './ui-history-dashboard.js';
 import { renderProductivityTab } from './ui-history-productivity.js';
 import { renderStaffingTab } from './ui-history-staffing.js';
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab } from './ui-history-prediction.js';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js';
 import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js';
 import * as UILeave from './ui-history-leave.js';
 import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js';
@@ -168,11 +168,25 @@ export function setupHistoryTabsListeners() {
             document.getElementById('productivity-panel').classList.toggle('hidden', tabName !== 'productivity');
             document.getElementById('staffing-panel').classList.toggle('hidden', tabName !== 'staffing');
             document.getElementById('prediction-panel').classList.toggle('hidden', tabName !== 'prediction');
+            const forecastPanel = document.getElementById('forecast-panel');
+            if (forecastPanel) forecastPanel.classList.toggle('hidden', tabName !== 'forecast');
             document.getElementById('rawdata-panel').classList.toggle('hidden', tabName !== 'rawdata');
             const milestonesPanel = document.getElementById('milestones-panel');
             if (milestonesPanel) milestonesPanel.classList.toggle('hidden', tabName !== 'milestones');
             const settlementPanel = document.getElementById('settlement-panel');
             if (settlementPanel) settlementPanel.classList.toggle('hidden', tabName !== 'settlement');
+
+            // 📐 업무 예상 탭: 오늘·내일 자동 예측 + 상세 시뮬레이션 (미래 기준이라 사이드바 숨김)
+            if (tabName === 'forecast') {
+                try {
+                    const sidebar = document.getElementById('history-global-sidebar');
+                    if (sidebar) sidebar.style.display = 'none';
+                    renderForecastTab();
+                } catch (err) {
+                    console.error('forecast tab render failed:', err);
+                }
+                return;
+            }
 
             // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
             if (tabName === 'milestones') {

@@ -200,6 +200,26 @@ function renderItems(items) {
 const escapeHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
 
 // ────────────────────────────────────────
+// 입고일정 캐시 조회 (업무 예상 시뮬레이션의 '중국제작' 자동입력용)
+//  - 대시보드 위젯이 저장해 둔 캐시에서 도착일(YYYY-MM-DD)별 입고 수량 합계를 반환.
+//  - 반환: { 'YYYY-MM-DD': totalQty, ... }  (데이터 없으면 빈 객체)
+// ────────────────────────────────────────
+export function getIncomingQtyByDateFromCache() {
+    const out = {};
+    try {
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+        if (!cached || !Array.isArray(cached.items)) return out;
+        cached.items.forEach(it => {
+            const d = new Date(it.arrivalDate);
+            if (isNaN(d.getTime())) return;
+            const key = ymd(d);
+            out[key] = (out[key] || 0) + (Number(it.qty) || 0);
+        });
+    } catch (_) {}
+    return out;
+}
+
+// ────────────────────────────────────────
 // 초기화 / 자동 갱신
 // ────────────────────────────────────────
 export function initIncomingScheduleWidget() {
