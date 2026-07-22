@@ -633,6 +633,33 @@ export async function renderMilestonesInsightWidget(containerEl) {
     });
 }
 
+// ============================================================
+// 📊 팀 결산 보고용 — 기간 내 마일스톤 결과 데이터 제공
+// ============================================================
+// 결산 보고 탭 진입 전 1회 호출: 마일스톤을 캐시에 로드.
+export async function ensureMilestonesLoaded() {
+    if (_milestones && _milestones.length > 0) return;
+    try {
+        const snap = await getDocs(colRef());
+        _milestones = [];
+        snap.forEach(d => _milestones.push({ id: d.id, ...d.data() }));
+        _milestones.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    } catch (e) {
+        console.error('ensureMilestonesLoaded failed:', e);
+    }
+}
+
+// 지정한 기간(from~to, 포함)에 발생한 마일스톤 + before/after 효과 요약 반환 (동기 — 캐시 사용).
+// windowDays: 전/후 비교 윈도우(일). 반환 항목마다 { milestone, typeInfo, summary } 구조.
+export function getMilestoneSummariesForPeriod(from, to, windowDays = 14) {
+    const inRange = (_milestones || []).filter(m => m.date && m.date >= from && m.date <= to);
+    return inRange.map(m => ({
+        milestone: m,
+        typeInfo: TYPE_LABELS[m.type] || TYPE_LABELS.memo,
+        summary: computeMilestoneSummary(m, windowDays)
+    }));
+}
+
 // 외부에서 자동 등록 트리거 (예: 로케이션 추천 엑셀 다운로드 후)
 window.suggestMilestoneFromRecommendation = function (extra = {}) {
     const today = getTodayDateString();
