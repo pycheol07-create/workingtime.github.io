@@ -560,8 +560,8 @@ export async function backfillFxRates(fromDate = '2026-06-01') {
             const cny = j && j.rates && j.rates.CNY;
             if (!krw) { fail++; continue; }
 
-            const usdRate = Math.round(krw);                 // 1 USD = ? 원
-            const cnyRate = cny ? Math.round(krw / cny) : 0;  // 1 CNY = ? 원
+            const usdRate = Math.round(krw * 100) / 100;                 // 1 USD = ? 원 (소수점 2자리)
+            const cnyRate = cny ? Math.round((krw / cny) * 100) / 100 : 0; // 1 CNY = ? 원 (소수점 2자리)
             const fxAt = Date.now();
             const payload = { management: { usdRate, cnyRate, fxAt, fxBackfilled: true } };
 

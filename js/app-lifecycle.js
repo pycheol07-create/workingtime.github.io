@@ -35,8 +35,9 @@ async function autoFetchDailyFx(todayKey) {
         const r = await fetch('https://open.er-api.com/v6/latest/USD', { cache: 'no-store' });
         const j = await r.json();
         if (!j || !j.rates || !j.rates.KRW) return;
-        const usdRate = Math.round(j.rates.KRW);                       // 1 USD = ? 원
-        const cnyRate = j.rates.CNY ? Math.round(j.rates.KRW / j.rates.CNY) : 0; // 1 CNY = ? 원
+        const round2 = (n) => Math.round(n * 100) / 100;
+        const usdRate = round2(j.rates.KRW);                                   // 1 USD = ? 원 (소수점 2자리)
+        const cnyRate = j.rates.CNY ? round2(j.rates.KRW / j.rates.CNY) : 0;   // 1 CNY = ? 원 (소수점 2자리)
         const fxAt = Date.now();
         const payload = { management: { usdRate, cnyRate, fxAt } };
 
@@ -105,8 +106,8 @@ async function autoBackfillMissingFx(todayKey) {
             const krw = j && j.rates && j.rates.KRW;
             const cny = j && j.rates && j.rates.CNY;
             if (!krw) continue; // 값 없음 → 전진하지 않고 다음 날짜
-            const usdRate = Math.round(krw);
-            const cnyRate = cny ? Math.round(krw / cny) : 0;
+            const usdRate = Math.round(krw * 100) / 100;              // 소수점 2자리
+            const cnyRate = cny ? Math.round((krw / cny) * 100) / 100 : 0;
             await setDoc(histRef, { management: { usdRate, cnyRate, fxAt: Date.now(), fxBackfilled: true } }, { merge: true });
             localStorage.setItem('fxLastFilledDate', date);
             ok++;
