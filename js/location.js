@@ -690,21 +690,22 @@ window.openRecommendModal = function() {
 };
 
 
+// ★ 피킹용/기타 구분 — 기타(비축·샘플·SAM 등)는 실제 피킹 랙이 아님.
+//   한 상품이 피킹용과 기타 두 군데에 있으면 '피킹용이 메인'이므로 피킹용만 기준으로 삼는다.
+//   (피킹용에 전혀 없고 기타에만 있는 상품은 기타를 기준으로 폴백)
+//   ※ 페어추천(showRecommendation)·단독추천(showSingleRecommendation) 양쪽에서 공용으로 사용.
+const isEtcLocObj = (d) => String(d.category || '피킹용').trim() === '기타' || /^SAM/i.test(String(d.id || '').trim());
+const getBaseLocsForCode = (code) => {
+    const all = originalData.filter(d => d.code === code);
+    const picking = all.filter(d => !isEtcLocObj(d));
+    return picking.length > 0 ? picking : all;
+};
+
 window.showRecommendation = function() {
     window.showLoading("💡 우선순위 알고리즘을 분석하여 최적의 로케이션을 매칭 중입니다...");
 
     setTimeout(() => {
         window.currentRecommendations = [];
-        
-        // ★ 피킹용/기타 구분 — 기타(비축·샘플·SAM 등)는 실제 피킹 랙이 아님.
-        //   한 상품이 피킹용과 기타 두 군데에 있으면 '피킹용이 메인'이므로 피킹용만 기준으로 삼는다.
-        //   (피킹용에 전혀 없고 기타에만 있는 상품은 기타를 기준으로 폴백)
-        const isEtcLocObj = (d) => (d.category || '피킹용') === '기타' || /^SAM/i.test((d.id || '').trim());
-        const getBaseLocsForCode = (code) => {
-            const all = originalData.filter(d => d.code === code);
-            const picking = all.filter(d => !isEtcLocObj(d));
-            return picking.length > 0 ? picking : all;
-        };
 
         // ★ 로케이션에 실제 존재하는 상품코드만 대상
         // ★ v3.53: 입고대기 남은 상품 제외 (곧 입고되므로 자리 이동 보류)
@@ -6041,7 +6042,7 @@ window.showSingleRecommendation = function() {
             allCodes.forEach(code => {
                 let zItem = zikjinData[code] || {};
                 let wItem = weeklyData[code] || {};
-                let locItem = originalData.find(d => d.code === code);
+                let locItem = getBaseLocsForCode(code)[0];
                 let name = (locItem && locItem.name) || zItem['상품명'] || wItem['상품명'] || '알 수 없음';
                 let zQty = Number(zItem['수량'] || 0);
                 let wQty = Number(wItem['기간배송수량'] || wItem['기간발주수량'] || 0);
@@ -6066,7 +6067,8 @@ window.showSingleRecommendation = function() {
                 let finalScore = (zScore * (window.recommendRatios.zikjin / 100)) + (wScore * (window.recommendRatios.weekly / 100)) + (tScore * (window.recommendRatios.trend / 100));
                 
                 if (finalScore > 0) {
-                    const currentLocs = originalData.filter(d => d.code === item.code).map(d => d.id);
+                    // ★ 피킹용이 메인 — 피킹용에 있으면 기타(T-01 등) 로케이션은 기준에서 제외
+                    const currentLocs = getBaseLocsForCode(item.code).map(d => d.id);
                     scoredItems.push({
                         code: item.code,
                         name: item.name,
@@ -6086,6 +6088,8 @@ window.showSingleRecommendation = function() {
             let emptyLocs = originalData.filter(d => {
                 const hasContent = (d.code && d.code !== d.id && d.code.trim() !== "") || (d.name && d.name.trim() !== "");
                 if (hasContent || d.preAssigned) return false;
+                // ★ 기타(비축·샘플·SAM)는 실제 피킹 랙이 아니므로 이동 추천 대상에서 제외
+                if (isEtcLocObj(d)) return false;
                 const excludeCombos = window.recommendPriorities.excludeCombos || [];
                 if (excludeCombos.length > 0) {
                     const prefix = (d.id || '').charAt(0).toUpperCase();
@@ -6178,7 +6182,7 @@ window.showSingleRecommendation = function() {
             };
             
             const getOptionByCode = (code) => {
-                const locData = originalData.find(d => d.code === code);
+                const locData = getBaseLocsForCode(code).find(d => d.option) || getBaseLocsForCode(code)[0];
                 return (locData && locData.option) ? locData.option : '';
             };
             
