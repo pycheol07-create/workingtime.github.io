@@ -31,12 +31,8 @@ window.sheetUrlBuy = '';
 
 window.visibleColumns = ['std_category', 'std_dong', 'std_pos', 'std_id', 'std_code', 'std_name', 'std_option', 'std_stock'];
 
-// ★ '대분류'는 체크박스 헤더 바로 다음(맨 앞)에 항상 위치하도록 강제
-function _pinCategoryFirst(arr) {
-    if (!Array.isArray(arr) || !arr.includes('std_category')) return arr;
-    return ['std_category', ...arr.filter(c => c !== 'std_category')];
-}
-window.excelHeaders = []; 
+// (컬럼 순서는 헤더 드래그앤드롭으로 사용자가 직접 정한다 → 대분류 강제 고정 규칙 제거)
+window.excelHeaders = [];
 
 window.isPreAssignMode = false;
 window.selectedPreAssignItem = null;
@@ -203,7 +199,8 @@ function setupRealtimeListenerA() {
             if (conf.sheetUrlOrder) window.sheetUrlOrder = conf.sheetUrlOrder;
             if (conf.sheetUrlBuy) window.sheetUrlBuy = conf.sheetUrlBuy;
             if (conf.sheetUrl && !conf.sheetUrlOrder) window.sheetUrlOrder = conf.sheetUrl;
-            if (conf.visibleColumns) window.visibleColumns = _pinCategoryFirst(conf.visibleColumns);
+            // ★ 사용자가 헤더를 드래그해 정한 순서를 그대로 사용 (대분류 강제 고정 해제)
+            if (conf.visibleColumns) window.visibleColumns = conf.visibleColumns;
             if (conf.excelHeaders) window.excelHeaders = conf.excelHeaders.filter(h => h && !h.includes('<') && !h.includes('>') && !h.includes('='));
             
             if (conf.recommendRatios) {
@@ -699,6 +696,16 @@ window.showRecommendation = function() {
     setTimeout(() => {
         window.currentRecommendations = [];
         
+        // ★ 피킹용/기타 구분 — 기타(비축·샘플·SAM 등)는 실제 피킹 랙이 아님.
+        //   한 상품이 피킹용과 기타 두 군데에 있으면 '피킹용이 메인'이므로 피킹용만 기준으로 삼는다.
+        //   (피킹용에 전혀 없고 기타에만 있는 상품은 기타를 기준으로 폴백)
+        const isEtcLocObj = (d) => (d.category || '피킹용') === '기타' || /^SAM/i.test((d.id || '').trim());
+        const getBaseLocsForCode = (code) => {
+            const all = originalData.filter(d => d.code === code);
+            const picking = all.filter(d => !isEtcLocObj(d));
+            return picking.length > 0 ? picking : all;
+        };
+
         // ★ 로케이션에 실제 존재하는 상품코드만 대상
         // ★ v3.53: 입고대기 남은 상품 제외 (곧 입고되므로 자리 이동 보류)
         const allCodes = new Set(
@@ -712,7 +719,7 @@ window.showRecommendation = function() {
 
         allCodes.forEach(code => {
             let zItem = zikjinData[code] || {}; let wItem = weeklyData[code] || {};
-            let locItem = originalData.find(d => d.code === code);
+            let locItem = getBaseLocsForCode(code)[0];
             let name = (locItem && locItem.name) || zItem['상품명'] || wItem['상품명'] || '알 수 없음';
             let zQty = Number(zItem['수량'] || 0); 
             let wQty = Number(wItem['기간배송수량'] || wItem['기간발주수량'] || 0); 
@@ -737,7 +744,7 @@ window.showRecommendation = function() {
             let finalScore = (zScore * (window.recommendRatios.zikjin / 100)) + (wScore * (window.recommendRatios.weekly / 100)) + (tScore * (window.recommendRatios.trend / 100));
 
             if (finalScore > 0) {
-                let currentLocs = originalData.filter(d => d.code === item.code).map(d => d.id).join(', ');
+                let currentLocs = getBaseLocsForCode(item.code).map(d => d.id).join(', ');
                 if (!currentLocs) currentLocs = '신규배치 (없음)';
                 // ★ 점수 내역 세부 저장 (툴팁용)
                 const zContrib = zScore * (window.recommendRatios.zikjin / 100);
@@ -755,6 +762,8 @@ window.showRecommendation = function() {
         let emptyLocs = originalData.filter(d => {
             const hasContent = (d.code && d.code !== d.id && d.code.trim() !== "") || (d.name && d.name.trim() !== "");
             if (hasContent || d.preAssigned) return false;
+            // ★ 기타(비축·샘플·SAM)는 실제 피킹 랙이 아니므로 이동 추천 대상에서 제외
+            if (isEtcLocObj(d)) return false;
             // ★ 구역+동 조합 제외
             const excludeCombos = window.recommendPriorities.excludeCombos || [];
             if (excludeCombos.length > 0) {
@@ -912,7 +921,8 @@ window.showRecommendation = function() {
             
             let item = scoredItems[i];
             
-            let currentLocsObjs = originalData.filter(d => d.code === item.code);
+            // ★ 피킹용이 메인 — 피킹용에 있으면 기타 로케이션은 기준에서 제외
+            let currentLocsObjs = getBaseLocsForCode(item.code);
             let currentDongsList = currentLocsObjs.map(d => (d.dong || '').toString().trim());
 
             let candidateIndices = [];
@@ -1387,15 +1397,15 @@ function renderTableHeader() {
     let popupHtml = '';
     
     window.visibleColumns.forEach(col => {
-        if (col === 'std_dong') { html += createTh('dong', '동', 80, true); popupHtml += `<div id="pop-dong" class="filter-popup"></div>`; }
-        else if (col === 'std_pos') { html += createTh('pos', '위치', 80, true); popupHtml += `<div id="pop-pos" class="filter-popup"></div>`; }
-        else if (col === 'std_id') { html += createTh('id', '로케이션', 150, true); popupHtml += `<div id="pop-id" class="filter-popup"></div>`; }
-        else if (col === 'std_category') { html += createTh('category', '대분류', 90, true); popupHtml += `<div id="pop-category" class="filter-popup"></div>`; }
-        else if (col === 'std_code') { html += createTh('code', '상품코드', 150, true); popupHtml += `<div id="pop-code" class="filter-popup"></div>`; }
-        else if (col === 'std_name') { html += createTh('name', '상품명', 'auto', true); popupHtml += `<div id="pop-name" class="filter-popup"></div>`; }
-        else if (col === 'std_option') { html += createTh('option', '옵션', 180, true); popupHtml += `<div id="pop-option" class="filter-popup"></div>`; }
-        else if (col === 'std_stock') { html += createTh('stock', '정상재고', 130, true); popupHtml += `<div id="pop-stock" class="filter-popup"></div>`; }
-        else if (col === 'std_stock2f') { html += createTh('stock2f', '2층창고재고', 130, true); popupHtml += `<div id="pop-stock2f" class="filter-popup"></div>`; }
+        if (col === 'std_dong') { html += createTh('dong', '동', 80, true, col); popupHtml += `<div id="pop-dong" class="filter-popup"></div>`; }
+        else if (col === 'std_pos') { html += createTh('pos', '위치', 80, true, col); popupHtml += `<div id="pop-pos" class="filter-popup"></div>`; }
+        else if (col === 'std_id') { html += createTh('id', '로케이션', 150, true, col); popupHtml += `<div id="pop-id" class="filter-popup"></div>`; }
+        else if (col === 'std_category') { html += createTh('category', '대분류', 90, true, col); popupHtml += `<div id="pop-category" class="filter-popup"></div>`; }
+        else if (col === 'std_code') { html += createTh('code', '상품코드', 150, true, col); popupHtml += `<div id="pop-code" class="filter-popup"></div>`; }
+        else if (col === 'std_name') { html += createTh('name', '상품명', 'auto', true, col); popupHtml += `<div id="pop-name" class="filter-popup"></div>`; }
+        else if (col === 'std_option') { html += createTh('option', '옵션', 180, true, col); popupHtml += `<div id="pop-option" class="filter-popup"></div>`; }
+        else if (col === 'std_stock') { html += createTh('stock', '정상재고', 130, true, col); popupHtml += `<div id="pop-stock" class="filter-popup"></div>`; }
+        else if (col === 'std_stock2f') { html += createTh('stock2f', '2층창고재고', 130, true, col); popupHtml += `<div id="pop-stock2f" class="filter-popup"></div>`; }
         else if (col.startsWith('cus_')) {
             const label = col.replace('cus_', '');
             // ★ 입고대기 컬럼에 툴팁 추가
@@ -1403,22 +1413,91 @@ function renderTableHeader() {
             if (label === '입고대기') {
                 displayLabel = `입고대기<span class="info-tip" data-tip-key="header-incoming">i<span class="info-tip-content">📦 <b>오더리스트 + 사입리스트 합계</b><br>입고대기 사이드바에 연동된 구글시트의 <b>미입고수량</b>을 상품코드 기준으로 합산한 값입니다.<br>(같은 상품코드의 옵션별 수량이 모두 더해집니다)</span></span>`;
             }
-            html += createTh(col, displayLabel, 120, true);
+            html += createTh(col, displayLabel, 120, true, col);
             popupHtml += `<div id="pop-${col}" class="filter-popup"></div>`;
         }
     });
-    
+
     theadTr.innerHTML = html;
     popupContainer.innerHTML = popupHtml;
-    
+
     document.querySelectorAll('.filter-popup').forEach(p => { p.addEventListener('click', function(e) { e.stopPropagation(); }); });
     setupFilterPopups();
+    setupHeaderDragAndDrop();
 }
 
-function createTh(key, label, width, hasFilter) {
+function createTh(key, label, width, hasFilter, colId) {
     let widthStyle = width === 'auto' ? '' : `style="width: ${width}px;"`;
     let filterHtml = hasFilter ? `<span class="filter-btn" id="btn-filter-${key}" onclick="toggleFilterPopup(event, 'pop-${key}')">▼</span>` : '';
-    return `<th ${widthStyle}><div class="th-content"><span class="title-text">${label}</span>${filterHtml}</div></th>`;
+    // ★ 드래그앤드롭으로 컬럼 순서 변경 가능하도록 표식 부여
+    const dragAttrs = colId ? ` draggable="true" data-col="${colId}" title="드래그해서 헤더 순서를 바꿀 수 있습니다"` : '';
+    return `<th ${widthStyle}${dragAttrs}><div class="th-content"><span class="title-text">${label}</span>${filterHtml}</div></th>`;
+}
+
+// ★ 헤더 드래그앤드롭 — th를 끌어다 놓으면 visibleColumns 순서를 바꾸고 저장한다.
+let _dragColId = null;
+function setupHeaderDragAndDrop() {
+    const theadTr = document.getElementById('dynamic-thead-tr');
+    if (!theadTr) return;
+    const clearMarks = () => theadTr.querySelectorAll('th').forEach(t => t.classList.remove('th-dragging', 'th-drop-left', 'th-drop-right'));
+
+    theadTr.querySelectorAll('th[data-col]').forEach(th => {
+        th.addEventListener('dragstart', (e) => {
+            _dragColId = th.dataset.col;
+            th.classList.add('th-dragging');
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', _dragColId); } catch (_) {}
+            }
+        });
+        th.addEventListener('dragend', () => { _dragColId = null; clearMarks(); });
+        th.addEventListener('dragover', (e) => {
+            if (!_dragColId || th.dataset.col === _dragColId) return;
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            const rect = th.getBoundingClientRect();
+            const after = (e.clientX - rect.left) > rect.width / 2;
+            th.classList.toggle('th-drop-right', after);
+            th.classList.toggle('th-drop-left', !after);
+        });
+        th.addEventListener('dragleave', () => th.classList.remove('th-drop-left', 'th-drop-right'));
+        th.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const targetCol = th.dataset.col;
+            const dragged = _dragColId;
+            clearMarks();
+            if (!dragged || targetCol === dragged) return;
+            const rect = th.getBoundingClientRect();
+            const after = (e.clientX - rect.left) > rect.width / 2;
+            moveVisibleColumn(dragged, targetCol, after);
+        });
+    });
+}
+
+function moveVisibleColumn(fromCol, toCol, placeAfter) {
+    const cols = (window.visibleColumns || []).slice();
+    const fromIdx = cols.indexOf(fromCol);
+    if (fromIdx === -1) return;
+    cols.splice(fromIdx, 1);
+    let toIdx = cols.indexOf(toCol);
+    if (toIdx === -1) return;
+    if (placeAfter) toIdx += 1;
+    cols.splice(toIdx, 0, fromCol);
+
+    window.visibleColumns = cols;
+    renderTableHeader();
+    applyFiltersAndSort();
+    saveVisibleColumnOrder(cols);
+}
+
+async function saveVisibleColumnOrder(cols) {
+    try {
+        await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { visibleColumns: cols }, { merge: true });
+        showToast('✅ 헤더 순서가 저장되었습니다.');
+    } catch (e) {
+        console.error('헤더 순서 저장 실패:', e);
+        showToast('⚠️ 헤더 순서 저장에 실패했습니다.');
+    }
 }
 
 window.openSettingsModal = (e) => {
@@ -1452,7 +1531,13 @@ window.openSettingsModal = (e) => {
 
 window.saveHeaderSettings = async () => {
     const checkboxes = document.querySelectorAll('.chk-header:checked');
-    const newVisible = _pinCategoryFirst(Array.from(checkboxes).map(cb => cb.value));
+    const checked = Array.from(checkboxes).map(cb => cb.value);
+    // ★ 드래그로 정해둔 기존 순서를 보존 — 이미 보이던 컬럼은 현재 순서 유지, 새로 켠 컬럼만 뒤에 추가
+    const prev = window.visibleColumns || [];
+    const newVisible = [
+        ...prev.filter(c => checked.includes(c)),
+        ...checked.filter(c => !prev.includes(c))
+    ];
 
     try {
         await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), {
