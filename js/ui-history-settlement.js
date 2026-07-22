@@ -404,6 +404,60 @@ function computeInspectionSummary(productHistoryCache, from, to) {
     };
 }
 
+// 마일스톤 유형별 운영방안 문구 (효과 방향에 따라)
+const MILESTONE_TYPE_ACTIONS = {
+    location_change: { good: '로케이션·동선 최적화 효과가 확인됐습니다. 동일한 배치 원칙을 유사 구역·품목으로 확대 적용하세요.', bad: '변경 후 처리 효율이 떨어졌습니다. 이전 로케이션으로의 부분 원복 또는 동선 재설계를 검토하세요.' },
+    staffing:        { good: '인력 구성 변경이 생산성에 긍정적으로 작용했습니다. 현재 인원 구성을 유지하고 피크 시간대 배치를 표준화하세요.', bad: '인력 변경 후 효율이 저하됐습니다. 교차 훈련으로 숙련도를 보강하거나 배치를 재조정하세요.' },
+    process:         { good: '프로세스 개선 효과가 확인됐습니다. 표준작업(SOP)으로 문서화해 전 인원에게 정착시키세요.', bad: '프로세스 변경이 오히려 효율을 떨어뜨렸습니다. 원복 후 병목 구간을 다시 분석하세요.' },
+    inflow:          { good: '입출고 패턴 변화가 처리에 유리하게 작용했습니다. 현재 입고 스케줄·물량 분산 방식을 유지하세요.', bad: '입출고 패턴 변화로 부하가 커졌습니다. 입고 평준화나 인력 사전 배치로 대응하세요.' },
+    policy:          { good: '정책 변경이 긍정적 효과를 냈습니다. 정책을 공식화하고 지속 모니터링하세요.', bad: '정책 변경 후 지표가 악화됐습니다. 정책 완화 또는 예외 기준 보완을 검토하세요.' },
+    system:          { good: '시스템·장비 변경 효과가 확인됐습니다. 안정화 후 유사 공정으로 확대 도입을 검토하세요.', bad: '시스템·장비 변경 후 효율이 낮아졌습니다. 설정 점검·교육 보강 또는 원복이 필요합니다.' },
+    memo:            { good: '변경 이후 지표가 개선됐습니다. 개선 요인을 구체적으로 파악해 재현 가능하도록 만드세요.', bad: '변경 이후 지표가 악화됐습니다. 원인을 파악해 조치하세요.' }
+};
+
+// 마일스톤 1건의 결과 해석 + 운영방안 생성
+function buildMilestoneInsight(it) {
+    const m = it.milestone;
+    const s = it.summary;
+    if (!s.hasEnoughData) {
+        return {
+            cls: 'insufficient',
+            interp: `전·후 관측 일수가 부족해(Before ${s.before.dayCount}일 / After ${s.after.dayCount}일) 아직 효과를 판정할 수 없습니다.`,
+            action: `기준일(${m.date}) 이후 데이터가 충분히 쌓이면 자동으로 재평가됩니다. 그때까지 기록을 계속 유지하세요.`
+        };
+    }
+    const uph = it.uphPct, qty = it.qtyPct;
+    const up = (uph !== null && uph > 0.5) || (qty !== null && qty > 0.5);
+    const down = (uph !== null && uph < -0.5) || (qty !== null && qty < -0.5);
+    let cls = 'flat';
+    if (up && !down) cls = 'good';
+    else if (down && !up) cls = 'bad';
+    else if (up && down) cls = 'mixed';
+
+    const parts = [];
+    if (uph !== null) parts.push(`시간당 처리(UPH) ${uph >= 0 ? '+' : ''}${uph.toFixed(1)}%`);
+    if (qty !== null) parts.push(`일평균 처리량 ${qty >= 0 ? '+' : ''}${qty.toFixed(1)}%`);
+    if (it.durPct !== null) parts.push(`작업시간 ${it.durPct >= 0 ? '+' : ''}${it.durPct.toFixed(1)}%`);
+    const metricTxt = parts.join(' · ');
+
+    const typeActions = MILESTONE_TYPE_ACTIONS[m.type] || MILESTONE_TYPE_ACTIONS.memo;
+    let interp, action;
+    if (cls === 'good') {
+        interp = `변경 후 ${metricTxt}로 개선됐습니다. 이 변경은 효과가 검증된 것으로 볼 수 있습니다.`;
+        action = typeActions.good;
+    } else if (cls === 'bad') {
+        interp = `변경 후 ${metricTxt}로 지표가 악화됐습니다. 변경이 부정적으로 작용했을 가능성이 높습니다.`;
+        action = typeActions.bad;
+    } else if (cls === 'mixed') {
+        interp = `변경 후 지표가 엇갈립니다(${metricTxt}). 인력·물량 등 외부 요인이 섞였을 수 있습니다.`;
+        action = '처리량과 UPH가 다른 방향인지, 물량·인력 변동 때문인지 요인을 분리해 재확인한 뒤 확대 여부를 결정하세요.';
+    } else {
+        interp = `변경 전후로 유의미한 지표 변화가 없습니다(${metricTxt}).`;
+        action = '효과가 제한적입니다. 이 변경만으로는 성과 개선이 어려우므로 다른 개선 레버를 함께 검토하세요.';
+    }
+    return { cls, interp, action };
+}
+
 // 기간 내 발생한 마일스톤 + before/after 효과 요약 (ui-history-milestones.js 재사용)
 function computeMilestoneSummaryForPeriod(from, to) {
     const items = getMilestoneSummariesForPeriod(from, to, 14);
@@ -413,7 +467,9 @@ function computeMilestoneSummaryForPeriod(from, to) {
         const uphPct = s.before.uph > 0 ? ((s.after.uph - s.before.uph) / s.before.uph * 100) : null;
         const qtyPct = s.before.avgQtyPerDay > 0 ? ((s.after.avgQtyPerDay - s.before.avgQtyPerDay) / s.before.avgQtyPerDay * 100) : null;
         const durPct = s.before.avgDurationPerDay > 0 ? ((s.after.avgDurationPerDay - s.before.avgDurationPerDay) / s.before.avgDurationPerDay * 100) : null;
-        return { ...it, uphPct, qtyPct, durPct };
+        const enriched = { ...it, uphPct, qtyPct, durPct };
+        enriched.insight = buildMilestoneInsight(enriched);
+        return enriched;
     }).sort((a, b) => {
         // 데이터 충분한 것 우선, 그다음 최신순
         if (a.summary.hasEnoughData !== b.summary.hasEnoughData) return a.summary.hasEnoughData ? -1 : 1;
@@ -421,8 +477,8 @@ function computeMilestoneSummaryForPeriod(from, to) {
     });
 
     const measured = withStats.filter(it => it.summary.hasEnoughData);
-    const positive = measured.filter(it => (it.uphPct !== null && it.uphPct > 0.5) || (it.qtyPct !== null && it.qtyPct > 0.5));
-    const negative = measured.filter(it => (it.uphPct !== null && it.uphPct < -0.5) && (it.qtyPct === null || it.qtyPct <= 0.5));
+    const positive = measured.filter(it => it.insight.cls === 'good');
+    const negative = measured.filter(it => it.insight.cls === 'bad');
 
     return { items: withStats, total: withStats.length, measuredCount: measured.length, positiveCount: positive.length, negativeCount: negative.length };
 }
@@ -486,12 +542,65 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
         else points.push({ tone: 'gray', icon: '📍', text: `운영 마일스톤 ${ms.measuredCount}건의 효과는 뚜렷한 방향성 없이 혼재되어 있습니다.` });
     }
 
+    // ============================================================
+    // 이후 운영 계획 / 방향 (진단값 기반 실행 과제)
+    // ============================================================
+    const plans = []; // { icon, title, text }
+
+    // A) 생산성·OEE 개선 — 가장 큰 손실 항목을 지목해 우선 과제화
+    const losses = [
+        { key: '가용 손실', cost: core.curProd.availabilityLossCost || 0, tip: '근무 시작 지연·대기·비가동 시간을 줄이도록 작업 준비·전환 시간을 단축하고 시작 시간을 앞당기세요.' },
+        { key: '성능 손실', cost: core.curProd.performanceLossCost || 0, tip: '표준 속도 대비 느린 상위 업무의 병목을 개선하고 속도 저하 원인(동선·장비·숙련도)을 제거하세요.' },
+        { key: '품질 손실', cost: core.curProd.qualityLossCost || 0, tip: '재작업·불량을 줄이도록 작업 표준과 자체 검수 기준을 강화하세요.' }
+    ].sort((a, b) => b.cost - a.cost);
+    const topLoss = losses[0];
+    let oeeTarget;
+    if (oee < 60) oeeTarget = '60% 이상';
+    else if (oee < 80) oeeTarget = `${Math.min(85, Math.ceil((oee + 5) / 5) * 5)}%`;
+    else oeeTarget = '현 수준(80%+) 유지';
+    let planText = `다음 기간 OEE 목표를 <b>${oeeTarget}</b>로 설정하세요.`;
+    if (topLoss && topLoss.cost > 0) planText += ` 현재 손실 비중이 가장 큰 <b>${topLoss.key}(${fmt(topLoss.cost)}원)</b>부터 집중 개선합니다 — ${topLoss.tip}`;
+    plans.push({ icon: '🎯', title: '생산 효율(OEE) 개선', text: planText });
+
+    // B) 물량 대응
+    if (qtyPct !== null && qtyPct <= -5) plans.push({ icon: '📦', title: '물량 회복', text: `처리량 감소가 발주·입고 물량 자체의 감소인지, 처리 지연인지 구분해 원인을 규명하세요. 물량 요인이면 영업·발주와 협의하고, 처리 요인이면 병목 업무에 인력을 우선 배치하세요.` });
+    else if (qtyPct !== null && qtyPct >= 10) plans.push({ icon: '📦', title: '증가 물량 대응', text: `물량이 뚜렷이 늘고 있습니다. 피크일 기준으로 인력·작업 공간·검수 캐파를 사전 확보해 처리 지연과 품질 저하를 예방하세요.` });
+
+    // C) 인력 운영 방향
+    if (core.curProd.requiredFTE > 0) {
+        const gapPct = (core.curProd.workedFTE - core.curProd.requiredFTE) / core.curProd.requiredFTE * 100;
+        if (gapPct > 15) plans.push({ icon: '👥', title: '인력 배치 효율화', text: `표준 대비 인력이 ${gapPct.toFixed(0)}% 초과 투입됐습니다. 저부하 시간대 인원을 축소하거나 고부하 업무로 재배치하고, 파트타이머 투입을 물량에 연동해 조정하세요.` });
+        else if (gapPct < -15) plans.push({ icon: '👥', title: '과부하 예방', text: `표준보다 적은 인력으로 운영되고 있어 특정 인원 과부하·번아웃 위험이 있습니다. 교차 훈련으로 대체 가능 인력을 늘리고 핵심 업무의 백업 인원을 확보하세요.` });
+    }
+
+    // D) 근태 관리
+    if (absence + late >= 5) plans.push({ icon: '🕒', title: '근태 관리', text: `결근·지각이 집중된 인원을 식별해 1:1 면담과 원인 파악을 진행하고, 반복 시 근태 기준·교대 방식을 재점검하세요.` });
+
+    // E) 품질/공급처
+    if (insp.totalInspectionCount > 0 && insp.qtyDefectRate >= 5) plans.push({ icon: '🔍', title: '입고 품질 개선', text: `불량률이 높습니다. 상위 불량사유(${insp.topReasons.slice(0, 2).map(r => r[0]).join(', ') || '기타'})와 불량 상위 제품을 공급처에 피드백하고, 재발 시 발주 조건·검수 강화 등 조치 기준을 마련하세요.` });
+
+    // F) 마일스톤 운영 방향
+    if (ms.total === 0) {
+        plans.push({ icon: '📍', title: '변경 이력 관리', text: `이 기간 등록된 운영 마일스톤이 없습니다. 로케이션·인력·프로세스 변경 시 마일스톤을 등록하면 다음 결산에서 효과를 정량적으로 검증할 수 있습니다.` });
+    } else {
+        if (ms.positiveCount > 0) plans.push({ icon: '📍', title: '검증된 개선 확산', text: `효과가 확인된 마일스톤 ${ms.positiveCount}건은 표준작업으로 문서화해 유사 공정·구역으로 확대 적용하세요.` });
+        if (ms.negativeCount > 0) plans.push({ icon: '📍', title: '부정 변경 보완', text: `부정적 변화가 나타난 ${ms.negativeCount}건은 원복 또는 보완안을 마련하고, 조치 후 효과를 다시 추적하세요.` });
+        if (ms.measuredCount < ms.total) plans.push({ icon: '📍', title: '효과 관측 지속', text: `아직 판정되지 않은 마일스톤은 데이터가 쌓이는 대로 재평가하고, 최소 2~4주간 지표 변화를 지켜본 뒤 존치 여부를 결정하세요.` });
+    }
+
     // 최종 판정
     let verdict = { icon: '🟢', text: '양호', bg: 'bg-emerald-500' };
     if (oee < 60 || (qtyPct !== null && qtyPct <= -10) || insp.qtyDefectRate >= 8) verdict = { icon: '🔴', text: '주의 필요', bg: 'bg-red-500' };
     else if (oee < 80 || (qtyPct !== null && qtyPct < 0) || insp.qtyDefectRate >= 5) verdict = { icon: '🟡', text: '보통', bg: 'bg-amber-500' };
 
-    return { verdict, points };
+    // 판정 요약 한 줄
+    const verdictSummary = verdict.text === '주의 필요'
+        ? '핵심 지표에 하락·위험 신호가 있어 즉각적인 개선 조치가 필요한 기간입니다.'
+        : (verdict.text === '보통'
+            ? '전반적으로 안정적이나 일부 지표에 개선 여지가 있어 관리가 필요한 기간입니다.'
+            : '주요 지표가 양호하게 유지된 기간으로, 현재 운영 수준을 지키며 점진적 개선을 이어갈 시점입니다.');
+
+    return { verdict, verdictSummary, points, plans };
 }
 
 // ============================================================
@@ -980,9 +1089,38 @@ function renderMilestoneSection(ms) {
             rows,
             'max-h-[360px]'
         )}
-        <div class="mt-3 text-[11px] text-gray-400 leading-relaxed">
+        <div class="mt-3 mb-5 text-[11px] text-gray-400 leading-relaxed">
             ℹ️ 각 마일스톤 기준일의 전 14일 ↔ 후 14일 평균을 비교합니다. 관측 일수가 적은 항목은 "데이터 누적 중"으로 표시됩니다.<br>
             ℹ️ UPH·처리량 "✅"는 개선(증가), "⚠️"는 악화(감소)를 의미합니다.
+        </div>
+
+        <div class="text-xs font-bold text-gray-600 mb-2">🧩 결과 해석 및 운영방안</div>
+        <div class="space-y-2.5">
+            ${ms.items.map(it => {
+                const clsTone = {
+                    good: 'bg-emerald-50 border-emerald-200',
+                    bad: 'bg-red-50 border-red-200',
+                    mixed: 'bg-amber-50 border-amber-200',
+                    flat: 'bg-gray-50 border-gray-200',
+                    insufficient: 'bg-gray-50 border-dashed border-gray-300'
+                }[it.insight.cls] || 'bg-gray-50 border-gray-200';
+                const badge = {
+                    good: '<span class="text-emerald-700 font-bold">✅ 효과 확인</span>',
+                    bad: '<span class="text-red-600 font-bold">⚠️ 부정적</span>',
+                    mixed: '<span class="text-amber-700 font-bold">↔️ 혼재</span>',
+                    flat: '<span class="text-gray-500 font-bold">— 변화 미미</span>',
+                    insufficient: '<span class="text-gray-400 font-bold">⏳ 관측 중</span>'
+                }[it.insight.cls] || '';
+                return `
+                <div class="rounded-lg border ${clsTone} p-3">
+                    <div class="flex items-center justify-between flex-wrap gap-1 mb-1">
+                        <div class="text-xs font-bold text-gray-800">${esc(it.typeInfo.label)} · ${esc(it.milestone.title || '-')} <span class="text-[10px] text-gray-400 font-mono ml-1">${esc(it.milestone.date)}</span></div>
+                        <div class="text-[11px]">${badge}</div>
+                    </div>
+                    <div class="text-[12px] text-gray-700 leading-relaxed"><b class="text-gray-500">해석:</b> ${it.insight.interp}</div>
+                    <div class="text-[12px] text-gray-700 leading-relaxed mt-0.5"><b class="text-gray-500">운영방안:</b> ${it.insight.action}</div>
+                </div>`;
+            }).join('')}
         </div>
     `;
     return sectionPanel('📍', '운영 마일스톤 결과', '기간 내 변경사항의 전·후 효과', body, 'border-l-teal-500');
@@ -1003,15 +1141,32 @@ function renderOverallOpinionSection(op, periodLabel, workingDaysCount) {
             <span class="text-sm text-gray-700 leading-relaxed">${p.text}</span>
         </li>`).join('');
 
+    const plansHtml = (op.plans || []).map((pl, i) => `
+        <li class="flex items-start gap-3 bg-slate-50 rounded-lg border border-slate-200 p-3">
+            <span class="shrink-0 w-6 h-6 rounded-full bg-slate-700 text-white text-xs font-bold flex items-center justify-center">${i + 1}</span>
+            <div>
+                <div class="text-sm font-bold text-gray-800 mb-0.5">${pl.icon} ${esc(pl.title)}</div>
+                <div class="text-[13px] text-gray-700 leading-relaxed">${pl.text}</div>
+            </div>
+        </li>`).join('');
+
     const body = `
-        <div class="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100">
+        <div class="flex items-center gap-3 mb-3 flex-wrap">
             <span class="inline-flex items-center gap-1.5 ${op.verdict.bg} text-white text-sm font-bold px-3 py-1.5 rounded-full shadow">${op.verdict.icon} 종합 판정: ${op.verdict.text}</span>
             <span class="text-xs text-gray-400">${esc(periodLabel)} 운영 전반에 대한 자동 진단</span>
         </div>
+        ${op.verdictSummary ? narrative(`<b>총평.</b> ${esc(op.verdictSummary)}`, op.verdict.text === '주의 필요' ? 'red' : (op.verdict.text === '보통' ? 'amber' : 'emerald')) : ''}
+
+        <div class="text-xs font-bold text-gray-600 mt-5 mb-2">🔎 진단값 해석</div>
         <ul class="space-y-3">${pointsHtml}</ul>
-        <div class="mt-4 text-[11px] text-gray-400">※ 본 종합의견은 각 섹션 지표를 규칙 기반으로 자동 요약한 것으로, 실제 현장 상황과 함께 해석하시기 바랍니다.</div>
+
+        ${plansHtml ? `
+        <div class="text-xs font-bold text-gray-600 mt-6 mb-2">📋 이후 운영 계획 / 방향</div>
+        <ol class="space-y-2.5">${plansHtml}</ol>` : ''}
+
+        <div class="mt-4 text-[11px] text-gray-400">※ 본 종합의견·운영계획은 각 섹션 지표를 규칙 기반으로 자동 요약·제안한 것으로, 실제 현장 상황과 함께 판단하시기 바랍니다.</div>
     `;
-    return sectionPanel('🧭', '종합 의견', '기간 전체 진단', body, 'border-l-slate-500');
+    return sectionPanel('🧭', '종합 의견', '진단 · 해석 · 운영계획', body, 'border-l-slate-500');
 }
 
 // ============================================================
@@ -1055,8 +1210,14 @@ function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, m
                     ? `UPH ${it.uphPct !== null ? (it.uphPct >= 0 ? '+' : '') + it.uphPct.toFixed(1) + '%' : '-'} / 처리량 ${it.qtyPct !== null ? (it.qtyPct >= 0 ? '+' : '') + it.qtyPct.toFixed(1) + '%' : '-'}`
                     : `데이터 부족(${it.summary.statusLabel})`
             ]),
+            ...ms.items.map(it => ['마일스톤 운영방안',
+                `${it.milestone.date} ${it.milestone.title || ''}`.trim(),
+                `[해석] ${it.insight.interp} [운영방안] ${it.insight.action}`
+            ]),
             ...(opinion.verdict ? [['종합의견', '종합 판정', opinion.verdict.text]] : []),
-            ...(opinion.points || []).map((p, i) => ['종합의견', `의견 ${i + 1}`, String(p.text).replace(/<[^>]+>/g, '')])
+            ...(opinion.verdictSummary ? [['종합의견', '총평', opinion.verdictSummary]] : []),
+            ...(opinion.points || []).map((p, i) => ['종합의견', `진단 해석 ${i + 1}`, String(p.text).replace(/<[^>]+>/g, '')]),
+            ...(opinion.plans || []).map((pl, i) => ['운영계획', `${i + 1}. ${pl.title}`, String(pl.text).replace(/<[^>]+>/g, '')])
         ];
 
         const worksheet = XLSX.utils.aoa_to_sheet(rows);
