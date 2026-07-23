@@ -3671,6 +3671,26 @@ if (fileInputOrders) {
     });
 }
 
+// 💰 읽기 요금 최적화: ProcessedOrders 전체 스캔 대신 "업로드 파일의 주문번호"만 조회.
+// 기존엔 getDocs(collection) 로 누적된 모든 처리주문(수만 건)을 매 업로드마다 읽어 읽기 폭탄이었음.
+// documentId() in [...] 배치 쿼리는 실제로 존재(중복)하는 문서만 읽으므로,
+// 읽기량이 "누적 전체"가 아니라 "이번 파일과 겹치는 소수"에만 비례한다.
+async function fetchExistingProcessedOrders(orderNos) {
+    const existing = new Set();
+    const CHUNK = 30;       // Firestore 'in' 최대 30개
+    const CONCURRENCY = 10; // 동시 쿼리 수 제한 (과다 병렬 방지)
+    const chunks = [];
+    for (let i = 0; i < orderNos.length; i += CHUNK) chunks.push(orderNos.slice(i, i + CHUNK));
+    for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+        const group = chunks.slice(i, i + CONCURRENCY);
+        const snaps = await Promise.all(group.map(ids =>
+            getDocs(query(collection(db, PROCESSED_ORDERS_COLL), where(documentId(), 'in', ids)))
+        ));
+        snaps.forEach(snap => snap.forEach(d => existing.add(d.id)));
+    }
+    return existing;
+}
+
 // 주문 데이터 처리: 중복 검사 → 신규만 자동 누적 저장
 window.processOrderData = async function(rows) {
     try {
@@ -3694,10 +3714,9 @@ window.processOrderData = async function(rows) {
         }
 
         // 2. 기존 ProcessedOrders 조회 (중복 업로드 방지)
+        // 💰 전체 스캔 대신 이번 파일의 주문번호만 조회 → 읽기 요금 대폭 절감
         window.showLoading('💾 중복 주문 검사 중...');
-        const processedSet = new Set();
-        const processedSnap = await getDocs(collection(db, PROCESSED_ORDERS_COLL));
-        processedSnap.forEach(d => { processedSet.add(d.id); });
+        const processedSet = await fetchExistingProcessedOrders(orderNos);
 
         // 3. 신규 주문만 필터링
         const targetOrderNos = orderNos.filter(ono => !processedSet.has(ono));
