@@ -534,19 +534,15 @@
                     <div style="padding: 8px 15px; background: #eceff1; font-size: 12px; color: #546e7a; font-weight: bold; border-top: 1px solid #ddd;">💡 로케이션 변경 추천</div>
     
                    <label style="border-bottom: 1px solid #eee;" for="excel-upload-zikjin">
-                        <span style="color:#1976d2;">📂 1-1. 직진배송 데이터 업로드<span class="info-tip" data-tip-key="menu-zikjin" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📂 <b>직진배송 데이터</b><br>직진배송 엑셀 파일을 업로드합니다.<br><br>점수 계산의 <b>'ZG&AB 출고'</b> 항목(직진+에이블리 합산)에 사용됩니다.</span></span></span>
+                        <span style="color:#1976d2;">📂 1-1. ZG&AB 출고 데이터 업로드<span class="info-tip" data-tip-key="menu-zikjin" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📂 <b>ZG&AB 출고 데이터</b><br>직진+에이블리 출고를 합친 엑셀 파일(상품코드 + 수량 또는 날짜별 컬럼)을 업로드합니다.<br><br>점수 계산의 <b>'ZG&AB 출고'</b> 항목에 사용됩니다.</span></span></span>
                         <input type="file" id="excel-upload-zikjin" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
-                    <label style="border-bottom: 1px solid #eee;" for="excel-upload-ably">
-                        <span style="color:#00897b;">📂 1-2. 에이블리 데이터 업로드<span class="info-tip" data-tip-key="menu-ably" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📂 <b>에이블리 데이터</b><br>에이블리 출고 엑셀 파일(상품코드 + 수량 또는 날짜별 컬럼)을 업로드합니다.<br><br>점수 계산의 <b>'ZG&AB 출고'</b> 항목(직진+에이블리 합산)에 사용됩니다.</span></span></span>
-                        <input type="file" id="excel-upload-ably" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
-                    </label>
                     <label style="border-bottom: 1px solid #eee;" for="excel-upload-weekly">
-                        <span style="color:#d32f2f;">📂 1-3. 주차별 데이터 업로드<span class="info-tip" data-tip-key="menu-weekly" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📂 <b>주차별 데이터</b><br>주차별 배송/발주 엑셀 파일을 업로드합니다.<br><br>점수 계산의 <b>'주차별'</b> 및 <b>'상승세'</b> 항목에 사용됩니다.</span></span></span>
+                        <span style="color:#d32f2f;">📂 1-2. 주차별 데이터 업로드<span class="info-tip" data-tip-key="menu-weekly" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📂 <b>주차별 데이터</b><br>주차별 배송/발주 엑셀 파일을 업로드합니다.<br><br>점수 계산의 <b>'주차별'</b> 및 <b>'상승세'</b> 항목에 사용됩니다.</span></span></span>
                         <input type="file" id="excel-upload-weekly" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
                     <label style="border-bottom: 1px solid #eee;" for="excel-upload-orders">
-                        <span style="color:#7b1fa2;">📦 1-4. 주문 데이터 업로드 (동선 분석용)<span class="info-tip" data-tip-key="menu-orders" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📦 <b>주문 데이터 업로드</b><br>재고관리 시스템에서 다운로드한 확장주문검색 엑셀 파일을 업로드합니다.<br><br>같은 주문번호로 함께 산 상품 페어를 누적 분석하여, 피킹 작업자의 동선을 줄이는 데 사용됩니다.<br><br>※ 매일 업로드 가능. 누적 통계로 저장됩니다.</span></span></span>
+                        <span style="color:#7b1fa2;">📦 1-3. 주문 데이터 업로드 (동선 분석용)<span class="info-tip" data-tip-key="menu-orders" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📦 <b>주문 데이터 업로드</b><br>재고관리 시스템에서 다운로드한 확장주문검색 엑셀 파일을 업로드합니다.<br><br>같은 주문번호로 함께 산 상품 페어를 누적 분석하여, 피킹 작업자의 동선을 줄이는 데 사용됩니다.<br><br>※ 매일 업로드 가능. 누적 통계로 저장됩니다.</span></span></span>
                         <input type="file" id="excel-upload-orders" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
     

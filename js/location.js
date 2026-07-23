@@ -6,9 +6,8 @@ const { db, auth } = initializeFirebase();
 const LOC_COLLECTION = 'Locations';
 
 let originalData = []; 
-let zikjinData = {};
+let zikjinData = {}; // ZG&AB 출고 (직진+에이블리 합본)
 let weeklyData = {}; // 주차별
-let ablyData = {};   // 에이블리 (직진과 합쳐 'ZG&AB 출고'로 점수 계산)
 let incomingData = {};
 let incomingTotalByCode = {}; // ★ 상품코드별 입고대기 합계 (오더+사입)
 let customTooltips = {}; // ★ v3.53: 사용자 정의 툴팁 { key: html_content, "__deleted__keyName": true }
@@ -149,23 +148,6 @@ function setupRealtimeListenerB() {
         });
         applyFiltersAndSort();
     }, (error) => console.error("주차별데이터 오류:", error));
-
-    onSnapshot(collection(db, 'AblyData'), (snapshot) => {
-        ablyData = {};
-        snapshot.forEach(docSnap => {
-            let data = docSnap.data();
-            if(data.dataStr) {
-                try {
-                    let chunk = JSON.parse(data.dataStr);
-                    chunk.forEach(row => {
-                        let code = (row['상품코드'] || row['어드민상품코드'] || row['대표상품코드'] || row['품목코드'] || row['바코드'] || row['상품번호']);
-                        if(code) ablyData[code] = row;
-                    });
-                } catch(e){}
-            }
-        });
-        applyFiltersAndSort();
-    }, (error) => console.error("에이블리데이터 오류:", error));
 
     onSnapshot(collection(db, 'IncomingData'), (snapshot) => {
         incomingData = {};
@@ -731,16 +713,13 @@ function _ablyQtyFromItem(aItem) {
 }
 
 // 상품코드의 수요 지표 추출 (두 추천 경로 공용):
-//   - zgQty: ZG&AB 출고 = 직진(ZikjinData '수량') + 에이블리(AblyData) 합산
+//   - zgQty: ZG&AB 출고 = 직진+에이블리 합본 파일(ZikjinData) 의 수량/날짜컬럼합
 //   - wQty : 주차별(WeeklyData '기간배송수량/기간발주수량')
 //   - trendVal: 상승세 = 주차별 날짜별(YYYYMMDD) 컬럼의 최근3 - 이전3
 function _getDemandForCode(code) {
-    const zItem = zikjinData[code] || {};
-    const aItem = ablyData[code] || {};
+    const zItem = zikjinData[code] || {}; // ZG&AB 출고 (직진+에이블리 합본 파일 → 직진 슬롯 업로드)
     const wItem = weeklyData[code] || {};
-    const zQty = Number(zItem['수량'] || 0);
-    const abQty = _ablyQtyFromItem(aItem);
-    const zgQty = zQty + abQty;
+    const zgQty = _ablyQtyFromItem(zItem); // 수량 || 날짜별 컬럼 합계 || 기간배송수량
     const wQty = Number(wItem['기간배송수량'] || wItem['기간발주수량'] || 0);
     let trendVal = 0;
     const dates = Object.keys(wItem).filter(k => /^20\d{6}$/.test(k)).sort();
@@ -750,8 +729,8 @@ function _getDemandForCode(code) {
         trendVal = Math.max(0, recent3 - prev3);
     }
     const locItem = getBaseLocsForCode(code)[0];
-    const name = (locItem && locItem.name) || zItem['상품명'] || aItem['상품명'] || wItem['상품명'] || '알 수 없음';
-    return { name, zQty, abQty, zgQty, wQty, trendVal };
+    const name = (locItem && locItem.name) || zItem['상품명'] || wItem['상품명'] || '알 수 없음';
+    return { name, zgQty, wQty, trendVal };
 }
 
 window.showRecommendation = function() {
@@ -776,7 +755,7 @@ window.showRecommendation = function() {
             if (dm.zgQty > maxZQty) maxZQty = dm.zgQty; // maxZQty = ZG&AB 출고 최대
             if (dm.wQty > maxWQty) maxWQty = dm.wQty;
             if (dm.trendVal > maxTrend) maxTrend = dm.trendVal;
-            itemDataList.push({ code, name: dm.name, zQty: dm.zQty, abQty: dm.abQty, zgQty: dm.zgQty, wQty: dm.wQty, trendVal: dm.trendVal });
+            itemDataList.push({ code, name: dm.name, zgQty: dm.zgQty, wQty: dm.wQty, trendVal: dm.trendVal });
         });
 
         let scoredItems = [];
@@ -795,7 +774,7 @@ window.showRecommendation = function() {
                 const tContrib = tScore * (window.recommendRatios.trend / 100);
                 scoredItems.push({
                     code: item.code, name: item.name, score: finalScore, currentLocs,
-                    zQty: item.zQty, abQty: item.abQty, zgQty: item.zgQty, wQty: item.wQty, trendVal: item.trendVal,
+                    zgQty: item.zgQty, wQty: item.wQty, trendVal: item.trendVal,
                     zContrib, wContrib, tContrib
                 });
             }
@@ -1071,7 +1050,7 @@ window.showRecommendation = function() {
                 const moveQtyDisplay = moveQty > 0 ? `<span style="color:#e65100; font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:#888;">개</span>` : `<span style="color:#bbb; font-size:12px;">-</span>`;
 
                 // ★ 점수 세부 툴팁 HTML (html += 윗줄에 선언)
-                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(직진 ${Number(item.zQty||0).toLocaleString()}+에이블리 ${Number(item.abQty||0).toLocaleString()})</span><br>• 주차별:${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
                 // v3.98: 페어 보정 배지
                 let pairBadgeHtml = '';
@@ -3595,9 +3574,8 @@ const universalExcelReader = (file) => {
 const _uploadHeaderGuide = {
     'permanent': '로케이션, 동, 위치, 칸수, 대분류(피킹/기타, 선택)',
     'daily':     '로케이션, 상품코드, 상품명, 옵션, 정상재고, 2층창고재고',
-    'zikjin':    '상품코드(또는 어드민상품코드/대표상품코드 등), 수량',
-    'weekly':    '상품코드(또는 어드민상품코드/대표상품코드 등), 기간배송수량 또는 기간발주수량',
-    'ably':      '상품코드(또는 어드민상품코드/대표상품코드 등), 수량 또는 날짜별(YYYYMMDD) 배송수량 컬럼'
+    'zikjin':    '상품코드(또는 어드민상품코드/대표상품코드 등), 수량 또는 날짜별(YYYYMMDD) 출고수량 컬럼',
+    'weekly':    '상품코드(또는 어드민상품코드/대표상품코드 등), 기간배송수량 또는 기간발주수량'
 };
 
 function _showUploadDiagnosisAlert(diagnosis, uploadType) {
@@ -3651,19 +3629,6 @@ if (fileInputWeekly) {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) await updateDatabaseB(result.rows, 'WeeklyData', e.target, false);
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'weekly'); e.target.value=''; }
-        } catch(err) { window.hideLoading(); alert("오류 발생"); e.target.value=''; }
-    });
-}
-
-const fileInputAbly = document.getElementById('excel-upload-ably');
-if (fileInputAbly) {
-    fileInputAbly.addEventListener('change', async function(e) {
-        const file = e.target.files[0]; if (!file) return;
-        window.showLoading('에이블리 데이터를 분석 중입니다...');
-        try {
-            const result = await universalExcelReader(file);
-            if(result.rows.length > 0) await updateDatabaseB(result.rows, 'AblyData', e.target, false);
-            else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'ably'); e.target.value=''; }
         } catch(err) { window.hideLoading(); alert("오류 발생"); e.target.value=''; }
     });
 }
@@ -4119,7 +4084,7 @@ window.resetOrderAnalysis = async function() {
 };
 
 async function updateDatabaseB(rows, collectionName, inputElement, silent = false) {
-    let label = collectionName === 'ZikjinData' ? '직진배송' : (collectionName === 'WeeklyData' ? '주차별' : (collectionName === 'AblyData' ? '에이블리' : '데이터'));
+    let label = collectionName === 'ZikjinData' ? 'ZG&AB 출고' : (collectionName === 'WeeklyData' ? '주차별' : '데이터');
     try {
         const querySnapshot = await getDocs(collection(db, collectionName));
         let delBatch = writeBatch(db);
@@ -6125,7 +6090,7 @@ window.showSingleRecommendation = function() {
                 if (dm.zgQty > maxZQty) maxZQty = dm.zgQty; // maxZQty = ZG&AB 출고 최대
                 if (dm.wQty > maxWQty) maxWQty = dm.wQty;
                 if (dm.trendVal > maxTrend) maxTrend = dm.trendVal;
-                itemDataList.push({ code, name: dm.name, zQty: dm.zQty, abQty: dm.abQty, zgQty: dm.zgQty, wQty: dm.wQty, trendVal: dm.trendVal });
+                itemDataList.push({ code, name: dm.name, zgQty: dm.zgQty, wQty: dm.wQty, trendVal: dm.trendVal });
             });
 
             const scoredItems = [];
@@ -6147,7 +6112,7 @@ window.showSingleRecommendation = function() {
                         zContrib: zScore * (window.recommendRatios.zikjin / 100),
                         wContrib: wScore * (window.recommendRatios.weekly / 100),
                         tContrib: tScore * (window.recommendRatios.trend / 100),
-                        zQty: item.zQty, abQty: item.abQty, zgQty: item.zgQty, wQty: item.wQty, trendVal: item.trendVal
+                        zgQty: item.zgQty, wQty: item.wQty, trendVal: item.trendVal
                     });
                 }
             });
@@ -6303,7 +6268,7 @@ window.showSingleRecommendation = function() {
                 if (!currentLocId) moveBadge = _badge('#e3f2fd', '#1565c0', '✨신규');
                 else if (_slot.dongRank < currentInfo.dongRank || (_slot.dongRank === currentInfo.dongRank && _slot.posRank < currentInfo.posRank)) moveBadge = _badge('#ffebee', '#b71c1c', '🔺전진');
                 else moveBadge = _badge('#f5f5f5', '#616161', '➖수평');
-                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(직진 ${Number(item.zQty||0).toLocaleString()}+에이블리 ${Number(item.abQty||0).toLocaleString()})</span><br>• 주차별:${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
                 html += `
                     <tr style="background:${rowBg}; line-height:1.3;">
@@ -7507,11 +7472,9 @@ window.renderLocationDashboard = function () {
     // ---- 데이터 신선도 ----
     const zikjinKeys = Object.keys(zikjinData || {}).length;
     const weeklyKeys = Object.keys(weeklyData || {}).length;
-    const ablyKeys = Object.keys(ablyData || {}).length;
     const freshHtml = `
         <div>📅 <b>오늘:</b> ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</div>
-        <div>📂 <b>직진배송 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
-        <div>📂 <b>에이블리 데이터:</b> ${ablyKeys > 0 ? ablyKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
+        <div>📂 <b>ZG&AB 출고 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
         <div>📂 <b>주차별 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
         <div>📦 <b>입고대기 종 수:</b> ${incomingCodes.length.toLocaleString()}</div>
         <div>🗄️ <b>등록 로케이션:</b> ${originalData.length.toLocaleString()}칸 (3F: ${total.toLocaleString()}, 그 외: ${(originalData.length - total).toLocaleString()})</div>
