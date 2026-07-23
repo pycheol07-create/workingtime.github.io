@@ -7147,8 +7147,13 @@ window.renderLocationDashboard = function () {
 
     // 3F만 (K로 시작하는 2F 제외) — SKU/데드스톡 집계용 (기타 위치 포함) — 사용률 팝업 로직과 동일
     const locs3F = originalData.filter(d => (d.id || '').charAt(0).toUpperCase() !== 'K');
-    // 랙 사용률/총 칸수 통계용 — '기타'(비축/샘플 등) 위치는 실제 피킹 랙이 아니므로 제외
-    const locsUsage = locs3F.filter(d => (d.category || '피킹용') !== '기타');
+    // ★ 3F 위치를 3분류로 구분: 피킹용 / 기타용(비축+A-1-R 형식) / SAM
+    const _isSam = (d) => /^SAM/i.test(String(d.id || '').trim());
+    const _isEtcAll = (d) => String(d.category || '피킹용').trim() === '기타' || /^비축/.test(String(d.id || '').trim()) || _isSam(d);
+    // 랙 사용률/총 칸수 통계용 — 피킹용(기타·비축·SAM 제외)만
+    const locsUsage = locs3F.filter(d => !_isEtcAll(d));
+    const etcLocs = locs3F.filter(d => _isEtcAll(d) && !_isSam(d)); // 기타용 = 비축 + A-1-R 형식(대분류 '기타')
+    const samLocs = locs3F.filter(d => _isSam(d));                  // SAM 전용 자리
     const total = locsUsage.length;
 
     const isUsed = (loc) =>
@@ -7189,6 +7194,11 @@ window.renderLocationDashboard = function () {
     const multiLocCodes = [...codeToLocs.entries()].filter(([, arr]) => arr.length >= 2);
     const empty = total - used;
     const usageRate = total > 0 ? (used / total * 100) : 0;
+
+    // ★ 기타용/SAM 그룹 사용률 집계 (isUsed 재사용)
+    const _grpStat = (arr) => { let u = 0; arr.forEach(l => { if (isUsed(l)) u++; }); const t = arr.length; return { total: t, used: u, empty: t - u, rate: t > 0 ? (u / t * 100) : 0 }; };
+    const stEtc = _grpStat(etcLocs);
+    const stSam = _grpStat(samLocs);
 
     // 입고대기
     const incomingCodes = Object.keys(incomingTotalByCode || {}).filter(c => (incomingTotalByCode[c] || 0) > 0);
@@ -7284,16 +7294,32 @@ window.renderLocationDashboard = function () {
         <div class="dash-kpi-card">
             ${donutSvg(usageRate)}
             <div class="kpi-body">
-                <div class="kpi-title">전체 사용률 (3F)</div>
+                <div class="kpi-title">피킹용 사용률</div>
                 <div class="kpi-value">${usageRate.toFixed(1)}%</div>
-                <div class="kpi-sub">${used.toLocaleString()} / ${total.toLocaleString()} 칸</div>
+                <div class="kpi-sub">${used.toLocaleString()}/${total.toLocaleString()} 칸 · 빈 ${empty.toLocaleString()}</div>
+            </div>
+        </div>
+        <div class="dash-kpi-card">
+            ${donutSvg(stEtc.rate)}
+            <div class="kpi-body">
+                <div class="kpi-title">기타용 사용률 <span style="font-size:10px; color:#90a4ae; font-weight:normal;">비축+A-1-R</span></div>
+                <div class="kpi-value">${stEtc.total > 0 ? stEtc.rate.toFixed(1) + '%' : '-'}</div>
+                <div class="kpi-sub">${stEtc.used.toLocaleString()}/${stEtc.total.toLocaleString()} 칸 · 빈 ${stEtc.empty.toLocaleString()}</div>
+            </div>
+        </div>
+        <div class="dash-kpi-card">
+            ${donutSvg(stSam.rate)}
+            <div class="kpi-body">
+                <div class="kpi-title">SAM 사용률</div>
+                <div class="kpi-value">${stSam.total > 0 ? stSam.rate.toFixed(1) + '%' : '-'}</div>
+                <div class="kpi-sub">${stSam.used.toLocaleString()}/${stSam.total.toLocaleString()} 칸 · 빈 ${stSam.empty.toLocaleString()}</div>
             </div>
         </div>
         <div class="dash-kpi-card" style="cursor:pointer;" onclick="window.__dashGoToList('empty')" title="클릭: 데이터 리스트에서 빈 자리만 보기 (지정·작업 가능)"
             onmouseover="this.style.boxShadow='0 2px 10px rgba(61,90,254,0.25)';" onmouseout="this.style.boxShadow='';">
             <div class="kpi-icon green">🟢</div>
             <div class="kpi-body">
-                <div class="kpi-title">빈 자리 <span style="font-size:11px; color:#90a4ae;">▸</span></div>
+                <div class="kpi-title">피킹용 빈 자리 <span style="font-size:11px; color:#90a4ae;">▸</span></div>
                 <div class="kpi-value">${empty.toLocaleString()}</div>
                 <div class="kpi-sub">전체 대비 ${total > 0 ? (empty / total * 100).toFixed(1) : 0}%</div>
             </div>

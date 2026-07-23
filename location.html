@@ -335,10 +335,10 @@
 
         /* KPI 카드 */
         .dash-kpi-row {
-            display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;
             margin-bottom: 18px;
         }
-        @media (max-width: 1100px) { .dash-kpi-row { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 1100px) { .dash-kpi-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
         .dash-kpi-card {
             background: white; border-radius: 12px; padding: 16px 18px;
             border: 1px solid #e0e6ed; box-shadow: 0 2px 6px rgba(0,0,0,0.04);
