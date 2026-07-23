@@ -41,7 +41,7 @@ window.currentRecommendations = [];
 // v4.1: 단독 추천용 별도 데이터 변수
 window.currentSingleRecommendations = [];
 
-window.recommendRatios = { zikjin: 50, weekly: 30, trend: 20 };
+window.recommendRatios = { zikjin: 40, weekly: 40, trend: 20 }; // weekly 슬롯 = 에이블리
 window.recommendPriorities = {
     zones: { 0: ['★'], 1: ['A','B','C','D','E','F','G','H','I'], 2: ['Z'], 3: ['L','M','N','O','P','Q','R','S','T'] },
     dongs: ['★', '1', '2', '3', '4', '5', '6'],
@@ -147,7 +147,7 @@ function setupRealtimeListenerB() {
             }
         });
         applyFiltersAndSort();
-    }, (error) => console.error("주차별데이터 오류:", error));
+    }, (error) => console.error("에이블리데이터 오류:", error));
     
     onSnapshot(collection(db, 'IncomingData'), (snapshot) => {
         incomingData = {};
@@ -412,7 +412,7 @@ window.openRatioModal = function(e) {
                         </label>
                         <span style="font-size:20px; color:#aaa; margin-top:15px;">+</span>
                         <label style="display:flex; flex-direction:column; align-items:center; font-size:12px; font-weight:bold;">
-                            주차별
+                            에이블리
                             <div style="margin-top:5px; display:flex; align-items:center;">
                                 <input type="number" id="mod-ratio-weekly" style="width:50px; text-align:right; padding:6px; border:1px solid #ccc; border-radius:4px; font-weight:bold;">
                                 <span style="margin-left:4px; color:#555;">%</span>
@@ -701,6 +701,18 @@ const getBaseLocsForCode = (code) => {
     return picking.length > 0 ? picking : all;
 };
 
+// 에이블리(구 '주차별' 슬롯 = weeklyData/WeeklyData) 배송량 계산.
+// '기간배송수량/기간발주수량' 총량 컬럼이 있으면 그대로 사용하고,
+// 없으면(에이블리 파일이 상품코드 + 날짜별 컬럼만 있는 경우) 날짜별(YYYYMMDD) 컬럼 합계를 배송량으로 사용.
+function _ablyQtyFromItem(wItem) {
+    if (!wItem) return 0;
+    const direct = Number(wItem['기간배송수량'] || wItem['기간발주수량'] || 0);
+    if (direct > 0) return direct;
+    let sum = 0;
+    for (const k in wItem) { if (/^20\d{6}$/.test(k)) sum += Number(wItem[k] || 0); }
+    return sum;
+}
+
 window.showRecommendation = function() {
     window.showLoading("💡 우선순위 알고리즘을 분석하여 최적의 로케이션을 매칭 중입니다...");
 
@@ -722,8 +734,8 @@ window.showRecommendation = function() {
             let zItem = zikjinData[code] || {}; let wItem = weeklyData[code] || {};
             let locItem = getBaseLocsForCode(code)[0];
             let name = (locItem && locItem.name) || zItem['상품명'] || wItem['상품명'] || '알 수 없음';
-            let zQty = Number(zItem['수량'] || 0); 
-            let wQty = Number(wItem['기간배송수량'] || wItem['기간발주수량'] || 0); 
+            let zQty = Number(zItem['수량'] || 0);
+            let wQty = _ablyQtyFromItem(wItem); // 에이블리 배송량(총량 컬럼 없으면 날짜별 합계)
             let trendVal = 0;
             let dates = Object.keys(wItem).filter(k => /^20\d{6}$/.test(k)).sort();
             if (dates.length >= 6) {
@@ -1029,7 +1041,7 @@ window.showRecommendation = function() {
                 const moveQtyDisplay = moveQty > 0 ? `<span style="color:#e65100; font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:#888;">개</span>` : `<span style="color:#bbb; font-size:12px;">-</span>`;
 
                 // ★ 점수 세부 툴팁 HTML (html += 윗줄에 선언)
-                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 직진배송: ${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.zQty||0).toLocaleString()})</span><br>• 주차별: ${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: 직진 ${window.recommendRatios.zikjin}% / 주차 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 직진배송: ${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.zQty||0).toLocaleString()})</span><br>• 에이블리:${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: 직진 ${window.recommendRatios.zikjin}% / 에이블리 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
                 // v3.98: 페어 보정 배지
                 let pairBadgeHtml = '';
@@ -3548,7 +3560,7 @@ const _uploadHeaderGuide = {
     'permanent': '로케이션, 동, 위치, 칸수, 대분류(피킹/기타, 선택)',
     'daily':     '로케이션, 상품코드, 상품명, 옵션, 정상재고, 2층창고재고',
     'zikjin':    '상품코드(또는 어드민상품코드/대표상품코드 등), 수량',
-    'weekly':    '상품코드(또는 어드민상품코드/대표상품코드 등), 기간배송수량 또는 기간발주수량'
+    'weekly':    '상품코드(또는 어드민상품코드/대표상품코드 등), 날짜별(YYYYMMDD) 배송수량 컬럼 또는 기간배송수량'
 };
 
 function _showUploadDiagnosisAlert(diagnosis, uploadType) {
@@ -3597,7 +3609,7 @@ const fileInputWeekly = document.getElementById('excel-upload-weekly');
 if (fileInputWeekly) {
     fileInputWeekly.addEventListener('change', async function(e) {
         const file = e.target.files[0]; if (!file) return;
-        window.showLoading('주차별 데이터를 분석 중입니다...');
+        window.showLoading('에이블리 데이터를 분석 중입니다...');
         try {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) await updateDatabaseB(result.rows, 'WeeklyData', e.target, false);
@@ -4057,7 +4069,7 @@ window.resetOrderAnalysis = async function() {
 };
 
 async function updateDatabaseB(rows, collectionName, inputElement, silent = false) {
-    let label = collectionName === 'ZikjinData' ? '직진배송' : (collectionName === 'WeeklyData' ? '주차별' : '데이터');
+    let label = collectionName === 'ZikjinData' ? '직진배송' : (collectionName === 'WeeklyData' ? '에이블리' : '데이터');
     try {
         const querySnapshot = await getDocs(collection(db, collectionName));
         let delBatch = writeBatch(db);
@@ -6064,7 +6076,7 @@ window.showSingleRecommendation = function() {
                 let locItem = getBaseLocsForCode(code)[0];
                 let name = (locItem && locItem.name) || zItem['상품명'] || wItem['상품명'] || '알 수 없음';
                 let zQty = Number(zItem['수량'] || 0);
-                let wQty = Number(wItem['기간배송수량'] || wItem['기간발주수량'] || 0);
+                let wQty = _ablyQtyFromItem(wItem); // 에이블리 배송량(총량 컬럼 없으면 날짜별 합계)
                 let trendVal = 0;
                 let dates = Object.keys(wItem).filter(k => /^20\d{6}$/.test(k)).sort();
                 if (dates.length >= 6) {
@@ -6253,7 +6265,7 @@ window.showSingleRecommendation = function() {
                 if (!currentLocId) moveBadge = _badge('#e3f2fd', '#1565c0', '✨신규');
                 else if (_slot.dongRank < currentInfo.dongRank || (_slot.dongRank === currentInfo.dongRank && _slot.posRank < currentInfo.posRank)) moveBadge = _badge('#ffebee', '#b71c1c', '🔺전진');
                 else moveBadge = _badge('#f5f5f5', '#616161', '➖수평');
-                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 직진배송: ${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.zQty||0).toLocaleString()})</span><br>• 주차별: ${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: 직진 ${window.recommendRatios.zikjin}% / 주차 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 직진배송: ${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.zQty||0).toLocaleString()})</span><br>• 에이블리:${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: 직진 ${window.recommendRatios.zikjin}% / 에이블리 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
                 html += `
                     <tr style="background:${rowBg}; line-height:1.3;">
@@ -7434,7 +7446,7 @@ window.renderLocationDashboard = function () {
     const freshHtml = `
         <div>📅 <b>오늘:</b> ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</div>
         <div>📂 <b>직진배송 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
-        <div>📂 <b>주차별 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
+        <div>📂 <b>에이블리 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
         <div>📦 <b>입고대기 종 수:</b> ${incomingCodes.length.toLocaleString()}</div>
         <div>🗄️ <b>등록 로케이션:</b> ${originalData.length.toLocaleString()}칸 (3F: ${total.toLocaleString()}, 그 외: ${(originalData.length - total).toLocaleString()})</div>
     `;
