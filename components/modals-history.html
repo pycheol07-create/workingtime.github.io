@@ -24,14 +24,27 @@
             display: flex !important; flex-direction: column !important;
         }
 
-        /* 공용 좌측 사이드바: 모바일에서는 상단 세로 트리(높이 캡 230px) */
+        /* 공용 좌측 사이드바 → 모바일에서는 컴팩트 '날짜 선택' 토글 바 (드로어 방식) */
         #history-global-sidebar {
             flex: 0 0 auto !important; width: 100% !important;
-            max-height: 230px !important;
+            max-height: none !important;
             border-right: none !important; border-bottom: 1px solid #e5e7eb !important;
-            display: flex !important; flex-direction: column !important;
+            position: relative !important; z-index: 30 !important;
+            display: block !important;
         }
         #history-granularity-controls { width: 100% !important; }
+        /* 세그먼트(일/주/월/년)+날짜목록 드로어: 기본 숨김, 토글 시 드롭다운으로 펼침 */
+        #history-date-drawer { display: none !important; }
+        #history-global-sidebar.mobile-open #history-date-drawer {
+            display: flex !important; flex-direction: column !important;
+            position: absolute !important; top: 100% !important; left: 0 !important; right: 0 !important;
+            max-height: 70vh !important; overflow: hidden !important;
+            background: #ffffff !important; z-index: 50 !important;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.18) !important;
+            border-bottom: 1px solid #e5e7eb !important;
+        }
+        .dark #history-global-sidebar.mobile-open #history-date-drawer { background: #0f172a !important; }
+        #history-mobile-date-chevron.rotate { transform: rotate(180deg) !important; }
 
         /* 메인 콘텐츠 영역이 남은 높이를 모두 차지 */
         #history-main-content {
@@ -110,14 +123,24 @@
         <div class="flex-grow flex overflow-hidden bg-gray-100/80 dark:bg-gray-900 transition-colors flex-col md:flex-row">
 
             <aside id="history-global-sidebar" class="w-full md:w-[230px] flex flex-col border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/30 flex-shrink-0 transition-colors">
-                <div id="history-granularity-controls" class="flex gap-1 p-2 md:p-3 border-b border-gray-200 dark:border-gray-800 shrink-0">
-                    <button data-granularity="day" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">일</button>
-                    <button data-granularity="week" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">주</button>
-                    <button data-granularity="month" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">월</button>
-                    <button data-granularity="year" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">년</button>
-                </div>
-                <div id="history-date-list-container" class="flex-1 overflow-y-auto">
-                    <ul id="history-date-list" class="p-2 md:p-3 space-y-0 md:space-y-1"></ul>
+                <!-- 📱 모바일 전용: 컴팩트 날짜 선택 토글 바 (탭하면 아래 드로어가 열림) -->
+                <button id="history-mobile-date-toggle" type="button" class="md:hidden flex items-center justify-between gap-2 w-full py-2.5 px-3 bg-white dark:bg-gray-800 text-left">
+                    <span class="flex items-center gap-2 min-w-0">
+                        <span class="text-base">📅</span>
+                        <span id="history-mobile-date-label" class="font-bold text-[13px] text-gray-700 dark:text-gray-200 truncate">날짜 선택</span>
+                    </span>
+                    <svg id="history-mobile-date-chevron" class="w-4 h-4 text-gray-400 shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="history-date-drawer" class="flex flex-col flex-1 min-h-0">
+                    <div id="history-granularity-controls" class="flex gap-1 p-2 md:p-3 border-b border-gray-200 dark:border-gray-800 shrink-0">
+                        <button data-granularity="day" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">일</button>
+                        <button data-granularity="week" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">주</button>
+                        <button data-granularity="month" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">월</button>
+                        <button data-granularity="year" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">년</button>
+                    </div>
+                    <div id="history-date-list-container" class="flex-1 overflow-y-auto">
+                        <ul id="history-date-list" class="p-2 md:p-3 space-y-0 md:space-y-1"></ul>
+                    </div>
                 </div>
             </aside>
 

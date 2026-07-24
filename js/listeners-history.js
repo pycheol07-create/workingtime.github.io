@@ -176,6 +176,18 @@ export function setupHistoryModalListeners() {
 
     if (DOM.closeHistoryBtn) DOM.closeHistoryBtn.addEventListener('click', () => { if (DOM.historyModal) { DOM.historyModal.classList.add('hidden'); setHistoryMaximized(false); } });
 
+    // 📱 모바일 날짜 드로어 토글 (데스크톱은 md:hidden 이라 무시됨)
+    const mobileDateToggle = document.getElementById('history-mobile-date-toggle');
+    if (mobileDateToggle) {
+        mobileDateToggle.addEventListener('click', () => {
+            const sb = document.getElementById('history-global-sidebar');
+            const chev = document.getElementById('history-mobile-date-chevron');
+            if (!sb) return;
+            const open = sb.classList.toggle('mobile-open');
+            if (chev) chev.classList.toggle('rotate', open);
+        });
+    }
+
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
@@ -184,6 +196,19 @@ export function setupHistoryModalListeners() {
             DOM.historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
             btn.classList.add('bg-blue-100', 'font-bold');
             const dateKey = btn.dataset.key;
+
+            // 📱 모바일: 선택한 날짜를 토글 바 라벨에 반영. 드로어는 실제 사용자 탭일 때만 닫음
+            // (세분화 변경 시 자동 선택되는 프로그래밍적 클릭 e.isTrusted=false 에서는 열린 상태 유지)
+            const mLabel = document.getElementById('history-mobile-date-label');
+            if (mLabel) mLabel.textContent = (btn.textContent || '').trim() || '날짜 선택';
+            if (e.isTrusted) {
+                const sb = document.getElementById('history-global-sidebar');
+                if (sb && sb.classList.contains('mobile-open')) {
+                    sb.classList.remove('mobile-open');
+                    const chev = document.getElementById('history-mobile-date-chevron');
+                    if (chev) chev.classList.remove('rotate');
+                }
+            }
 
             State.context.activeFilterDropdown = null;
 
