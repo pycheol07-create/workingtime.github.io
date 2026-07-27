@@ -5,7 +5,7 @@ import * as DOM from './dom-elements.js';
 import * as State from './state.js';
 import { showToast, getTodayDateString, getWeekOfYear } from './utils.js';
 import { augmentHistoryWithPersistentLeave } from './history-enricher.js';
-import { fetchAllHistoryData, syncTodayToHistory, getDailyDocRef } from './history-data-manager.js';
+import { fetchAllHistoryData, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory } from './history-data-manager.js';
 import { checkMissingQuantities } from './analysis-logic.js';
 import { renderQuantityModalInputs } from './ui.js';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -17,8 +17,11 @@ export const loadAndRenderHistoryList = async () => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500 text-sm">이력 로딩 중...</div></li>';
 
-    await fetchAllHistoryData(); 
-    await syncTodayToHistory(); 
+    await fetchAllHistoryData();
+    await syncTodayToHistory();
+
+    // 🩺 마감 누락 자동 복구: history가 빈 최근 날을 daily_data에서 자동으로 되살림(실패해도 목록 렌더는 계속)
+    try { await selfHealRecentHistory(); } catch (e) { console.warn('selfHeal 건너뜀:', e); }
 
     augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
 

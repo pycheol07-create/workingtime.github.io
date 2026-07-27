@@ -314,9 +314,9 @@ export async function peekDailyData(dateKey) {
     }
 }
 
-export async function recoverDailyDataToHistory(dateKey, { force = false } = {}) {
-    if (!State.auth || !State.auth.currentUser) { showToast('복구하려면 로그인이 필요합니다.', true); return null; }
-    if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) { showToast('복구할 날짜 형식이 올바르지 않습니다. (예: 2026-07-27)', true); return null; }
+export async function recoverDailyDataToHistory(dateKey, { force = false, silent = false } = {}) {
+    if (!State.auth || !State.auth.currentUser) { if (!silent) showToast('복구하려면 로그인이 필요합니다.', true); return null; }
+    if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) { if (!silent) showToast('복구할 날짜 형식이 올바르지 않습니다. (예: 2026-07-27)', true); return null; }
 
     const base = ['artifacts', 'team-work-logger-v2'];
     const dailyDocRef = doc(State.db, ...base, 'daily_data', dateKey);
@@ -336,7 +336,7 @@ export async function recoverDailyDataToHistory(dateKey, { force = false } = {})
 
         const hasQuantities = dailyData.taskQuantities && Object.keys(dailyData.taskQuantities).length > 0;
         if (rawRecords.length === 0 && !hasQuantities) {
-            showToast(`${dateKey}: daily_data에 복구할 원본이 없습니다.`, true);
+            if (!silent) showToast(`${dateKey}: daily_data에 복구할 원본이 없습니다.`, true);
             return { date: dateKey, records: 0, quantities: 0, hadExisting: histSnap.exists() };
         }
 
@@ -345,7 +345,7 @@ export async function recoverDailyDataToHistory(dateKey, { force = false } = {})
         const existingCount = (existing && existing.workRecords) ? existing.workRecords.length : 0;
         if (existingCount > 0 && !force) {
             const ok = confirm(`${dateKey} 이력에 이미 업무 ${existingCount}건이 있습니다.\n원본(daily_data) ${rawRecords.length}건으로 덮어쓸까요?`);
-            if (!ok) { showToast('복구를 취소했습니다.'); return { date: dateKey, canceled: true }; }
+            if (!ok) { if (!silent) showToast('복구를 취소했습니다.'); return { date: dateKey, canceled: true }; }
         }
 
         // ongoing/paused 기록 마감 처리 (앱의 17:30 자동마감과 동일한 종료시각 사용)
@@ -392,14 +392,67 @@ export async function recoverDailyDataToHistory(dateKey, { force = false } = {})
         }
         clearLocalCache();
 
-        showToast(`✅ ${dateKey} 복구 완료 — 업무 ${workRecords.length}건, 물량 ${Object.keys(historyData.taskQuantities).length}종`);
+        if (!silent) showToast(`✅ ${dateKey} 복구 완료 — 업무 ${workRecords.length}건, 물량 ${Object.keys(historyData.taskQuantities).length}종`);
         return { date: dateKey, records: workRecords.length, quantities: Object.keys(historyData.taskQuantities).length, hadExisting: existingCount > 0 };
 
     } catch (e) {
         console.error('recoverDailyDataToHistory error:', e);
-        showToast(`복구 중 오류: ${e.message}`, true);
+        if (!silent) showToast(`복구 중 오류: ${e.message}`, true);
         return null;
     }
+}
+
+// 🩺 시작 시 자가복구: 최근 며칠 중 history가 비었지만 daily_data엔 원본이 있는 날을 자동으로 복구.
+// - 이미 메모리에 로드된 allHistoryData만 보고 후보(빈 날)를 고르므로 후보 선별엔 추가 읽기 없음.
+// - '빈 날'에 대해서만 daily_data를 1회 확인하고, 확인한 날짜는 localStorage에 기록해 재읽기를 막음(읽기요금 방어).
+// - 주말/오늘은 제외. 정상적으로 마감된 날엔 후보가 없어 추가 비용 0.
+export async function selfHealRecentHistory({ days = 7 } = {}) {
+    if (!State.auth || !State.auth.currentUser) return { healed: [] };
+    const today = getTodayDateString();
+
+    let checked = [];
+    try { checked = JSON.parse(localStorage.getItem('selfHealCheckedDates') || '[]'); } catch (_) {}
+    const checkedSet = new Set(checked);
+
+    // 후보 선별: 최근 days일(오늘·주말 제외) 중 history가 비어있고 아직 확인 안 한 날
+    const candidates = [];
+    const base = new Date(today);
+    for (let i = 1; i <= days; i++) {
+        const d = new Date(base);
+        d.setDate(d.getDate() - i);
+        const dow = d.getDay();
+        if (dow === 0 || dow === 6) continue; // 주말 제외
+        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+        const key = local.toISOString().slice(0, 10);
+        if (key >= today || checkedSet.has(key)) continue;
+        const h = State.allHistoryData.find(x => x.id === key);
+        const histEmpty = !h || !h.workRecords || h.workRecords.length === 0;
+        const histHasQty = h && h.taskQuantities && Object.keys(h.taskQuantities).length > 0;
+        if (histEmpty && !histHasQty) candidates.push(key);
+    }
+
+    if (candidates.length === 0) return { healed: [] };
+
+    const healed = [];
+    for (const key of candidates) {
+        try {
+            const res = await recoverDailyDataToHistory(key, { force: true, silent: true });
+            if (res && res.records > 0) healed.push({ date: key, records: res.records });
+        } catch (e) {
+            console.warn('selfHeal 실패:', key, e);
+        }
+        checkedSet.add(key); // 결과와 무관하게 확인 완료로 표시(재읽기 방지)
+    }
+
+    // 확인 기록 저장 (최근 60개만 유지)
+    try { localStorage.setItem('selfHealCheckedDates', JSON.stringify([...checkedSet].slice(-60))); } catch (_) {}
+
+    if (healed.length > 0) {
+        const total = healed.reduce((s, x) => s + x.records, 0);
+        console.log('[selfHeal] 자동 복구된 날:', healed);
+        showToast(`🩺 마감 누락 ${healed.length}일 자동 복구됨 (업무 ${total}건)`);
+    }
+    return { healed };
 }
 
 export async function fetchAllHistoryData(forceRefresh = false) {
