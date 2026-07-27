@@ -276,6 +276,132 @@ export async function saveDayDataToHistory(shouldReset) {
     }
 }
 
+// 🛟 복구: 특정 날짜의 daily_data(원본)를 history로 옮긴다.
+// 마감/진행상황 저장을 안 해서 history에 안 넘어간 날을 되살리는 일회성 도구.
+// - daily_data/{date}/workRecords 서브컬렉션 + daily_data/{date} 문서 필드를 읽어
+//   history/{date} 문서를 만든다.
+// - 아직 종료 안 된(ongoing/paused) 기록은 앱의 17:30 자동마감 규칙과 동일하게 마감 처리.
+// - history에 이미 기록이 있으면 확인(confirm) 후에만 덮어씀(force=true면 확인 생략).
+// 반환: { date, records, quantities, hadExisting } 또는 null/취소.
+// 🔍 미리보기(읽기 전용): 쓰기 없이 daily_data / history 상태만 확인.
+export async function peekDailyData(dateKey) {
+    if (!State.auth || !State.auth.currentUser) { showToast('로그인이 필요합니다.', true); return null; }
+    if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) { showToast('날짜 형식 오류 (예: 2026-07-27)', true); return null; }
+    const base = ['artifacts', 'team-work-logger-v2'];
+    try {
+        const [dailySnap, wrSnap, histSnap] = await Promise.all([
+            getDoc(doc(State.db, ...base, 'daily_data', dateKey)),
+            getDocs(collection(State.db, ...base, 'daily_data', dateKey, 'workRecords')),
+            getDoc(doc(State.db, ...base, 'history', dateKey)),
+        ]);
+        const dailyData = dailySnap.exists() ? dailySnap.data() : {};
+        const dailyRecords = wrSnap.size;
+        const dailyQuantities = dailyData.taskQuantities ? Object.keys(dailyData.taskQuantities).length : 0;
+        const hist = histSnap.exists() ? histSnap.data() : null;
+        const historyRecords = hist && hist.workRecords ? hist.workRecords.length : 0;
+        const result = {
+            date: dateKey,
+            dailyData: { records: dailyRecords, quantities: dailyQuantities, exists: dailySnap.exists() },
+            history: { exists: histSnap.exists(), records: historyRecords },
+        };
+        console.log(`[peek ${dateKey}] daily_data: 업무 ${dailyRecords}건 / 물량 ${dailyQuantities}종  →  history: ${histSnap.exists() ? `있음(${historyRecords}건)` : '없음'}`, result);
+        showToast(`${dateKey} — 원본 업무 ${dailyRecords}건, 이력 ${histSnap.exists() ? historyRecords + '건' : '없음'}`);
+        return result;
+    } catch (e) {
+        console.error('peekDailyData error:', e);
+        showToast(`조회 오류: ${e.message}`, true);
+        return null;
+    }
+}
+
+export async function recoverDailyDataToHistory(dateKey, { force = false } = {}) {
+    if (!State.auth || !State.auth.currentUser) { showToast('복구하려면 로그인이 필요합니다.', true); return null; }
+    if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) { showToast('복구할 날짜 형식이 올바르지 않습니다. (예: 2026-07-27)', true); return null; }
+
+    const base = ['artifacts', 'team-work-logger-v2'];
+    const dailyDocRef = doc(State.db, ...base, 'daily_data', dateKey);
+    const workRecordsColRef = collection(State.db, ...base, 'daily_data', dateKey, 'workRecords');
+    const historyDocRef = doc(State.db, ...base, 'history', dateKey);
+
+    try {
+        const [dailySnap, wrSnap, histSnap] = await Promise.all([
+            getDoc(dailyDocRef),
+            getDocs(workRecordsColRef),
+            getDoc(historyDocRef),
+        ]);
+
+        const dailyData = dailySnap.exists() ? dailySnap.data() : {};
+        const rawRecords = [];
+        wrSnap.forEach(d => rawRecords.push({ id: d.id, ...d.data() }));
+
+        const hasQuantities = dailyData.taskQuantities && Object.keys(dailyData.taskQuantities).length > 0;
+        if (rawRecords.length === 0 && !hasQuantities) {
+            showToast(`${dateKey}: daily_data에 복구할 원본이 없습니다.`, true);
+            return { date: dateKey, records: 0, quantities: 0, hadExisting: histSnap.exists() };
+        }
+
+        // 이미 history에 데이터가 있으면 실수로 덮어쓰지 않도록 확인
+        const existing = histSnap.exists() ? histSnap.data() : null;
+        const existingCount = (existing && existing.workRecords) ? existing.workRecords.length : 0;
+        if (existingCount > 0 && !force) {
+            const ok = confirm(`${dateKey} 이력에 이미 업무 ${existingCount}건이 있습니다.\n원본(daily_data) ${rawRecords.length}건으로 덮어쓸까요?`);
+            if (!ok) { showToast('복구를 취소했습니다.'); return { date: dateKey, canceled: true }; }
+        }
+
+        // ongoing/paused 기록 마감 처리 (앱의 17:30 자동마감과 동일한 종료시각 사용)
+        const AUTO_END = '17:30';
+        const workRecords = rawRecords.map(r => {
+            const data = { ...r };
+            if (data.status === 'ongoing' || data.status === 'paused') {
+                const pauses = Array.isArray(data.pauses) ? [...data.pauses] : [];
+                if (data.status === 'paused' && pauses.length > 0) {
+                    const lp = pauses[pauses.length - 1];
+                    if (lp && lp.end === null) lp.end = AUTO_END;
+                }
+                data.endTime = AUTO_END;
+                data.duration = Math.max(0, calcElapsedMinutes(data.startTime, AUTO_END, pauses));
+                data.status = 'completed';
+                data.pauses = pauses;
+            }
+            return data;
+        }).filter(r => r.status !== 'completed' || Math.round(r.duration || 0) > 0);
+
+        const historyData = {
+            id: dateKey,
+            workRecords,
+            taskQuantities: dailyData.taskQuantities || {},
+            confirmedZeroTasks: dailyData.confirmedZeroTasks || [],
+            onLeaveMembers: dailyData.onLeaveMembers || [],
+            partTimers: dailyData.partTimers || [],
+            dailyAttendance: dailyData.dailyAttendance || {},
+            management: dailyData.management || (existing && existing.management) || {},
+            inspectionList: dailyData.inspectionList || [],
+            isQuantityVerified: dailyData.isQuantityVerified || false,
+            savedAt: getCurrentTime(),
+            recoveredAt: new Date().toISOString(),
+        };
+
+        await setDoc(historyDocRef, historyData, { merge: true });
+
+        // 메모리 캐시도 갱신 (재조회 없이 화면 반영)
+        const idx = State.allHistoryData.findIndex(d => d.id === dateKey);
+        if (idx > -1) State.allHistoryData[idx] = { ...State.allHistoryData[idx], ...historyData };
+        else {
+            State.allHistoryData.push(historyData);
+            State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
+        }
+        clearLocalCache();
+
+        showToast(`✅ ${dateKey} 복구 완료 — 업무 ${workRecords.length}건, 물량 ${Object.keys(historyData.taskQuantities).length}종`);
+        return { date: dateKey, records: workRecords.length, quantities: Object.keys(historyData.taskQuantities).length, hadExisting: existingCount > 0 };
+
+    } catch (e) {
+        console.error('recoverDailyDataToHistory error:', e);
+        showToast(`복구 중 오류: ${e.message}`, true);
+        return null;
+    }
+}
+
 export async function fetchAllHistoryData(forceRefresh = false) {
     if (!forceRefresh && isHistoryCached && State.allHistoryData.length > 0) {
         return State.allHistoryData;

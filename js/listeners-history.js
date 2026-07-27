@@ -10,7 +10,7 @@ import { setupHistoryInspectionListeners } from './listeners-history-inspection.
 
 import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
 import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js';
-import { syncTodayToHistory, saveManagementData, backfillFxRates } from './history-data-manager.js';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js';
 import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js';
@@ -110,6 +110,21 @@ export function setupHistoryModalListeners() {
     window.__runFxBackfill = async (fromDate = '2026-06-01') => {
         await backfillFxRates(fromDate);
         refreshManagementView();
+    };
+
+    // 🛟 마감 누락 복구 도구 (콘솔에서 실행).
+    // 어제(기본값) 또는 특정 날짜의 daily_data 원본을 history로 옮긴다.
+    const yesterdayStr = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); };
+    // 1) 미리보기: __peekDay() 또는 __peekDay('2026-07-27')
+    window.__peekDay = async (dateKey = yesterdayStr()) => peekDailyData(dateKey);
+    // 2) 복구 실행: __recoverDay() 또는 __recoverDay('2026-07-27')
+    window.__recoverDay = async (dateKey = yesterdayStr()) => {
+        const res = await recoverDailyDataToHistory(dateKey);
+        if (res && res.records >= 0 && !res.canceled) {
+            await fetchAllHistoryData(true); // 서버 최신값으로 재조회
+            refreshManagementView();
+        }
+        return res;
     };
 
     // 💡 핵심 수정 파트: 데이터를 다 불러온 후에 UI를 순차적으로 깨웁니다.
