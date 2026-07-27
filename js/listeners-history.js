@@ -114,7 +114,13 @@ export function setupHistoryModalListeners() {
 
     // 🛟 마감 누락 복구 도구 (콘솔에서 실행).
     // 어제(기본값) 또는 특정 날짜의 daily_data 원본을 history로 옮긴다.
-    const yesterdayStr = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); };
+    // 로컬 시간대 기준 어제 (UTC toISOString은 오전에 하루 밀리므로 offset 보정)
+    const yesterdayStr = () => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 10);
+    };
     // 1) 미리보기: __peekDay() 또는 __peekDay('2026-07-27')
     window.__peekDay = async (dateKey = yesterdayStr()) => peekDailyData(dateKey);
     // 2) 복구 실행: __recoverDay() 또는 __recoverDay('2026-07-27')
