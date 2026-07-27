@@ -3923,11 +3923,18 @@ window.processOrderData = async function(rows) {
         msg += `자세한 리포트는 [📊 페어 분석 리포트 보기]에서 확인하세요.`;
         alert(msg);
         
-        // v3.98: 페어 캐시 갱신
-        if (typeof window.loadOrderPairsCache === 'function') {
-            window.loadOrderPairsCache();
+        // 💰 읽기요금 절감: 방금 병합한 메모리 데이터로 페어 캐시를 직접 갱신.
+        //    (기존엔 loadOrderPairsCache()가 PAIRS/STATS 전체를 Firestore에서 다시 읽어 급등 원인)
+        try {
+            window._cachedOrderPairs = Object.values(existingPairs).map(p => ({ codeA: p.codeA, codeB: p.codeB, count: p.count, lastDate: p.lastDate }));
+            window._cachedOrderStats = existingStats;
+            window._cachedOrderMeta = metaUpdate.orderAnalysisMeta;
+            console.log(`[읽기절감] 업로드 후 페어 캐시를 메모리로 갱신(재읽기 0): 페어 ${window._cachedOrderPairs.length}, 상품 ${Object.keys(existingStats).length}`);
+        } catch (e) {
+            console.warn('페어 캐시 메모리 갱신 실패, 폴백으로 재로드:', e);
+            if (typeof window.loadOrderPairsCache === 'function') window.loadOrderPairsCache();
         }
-        
+
         // v4.4 v3: 주문 업로드 후 자동 팝업 호출 삭제
         // 사용자가 [📊 페어 분석 리포트 보기] 버튼을 직접 클릭해서 열도록 변경
         // window.openOrderAnalysisReport();
@@ -3950,23 +3957,31 @@ window.openOrderAnalysisReport = async function() {
         const cfgSnap = await getDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'));
         if (cfgSnap.exists()) meta = cfgSnap.data().orderAnalysisMeta || {};
 
-        const pairs = [];
-        const stats = {};
-        const pairsSnap = await getDocs(collection(db, ORDER_PAIRS_COLL));
-        pairsSnap.forEach(d => {
-            try {
-                const arr = JSON.parse(d.data().dataStr || '[]');
-                arr.forEach(p => pairs.push({ codeA: p.cA, codeB: p.cB, count: p.c, lastDate: p.d }));
-            } catch (e) {}
-        });
+        let pairs = [];
+        let stats = {};
+        // 💰 읽기요금 절감: 캐시가 있으면 재사용(창 열기·업로드·정리 때 이미 로드됨). 없을 때만 전체 스캔.
+        if (Array.isArray(window._cachedOrderPairs) && window._cachedOrderPairs.length > 0
+            && window._cachedOrderStats && Object.keys(window._cachedOrderStats).length > 0) {
+            pairs = window._cachedOrderPairs;
+            stats = window._cachedOrderStats;
+            console.log('[읽기절감] 리포트: 페어 캐시 재사용(재읽기 0)');
+        } else {
+            const pairsSnap = await getDocs(collection(db, ORDER_PAIRS_COLL));
+            pairsSnap.forEach(d => {
+                try {
+                    const arr = JSON.parse(d.data().dataStr || '[]');
+                    arr.forEach(p => pairs.push({ codeA: p.cA, codeB: p.cB, count: p.c, lastDate: p.d }));
+                } catch (e) {}
+            });
 
-        const statsSnap = await getDocs(collection(db, ORDER_STATS_COLL));
-        statsSnap.forEach(d => {
-            try {
-                const arr = JSON.parse(d.data().dataStr || '[]');
-                arr.forEach(s => { stats[s.c] = { code: s.c, count: s.n, lastDate: s.d }; });
-            } catch (e) {}
-        });
+            const statsSnap = await getDocs(collection(db, ORDER_STATS_COLL));
+            statsSnap.forEach(d => {
+                try {
+                    const arr = JSON.parse(d.data().dataStr || '[]');
+                    arr.forEach(s => { stats[s.c] = { code: s.c, count: s.n, lastDate: s.d }; });
+                } catch (e) {}
+            });
+        }
 
         const totalOrdersEstimate = meta.totalProcessedOrders || 1;
         const pairsWithLift = pairs.map(p => {
