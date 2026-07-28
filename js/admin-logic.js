@@ -100,6 +100,41 @@ export function collectConfigFromDOM(currentConfig) {
         newConfig.teamGroups.push(newGroup);
     });
 
+    // 🚪 퇴사자 섹션: 원래 그룹으로 되돌리고 급여·연차·이메일·퇴사일을 모두 보존(데이터 유실 방지).
+    //    (퇴사일을 비운 채 저장하면 resignedMembers에 안 들어가 → 재직으로 복귀)
+    document.querySelectorAll('#resigned-members-container .member-item').forEach(memberItem => {
+        const memberName = memberItem.querySelector('.member-name').value.trim();
+        if (!memberName) return;
+
+        const groupName = memberItem.dataset.groupName || '';
+        const memberEmail = memberItem.querySelector('.member-email').value.trim();
+        const memberWage = Number(memberItem.querySelector('.member-wage').value) || 0;
+        const memberRank = memberItem.querySelector('.member-rank')?.value || '사원';
+        const joinDate = memberItem.querySelector('.member-join-date').value;
+        const totalLeave = Number(memberItem.querySelector('.member-total-leave').value) || 0;
+        const leaveResetDate = memberItem.querySelector('.member-leave-reset-date').value;
+        const expirationDate = memberItem.querySelector('.member-leave-expiration-date').value;
+        const resignDate = memberItem.querySelector('.member-resign-date')?.value || '';
+
+        // 원래 소속 그룹으로 되돌림(그룹이 삭제됐으면 복원 생성해 데이터 보존)
+        let grp = newConfig.teamGroups.find(g => g.name === groupName);
+        if (!grp) { grp = { name: groupName || '퇴사자', members: [] }; newConfig.teamGroups.push(grp); }
+        if (!grp.members.includes(memberName)) grp.members.push(memberName);
+
+        newConfig.memberWages[memberName] = memberWage;
+        newConfig.memberRanks[memberName] = memberRank;
+        newConfig.memberLeaveSettings[memberName] = { joinDate, totalLeave, leaveResetDate, expirationDate };
+
+        if (memberEmail) {
+            const emailLower = memberEmail.toLowerCase();
+            if (emailCheck.has(emailLower) && emailCheck.get(emailLower) !== memberName) duplicateEmailError = memberEmail;
+            emailCheck.set(emailLower, memberName);
+            newConfig.memberEmails[memberName] = memberEmail;
+        }
+
+        if (resignDate) newConfig.resignedMembers[memberName] = resignDate;
+    });
+
     document.querySelectorAll('#system-accounts-container .system-account-item').forEach(item => {
         const name = item.querySelector('.sys-name').value.trim();
         const email = item.querySelector('.sys-email').value.trim();

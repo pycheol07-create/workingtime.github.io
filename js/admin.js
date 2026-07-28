@@ -367,6 +367,17 @@ function handleDynamicClicks(e) {
         e.target.closest('.permission-item').querySelectorAll('.perm-menu-checkbox').forEach(cb => cb.checked = false);
     }
 
+    else if (e.target.classList.contains('reactivate-member-btn')) {
+        // 🚪→✅ 재직 복귀: 퇴사일을 비우고 저장하면 원래 그룹의 재직 팀원으로 돌아감
+        const item = e.target.closest('.member-item');
+        if (item) {
+            const dateInput = item.querySelector('.member-resign-date');
+            if (dateInput) dateInput.value = '';
+            item.classList.add('ring-2', 'ring-green-400');
+            e.target.textContent = '↩️ 복귀 예정 (저장하세요)';
+            e.target.disabled = true;
+        }
+    }
     else if (e.target.classList.contains('delete-member-btn')) e.target.closest('.member-item')?.remove();
     else if (e.target.classList.contains('delete-team-group-btn')) e.target.closest('.team-group-card')?.remove();
     else if (e.target.classList.contains('delete-key-task-btn')) e.target.closest('.key-task-item')?.remove();
