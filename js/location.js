@@ -189,11 +189,74 @@ function updateLastUpdateDisplay(ts) {
     el.title = '마지막 데이터 최신화: ' + d.toLocaleString('ko-KR');
 }
 
+// 📂 직진·에이블리(ZG&AB 출고) 전송 기록 간략 표시 (언제/얼마나 + 상세 링크)
+function updateZikjinInfoDisplay(zMeta) {
+    const el = document.getElementById('zikjin-update-info');
+    if (!el) return;
+    if (!zMeta || !zMeta.at) {
+        el.innerHTML = '📂 ZG&AB 출고: 전송 기록 없음';
+        el.title = '직진·에이블리(ZG&AB) 출고 데이터가 아직 업로드되지 않았습니다.';
+        return;
+    }
+    const d = new Date(zMeta.at);
+    const p = n => String(n).padStart(2, '0');
+    const cnt = Number(zMeta.count || 0).toLocaleString();
+    el.innerHTML = `📂 ZG&AB 출고: ${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())} · ${cnt}건 <span style="text-decoration:underline; color:#1976d2;">상세</span>`;
+    el.title = `직진·에이블리(ZG&AB) 출고 전송: ${d.toLocaleString('ko-KR')} · ${zMeta.count}건 — 클릭 시 전송 데이터 상세 보기`;
+}
+
+// 📂 ZG&AB 출고(직진·에이블리) 전송 데이터 상세 모달
+window.openZikjinDetail = function () {
+    const existing = document.getElementById('zikjin-detail-overlay');
+    if (existing) existing.remove();
+
+    const rows = Object.entries(zikjinData).map(([code, item]) => ({
+        code,
+        name: (item['상품명'] || item['상품명칭'] || '').toString(),
+        qty: _ablyQtyFromItem(item)
+    })).sort((a, b) => b.qty - a.qty);
+    const total = rows.reduce((s, r) => s + r.qty, 0);
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const body = rows.length === 0
+        ? '<div style="padding:36px; text-align:center; color:#888;">전송된 ZG&AB 출고 데이터가 없습니다.</div>'
+        : `<table style="width:100%; border-collapse:collapse; font-size:13px;">
+             <thead><tr style="position:sticky; top:0; background:#eceff1; z-index:1;">
+               <th style="text-align:left; padding:8px;">상품코드</th>
+               <th style="text-align:left; padding:8px;">상품명</th>
+               <th style="text-align:right; padding:8px;">출고량</th>
+             </tr></thead>
+             <tbody>${rows.map(r => `<tr style="border-bottom:1px solid #eee;">
+               <td style="padding:6px 8px; font-family:monospace;">${esc(r.code)}</td>
+               <td style="padding:6px 8px;">${esc(r.name)}</td>
+               <td style="padding:6px 8px; text-align:right; font-weight:600;">${r.qty.toLocaleString()}</td>
+             </tr>`).join('')}</tbody>
+           </table>`;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'zikjin-detail-overlay';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+      <div style="background:#fff; border-radius:12px; width:100%; max-width:760px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+        <div style="padding:14px 18px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:16px; font-weight:800; color:#1976d2;">📂 ZG&AB 출고(직진·에이블리) 전송 데이터</div>
+            <div style="font-size:12px; color:#607d8b; margin-top:2px;">총 ${rows.length.toLocaleString()}개 상품 · 출고량 합계 ${total.toLocaleString()}</div>
+          </div>
+          <button onclick="document.getElementById('zikjin-detail-overlay').remove()" style="border:none; background:none; font-size:22px; cursor:pointer; color:#888;">✕</button>
+        </div>
+        <div style="overflow:auto; flex:1;">${body}</div>
+      </div>`;
+    document.body.appendChild(overlay);
+};
+
 function setupRealtimeListenerA() {
     onSnapshot(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), (docSnap) => {
         if(docSnap.exists()) {
             const conf = docSnap.data();
             updateLastUpdateDisplay(conf.lastDataUpdate);
+            updateZikjinInfoDisplay(conf.zikjinMeta);
             if (Array.isArray(conf.dupLocations)) window.__dupLocations = conf.dupLocations;
             if (conf.capacity2F) window.capacity2F = conf.capacity2F;
             if (conf.sheetUrlOrder) window.sheetUrlOrder = conf.sheetUrlOrder;
@@ -4125,7 +4188,17 @@ async function updateDatabaseB(rows, collectionName, inputElement, silent = fals
         }
         
         if (chunkCount > 0) await batch.commit();
-        
+
+        // 📌 전송 기록 메타 저장(언제/얼마나) — 직진·에이블리(ZG&AB)·주차별
+        try {
+            const metaKey = collectionName === 'ZikjinData' ? 'zikjinMeta'
+                : (collectionName === 'WeeklyData' ? 'weeklyMeta' : null);
+            if (metaKey) {
+                await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'),
+                    { [metaKey]: { at: Date.now(), count: validRows.length } }, { merge: true });
+            }
+        } catch (e) { console.warn('전송 기록 메타 저장 실패:', e); }
+
         if (!silent) alert(`✅ [${label}] 압축 저장 완료!\n총 ${validRows.length}건이 단 ${chunkCount}번의 쓰기로 반영되었습니다.`);
         
     } catch (error) { 
