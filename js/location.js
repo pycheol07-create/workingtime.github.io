@@ -190,7 +190,9 @@ function updateLastUpdateDisplay(ts) {
 }
 
 // 📂 직진·에이블리(ZG&AB 출고) 전송 기록 간략 표시 (언제/얼마나 + 상세 링크)
+let _zikjinMeta = null; // 최근 전송 메타 { at, count } — 상세 모달에서 전송 일시 표시용
 function updateZikjinInfoDisplay(zMeta) {
+    _zikjinMeta = zMeta || null;
     const el = document.getElementById('zikjin-update-info');
     if (!el) return;
     if (!zMeta || !zMeta.at) {
@@ -218,6 +220,18 @@ window.openZikjinDetail = function () {
     const total = rows.reduce((s, r) => s + r.qty, 0);
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+    // 전송 일시 (몇일 몇시)
+    let sentLine = '';
+    if (_zikjinMeta && _zikjinMeta.at) {
+        const d = new Date(_zikjinMeta.at);
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        const p = n => String(n).padStart(2, '0');
+        const sentStr = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}(${days[d.getDay()]}) ${p(d.getHours())}:${p(d.getMinutes())}`;
+        sentLine = `<div style="font-size:12.5px; color:#37474f; margin-top:4px; font-weight:700;">🕒 전송 일시: ${sentStr}</div>`;
+    } else {
+        sentLine = `<div style="font-size:12px; color:#90a4ae; margin-top:4px;">🕒 전송 일시: 기록 없음</div>`;
+    }
+
     const body = rows.length === 0
         ? '<div style="padding:36px; text-align:center; color:#888;">전송된 ZG&AB 출고 데이터가 없습니다.</div>'
         : `<table style="width:100%; border-collapse:collapse; font-size:13px;">
@@ -243,6 +257,7 @@ window.openZikjinDetail = function () {
           <div>
             <div style="font-size:16px; font-weight:800; color:#1976d2;">📂 ZG&AB 출고(직진·에이블리) 전송 데이터</div>
             <div style="font-size:12px; color:#607d8b; margin-top:2px;">총 ${rows.length.toLocaleString()}개 상품 · 출고량 합계 ${total.toLocaleString()}</div>
+            ${sentLine}
           </div>
           <button onclick="document.getElementById('zikjin-detail-overlay').remove()" style="border:none; background:none; font-size:22px; cursor:pointer; color:#888;">✕</button>
         </div>
