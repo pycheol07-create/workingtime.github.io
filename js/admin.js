@@ -359,6 +359,18 @@ function addTaskGroup() {
 }
 
 function handleDynamicClicks(e) {
+    // 🚪 퇴사자 섹션 접기/펼치기 (기본 접힘)
+    const resignedToggle = e.target.closest('#resigned-toggle-btn');
+    if (resignedToggle) {
+        const list = document.getElementById('resigned-members-container');
+        const chevron = document.getElementById('resigned-chevron');
+        if (list) {
+            const collapsed = list.classList.toggle('hidden');
+            if (chevron) chevron.textContent = collapsed ? '▶' : '▼';
+        }
+        return;
+    }
+
     // ✨ 신규: 전체 체크 / 전체 해제 버튼 로직 추가
     if (e.target.classList.contains('select-all-menu-btn')) {
         e.target.closest('.permission-item').querySelectorAll('.perm-menu-checkbox').forEach(cb => cb.checked = true);
