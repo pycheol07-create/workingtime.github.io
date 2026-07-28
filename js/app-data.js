@@ -35,7 +35,10 @@ export async function saveStateToFirestore() {
         lunchPauseExecuted: State.appState.lunchPauseExecuted || false,
         lunchResumeExecuted: State.appState.lunchResumeExecuted || false,
         confirmedZeroTasks: State.appState.confirmedZeroTasks || [],
-        dailyAttendance: State.appState.dailyAttendance || {},
+        // ⚠️ dailyAttendance는 여기서 쓰지 않는다.
+        //  출퇴근(processClockIn/Out)·퇴근취소·업무마감(saveDayDataToHistory)·알바 추가/삭제/이름변경이
+        //  각자 dailyAttendance를 직접 저장한다. 1분 자동저장이 근태 전체 객체를 merge로 덮어쓰면,
+        //  상태가 아직 갱신 안 된 탭/이전 상태가 마감된 '퇴근'을 다시 '출근'으로 되돌리는 문제가 있어 제외.
         inspectionList: State.appState.inspectionList || [] // 🔥 누락 방지를 위해 추가
     };
 
