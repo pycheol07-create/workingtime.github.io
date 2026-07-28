@@ -184,6 +184,24 @@ function renderTypeFilters() {
 
 const escapeHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
 
+// 전체 업무 목록(그룹별 + 중복 제거). taskGroups 우선, keyTasks/quantityTaskTypes/qualityCostTasks로 보충.
+function getAllTaskTypes() {
+    const cfg = State.appConfig || {};
+    const groups = [];
+    const seen = new Set();
+    (cfg.taskGroups || []).forEach(g => {
+        const tasks = (g.tasks || []).filter(t => t && !seen.has(t));
+        tasks.forEach(t => seen.add(t));
+        if (tasks.length) groups.push({ name: g.name || '기타', tasks });
+    });
+    const extras = [];
+    [...(cfg.keyTasks || []), ...(cfg.quantityTaskTypes || []), ...(cfg.qualityCostTasks || [])].forEach(t => {
+        if (t && !seen.has(t)) { seen.add(t); extras.push(t); }
+    });
+    if (extras.length) groups.push({ name: '기타', tasks: extras });
+    return { groups, all: [...seen] };
+}
+
 // ============================================================
 // 등록/수정 모달
 // ============================================================
@@ -201,16 +219,37 @@ export function openEditModal(milestoneId = null, presetData = null) {
     document.getElementById('milestone-edit-description').value = data.description || '';
     document.getElementById('milestone-edit-tags').value = (data.tags || []).join(', ');
 
-    // 영향 받는 업무 체크박스 — keyTasks 기준
+    // 영향 받는 업무 체크박스 — 전체 업무 중 그룹별로 선택
     const tasksEl = document.getElementById('milestone-edit-tasks');
-    const keyTasks = State.appConfig?.keyTasks || ['국내배송', '중국제작', '직진배송', '채우기'];
+    const { groups } = getAllTaskTypes();
     const checkedSet = new Set(data.affectedTasks || []);
-    tasksEl.innerHTML = keyTasks.map(t => `
-        <label class="inline-flex items-center gap-1.5 cursor-pointer bg-gray-100 dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-blue-900/30 px-3 py-1.5 rounded-full transition">
-            <input type="checkbox" value="${escapeHtml(t)}" ${checkedSet.has(t) ? 'checked' : ''} class="milestone-task-chk">
-            <span class="text-xs font-bold">${escapeHtml(t)}</span>
-        </label>
-    `).join('');
+    tasksEl.innerHTML = `
+        <div class="flex items-center gap-2 mb-1 w-full">
+            <button type="button" id="milestone-task-select-all" class="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline">전체 선택</button>
+            <span class="text-gray-300 dark:text-gray-600">|</span>
+            <button type="button" id="milestone-task-clear-all" class="text-[11px] font-bold text-gray-500 hover:underline">전체 해제</button>
+            <span class="text-[10px] text-gray-400 ml-auto">비워두면 '전체 업무' 기준으로 비교됩니다</span>
+        </div>
+        ${groups.map(g => `
+            <div class="w-full mb-1.5">
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">${escapeHtml(g.name)}</div>
+                <div class="flex flex-wrap gap-2">
+                    ${g.tasks.map(t => `
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer bg-gray-100 dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-blue-900/30 px-3 py-1.5 rounded-full transition">
+                            <input type="checkbox" value="${escapeHtml(t)}" ${checkedSet.has(t) ? 'checked' : ''} class="milestone-task-chk">
+                            <span class="text-xs font-bold">${escapeHtml(t)}</span>
+                        </label>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('')}
+    `;
+    tasksEl.querySelector('#milestone-task-select-all')?.addEventListener('click', () => {
+        tasksEl.querySelectorAll('.milestone-task-chk').forEach(c => { c.checked = true; });
+    });
+    tasksEl.querySelector('#milestone-task-clear-all')?.addEventListener('click', () => {
+        tasksEl.querySelectorAll('.milestone-task-chk').forEach(c => { c.checked = false; });
+    });
 
     document.getElementById('milestone-edit-delete-btn').classList.toggle('hidden', !existing);
 
@@ -283,8 +322,10 @@ function computeKpiWindow(startDate, endDate, taskFilter = []) {
     let totalQty = 0;
     let totalCost = 0;
     let dayCount = 0;
+    let recordCount = 0; // 업무 기록 건수
     const memberSet = new Set();
-    const perTaskAgg = {}; // task → { duration, qty }
+    const memberDaySet = new Set(); // 인원×일(연인원) 계산용
+    const perTaskAgg = {}; // task → { duration, qty, count }
 
     days.forEach(day => {
         const records = day.workRecords || [];
@@ -296,10 +337,12 @@ function computeKpiWindow(startDate, endDate, taskFilter = []) {
                 if (!matched) return;
             }
             totalDuration += (r.duration || 0);
-            if (r.member) memberSet.add(r.member);
+            recordCount++;
+            if (r.member) { memberSet.add(r.member); memberDaySet.add(`${day.id}__${r.member}`); }
             const taskName = r.task || r.taskType || '기타';
-            if (!perTaskAgg[taskName]) perTaskAgg[taskName] = { duration: 0, qty: 0 };
+            if (!perTaskAgg[taskName]) perTaskAgg[taskName] = { duration: 0, qty: 0, count: 0 };
             perTaskAgg[taskName].duration += (r.duration || 0);
+            perTaskAgg[taskName].count += 1;
             dayHasData = true;
         });
         const qtyMap = day.taskQuantities || {};
@@ -311,7 +354,7 @@ function computeKpiWindow(startDate, endDate, taskFilter = []) {
             }
             totalQty += num;
             const key = k;
-            if (!perTaskAgg[key]) perTaskAgg[key] = { duration: 0, qty: 0 };
+            if (!perTaskAgg[key]) perTaskAgg[key] = { duration: 0, qty: 0, count: 0 };
             perTaskAgg[key].qty += num;
             dayHasData = true;
         });
@@ -320,15 +363,20 @@ function computeKpiWindow(startDate, endDate, taskFilter = []) {
 
     const hours = totalDuration / 60;
     const uph = hours > 0 ? totalQty / hours : 0;
+    const manDays = memberDaySet.size; // 연인원(인·일)
 
     return {
         dayCount,
         totalDuration,
         totalQty,
         uph,
+        recordCount,
+        totalHours: hours,
+        manDays,
         memberCount: memberSet.size,
         avgQtyPerDay: dayCount > 0 ? totalQty / dayCount : 0,
         avgDurationPerDay: dayCount > 0 ? totalDuration / dayCount : 0,
+        avgHoursPerManDay: manDays > 0 ? hours / manDays : 0, // 1인당 하루 평균 작업시간(시간)
         perTaskAgg
     };
 }
@@ -393,6 +441,14 @@ function renderCompareResults() {
         const good = (betterIfHigh && v > 0) || (!betterIfHigh && v < 0);
         return good ? '✅' : '⚠️';
     };
+    // 시간/건수 등 그 자체로 좋고나쁨을 단정하기 어려운 지표 — 중립 색으로 표기
+    const neutralStat = (label, bStr, aStr, chg) => `
+        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800">
+            <div class="text-[10px] text-gray-500 font-bold">${label}</div>
+            <div class="text-sm text-gray-700 dark:text-gray-200 font-mono">${bStr} → ${aStr}</div>
+            <div class="text-xs text-gray-400">${fmtPct(chg)}</div>
+        </div>
+    `;
 
     const tasksDisplay = taskFilter.length > 0 ? taskFilter.join(', ') : '전체 업무';
 
@@ -406,6 +462,8 @@ function renderCompareResults() {
             const aUph = aAgg.duration > 0 ? aAgg.qty / (aAgg.duration / 60) : 0;
             const bAvg = before.dayCount > 0 ? bAgg.qty / before.dayCount : 0;
             const aAvg = after.dayCount > 0 ? aAgg.qty / after.dayCount : 0;
+            const bHours = bAgg.duration / 60; // 기간 총 작업시간(시간)
+            const aHours = aAgg.duration / 60;
             taskRows.push(`
                 <tr class="border-b border-gray-100 dark:border-gray-700">
                     <td class="px-3 py-2 font-bold text-gray-800 dark:text-gray-100">${escapeHtml(t)}</td>
@@ -415,6 +473,9 @@ function renderCompareResults() {
                     <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-300">${Math.round(bAvg).toLocaleString()}</td>
                     <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-300">${Math.round(aAvg).toLocaleString()}</td>
                     <td class="px-3 py-2 text-right ${colorOf(pctChange(bAvg, aAvg))}">${fmtPct(pctChange(bAvg, aAvg))} ${arrow(pctChange(bAvg, aAvg))}</td>
+                    <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400 border-l border-gray-100 dark:border-gray-700">${bHours.toFixed(1)}h</td>
+                    <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">${aHours.toFixed(1)}h</td>
+                    <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">${fmtPct(pctChange(bHours, aHours))}</td>
                 </tr>
             `);
         });
@@ -457,10 +518,26 @@ function renderCompareResults() {
             </div>
         </div>
 
+        <div class="mt-3 text-[11px] text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 leading-relaxed">
+            💡 <b>UPH (Units Per Hour · 시간당 처리량)</b> = 총 처리량 ÷ 총 작업시간(시간). 투입한 시간 대비 얼마나 처리했는지를 나타냅니다. 인원 수나 근무시간이 달라도 <b>효율을 공정하게 비교</b>할 수 있어 개선 효과를 판단하는 핵심 지표입니다. <b>값이 높을수록 좋습니다.</b>
+        </div>
+
+        <div class="mt-4">
+            <div class="text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-2">⏱️ 근무 시간 데이터 (${escapeHtml(tasksDisplay)} 기준 · 전 기간 합계)</div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                ${neutralStat('총 작업시간', before.totalHours.toFixed(1) + 'h', after.totalHours.toFixed(1) + 'h', pctChange(before.totalHours, after.totalHours))}
+                ${neutralStat('작업 기록 건수', before.recordCount.toLocaleString(), after.recordCount.toLocaleString(), pctChange(before.recordCount, after.recordCount))}
+                ${neutralStat('투입 연인원 (인·일)', before.manDays.toLocaleString(), after.manDays.toLocaleString(), pctChange(before.manDays, after.manDays))}
+                ${neutralStat('1인 하루평균 작업시간', before.avgHoursPerManDay.toFixed(1) + 'h', after.avgHoursPerManDay.toFixed(1) + 'h', pctChange(before.avgHoursPerManDay, after.avgHoursPerManDay))}
+            </div>
+            <div class="text-[10px] text-gray-400 mt-1.5">※ 총 작업시간 = 영향 업무 기록들의 작업시간 합계 · 투입 연인원 = (해당 업무를 한 사람 × 해당 일수)의 합 · 건수·시간 자체는 물량에 비례하므로 효율은 UPH로 판단하세요.</div>
+        </div>
+
         ${taskRows.length > 0 ? `
             <div class="mt-5 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                 <div class="bg-gray-100 dark:bg-gray-800 px-3 py-2 text-xs font-bold text-gray-700 dark:text-gray-200">업무별 상세 (영향: ${escapeHtml(tasksDisplay)})</div>
-                <table class="w-full text-xs">
+                <div class="overflow-x-auto">
+                <table class="min-w-[760px] w-full text-xs">
                     <thead class="bg-gray-50 dark:bg-gray-800/50 text-gray-500">
                         <tr>
                             <th class="px-3 py-2 text-left">업무</th>
@@ -470,16 +547,99 @@ function renderCompareResults() {
                             <th class="px-3 py-2 text-right">일평균(전)</th>
                             <th class="px-3 py-2 text-right">일평균(후)</th>
                             <th class="px-3 py-2 text-right">처리량 변화</th>
+                            <th class="px-3 py-2 text-right border-l border-gray-200 dark:border-gray-600">작업시간(전)</th>
+                            <th class="px-3 py-2 text-right">작업시간(후)</th>
+                            <th class="px-3 py-2 text-right">시간 변화</th>
                         </tr>
                     </thead>
                     <tbody>${taskRows.join('')}</tbody>
                 </table>
+                </div>
             </div>
-        ` : '<div class="mt-5 text-xs text-gray-500 italic">※ 영향 받는 업무를 지정하면 업무별 세부 비교가 표시됩니다.</div>'}
+        ` : '<div class="mt-5 text-xs text-gray-500 italic">※ 영향 받는 업무를 지정하면 업무별 세부 비교가 표시됩니다. (지정하지 않으면 전체 업무 기준으로 종합 비교만 표시됩니다.)</div>'}
 
-        <div class="mt-5 text-[11px] text-gray-500 leading-relaxed">
+        ${buildMilestoneAssessment(before, after, w)}
+
+        <div class="mt-4 text-[11px] text-gray-500 leading-relaxed">
             ℹ️ 비교 기간: 기준일 전 ${w}일 ↔ 후 ${w}일 (관측 일수가 적으면 ⚠️ 통계적 노이즈 가능성).<br>
-            ℹ️ "UPH 변화 ✅"는 시간당 처리량이 증가했음을 의미합니다. "작업시간 ✅"은 일평균 작업시간이 감소했음을 의미합니다.
+            ℹ️ "UPH 변화 ✅"는 시간당 처리량이 증가했음을, "작업시간 ✅"은 일평균 작업시간이 감소했음을 의미합니다.
+        </div>
+    `;
+}
+
+// 데이터 기반 자동 해석·총평·진행방향 의견 생성
+function buildMilestoneAssessment(before, after, w) {
+    const pct = (b, a) => b === 0 ? (a > 0 ? Infinity : 0) : ((a - b) / b) * 100;
+    const uphChange = pct(before.uph, after.uph);
+    const qtyChange = pct(before.avgQtyPerDay, after.avgQtyPerDay);
+    const durChange = pct(before.avgDurationPerDay, after.avgDurationPerDay);
+    const minDays = Math.max(3, Math.floor(w / 4));
+    const enough = before.dayCount >= minDays && after.dayCount >= minDays;
+
+    const f1 = (v) => !isFinite(v) ? '∞' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+    const near = (v) => isFinite(v) && Math.abs(v) < 3;
+
+    // 📖 데이터 해석
+    const interp = [];
+    if (!isFinite(uphChange)) interp.push('이전(Before) 처리량 데이터가 없어 UPH 비교가 불가능합니다.');
+    else if (near(uphChange)) interp.push(`시간당 처리량(UPH)은 사실상 변화가 없습니다 (${f1(uphChange)}). 효율 자체는 유지되었습니다.`);
+    else if (uphChange > 0) interp.push(`시간당 처리량(UPH)이 <b>${f1(uphChange)}</b> 향상됐습니다. 같은 투입 시간으로 더 많은 물량을 처리했다는 뜻입니다.`);
+    else interp.push(`시간당 처리량(UPH)이 <b>${f1(uphChange)}</b> 하락했습니다. 동일 시간 대비 처리 물량이 줄었습니다.`);
+
+    if (isFinite(qtyChange) && !near(qtyChange)) {
+        interp.push(qtyChange > 0 ? `일평균 처리량은 ${f1(qtyChange)} 늘었습니다.` : `일평균 처리량은 ${f1(qtyChange)} 줄었습니다.`);
+    }
+    if (isFinite(durChange) && !near(durChange)) {
+        interp.push(durChange > 0
+            ? `일평균 작업시간이 ${f1(durChange)} 증가했습니다 — 처리량 증가가 순수 효율 개선인지, 시간을 더 써서인지 UPH와 함께 봐야 합니다.`
+            : `일평균 작업시간이 ${f1(durChange)} 감소했습니다 — 더 적은 시간으로 운영했습니다.`);
+    }
+    if (near(uphChange) && isFinite(qtyChange) && qtyChange > 3) {
+        interp.push('처리량은 늘었지만 UPH가 제자리라면, 효율 개선보다는 투입(인원·시간) 증가에 따른 물량 증가일 가능성이 큽니다.');
+    }
+
+    // 🧭 총평 + 🚀 진행방향
+    let tone, verdict, direction;
+    if (!enough) {
+        tone = 'gray';
+        verdict = '⏳ 데이터가 부족해 아직 효과를 단정하기 어렵습니다.';
+        direction = `관측 일수를 더 확보한 뒤 재평가하세요. (현재 Before ${before.dayCount}일 / After ${after.dayCount}일, 권장 최소 각 ${minDays}일)`;
+    } else if (isFinite(uphChange) && uphChange >= 3) {
+        tone = 'green';
+        verdict = '✅ 긍정적 — 효율(UPH) 개선이 확인됩니다.';
+        direction = '변경을 유지하고, 효과가 크면 유사 업무·타 파트로 확대 적용을 검토하세요. 개선이 지속되는지 30일 윈도우로도 재확인하면 좋습니다.';
+    } else if (isFinite(uphChange) && uphChange <= -3) {
+        tone = 'red';
+        verdict = '⚠️ 부정적 — 효율(UPH)이 하락했습니다.';
+        direction = '이 변경 외 다른 요인(물량 급증, 인력 공백, 적응기 등)이 있었는지 먼저 점검하고, 원인이 이 변경이라면 롤백 또는 보완책을 검토하세요.';
+    } else if (isFinite(qtyChange) && qtyChange >= 3) {
+        tone = 'amber';
+        verdict = '➖ 효율은 유지, 처리량은 증가 — 투입 증가 효과로 보입니다.';
+        direction = '효율(UPH) 개선이 목표라면 이 변경만으로는 부족합니다. 투입 대비 산출을 함께 보고 추가 개선안을 병행하세요.';
+    } else {
+        tone = 'gray';
+        verdict = '➖ 효과 미미 — 뚜렷한 변화가 관측되지 않습니다.';
+        direction = '관측 기간을 늘려 지연 효과를 확인하거나, 다른 개선 변수와 함께 재시도하세요. 변경에 비용이 있었다면 유지 여부를 재검토하세요.';
+    }
+
+    const toneCls = {
+        green: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200',
+        red:   'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200',
+        amber: 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200',
+        gray:  'bg-gray-50 dark:bg-gray-800/50 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+    }[tone];
+
+    return `
+        <div class="mt-5 border ${toneCls} rounded-lg p-4">
+            <div class="text-sm font-extrabold mb-1">🧭 총평</div>
+            <div class="text-sm font-bold mb-3">${verdict}</div>
+            <div class="text-xs font-bold opacity-80 mb-1">📖 데이터 해석</div>
+            <ul class="list-disc list-inside space-y-1 text-xs leading-relaxed mb-3">
+                ${interp.map(t => `<li>${t}</li>`).join('')}
+            </ul>
+            <div class="text-xs font-bold opacity-80 mb-1">🚀 진행 방향 의견</div>
+            <div class="text-xs leading-relaxed">${direction}</div>
+            <div class="text-[10px] opacity-60 mt-2">※ 자동 생성된 참고 의견입니다. 물량 특성·인력 변동 등 현장 상황을 함께 고려해 최종 판단하세요.</div>
         </div>
     `;
 }
