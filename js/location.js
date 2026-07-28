@@ -117,11 +117,18 @@ window.hideLoading = function() {
 function setupRealtimeListenerB() {
     onSnapshot(collection(db, 'ZikjinData'), (snapshot) => {
         zikjinData = {};
-        snapshot.forEach(docSnap => { 
+        let maxAt = 0, rowCount = 0;
+        snapshot.forEach(docSnap => {
             let data = docSnap.data();
+            // 청크에 저장된 updatedAt으로 '전송 일시' 역산 (메타 저장 이전 업로드분도 표시)
+            if (data.updatedAt) {
+                const t = data.updatedAt.toMillis ? data.updatedAt.toMillis() : new Date(data.updatedAt).getTime();
+                if (t && t > maxAt) maxAt = t;
+            }
             if(data.dataStr) {
                 try {
                     let chunk = JSON.parse(data.dataStr);
+                    rowCount += chunk.length;
                     chunk.forEach(row => {
                         let code = (row['상품코드'] || row['어드민상품코드'] || row['대표상품코드'] || row['품목코드'] || row['바코드'] || row['상품번호']);
                         if(code) zikjinData[code] = row;
@@ -129,6 +136,8 @@ function setupRealtimeListenerB() {
                 } catch(e){}
             }
         });
+        _zikjinDerivedMeta = maxAt > 0 ? { at: maxAt, count: rowCount } : null;
+        updateZikjinInfoDisplay();
         applyFiltersAndSort();
     }, (error) => console.error("직진배송 오류:", error));
 
@@ -190,9 +199,13 @@ function updateLastUpdateDisplay(ts) {
 }
 
 // 📂 직진·에이블리(ZG&AB 출고) 전송 기록 간략 표시 (언제/얼마나 + 상세 링크)
-let _zikjinMeta = null; // 최근 전송 메타 { at, count } — 상세 모달에서 전송 일시 표시용
-function updateZikjinInfoDisplay(zMeta) {
-    _zikjinMeta = zMeta || null;
+let _zikjinMeta = null;         // 상세 모달에서 쓰는 '유효' 메타
+let _zikjinConfigMeta = null;   // INFO_CONFIG.zikjinMeta (메타 기능 이후 업로드분)
+let _zikjinDerivedMeta = null;  // ZikjinData 청크의 updatedAt/건수로 역산(메타 이전 업로드분 대응)
+function updateZikjinInfoDisplay() {
+    // 명시적 메타 우선, 없으면 데이터에서 역산한 메타로 폴백
+    const zMeta = (_zikjinConfigMeta && _zikjinConfigMeta.at) ? _zikjinConfigMeta : _zikjinDerivedMeta;
+    _zikjinMeta = (zMeta && zMeta.at) ? zMeta : null;
     const el = document.getElementById('zikjin-update-info');
     if (!el) return;
     if (!zMeta || !zMeta.at) {
@@ -271,7 +284,8 @@ function setupRealtimeListenerA() {
         if(docSnap.exists()) {
             const conf = docSnap.data();
             updateLastUpdateDisplay(conf.lastDataUpdate);
-            updateZikjinInfoDisplay(conf.zikjinMeta);
+            _zikjinConfigMeta = conf.zikjinMeta || null;
+            updateZikjinInfoDisplay();
             if (Array.isArray(conf.dupLocations)) window.__dupLocations = conf.dupLocations;
             if (conf.capacity2F) window.capacity2F = conf.capacity2F;
             if (conf.sheetUrlOrder) window.sheetUrlOrder = conf.sheetUrlOrder;
