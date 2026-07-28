@@ -70,6 +70,7 @@ export function setupFormAttendanceListeners() {
                     State.appState.dateBasedOnLeaveMembers = State.appState.dateBasedOnLeaveMembers.filter(l => !idsToDelete.includes(l.id));
 
                     renderLeaveTypeModalOptions(State.LEAVE_TYPES, 'status');
+                    if (typeof window.__refreshUpcomingLeave === 'function') window.__refreshUpcomingLeave();
                     showToast('삭제되었습니다.');
                 } catch(err) {
                     console.error("삭제 실패:", err);
@@ -201,12 +202,15 @@ export function setupFormAttendanceListeners() {
                     if (isEdit) {
                         showToast('수정되었습니다.');
                         renderLeaveTypeModalOptions(State.LEAVE_TYPES, 'status');
+                        if (typeof window.__refreshUpcomingLeave === 'function') window.__refreshUpcomingLeave();
                     } else {
                         if (type === '연차') showToast(`${memberName}님 ${diffDays}일(평일기준) 연차 처리 완료.`);
                         else showToast(`${memberName}님 ${type} 처리 완료.`);
                     }
                     document.getElementById('leave-start-date-input').value = '';
                     document.getElementById('leave-end-date-input').value = '';
+                    // 예정 근태 목록 즉시 갱신(추가/수정 모두)
+                    if (typeof window.__refreshUpcomingLeave === 'function') window.__refreshUpcomingLeave();
 
                 } catch(err) {
                     console.error("연차 설정 저장 실패:", err);

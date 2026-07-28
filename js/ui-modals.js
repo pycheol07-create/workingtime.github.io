@@ -504,16 +504,22 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             const progressBadge = isInProgress ? '<span class="text-[9px] text-orange-700 font-bold bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">진행중</span>' : '';
             const typeStyle  = TYPE_STYLE[item.type] || 'bg-gray-50 text-gray-700 border-gray-200';
             upcomingListEl.innerHTML += `
-                <li class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100">
+                <li class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100 gap-2">
                     <div class="flex items-center gap-2 flex-1 min-w-0">
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${typeStyle}">${item.type}</span>
                         <span class="text-xs font-medium text-gray-700 truncate">${rangeText}</span>
                         ${progressBadge}
                     </div>
-                    <span class="text-[10px] text-gray-400 shrink-0 ml-2">${days}일</span>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <span class="text-[10px] text-gray-400 mr-0.5">${days}일</span>
+                        <button type="button" class="btn-edit-leave-history text-[11px] font-bold text-blue-600 hover:text-blue-800 px-1.5 py-0.5 rounded hover:bg-blue-50" data-id="${item.id}">수정</button>
+                        <button type="button" class="btn-delete-leave-history text-[11px] font-bold text-red-500 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50" data-ids="${item.id}">삭제</button>
+                    </div>
                 </li>`;
         });
     };
+    // 삭제·수정 후 목록 즉시 갱신용으로 노출(모달 열려있는 동안만 유효)
+    window.__refreshUpcomingLeave = updateUpcomingLeaveView;
 
     const activateTab = (tab) => {
         if (tab === 'status') {
